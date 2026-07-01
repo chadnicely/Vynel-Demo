@@ -1,0 +1,32 @@
+{
+  "name": "@vynel/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./app": "./src/app.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@hono/zod-validator": "^0.4.3",
+    "@vynel/core": "workspace:*",
+    "@vynel/db": "workspace:*",
+    "hono": "^4.6.0",
+    "hono-openapi": "^0.4.0",
+    "pino": "^9.5.0",
+    "zod": "^3.23.0",
+    "zod-openapi": "^4.0.0"
+  },
+  "devDependencies": {
+    "@vynel/testing": "workspace:*",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -3,9 +3,14 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# Build-script approval (pnpm 11). Every dep that ships a build script must be listed here
-# (true = run its build, false = skip) or pnpm fails with ERR_PNPM_IGNORED_BUILDS.
+# Build-script approval. NOTE (pnpm 11.0.0 quirk): this pnpm only honors `true` here —
+# `false` and `ignoredBuiltDependencies` do NOT silence ERR_PNPM_IGNORED_BUILDS (fixed in a
+# newer pnpm; bumping the pinned version is a follow-up). So every build-script dep is `true`.
+# The native prebuilts (onnxruntime/sharp) are one-time, cached, and harmless.
 allowBuilds:
   better-sqlite3: true # SQLite bindings — @vynel/db
   esbuild: true # bundler used by vitest
-  protobufjs: true # transitive via @huggingface/transformers; build is a benign no-op
+  protobufjs: true # transitive via @huggingface/transformers
+  onnxruntime-node: true # native ONNX runtime (real embeddings backend) — prebuilt binaries
+  sharp: true # image processing — prebuilt
+  unrs-resolver: true # eslint resolver speedup — prebuilt
