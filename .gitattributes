@@ -1,0 +1,19 @@
+# Normalize line endings — LF in the repo, regardless of OS.
+* text=auto eol=lf
+
+# Binaries (never touch EOL)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.onnx binary
+*.node binary
+*.wasm binary
+
+# Generated / vendored
+pnpm-lock.yaml linguist-generated=true -diff

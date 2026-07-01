@@ -1,0 +1,15 @@
+# Vynel workspace map. Packages fill in as we move code (see docs/architecture.md §10).
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "scripts"
+
+# Per-package build-script approval (pnpm 11+). Direct native/bundler deps we own → true;
+# transitive/optional native builds → false. Adding `true` is a reviewed decision (runs with FS access).
+allowBuilds:
+  better-sqlite3: true # SQLite bindings — @vynel/db
+  esbuild: true # bundler — vite + vue-tsc pipeline
+  vue-demi: true # Pinia compat shim
+  onnxruntime-node: false # @huggingface/transformers — flip only if the native path is needed
+  sharp: false
+  unrs-resolver: false
