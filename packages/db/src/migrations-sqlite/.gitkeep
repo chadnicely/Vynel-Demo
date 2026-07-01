@@ -1,0 +1,3 @@
+# drizzle-kit emits SQL migration files here in /build-domain users TDD step 6.
+# Phase 1 only — the migrations-postgres/ folder lands when Phase 2 cloud
+# work begins, per `.claude/rules/data-standard.md` "Migrations".

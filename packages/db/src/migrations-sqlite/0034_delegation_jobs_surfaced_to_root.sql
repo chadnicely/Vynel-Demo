@@ -1,0 +1,1 @@
+ALTER TABLE `delegation_jobs` ADD `surfaced_to_root_at` integer;

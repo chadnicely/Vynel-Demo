@@ -1,0 +1,5 @@
+# Fixture files for the parser tests land here in /build-domain.
+# Each parser test reads its corresponding fixture
+# (`sample.md`, `sample.pdf`, `sample.docx`, `sample.html`,
+# `sample.csv`, `sample.json`, `sample.txt`) and asserts the
+# parsed output.

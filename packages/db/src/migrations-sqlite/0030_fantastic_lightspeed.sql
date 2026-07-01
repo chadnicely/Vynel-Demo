@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `uniq_root_sessions_voice_user` ON `root_sessions` (`user_id`) WHERE "root_sessions"."scope" = 'voice' AND "root_sessions"."deleted_at" IS NULL;

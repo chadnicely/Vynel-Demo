@@ -1,0 +1,4 @@
+name,email,role
+Alice,alice@acme.com,engineer
+Bob,bob@acme.com,designer
+,empty@acme.com,

@@ -1,0 +1,272 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1779327939392,
+      "tag": "0000_motionless_madrox",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1779332222575,
+      "tag": "0001_wet_scarlet_witch",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1779332315539,
+      "tag": "0002_mixed_mach_iv",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1779414281735,
+      "tag": "0003_dashing_harry_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1779496315455,
+      "tag": "0004_adorable_fat_cobra",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1779496373872,
+      "tag": "0005_chat_messages_fts",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1779496937680,
+      "tag": "0006_chat_fts_trigger_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1779559869422,
+      "tag": "0007_milky_meltdown",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1779654020256,
+      "tag": "0008_wild_polaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1779654020257,
+      "tag": "0009_memory_entries_fts",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1779654020258,
+      "tag": "0010_memory_entries_vec",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1779665898048,
+      "tag": "0011_known_scarlet_spider",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1779665898049,
+      "tag": "0012_knowledge_chunks_fts",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1779665898050,
+      "tag": "0013_knowledge_chunks_vec",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1779740811455,
+      "tag": "0014_skinny_eddie_brock",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1779741374802,
+      "tag": "0015_lush_wolfpack",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1779839345842,
+      "tag": "0016_knowledge_memory_user_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1780010353324,
+      "tag": "0017_burly_arachne",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1780609985296,
+      "tag": "0018_wooden_hemingway",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1780657854370,
+      "tag": "0019_quick_paper_doll",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1780694937783,
+      "tag": "0020_onboarding_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1781831113030,
+      "tag": "0021_chat_sessions_model",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1781902593780,
+      "tag": "0022_workspace_capabilities",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1781925264015,
+      "tag": "0023_drop_knowledge_is_identity_file",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1781929672280,
+      "tag": "0024_memory_category_section",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1781988346637,
+      "tag": "0025_lovely_matthew_murdock",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1782005313344,
+      "tag": "0026_narrow_bloodscream",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1782074577964,
+      "tag": "0027_chat_sessions_visibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1782074918264,
+      "tag": "0028_workspaces_continue_enabled",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1782153650180,
+      "tag": "0029_root_global_scope_nullable_workspace",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1782321920345,
+      "tag": "0030_fantastic_lightspeed",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1782440653180,
+      "tag": "0031_chat_messages_source_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1782460767714,
+      "tag": "0032_delegation_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1782496734034,
+      "tag": "0033_chat_messages_partial_session_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1782506963436,
+      "tag": "0034_delegation_jobs_surfaced_to_root",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1782517872697,
+      "tag": "0035_delegation_jobs_origin_channel",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1782531376974,
+      "tag": "0036_workspaces_manager_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1782701165548,
+      "tag": "0037_legal_fallen_one",
+      "breakpoints": true
+    }
+  ]
+}

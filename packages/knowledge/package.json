@@ -1,0 +1,26 @@
+{
+  "name": "@vynel/knowledge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vynel/db": "workspace:*",
+    "@vynel/embeddings": "workspace:*",
+    "@vynel/errors": "workspace:*",
+    "@vynel/indexer": "workspace:*",
+    "@vynel/logger": "workspace:*",
+    "chokidar": "^4.0.1"
+  },
+  "devDependencies": {
+    "@vynel/testing": "workspace:*",
+    "typescript": "^5.6.0"
+  }
+}

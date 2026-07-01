@@ -1,0 +1,65 @@
+// `schedules` table for the `schedules` domain — one row per scheduled
+// trigger (cron expression, prompt template, destination, enabled flag,
+// cached next-fire time). Has NO `deletedAt`: `deleteSchedule`
+// hard-deletes and cascades to `schedule_runs` (decisions.md D11).
+//
+// Spec: `docs/blueprints/schedules/blueprint.md §3.1`.
+//
+// Schema files import from `@vynel/db/dialect` ONLY — never from
+// `drizzle-orm/*-core`. `userId` is the tenant boundary; `workspaceId` is
+// the domain scope. `channelId` is a LOOSE `text()` cross-domain ref (NO FK
+// to channels — D7); the file does NOT import channels' schema. Indexes are
+// declared via the `index()` helper in the second arg (never raw CREATE
+// INDEX). Phase 1 SYNC repo discipline applies.
+
+import { table, id, text, timestamp, boolean, integer, index } from '@vynel/db/dialect'
+import { users } from '../users/users.js'
+import { workspaces } from '../workspaces/workspaces.js'
+
+export type ScheduleTemplateKind =
+  | 'morning-briefing'
+  | 'weekly-summary'
+  | 'email-watch'
+  | 'custom'
+  | 'reminder'
+
+export type ScheduleDestinationKind =
+  | 'chat-only' // result lives only in the chat session
+  | 'chat-and-channel' // result also delivered to a connected channel (via the outbox event)
+
+export const schedules = table(
+  'schedules',
+  {
+    id: id().primaryKey(),
+    userId: id().references(() => users.id, { onDelete: 'cascade' }),
+    workspaceId: id().references(() => workspaces.id, { onDelete: 'cascade' }),
+    templateKind: text().$type<ScheduleTemplateKind>().notNull(),
+    displayName: text().notNull(), // user-editable; defaults to the template label
+    cronExpression: text().notNull(), // e.g. '0 9 * * MON'
+    timezone: text().notNull(), // IANA tz, e.g. 'America/Los_Angeles'
+    promptTemplate: text().notNull(), // {{placeholders}} resolved at fire time
+    destinationKind: text().$type<ScheduleDestinationKind>().notNull(),
+    // Loose cross-domain ref — NOT a FK, and the file does NOT import
+    // channels' schema. A deleted channel leaves a dangling id here; the
+    // channels consumer drops it quietly (D7). Same treatment as
+    // schedule_runs.chatSessionId.
+    channelId: text(), // null if no channel destination
+    catchUpOnMiss: boolean().notNull(),
+    isEnabled: boolean().notNull(),
+    approvalTimeoutMsOverride: integer(), // optional per-schedule approval timeout
+    lastFiredAt: timestamp(), // most recent successful fire
+    nextScheduledFireAt: timestamp(), // cached; advanced ONLY by the poll claim (§5.6)
+    createdAt: timestamp().notNull(),
+    updatedAt: timestamp().notNull(),
+  },
+  (t) => ({
+    userWorkspaceIdx: index('idx_schedules_user_workspace').on(t.userId, t.workspaceId),
+    enabledNextFireIdx: index('idx_schedules_enabled_next_fire').on(
+      t.isEnabled,
+      t.nextScheduledFireAt,
+    ),
+  }),
+)
+
+export type Schedule = typeof schedules.$inferSelect
+export type NewSchedule = typeof schedules.$inferInsert

@@ -1,0 +1,23 @@
+// Root schema barrel. Aggregates every domain's schema barrel so
+// `drizzle.sqlite.config.ts` (and Phase 2's `drizzle.postgres.config.ts`)
+// can pick up every table from a single glob, and the schema-parity
+// guard can verify nothing is missed. Per
+// `.claude/rules/structure-standard.md` "packages/db/src/schema/".
+
+export * from './users/index.js'
+export * from './workspaces/index.js'
+export * from './providers/index.js'
+export * from './chat/index.js'
+export * from './approvals/index.js'
+export * from './memory/index.js'
+export * from './knowledge/index.js'
+export * from './skills/index.js'
+export * from './files/index.js'
+export * from './channels/index.js'
+export * from './schedules/index.js'
+export * from './onboarding/index.js'
+export * from './capabilities/index.js'
+export * from './agents/index.js'
+export * from './session-continuity/index.js'
+export * from './orchestration/index.js'
+export * from './_shared/index.js'

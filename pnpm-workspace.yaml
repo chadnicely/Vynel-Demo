@@ -2,14 +2,10 @@
 packages:
   - "apps/*"
   - "packages/*"
-  - "scripts"
 
-# Per-package build-script approval (pnpm 11+). Direct native/bundler deps we own → true;
-# transitive/optional native builds → false. Adding `true` is a reviewed decision (runs with FS access).
+# Build-script approval (pnpm 11). Every dep that ships a build script must be listed here
+# (true = run its build, false = skip) or pnpm fails with ERR_PNPM_IGNORED_BUILDS.
 allowBuilds:
   better-sqlite3: true # SQLite bindings — @vynel/db
-  esbuild: true # bundler — vite + vue-tsc pipeline
-  vue-demi: true # Pinia compat shim
-  onnxruntime-node: false # @huggingface/transformers — flip only if the native path is needed
-  sharp: false
-  unrs-resolver: false
+  esbuild: true # bundler used by vitest
+  protobufjs: true # transitive via @huggingface/transformers; build is a benign no-op

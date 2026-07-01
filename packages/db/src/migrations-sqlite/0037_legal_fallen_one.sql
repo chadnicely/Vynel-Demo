@@ -1,0 +1,1 @@
+ALTER TABLE `chat_sessions` ADD `scope` text DEFAULT 'workspace' NOT NULL;
