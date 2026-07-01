@@ -5,9 +5,10 @@ Vynel is a **desktop AI assistant for non-technical people** that wraps Claude C
 an approval card on every irreversible action, channels (Telegram, Voice/Jarvis), scheduled tasks.
 
 **We are rebuilding this repo by moving proven, tested code out of the old project module-by-module
-into a clean modular-monolith shape — never a rewrite, never a big-bang.** Read `docs/vision.md`
-(what we're building), `docs/architecture.md` (the shape), and `docs/restructure-research.md` (where
-the code stands) before writing or moving anything.
+into a clean modular-monolith shape — never a rewrite, never a big-bang.** **Resuming a session? Read
+`.claude/STATE.md` first** — current position + the next step. Then `docs/vision.md` (what we're
+building), `docs/architecture.md` (the shape), and `docs/restructure-research.md` (where the code
+stands) before writing or moving anything.
 
 ---
 
