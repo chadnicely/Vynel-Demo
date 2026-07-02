@@ -13,9 +13,9 @@ export interface RunMigrationsOptions {
 
 export function runMigrations(db: Database, options: RunMigrationsOptions): void {
   // Disable FK enforcement at the CONNECTION level for the migration run, then
-  // restore it. WHY: a table-rebuild migration (create `__new_x` → copy → DROP
-  // old `x` → rename; e.g. 0029's `chat_sessions` nullable-`workspaceId`
-  // rebuild) DROPs the old table — and with `foreign_keys` ON, SQLite performs
+  // restore it. WHY: a table-rebuild migration — the `create __new_x → copy →
+  // DROP old x → rename` pattern drizzle-kit emits for a column drop or type
+  // change — DROPs the old table, and with `foreign_keys` ON, SQLite performs
   // an implicit cascade-delete into child tables (`chat_messages` is
   // `ON DELETE cascade`) DURING the DROP, which fires their FTS5 sync triggers
   // mid-DROP → `SQLITE_LOCKED: database table is locked` on a POPULATED db.

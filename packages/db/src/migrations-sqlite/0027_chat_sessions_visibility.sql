@@ -1,1 +1,0 @@
-ALTER TABLE `chat_sessions` ADD `visibility` text DEFAULT 'listed' NOT NULL;

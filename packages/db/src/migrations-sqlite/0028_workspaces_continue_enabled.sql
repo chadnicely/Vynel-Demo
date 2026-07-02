@@ -1,1 +1,0 @@
-ALTER TABLE `workspaces` ADD `continue_enabled` integer DEFAULT true NOT NULL;

@@ -6,7 +6,7 @@
 //
 // Every connection loads the sqlite-vec extension at construction so the
 // `vec0` virtual table is available for the `memory` domain's semantic
-// search (memory_entries_vec; see migrations 0010). The extension binary
+// search (the `memory_entries_vec` table in the baseline). The extension binary
 // ships via the `sqlite-vec` npm package's platform-specific subpackages
 // (sqlite-vec-windows-x64, sqlite-vec-darwin-arm64, etc.). Memory is the
 // first consumer; `knowledge` will reuse for document-chunk embeddings.

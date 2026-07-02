@@ -27,14 +27,29 @@ MCP binding + the approval card stay providers/approvals-gated (the session phas
 runs here (>~9 min) — keep agent tasks small or do it directly.
 
 **NO DATABASE EXISTS YET (all clean — confirmed by Chad).** No data / no dev `.db` anywhere → the
-migration squash is trivially safe (a baseline is just "the schema, once"; no reconciliation). Autopilot
-ended; now INTERACTIVE with Chad (he decides forks). Open decisions: **(1)** squash the 39 migrations →
-one fresh baseline (recommended — pre-data window; also erases the `0038` rebuild risk since a baseline
-just *creates* the final shape). **(2)** schema/repos organization — RESEARCHED, verdict = **keep it**:
-`schema/<domain>` + `repositories/<domain>` in `@vynel/db` (separate from `packages/<feature>`) is three
-LAYERS of one domain (tables → data-access → logic), forced by the ONE-physical-db invariant; a
-vertical-slice (feature owns its schema) would make the kernel's migration tooling reach UP into every
-leaf — worse coupling than a repeated folder name.
+migration squash was trivially safe (a baseline is just "the schema, once"; no reconciliation). Autopilot
+ended; now INTERACTIVE with Chad (he decides forks).
+
+**⏵ SQUASH — DONE (uncommitted, green, proven; awaiting Chad's commit).** The 39 migrations + `meta/`
+were replaced by a single hand-verified `0000_baseline.sql` (drizzle-kit generated → FTS5/vec0/trigger
+DDL for all three search domains hand-appended). **Faithfulness PROVEN**, not assumed: a throwaway
+oracle dumped a semantic fingerprint (per-table columns/FKs/indexes via PRAGMA, order-independent; exact
+text for triggers + virtual tables) of the OLD 39-chain and the NEW baseline — they are **semantically
+identical** (30 tables, 5 virtual, 26 shadow, 9 triggers, every column/FK/index). The moot
+`migrate-knowledge-sources.test.ts` (0038 data-preservation) was replaced by `migrate-baseline.test.ts`
+(baseline shape + FTS `MATCH` + vec KNN across chat/memory/knowledge). Dangling `00xx` migration-number
+comments swept (client.ts / migrate.ts / memory-search.ts). Gate green — 86 files / **524 tests**;
+typecheck 14 pkgs; parity schema 30 · mcp · sdk. **This erased the `0038` rebuild risk** (a baseline just
+*creates* the final shape). New schema changes after the baseline still need incremental migrations.
+
+**⏵ NEXT (the real fork — evidence for Chad, then HIS call): the relocation SPIKE.** Relocate knowledge's
+`schema/` + `repositories/` from `@vynel/db` into `packages/knowledge/` (vertical slice), rewire imports,
+run the gate. Per the advisor: a green spike proves vertical-slice is **VIABLE**, NOT that it **wins** —
+drizzle-kit generating across packages is almost certainly fine (config is a path array; FKs resolve at the
+object level), and the migration *apparatus* (one config, one folder, one journal, one parity guard) stays
+in the kernel regardless. So the deliverable is a **side-by-side** (both trees + what stays centralized +
+the legibility trade) for Chad to decide — the test settles *can we*, Chad settles *should we*. Revert the
+relocation only (squash survives) if it fights the tool or the rewire is ugly.
 
 ## Goal
 Rebuild Vynel in KLONE by moving tested code from the old KAFI repo **module-by-module** into a clean

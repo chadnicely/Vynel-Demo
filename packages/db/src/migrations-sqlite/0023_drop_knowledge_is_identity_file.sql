@@ -1,1 +1,0 @@
-ALTER TABLE `knowledge_documents` DROP COLUMN `is_identity_file`;

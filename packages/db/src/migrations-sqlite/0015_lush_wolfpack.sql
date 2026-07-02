@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX `uniq_installed_skills_user_scope_skill` ON `installed_skills` (`user_id`,`skill_id`) WHERE "installed_skills"."workspace_id" IS NULL;

@@ -5,9 +5,9 @@ is done, it moves to `.claude/STATE.md` and gets **removed from this index** —
 work pile up here. One line + link per memory `.md` in this directory.
 
 ## Active
-- [next-spike-squash.md](next-spike-squash.md) — **NEXT ACTION.** Settle the feature-shape template
-  (vertical-slice vs shared-kernel) with an empirical **spike fused with the migration squash**.
-  Decide on evidence. Run it first in a fresh session.
+- [next-spike-squash.md](next-spike-squash.md) — **Squash DONE** (green, proven, uncommitted — awaiting
+  Chad's commit). **NEXT = the relocation SPIKE:** move knowledge schema+repos into the package for
+  evidence, then Chad decides vertical-slice vs shared-kernel (a green spike proves *viable*, not *wins*).
 
 ## Resume anchors (where the full state lives — not memories)
 - `.claude/STATE.md` — current position; completed work lands here.

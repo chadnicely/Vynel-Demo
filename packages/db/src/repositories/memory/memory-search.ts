@@ -8,9 +8,9 @@
 // Phase 1 SYNC return values per phase-1-sync-transactions.
 //
 // FTS column indices used by `snippet()`:
-//   0 = title, 1 = body  (the 2 indexed columns in 0009_memory_entries_fts.sql).
+//   0 = title, 1 = body  (the 2 indexed columns on `memory_entries_fts`).
 // Blueprint §3.3 + §4.3 documented indices 2/3 + UNINDEXED entryId/workspaceId —
-// pre-rule-era drift that predates chat's 0006 FTS fix. The post-fix
+// pre-rule-era drift that predates chat's original FTS trigger fix. The post-fix
 // pattern (external-content + 2 indexed cols only, JOIN back for the
 // rest) is what ships. Reconcile docs at the post-ship doc pass.
 //

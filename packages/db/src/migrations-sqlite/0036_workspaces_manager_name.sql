@@ -1,1 +1,0 @@
-ALTER TABLE `workspaces` ADD `manager_name` text;
