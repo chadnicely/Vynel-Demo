@@ -39,20 +39,27 @@ Moot `migrate-knowledge-sources.test.ts` → `migrate-baseline.test.ts` (baselin
 across chat/memory/knowledge). Dangling `00xx` comments swept. **Erased the `0038` rebuild risk.** New
 schema changes after the baseline still need incremental migrations.
 
-**⏵ VERTICAL SLICE — DONE + committed `481ab3e` + pushed (PROVISIONAL — pending Chad's bless-or-revert).**
-The relocation spike LANDED GREEN: knowledge's `schema/` + `repositories/` moved from `@vynel/db` into
+**⏵ VERTICAL SLICE — DONE + committed `481ab3e` + pushed + ✅ BLESSED by Chad ("exactly what we need").**
+The relocation LANDED GREEN: knowledge's `schema/` + `repositories/` moved from `@vynel/db` into
 `packages/knowledge/` (whole domain now reads in ONE tree). 51 files (12 git-mv renames + 39 edits); all 34
 importers rewired (33 internal → local, 1 surface → `@vynel/knowledge`); kernel root schema barrel cleaned;
 drizzle config carries one cross-package path (`../knowledge/src/schema/*`); parity guard reworked to walk
-every `packages/*/src/schema` root. **Tool-proof:** `drizzle-kit generate` resolves the cross-package FK
-imports and reports **"No schema changes"** — the tool fully supports vertical-slice schema. Gate green —
-**524 tests**, parity schema 30 · mcp · sdk, typecheck 24/24.
-- **The fork is Chad's (legibility), not the test's** — green only proved *viable*. I committed my
-  recommendation (KEEP) for durability; **Chad blesses or reverts.** REVERT (one command, squash survives):
-  `git reset --hard 6740f81 && git push --force origin main`.
-- **If BLESSED → knowledge is the TEMPLATE** every future module copies (`packages/<feature>/{schema,
-  repositories,+logic}`). The migration *apparatus* stays centralized regardless (one-physical-DB invariant)
-  — a feature owns its schema **files** + logic, NOT its migration lifecycle.
+every `packages/*/src/schema` root. **Tool-proof:** `drizzle-kit generate` → **"No schema changes"**. Gate
+green — 524 tests, parity 30 · mcp · sdk, typecheck 24/24. Re-verified post-bless (tree clean, invariants
+hold: knowledge imports down-only, no apps/ imports, kernel dirs clean).
+- **knowledge is now the TEMPLATE** every future module copies (`packages/<feature>/{schema,repositories,
+  +logic}`). Migration *apparatus* stays centralized (one-physical-DB invariant) — a feature owns its schema
+  **files** + logic, NOT its migration lifecycle.
+
+**⏵ CLI DIRECTION (Chad's, recorded — awaiting his go on approach):** the vertical slice makes a feature a
+self-contained unit any local surface drives with just a **db client** (the worker already proves it —
+`generateKnowledgeEmbeddings(db, logger)`, no api). Chad wants the **CLI db-direct**: "I need only db
+connection even without api we can handle command actions." Today's `@vynel/cli` is the opposite — it runs
+over `@vynel/sdk` → HTTP → the api (one of the "3 directions"), so it *requires* the api up. **Rewire =
+`@vynel/cli` depends on `@vynel/knowledge` + `@vynel/db`, opens the db, calls core ops; env → db path (not
+api URL); drop `@vynel/sdk`.** One OPEN DESIGN Q (Chad's): who runs migrations for a standalone CLI — run on
+open, or assume already-migrated? NOT executed yet (reverses deliberate CLI-over-SDK work + the migrations Q
+is Chad's) — asked, he was away; awaiting his go vs. continue-the-mission.
 
 ## Goal
 Rebuild Vynel in KLONE by moving tested code from the old KAFI repo **module-by-module** into a clean
