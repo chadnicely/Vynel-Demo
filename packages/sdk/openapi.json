@@ -10,7 +10,130 @@
       "get": {
         "responses": {
           "200": {
-            "description": "{ documents: SerializedKnowledgeDocument[], nextCursor }."
+            "description": "{ documents: SerializedKnowledgeDocument[], nextCursor }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "documents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "userId": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": "string"
+                          },
+                          "relativePath": {
+                            "type": "string"
+                          },
+                          "documentKind": {
+                            "type": "string",
+                            "enum": [
+                              "markdown",
+                              "plain-text",
+                              "pdf",
+                              "docx",
+                              "html",
+                              "csv",
+                              "json",
+                              "unsupported"
+                            ]
+                          },
+                          "contentHash": {
+                            "type": "string"
+                          },
+                          "fileSizeBytes": {
+                            "type": "number"
+                          },
+                          "fileModifiedAt": {
+                            "type": "string"
+                          },
+                          "chunkCount": {
+                            "type": "number"
+                          },
+                          "parseStatus": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "parsing",
+                              "parsed",
+                              "failed",
+                              "skipped"
+                            ]
+                          },
+                          "parseErrorMessage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "indexedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "userId",
+                          "workspaceId",
+                          "relativePath",
+                          "documentKind",
+                          "contentHash",
+                          "fileSizeBytes",
+                          "fileModifiedAt",
+                          "chunkCount",
+                          "parseStatus",
+                          "parseErrorMessage",
+                          "indexedAt",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "indexedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "indexedAt",
+                        "id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "documents",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
           },
           "404": {
             "description": "Workspace not found."
@@ -96,7 +219,163 @@
       "get": {
         "responses": {
           "200": {
-            "description": "{ document: SerializedKnowledgeDocument, chunks: SerializedKnowledgeChunk[] }."
+            "description": "{ document: SerializedKnowledgeDocument, chunks: SerializedKnowledgeChunk[] }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "document": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "userId": {
+                          "type": "string"
+                        },
+                        "workspaceId": {
+                          "type": "string"
+                        },
+                        "relativePath": {
+                          "type": "string"
+                        },
+                        "documentKind": {
+                          "type": "string",
+                          "enum": [
+                            "markdown",
+                            "plain-text",
+                            "pdf",
+                            "docx",
+                            "html",
+                            "csv",
+                            "json",
+                            "unsupported"
+                          ]
+                        },
+                        "contentHash": {
+                          "type": "string"
+                        },
+                        "fileSizeBytes": {
+                          "type": "number"
+                        },
+                        "fileModifiedAt": {
+                          "type": "string"
+                        },
+                        "chunkCount": {
+                          "type": "number"
+                        },
+                        "parseStatus": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "parsing",
+                            "parsed",
+                            "failed",
+                            "skipped"
+                          ]
+                        },
+                        "parseErrorMessage": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "indexedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "userId",
+                        "workspaceId",
+                        "relativePath",
+                        "documentKind",
+                        "contentHash",
+                        "fileSizeBytes",
+                        "fileModifiedAt",
+                        "chunkCount",
+                        "parseStatus",
+                        "parseErrorMessage",
+                        "indexedAt",
+                        "createdAt",
+                        "updatedAt"
+                      ]
+                    },
+                    "chunks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "documentId": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": "string"
+                          },
+                          "chunkIndex": {
+                            "type": "number"
+                          },
+                          "startCharOffset": {
+                            "type": "number"
+                          },
+                          "endCharOffset": {
+                            "type": "number"
+                          },
+                          "chunkText": {
+                            "type": "string"
+                          },
+                          "chunkTokenEstimate": {
+                            "type": "number"
+                          },
+                          "embeddingPresent": {
+                            "type": "boolean"
+                          },
+                          "embeddingModelVersion": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "documentId",
+                          "workspaceId",
+                          "chunkIndex",
+                          "startCharOffset",
+                          "endCharOffset",
+                          "chunkText",
+                          "chunkTokenEstimate",
+                          "embeddingPresent",
+                          "embeddingModelVersion",
+                          "createdAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "document",
+                    "chunks"
+                  ]
+                }
+              }
+            }
           },
           "404": {
             "description": "Knowledge document not found in this workspace."
@@ -138,7 +417,81 @@
       "get": {
         "responses": {
           "200": {
-            "description": "{ results: SerializedKnowledgeSearchResult[] }."
+            "description": "{ results: SerializedKnowledgeSearchResult[] }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "chunkId": {
+                            "type": "string"
+                          },
+                          "documentId": {
+                            "type": "string"
+                          },
+                          "relativePath": {
+                            "type": "string"
+                          },
+                          "documentKind": {
+                            "type": "string",
+                            "enum": [
+                              "markdown",
+                              "plain-text",
+                              "pdf",
+                              "docx",
+                              "html",
+                              "csv",
+                              "json",
+                              "unsupported"
+                            ]
+                          },
+                          "chunkIndex": {
+                            "type": "number"
+                          },
+                          "chunkText": {
+                            "type": "string"
+                          },
+                          "ftsScore": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "semanticScore": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "combinedScore": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "chunkId",
+                          "documentId",
+                          "relativePath",
+                          "documentKind",
+                          "chunkIndex",
+                          "chunkText",
+                          "ftsScore",
+                          "semanticScore",
+                          "combinedScore"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "results"
+                  ]
+                }
+              }
+            }
           },
           "404": {
             "description": "Workspace not found."
@@ -212,7 +565,57 @@
       "get": {
         "responses": {
           "200": {
-            "description": "SerializedIndexerStatus."
+            "description": "SerializedIndexerStatus.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "totalDocuments": {
+                      "type": "number"
+                    },
+                    "parsedDocuments": {
+                      "type": "number"
+                    },
+                    "pendingDocuments": {
+                      "type": "number"
+                    },
+                    "parsingDocuments": {
+                      "type": "number"
+                    },
+                    "failedDocuments": {
+                      "type": "number"
+                    },
+                    "skippedDocuments": {
+                      "type": "number"
+                    },
+                    "unindexedChunks": {
+                      "type": "number"
+                    },
+                    "lastIndexedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "workspaceId",
+                    "totalDocuments",
+                    "parsedDocuments",
+                    "pendingDocuments",
+                    "parsingDocuments",
+                    "failedDocuments",
+                    "skippedDocuments",
+                    "unindexedChunks",
+                    "lastIndexedAt"
+                  ]
+                }
+              }
+            }
           },
           "404": {
             "description": "Workspace not found."
@@ -245,7 +648,30 @@
       "post": {
         "responses": {
           "200": {
-            "description": "{ indexedCount, skippedCount, failedCount }."
+            "description": "{ indexedCount, skippedCount, failedCount }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "indexedCount": {
+                      "type": "number"
+                    },
+                    "skippedCount": {
+                      "type": "number"
+                    },
+                    "failedCount": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "indexedCount",
+                    "skippedCount",
+                    "failedCount"
+                  ]
+                }
+              }
+            }
           },
           "404": {
             "description": "Workspace not found."

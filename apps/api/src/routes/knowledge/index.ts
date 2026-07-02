@@ -17,7 +17,7 @@
 // default-expose); POST /reindex stays NOT exposed (mutating;
 // sdk-mcp.md safe-by-default).
 
-import { validator } from 'hono-openapi/zod'
+import { resolver, validator } from 'hono-openapi/zod'
 import { NotFoundError } from '@vynel/core/errors'
 import {
   forceReindexWorkspace,
@@ -34,6 +34,11 @@ import {
   SearchKnowledgeQuerySchema,
   KnowledgeDocumentParamSchema,
   DocumentKindSchema,
+  ListKnowledgeDocumentsResponseSchema,
+  KnowledgeDocumentDetailResponseSchema,
+  SearchKnowledgeResponseSchema,
+  IndexerStatusSchema,
+  ReindexResponseSchema,
 } from './schemas.js'
 import {
   serializeChunk,
@@ -56,7 +61,10 @@ export const knowledgeApp = factory
       summary: 'List indexed documents for the active workspace.',
       'x-sdk-name': 'knowledge.listDocuments',
       responses: {
-        200: { description: '{ documents: SerializedKnowledgeDocument[], nextCursor }.' },
+        200: {
+          description: '{ documents: SerializedKnowledgeDocument[], nextCursor }.',
+          content: { 'application/json': { schema: resolver(ListKnowledgeDocumentsResponseSchema) } },
+        },
         404: { description: 'Workspace not found.' },
       },
       'x-mcp': {
@@ -103,6 +111,7 @@ export const knowledgeApp = factory
         200: {
           description:
             '{ document: SerializedKnowledgeDocument, chunks: SerializedKnowledgeChunk[] }.',
+          content: { 'application/json': { schema: resolver(KnowledgeDocumentDetailResponseSchema) } },
         },
         404: { description: 'Knowledge document not found in this workspace.' },
       },
@@ -140,7 +149,10 @@ export const knowledgeApp = factory
       summary: 'Search knowledge chunks (FTS5, semantic, or hybrid).',
       'x-sdk-name': 'knowledge.search',
       responses: {
-        200: { description: '{ results: SerializedKnowledgeSearchResult[] }.' },
+        200: {
+          description: '{ results: SerializedKnowledgeSearchResult[] }.',
+          content: { 'application/json': { schema: resolver(SearchKnowledgeResponseSchema) } },
+        },
         404: { description: 'Workspace not found.' },
       },
       'x-mcp': {
@@ -186,7 +198,10 @@ export const knowledgeApp = factory
       summary: 'Get the indexer status for the active workspace.',
       'x-sdk-name': 'knowledge.getStatus',
       responses: {
-        200: { description: 'SerializedIndexerStatus.' },
+        200: {
+          description: 'SerializedIndexerStatus.',
+          content: { 'application/json': { schema: resolver(IndexerStatusSchema) } },
+        },
         404: { description: 'Workspace not found.' },
       },
       'x-mcp': {
@@ -215,7 +230,10 @@ export const knowledgeApp = factory
       summary: 'Force-reindex every document in the active workspace.',
       'x-sdk-name': 'knowledge.reindex',
       responses: {
-        200: { description: '{ indexedCount, skippedCount, failedCount }.' },
+        200: {
+          description: '{ indexedCount, skippedCount, failedCount }.',
+          content: { 'application/json': { schema: resolver(ReindexResponseSchema) } },
+        },
         404: { description: 'Workspace not found.' },
       },
     }),

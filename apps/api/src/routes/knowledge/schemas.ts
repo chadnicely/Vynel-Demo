@@ -43,4 +43,92 @@ export const KnowledgeDocumentParamSchema = z.object({
   documentId: z.string().min(1),
 })
 
+// ── Response schemas ────────────────────────────────────────────────
+// The serialized shapes each route returns. `serializers.ts` derives its
+// return TYPES from these via `z.infer` (one source of truth per shape),
+// and the routes wire them into `describeRoute` responses via `resolver`
+// so the OpenAPI spec — and therefore the generated SDK return types —
+// are real, not `unknown`.
+
+export const KnowledgeDocumentSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  workspaceId: z.string(),
+  relativePath: z.string(),
+  documentKind: DocumentKindSchema,
+  contentHash: z.string(),
+  fileSizeBytes: z.number(),
+  fileModifiedAt: z.string(),
+  chunkCount: z.number(),
+  parseStatus: ParseStatusSchema,
+  parseErrorMessage: z.string().nullable(),
+  indexedAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const KnowledgeChunkSchema = z.object({
+  id: z.string(),
+  documentId: z.string(),
+  workspaceId: z.string(),
+  chunkIndex: z.number(),
+  startCharOffset: z.number(),
+  endCharOffset: z.number(),
+  chunkText: z.string(),
+  chunkTokenEstimate: z.number(),
+  embeddingPresent: z.boolean(),
+  embeddingModelVersion: z.string().nullable(),
+  createdAt: z.string(),
+})
+
+export const KnowledgeSearchResultSchema = z.object({
+  chunkId: z.string(),
+  documentId: z.string(),
+  relativePath: z.string(),
+  documentKind: DocumentKindSchema,
+  chunkIndex: z.number(),
+  chunkText: z.string(),
+  ftsScore: z.number().nullable(),
+  semanticScore: z.number().nullable(),
+  combinedScore: z.number(),
+})
+
+export const IndexerStatusSchema = z.object({
+  workspaceId: z.string(),
+  totalDocuments: z.number(),
+  parsedDocuments: z.number(),
+  pendingDocuments: z.number(),
+  parsingDocuments: z.number(),
+  failedDocuments: z.number(),
+  skippedDocuments: z.number(),
+  unindexedChunks: z.number(),
+  lastIndexedAt: z.string().nullable(),
+})
+
+const ListDocumentsCursorSchema = z.object({
+  indexedAt: z.string().nullable(),
+  id: z.string(),
+})
+
+// Envelope schemas — the exact top-level JSON each route emits.
+export const ListKnowledgeDocumentsResponseSchema = z.object({
+  documents: z.array(KnowledgeDocumentSchema),
+  nextCursor: ListDocumentsCursorSchema.nullable(),
+})
+
+export const KnowledgeDocumentDetailResponseSchema = z.object({
+  document: KnowledgeDocumentSchema,
+  chunks: z.array(KnowledgeChunkSchema),
+})
+
+export const SearchKnowledgeResponseSchema = z.object({
+  results: z.array(KnowledgeSearchResultSchema),
+})
+
+export const ReindexResponseSchema = z.object({
+  indexedCount: z.number(),
+  skippedCount: z.number(),
+  failedCount: z.number(),
+})
+
 export { DocumentKindSchema, ParseStatusSchema, SearchModeSchema }

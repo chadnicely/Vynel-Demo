@@ -6,7 +6,7 @@
 // `pnpm api:generate`; the CI parity guard
 // (`scripts/src/generators/check-sdk-parity.ts`) is the wider net.
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { Client } from 'openapi-fetch'
 import { makeNamespaced } from './namespaced.js'
 import { SdkError } from '../errors.js'
@@ -119,5 +119,34 @@ describe('makeNamespaced — request shaping', () => {
       path: { workspaceId: 'ws_1' },
       query: { query: 'onboarding' },
     })
+  })
+})
+
+// Type-level regression guard for B (routes declaring response schemas →
+// typed SDK returns). Checked by `turbo typecheck` (tsc compiles this
+// file). If a route loses its response `content` schema, its resolved
+// return reverts to `undefined` and `toHaveProperty` fails to compile.
+describe('makeNamespaced — return types', () => {
+  type KnowledgeSdk = ReturnType<typeof makeNamespaced>['knowledge']
+
+  it('types search() as the results envelope, not undefined', () => {
+    expectTypeOf<Awaited<ReturnType<KnowledgeSdk['search']>>>().toHaveProperty('results')
+  })
+
+  it('types getStatus() as the indexer-status envelope', () => {
+    expectTypeOf<Awaited<ReturnType<KnowledgeSdk['getStatus']>>>().toHaveProperty('totalDocuments')
+  })
+
+  it('types listDocuments() as the documents envelope', () => {
+    expectTypeOf<Awaited<ReturnType<KnowledgeSdk['listDocuments']>>>().toHaveProperty('documents')
+    expectTypeOf<Awaited<ReturnType<KnowledgeSdk['listDocuments']>>>().toHaveProperty('nextCursor')
+  })
+
+  it('types getDocument() as document + chunks', () => {
+    expectTypeOf<Awaited<ReturnType<KnowledgeSdk['getDocument']>>>().toHaveProperty('chunks')
+  })
+
+  it('types reindex() as the count envelope', () => {
+    expectTypeOf<Awaited<ReturnType<KnowledgeSdk['reindex']>>>().toHaveProperty('indexedCount')
   })
 })

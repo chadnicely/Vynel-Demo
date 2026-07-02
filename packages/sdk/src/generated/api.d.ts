@@ -118,7 +118,32 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        documents: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string;
+                            relativePath: string;
+                            /** @enum {string} */
+                            documentKind: "markdown" | "plain-text" | "pdf" | "docx" | "html" | "csv" | "json" | "unsupported";
+                            contentHash: string;
+                            fileSizeBytes: number;
+                            fileModifiedAt: string;
+                            chunkCount: number;
+                            /** @enum {string} */
+                            parseStatus: "pending" | "parsing" | "parsed" | "failed" | "skipped";
+                            parseErrorMessage: string | null;
+                            indexedAt: string | null;
+                            createdAt: string;
+                            updatedAt: string;
+                        }[];
+                        nextCursor: {
+                            indexedAt: string | null;
+                            id: string;
+                        } | null;
+                    };
+                };
             };
             /** @description Workspace not found. */
             404: {
@@ -146,7 +171,41 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        document: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string;
+                            relativePath: string;
+                            /** @enum {string} */
+                            documentKind: "markdown" | "plain-text" | "pdf" | "docx" | "html" | "csv" | "json" | "unsupported";
+                            contentHash: string;
+                            fileSizeBytes: number;
+                            fileModifiedAt: string;
+                            chunkCount: number;
+                            /** @enum {string} */
+                            parseStatus: "pending" | "parsing" | "parsed" | "failed" | "skipped";
+                            parseErrorMessage: string | null;
+                            indexedAt: string | null;
+                            createdAt: string;
+                            updatedAt: string;
+                        };
+                        chunks: {
+                            id: string;
+                            documentId: string;
+                            workspaceId: string;
+                            chunkIndex: number;
+                            startCharOffset: number;
+                            endCharOffset: number;
+                            chunkText: string;
+                            chunkTokenEstimate: number;
+                            embeddingPresent: boolean;
+                            embeddingModelVersion: string | null;
+                            createdAt: string;
+                        }[];
+                    };
+                };
             };
             /** @description Knowledge document not found in this workspace. */
             404: {
@@ -178,7 +237,22 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        results: {
+                            chunkId: string;
+                            documentId: string;
+                            relativePath: string;
+                            /** @enum {string} */
+                            documentKind: "markdown" | "plain-text" | "pdf" | "docx" | "html" | "csv" | "json" | "unsupported";
+                            chunkIndex: number;
+                            chunkText: string;
+                            ftsScore: number | null;
+                            semanticScore: number | null;
+                            combinedScore: number;
+                        }[];
+                    };
+                };
             };
             /** @description Workspace not found. */
             404: {
@@ -205,7 +279,19 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        workspaceId: string;
+                        totalDocuments: number;
+                        parsedDocuments: number;
+                        pendingDocuments: number;
+                        parsingDocuments: number;
+                        failedDocuments: number;
+                        skippedDocuments: number;
+                        unindexedChunks: number;
+                        lastIndexedAt: string | null;
+                    };
+                };
             };
             /** @description Workspace not found. */
             404: {
@@ -232,7 +318,13 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        indexedCount: number;
+                        skippedCount: number;
+                        failedCount: number;
+                    };
+                };
             };
             /** @description Workspace not found. */
             404: {

@@ -4,25 +4,17 @@
 // memory's serializers — the binary payload is internal-only).
 // Per blueprint §9.3.
 
+import type { z } from 'zod'
 import type { KnowledgeDocumentRow, KnowledgeChunkRow } from '@vynel/db/schema/knowledge'
 import type { IndexerStatus, SearchKnowledgeResult } from '@vynel/core/knowledge'
+import {
+  IndexerStatusSchema,
+  KnowledgeChunkSchema,
+  KnowledgeDocumentSchema,
+  KnowledgeSearchResultSchema,
+} from './schemas.js'
 
-export type SerializedKnowledgeDocument = {
-  id: string
-  userId: string
-  workspaceId: string
-  relativePath: string
-  documentKind: KnowledgeDocumentRow['documentKind']
-  contentHash: string
-  fileSizeBytes: number
-  fileModifiedAt: string
-  chunkCount: number
-  parseStatus: KnowledgeDocumentRow['parseStatus']
-  parseErrorMessage: string | null
-  indexedAt: string | null
-  createdAt: string
-  updatedAt: string
-}
+export type SerializedKnowledgeDocument = z.infer<typeof KnowledgeDocumentSchema>
 
 export function serializeDocument(doc: KnowledgeDocumentRow): SerializedKnowledgeDocument {
   return {
@@ -43,19 +35,7 @@ export function serializeDocument(doc: KnowledgeDocumentRow): SerializedKnowledg
   }
 }
 
-export type SerializedKnowledgeChunk = {
-  id: string
-  documentId: string
-  workspaceId: string
-  chunkIndex: number
-  startCharOffset: number
-  endCharOffset: number
-  chunkText: string
-  chunkTokenEstimate: number
-  embeddingPresent: boolean
-  embeddingModelVersion: string | null
-  createdAt: string
-}
+export type SerializedKnowledgeChunk = z.infer<typeof KnowledgeChunkSchema>
 
 export function serializeChunk(chunk: KnowledgeChunkRow): SerializedKnowledgeChunk {
   return {
@@ -73,17 +53,7 @@ export function serializeChunk(chunk: KnowledgeChunkRow): SerializedKnowledgeChu
   }
 }
 
-export type SerializedKnowledgeSearchResult = {
-  chunkId: string
-  documentId: string
-  relativePath: string
-  documentKind: SearchKnowledgeResult['documentKind']
-  chunkIndex: number
-  chunkText: string
-  ftsScore: number | null
-  semanticScore: number | null
-  combinedScore: number
-}
+export type SerializedKnowledgeSearchResult = z.infer<typeof KnowledgeSearchResultSchema>
 
 export function serializeSearchResult(
   result: SearchKnowledgeResult,
@@ -104,17 +74,7 @@ export function serializeSearchResult(
   }
 }
 
-export type SerializedIndexerStatus = {
-  workspaceId: string
-  totalDocuments: number
-  parsedDocuments: number
-  pendingDocuments: number
-  parsingDocuments: number
-  failedDocuments: number
-  skippedDocuments: number
-  unindexedChunks: number
-  lastIndexedAt: string | null
-}
+export type SerializedIndexerStatus = z.infer<typeof IndexerStatusSchema>
 
 export function serializeIndexerStatus(status: IndexerStatus): SerializedIndexerStatus {
   return {
