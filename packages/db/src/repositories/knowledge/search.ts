@@ -283,3 +283,10 @@ export function deleteVectorIndexForDocument(db: Database, documentId: string): 
   // cascades. Called by removeFileFromIndex.
   db.run(sql`DELETE FROM knowledge_chunks_vec WHERE document_id = ${documentId}`)
 }
+
+export function deleteVectorIndexForSource(db: Database, sourceId: string): void {
+  // Purges all vec rows for a source — sqlite-vec doesn't honor FK cascades, so
+  // removing a source must purge its vec rows explicitly (deleting the source
+  // cascades its documents + chunks relationally, but not the vec0 virtual table).
+  db.run(sql`DELETE FROM knowledge_chunks_vec WHERE source_id = ${sourceId}`)
+}
