@@ -26,6 +26,16 @@ MCP binding + the approval card stay providers/approvals-gated (the session phas
 **Then the mission continues: workspace → provider → memory** (Chad's order). Agents stall on long
 runs here (>~9 min) — keep agent tasks small or do it directly.
 
+**NO DATABASE EXISTS YET (all clean — confirmed by Chad).** No data / no dev `.db` anywhere → the
+migration squash is trivially safe (a baseline is just "the schema, once"; no reconciliation). Autopilot
+ended; now INTERACTIVE with Chad (he decides forks). Open decisions: **(1)** squash the 39 migrations →
+one fresh baseline (recommended — pre-data window; also erases the `0038` rebuild risk since a baseline
+just *creates* the final shape). **(2)** schema/repos organization — RESEARCHED, verdict = **keep it**:
+`schema/<domain>` + `repositories/<domain>` in `@vynel/db` (separate from `packages/<feature>`) is three
+LAYERS of one domain (tables → data-access → logic), forced by the ONE-physical-db invariant; a
+vertical-slice (feature owns its schema) would make the kernel's migration tooling reach UP into every
+leaf — worse coupling than a repeated folder name.
+
 ## Goal
 Rebuild Vynel in KLONE by moving tested code from the old KAFI repo **module-by-module** into a clean
 modular monolith (**routes-over-packages on Hono** — logic in `@vynel/<feature>` packages, thin api).

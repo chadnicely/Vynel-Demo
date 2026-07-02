@@ -120,3 +120,13 @@ complete — machine left on for Chad's review/redirect).
 3. `pnpm api:generate` (regenerates SDK flat+namespaced + MCP registry — parity guards will expect the new
    files; commit them). CLI: `vynel knowledge add-directory <path> [--global]` / `sources list|remove`.
 4. Then the mission: **workspace → provider → memory**. Session = with Chad.
+
+## Back interactive (Chad returned)
+- **No db exists yet — all clean** (no data / no dev .db). Squash to a single fresh baseline is trivially
+  safe + recommended NOW (pre-data window; erases the `0038` rebuild risk — a baseline just *creates* the
+  final schema). New schema changes after the baseline still need incremental migrations.
+- **schema/repos org — researched, verdict KEEP:** the domain repeating across `db/schema/<d>`,
+  `db/repositories/<d>`, `packages/<d>` is LAYERING (tables → data-access → logic), forced by the
+  one-physical-db invariant (kernel FKs + atomic outbox). Vertical-slice (feature owns schema) → the kernel
+  tooling reaches up into every leaf = worse coupling. (Architecture.md §3 already settled this.)
+- Chad: "I am here when you need decision" — ASK on real forks now (not autopilot).
