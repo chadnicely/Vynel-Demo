@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
-import { NotFoundError } from '@vynel/core/errors'
+import { NotFoundError } from '@vynel/errors'
 import { getOrCreateLocalUser } from './get-or-create-local-user.js'
 import { updateUserProfile } from './update-user-profile.js'
 

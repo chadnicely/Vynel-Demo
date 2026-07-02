@@ -18,6 +18,8 @@
     "@hono/zod-validator": "^0.4.3",
     "@vynel/core": "workspace:*",
     "@vynel/db": "workspace:*",
+    "@vynel/errors": "workspace:*",
+    "@vynel/knowledge": "workspace:*",
     "hono": "^4.6.0",
     "hono-openapi": "^0.4.0",
     "pino": "^9.5.0",

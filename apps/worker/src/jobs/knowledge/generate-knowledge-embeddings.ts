@@ -22,7 +22,7 @@ import type { Database } from '@vynel/db'
 import {
   generateKnowledgeEmbeddings as generateKnowledgeEmbeddingsCore,
   type StructuralLogger,
-} from '@vynel/core/knowledge'
+} from '@vynel/knowledge'
 
 export async function generateKnowledgeEmbeddings(
   db: Database,

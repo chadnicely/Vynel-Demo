@@ -3,7 +3,7 @@
 
 import { updateUser, type User } from '@vynel/db/repositories/users'
 import type { Database } from '@vynel/db'
-import { NotFoundError } from '@vynel/core/errors'
+import { NotFoundError } from '@vynel/errors'
 
 export function markUserOnboardingComplete(db: Database, userId: string): User {
   const updated = updateUser(db, userId, { hasCompletedOnboarding: true })

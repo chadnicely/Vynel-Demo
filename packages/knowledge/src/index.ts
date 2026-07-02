@@ -1,7 +1,7 @@
 // Public surface for the `knowledge` domain core layer.
 //
 // Consumers import via the per-domain subpath:
-//   import { indexFile, searchKnowledge, FileWatcherService } from '@vynel/core/knowledge'
+//   import { indexFile, searchKnowledge, FileWatcherService } from '@vynel/knowledge'
 //
 // Per-operation files are TDD'd in /build-domain (Gate 2 = test
 // before implementing). The barrel grows during Implement as each

@@ -4,7 +4,7 @@
 // Per `docs/blueprints/workspaces/coding.md §3`.
 //
 // No `WorkspaceErrors` file — workspaces uses the generic `VynelError`
-// taxonomy from `@vynel/core/errors` directly (NotFoundError,
+// taxonomy from `@vynel/errors` directly (NotFoundError,
 // ConflictError, ValidationError). Per `.claude/rules/error-handling.md`
 // "Taxonomy".
 

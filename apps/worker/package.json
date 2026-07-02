@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vynel/core": "workspace:*",
     "@vynel/db": "workspace:*",
+    "@vynel/knowledge": "workspace:*",
     "node-cron": "^3.0.3",
     "pino": "^9.5.0",
     "zod": "^3.23.0"

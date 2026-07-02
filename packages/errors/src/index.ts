@@ -8,8 +8,7 @@
 // `@vynel/providers` import the taxonomy without forming a `core <-> providers`
 // workspace dependency cycle — `@vynel/core/providers` imports
 // `@vynel/providers`, and the providers domain throws `VynelError` subclasses.
-// `@vynel/core/errors` re-exports this module, so existing `@vynel/core/errors`
-// importers stay unchanged. See
+// Every consumer imports this package directly as `@vynel/errors`. See
 // `.claude/memory/decisions/errors-package-extraction.md`.
 //
 // The HTTP middleware in `apps/api/src/app.ts onError` has a SINGLE

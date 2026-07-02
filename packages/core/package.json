@@ -15,7 +15,6 @@
   "dependencies": {
     "@vynel/db": "workspace:*",
     "@vynel/errors": "workspace:*",
-    "@vynel/knowledge": "workspace:*",
     "@vynel/logger": "workspace:*"
   },
   "devDependencies": {

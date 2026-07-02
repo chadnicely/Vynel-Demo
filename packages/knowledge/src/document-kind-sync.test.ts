@@ -6,7 +6,7 @@
 // @vynel/indexer must NOT import @vynel/db (pure-helpers package);
 // @vynel/db importing @vynel/indexer would invert the dep root.
 //
-// This file lives in @vynel/core/knowledge, which already depends
+// This file lives in @vynel/knowledge, which already depends
 // on BOTH packages — so the type-equality check has a natural home.
 // Future drift fails the build instead of silently shipping.
 //

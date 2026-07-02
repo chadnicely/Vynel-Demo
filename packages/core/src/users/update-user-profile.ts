@@ -3,7 +3,7 @@
 
 import { updateUser, type User } from '@vynel/db/repositories/users'
 import type { Database } from '@vynel/db'
-import { NotFoundError } from '@vynel/core/errors'
+import { NotFoundError } from '@vynel/errors'
 
 // Property values can be undefined (Zod's `.optional()` produces
 // `T | undefined`, which under `exactOptionalPropertyTypes: true` must

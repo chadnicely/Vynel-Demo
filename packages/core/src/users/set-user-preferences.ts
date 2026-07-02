@@ -6,7 +6,7 @@
 
 import { upsertPreferenceForUser } from '@vynel/db/repositories/users'
 import { withTransaction, type Database } from '@vynel/db'
-import { ValidationError } from '@vynel/core/errors'
+import { ValidationError } from '@vynel/errors'
 import type { ResolvedUserPreferences } from './get-user-preferences.js'
 
 // Properties match Zod's `.optional()` output (`T | undefined`) under

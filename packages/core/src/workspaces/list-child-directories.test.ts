@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import os from 'node:os'
-import { ValidationError } from '@vynel/core/errors'
+import { ValidationError } from '@vynel/errors'
 import { listChildDirectories } from './list-child-directories.js'
 
 describe('listChildDirectories', () => {

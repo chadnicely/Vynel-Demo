@@ -16,7 +16,7 @@
 import { readdir, stat, realpath, access } from 'node:fs/promises'
 import { homedir, platform } from 'node:os'
 import path from 'node:path'
-import { ValidationError } from '@vynel/core/errors'
+import { ValidationError } from '@vynel/errors'
 
 export type DirectoryEntry = {
   name: string

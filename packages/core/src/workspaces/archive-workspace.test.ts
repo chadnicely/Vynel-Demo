@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
-import { NotFoundError } from '@vynel/core/errors'
+import { NotFoundError } from '@vynel/errors'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace, findWorkspaceById } from '@vynel/db/repositories/workspaces'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'

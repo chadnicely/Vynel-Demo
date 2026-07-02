@@ -4,7 +4,7 @@
 // defense in depth). Throws NotFoundError on missing. Per blueprint §6.4.
 
 import * as workspacesRepository from '@vynel/db/repositories/workspaces'
-import { NotFoundError } from '@vynel/core/errors'
+import { NotFoundError } from '@vynel/errors'
 import type { Database } from '@vynel/db'
 import type { Workspace } from '@vynel/db/repositories/workspaces'
 

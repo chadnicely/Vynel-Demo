@@ -18,14 +18,14 @@
 // sdk-mcp.md safe-by-default).
 
 import { resolver, validator } from 'hono-openapi/zod'
-import { NotFoundError } from '@vynel/core/errors'
+import { NotFoundError } from '@vynel/errors'
 import {
   forceReindexWorkspace,
   getDocumentDetail,
   getIndexerStatus,
   listDocumentsForWorkspace,
   searchKnowledge,
-} from '@vynel/core/knowledge'
+} from '@vynel/knowledge'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'

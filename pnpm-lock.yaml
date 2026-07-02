@@ -65,6 +65,12 @@ importers:
       '@vynel/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@vynel/errors':
+        specifier: workspace:*
+        version: link:../../packages/errors
+      '@vynel/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
       hono:
         specifier: ^4.6.0
         version: 4.12.27
@@ -137,12 +143,12 @@ importers:
 
   apps/worker:
     dependencies:
-      '@vynel/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@vynel/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@vynel/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
       node-cron:
         specifier: ^3.0.3
         version: 3.0.3
@@ -174,9 +180,6 @@ importers:
       '@vynel/errors':
         specifier: workspace:*
         version: link:../errors
-      '@vynel/knowledge':
-        specifier: workspace:*
-        version: link:../knowledge
       '@vynel/logger':
         specifier: workspace:*
         version: link:../logger

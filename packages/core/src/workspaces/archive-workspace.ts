@@ -9,7 +9,7 @@
 
 import * as workspacesRepository from '@vynel/db/repositories/workspaces'
 import * as outboxRepository from '@vynel/db/repositories/_shared'
-import { NotFoundError } from '@vynel/core/errors'
+import { NotFoundError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
 import type { Workspace } from '@vynel/db/repositories/workspaces'
 import { WORKSPACE_ARCHIVED_EVENT } from './workspaces-events.js'

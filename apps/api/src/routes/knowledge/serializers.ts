@@ -6,7 +6,7 @@
 
 import type { z } from 'zod'
 import type { KnowledgeDocumentRow, KnowledgeChunkRow } from '@vynel/db/schema/knowledge'
-import type { IndexerStatus, SearchKnowledgeResult } from '@vynel/core/knowledge'
+import type { IndexerStatus, SearchKnowledgeResult } from '@vynel/knowledge'
 import {
   IndexerStatusSchema,
   KnowledgeChunkSchema,
