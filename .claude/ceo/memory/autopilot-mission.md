@@ -1,0 +1,61 @@
+# Autopilot mission — overnight (set 2026-07-02)
+
+**What this is:** Chad set me (CEO) to autopilot before bed. Build 4 packages to completion,
+commit **and push** each, then shut the machine down. Review together when he's back.
+**The Session primitive is NOT autopilot — we do that together.**
+
+**Revival (read cold in this order):** this file → `.claude/STATE.md` → `CLAUDE.md` →
+`.claude/ceo/soul.md` → `docs/module-notes/knowledge-scope-sources.md`.
+
+**Repo:** `E:\KLONE\Workspace\vynel`, git `main`, remote `github.com/kafijunior/vynel-beta`.
+Old repo (READ-ONLY reference): `E:\KAFI\WORKSPACE\v2\vynel` — clean domain docs live in its
+`.claude/docs/<domain>/{overview,structure}.md` (NOT `docs/blueprints` — those are messed up).
+
+## Mission — in order (CONFIRMED: knowledge → workspace → provider → memory)
+0. **Refactor (in flight — agent `afa5f2cc`):** drop core errors+knowledge re-export shims +
+   fold knowledge into `indexing/queries/lifecycle`; commits each move on green.
+   **VERIFY it committed (`git log`) before building knowledge.**
+1. **Knowledge — COMPLETE.** scope (workspace+global) + directory registry (`knowledge_sources`)
+   + add-directory route (`x-mcp` `add_to_knowledge`, mutating) + scope-fused search. Design:
+   `docs/module-notes/knowledge-scope-sources.md`. Sub-phases, each green+committed+pushed:
+   migration (**real-data-tested — populated old-shape DB**) → core ops → routes+mcp+regen SDK →
+   CLI. ③ agent-turn binding + approval card DEFERRED to the session phase (needs providers +
+   approvals + composer).
+2. **Workspace — pull to package.** `packages/core/src/workspaces/` → `@vynel/workspaces`
+   (faithful move → green → fold one level). Rewire consumers; delete the core shim
+   (one-import-name rule).
+3. **Providers — pull to package** → `@vynel/providers` (AI seam; `claude-agent-sdk` runtime ONLY
+   here). **Chad directive:** check ALL old provider functions against the SDK; cover ALL available
+   functions (drop none) so they're usable as needed; fold structure. Faithful → green → fold.
+4. **Memory — pull to package** `@vynel/memory` (faithful → green → fold) + ADD tagging (below).
+**End:** update this file + `STATE.md`; commit + push all; then a single shutdown command.
+
+## Locked decisions
+- **Global knowledge scope IN** — reverses the 2026-06-20 "knowledge per-workspace only" rule
+  (still encoded in the `capabilities` schema). D2 (arbitrary absolute dirs) / D3 (registry
+  replaces auto-index by auto-registering the workspace folder) / D4 (path-safety) / D5 (single
+  fused RRF) per the design doc.
+- **Commit policy (this window only):** autonomous commit + **push** per green phase; conventional
+  commits, subject < 72, lowercase, NO AI identity. NEVER commit on red. Gate = `pnpm test`
+  (typecheck + parity + vitest).
+- **Discipline:** each phase green + committed + pushed before the next. Blocked/red → try to
+  unblock; if still stuck, **call the advisor** (Chad's instruction); if STILL blocked after that,
+  leave the phase at its last green state, document here, and move on / shut down — never leave red
+  committed. If the usage limit runs low → wrap up (commit/push/document) + shut down rather than
+  start a new big phase.
+
+## Memory feature — tagging (design at phase 4)
+Chad: tag each memory (`context`, `rule`, …); the tag says what KIND of memory it is; there will be
+Claude-facing instructions on what tag to set; support ~100 tags to filter memory; **`context` tag
+= workspace-context** so a fresh session catches context fast. Old memory already has
+category/section (migration 0024) — extend into a tag system. Write the full design to
+`docs/module-notes/memory-tags.md` before building.
+
+## Progress log (update after every phase)
+- 2026-07-02: mission set. Refactor agent `afa5f2cc` running (shims + fold, commit-on-green).
+  Knowledge design doc written. Awaiting Chad's order + shutdown-on-blocker confirm, then GO.
+
+## Answered by Chad before bed
+- Order: knowledge → **workspace → provider → memory**.
+- On blockers: try to unblock → **call the advisor** → if still blocked, **shut down anyway**
+  (commit/push/document first).
