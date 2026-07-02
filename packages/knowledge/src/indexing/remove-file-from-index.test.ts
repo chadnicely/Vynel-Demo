@@ -6,10 +6,12 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   insertKnowledgeDocument,
   insertKnowledgeChunks,
+  insertKnowledgeSource,
   upsertVectorIndexForChunk,
   findKnowledgeDocumentById,
-  findKnowledgeDocumentByPath,
+  findKnowledgeDocumentByWorkspacePath,
   listKnowledgeChunksForDocument,
+  type KnowledgeSourceRow,
 } from '@vynel/db/repositories/knowledge'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { removeFileFromIndex } from './remove-file-from-index.js'
@@ -38,18 +40,30 @@ function seedUserWorkspace(db: Parameters<Parameters<typeof withTestDatabase>[0]
     updatedAt: now,
     lastAccessedAt: now,
   })
-  return { user, workspace, now }
+  const source: KnowledgeSourceRow = {
+    id: randomUUID(),
+    userId: user.id,
+    workspaceId: workspace.id,
+    scope: 'workspace',
+    absolutePath: workspace.path,
+    createdAt: now,
+    updatedAt: now,
+  }
+  insertKnowledgeSource(db, source)
+  return { user, workspace, source, now }
 }
 
 describe('removeFileFromIndex', () => {
   it('deletes the document, cascades chunks, purges vec rows, and emits the outbox event', async () => {
     await withTestDatabase((db) => {
-      const { user, workspace, now } = seedUserWorkspace(db)
+      const { user, workspace, source, now } = seedUserWorkspace(db)
       const documentId = randomUUID()
       insertKnowledgeDocument(db, {
         id: documentId,
         userId: user.id,
         workspaceId: workspace.id,
+        sourceId: source.id,
+        scope: 'workspace',
         relativePath: 'Notes/meeting.md',
         documentKind: 'markdown',
         contentHash: 'h',
@@ -68,7 +82,6 @@ describe('removeFileFromIndex', () => {
         {
           id: chunk1Id,
           documentId,
-          workspaceId: workspace.id,
           chunkIndex: 0,
           startCharOffset: 0,
           endCharOffset: 20,
@@ -81,7 +94,6 @@ describe('removeFileFromIndex', () => {
         {
           id: chunk2Id,
           documentId,
-          workspaceId: workspace.id,
           chunkIndex: 1,
           startCharOffset: 20,
           endCharOffset: 40,
@@ -96,20 +108,16 @@ describe('removeFileFromIndex', () => {
       const fakeEmbedding = Buffer.alloc(384 * 4) // 1536 bytes of zeros
       upsertVectorIndexForChunk(db, {
         chunkId: chunk1Id,
-        workspaceId: workspace.id,
+        sourceId: source.id,
         documentId,
         embedding: fakeEmbedding,
       })
 
-      removeFileFromIndex(db, {
-        workspaceId: workspace.id,
-        userId: user.id,
-        relativePath: 'Notes/meeting.md',
-      })
+      removeFileFromIndex(db, { source, relativePath: 'Notes/meeting.md' })
 
       // Document gone
       expect(findKnowledgeDocumentById(db, documentId)).toBeNull()
-      expect(findKnowledgeDocumentByPath(db, workspace.id, 'Notes/meeting.md')).toBeNull()
+      expect(findKnowledgeDocumentByWorkspacePath(db, workspace.id, 'Notes/meeting.md')).toBeNull()
       // Chunks cascaded
       expect(listKnowledgeChunksForDocument(db, documentId)).toEqual([])
       // Outbox event landed
@@ -126,12 +134,8 @@ describe('removeFileFromIndex', () => {
 
   it('is a no-op when the document does not exist (idempotent)', async () => {
     await withTestDatabase((db) => {
-      const { user, workspace } = seedUserWorkspace(db)
-      removeFileFromIndex(db, {
-        workspaceId: workspace.id,
-        userId: user.id,
-        relativePath: 'Notes/never-indexed.md',
-      })
+      const { source } = seedUserWorkspace(db)
+      removeFileFromIndex(db, { source, relativePath: 'Notes/never-indexed.md' })
       // No outbox event emitted for a missing file
       expect(listOutboxEventsByType(db, KNOWLEDGE_DOCUMENT_REMOVED)).toEqual([])
     })

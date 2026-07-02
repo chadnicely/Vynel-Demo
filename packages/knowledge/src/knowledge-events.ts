@@ -15,7 +15,8 @@ export const KNOWLEDGE_DOCUMENT_UPDATED = 'knowledge.document-updated' as const
 export const KNOWLEDGE_DOCUMENT_REMOVED = 'knowledge.document-removed' as const
 
 export type KnowledgeDocumentIndexedPayload = {
-  workspaceId: string
+  // Null for a global-scope document (no workspace).
+  workspaceId: string | null
   userId: string
   documentId: string
   relativePath: string
@@ -28,7 +29,7 @@ export type KnowledgeDocumentIndexedPayload = {
 export type KnowledgeDocumentUpdatedPayload = KnowledgeDocumentIndexedPayload
 
 export type KnowledgeDocumentRemovedPayload = {
-  workspaceId: string
+  workspaceId: string | null
   userId: string
   documentId: string
   relativePath: string

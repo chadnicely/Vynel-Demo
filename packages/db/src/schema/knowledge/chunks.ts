@@ -30,11 +30,6 @@ export const knowledgeChunks = table(
       .notNull()
       .references(() => knowledgeDocuments.id, { onDelete: 'cascade' }),
 
-    // Denormalized for fast WHERE filtering in search queries.
-    // NO FK on this column (transitive via documentId); the denorm
-    // exists solely to skip a join on every search. Per D22.
-    workspaceId: id().notNull(),
-
     // 0-based order within the document; preserves chunk sequence
     // for "show me the next chunk after this match" UX.
     chunkIndex: integer().notNull(),
@@ -62,7 +57,6 @@ export const knowledgeChunks = table(
   },
   (t) => ({
     byDocumentIdx: index('idx_knowledge_chunks_document').on(t.documentId, t.chunkIndex),
-    byWorkspaceIdx: index('idx_knowledge_chunks_workspace').on(t.workspaceId),
   }),
 )
 

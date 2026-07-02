@@ -6,7 +6,11 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { findKnowledgeDocumentByPath } from '@vynel/db/repositories/knowledge'
+import {
+  insertKnowledgeSource,
+  findKnowledgeDocumentByWorkspacePath,
+  type KnowledgeSourceRow,
+} from '@vynel/db/repositories/knowledge'
 import { FileWatcherService } from './file-watcher.js'
 
 const silentLogger = {
@@ -60,7 +64,17 @@ function seedWorld(
     updatedAt: now,
     lastAccessedAt: now,
   })
-  return { user, workspace }
+  const source: KnowledgeSourceRow = {
+    id: randomUUID(),
+    userId: user.id,
+    workspaceId: workspace.id,
+    scope: 'workspace',
+    absolutePath: workspaceLocation,
+    createdAt: now,
+    updatedAt: now,
+  }
+  insertKnowledgeSource(db, source)
+  return { user, workspace, source }
 }
 
 async function waitForDocument(
@@ -68,13 +82,13 @@ async function waitForDocument(
   workspaceId: string,
   relativePath: string,
   timeoutMs: number = WATCH_WAIT_MS,
-): Promise<ReturnType<typeof findKnowledgeDocumentByPath>> {
+): Promise<ReturnType<typeof findKnowledgeDocumentByWorkspacePath>> {
   // Wait for the row to reach a terminal state — the outbox event
   // co-commits with the `parsed` flip, so callers checking for the
   // event need to wait past `parsing` (the eager-claim status).
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    const doc = findKnowledgeDocumentByPath(db, workspaceId, relativePath)
+    const doc = findKnowledgeDocumentByWorkspacePath(db, workspaceId, relativePath)
     if (doc && doc.parseStatus !== 'parsing') return doc
     await sleep(100)
   }
@@ -84,13 +98,9 @@ async function waitForDocument(
 describe('FileWatcherService', () => {
   it('indexes a file added after startWatching + records ActivityEvent', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedWorld(db, workspacePath)
+      const { workspace, source } = seedWorld(db, workspacePath)
       const service = new FileWatcherService(db, silentLogger)
-      service.startWatching({
-        workspaceId: workspace.id,
-        userId: user.id,
-        workspacePath,
-      })
+      service.startWatchingSource(source)
       await sleep(200) // let chokidar's ready-event fire
 
       await writeFile(path.join(workspacePath, 'note.md'), '# hi', 'utf8')
@@ -99,27 +109,23 @@ describe('FileWatcherService', () => {
       expect(doc).not.toBeNull()
       expect(doc!.parseStatus).toBe('parsed')
 
-      const activity = service.getActivityForWorkspace(workspace.id)
+      const activity = service.getActivityForSource(source.id)
       expect(activity.some((e) => e.relativePath === 'note.md' && e.eventKind === 'added')).toBe(
         true,
       )
 
-      await service.stopWatching(workspace.id)
+      await service.stopWatchingSource(source.id)
     })
   }, 10000)
 
   it('removes from index when a watched file is deleted', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedWorld(db, workspacePath)
+      const { workspace, source } = seedWorld(db, workspacePath)
       const filePath = path.join(workspacePath, 'gone.md')
       await writeFile(filePath, 'will be deleted', 'utf8')
 
       const service = new FileWatcherService(db, silentLogger)
-      service.startWatching({
-        workspaceId: workspace.id,
-        userId: user.id,
-        workspacePath,
-      })
+      service.startWatchingSource(source)
       await sleep(200)
 
       // First, add — chokidar with ignoreInitial:true won't see the
@@ -134,13 +140,13 @@ describe('FileWatcherService', () => {
 
       const deadline = Date.now() + WATCH_WAIT_MS
       while (Date.now() < deadline) {
-        const row = findKnowledgeDocumentByPath(db, workspace.id, 'tracker.md')
+        const row = findKnowledgeDocumentByWorkspacePath(db, workspace.id, 'tracker.md')
         if (!row) break
         await sleep(100)
       }
-      expect(findKnowledgeDocumentByPath(db, workspace.id, 'tracker.md')).toBeNull()
+      expect(findKnowledgeDocumentByWorkspacePath(db, workspace.id, 'tracker.md')).toBeNull()
 
-      const activity = service.getActivityForWorkspace(workspace.id)
+      const activity = service.getActivityForSource(source.id)
       expect(
         activity.some((e) => e.relativePath === 'tracker.md' && e.eventKind === 'removed'),
       ).toBe(true)
@@ -151,39 +157,31 @@ describe('FileWatcherService', () => {
       } catch {
         /* may already be cleaned up */
       }
-      await service.stopWatching(workspace.id)
+      await service.stopWatchingSource(source.id)
     })
   }, 15000)
 
   it('startWatching is idempotent — second call for same workspace is a no-op', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedWorld(db, workspacePath)
+      const { workspace, source } = seedWorld(db, workspacePath)
       const service = new FileWatcherService(db, silentLogger)
-      service.startWatching({
-        workspaceId: workspace.id,
-        userId: user.id,
-        workspacePath,
-      })
-      service.startWatching({
-        workspaceId: workspace.id,
-        userId: user.id,
-        workspacePath,
-      })
+      service.startWatchingSource(source)
+      service.startWatchingSource(source)
       // No throw + a single watcher under the hood (only one closes cleanly)
-      await service.stopWatching(workspace.id)
+      await service.stopWatchingSource(source.id)
     })
   })
 
   it('stopWatching is a no-op for an unknown workspaceId', async () => {
     await withTestDatabase(async (db) => {
       const service = new FileWatcherService(db, silentLogger)
-      await expect(service.stopWatching('unknown-id')).resolves.toBeUndefined()
+      await expect(service.stopWatchingWorkspace('unknown-id')).resolves.toBeUndefined()
     })
   })
 
   it('activity ring buffer caps at 100 events per workspace', async () => {
     await withTestDatabase((db) => {
-      const { workspace } = seedWorld(db, workspacePath)
+      const { source } = seedWorld(db, workspacePath)
       const service = new FileWatcherService(db, silentLogger)
       // Use private hook for the ring buffer test (mirrors memory-style
       // bounded tests for in-memory state).
@@ -192,14 +190,14 @@ describe('FileWatcherService', () => {
       ).recordActivity.bind(service)
 
       for (let i = 0; i < 150; i++) {
-        recordActivity(workspace.id, {
+        recordActivity(source.id, {
           at: new Date(),
-          workspaceId: workspace.id,
+          sourceId: source.id,
           eventKind: 'added',
           relativePath: `f-${i}.md`,
         })
       }
-      const ring = service.getActivityForWorkspace(workspace.id)
+      const ring = service.getActivityForSource(source.id)
       expect(ring).toHaveLength(100)
       expect(ring[0]!.relativePath).toBe('f-50.md') // first 50 evicted
       expect(ring[99]!.relativePath).toBe('f-149.md')

@@ -41,7 +41,7 @@ export async function generateKnowledgeEmbeddings(
   let succeeded = 0
   let failed = 0
 
-  for (const chunk of batch) {
+  for (const { chunk, sourceId } of batch) {
     try {
       // Model call OUTSIDE the tx — provider/CPU work never inside a
       // better-sqlite3 transaction (it rejects promise-returning
@@ -51,7 +51,7 @@ export async function generateKnowledgeEmbeddings(
         updateKnowledgeChunkEmbedding(tx, chunk.id, embedding, EMBEDDING_MODEL_VERSION)
         upsertVectorIndexForChunk(tx, {
           chunkId: chunk.id,
-          workspaceId: chunk.workspaceId,
+          sourceId,
           documentId: chunk.documentId,
           embedding,
         })
@@ -60,7 +60,7 @@ export async function generateKnowledgeEmbeddings(
     } catch (err) {
       failed += 1
       deps.logger?.warn(
-        { err, chunkId: chunk.id, documentId: chunk.documentId, workspaceId: chunk.workspaceId },
+        { err, chunkId: chunk.id, documentId: chunk.documentId, sourceId },
         'generateKnowledgeEmbeddings: embedding failed for one chunk; batch continues',
       )
     }

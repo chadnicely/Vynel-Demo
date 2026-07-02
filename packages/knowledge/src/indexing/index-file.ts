@@ -1,7 +1,8 @@
 // `indexFile` — the async core op orchestrating parse + hash-skip +
-// chunk + persist for a single file. Load-bearing op behind both
-// the FileWatcherService (Cluster 6) on every fs event and the
-// initial workspace scan (`indexWorkspace`).
+// chunk + persist for a single file within a SOURCE (a registered
+// directory at workspace or global scope). Load-bearing op behind both
+// the FileWatcherService on every fs event and the initial source scan
+// (`indexSource`).
 //
 // Phase 1 SYNC inside the tx; async (fs reads + parser) OUTSIDE.
 // `better-sqlite3` rejects Promise-returning tx callbacks at runtime
@@ -9,20 +10,16 @@
 // (`.claude/memory/decisions/phase-1-sync-transactions.md`).
 //
 // Status lifecycle:
-//   - new row inserted as `parsing`; row is "claimed" before the
-//     parser runs.
+//   - new row inserted as `parsing`; row is "claimed" before the parser runs.
 //   - parse + chunk happens OUTSIDE the tx (slow, async).
-//   - on success: a second tx updates `parsed` + replaces chunks +
-//     publishes outbox events.
+//   - on success: a second tx updates `parsed` + replaces chunks + publishes outbox.
 //   - on parse failure: a third tx flips to `failed` with the error.
 //
-// Hash-skip: if the parsed text's SHA-256 matches what's already
-// stored AND the previous status was `parsed`, only the file
-// metadata (size, mtime, indexedAt) is refreshed — no chunk churn,
-// no outbox event (idempotent).
+// Hash-skip: if the parsed text's SHA-256 matches what's already stored AND the
+// previous status was `parsed`, only the file metadata is refreshed — no chunk
+// churn, no outbox event (idempotent).
 //
-// Skip rules (each lands as `skipped` with a `parseErrorMessage`
-// of the reason; no chunks, no embedding):
+// Skip rules (each lands as `skipped` with the reason; no chunks, no embedding):
 //   - file in `.vynel/` or `Archive/` → `in-skipped-folder`
 //   - file > 50 MB → `too-large`
 //   - unsupported extension → `unsupported-format`
@@ -35,12 +32,13 @@ import { stat } from 'node:fs/promises'
 import { NotFoundError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
 import {
-  findKnowledgeDocumentByPath,
+  findKnowledgeDocumentBySourcePath,
   findKnowledgeDocumentById,
   insertKnowledgeDocument,
   updateKnowledgeDocument,
   hardDeleteKnowledgeChunksForDocument,
   insertKnowledgeChunks,
+  type KnowledgeSourceRow,
 } from '@vynel/db/repositories/knowledge'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { chunkParsedText, deriveDocumentKindFromPath, resolveDocumentParser } from '@vynel/indexer'
@@ -59,9 +57,10 @@ const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 const SKIPPED_FOLDER_PREFIXES = ['.vynel/', 'Archive/']
 
 export type IndexFileInput = {
-  workspaceId: string
-  userId: string
-  workspacePath: string
+  // The source (registered directory) this file belongs to — carries the
+  // sourceId, scope, workspaceId (null for global), userId, and the
+  // absolutePath the relativePath is resolved against.
+  source: KnowledgeSourceRow
   // OS-native or already-forward-slashed; the op normalizes either.
   relativePath: string
 }
@@ -71,8 +70,9 @@ export async function indexFile(
   input: IndexFileInput,
   deps: { logger?: StructuralLogger } = {},
 ): Promise<KnowledgeDocumentRow> {
+  const { source } = input
   const normalizedRelative = input.relativePath.split(path.sep).join('/')
-  const absolutePath = path.join(input.workspacePath, normalizedRelative.split('/').join(path.sep))
+  const absolutePath = path.join(source.absolutePath, normalizedRelative.split('/').join(path.sep))
   const now = new Date()
 
   if (SKIPPED_FOLDER_PREFIXES.some((p) => normalizedRelative.startsWith(p))) {
@@ -83,15 +83,10 @@ export async function indexFile(
   try {
     fileStat = await stat(absolutePath)
   } catch {
-    // File vanished between watch event and stat — clean up any
-    // existing row + signal the caller (the watcher's debounced
-    // wrapper will surface this as a `parse-failed` activity event;
-    // `indexWorkspace`'s worker pool catches + counts it).
-    removeFileFromIndex(db, {
-      workspaceId: input.workspaceId,
-      userId: input.userId,
-      relativePath: normalizedRelative,
-    })
+    // File vanished between watch event and stat — clean up any existing row +
+    // signal the caller (the watcher surfaces `parse-failed`; the source scan
+    // catches + counts it).
+    removeFileFromIndex(db, { source, relativePath: normalizedRelative })
     throw new NotFoundError('file', normalizedRelative)
   }
 
@@ -118,8 +113,8 @@ export async function indexFile(
     )
   }
 
-  // Claim the row as `parsing` — sync tx; insert-or-update.
-  const existing = findKnowledgeDocumentByPath(db, input.workspaceId, normalizedRelative)
+  // Claim the row as `parsing` — sync tx; insert-or-update, keyed by (source, path).
+  const existing = findKnowledgeDocumentBySourcePath(db, source.id, normalizedRelative)
   const documentId = existing?.id ?? randomUUID()
   withTransaction(db, (tx) => {
     if (existing) {
@@ -132,8 +127,10 @@ export async function indexFile(
     } else {
       insertKnowledgeDocument(tx, {
         id: documentId,
-        userId: input.userId,
-        workspaceId: input.workspaceId,
+        userId: source.userId,
+        workspaceId: source.workspaceId,
+        sourceId: source.id,
+        scope: source.scope,
         relativePath: normalizedRelative,
         documentKind,
         contentHash: '',
@@ -159,7 +156,6 @@ export async function indexFile(
     const contentHash = sha256(parsed.parsedText)
 
     // Hash-skip: same content as last time AND we were already parsed.
-    // Refresh metadata only; no chunk churn; no outbox event.
     if (existing && existing.contentHash === contentHash && existing.parseStatus === 'parsed') {
       withTransaction(db, (tx) => {
         updateKnowledgeDocument(tx, documentId, {
@@ -185,7 +181,6 @@ export async function indexFile(
           chunks.map((chunk) => ({
             id: randomUUID(),
             documentId,
-            workspaceId: input.workspaceId,
             chunkIndex: chunk.chunkIndex,
             startCharOffset: chunk.startCharOffset,
             endCharOffset: chunk.endCharOffset,
@@ -207,8 +202,8 @@ export async function indexFile(
 
       const isNew = !existing
       const indexedPayload: KnowledgeDocumentIndexedPayload | KnowledgeDocumentUpdatedPayload = {
-        workspaceId: input.workspaceId,
-        userId: input.userId,
+        workspaceId: source.workspaceId,
+        userId: source.userId,
         documentId,
         relativePath: normalizedRelative,
         documentKind,
@@ -228,7 +223,7 @@ export async function indexFile(
     return row
   } catch (err) {
     deps.logger?.warn(
-      { err, relativePath: normalizedRelative, workspaceId: input.workspaceId },
+      { err, relativePath: normalizedRelative, sourceId: source.id },
       'indexFile: parse failed',
     )
     withTransaction(db, (tx) => {

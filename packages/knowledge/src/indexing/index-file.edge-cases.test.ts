@@ -17,7 +17,7 @@ import {
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { indexFile } from './index-file.js'
 import { KNOWLEDGE_DOCUMENT_INDEXED, KNOWLEDGE_DOCUMENT_REMOVED } from '../knowledge-events.js'
-import { seedUserAndWorkspace } from '../_test-helpers.js'
+import { seedUserWorkspaceAndSource } from '../_test-helpers.js'
 
 let workspacePath: string
 
@@ -32,16 +32,11 @@ afterEach(async () => {
 describe('indexFile — skip rules', () => {
   it('skips files in .vynel/ with `in-skipped-folder` reason', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedUserAndWorkspace(db, workspacePath)
+      const { source } = seedUserWorkspaceAndSource(db, workspacePath)
       await mkdir(path.join(workspacePath, '.vynel'), { recursive: true })
       await writeFile(path.join(workspacePath, '.vynel', 'state.md'), 'internal', 'utf8')
 
-      const doc = await indexFile(db, {
-        workspaceId: workspace.id,
-        userId: user.id,
-        workspacePath,
-        relativePath: '.vynel/state.md',
-      })
+      const doc = await indexFile(db, { source, relativePath: '.vynel/state.md' })
 
       expect(doc.parseStatus).toBe('skipped')
       expect(doc.parseErrorMessage).toBe('in-skipped-folder')
@@ -51,15 +46,10 @@ describe('indexFile — skip rules', () => {
 
   it('skips files in Archive/ with `in-skipped-folder` reason', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedUserAndWorkspace(db, workspacePath)
+      const { source } = seedUserWorkspaceAndSource(db, workspacePath)
       // No need to actually create the file — skipped folders are
       // detected from the path before any fs read.
-      const doc = await indexFile(db, {
-        workspaceId: workspace.id,
-        userId: user.id,
-        workspacePath,
-        relativePath: 'Archive/old.md',
-      })
+      const doc = await indexFile(db, { source, relativePath: 'Archive/old.md' })
       expect(doc.parseStatus).toBe('skipped')
       expect(doc.parseErrorMessage).toBe('in-skipped-folder')
     })
@@ -67,15 +57,10 @@ describe('indexFile — skip rules', () => {
 
   it('skips files with unsupported extension', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedUserAndWorkspace(db, workspacePath)
+      const { source } = seedUserWorkspaceAndSource(db, workspacePath)
       await writeFile(path.join(workspacePath, 'image.png'), 'binary', 'utf8')
 
-      const doc = await indexFile(db, {
-        workspaceId: workspace.id,
-        userId: user.id,
-        workspacePath,
-        relativePath: 'image.png',
-      })
+      const doc = await indexFile(db, { source, relativePath: 'image.png' })
 
       expect(doc.parseStatus).toBe('skipped')
       expect(doc.parseErrorMessage).toBe('unsupported-format')
@@ -87,14 +72,16 @@ describe('indexFile — skip rules', () => {
 describe('indexFile — failure paths', () => {
   it('cleans up + throws NotFoundError when the file vanished before stat', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedUserAndWorkspace(db, workspacePath)
+      const { source } = seedUserWorkspaceAndSource(db, workspacePath)
       // Seed an existing row so we can verify the cleanup
       const documentId = randomUUID()
       const now = new Date()
       insertKnowledgeDocument(db, {
         id: documentId,
-        userId: user.id,
-        workspaceId: workspace.id,
+        userId: source.userId,
+        workspaceId: source.workspaceId,
+        sourceId: source.id,
+        scope: 'workspace',
         relativePath: 'gone.md',
         documentKind: 'markdown',
         contentHash: 'h',
@@ -109,12 +96,7 @@ describe('indexFile — failure paths', () => {
       })
 
       await expect(
-        indexFile(db, {
-          workspaceId: workspace.id,
-          userId: user.id,
-          workspacePath,
-          relativePath: 'gone.md',
-        }),
+        indexFile(db, { source, relativePath: 'gone.md' }),
       ).rejects.toThrow(/file/i)
 
       // Cleanup ran — the row is gone
@@ -126,16 +108,11 @@ describe('indexFile — failure paths', () => {
 
   it('records `failed` status with parseErrorMessage when the parser throws', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedUserAndWorkspace(db, workspacePath)
+      const { source } = seedUserWorkspaceAndSource(db, workspacePath)
       // Synthesize a "PDF" pdf-parse will reject.
       await writeFile(path.join(workspacePath, 'broken.pdf'), 'not actually a pdf', 'utf8')
 
-      const doc = await indexFile(db, {
-        workspaceId: workspace.id,
-        userId: user.id,
-        workspacePath,
-        relativePath: 'broken.pdf',
-      })
+      const doc = await indexFile(db, { source, relativePath: 'broken.pdf' })
 
       expect(doc.parseStatus).toBe('failed')
       expect(doc.parseErrorMessage).toBeTruthy()

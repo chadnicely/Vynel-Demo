@@ -10,7 +10,7 @@
 
 import type { Database } from '@vynel/db'
 import {
-  findKnowledgeDocumentByPath,
+  findKnowledgeDocumentByWorkspacePath,
   listKnowledgeDocumentsForWorkspace as listKnowledgeDocumentsForWorkspaceFromRepo,
 } from '@vynel/db/repositories/knowledge'
 import type { DocumentKind, KnowledgeDocumentRow } from '@vynel/db/schema/knowledge'
@@ -42,7 +42,7 @@ export function listDocumentsForWorkspace(
   // Exact-path lookup short-circuits the cursor list — used by the Files
   // UI to read one file's parse status (the Indexed badge).
   if (input.path !== undefined) {
-    const document = findKnowledgeDocumentByPath(db, input.workspaceId, input.path)
+    const document = findKnowledgeDocumentByWorkspacePath(db, input.workspaceId, input.path)
     return { documents: document ? [document] : [], nextCursor: null }
   }
 

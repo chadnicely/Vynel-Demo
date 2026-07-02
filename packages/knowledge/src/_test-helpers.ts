@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
+import { insertKnowledgeSource, type KnowledgeSourceRow } from '@vynel/db/repositories/knowledge'
 import type { withTestDatabase } from '@vynel/testing'
 
 export function seedUserAndWorkspace(
@@ -36,4 +37,25 @@ export function seedUserAndWorkspace(
     lastAccessedAt: now,
   })
   return { user, workspace }
+}
+
+// Seed user → workspace → a 'workspace'-scoped source rooted at `absolutePath`.
+// The source is what indexing keys off now (indexFile/indexSource take a source).
+export function seedUserWorkspaceAndSource(
+  db: Parameters<Parameters<typeof withTestDatabase>[0]>[0],
+  absolutePath: string,
+) {
+  const { user, workspace } = seedUserAndWorkspace(db, absolutePath)
+  const now = new Date()
+  const source: KnowledgeSourceRow = {
+    id: randomUUID(),
+    userId: user.id,
+    workspaceId: workspace.id,
+    scope: 'workspace',
+    absolutePath,
+    createdAt: now,
+    updatedAt: now,
+  }
+  insertKnowledgeSource(db, source)
+  return { user, workspace, source }
 }

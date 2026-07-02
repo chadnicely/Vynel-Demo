@@ -15,9 +15,10 @@
 // memory D4 precedent. Do NOT tune away without an evaluation set.
 //
 // documentKindFilter is applied per-side (joins knowledge_documents
-// for the filter). Workspace scoping flows via the workspace_id
-// denorm column on knowledge_chunks (per D22 — saves the join on
-// every search).
+// for the filter). SCOPE flows via `source_id`: callers pass the set of
+// in-scope source ids (a workspace's sources + the user's global sources),
+// resolved through the knowledge_documents join (FTS) / the vec row's
+// source_id (semantic). Fuses workspace + global knowledge in one search.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '../../client.js'
@@ -37,7 +38,9 @@ export type KnowledgeSearchResult = {
 }
 
 export type SearchKnowledgeChunksInput = {
-  workspaceId: string
+  // The in-scope source ids to search across (workspace's sources + the user's
+  // global sources). Empty → no results.
+  sourceIds: string[]
   textQuery?: string
   embeddingQuery?: Buffer
   mode: 'fts' | 'semantic' | 'hybrid'
@@ -99,7 +102,7 @@ function quoteFtsPhrase(rawQuery: string): string {
 }
 
 function searchFtsOnly(db: Database, input: SearchKnowledgeChunksInput): KnowledgeSearchResult[] {
-  if (!input.textQuery) return []
+  if (!input.textQuery || input.sourceIds.length === 0) return []
   const limit = Math.min(input.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
   const hasKindFilter = (input.documentKindFilter?.length ?? 0) > 0
   const kindFilterSql = hasKindFilter
@@ -122,7 +125,10 @@ function searchFtsOnly(db: Database, input: SearchKnowledgeChunksInput): Knowled
       JOIN knowledge_chunks c ON c.rowid = knowledge_chunks_fts.rowid
       JOIN knowledge_documents d ON d.id = c.document_id
     WHERE knowledge_chunks_fts MATCH ${ftsPhrase}
-      AND c.workspace_id = ${input.workspaceId}${kindFilterSql}
+      AND d.source_id IN (${sql.join(
+        input.sourceIds.map((sid) => sql`${sid}`),
+        sql`, `,
+      )})${kindFilterSql}
     ORDER BY knowledge_chunks_fts.rank
     LIMIT ${limit}
   `)
@@ -153,7 +159,7 @@ function searchSemanticOnly(
   db: Database,
   input: SearchKnowledgeChunksInput,
 ): KnowledgeSearchResult[] {
-  if (!input.embeddingQuery) return []
+  if (!input.embeddingQuery || input.sourceIds.length === 0) return []
   const k = Math.min(input.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
   const hasKindFilter = (input.documentKindFilter?.length ?? 0) > 0
   const kindFilterSql = hasKindFilter
@@ -162,37 +168,48 @@ function searchSemanticOnly(
         sql`, `,
       )})`
     : sql.empty()
-  const rows = db.all<SemanticRow>(sql`
-    SELECT
-      v.chunk_id AS chunkId,
-      v.document_id AS documentId,
-      d.relative_path AS relativePath,
-      d.document_kind AS documentKind,
-      c.chunk_index AS chunkIndex,
-      substr(c.chunk_text, 1, 200) AS chunkText,
-      v.distance AS distance
-    FROM knowledge_chunks_vec v
-      JOIN knowledge_chunks c ON c.id = v.chunk_id
-      JOIN knowledge_documents d ON d.id = v.document_id
-    WHERE v.workspace_id = ${input.workspaceId}
-      AND v.embedding MATCH ${input.embeddingQuery}
-      AND k = ${k}${kindFilterSql}
-    ORDER BY v.distance
-  `)
-  return rows.map((r) => {
-    const semanticScore = 1 / (1 + r.distance)
-    return {
-      chunkId: r.chunkId,
-      documentId: r.documentId,
-      relativePath: r.relativePath,
-      documentKind: r.documentKind,
-      chunkIndex: r.chunkIndex,
-      chunkText: r.chunkText,
-      ftsScore: null,
-      semanticScore,
-      combinedScore: semanticScore,
-    }
-  })
+  // vec0's KNN pre-filter takes a single-equality metadata match, so query each
+  // in-scope source's partition separately and merge — vec0 `IN (...)` is not a
+  // reliable pre-filter. Each side returns its k nearest; keep the global top-k.
+  const merged: SemanticRow[] = []
+  for (const sourceId of input.sourceIds) {
+    merged.push(
+      ...db.all<SemanticRow>(sql`
+        SELECT
+          v.chunk_id AS chunkId,
+          v.document_id AS documentId,
+          d.relative_path AS relativePath,
+          d.document_kind AS documentKind,
+          c.chunk_index AS chunkIndex,
+          substr(c.chunk_text, 1, 200) AS chunkText,
+          v.distance AS distance
+        FROM knowledge_chunks_vec v
+          JOIN knowledge_chunks c ON c.id = v.chunk_id
+          JOIN knowledge_documents d ON d.id = v.document_id
+        WHERE v.source_id = ${sourceId}
+          AND v.embedding MATCH ${input.embeddingQuery}
+          AND k = ${k}${kindFilterSql}
+        ORDER BY v.distance
+      `),
+    )
+  }
+  return merged
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, k)
+    .map((r) => {
+      const semanticScore = 1 / (1 + r.distance)
+      return {
+        chunkId: r.chunkId,
+        documentId: r.documentId,
+        relativePath: r.relativePath,
+        documentKind: r.documentKind,
+        chunkIndex: r.chunkIndex,
+        chunkText: r.chunkText,
+        ftsScore: null,
+        semanticScore,
+        combinedScore: semanticScore,
+      }
+    })
 }
 
 function searchHybrid(db: Database, input: SearchKnowledgeChunksInput): KnowledgeSearchResult[] {
@@ -247,7 +264,7 @@ export function upsertVectorIndexForChunk(
   db: Database,
   input: {
     chunkId: string
-    workspaceId: string
+    sourceId: string
     documentId: string
     embedding: Buffer
   },
@@ -256,8 +273,8 @@ export function upsertVectorIndexForChunk(
   // idempotent pattern is DELETE + INSERT. Memory precedent.
   db.run(sql`DELETE FROM knowledge_chunks_vec WHERE chunk_id = ${input.chunkId}`)
   db.run(sql`
-    INSERT INTO knowledge_chunks_vec (chunk_id, workspace_id, document_id, embedding)
-    VALUES (${input.chunkId}, ${input.workspaceId}, ${input.documentId}, ${input.embedding})
+    INSERT INTO knowledge_chunks_vec (chunk_id, source_id, document_id, embedding)
+    VALUES (${input.chunkId}, ${input.sourceId}, ${input.documentId}, ${input.embedding})
   `)
 }
 

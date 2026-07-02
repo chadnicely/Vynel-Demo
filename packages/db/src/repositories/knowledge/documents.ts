@@ -30,7 +30,29 @@ export type {
 const DEFAULT_LIST_LIMIT = 50
 const MAX_LIST_LIMIT = 200
 
-export function findKnowledgeDocumentByPath(
+export function findKnowledgeDocumentBySourcePath(
+  db: Database,
+  sourceId: string,
+  relativePath: string,
+): KnowledgeDocumentRow | null {
+  const [row] = db
+    .select()
+    .from(knowledgeDocuments)
+    .where(
+      and(
+        eq(knowledgeDocuments.sourceId, sourceId),
+        eq(knowledgeDocuments.relativePath, relativePath),
+      ),
+    )
+    .limit(1)
+    .all()
+  return row ?? null
+}
+
+// Workspace-scoped exact-path lookup — used by the Files "Indexed" badge (list
+// `?path=`). NOT the indexing key (that's findKnowledgeDocumentBySourcePath); a
+// workspace can hold several sources, so this returns the first match.
+export function findKnowledgeDocumentByWorkspacePath(
   db: Database,
   workspaceId: string,
   relativePath: string,
@@ -114,7 +136,7 @@ export function insertKnowledgeDocument(db: Database, row: NewKnowledgeDocumentR
 }
 
 export type UpdatePatch = Partial<
-  Omit<KnowledgeDocumentRow, 'id' | 'userId' | 'workspaceId' | 'createdAt'>
+  Omit<KnowledgeDocumentRow, 'id' | 'userId' | 'workspaceId' | 'sourceId' | 'scope' | 'createdAt'>
 >
 
 export function updateKnowledgeDocument(db: Database, id: string, patch: UpdatePatch): void {

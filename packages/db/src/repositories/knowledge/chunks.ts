@@ -14,8 +14,14 @@ import {
   type KnowledgeChunkRow,
   type NewKnowledgeChunkRow,
 } from '../../schema/knowledge/chunks.js'
+import { knowledgeDocuments } from '../../schema/knowledge/documents.js'
 
 export type { KnowledgeChunkRow, NewKnowledgeChunkRow } from '../../schema/knowledge/chunks.js'
+
+// A chunk awaiting embedding, plus its owning document's `sourceId` — the
+// embedding worker needs the source to write the vec row (chunks no longer
+// carry a workspace/source denorm; scope resolves through the document join).
+export type ChunkNeedingEmbedding = { chunk: KnowledgeChunkRow; sourceId: string }
 
 const DEFAULT_NEEDING_EMBEDDING_LIMIT = 100
 
@@ -43,10 +49,11 @@ export function listKnowledgeChunksForDocument(
 export function listKnowledgeChunksNeedingEmbedding(
   db: Database,
   options: { limit?: number } = {},
-): KnowledgeChunkRow[] {
+): ChunkNeedingEmbedding[] {
   return db
-    .select()
+    .select({ chunk: knowledgeChunks, sourceId: knowledgeDocuments.sourceId })
     .from(knowledgeChunks)
+    .innerJoin(knowledgeDocuments, eq(knowledgeDocuments.id, knowledgeChunks.documentId))
     .where(isNull(knowledgeChunks.embedding))
     .limit(options.limit ?? DEFAULT_NEEDING_EMBEDDING_LIMIT)
     .all()
@@ -71,7 +78,8 @@ export function countUnindexedKnowledgeChunksForWorkspace(
   const rows = db
     .select({ id: knowledgeChunks.id })
     .from(knowledgeChunks)
-    .where(and(eq(knowledgeChunks.workspaceId, workspaceId), isNull(knowledgeChunks.embedding)))
+    .innerJoin(knowledgeDocuments, eq(knowledgeDocuments.id, knowledgeChunks.documentId))
+    .where(and(eq(knowledgeDocuments.workspaceId, workspaceId), isNull(knowledgeChunks.embedding)))
     .all()
   return rows.length
 }

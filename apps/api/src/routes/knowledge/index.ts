@@ -95,7 +95,10 @@ export const knowledgeApp = factory
         }
       }
       const { documents, nextCursor } = listDocumentsForWorkspace(c.var.db, input)
-      return c.json({ documents: documents.map(serializeDocument), nextCursor })
+      return c.json({
+        documents: documents.map((doc) => serializeDocument(doc, c.var.workspace!.id)),
+        nextCursor,
+      })
     },
   )
   // ──────────────────────────────────────────────────────────────────
@@ -134,8 +137,8 @@ export const knowledgeApp = factory
         throw new NotFoundError('knowledge-document', documentId)
       }
       return c.json({
-        document: serializeDocument(detail.document),
-        chunks: detail.chunks.map(serializeChunk),
+        document: serializeDocument(detail.document, c.var.workspace!.id),
+        chunks: detail.chunks.map((chunk) => serializeChunk(chunk, c.var.workspace!.id)),
       })
     },
   )
@@ -173,6 +176,7 @@ export const knowledgeApp = factory
       const q = c.req.valid('query')
       const input: Parameters<typeof searchKnowledge>[1] = {
         workspaceId: c.var.workspace!.id,
+        userId: c.var.user.id,
         query: q.query,
       }
       if (q.mode !== undefined) input.mode = q.mode

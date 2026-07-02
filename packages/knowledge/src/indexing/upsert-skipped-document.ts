@@ -1,21 +1,20 @@
-// `upsertSkippedDocument` — internal helper for `indexFile`. Records
-// a row with `parseStatus: 'skipped'` and the SkipReason as the
-// parseErrorMessage field (intentional dual-use: the column carries
-// both real parse errors AND the reason a file was deliberately
-// skipped — see the schema header note).
+// `upsertSkippedDocument` — internal helper for `indexFile`. Records a row with
+// `parseStatus: 'skipped'` and the SkipReason as the parseErrorMessage field
+// (intentional dual-use: the column carries both real parse errors AND the
+// reason a file was deliberately skipped — see the schema header note).
 //
 // Used for the three pre-parse skip rules:
 //   - in-skipped-folder (.vynel/, Archive/)
 //   - too-large (>50 MB)
 //   - unsupported-format (extension not in the parser registry)
 //
-// Extracted from index-file.ts to keep that load-bearing orchestrator
-// under the 300-line cap per structure-standard.md.
+// Extracted from index-file.ts to keep that load-bearing orchestrator under the
+// 300-line cap per structure-standard.md. Keyed by (source, path) like indexFile.
 
 import { randomUUID } from 'node:crypto'
 import { withTransaction, type Database } from '@vynel/db'
 import {
-  findKnowledgeDocumentByPath,
+  findKnowledgeDocumentBySourcePath,
   findKnowledgeDocumentById,
   insertKnowledgeDocument,
   updateKnowledgeDocument,
@@ -32,7 +31,8 @@ export function upsertSkippedDocument(
   fileStat: { size: number; mtime: Date } | null,
   now: Date,
 ): KnowledgeDocumentRow {
-  const existing = findKnowledgeDocumentByPath(db, input.workspaceId, normalizedRelative)
+  const { source } = input
+  const existing = findKnowledgeDocumentBySourcePath(db, source.id, normalizedRelative)
   const documentId = existing?.id ?? randomUUID()
   const documentKind = deriveDocumentKindFromPath(normalizedRelative)
   withTransaction(db, (tx) => {
@@ -46,8 +46,10 @@ export function upsertSkippedDocument(
     } else {
       insertKnowledgeDocument(tx, {
         id: documentId,
-        userId: input.userId,
-        workspaceId: input.workspaceId,
+        userId: source.userId,
+        workspaceId: source.workspaceId,
+        sourceId: source.id,
+        scope: source.scope,
         relativePath: normalizedRelative,
         documentKind,
         contentHash: '',

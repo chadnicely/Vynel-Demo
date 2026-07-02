@@ -6,7 +6,9 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   insertKnowledgeDocument,
   insertKnowledgeChunks,
+  insertKnowledgeSource,
   upsertVectorIndexForChunk,
+  type KnowledgeSourceRow,
 } from '@vynel/db/repositories/knowledge'
 
 // Inline FNV-1a + L2-normalized fake — same pattern memory uses to
@@ -66,13 +68,22 @@ function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
     updatedAt: now,
     lastAccessedAt: now,
   })
-  return { user, workspace }
+  const source: KnowledgeSourceRow = {
+    id: randomUUID(),
+    userId: user.id,
+    workspaceId: workspace.id,
+    scope: 'workspace',
+    absolutePath: workspace.path,
+    createdAt: now,
+    updatedAt: now,
+  }
+  insertKnowledgeSource(db, source)
+  return { user, workspace, source }
 }
 
 function seedChunkedDocument(
   db: Parameters<Parameters<typeof withTestDatabase>[0]>[0],
-  userId: string,
-  workspaceId: string,
+  source: KnowledgeSourceRow,
   relativePath: string,
   chunkTexts: string[],
 ) {
@@ -80,8 +91,10 @@ function seedChunkedDocument(
   const documentId = randomUUID()
   insertKnowledgeDocument(db, {
     id: documentId,
-    userId,
-    workspaceId,
+    userId: source.userId,
+    workspaceId: source.workspaceId,
+    sourceId: source.id,
+    scope: 'workspace',
     relativePath,
     documentKind: 'markdown',
     contentHash: 'h',
@@ -97,7 +110,6 @@ function seedChunkedDocument(
   const chunks = chunkTexts.map((text, i) => ({
     id: randomUUID(),
     documentId,
-    workspaceId,
     chunkIndex: i,
     startCharOffset: i * 100,
     endCharOffset: i * 100 + text.length,
@@ -114,14 +126,15 @@ function seedChunkedDocument(
 describe('searchKnowledge', () => {
   it('FTS mode: textQuery used, no embedding call', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedWorld(db)
-      seedChunkedDocument(db, user.id, workspace.id, 'Notes/a.md', [
+      const { user, workspace, source } = seedWorld(db)
+      seedChunkedDocument(db, source, 'Notes/a.md', [
         'Acme sells tomato every Friday.',
         'Beta sells pepper.',
       ])
 
       const results = await searchKnowledge(db, {
         workspaceId: workspace.id,
+        userId: user.id,
         query: 'tomato',
         mode: 'fts',
       })
@@ -135,8 +148,8 @@ describe('searchKnowledge', () => {
 
   it('semantic mode: textQuery NOT used in SQL, embedding required', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedWorld(db)
-      const { chunks } = seedChunkedDocument(db, user.id, workspace.id, 'Notes/a.md', [
+      const { user, workspace, source } = seedWorld(db)
+      const { chunks } = seedChunkedDocument(db, source, 'Notes/a.md', [
         'unrelated text here',
       ])
       // Seed a vec row keyed off a known fake embedding
@@ -144,13 +157,14 @@ describe('searchKnowledge', () => {
       const fakeEmbed = await fakeGenerateEmbedding(queryText)
       upsertVectorIndexForChunk(db, {
         chunkId: chunks[0]!.id,
-        workspaceId: workspace.id,
+        sourceId: source.id,
         documentId: chunks[0]!.documentId,
         embedding: fakeEmbed,
       })
 
       const results = await searchKnowledge(db, {
         workspaceId: workspace.id,
+        userId: user.id,
         query: queryText,
         mode: 'semantic',
       })
@@ -163,20 +177,21 @@ describe('searchKnowledge', () => {
 
   it('hybrid mode (default) combines FTS + semantic via RRF', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedWorld(db)
-      const { chunks } = seedChunkedDocument(db, user.id, workspace.id, 'Notes/a.md', [
+      const { user, workspace, source } = seedWorld(db)
+      const { chunks } = seedChunkedDocument(db, source, 'Notes/a.md', [
         'tomato fresh red',
       ])
       const queryText = 'tomato'
       upsertVectorIndexForChunk(db, {
         chunkId: chunks[0]!.id,
-        workspaceId: workspace.id,
+        sourceId: source.id,
         documentId: chunks[0]!.documentId,
         embedding: await fakeGenerateEmbedding(queryText),
       })
 
       const results = await searchKnowledge(db, {
         workspaceId: workspace.id,
+        userId: user.id,
         query: queryText,
         // mode omitted → hybrid default
       })
@@ -190,7 +205,7 @@ describe('searchKnowledge', () => {
 
   it('documentKindFilter restricts results to matching kinds', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedWorld(db)
+      const { user, workspace, source } = seedWorld(db)
       const now = new Date()
       // 1 markdown + 1 pdf, both containing 'shared'
       const mdId = randomUUID()
@@ -198,6 +213,8 @@ describe('searchKnowledge', () => {
         id: mdId,
         userId: user.id,
         workspaceId: workspace.id,
+        sourceId: source.id,
+        scope: 'workspace',
         relativePath: 'a.md',
         documentKind: 'markdown',
         contentHash: 'h',
@@ -215,6 +232,8 @@ describe('searchKnowledge', () => {
         id: pdfId,
         userId: user.id,
         workspaceId: workspace.id,
+        sourceId: source.id,
+        scope: 'workspace',
         relativePath: 'b.pdf',
         documentKind: 'pdf',
         contentHash: 'h2',
@@ -231,7 +250,6 @@ describe('searchKnowledge', () => {
         {
           id: randomUUID(),
           documentId: mdId,
-          workspaceId: workspace.id,
           chunkIndex: 0,
           startCharOffset: 0,
           endCharOffset: 6,
@@ -244,7 +262,6 @@ describe('searchKnowledge', () => {
         {
           id: randomUUID(),
           documentId: pdfId,
-          workspaceId: workspace.id,
           chunkIndex: 0,
           startCharOffset: 0,
           endCharOffset: 6,
@@ -258,6 +275,7 @@ describe('searchKnowledge', () => {
 
       const onlyMd = await searchKnowledge(db, {
         workspaceId: workspace.id,
+        userId: user.id,
         query: 'shared',
         mode: 'fts',
         documentKindFilter: ['markdown'],

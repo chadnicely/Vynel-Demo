@@ -16,11 +16,14 @@ import {
 
 export type SerializedKnowledgeDocument = z.infer<typeof KnowledgeDocumentSchema>
 
-export function serializeDocument(doc: KnowledgeDocumentRow): SerializedKnowledgeDocument {
+export function serializeDocument(
+  doc: KnowledgeDocumentRow,
+  workspaceId: string,
+): SerializedKnowledgeDocument {
   return {
     id: doc.id,
     userId: doc.userId,
-    workspaceId: doc.workspaceId,
+    workspaceId,
     relativePath: doc.relativePath,
     documentKind: doc.documentKind,
     contentHash: doc.contentHash,
@@ -37,11 +40,14 @@ export function serializeDocument(doc: KnowledgeDocumentRow): SerializedKnowledg
 
 export type SerializedKnowledgeChunk = z.infer<typeof KnowledgeChunkSchema>
 
-export function serializeChunk(chunk: KnowledgeChunkRow): SerializedKnowledgeChunk {
+export function serializeChunk(
+  chunk: KnowledgeChunkRow,
+  workspaceId: string,
+): SerializedKnowledgeChunk {
   return {
     id: chunk.id,
     documentId: chunk.documentId,
-    workspaceId: chunk.workspaceId,
+    workspaceId,
     chunkIndex: chunk.chunkIndex,
     startCharOffset: chunk.startCharOffset,
     endCharOffset: chunk.endCharOffset,

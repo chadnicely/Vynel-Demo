@@ -27,7 +27,7 @@ export type ListDocumentsCursor = {
 
 export type ActivityEvent = {
   at: Date
-  workspaceId: string
+  sourceId: string
   eventKind: 'added' | 'changed' | 'removed' | 'parse-failed'
   relativePath: string
   errorMessage?: string

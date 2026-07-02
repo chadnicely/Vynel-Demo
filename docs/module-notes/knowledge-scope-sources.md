@@ -17,12 +17,15 @@ workspace's sources + the user's global sources**.
 - **`knowledge_documents`**: `+ sourceId` (FK→sources), `+ scope` (denorm); `workspaceId` →
   **nullable**; `relativePath` now relative to the source dir; unique flips
   `(workspaceId, relativePath)` → `(sourceId, relativePath)`. [table-rebuild, 0029 pattern]
-- **`knowledge_chunks`**: `+ source_id` (denorm; `ADD COLUMN` + backfill). No rebuild — the
-  FTS external-content link is unaffected by adding a column.
-- **`knowledge_chunks_fts`**: **NO CHANGE** — external-content FTS5 (chunk_text only); scope is
-  filtered via the existing JOIN back to `knowledge_chunks`.
+- **`knowledge_chunks`**: **REBUILD** (FK-off, PRESERVE rowid) — drop the now-dead `workspace_id`,
+  add `source_id` (NOT NULL). WHY rebuild: `workspace_id` is `NOT NULL` with no FK (pure denorm);
+  global chunks have no workspace, so it must go — and SQLite can't drop a column's NOT-NULL without
+  a rebuild. Rowid is preserved (explicit `INSERT ... (rowid, ...) SELECT rowid, ...`) so the
+  external-content FTS index stays valid.
+- **`knowledge_chunks_fts`**: index data UNCHANGED (rowids preserved), but its 3 triggers drop with
+  the old chunks table → **recreate the 3 triggers** verbatim from 0012. No FTS reindex needed.
 - **`knowledge_chunks_vec`**: **REBUILD** to `(chunk_id, source_id, document_id, embedding)` —
-  straight copy from `knowledge_chunks` (embeddings preserved; no model recompute).
+  repopulate from `knowledge_chunks` (embeddings copied from the stored blob; no recompute).
 
 ## Search (scope-fused)
 Resolve in-scope sources: `SELECT id FROM knowledge_sources WHERE userId=? AND (workspaceId=? OR scope='global')`.
@@ -30,17 +33,28 @@ Resolve in-scope sources: `SELECT id FROM knowledge_sources WHERE userId=? AND (
 - **Semantic**: per-source vec query (`v.source_id = ?`) merged in app (safe default; sidesteps
   vec0 `IN`/`OR` uncertainty) — or a single `IN` if verified supported. RRF k=60 unchanged.
 
-## Migration (careful — real-data-tested)
-1. create `knowledge_sources`.
-2. `knowledge_documents` table-rebuild (0029 pattern): nullable `workspace_id` + `sourceId` + `scope` + new unique.
-3. `knowledge_chunks` `ADD COLUMN source_id`.
-4. `knowledge_chunks_vec` rebuild with `source_id`.
-5. **BACKFILL**: per existing workspace create a `scope='workspace'` source (`absolutePath = workspace.path`);
-   set `documents.sourceId` + `scope`; `chunks.source_id`; repopulate vec with `source_id`.
+## Migration `0038_...` (hand-written .sql + `_journal.json` entry, idx 38; FK-off is handled by `runMigrations` at connection level, 0029 pattern)
+1. **CREATE `knowledge_sources`** + indexes + the 2 partial-unique indexes.
+2. **BACKFILL sources**: one `scope='workspace'` source per distinct `(user_id, workspace_id)` present
+   in `knowledge_documents`; **deterministic id `'kbsrc_' || workspace_id`** (so docs/chunks join to it
+   without random ids); `absolute_path = workspaces.path`.
+3. **`knowledge_documents` rebuild** (0029 pattern): `workspace_id` → nullable, `+ source_id` (NOT NULL),
+   `+ scope` (NOT NULL DEFAULT 'workspace'); `INSERT..SELECT` sets `source_id='kbsrc_'||workspace_id`,
+   `scope='workspace'`; drop+rename; recreate indexes incl. **unique `(source_id, relative_path)`**.
+4. **`knowledge_chunks` rebuild** (PRESERVE rowid): drop `workspace_id`, `+ source_id` (NOT NULL);
+   `INSERT..(rowid,...) SELECT rowid,...,'kbsrc_'||workspace_id,...`; drop+rename; recreate indexes
+   (`byDocument`, `bySource`).
+5. **Recreate the 3 FTS triggers** on `knowledge_chunks` (verbatim from 0012). FTS index data is
+   untouched (rowids preserved) — no reindex.
+6. **`knowledge_chunks_vec` rebuild**: drop; create with `source_id`; `INSERT..SELECT id, source_id,
+   document_id, embedding FROM knowledge_chunks WHERE embedding IS NOT NULL`.
 
-**NON-NEGOTIABLE TEST**: seed rows in the OLD shape → run migrate → assert every doc/chunk/embedding
-survives and is searchable. (`migrate.ts` documents a prior rebuild that shipped green-but-broken
-because only an empty DB was tested.)
+**NON-NEGOTIABLE TEST** (`0038_*.test.ts` in `packages/db`): build a temp DB, apply the REAL migrations
+`0000..0037` (old shape), **seed** ≥1 workspace + docs + chunks + embeddings + FTS + vec rows, apply
+`0038`, then assert: sources created; every doc + chunk survived with correct `source_id`/`scope`;
+`workspace_id` now nullable; embeddings intact; **FTS search still returns**; **vec search still
+returns**. (`migrate.ts` documents a prior rebuild that shipped green-but-broken because only an empty
+DB was tested — this test closes that gap.)
 
 ## Core / routes / mcp / cli
 - **Core**: register/list/remove source; generalize `index-workspace` → `index-source`; watcher

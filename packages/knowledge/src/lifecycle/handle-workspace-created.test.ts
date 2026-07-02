@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { findKnowledgeDocumentByPath } from '@vynel/db/repositories/knowledge'
+import { findKnowledgeDocumentByWorkspacePath } from '@vynel/db/repositories/knowledge'
 import { FileWatcherService } from '../indexing/file-watcher.js'
 import { handleWorkspaceCreated } from './handle-workspace-created.js'
 
@@ -65,8 +65,8 @@ describe('handleWorkspaceCreated', () => {
 
       expect(result.indexedCount).toBe(2)
       expect(result.failedCount).toBe(0)
-      expect(findKnowledgeDocumentByPath(db, workspace.id, 'README.md')).not.toBeNull()
-      expect(findKnowledgeDocumentByPath(db, workspace.id, 'note.txt')).not.toBeNull()
+      expect(findKnowledgeDocumentByWorkspacePath(db, workspace.id, 'README.md')).not.toBeNull()
+      expect(findKnowledgeDocumentByWorkspacePath(db, workspace.id, 'note.txt')).not.toBeNull()
 
       await fileWatcher.stopAll()
     })

@@ -6,8 +6,10 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   insertKnowledgeDocument,
   insertKnowledgeChunks,
+  insertKnowledgeSource,
   listKnowledgeChunksNeedingEmbedding,
   listKnowledgeChunksForDocument,
+  type KnowledgeSourceRow,
 } from '@vynel/db/repositories/knowledge'
 
 // Inline FNV-1a + L2-normalized fake (memory's pattern).
@@ -65,21 +67,32 @@ function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
     updatedAt: now,
     lastAccessedAt: now,
   })
-  return { user, workspace }
+  const source: KnowledgeSourceRow = {
+    id: randomUUID(),
+    userId: user.id,
+    workspaceId: workspace.id,
+    scope: 'workspace',
+    absolutePath: workspace.path,
+    createdAt: now,
+    updatedAt: now,
+  }
+  insertKnowledgeSource(db, source)
+  return { user, workspace, source }
 }
 
 function seedChunks(
   db: Parameters<Parameters<typeof withTestDatabase>[0]>[0],
-  userId: string,
-  workspaceId: string,
+  source: KnowledgeSourceRow,
   count: number,
 ) {
   const now = new Date()
   const documentId = randomUUID()
   insertKnowledgeDocument(db, {
     id: documentId,
-    userId,
-    workspaceId,
+    userId: source.userId,
+    workspaceId: source.workspaceId,
+    sourceId: source.id,
+    scope: 'workspace',
     relativePath: `doc-${documentId.slice(0, 8)}.md`,
     documentKind: 'markdown',
     contentHash: 'h',
@@ -95,7 +108,6 @@ function seedChunks(
   const chunks = Array.from({ length: count }, (_, i) => ({
     id: randomUUID(),
     documentId,
-    workspaceId,
     chunkIndex: i,
     startCharOffset: i * 100,
     endCharOffset: i * 100 + 50,
@@ -112,8 +124,8 @@ function seedChunks(
 describe('generateKnowledgeEmbeddings', () => {
   it('picks up unindexed chunks, populates embeddings, returns counts', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedWorld(db)
-      seedChunks(db, user.id, workspace.id, 3)
+      const { source } = seedWorld(db)
+      seedChunks(db, source, 3)
 
       const result = await generateKnowledgeEmbeddings(db)
 
@@ -129,8 +141,8 @@ describe('generateKnowledgeEmbeddings', () => {
 
   it('respects batchSize', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedWorld(db)
-      seedChunks(db, user.id, workspace.id, 10)
+      const { source } = seedWorld(db)
+      seedChunks(db, source, 10)
 
       const result = await generateKnowledgeEmbeddings(db, { batchSize: 4 })
 
@@ -143,8 +155,8 @@ describe('generateKnowledgeEmbeddings', () => {
 
   it('writes the embedding column + model version', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedWorld(db)
-      const { chunks } = seedChunks(db, user.id, workspace.id, 1)
+      const { source } = seedWorld(db)
+      const { chunks } = seedChunks(db, source, 1)
 
       await generateKnowledgeEmbeddings(db)
 

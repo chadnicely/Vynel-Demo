@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { withTestDatabase } from '@vynel/testing'
+import type { KnowledgeSourceRow } from '@vynel/db/repositories/knowledge'
 import { FileWatcherService } from '../indexing/file-watcher.js'
 import { handleWorkspaceRemoved } from './handle-workspace-removed.js'
 
@@ -16,16 +17,22 @@ describe('handleWorkspaceRemoved', () => {
       try {
         const fileWatcher = new FileWatcherService(db, silentLogger)
         const workspaceId = randomUUID()
-        fileWatcher.startWatching({
-          workspaceId,
+        const now = new Date()
+        const source: KnowledgeSourceRow = {
+          id: randomUUID(),
           userId: randomUUID(),
-          workspacePath,
-        })
+          workspaceId,
+          scope: 'workspace',
+          absolutePath: workspacePath,
+          createdAt: now,
+          updatedAt: now,
+        }
+        fileWatcher.startWatchingSource(source)
 
         await handleWorkspaceRemoved({ workspaceId }, { fileWatcher, logger: silentLogger })
 
-        // Calling stopWatching again is a no-op — proves it's already stopped
-        await expect(fileWatcher.stopWatching(workspaceId)).resolves.toBeUndefined()
+        // Calling stopWatchingWorkspace again is a no-op — proves it's already stopped
+        await expect(fileWatcher.stopWatchingWorkspace(workspaceId)).resolves.toBeUndefined()
       } finally {
         await rm(workspacePath, { recursive: true, force: true })
       }

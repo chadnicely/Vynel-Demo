@@ -1,27 +1,24 @@
-// `removeFileFromIndex` — sync core op. Called by the FileWatcherService
-// (Cluster 6) on `unlink` events and by `indexFile` when a file stat
-// fails (the file vanished between watcher fire and the read).
+// `removeFileFromIndex` — sync core op. Called by the FileWatcherService on
+// `unlink` events and by `indexFile` when a file stat fails (the file vanished
+// between watcher fire and the read).
 //
-// Cascade: deletes the `knowledge_documents` row; chunk rows cascade
-// via the FK. The sqlite-vec virtual table does NOT honor FK cascades
-// (per memory's locked behavior), so we explicitly purge vec rows by
-// `documentId` before the document delete.
+// Cascade: deletes the `knowledge_documents` row; chunk rows cascade via the FK.
+// The sqlite-vec virtual table does NOT honor FK cascades, so we explicitly purge
+// vec rows by `documentId` before the document delete.
 //
-// Co-commits a `knowledge.document-removed` outbox event in the same
-// transaction. Phase 1 SYNC discipline per
-// `.claude/memory/decisions/phase-1-sync-transactions.md`.
+// Co-commits a `knowledge.document-removed` outbox event in the same transaction.
+// Phase 1 SYNC discipline per phase-1-sync-transactions.md.
 //
-// Idempotent: no-op when the document doesn't exist (the watcher may
-// fire `unlink` for files we never indexed — e.g. files in
-// `node_modules/` that arrived briefly before chokidar's ignore
-// matched). Per blueprint §8.4.
+// Idempotent: no-op when the document doesn't exist (the watcher may fire
+// `unlink` for files we never indexed). Keyed by (source, path). Per blueprint §8.4.
 
 import { randomUUID } from 'node:crypto'
 import { withTransaction, type Database } from '@vynel/db'
 import {
-  findKnowledgeDocumentByPath,
+  findKnowledgeDocumentBySourcePath,
   hardDeleteKnowledgeDocument,
   deleteVectorIndexForDocument,
+  type KnowledgeSourceRow,
 } from '@vynel/db/repositories/knowledge'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import {
@@ -30,13 +27,13 @@ import {
 } from '../knowledge-events.js'
 
 export type RemoveFileFromIndexInput = {
-  workspaceId: string
-  userId: string
+  source: KnowledgeSourceRow
   relativePath: string
 }
 
 export function removeFileFromIndex(db: Database, input: RemoveFileFromIndexInput): void {
-  const document = findKnowledgeDocumentByPath(db, input.workspaceId, input.relativePath)
+  const { source } = input
+  const document = findKnowledgeDocumentBySourcePath(db, source.id, input.relativePath)
   if (!document) return
 
   const now = new Date()
@@ -46,8 +43,8 @@ export function removeFileFromIndex(db: Database, input: RemoveFileFromIndexInpu
     // Document delete cascades to knowledge_chunks via the FK.
     hardDeleteKnowledgeDocument(tx, document.id)
     const payload: KnowledgeDocumentRemovedPayload = {
-      workspaceId: input.workspaceId,
-      userId: input.userId,
+      workspaceId: source.workspaceId,
+      userId: source.userId,
       documentId: document.id,
       relativePath: input.relativePath,
     }

@@ -1,31 +1,20 @@
-// `FileWatcherService` — the stateful infra holding one chokidar
-// instance per active workspace, plus a per-path debounce timer
-// (300 ms) and a per-workspace activity ring buffer (100 events) for
-// the Activity tab. Lives in `packages/core/src/knowledge/file-watcher.ts`
-// per D24 (infra-package-pure-helpers / core-package-orchestration —
-// chokidar is concrete infrastructure, but the class belongs to the
-// orchestration layer because it calls `indexFile` + `removeFileFromIndex`).
+// `FileWatcherService` — the stateful infra holding one chokidar instance per
+// active SOURCE (a registered directory), plus a per-path debounce timer (300 ms)
+// and a per-source activity ring buffer (100 events). A class per the gate-trail
+// Q6 — legitimate stateful infrastructure — living in the orchestration layer
+// because it calls `indexFile` + `removeFileFromIndex`.
 //
-// A class (per the gate-trail Q6) — legitimate stateful infrastructure
-// requires a class. Methods:
-//   - startWatching(input)   — open a chokidar watcher for a workspace
-//   - stopWatching(workspaceId) — close that workspace's watcher
-//   - stopAll() — close every open watcher (process shutdown)
-//   - getActivityForWorkspace(workspaceId) — read the ring buffer
+// Methods:
+//   - startWatchingSource(source)        — open a chokidar watcher for a source
+//   - stopWatchingSource(sourceId)       — close that source's watcher
+//   - stopWatchingWorkspace(workspaceId) — close every watcher of a workspace
+//   - stopAll()                          — close every open watcher (shutdown)
+//   - getActivityForSource(sourceId)     — read the ring buffer
 //
-// Key behaviors:
-//   - 300ms per-path debounce collapses rapid saves to one index call.
-//   - `awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 }`
-//     prevents indexing half-written files (text editor stream-writes).
-//   - `followSymlinks: false` — no symlink traversal out of the workspace.
-//   - `ignoreInitial: true` — the initial walk is `indexWorkspace`'s job.
-//   - Hard-skipped: dot-files (except identity-file basenames at root),
-//     `.vynel/**`, `Archive/**`, `node_modules/**`.
-//   - NO self-write window (per D8 — the outbox seam eliminates the
-//     original double-reconcile race; no in-memory flag needed).
-//   - Activity ring buffer per workspace, bounded at 100 events,
-//     cleared on restart (per D12 — in-memory only; not persisted).
-//
+// Key behaviors: 300 ms per-path debounce; `awaitWriteFinish` guards half-written
+// files; `followSymlinks: false`; `ignoreInitial: true` (the initial walk is
+// `indexSource`'s job); hard-skip dotfiles / `.vynel/**` / `Archive/**` /
+// `node_modules/**`. Activity ring is in-memory only, cleared on restart.
 // Per blueprint §7.
 
 import chokidar, { type FSWatcher } from 'chokidar'
@@ -33,39 +22,34 @@ import path from 'node:path'
 import { indexFile } from './index-file.js'
 import { removeFileFromIndex } from './remove-file-from-index.js'
 import type { Database } from '@vynel/db'
+import type { KnowledgeSourceRow } from '@vynel/db/repositories/knowledge'
 import type { ActivityEvent, StructuralLogger } from '../knowledge-types.js'
 
 const DEBOUNCE_MS = 300
-const MAX_ACTIVITY_PER_WORKSPACE = 100
+const MAX_ACTIVITY_PER_SOURCE = 100
 
-export type WorkspaceWatchInput = {
-  workspaceId: string
-  userId: string
-  workspacePath: string
-}
+type ActiveWatcher = { watcher: FSWatcher; workspaceId: string | null }
 
 export class FileWatcherService {
-  private readonly watchersByWorkspaceId = new Map<string, FSWatcher>()
+  private readonly watchersBySourceId = new Map<string, ActiveWatcher>()
   private readonly debouncedTimerByPath = new Map<string, NodeJS.Timeout>()
-  private readonly activityByWorkspaceId = new Map<string, ActivityEvent[]>()
+  private readonly activityBySourceId = new Map<string, ActivityEvent[]>()
 
   constructor(
     private readonly db: Database,
     private readonly logger: StructuralLogger,
   ) {}
 
-  startWatching(input: WorkspaceWatchInput): void {
-    if (this.watchersByWorkspaceId.has(input.workspaceId)) return
+  startWatchingSource(source: KnowledgeSourceRow): void {
+    if (this.watchersBySourceId.has(source.id)) return
 
-    const watcher = chokidar.watch(input.workspacePath, {
+    const watcher = chokidar.watch(source.absolutePath, {
       ignored: (filePath) => {
-        const relative = path.relative(input.workspacePath, filePath)
+        const relative = path.relative(source.absolutePath, filePath)
         if (relative === '') return false
         const segments = relative.split(path.sep)
         const basename = segments[segments.length - 1] ?? ''
-        // Skip dotfiles
         if (basename.startsWith('.')) return true
-        // Skip well-known noise folders
         if (segments.includes('node_modules')) return true
         if (segments[0] === 'Archive') return true
         if (segments[0] === '.vynel') return true
@@ -77,90 +61,85 @@ export class FileWatcherService {
       persistent: true,
     })
 
-    const onAddOrChange = (absPath: string, kind: 'added' | 'changed'): void => {
-      this.scheduleIndex(input, absPath, kind)
-    }
-
     watcher
-      .on('add', (absPath) => onAddOrChange(absPath, 'added'))
-      .on('change', (absPath) => onAddOrChange(absPath, 'changed'))
-      .on('unlink', (absPath) => this.scheduleRemove(input, absPath))
-      .on('error', (err) =>
-        this.logger.warn({ err, workspaceId: input.workspaceId }, 'file-watcher error'),
-      )
+      .on('add', (absPath) => this.scheduleIndex(source, absPath, 'added'))
+      .on('change', (absPath) => this.scheduleIndex(source, absPath, 'changed'))
+      .on('unlink', (absPath) => this.scheduleRemove(source, absPath))
+      .on('error', (err) => this.logger.warn({ err, sourceId: source.id }, 'file-watcher error'))
 
-    this.watchersByWorkspaceId.set(input.workspaceId, watcher)
+    this.watchersBySourceId.set(source.id, { watcher, workspaceId: source.workspaceId })
   }
 
-  async stopWatching(workspaceId: string): Promise<void> {
-    const watcher = this.watchersByWorkspaceId.get(workspaceId)
-    if (!watcher) return
-    await watcher.close()
-    this.watchersByWorkspaceId.delete(workspaceId)
+  async stopWatchingSource(sourceId: string): Promise<void> {
+    const active = this.watchersBySourceId.get(sourceId)
+    if (!active) return
+    await active.watcher.close()
+    this.watchersBySourceId.delete(sourceId)
+  }
+
+  async stopWatchingWorkspace(workspaceId: string): Promise<void> {
+    const ids = Array.from(this.watchersBySourceId.entries())
+      .filter(([, active]) => active.workspaceId === workspaceId)
+      .map(([id]) => id)
+    await Promise.all(ids.map((id) => this.stopWatchingSource(id)))
   }
 
   async stopAll(): Promise<void> {
-    const ids = Array.from(this.watchersByWorkspaceId.keys())
-    await Promise.all(ids.map((id) => this.stopWatching(id)))
-    // Clear any pending debounce timers
+    const ids = Array.from(this.watchersBySourceId.keys())
+    await Promise.all(ids.map((id) => this.stopWatchingSource(id)))
     for (const handle of this.debouncedTimerByPath.values()) clearTimeout(handle)
     this.debouncedTimerByPath.clear()
   }
 
-  getActivityForWorkspace(workspaceId: string): readonly ActivityEvent[] {
-    return this.activityByWorkspaceId.get(workspaceId) ?? []
+  getActivityForSource(sourceId: string): readonly ActivityEvent[] {
+    return this.activityBySourceId.get(sourceId) ?? []
   }
 
   private scheduleIndex(
-    input: WorkspaceWatchInput,
+    source: KnowledgeSourceRow,
     absolutePath: string,
     kind: 'added' | 'changed',
   ): void {
     this.debounce(absolutePath, async () => {
-      const relativePath = path.relative(input.workspacePath, absolutePath)
-      const normalized = relativePath.split(path.sep).join('/')
+      const normalized = path.relative(source.absolutePath, absolutePath).split(path.sep).join('/')
       try {
-        await indexFile(this.db, { ...input, relativePath: normalized }, { logger: this.logger })
-        this.recordActivity(input.workspaceId, {
+        await indexFile(this.db, { source, relativePath: normalized }, { logger: this.logger })
+        this.recordActivity(source.id, {
           at: new Date(),
-          workspaceId: input.workspaceId,
+          sourceId: source.id,
           eventKind: kind,
           relativePath: normalized,
         })
       } catch (err) {
-        this.recordActivity(input.workspaceId, {
+        this.recordActivity(source.id, {
           at: new Date(),
-          workspaceId: input.workspaceId,
+          sourceId: source.id,
           eventKind: 'parse-failed',
           relativePath: normalized,
           errorMessage: err instanceof Error ? err.message : String(err),
         })
         this.logger.warn(
-          { err, relativePath: normalized, workspaceId: input.workspaceId },
+          { err, relativePath: normalized, sourceId: source.id },
           'failed to index file from watch event',
         )
       }
     })
   }
 
-  private scheduleRemove(input: WorkspaceWatchInput, absolutePath: string): void {
+  private scheduleRemove(source: KnowledgeSourceRow, absolutePath: string): void {
     this.debounce(absolutePath, async () => {
-      const normalized = path.relative(input.workspacePath, absolutePath).split(path.sep).join('/')
+      const normalized = path.relative(source.absolutePath, absolutePath).split(path.sep).join('/')
       try {
-        removeFileFromIndex(this.db, {
-          workspaceId: input.workspaceId,
-          userId: input.userId,
-          relativePath: normalized,
-        })
-        this.recordActivity(input.workspaceId, {
+        removeFileFromIndex(this.db, { source, relativePath: normalized })
+        this.recordActivity(source.id, {
           at: new Date(),
-          workspaceId: input.workspaceId,
+          sourceId: source.id,
           eventKind: 'removed',
           relativePath: normalized,
         })
       } catch (err) {
         this.logger.warn(
-          { err, relativePath: normalized, workspaceId: input.workspaceId },
+          { err, relativePath: normalized, sourceId: source.id },
           'failed to remove file from index',
         )
       }
@@ -177,10 +156,10 @@ export class FileWatcherService {
     this.debouncedTimerByPath.set(key, handle)
   }
 
-  private recordActivity(workspaceId: string, event: ActivityEvent): void {
-    const ring = this.activityByWorkspaceId.get(workspaceId) ?? []
+  private recordActivity(sourceId: string, event: ActivityEvent): void {
+    const ring = this.activityBySourceId.get(sourceId) ?? []
     ring.push(event)
-    if (ring.length > MAX_ACTIVITY_PER_WORKSPACE) ring.shift()
-    this.activityByWorkspaceId.set(workspaceId, ring)
+    if (ring.length > MAX_ACTIVITY_PER_SOURCE) ring.shift()
+    this.activityBySourceId.set(sourceId, ring)
   }
 }

@@ -1,48 +1,41 @@
-// `indexWorkspace` — initial-scan core op. Walks the workspace
-// directory, calls `indexFile` for every eligible file with bounded
-// concurrency 4. Called once when a workspace is opened (the
-// `workspace.created` outbox consumer in Cluster 7).
+// `indexSource` — initial-scan core op for a SOURCE (a registered directory at
+// workspace or global scope). Walks the source's `absolutePath`, calls `indexFile`
+// for every eligible file with bounded concurrency 4. Called by
+// `handleWorkspaceCreated` (the workspace's own source) + `forceReindexWorkspace`
+// + source registration.
 //
-// Concurrency is bounded so a 5000-file workspace doesn't open 5000
-// pdf-parse / mammoth invocations at once (each opens read FDs +
-// allocates buffers; the 50 MB max-file limit caps per-file memory
-// but 4 large PDFs together stays manageable).
+// (The file keeps its `index-workspace.ts` name; the op generalized from
+// per-workspace to per-source when knowledge gained scope + sources.)
 //
-// Walks skip the same prefixes the FileWatcherService ignores: dot-
-// folders, `.vynel/`, `Archive/`, `node_modules/`. Identity files
-// at the workspace root (USER.md / PREFERENCES.md / MEMORY.md) are
-// added back because they're capital-letter files NOT starting with
-// a dot.
+// Concurrency is bounded so a 5000-file directory doesn't open 5000 pdf-parse /
+// mammoth invocations at once (each opens read FDs + allocates buffers; the 50 MB
+// max-file limit caps per-file memory but 4 large PDFs together stays manageable).
 //
-// Per blueprint §8.1 + §8.5.
+// Walks skip the same prefixes the FileWatcherService ignores: dot-folders,
+// `.vynel/`, `Archive/`, `node_modules/`. Per blueprint §8.1 + §8.5.
 
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { indexFile } from './index-file.js'
 import type { Database } from '@vynel/db'
+import type { KnowledgeSourceRow } from '@vynel/db/repositories/knowledge'
 import type { StructuralLogger } from '../knowledge-types.js'
 
 const INDEX_CONCURRENCY = 4
 
-export type IndexWorkspaceInput = {
-  workspaceId: string
-  userId: string
-  workspacePath: string
-}
-
-export type IndexWorkspaceResult = {
+export type IndexSourceResult = {
   indexedCount: number
   skippedCount: number
   failedCount: number
 }
 
-export async function indexWorkspace(
+export async function indexSource(
   db: Database,
-  input: IndexWorkspaceInput,
+  source: KnowledgeSourceRow,
   deps: { logger?: StructuralLogger } = {},
-): Promise<IndexWorkspaceResult> {
-  const allRelativePaths = await walkWorkspaceFiles(input.workspacePath)
-  const stats: IndexWorkspaceResult = {
+): Promise<IndexSourceResult> {
+  const allRelativePaths = await walkSourceFiles(source.absolutePath)
+  const stats: IndexSourceResult = {
     indexedCount: 0,
     skippedCount: 0,
     failedCount: 0,
@@ -53,14 +46,14 @@ export async function indexWorkspace(
       const relativePath = queue.shift()
       if (!relativePath) break
       try {
-        const doc = await indexFile(db, { ...input, relativePath }, deps)
+        const doc = await indexFile(db, { source, relativePath }, deps)
         if (doc.parseStatus === 'parsed') stats.indexedCount += 1
         else if (doc.parseStatus === 'skipped') stats.skippedCount += 1
         else if (doc.parseStatus === 'failed') stats.failedCount += 1
       } catch (err) {
         deps.logger?.warn(
-          { err, relativePath, workspaceId: input.workspaceId },
-          'indexWorkspace: indexFile threw',
+          { err, relativePath, sourceId: source.id },
+          'indexSource: indexFile threw',
         )
         stats.failedCount += 1
       }
@@ -70,22 +63,20 @@ export async function indexWorkspace(
   return stats
 }
 
-async function walkWorkspaceFiles(workspacePath: string): Promise<string[]> {
+async function walkSourceFiles(rootPath: string): Promise<string[]> {
   const results: string[] = []
   async function walk(dir: string): Promise<void> {
     let entries
     try {
       entries = await readdir(dir, { withFileTypes: true })
     } catch {
-      // Directory unreadable — silently skip; the surface (a single
-      // workspace folder) shouldn't surface fs errors here.
+      // Directory unreadable — silently skip; the scan shouldn't surface fs errors.
       return
     }
     for (const entry of entries) {
       const absolutePath = path.join(dir, entry.name)
-      const relativePath = path.relative(workspacePath, absolutePath).split(path.sep).join('/')
+      const relativePath = path.relative(rootPath, absolutePath).split(path.sep).join('/')
 
-      // Dot-files are skipped.
       if (entry.name.startsWith('.')) continue
       if (entry.name === 'node_modules') continue
       if (relativePath.startsWith('Archive/') || relativePath === 'Archive') continue
@@ -98,6 +89,6 @@ async function walkWorkspaceFiles(workspacePath: string): Promise<string[]> {
       }
     }
   }
-  await walk(workspacePath)
+  await walk(rootPath)
   return results
 }

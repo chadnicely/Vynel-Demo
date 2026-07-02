@@ -3,7 +3,12 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { insertKnowledgeDocument, insertKnowledgeChunks } from '@vynel/db/repositories/knowledge'
+import {
+  insertKnowledgeDocument,
+  insertKnowledgeChunks,
+  insertKnowledgeSource,
+  type KnowledgeSourceRow,
+} from '@vynel/db/repositories/knowledge'
 import { getIndexerStatus } from './get-indexer-status.js'
 
 function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
@@ -29,13 +34,22 @@ function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
     updatedAt: now,
     lastAccessedAt: now,
   })
-  return { user, workspace }
+  const source: KnowledgeSourceRow = {
+    id: randomUUID(),
+    userId: user.id,
+    workspaceId: workspace.id,
+    scope: 'workspace',
+    absolutePath: workspace.path,
+    createdAt: now,
+    updatedAt: now,
+  }
+  insertKnowledgeSource(db, source)
+  return { user, workspace, source }
 }
 
 function insertDoc(
   db: Parameters<Parameters<typeof withTestDatabase>[0]>[0],
-  userId: string,
-  workspaceId: string,
+  source: KnowledgeSourceRow,
   parseStatus: 'pending' | 'parsing' | 'parsed' | 'failed' | 'skipped',
   indexedAt: Date | null,
 ) {
@@ -43,8 +57,10 @@ function insertDoc(
   const id = randomUUID()
   insertKnowledgeDocument(db, {
     id,
-    userId,
-    workspaceId,
+    userId: source.userId,
+    workspaceId: source.workspaceId,
+    sourceId: source.id,
+    scope: 'workspace',
     relativePath: `doc-${id.slice(0, 8)}.md`,
     documentKind: 'markdown',
     contentHash: 'h',
@@ -81,13 +97,13 @@ describe('getIndexerStatus', () => {
 
   it('rolls up counts across all 5 parse states + reports lastIndexedAt', () => {
     return withTestDatabase((db) => {
-      const { user, workspace } = seedWorld(db)
-      insertDoc(db, user.id, workspace.id, 'parsed', new Date('2026-05-25T10:00:00Z'))
-      insertDoc(db, user.id, workspace.id, 'parsed', new Date('2026-05-25T11:00:00Z'))
-      insertDoc(db, user.id, workspace.id, 'pending', null)
-      insertDoc(db, user.id, workspace.id, 'parsing', null)
-      insertDoc(db, user.id, workspace.id, 'failed', null)
-      insertDoc(db, user.id, workspace.id, 'skipped', null)
+      const { workspace, source } = seedWorld(db)
+      insertDoc(db, source, 'parsed', new Date('2026-05-25T10:00:00Z'))
+      insertDoc(db, source, 'parsed', new Date('2026-05-25T11:00:00Z'))
+      insertDoc(db, source, 'pending', null)
+      insertDoc(db, source, 'parsing', null)
+      insertDoc(db, source, 'failed', null)
+      insertDoc(db, source, 'skipped', null)
 
       const status = getIndexerStatus(db, workspace.id)
       expect(status.totalDocuments).toBe(6)
@@ -102,14 +118,13 @@ describe('getIndexerStatus', () => {
 
   it('counts unindexedChunks from the chunks repo', () => {
     return withTestDatabase((db) => {
-      const { user, workspace } = seedWorld(db)
-      const docId = insertDoc(db, user.id, workspace.id, 'parsed', new Date())
+      const { workspace, source } = seedWorld(db)
+      const docId = insertDoc(db, source, 'parsed', new Date())
       const now = new Date()
       insertKnowledgeChunks(db, [
         {
           id: randomUUID(),
           documentId: docId,
-          workspaceId: workspace.id,
           chunkIndex: 0,
           startCharOffset: 0,
           endCharOffset: 10,
@@ -122,7 +137,6 @@ describe('getIndexerStatus', () => {
         {
           id: randomUUID(),
           documentId: docId,
-          workspaceId: workspace.id,
           chunkIndex: 1,
           startCharOffset: 10,
           endCharOffset: 20,

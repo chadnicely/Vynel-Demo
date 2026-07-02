@@ -3,7 +3,11 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { insertKnowledgeDocument } from '@vynel/db/repositories/knowledge'
+import {
+  insertKnowledgeDocument,
+  insertKnowledgeSource,
+  type KnowledgeSourceRow,
+} from '@vynel/db/repositories/knowledge'
 import { listDocumentsForWorkspace } from './list-documents-for-workspace.js'
 
 function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
@@ -29,13 +33,22 @@ function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
     updatedAt: now,
     lastAccessedAt: now,
   })
-  return { user, workspace }
+  const source: KnowledgeSourceRow = {
+    id: randomUUID(),
+    userId: user.id,
+    workspaceId: workspace.id,
+    scope: 'workspace',
+    absolutePath: workspace.path,
+    createdAt: now,
+    updatedAt: now,
+  }
+  insertKnowledgeSource(db, source)
+  return { user, workspace, source }
 }
 
 function insertDoc(
   db: Parameters<Parameters<typeof withTestDatabase>[0]>[0],
-  userId: string,
-  workspaceId: string,
+  source: KnowledgeSourceRow,
   relativePath: string,
   indexedAt: Date | null,
   documentKind: 'markdown' | 'plain-text' = 'markdown',
@@ -44,8 +57,10 @@ function insertDoc(
   const id = randomUUID()
   insertKnowledgeDocument(db, {
     id,
-    userId,
-    workspaceId,
+    userId: source.userId,
+    workspaceId: source.workspaceId,
+    sourceId: source.id,
+    scope: 'workspace',
     relativePath,
     documentKind,
     contentHash: 'h',
@@ -64,9 +79,9 @@ function insertDoc(
 describe('listDocumentsForWorkspace', () => {
   it('returns documents with null nextCursor when under the limit', async () => {
     await withTestDatabase((db) => {
-      const { user, workspace } = seedWorld(db)
-      insertDoc(db, user.id, workspace.id, 'a.md', new Date('2026-05-25T10:00:00Z'))
-      insertDoc(db, user.id, workspace.id, 'b.md', new Date('2026-05-25T11:00:00Z'))
+      const { workspace, source } = seedWorld(db)
+      insertDoc(db, source, 'a.md', new Date('2026-05-25T10:00:00Z'))
+      insertDoc(db, source, 'b.md', new Date('2026-05-25T11:00:00Z'))
 
       const result = listDocumentsForWorkspace(db, {
         workspaceId: workspace.id,
@@ -79,10 +94,10 @@ describe('listDocumentsForWorkspace', () => {
 
   it('returns a nextCursor when the page is full + iterates correctly', async () => {
     await withTestDatabase((db) => {
-      const { user, workspace } = seedWorld(db)
+      const { workspace, source } = seedWorld(db)
       const baseTime = new Date('2026-05-25T10:00:00Z').getTime()
       for (let i = 0; i < 5; i++) {
-        insertDoc(db, user.id, workspace.id, `doc-${i}.md`, new Date(baseTime + i * 1000))
+        insertDoc(db, source, `doc-${i}.md`, new Date(baseTime + i * 1000))
       }
 
       const page1 = listDocumentsForWorkspace(db, {
@@ -107,12 +122,12 @@ describe('listDocumentsForWorkspace', () => {
 
   it('crosses the NULL boundary when paginating into not-yet-indexed rows', async () => {
     await withTestDatabase((db) => {
-      const { user, workspace } = seedWorld(db)
+      const { workspace, source } = seedWorld(db)
       // 2 indexed + 2 not-yet-indexed
-      insertDoc(db, user.id, workspace.id, 'idx-1.md', new Date('2026-05-25T10:00:00Z'))
-      insertDoc(db, user.id, workspace.id, 'idx-2.md', new Date('2026-05-25T11:00:00Z'))
-      insertDoc(db, user.id, workspace.id, 'pending-1.md', null)
-      insertDoc(db, user.id, workspace.id, 'pending-2.md', null)
+      insertDoc(db, source, 'idx-1.md', new Date('2026-05-25T10:00:00Z'))
+      insertDoc(db, source, 'idx-2.md', new Date('2026-05-25T11:00:00Z'))
+      insertDoc(db, source, 'pending-1.md', null)
+      insertDoc(db, source, 'pending-2.md', null)
 
       const page1 = listDocumentsForWorkspace(db, { workspaceId: workspace.id, limit: 2 })
       expect(page1.documents).toHaveLength(2)
@@ -132,9 +147,9 @@ describe('listDocumentsForWorkspace', () => {
 
   it('returns the single matching document when an exact path is provided', async () => {
     await withTestDatabase((db) => {
-      const { user, workspace } = seedWorld(db)
-      insertDoc(db, user.id, workspace.id, 'a.md', new Date('2026-05-25T10:00:00Z'))
-      insertDoc(db, user.id, workspace.id, 'notes/b.md', new Date('2026-05-25T11:00:00Z'))
+      const { workspace, source } = seedWorld(db)
+      insertDoc(db, source, 'a.md', new Date('2026-05-25T10:00:00Z'))
+      insertDoc(db, source, 'notes/b.md', new Date('2026-05-25T11:00:00Z'))
 
       const found = listDocumentsForWorkspace(db, {
         workspaceId: workspace.id,
@@ -148,8 +163,8 @@ describe('listDocumentsForWorkspace', () => {
 
   it('returns an empty list when the path matches no document', async () => {
     await withTestDatabase((db) => {
-      const { user, workspace } = seedWorld(db)
-      insertDoc(db, user.id, workspace.id, 'a.md', new Date('2026-05-25T10:00:00Z'))
+      const { workspace, source } = seedWorld(db)
+      insertDoc(db, source, 'a.md', new Date('2026-05-25T10:00:00Z'))
 
       const result = listDocumentsForWorkspace(db, {
         workspaceId: workspace.id,
@@ -162,9 +177,9 @@ describe('listDocumentsForWorkspace', () => {
 
   it('filters by documentKind when provided', async () => {
     await withTestDatabase((db) => {
-      const { user, workspace } = seedWorld(db)
-      insertDoc(db, user.id, workspace.id, 'a.md', new Date(), 'markdown')
-      insertDoc(db, user.id, workspace.id, 'b.txt', new Date(), 'plain-text')
+      const { workspace, source } = seedWorld(db)
+      insertDoc(db, source, 'a.md', new Date(), 'markdown')
+      insertDoc(db, source, 'b.txt', new Date(), 'plain-text')
 
       const onlyMd = listDocumentsForWorkspace(db, {
         workspaceId: workspace.id,

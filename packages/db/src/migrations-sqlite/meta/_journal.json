@@ -267,6 +267,13 @@
       "when": 1782701165548,
       "tag": "0037_legal_fallen_one",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1782974058276,
+      "tag": "0038_knowledge_sources_scope",
+      "breakpoints": true
     }
   ]
 }

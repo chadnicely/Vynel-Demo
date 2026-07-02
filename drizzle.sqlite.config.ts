@@ -31,6 +31,7 @@ export default defineConfig({
     './src/schema/approvals/approval-requests.ts',
     './src/schema/memory/memory-entries.ts',
     './src/schema/memory/memory-entry-mentions.ts',
+    './src/schema/knowledge/sources.ts',
     './src/schema/knowledge/documents.ts',
     './src/schema/knowledge/chunks.ts',
     './src/schema/skills/installed-skills.ts',

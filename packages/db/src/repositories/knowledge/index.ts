@@ -7,6 +7,7 @@
 // entity prefix (e.g. `findDocumentByPath`, `insertChunks`) so the
 // flat surface stays unambiguous after the three modules merge.
 
+export * from './sources.js'
 export * from './documents.js'
 export * from './chunks.js'
 export * from './search.js'

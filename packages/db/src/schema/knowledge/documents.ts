@@ -17,6 +17,7 @@
 import { table, id, text, integer, timestamp, index, uniqueIndex } from '@vynel/db/dialect'
 import { users } from '../users/users.js'
 import { workspaces } from '../workspaces/workspaces.js'
+import { knowledgeSources, type KnowledgeSourceScope } from './sources.js'
 
 export type DocumentKind =
   | 'markdown'
@@ -40,9 +41,15 @@ export const knowledgeDocuments = table(
   {
     id: id().primaryKey(),
     userId: id().references(() => users.id, { onDelete: 'cascade' }),
-    workspaceId: id().references(() => workspaces.id, { onDelete: 'cascade' }),
+    // Nullable: non-null for a workspace-scoped document, NULL for a global one.
+    workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
+    // The source (registered directory) this document belongs to. Cascade so
+    // removing a source removes its indexed documents.
+    sourceId: id().references(() => knowledgeSources.id, { onDelete: 'cascade' }),
+    // 'workspace' | 'global'. Additive: pre-existing rows backfill to 'workspace'.
+    scope: text().$type<KnowledgeSourceScope>().notNull().default('workspace'),
 
-    // Forward-slash-normalized; per decisions.md D3. Unique per workspace.
+    // Forward-slash-normalized; per decisions.md D3. Unique per source.
     relativePath: text().notNull(),
 
     // Derived from extension on insert via `deriveDocumentKindFromPath`.
@@ -83,8 +90,11 @@ export const knowledgeDocuments = table(
       t.workspaceId,
       t.indexedAt,
     ),
-    byWorkspacePathUniqueIdx: uniqueIndex('uniq_knowledge_documents_workspace_path').on(
-      t.workspaceId,
+    bySourceIdx: index('idx_knowledge_documents_source').on(t.sourceId),
+    // Uniqueness moved from (workspaceId, relativePath) to (sourceId, relativePath):
+    // a path is relative to its SOURCE directory now, and global docs have no workspace.
+    bySourcePathUniqueIdx: uniqueIndex('uniq_knowledge_documents_source_path').on(
+      t.sourceId,
       t.relativePath,
     ),
   }),

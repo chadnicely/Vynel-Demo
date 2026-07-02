@@ -2,13 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
-import { insertUser } from '@vynel/db/repositories/users'
-import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { listKnowledgeDocumentsForWorkspace } from '@vynel/db/repositories/knowledge'
-import { indexWorkspace } from './index-workspace.js'
+import { indexSource } from './index-workspace.js'
 import { forceReindexWorkspace } from './force-reindex-workspace.js'
+import { seedUserWorkspaceAndSource } from '../_test-helpers.js'
 
 let workspacePath: string
 
@@ -20,48 +18,15 @@ afterEach(async () => {
   await rm(workspacePath, { recursive: true, force: true })
 })
 
-function seedUserWorkspace(
-  db: Parameters<Parameters<typeof withTestDatabase>[0]>[0],
-  workspaceLocation: string,
-) {
-  const now = new Date()
-  const user = insertUser(db, {
-    id: randomUUID(),
-    displayName: 'T',
-    emailAddress: null,
-    locale: 'en-US',
-    timezone: 'UTC',
-    hasCompletedOnboarding: false,
-    createdAt: now,
-    updatedAt: now,
-  })
-  const workspace = insertWorkspace(db, {
-    id: randomUUID(),
-    userId: user.id,
-    name: 'Acme',
-    kind: 'small-business',
-    path: workspaceLocation,
-    isArchived: false,
-    createdAt: now,
-    updatedAt: now,
-    lastAccessedAt: now,
-  })
-  return { user, workspace }
-}
-
 describe('forceReindexWorkspace', () => {
   it('flips all rows to pending then re-indexes them', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seedUserWorkspace(db, workspacePath)
+      const { user, workspace, source } = seedUserWorkspaceAndSource(db, workspacePath)
       await writeFile(path.join(workspacePath, 'a.md'), '# A', 'utf8')
       await writeFile(path.join(workspacePath, 'b.md'), '# B', 'utf8')
 
       // First pass — establish parsed state
-      await indexWorkspace(db, {
-        workspaceId: workspace.id,
-        userId: user.id,
-        workspacePath,
-      })
+      await indexSource(db, source)
       const beforeRows = listKnowledgeDocumentsForWorkspace(db, workspace.id, { limit: 50 })
       expect(beforeRows.every((d) => d.parseStatus === 'parsed')).toBe(true)
 

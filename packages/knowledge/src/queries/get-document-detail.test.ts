@@ -4,7 +4,12 @@ import { NotFoundError } from '@vynel/errors'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { insertKnowledgeDocument, insertKnowledgeChunks } from '@vynel/db/repositories/knowledge'
+import {
+  insertKnowledgeDocument,
+  insertKnowledgeChunks,
+  insertKnowledgeSource,
+  type KnowledgeSourceRow,
+} from '@vynel/db/repositories/knowledge'
 import { getDocumentDetail } from './get-document-detail.js'
 
 function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
@@ -30,19 +35,31 @@ function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
     updatedAt: now,
     lastAccessedAt: now,
   })
-  return { user, workspace }
+  const source: KnowledgeSourceRow = {
+    id: randomUUID(),
+    userId: user.id,
+    workspaceId: workspace.id,
+    scope: 'workspace',
+    absolutePath: workspace.path,
+    createdAt: now,
+    updatedAt: now,
+  }
+  insertKnowledgeSource(db, source)
+  return { user, workspace, source }
 }
 
 describe('getDocumentDetail', () => {
   it('returns the document + its chunks in chunkIndex order', () => {
     return withTestDatabase((db) => {
-      const { user, workspace } = seedWorld(db)
+      const { user, workspace, source } = seedWorld(db)
       const now = new Date()
       const documentId = randomUUID()
       insertKnowledgeDocument(db, {
         id: documentId,
         userId: user.id,
         workspaceId: workspace.id,
+        sourceId: source.id,
+        scope: 'workspace',
         relativePath: 'Notes/a.md',
         documentKind: 'markdown',
         contentHash: 'h',
@@ -60,7 +77,6 @@ describe('getDocumentDetail', () => {
         {
           id: randomUUID(),
           documentId,
-          workspaceId: workspace.id,
           chunkIndex: 1,
           startCharOffset: 100,
           endCharOffset: 200,
@@ -73,7 +89,6 @@ describe('getDocumentDetail', () => {
         {
           id: randomUUID(),
           documentId,
-          workspaceId: workspace.id,
           chunkIndex: 0,
           startCharOffset: 0,
           endCharOffset: 100,

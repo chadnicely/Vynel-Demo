@@ -6,7 +6,12 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '../../test-support/with-test-database.js'
 import { insertUser } from '../users/users.js'
 import { insertWorkspace } from '../workspaces/workspaces.js'
-import { insertKnowledgeDocument as insertDocument } from './documents.js'
+import { insertKnowledgeSource } from './sources.js'
+import type { NewKnowledgeSourceRow } from './sources.js'
+import {
+  insertKnowledgeDocument as insertDocument,
+  type NewKnowledgeDocumentRow,
+} from './documents.js'
 import { insertKnowledgeChunks as insertChunks } from './chunks.js'
 import {
   searchKnowledgeChunks,
@@ -43,24 +48,40 @@ function makeWorkspace(userId: string) {
   }
 }
 
-function makeDocument(
-  userId: string,
-  workspaceId: string,
-  relativePath: string,
-  documentKind: 'markdown' | 'pdf' | 'plain-text' = 'markdown',
-) {
+function makeSource(userId: string, workspaceId: string): NewKnowledgeSourceRow {
   const now = new Date()
   return {
     id: randomUUID(),
     userId,
     workspaceId,
+    scope: 'workspace',
+    absolutePath: `/tmp/vynel/${randomUUID()}`,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+function makeDocument(
+  userId: string,
+  workspaceId: string,
+  sourceId: string,
+  relativePath: string,
+  documentKind: 'markdown' | 'pdf' | 'plain-text' = 'markdown',
+): NewKnowledgeDocumentRow {
+  const now = new Date()
+  return {
+    id: randomUUID(),
+    userId,
+    workspaceId,
+    sourceId,
+    scope: 'workspace',
     relativePath,
     documentKind,
     contentHash: 'h',
     fileSizeBytes: 100,
     fileModifiedAt: now,
     chunkCount: 0,
-    parseStatus: 'parsed' as const,
+    parseStatus: 'parsed',
     parseErrorMessage: null,
     indexedAt: now,
     createdAt: now,
@@ -68,12 +89,11 @@ function makeDocument(
   }
 }
 
-function makeChunk(documentId: string, workspaceId: string, chunkIndex: number, chunkText: string) {
+function makeChunk(documentId: string, chunkIndex: number, chunkText: string) {
   const now = new Date()
   return {
     id: randomUUID(),
     documentId,
-    workspaceId,
     chunkIndex,
     startCharOffset: 0,
     endCharOffset: chunkText.length,
@@ -86,7 +106,6 @@ function makeChunk(documentId: string, workspaceId: string, chunkIndex: number, 
 }
 
 // Deterministic fake embedding — FNV-1a + L2-normalized 384-dim float32.
-// Same shape memory's tests use.
 function fakeEmbedding(text: string): Buffer {
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) {
@@ -106,21 +125,29 @@ function fakeEmbedding(text: string): Buffer {
   return Buffer.from(f.buffer)
 }
 
+// user → workspace → workspace source; returns ids the tests thread.
+function seed(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
+  const user = makeUser()
+  insertUser(db, user)
+  const ws = makeWorkspace(user.id)
+  insertWorkspace(db, ws)
+  const source = makeSource(user.id, ws.id)
+  insertKnowledgeSource(db, source)
+  return { user, ws, source }
+}
+
 describe('knowledge search repository', () => {
   it('searchKnowledgeChunks (fts) — returns chunks matching the FTS5 query', async () => {
     await withTestDatabase(async (db) => {
-      const user = makeUser()
-      insertUser(db, user)
-      const ws = makeWorkspace(user.id)
-      insertWorkspace(db, ws)
-      const doc = makeDocument(user.id, ws.id, 'Files/contract.md')
+      const { user, ws, source } = seed(db)
+      const doc = makeDocument(user.id, ws.id, source.id, 'Files/contract.md')
       insertDocument(db, doc)
       insertChunks(db, [
-        makeChunk(doc.id, ws.id, 0, 'The tomato suppliers in Italy ship weekly.'),
-        makeChunk(doc.id, ws.id, 1, 'Refrigerated trucks handle the cold chain.'),
+        makeChunk(doc.id, 0, 'The tomato suppliers in Italy ship weekly.'),
+        makeChunk(doc.id, 1, 'Refrigerated trucks handle the cold chain.'),
       ])
       const hits = searchKnowledgeChunks(db, {
-        workspaceId: ws.id,
+        sourceIds: [source.id],
         textQuery: 'tomato',
         mode: 'fts',
       })
@@ -132,76 +159,68 @@ describe('knowledge search repository', () => {
 
   it('searchKnowledgeChunks (semantic) — returns chunks ranked by cosine distance', async () => {
     await withTestDatabase(async (db) => {
-      const user = makeUser()
-      insertUser(db, user)
-      const ws = makeWorkspace(user.id)
-      insertWorkspace(db, ws)
-      const doc = makeDocument(user.id, ws.id, 'Files/notes.md')
+      const { user, ws, source } = seed(db)
+      const doc = makeDocument(user.id, ws.id, source.id, 'Files/notes.md')
       insertDocument(db, doc)
-      const c1 = makeChunk(doc.id, ws.id, 0, 'first chunk text')
-      const c2 = makeChunk(doc.id, ws.id, 1, 'second chunk text')
+      const c1 = makeChunk(doc.id, 0, 'first chunk text')
+      const c2 = makeChunk(doc.id, 1, 'second chunk text')
       insertChunks(db, [c1, c2])
       upsertVectorIndexForChunk(db, {
         chunkId: c1.id,
-        workspaceId: ws.id,
+        sourceId: source.id,
         documentId: doc.id,
         embedding: fakeEmbedding('first'),
       })
       upsertVectorIndexForChunk(db, {
         chunkId: c2.id,
-        workspaceId: ws.id,
+        sourceId: source.id,
         documentId: doc.id,
         embedding: fakeEmbedding('second'),
       })
       const hits = searchKnowledgeChunks(db, {
-        workspaceId: ws.id,
+        sourceIds: [source.id],
         embeddingQuery: fakeEmbedding('first'),
         mode: 'semantic',
         limit: 5,
       })
       expect(hits.length).toBeGreaterThan(0)
-      // The first chunk's exact match should rank highest
       expect(hits[0]!.chunkId).toBe(c1.id)
     })
   })
 
   it('searchKnowledgeChunks (hybrid) — combines fts + semantic via RRF', async () => {
     await withTestDatabase(async (db) => {
-      const user = makeUser()
-      insertUser(db, user)
-      const ws = makeWorkspace(user.id)
-      insertWorkspace(db, ws)
-      const doc = makeDocument(user.id, ws.id, 'Files/notes.md')
+      const { user, ws, source } = seed(db)
+      const doc = makeDocument(user.id, ws.id, source.id, 'Files/notes.md')
       insertDocument(db, doc)
-      const c1 = makeChunk(doc.id, ws.id, 0, 'tomato suppliers in Italy')
-      const c2 = makeChunk(doc.id, ws.id, 1, 'cold chain logistics overview')
+      const c1 = makeChunk(doc.id, 0, 'tomato suppliers in Italy')
+      const c2 = makeChunk(doc.id, 1, 'cold chain logistics overview')
       insertChunks(db, [c1, c2])
       upsertVectorIndexForChunk(db, {
         chunkId: c1.id,
-        workspaceId: ws.id,
+        sourceId: source.id,
         documentId: doc.id,
         embedding: fakeEmbedding('tomato suppliers'),
       })
       upsertVectorIndexForChunk(db, {
         chunkId: c2.id,
-        workspaceId: ws.id,
+        sourceId: source.id,
         documentId: doc.id,
         embedding: fakeEmbedding('cold chain'),
       })
       const hits = searchKnowledgeChunks(db, {
-        workspaceId: ws.id,
+        sourceIds: [source.id],
         textQuery: 'tomato',
         embeddingQuery: fakeEmbedding('tomato suppliers'),
         mode: 'hybrid',
         limit: 5,
       })
       expect(hits.length).toBeGreaterThan(0)
-      // c1 should win — both FTS + semantic hit
       expect(hits[0]!.chunkId).toBe(c1.id)
     })
   })
 
-  it('searchKnowledgeChunks — workspaceId filter restricts to active workspace', async () => {
+  it('searchKnowledgeChunks — sourceIds restricts to the given sources (fuses only in-scope)', async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
@@ -209,16 +228,20 @@ describe('knowledge search repository', () => {
       const wsB = makeWorkspace(user.id)
       insertWorkspace(db, wsA)
       insertWorkspace(db, wsB)
-      const docA = makeDocument(user.id, wsA.id, 'A.md')
-      const docB = makeDocument(user.id, wsB.id, 'B.md')
+      const srcA = makeSource(user.id, wsA.id)
+      const srcB = makeSource(user.id, wsB.id)
+      insertKnowledgeSource(db, srcA)
+      insertKnowledgeSource(db, srcB)
+      const docA = makeDocument(user.id, wsA.id, srcA.id, 'A.md')
+      const docB = makeDocument(user.id, wsB.id, srcB.id, 'B.md')
       insertDocument(db, docA)
       insertDocument(db, docB)
       insertChunks(db, [
-        makeChunk(docA.id, wsA.id, 0, 'tomato in workspace A'),
-        makeChunk(docB.id, wsB.id, 0, 'tomato in workspace B'),
+        makeChunk(docA.id, 0, 'tomato in source A'),
+        makeChunk(docB.id, 0, 'tomato in source B'),
       ])
       const hitsA = searchKnowledgeChunks(db, {
-        workspaceId: wsA.id,
+        sourceIds: [srcA.id],
         textQuery: 'tomato',
         mode: 'fts',
       })
@@ -229,20 +252,14 @@ describe('knowledge search repository', () => {
 
   it('searchKnowledgeChunks — documentKindFilter restricts results', async () => {
     await withTestDatabase(async (db) => {
-      const user = makeUser()
-      insertUser(db, user)
-      const ws = makeWorkspace(user.id)
-      insertWorkspace(db, ws)
-      const pdf = makeDocument(user.id, ws.id, 'contract.pdf', 'pdf')
-      const md = makeDocument(user.id, ws.id, 'notes.md', 'markdown')
+      const { user, ws, source } = seed(db)
+      const pdf = makeDocument(user.id, ws.id, source.id, 'contract.pdf', 'pdf')
+      const md = makeDocument(user.id, ws.id, source.id, 'notes.md', 'markdown')
       insertDocument(db, pdf)
       insertDocument(db, md)
-      insertChunks(db, [
-        makeChunk(pdf.id, ws.id, 0, 'tomato in pdf'),
-        makeChunk(md.id, ws.id, 0, 'tomato in markdown'),
-      ])
+      insertChunks(db, [makeChunk(pdf.id, 0, 'tomato in pdf'), makeChunk(md.id, 0, 'tomato in markdown')])
       const pdfOnly = searchKnowledgeChunks(db, {
-        workspaceId: ws.id,
+        sourceIds: [source.id],
         textQuery: 'tomato',
         mode: 'fts',
         documentKindFilter: ['pdf'],
@@ -254,29 +271,25 @@ describe('knowledge search repository', () => {
 
   it('upsertVectorIndexForChunk — first call INSERTs; second call DELETE+INSERTs', async () => {
     await withTestDatabase(async (db) => {
-      const user = makeUser()
-      insertUser(db, user)
-      const ws = makeWorkspace(user.id)
-      insertWorkspace(db, ws)
-      const doc = makeDocument(user.id, ws.id, 'A.md')
+      const { user, ws, source } = seed(db)
+      const doc = makeDocument(user.id, ws.id, source.id, 'A.md')
       insertDocument(db, doc)
-      const c = makeChunk(doc.id, ws.id, 0, 'text')
+      const c = makeChunk(doc.id, 0, 'text')
       insertChunks(db, [c])
       upsertVectorIndexForChunk(db, {
         chunkId: c.id,
-        workspaceId: ws.id,
+        sourceId: source.id,
         documentId: doc.id,
         embedding: fakeEmbedding('v1'),
       })
       upsertVectorIndexForChunk(db, {
         chunkId: c.id,
-        workspaceId: ws.id,
+        sourceId: source.id,
         documentId: doc.id,
         embedding: fakeEmbedding('v2'),
       })
-      // No throw on the second upsert (vec0 upsert pattern works)
       const hits = searchKnowledgeChunks(db, {
-        workspaceId: ws.id,
+        sourceIds: [source.id],
         embeddingQuery: fakeEmbedding('v2'),
         mode: 'semantic',
         limit: 5,
@@ -287,31 +300,27 @@ describe('knowledge search repository', () => {
 
   it('deleteVectorIndexForDocument — purges all vec rows for the given documentId', async () => {
     await withTestDatabase(async (db) => {
-      const user = makeUser()
-      insertUser(db, user)
-      const ws = makeWorkspace(user.id)
-      insertWorkspace(db, ws)
-      const doc = makeDocument(user.id, ws.id, 'A.md')
+      const { user, ws, source } = seed(db)
+      const doc = makeDocument(user.id, ws.id, source.id, 'A.md')
       insertDocument(db, doc)
-      const c1 = makeChunk(doc.id, ws.id, 0, 'x')
-      const c2 = makeChunk(doc.id, ws.id, 1, 'y')
+      const c1 = makeChunk(doc.id, 0, 'x')
+      const c2 = makeChunk(doc.id, 1, 'y')
       insertChunks(db, [c1, c2])
       upsertVectorIndexForChunk(db, {
         chunkId: c1.id,
-        workspaceId: ws.id,
+        sourceId: source.id,
         documentId: doc.id,
         embedding: fakeEmbedding('x'),
       })
       upsertVectorIndexForChunk(db, {
         chunkId: c2.id,
-        workspaceId: ws.id,
+        sourceId: source.id,
         documentId: doc.id,
         embedding: fakeEmbedding('y'),
       })
       deleteVectorIndexForDocument(db, doc.id)
-      // After deletion, no semantic hits for the document
       const hits = searchKnowledgeChunks(db, {
-        workspaceId: ws.id,
+        sourceIds: [source.id],
         embeddingQuery: fakeEmbedding('x'),
         mode: 'semantic',
         limit: 5,
