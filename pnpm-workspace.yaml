@@ -2,6 +2,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "scripts"
 
 # Build-script approval. NOTE (pnpm 11.0.0 quirk): this pnpm only honors `true` here —
 # `false` and `ignoredBuiltDependencies` do NOT silence ERR_PNPM_IGNORED_BUILDS (fixed in a

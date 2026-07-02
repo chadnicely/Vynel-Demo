@@ -21,8 +21,11 @@ stands) before writing or moving anything.
   a time. Test-green at every step. If it's red, stop.
 - **Thin surfaces, one core.** All logic in `packages/`. `apps/` (api/web/desktop/voice/worker/mcp/cli)
   are thin adapters and never get imported by packages.
-- **The AI seam is sacred.** Reach the runtime only through `AiAgentProvider`. Import
-  `claude-agent-sdk` **only** inside `packages/providers/src/claude/`.
+- **The AI seam is sacred.** Reach the *runtime* (`query`, the session loop) only through
+  `AiAgentProvider` — and import the **`claude-agent-sdk` runtime only** inside
+  `packages/providers/src/claude/`. The SDK's *builder* exports (`tool`, `createSdkMcpServer`,
+  `SdkMcpToolDefinition`) carry no runtime and are permitted in the MCP layer, as is Vynel's own
+  `McpFeatureDescriptor` contract (`apps/mcp`; `packages/mcp-contract` when it lands).
 - **Everything is a session.** Global / workspace / agent are scopes of one Session primitive.
 - **Provider-agnostic, phase-2-ready.** Every user row carries `userId`; every repo is
   dialect-agnostic. Don't write Phase-1 code that must be torn out for Phase 2.
@@ -81,5 +84,6 @@ stands) before writing or moving anything.
 
 ## Never
 
-- Rewrite from scratch · big-bang moves · physical DB split · import `claude-agent-sdk` outside
-  `packages/providers` · swallow errors silently · skip tests to ship faster.
+- Rewrite from scratch · big-bang moves · physical DB split · import the `claude-agent-sdk`
+  *runtime* outside `packages/providers` (its MCP builder primitives are allowed in the MCP layer) ·
+  swallow errors silently · skip tests to ship faster.

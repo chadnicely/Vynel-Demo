@@ -1,0 +1,271 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Vynel API",
+    "description": "Vynel — desktop AI assistant for non-technical knowledge workers. Phase 1 ships locally; single-user.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/workspaces/{workspaceId}/knowledge/documents": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ documents: SerializedKnowledgeDocument[], nextCursor }."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdKnowledgeDocuments",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "documentKind",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "plain-text",
+                "pdf",
+                "docx",
+                "html",
+                "csv",
+                "json",
+                "unsupported"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorIndexedAt",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List indexed documents for the active workspace.",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_knowledge_documents",
+          "description": "List indexed knowledge documents for the active workspace (owner-scoped — only the authenticated user's documents). Supports filtering by documentKind (markdown / plain-text / pdf / docx / html / csv / json), or by an exact `path` (workspace-relative) to fetch the single matching document. Cursor-paginated by (indexedAt DESC NULLS LAST, id DESC). Read-only."
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/knowledge/documents/{documentId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ document: SerializedKnowledgeDocument, chunks: SerializedKnowledgeChunk[] }."
+          },
+          "404": {
+            "description": "Knowledge document not found in this workspace."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdKnowledgeDocumentsByDocumentId",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Get one knowledge document + its chunks (workspace-scoped).",
+        "x-mcp": {
+          "exposed": true,
+          "name": "get_knowledge_document",
+          "description": "Get one knowledge document by id, along with its parsed chunks. Owner-scoped — returns 404 if the document does not belong to the active workspace. The chunks carry character offsets + token estimates; the chunkText is the parsed-and-normalized content used for both FTS and semantic search. Read-only."
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/knowledge/search": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ results: SerializedKnowledgeSearchResult[] }."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdKnowledgeSearch",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "fts",
+                "semantic",
+                "hybrid"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "documentKindFilter",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Search knowledge chunks (FTS5, semantic, or hybrid).",
+        "x-mcp": {
+          "exposed": true,
+          "name": "search_knowledge",
+          "description": "Search the workspace's indexed documents by text query. Mode: \"fts\" (FTS5 keyword), \"semantic\" (sqlite-vec cosine over MiniLM-L6-v2 embeddings), or \"hybrid\" (default; Reciprocal Rank Fusion k=60). Returns up to `limit` matching chunks with FTS snippet (literal <mark> tokens) + scores. Optional documentKindFilter is a comma-separated list of document kinds to restrict to. Owner-scoped. Read-only."
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/knowledge/status": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "SerializedIndexerStatus."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdKnowledgeStatus",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Get the indexer status for the active workspace.",
+        "x-mcp": {
+          "exposed": true,
+          "name": "get_indexer_status",
+          "description": "Return the indexer status for the active workspace: total documents, per-parse-state counts (parsed / pending / parsing / failed / skipped), the count of chunks awaiting embedding generation, and the most recent indexed-at timestamp. Read-only."
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/knowledge/reindex": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ indexedCount, skippedCount, failedCount }."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdKnowledgeReindex",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Force-reindex every document in the active workspace."
+      }
+    }
+  },
+  "components": {
+    "schemas": {}
+  }
+}
