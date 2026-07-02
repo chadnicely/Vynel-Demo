@@ -5,18 +5,18 @@
 // `docs/module-notes/knowledge-scope-sources.md`.
 
 import { and, eq, or } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   knowledgeSources,
   type KnowledgeSourceRow,
   type NewKnowledgeSourceRow,
-} from '../../schema/knowledge/sources.js'
+} from '../schema/sources.js'
 
 export type {
   KnowledgeSourceRow,
   NewKnowledgeSourceRow,
   KnowledgeSourceScope,
-} from '../../schema/knowledge/sources.js'
+} from '../schema/sources.js'
 
 export function insertKnowledgeSource(db: Database, row: NewKnowledgeSourceRow): void {
   db.insert(knowledgeSources).values(row).run()

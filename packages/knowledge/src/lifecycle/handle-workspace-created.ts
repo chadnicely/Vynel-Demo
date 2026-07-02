@@ -20,7 +20,7 @@ import {
   findKnowledgeSourceById,
   insertKnowledgeSource,
   type KnowledgeSourceRow,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { FileWatcherService } from '../indexing/file-watcher.js'
 import { indexSource, type IndexSourceResult } from '../indexing/index-workspace.js'
 import type { StructuralLogger } from '../knowledge-types.js'

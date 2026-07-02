@@ -39,7 +39,7 @@ import {
   hardDeleteKnowledgeChunksForDocument,
   insertKnowledgeChunks,
   type KnowledgeSourceRow,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { chunkParsedText, deriveDocumentKindFromPath, resolveDocumentParser } from '@vynel/indexer'
 import {

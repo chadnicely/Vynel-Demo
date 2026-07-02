@@ -11,9 +11,9 @@
 // model in CI.
 
 import { generateEmbedding } from '@vynel/embeddings'
-import { searchKnowledgeChunks, listInScopeSourceIds } from '@vynel/db/repositories/knowledge'
+import { searchKnowledgeChunks, listInScopeSourceIds } from '../repositories/index.js'
 import type { Database } from '@vynel/db'
-import type { DocumentKind } from '@vynel/db/schema/knowledge'
+import type { DocumentKind } from '../schema/index.js'
 import type { SearchMode } from '../knowledge-types.js'
 
 export type SearchKnowledgeInput = {

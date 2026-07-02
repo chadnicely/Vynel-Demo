@@ -7,7 +7,7 @@
 import { randomUUID } from 'node:crypto'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { insertKnowledgeSource, type KnowledgeSourceRow } from '@vynel/db/repositories/knowledge'
+import { insertKnowledgeSource, type KnowledgeSourceRow } from './repositories/index.js'
 import type { withTestDatabase } from '@vynel/testing'
 
 export function seedUserAndWorkspace(

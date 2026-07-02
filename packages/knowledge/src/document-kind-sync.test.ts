@@ -14,7 +14,7 @@
 // 2026-05-25.)
 
 import { describe, it, expect } from 'vitest'
-import type { DocumentKind as SchemaDocumentKind } from '@vynel/db/schema/knowledge'
+import type { DocumentKind as SchemaDocumentKind } from './schema/index.js'
 import type { DocumentKind as ParserDocumentKind } from '@vynel/indexer'
 
 // If either side drops or adds a member, this conditional type

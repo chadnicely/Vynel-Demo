@@ -8,15 +8,15 @@
 // See `docs/blueprints/knowledge/blueprint.md §1` + `coding.md §6.1`.
 
 import { and, asc, eq, isNull } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   knowledgeChunks,
   type KnowledgeChunkRow,
   type NewKnowledgeChunkRow,
-} from '../../schema/knowledge/chunks.js'
-import { knowledgeDocuments } from '../../schema/knowledge/documents.js'
+} from '../schema/chunks.js'
+import { knowledgeDocuments } from '../schema/documents.js'
 
-export type { KnowledgeChunkRow, NewKnowledgeChunkRow } from '../../schema/knowledge/chunks.js'
+export type { KnowledgeChunkRow, NewKnowledgeChunkRow } from '../schema/chunks.js'
 
 // A chunk awaiting embedding, plus its owning document's `sourceId` — the
 // embedding worker needs the source to write the vec row (chunks no longer

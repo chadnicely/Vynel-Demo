@@ -8,7 +8,7 @@ import {
   insertKnowledgeChunks,
   insertKnowledgeSource,
   type KnowledgeSourceRow,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { getIndexerStatus } from './get-indexer-status.js'
 
 function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {

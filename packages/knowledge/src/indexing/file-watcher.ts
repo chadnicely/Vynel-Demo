@@ -22,7 +22,7 @@ import path from 'node:path'
 import { indexFile } from './index-file.js'
 import { removeFileFromIndex } from './remove-file-from-index.js'
 import type { Database } from '@vynel/db'
-import type { KnowledgeSourceRow } from '@vynel/db/repositories/knowledge'
+import type { KnowledgeSourceRow } from '../repositories/index.js'
 import type { ActivityEvent, StructuralLogger } from '../knowledge-types.js'
 
 const DEBOUNCE_MS = 300

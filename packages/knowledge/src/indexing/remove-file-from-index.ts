@@ -19,7 +19,7 @@ import {
   hardDeleteKnowledgeDocument,
   deleteVectorIndexForDocument,
   type KnowledgeSourceRow,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import {
   KNOWLEDGE_DOCUMENT_REMOVED,

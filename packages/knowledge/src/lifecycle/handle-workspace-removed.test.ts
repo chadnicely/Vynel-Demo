@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { withTestDatabase } from '@vynel/testing'
-import type { KnowledgeSourceRow } from '@vynel/db/repositories/knowledge'
+import type { KnowledgeSourceRow } from '../repositories/index.js'
 import { FileWatcherService } from '../indexing/file-watcher.js'
 import { handleWorkspaceRemoved } from './handle-workspace-removed.js'
 

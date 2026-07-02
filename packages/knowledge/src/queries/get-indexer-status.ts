@@ -9,7 +9,7 @@ import type { Database } from '@vynel/db'
 import {
   getKnowledgeIndexerStatusForWorkspace,
   countUnindexedKnowledgeChunksForWorkspace,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import type { IndexerStatus } from '../knowledge-types.js'
 
 export function getIndexerStatus(db: Database, workspaceId: string): IndexerStatus {

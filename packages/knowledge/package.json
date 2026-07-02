@@ -17,7 +17,8 @@
     "@vynel/errors": "workspace:*",
     "@vynel/indexer": "workspace:*",
     "@vynel/logger": "workspace:*",
-    "chokidar": "^4.0.1"
+    "chokidar": "^4.0.1",
+    "drizzle-orm": "^0.45.0"
   },
   "devDependencies": {
     "@vynel/testing": "workspace:*",

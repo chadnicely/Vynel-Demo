@@ -10,7 +10,7 @@ import {
   findKnowledgeSourceById,
   type KnowledgeSourceRow,
   type KnowledgeSourceScope,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { indexSource, type IndexSourceResult } from '../indexing/index-workspace.js'
 import { FileWatcherService } from '../indexing/file-watcher.js'
 import { assertIndexableDirectory } from './path-safety.js'

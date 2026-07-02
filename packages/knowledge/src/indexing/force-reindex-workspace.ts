@@ -10,7 +10,7 @@ import type { Database } from '@vynel/db'
 import {
   markAllKnowledgeDocumentsPendingForWorkspace,
   listKnowledgeSourcesForWorkspace,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { indexSource, type IndexSourceResult } from './index-workspace.js'
 import type { StructuralLogger } from '../knowledge-types.js'
 

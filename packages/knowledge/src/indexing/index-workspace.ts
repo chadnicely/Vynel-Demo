@@ -18,7 +18,7 @@ import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { indexFile } from './index-file.js'
 import type { Database } from '@vynel/db'
-import type { KnowledgeSourceRow } from '@vynel/db/repositories/knowledge'
+import type { KnowledgeSourceRow } from '../repositories/index.js'
 import type { StructuralLogger } from '../knowledge-types.js'
 
 const INDEX_CONCURRENCY = 4

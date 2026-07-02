@@ -10,7 +10,7 @@ import {
   insertKnowledgeSource,
   findKnowledgeDocumentByWorkspacePath,
   type KnowledgeSourceRow,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { FileWatcherService } from './file-watcher.js'
 
 const silentLogger = {

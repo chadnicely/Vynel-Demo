@@ -12,7 +12,7 @@ import {
   findKnowledgeDocumentByWorkspacePath,
   listKnowledgeChunksForDocument,
   type KnowledgeSourceRow,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { removeFileFromIndex } from './remove-file-from-index.js'
 import { KNOWLEDGE_DOCUMENT_REMOVED } from '../knowledge-events.js'

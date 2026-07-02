@@ -11,21 +11,21 @@
 // Spec: `docs/blueprints/knowledge/blueprint.md §1` + `coding.md §6.1`.
 
 import { and, desc, eq, isNull, lt, or, sql } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   knowledgeDocuments,
   type KnowledgeDocumentRow,
   type NewKnowledgeDocumentRow,
   type DocumentKind,
   type ParseStatus,
-} from '../../schema/knowledge/documents.js'
+} from '../schema/documents.js'
 
 export type {
   KnowledgeDocumentRow,
   NewKnowledgeDocumentRow,
   DocumentKind,
   ParseStatus,
-} from '../../schema/knowledge/documents.js'
+} from '../schema/documents.js'
 
 const DEFAULT_LIST_LIMIT = 50
 const MAX_LIST_LIMIT = 200

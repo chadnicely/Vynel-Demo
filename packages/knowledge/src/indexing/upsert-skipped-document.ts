@@ -18,7 +18,7 @@ import {
   findKnowledgeDocumentById,
   insertKnowledgeDocument,
   updateKnowledgeDocument,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { deriveDocumentKindFromPath } from '@vynel/indexer'
 import type { KnowledgeDocumentRow, SkipReason } from '../knowledge-types.js'
 import type { IndexFileInput } from './index-file.js'

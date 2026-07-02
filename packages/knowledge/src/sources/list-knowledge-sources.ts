@@ -6,7 +6,7 @@ import type { Database } from '@vynel/db'
 import {
   listKnowledgeSourcesForWorkspace,
   type KnowledgeSourceRow,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 
 export function listKnowledgeSources(
   db: Database,

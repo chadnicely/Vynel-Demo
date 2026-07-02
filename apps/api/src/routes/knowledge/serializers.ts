@@ -5,7 +5,7 @@
 // Per blueprint §9.3.
 
 import type { z } from 'zod'
-import type { KnowledgeDocumentRow, KnowledgeChunkRow } from '@vynel/db/schema/knowledge'
+import type { KnowledgeDocumentRow, KnowledgeChunkRow } from '@vynel/knowledge'
 import type { IndexerStatus, SearchKnowledgeResult } from '@vynel/knowledge'
 import {
   IndexerStatusSchema,

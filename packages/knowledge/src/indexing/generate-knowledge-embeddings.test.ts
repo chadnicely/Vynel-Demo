@@ -10,7 +10,7 @@ import {
   listKnowledgeChunksNeedingEmbedding,
   listKnowledgeChunksForDocument,
   type KnowledgeSourceRow,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 
 // Inline FNV-1a + L2-normalized fake (memory's pattern).
 const FNV_OFFSET = 0x811c9dc5

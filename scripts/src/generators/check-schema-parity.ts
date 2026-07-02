@@ -1,6 +1,7 @@
-// Schema-parity guard. Verifies every schema file under
-// `packages/db/src/schema/<domain>/` (excluding barrel `index.ts` files)
-// is registered in `drizzle.sqlite.config.ts` (and, when Phase 2 lands,
+// Schema-parity guard. Verifies every schema file under any
+// `packages/<pkg>/src/schema/` (the kernel's domains + any vertical-slice
+// feature that owns its schema, e.g. knowledge; excluding barrel `index.ts`
+// files) is registered in `drizzle.sqlite.config.ts` (and, when Phase 2 lands,
 // `drizzle.postgres.config.ts`). A missing entry would cause
 // drizzle-kit to silently skip the table when generating migrations —
 // review-blocking per `.claude/rules/data-standard.md` "Migrations".
@@ -36,24 +37,43 @@ function listSchemaFiles(dir: string, out: string[] = []): string[] {
 
 function configuredSchemaPaths(configPath: string, packageDir: string): string[] {
   const text = readFileSync(configPath, 'utf8')
-  // Pull every quoted string that looks like a relative path containing
-  // `/schema/`. We anchor on `/schema/` so unrelated quotes (the package
-  // name, the dialect string, etc.) are ignored.
-  const matches = text.match(/['"`]\.\/[^'"`]*\/schema\/[^'"`]+['"`]/g) ?? []
+  // Pull every quoted dot-relative path containing `/schema/`. The leading
+  // `.` accepts both a kernel-local `./src/schema/...` entry and a
+  // cross-package `../<feature>/src/schema/...` one (a feature that owns its
+  // schema). Anchoring on `/schema/` ignores unrelated quotes (package name,
+  // dialect string, etc.).
+  const matches = text.match(/['"`]\.[^'"`]*\/schema\/[^'"`]+['"`]/g) ?? []
   return matches
     .map((m) => m.slice(1, -1)) // strip quotes
     .map((p) => resolve(packageDir, p))
 }
 
+// Every `packages/<pkg>/src/schema` directory on disk. The kernel owns most
+// domains; a vertical-slice feature (e.g. knowledge) owns its own schema in
+// its package — the guard must see both.
+function findSchemaRoots(): string[] {
+  const packagesDir = join(repoRoot, 'packages')
+  const roots: string[] = []
+  for (const pkg of readdirSync(packagesDir)) {
+    const schemaDir = join(packagesDir, pkg, 'src', 'schema')
+    try {
+      if (statSync(schemaDir).isDirectory()) roots.push(schemaDir)
+    } catch {
+      // package has no schema dir — skip
+    }
+  }
+  return roots
+}
+
 export function checkSchemaParity(): void {
-  const schemaRoot = join(repoRoot, 'packages', 'db', 'src', 'schema')
   const configPath = join(repoRoot, 'drizzle.sqlite.config.ts')
   // drizzle paths are relative to `packages/db` (where `--filter @vynel/db
   // exec drizzle-kit` runs). The parity check normalizes against the
   // same base for an apples-to-apples comparison.
   const drizzleCwd = join(repoRoot, 'packages', 'db')
 
-  const onDisk = listSchemaFiles(schemaRoot)
+  const onDisk = findSchemaRoots()
+    .flatMap((root) => listSchemaFiles(root))
     .map((p) => p.replace(/\\/g, '/'))
     .sort()
   const configured = configuredSchemaPaths(configPath, drizzleCwd)

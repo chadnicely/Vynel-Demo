@@ -12,8 +12,8 @@ import type { Database } from '@vynel/db'
 import {
   findKnowledgeDocumentByWorkspacePath,
   listKnowledgeDocumentsForWorkspace as listKnowledgeDocumentsForWorkspaceFromRepo,
-} from '@vynel/db/repositories/knowledge'
-import type { DocumentKind, KnowledgeDocumentRow } from '@vynel/db/schema/knowledge'
+} from '../repositories/index.js'
+import type { DocumentKind, KnowledgeDocumentRow } from '../schema/index.js'
 import type { ListDocumentsCursor } from '../knowledge-types.js'
 
 const DEFAULT_LIMIT = 50

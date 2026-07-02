@@ -277,6 +277,9 @@ importers:
       chokidar:
         specifier: ^4.0.1
         version: 4.0.3
+      drizzle-orm:
+        specifier: ^0.45.0
+        version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)
     devDependencies:
       '@vynel/testing':
         specifier: workspace:*

@@ -8,7 +8,7 @@ import {
   findKnowledgeSourceById,
   deleteKnowledgeSource,
   deleteVectorIndexForSource,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { FileWatcherService } from '../indexing/file-watcher.js'
 import type { StructuralLogger } from '../knowledge-types.js'
 

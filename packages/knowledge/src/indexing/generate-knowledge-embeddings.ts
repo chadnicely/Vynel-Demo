@@ -21,7 +21,7 @@ import {
   listKnowledgeChunksNeedingEmbedding,
   updateKnowledgeChunkEmbedding,
   upsertVectorIndexForChunk,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { EMBEDDING_MODEL_VERSION, generateEmbedding } from '@vynel/embeddings'
 import type { StructuralLogger } from '../knowledge-types.js'
 

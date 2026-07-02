@@ -21,9 +21,9 @@
 // source_id (semantic). Fuses workspace + global knowledge in one search.
 
 import { sql } from 'drizzle-orm'
-import type { Database } from '../../client.js'
-import { activeDialect } from '../../dialect.js'
-import type { DocumentKind } from '../../schema/knowledge/documents.js'
+import type { Database } from '@vynel/db'
+import { activeDialect } from '@vynel/db/dialect'
+import type { DocumentKind } from '../schema/documents.js'
 
 export type KnowledgeSearchResult = {
   chunkId: string

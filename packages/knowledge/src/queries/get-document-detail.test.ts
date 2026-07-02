@@ -9,7 +9,7 @@ import {
   insertKnowledgeChunks,
   insertKnowledgeSource,
   type KnowledgeSourceRow,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { getDocumentDetail } from './get-document-detail.js'
 
 function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {

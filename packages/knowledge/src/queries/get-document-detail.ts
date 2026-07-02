@@ -11,8 +11,8 @@ import type { Database } from '@vynel/db'
 import {
   findKnowledgeDocumentById,
   listKnowledgeChunksForDocument,
-} from '@vynel/db/repositories/knowledge'
-import type { KnowledgeDocumentRow, KnowledgeChunkRow } from '@vynel/db/schema/knowledge'
+} from '../repositories/index.js'
+import type { KnowledgeDocumentRow, KnowledgeChunkRow } from '../schema/index.js'
 
 export type DocumentDetailResult = {
   document: KnowledgeDocumentRow

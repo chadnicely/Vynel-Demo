@@ -13,7 +13,7 @@ import {
   insertKnowledgeDocument,
   findKnowledgeDocumentById,
   listKnowledgeChunksForDocument,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { indexFile } from './index-file.js'
 import { KNOWLEDGE_DOCUMENT_INDEXED, KNOWLEDGE_DOCUMENT_REMOVED } from '../knowledge-events.js'

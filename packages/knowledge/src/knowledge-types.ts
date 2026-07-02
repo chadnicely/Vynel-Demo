@@ -3,7 +3,7 @@
 //
 // `StructuralLogger` is owned by `@vynel/logger` (type-only — pino's
 // runtime never reaches the core layer). Row types are re-exported
-// from `@vynel/db` for consumer convenience.
+// from the domain's own `./schema` for consumer convenience.
 
 export type { StructuralLogger } from '@vynel/logger'
 
@@ -12,9 +12,9 @@ export type {
   NewKnowledgeDocumentRow,
   KnowledgeChunkRow,
   NewKnowledgeChunkRow,
-} from '@vynel/db/schema/knowledge'
+} from './schema/index.js'
 
-export type { DocumentKind, ParseStatus } from '@vynel/db/schema/knowledge'
+export type { DocumentKind, ParseStatus } from './schema/index.js'
 
 export type SkipReason = 'in-skipped-folder' | 'too-large' | 'unsupported-format'
 
@@ -49,7 +49,7 @@ export type KnowledgeSearchResult = {
   chunkId: string
   documentId: string
   relativePath: string
-  documentKind: import('@vynel/db/schema/knowledge').DocumentKind
+  documentKind: import('./schema/index.js').DocumentKind
   chunkIndex: number
   chunkText: string
   ftsScore: number | null

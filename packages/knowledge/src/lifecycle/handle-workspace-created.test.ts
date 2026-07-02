@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { findKnowledgeDocumentByWorkspacePath } from '@vynel/db/repositories/knowledge'
+import { findKnowledgeDocumentByWorkspacePath } from '../repositories/index.js'
 import { FileWatcherService } from '../indexing/file-watcher.js'
 import { handleWorkspaceCreated } from './handle-workspace-created.js'
 

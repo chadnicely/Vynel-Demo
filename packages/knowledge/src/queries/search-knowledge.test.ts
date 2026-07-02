@@ -9,7 +9,7 @@ import {
   insertKnowledgeSource,
   upsertVectorIndexForChunk,
   type KnowledgeSourceRow,
-} from '@vynel/db/repositories/knowledge'
+} from '../repositories/index.js'
 
 // Inline FNV-1a + L2-normalized fake — same pattern memory uses to
 // avoid vitest's vi.mock + dynamic-import hang interaction with the
