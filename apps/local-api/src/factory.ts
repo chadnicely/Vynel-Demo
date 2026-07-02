@@ -17,6 +17,7 @@ import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { User } from '@vynel/core/users'
 import type { Workspace } from '@vynel/workspaces'
+import type { FileWatcherService } from '@vynel/knowledge'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
 // stashed on `c.var.appRequest` so handlers can re-enter the app (the mcp
@@ -33,6 +34,9 @@ export interface AppEnv {
     user: User
     workspace?: Workspace
     appRequest: HonoAppRequestFn
+    // The boot singleton holding one chokidar watcher per registered knowledge
+    // source. Created once at construction (`app.ts`), like `appRequest`.
+    fileWatcher: FileWatcherService
   }
 }
 

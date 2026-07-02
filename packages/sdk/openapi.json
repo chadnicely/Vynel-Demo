@@ -694,6 +694,287 @@
         "summary": "Force-reindex every document in the active workspace.",
         "x-sdk-name": "knowledge.reindex"
       }
+    },
+    "/workspaces/{workspaceId}/knowledge/sources": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ source: SerializedKnowledgeSource, indexed: { indexedCount, skippedCount, failedCount } }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "userId": {
+                          "type": "string"
+                        },
+                        "workspaceId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "workspace",
+                            "global"
+                          ]
+                        },
+                        "absolutePath": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "userId",
+                        "workspaceId",
+                        "scope",
+                        "absolutePath",
+                        "createdAt",
+                        "updatedAt"
+                      ]
+                    },
+                    "indexed": {
+                      "type": "object",
+                      "properties": {
+                        "indexedCount": {
+                          "type": "number"
+                        },
+                        "skippedCount": {
+                          "type": "number"
+                        },
+                        "failedCount": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "indexedCount",
+                        "skippedCount",
+                        "failedCount"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "indexed"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdKnowledgeSources",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Register a directory to index, at workspace or global scope.",
+        "x-sdk-name": "knowledge.addDirectory",
+        "x-mcp": {
+          "exposed": true,
+          "name": "add_to_knowledge",
+          "mutatingApproved": true,
+          "description": "Add a directory to the knowledge base so its files are indexed for search. `absolutePath` is the directory on disk; `scope` is \"workspace\" (indexed for the active workspace) or \"global\" (indexed for the user across all workspaces). Registers the source, starts watching it for changes, and indexes its current files. Mutating."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "absolutePath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "workspace",
+                      "global"
+                    ]
+                  }
+                },
+                "required": [
+                  "absolutePath",
+                  "scope"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ sources: SerializedKnowledgeSource[] }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "userId": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "workspace",
+                              "global"
+                            ]
+                          },
+                          "absolutePath": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "userId",
+                          "workspaceId",
+                          "scope",
+                          "absolutePath",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "sources"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdKnowledgeSources",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List registered knowledge sources (the workspace's + the user's global sources).",
+        "x-sdk-name": "knowledge.listSources",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_knowledge_sources",
+          "description": "List the registered knowledge sources in scope for the active workspace: the workspace's own sources plus the user's global sources. Each carries its absolute path, scope, and timestamps. Read-only."
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/knowledge/sources/{sourceId}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "{ removed: boolean }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "removed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "removed"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "deleteWorkspacesByWorkspaceIdKnowledgeSourcesBySourceId",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sourceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Remove a registered knowledge source (stops watching; purges its docs + chunks).",
+        "x-sdk-name": "knowledge.removeSource",
+        "x-mcp": {
+          "exposed": true,
+          "name": "remove_knowledge_source",
+          "mutatingApproved": true,
+          "description": "Remove a registered knowledge source by id. Stops watching its directory and purges its indexed documents + chunks (cascade). Idempotent — removing an unknown id is a no-op. Mutating."
+        }
+      }
     }
   },
   "components": {

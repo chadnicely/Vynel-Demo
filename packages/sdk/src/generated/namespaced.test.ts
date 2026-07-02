@@ -19,10 +19,13 @@ const stubClient = {} as unknown as Client<paths>
 // The knowledge namespace's methods, sorted (the generator emits
 // alphabetically). Grows as more `x-sdk-name` routes land.
 const EXPECTED_KNOWLEDGE_METHODS = [
+  'addDirectory',
   'getDocument',
   'getStatus',
   'listDocuments',
+  'listSources',
   'reindex',
+  'removeSource',
   'search',
 ] as const
 
@@ -59,7 +62,7 @@ function capturingClient(): { client: Client<paths>; calls: CapturedCall[] } {
 }
 
 describe('makeNamespaced — shape', () => {
-  it('exposes the knowledge namespace with the five annotated methods', () => {
+  it('exposes the knowledge namespace with the eight annotated methods', () => {
     const sdk = makeNamespaced(stubClient)
     expect(Object.keys(sdk)).toEqual(['knowledge'])
     expect(Object.keys(sdk.knowledge).sort()).toEqual([...EXPECTED_KNOWLEDGE_METHODS])

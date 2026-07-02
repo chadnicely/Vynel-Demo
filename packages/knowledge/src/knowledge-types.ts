@@ -12,9 +12,11 @@ export type {
   NewKnowledgeDocumentRow,
   KnowledgeChunkRow,
   NewKnowledgeChunkRow,
+  KnowledgeSourceRow,
+  NewKnowledgeSourceRow,
 } from './schema/index.js'
 
-export type { DocumentKind, ParseStatus } from './schema/index.js'
+export type { DocumentKind, ParseStatus, KnowledgeSourceScope } from './schema/index.js'
 
 export type SkipReason = 'in-skipped-folder' | 'too-large' | 'unsupported-format'
 

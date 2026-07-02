@@ -10,6 +10,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import { VynelError } from '@vynel/errors'
+import { FileWatcherService } from '@vynel/knowledge'
 import type { AppEnv } from './factory.js'
 import { openApiInfo } from './openapi.js'
 import { knowledgeApp } from './routes/knowledge/index.js'
@@ -17,6 +18,10 @@ import { knowledgeApp } from './routes/knowledge/index.js'
 export interface CreateAppOptions {
   readonly db: Database
   readonly logger: Logger
+  // The boot-owned file watcher. `server.ts` creates it so it can `stopAll()`
+  // on shutdown; omitted by the SDK/MCP generators (which only mount the app to
+  // read route shapes) — createApp then makes an inert default (never started).
+  readonly fileWatcher?: FileWatcherService
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -24,11 +29,14 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
 
   // Captured at construction so handlers can re-enter via `c.var.appRequest(...)`.
   const appRequest = app.request.bind(app)
+  // One watcher singleton for the app's lifetime (NOT per-request).
+  const fileWatcher = options.fileWatcher ?? new FileWatcherService(options.db, options.logger)
 
   app.use('*', async (c, next) => {
     c.set('db', options.db)
     c.set('logger', options.logger)
     c.set('appRequest', appRequest)
+    c.set('fileWatcher', fileWatcher)
     await next()
   })
 

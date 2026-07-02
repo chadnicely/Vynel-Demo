@@ -131,4 +131,44 @@ export const ReindexResponseSchema = z.object({
   failedCount: z.number(),
 })
 
-export { DocumentKindSchema, ParseStatusSchema, SearchModeSchema }
+// ── Knowledge sources (registered directories) ──────────────────────
+const KnowledgeSourceScopeSchema = z.enum(['workspace', 'global'])
+
+export const AddDirectoryBodySchema = z.object({
+  absolutePath: z.string().min(1).max(4096),
+  scope: KnowledgeSourceScopeSchema,
+})
+
+export const KnowledgeSourceParamSchema = z.object({
+  sourceId: z.string().min(1),
+})
+
+export const KnowledgeSourceSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  // Null for a global (user-level) source; set for a workspace source.
+  workspaceId: z.string().nullable(),
+  scope: KnowledgeSourceScopeSchema,
+  absolutePath: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const AddDirectoryResponseSchema = z.object({
+  source: KnowledgeSourceSchema,
+  indexed: z.object({
+    indexedCount: z.number(),
+    skippedCount: z.number(),
+    failedCount: z.number(),
+  }),
+})
+
+export const ListKnowledgeSourcesResponseSchema = z.object({
+  sources: z.array(KnowledgeSourceSchema),
+})
+
+export const RemoveKnowledgeSourceResponseSchema = z.object({
+  removed: z.boolean(),
+})
+
+export { DocumentKindSchema, ParseStatusSchema, SearchModeSchema, KnowledgeSourceScopeSchema }

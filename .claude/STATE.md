@@ -18,13 +18,22 @@ Chad ran an overnight autopilot (full log: `.claude/ceo/memory/autopilot-mission
   `removeKnowledgeSource` / `listKnowledgeSources`).
 **Gate:** `pnpm test` green — **86 files / 521 tests (4 skip)**, verified directly.
 
-**NEXT for knowledge (Stage-2, user-facing — NOT built yet):** add-directory ROUTE (`x-mcp
-add_to_knowledge`, mutating) + list/delete-source routes → `pnpm api:generate` (SDK + MCP) → CLI
-`knowledge add-directory`/`sources`. **Snag to resolve first:** the route needs a `FileWatcherService`
-wired into the api DI at boot — `registerKnowledgeSource` takes `deps.fileWatcher`. The ③ agent-turn
-MCP binding + the approval card stay providers/approvals-gated (the session phase, with Chad).
-**Then the mission continues: workspace → provider → memory** (Chad's order). Agents stall on long
-runs here (>~9 min) — keep agent tasks small or do it directly.
+**⏵ KNOWLEDGE STAGE-2 — DONE + green (this session). Knowledge is now user-facing complete.** Add-directory
+made user-invocable end-to-end: `FileWatcherService` wired into the local-api DI (boot singleton owned by
+`server.ts` — created at boot, `stopAll()` on shutdown, held on `c.var.fileWatcher`; `createApp` makes an
+inert default so the generators keep calling `createApp({db,logger})`). 3 routes under
+`/workspaces/:id/knowledge/sources`: `POST` (add_to_knowledge), `GET` (list_knowledge_sources), `DELETE`
+(remove_knowledge_source). **Auto mode (Chad): the 2 mutating tools expose via MCP with
+`x-mcp.mutatingApproved:true` — NO approval card yet** ("we will have the approval improved"). Regen → SDK 7
+paths / 8 namespaced methods, MCP 7 tools. CLI: `knowledge add-directory <path> [--global]` / `sources` /
+`remove-source <id>`. **Fixed a generator bug** (namespaced-SDK POST-body needed `NonNullable<…requestBody>`
+— add-to-knowledge was the first POST-with-body). Golden tests updated (MCP now asserts tool *names*, per the
+old follow-up) + 4 new CLI tests. Gate green — 86 files / **528 tests**, parity 30 · mcp · sdk. **Still
+deferred to the session/approvals phase:** the ③ agent-turn MCP binding + the actual approval CARD.
+**Chad to verify the live flow** (boot local-api, `vynel knowledge add-directory <real dir>`).
+
+**Then the mission continues: PROVIDER → memory** (Chad's order). Agents stall on long runs here (>~9 min) —
+keep agent tasks small or do it directly.
 
 **NO DATABASE EXISTS YET (all clean — confirmed by Chad).** No data / no dev `.db` anywhere → the
 migration squash was trivially safe (a baseline is just "the schema, once"; no reconciliation). Autopilot

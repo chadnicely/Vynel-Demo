@@ -20,6 +20,9 @@ function stubClient(): { client: VynelClient; calls: Array<{ method: string; arg
       getDocument: record('getDocument'),
       getStatus: record('getStatus'),
       reindex: record('reindex'),
+      addDirectory: record('addDirectory'),
+      listSources: record('listSources'),
+      removeSource: record('removeSource'),
     },
   } as unknown as VynelClient
   return { client, calls }
@@ -71,6 +74,34 @@ describe('vynel knowledge', () => {
       { method: 'getStatus', args: ['ws_1'] },
       { method: 'reindex', args: ['ws_1'] },
     ])
+  })
+
+  it('add-directory maps path to absolutePath + defaults scope to workspace', async () => {
+    const { client, calls } = stubClient()
+    await run(client, ['knowledge', 'add-directory', '/tmp/docs', '-w', 'ws_1'])
+    expect(calls).toStrictEqual([
+      { method: 'addDirectory', args: ['ws_1', { absolutePath: '/tmp/docs', scope: 'workspace' }] },
+    ])
+  })
+
+  it('add-directory --global sets scope to global', async () => {
+    const { client, calls } = stubClient()
+    await run(client, ['knowledge', 'add-directory', '/tmp/docs', '-w', 'ws_1', '--global'])
+    expect(calls).toStrictEqual([
+      { method: 'addDirectory', args: ['ws_1', { absolutePath: '/tmp/docs', scope: 'global' }] },
+    ])
+  })
+
+  it('sources lists via knowledge.listSources', async () => {
+    const { client, calls } = stubClient()
+    await run(client, ['knowledge', 'sources', '-w', 'ws_1'])
+    expect(calls).toStrictEqual([{ method: 'listSources', args: ['ws_1'] }])
+  })
+
+  it('remove-source passes sourceId + workspace positionally', async () => {
+    const { client, calls } = stubClient()
+    await run(client, ['knowledge', 'remove-source', 'src_1', '-w', 'ws_1'])
+    expect(calls).toStrictEqual([{ method: 'removeSource', args: ['ws_1', 'src_1'] }])
   })
 
   it('propagates an error thrown by a command action', async () => {

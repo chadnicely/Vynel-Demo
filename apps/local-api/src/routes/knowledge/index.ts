@@ -25,6 +25,9 @@ import {
   getIndexerStatus,
   listDocumentsForWorkspace,
   searchKnowledge,
+  registerKnowledgeSource,
+  removeKnowledgeSource,
+  listKnowledgeSources,
 } from '@vynel/knowledge'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
@@ -39,12 +42,18 @@ import {
   SearchKnowledgeResponseSchema,
   IndexerStatusSchema,
   ReindexResponseSchema,
+  AddDirectoryBodySchema,
+  KnowledgeSourceParamSchema,
+  AddDirectoryResponseSchema,
+  ListKnowledgeSourcesResponseSchema,
+  RemoveKnowledgeSourceResponseSchema,
 } from './schemas.js'
 import {
   serializeChunk,
   serializeDocument,
   serializeIndexerStatus,
   serializeSearchResult,
+  serializeSource,
 } from './serializers.js'
 
 const VALID_DOCUMENT_KINDS = DocumentKindSchema.options
@@ -249,5 +258,123 @@ export const knowledgeApp = factory
         workspacePath: c.var.workspace!.path,
       })
       return c.json(result)
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // POST /sources — register a directory to index (add-to-knowledge).
+  // Mutating MCP tool `add_to_knowledge` — auto mode (no approval card
+  // yet; the card lands with the approvals/agent-turn phase).
+  // ──────────────────────────────────────────────────────────────────
+  .post(
+    '/sources',
+    describeRoute({
+      tags: ['knowledge'],
+      summary: 'Register a directory to index, at workspace or global scope.',
+      'x-sdk-name': 'knowledge.addDirectory',
+      responses: {
+        200: {
+          description: '{ source: SerializedKnowledgeSource, indexed: { indexedCount, skippedCount, failedCount } }.',
+          content: { 'application/json': { schema: resolver(AddDirectoryResponseSchema) } },
+        },
+        404: { description: 'Workspace not found.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'add_to_knowledge',
+        mutatingApproved: true,
+        description:
+          'Add a directory to the knowledge base so its files are indexed for search. ' +
+          '`absolutePath` is the directory on disk; `scope` is "workspace" (indexed for the ' +
+          'active workspace) or "global" (indexed for the user across all workspaces). Registers ' +
+          'the source, starts watching it for changes, and indexes its current files. Mutating.',
+      },
+    }),
+    validator('json', AddDirectoryBodySchema),
+    ...workspaceScoped,
+    async (c) => {
+      const body = c.req.valid('json')
+      const result = await registerKnowledgeSource(
+        c.var.db,
+        {
+          userId: c.var.user.id,
+          workspaceId: body.scope === 'global' ? null : c.var.workspace!.id,
+          scope: body.scope,
+          absolutePath: body.absolutePath,
+        },
+        { fileWatcher: c.var.fileWatcher, logger: c.var.logger },
+      )
+      return c.json({ source: serializeSource(result.source), indexed: result.indexed })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /sources — list registered sources (workspace's + user's global).
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/sources',
+    describeRoute({
+      tags: ['knowledge'],
+      summary: "List registered knowledge sources (the workspace's + the user's global sources).",
+      'x-sdk-name': 'knowledge.listSources',
+      responses: {
+        200: {
+          description: '{ sources: SerializedKnowledgeSource[] }.',
+          content: { 'application/json': { schema: resolver(ListKnowledgeSourcesResponseSchema) } },
+        },
+        404: { description: 'Workspace not found.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'list_knowledge_sources',
+        description:
+          'List the registered knowledge sources in scope for the active workspace: the ' +
+          "workspace's own sources plus the user's global sources. Each carries its absolute " +
+          'path, scope, and timestamps. Read-only.',
+      },
+    }),
+    ...workspaceScoped,
+    async (c) => {
+      const sources = listKnowledgeSources(c.var.db, {
+        userId: c.var.user.id,
+        workspaceId: c.var.workspace!.id,
+      })
+      return c.json({ sources: sources.map(serializeSource) })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // DELETE /sources/:sourceId — stop watching + purge the source.
+  // Mutating MCP tool `remove_knowledge_source` (auto mode).
+  // ──────────────────────────────────────────────────────────────────
+  .delete(
+    '/sources/:sourceId',
+    describeRoute({
+      tags: ['knowledge'],
+      summary: 'Remove a registered knowledge source (stops watching; purges its docs + chunks).',
+      'x-sdk-name': 'knowledge.removeSource',
+      responses: {
+        200: {
+          description: '{ removed: boolean }.',
+          content: { 'application/json': { schema: resolver(RemoveKnowledgeSourceResponseSchema) } },
+        },
+        404: { description: 'Workspace not found.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'remove_knowledge_source',
+        mutatingApproved: true,
+        description:
+          'Remove a registered knowledge source by id. Stops watching its directory and purges ' +
+          'its indexed documents + chunks (cascade). Idempotent — removing an unknown id is a ' +
+          'no-op. Mutating.',
+      },
+    }),
+    validator('param', KnowledgeSourceParamSchema),
+    ...workspaceScoped,
+    async (c) => {
+      const { sourceId } = c.req.valid('param')
+      await removeKnowledgeSource(c.var.db, sourceId, {
+        fileWatcher: c.var.fileWatcher,
+        logger: c.var.logger,
+      })
+      return c.json({ removed: true })
     },
   )

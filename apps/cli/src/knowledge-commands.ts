@@ -87,4 +87,34 @@ export function registerKnowledgeCommands(program: Command, getClient: () => Vyn
     .action(async (opts: { workspace: string }) => {
       printResult(await getClient().knowledge.reindex(opts.workspace))
     })
+
+  knowledge
+    .command('add-directory <path>')
+    .description('Register a directory to index (indexes + watches it)')
+    .requiredOption('-w, --workspace <id>', 'workspace id')
+    .option('-g, --global', 'register as a global (user-level) source, not workspace-scoped')
+    .action(async (path: string, opts: { workspace: string; global?: boolean }) => {
+      printResult(
+        await getClient().knowledge.addDirectory(opts.workspace, {
+          absolutePath: path,
+          scope: opts.global ? 'global' : 'workspace',
+        }),
+      )
+    })
+
+  knowledge
+    .command('sources')
+    .description("List registered knowledge sources (the workspace's + the user's global)")
+    .requiredOption('-w, --workspace <id>', 'workspace id')
+    .action(async (opts: { workspace: string }) => {
+      printResult(await getClient().knowledge.listSources(opts.workspace))
+    })
+
+  knowledge
+    .command('remove-source <sourceId>')
+    .description('Remove a registered knowledge source (stops watching + purges its docs)')
+    .requiredOption('-w, --workspace <id>', 'workspace id')
+    .action(async (sourceId: string, opts: { workspace: string }) => {
+      printResult(await getClient().knowledge.removeSource(opts.workspace, sourceId))
+    })
 }

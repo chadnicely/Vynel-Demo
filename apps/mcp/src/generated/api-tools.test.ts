@@ -10,15 +10,19 @@
 import { describe, expect, it } from 'vitest'
 import { generatedMcpTools, generatedRoutingMcpTools } from './api-tools.js'
 
-// Knowledge-slice registry — the only x-mcp-annotated routes landed so
-// far are the four read-only knowledge GETs (`apps/local-api/src/routes/
-// knowledge/index.ts`). Sorted to match the generator's stable-order
-// emit. As each feature's routes land (memory, channels, schedules, …),
-// its x-mcp tools join this list and the count updates in lockstep.
+// Knowledge-slice registry — the x-mcp-annotated knowledge routes
+// (`apps/local-api/src/routes/knowledge/index.ts`): 5 read-only GETs +
+// 2 mutating source tools (add_to_knowledge / remove_knowledge_source,
+// `mutatingApproved` auto-mode — no approval card yet). Sorted to match
+// the generator's stable-order emit. As each feature's routes land, its
+// x-mcp tools join this list and the count updates in lockstep.
 const EXPECTED_TOOL_NAMES = [
+  'add_to_knowledge',
   'get_indexer_status',
   'get_knowledge_document',
   'list_knowledge_documents',
+  'list_knowledge_sources',
+  'remove_knowledge_source',
   'search_knowledge',
 ] as const
 
@@ -27,10 +31,16 @@ const EXPECTED_TOOL_NAMES = [
 // byte-for-byte. Empty until the agent-base routing routes land.
 const EXPECTED_ROUTING_TOOL_NAMES = [] as const
 
+const snakeToCamel = (s: string): string => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
+
 describe('generatedMcpTools', () => {
-  it('exposes the four read-only knowledge tools', () => {
+  it('exposes exactly the annotated knowledge tools (by name)', () => {
     expect(generatedMcpTools).toHaveLength(EXPECTED_TOOL_NAMES.length)
-    expect(generatedMcpTools).toHaveLength(4)
+    // The generator names each factory export after its camelCased tool name,
+    // so `.name` is the assertion surface (stronger than a bare count).
+    expect(generatedMcpTools.map((f) => f.name).sort()).toEqual(
+      EXPECTED_TOOL_NAMES.map(snakeToCamel).sort(),
+    )
   })
 
   it('each entry is a factory function (per D5: `(scope, app) => Tool`)', () => {

@@ -10,6 +10,7 @@ import { serve } from '@hono/node-server'
 import pino from 'pino'
 import { createDatabase, closeDatabase, runMigrations, sqliteMigrationsFolder } from '@vynel/db'
 import { getOrCreateLocalUser } from '@vynel/core/users'
+import { FileWatcherService } from '@vynel/knowledge'
 import { loadEnv } from './env.js'
 import { createApp } from './app.js'
 
@@ -30,7 +31,11 @@ export async function boot(): Promise<void> {
   const user = getOrCreateLocalUser(db, { logger })
   logger.info({ userId: user.id, displayName: user.displayName }, 'api boot: local user ready')
 
-  const app = createApp({ db, logger })
+  // Boot-owned so shutdown can close every chokidar watcher. (Resuming watchers
+  // for already-registered sources on restart is a separate follow-on.)
+  const fileWatcher = new FileWatcherService(db, logger)
+
+  const app = createApp({ db, logger, fileWatcher })
 
   // Bind to loopback only in Phase 1 — the local API is unauthenticated.
   const server = serve({ fetch: app.fetch, hostname: '127.0.0.1', port: env.PORT }, (info) => {
@@ -40,6 +45,7 @@ export async function boot(): Promise<void> {
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'api shutdown initiated')
     server.close(() => {
+      void fileWatcher.stopAll()
       closeDatabase(db)
       logger.info({}, 'api shutdown complete')
       // eslint-disable-next-line n/no-process-exit -- explicit exit at the end of a graceful shutdown

@@ -45,8 +45,11 @@ export function emitMethod(name: string, op: ParsedOperation): string {
   const methodLit = JSON.stringify(op.method.toUpperCase())
 
   if (op.hasBody) {
+    // `NonNullable<...>` strips the `| undefined` openapi-typescript puts on
+    // `requestBody` — without it, indexing `['content']` on a possibly-undefined
+    // requestBody is a TS2339 (first hit: the add-to-knowledge POST body).
     params.push(
-      `input: paths[${pathLit}][${JSON.stringify(op.method)}]['requestBody']['content']['application/json']`,
+      `input: NonNullable<paths[${pathLit}][${JSON.stringify(op.method)}]['requestBody']>['content']['application/json']`,
     )
     callOpts.push(`body: input`)
   }

@@ -21,6 +21,14 @@ import type { paths } from './api.js'
 export function makeNamespaced(client: Client<paths>) {
   return {
   knowledge: {
+  addDirectory: async (workspaceId: string, input: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/knowledge/sources", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   getDocument: async (workspaceId: string, documentId: string) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/knowledge/documents/{documentId}", {
       params: { path: { workspaceId: workspaceId, documentId: documentId } },
@@ -42,9 +50,23 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  listSources: async (workspaceId: string) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/knowledge/sources", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   reindex: async (workspaceId: string) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/knowledge/reindex", {
       params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  removeSource: async (workspaceId: string, sourceId: string) => {
+    const { data, error, response } = await client["DELETE"]("/workspaces/{workspaceId}/knowledge/sources/{sourceId}", {
+      params: { path: { workspaceId: workspaceId, sourceId: sourceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data

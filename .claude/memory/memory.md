@@ -14,9 +14,13 @@ work pile up here. One line + link per memory `.md` in this directory.
 - **✅ Workspace pull DONE + green** → `@vynel/workspaces` (logic-only; it's a HUB so schema+repos stayed in
   the kernel). Started decomposing `@vynel/core` (now just `users` + `_shared`). **Template: leaf owns
   schema+repos+logic; hub keeps them in kernel, only logic → package.** See STATE.
+- **✅ Knowledge STAGE-2 DONE + green** — add-directory user-facing: 3 source routes (`add_to_knowledge` /
+  `list_knowledge_sources` / `remove_knowledge_source`), FileWatcherService wired into local-api DI, SDK+MCP
+  regen, CLI (`add-directory`/`sources`/`remove-source`). **Auto mode — mutating MCP tools, NO card yet**
+  (approval improved later). Knowledge is now user-facing complete. See STATE. **Chad to verify the live flow.**
 - **⏭ NEXT = PROVIDER pull** → `@vynel/providers` (AI seam; check ALL old fns vs latest SDK — big, step-by-step
-  WITH Chad) → then **memory** (+ tagging). Smaller pending: knowledge Stage-2 routes + workspace CRUD routes;
-  `users` core-decomp.
+  WITH Chad) → then **memory** (+ tagging). Smaller pending: workspace CRUD routes; `users` core-decomp; the
+  ③ agent-turn MCP binding + real approval card (session/approvals phase).
 - **Phase-2 Postgres reference captured** (from letterman) → `docs/module-notes/postgres-phase2.md`. TL;DR:
   good PG *plumbing* patterns (pooled/direct URL split, `prepare:false`, graceful close, extension DDL in
   `0000`); **nothing** for pgvector/tsvector (deferred there — plan FTS/vec from PG docs). Not actionable until

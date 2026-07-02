@@ -5,13 +5,14 @@
 // Per blueprint §9.3.
 
 import type { z } from 'zod'
-import type { KnowledgeDocumentRow, KnowledgeChunkRow } from '@vynel/knowledge'
+import type { KnowledgeDocumentRow, KnowledgeChunkRow, KnowledgeSourceRow } from '@vynel/knowledge'
 import type { IndexerStatus, SearchKnowledgeResult } from '@vynel/knowledge'
 import {
   IndexerStatusSchema,
   KnowledgeChunkSchema,
   KnowledgeDocumentSchema,
   KnowledgeSearchResultSchema,
+  KnowledgeSourceSchema,
 } from './schemas.js'
 
 export type SerializedKnowledgeDocument = z.infer<typeof KnowledgeDocumentSchema>
@@ -77,6 +78,20 @@ export function serializeSearchResult(
     ftsScore: result.ftsScore,
     semanticScore: result.semanticScore,
     combinedScore: result.combinedScore,
+  }
+}
+
+export type SerializedKnowledgeSource = z.infer<typeof KnowledgeSourceSchema>
+
+export function serializeSource(source: KnowledgeSourceRow): SerializedKnowledgeSource {
+  return {
+    id: source.id,
+    userId: source.userId,
+    workspaceId: source.workspaceId,
+    scope: source.scope,
+    absolutePath: source.absolutePath,
+    createdAt: source.createdAt.toISOString(),
+    updatedAt: source.updatedAt.toISOString(),
   }
 }
 

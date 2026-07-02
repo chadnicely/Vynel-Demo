@@ -84,6 +84,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/knowledge/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List registered knowledge sources (the workspace's + the user's global sources). */
+        get: operations["getWorkspacesByWorkspaceIdKnowledgeSources"];
+        put?: never;
+        /** Register a directory to index, at workspace or global scope. */
+        post: operations["postWorkspacesByWorkspaceIdKnowledgeSources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/knowledge/sources/{sourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a registered knowledge source (stops watching; purges its docs + chunks). */
+        delete: operations["deleteWorkspacesByWorkspaceIdKnowledgeSourcesBySourceId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -323,6 +358,131 @@ export interface operations {
                         indexedCount: number;
                         skippedCount: number;
                         failedCount: number;
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdKnowledgeSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { sources: SerializedKnowledgeSource[] }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sources: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string | null;
+                            /** @enum {string} */
+                            scope: "workspace" | "global";
+                            absolutePath: string;
+                            createdAt: string;
+                            updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdKnowledgeSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    absolutePath: string;
+                    /** @enum {string} */
+                    scope: "workspace" | "global";
+                };
+            };
+        };
+        responses: {
+            /** @description { source: SerializedKnowledgeSource, indexed: { indexedCount, skippedCount, failedCount } }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        source: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string | null;
+                            /** @enum {string} */
+                            scope: "workspace" | "global";
+                            absolutePath: string;
+                            createdAt: string;
+                            updatedAt: string;
+                        };
+                        indexed: {
+                            indexedCount: number;
+                            skippedCount: number;
+                            failedCount: number;
+                        };
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteWorkspacesByWorkspaceIdKnowledgeSourcesBySourceId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { removed: boolean }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        removed: boolean;
                     };
                 };
             };
