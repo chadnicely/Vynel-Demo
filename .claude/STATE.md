@@ -18,15 +18,22 @@ yet — by design.** Shape saved to memory (`providers-structure`).
 Split the old `core/src/providers/` grab-bag by concern (Chad: "preference is not skills") — skills-discovery
 + provider-status ops **left in the old repo** for their own domains. Full record: `docs/module-notes/provider-preferences.md`.
 
-**⏭ NEXT ACTIONS (Chad's order):**
-1. **③ agent-turn MCP binding + the real approval CARD** (`mcp-contract` + `build-in-process-server` +
-   `composeSessionMcpServers`) — unblocked by the seam. Knowledge mutating tools wait on this (auto-mode, no
-   card today). **FOLD candidate:** SDK `tool()` `annotations` (readOnly/destructive) for the auto-card model.
-2. **memory pull** (+ tagging system, ~100 context/rule tags).
-- **Split-out follow-ons** (land with their domains, NOT re-homed early): **skills** domain
-  (`core/src/skills/*`, ~30 files — incl. `discoverInstalledSkillsForProvider`); **provider-status** ops
-  (`getProviderAuthenticationStatus`/`listProvidersWithStatus`/`ProviderRuntimeNotInstalledError`, with the
-  provider routes). `users` core-decomp (then `@vynel/core` disappears).
+**✅ 4 LEAVES via PARALLEL FAN-OUT (`631ceb2`)** — `capabilities`/`files`/`memory`/`approvals` pulled at once,
+each by a worktree agent + code-reviewed (all PASS). Faithful package pulls (logic+tests; schema+repos stay in
+kernel for now). Gate green — vitest **900 / 4 skip** (+223). Full record: `.claude/journal/2026-07-03-leaf-fanout.md`.
+**Blocker analysis result:** `config`/`pubsub`/`queue`/`feature-flags` are empty UNUSED stubs — NOT blockers,
+skip until a real consumer needs them.
+
+**⏭ NEXT (blockers cleared → keep fanning out + build the keystone):**
+1. **More leaves** (same fan-out pattern): `agents` (needs the `contracts/agents` schemas + a `contracts` shell
+   first) · `desktop-control` (needs `mcp-contract`, 2 files) · core-extractions `skills` (~30 files, incl.
+   `discoverInstalledSkillsForProvider`), `channels`, `schedules`, `marketplace`, `voice`.
+2. **`@vynel/session`** — the composition keystone. **Build in ONE focused session** (Chad), NOT fanned out.
+3. **`@vynel/mcp-contract`** (2 files) — the ③ agent-turn MCP binding + real approval CARD ride on it +
+   the composition. **FOLD candidate:** SDK `tool()` `annotations` for the auto-card model.
+- **Serial follow-ups for the landed leaves:** the **vertical-slice** (schema+repos kernel→package, full
+  knowledge shape) + **routes/sdk/mcp** (high-collision shared surfaces). **provider-status** ops land with the
+  provider routes. `users` core-decomp (then `@vynel/core` disappears). "instructions" domain — later (Chad).
 - **Deferred FOLD (providers):** audit-adopt new SDK surface through the base — session helpers
   (`listSessions`/`getSessionInfo`/…), `startup()`, `Query.reinitialize()`, new hook events, `dontAsk`/`auto`
   permission modes. Each deliberate, each with a test. Details in `docs/module-notes/providers.md`.
