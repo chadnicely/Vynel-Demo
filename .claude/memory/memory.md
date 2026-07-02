@@ -8,10 +8,15 @@ work pile up here. One line + link per memory `.md` in this directory.
 - **✅ Vertical slice BLESSED** by Chad ("exactly what we need"). Squash (`6740f81`) + relocation
   (`481ab3e`) done, green, pushed, re-verified. **knowledge is the TEMPLATE** for future modules
   (`packages/<feature>/{schema,repositories,+logic}`). Full record in `.claude/STATE.md`.
-- **⏵ AWAITING Chad's go: CLI db-direct vs. continue mission.** Chad wants the CLI to run on **just a db
-  connection** (no api) — the vertical-slice payoff. NOT executed (reverses the CLI-over-SDK "3 directions"
-  work + an open migrations-on-open design Q that's his). See STATE "⏵ CLI DIRECTION". When he's back: rewire
-  CLI db-direct, OR continue the mission — knowledge **Stage-2** → **workspace → provider → memory**.
+- **✅ `local-api` rename DONE + green** (`apps/api`→`apps/local-api`, `@vynel/api`→`@vynel/local-api`) — this
+  api always runs local; the server-level api comes later as a separate app. **CLI decision RESOLVED:** keep
+  it over the api for now; the vertical slice already preserves the future db-direct option. See STATE.
+- **⏭ NEXT = continue the mission** (Chad: "once this message is done we continue to mission"): knowledge
+  **Stage-2** → **workspace → provider → memory**.
+- **Phase-2 Postgres reference captured** (from letterman) → `docs/module-notes/postgres-phase2.md`. TL;DR:
+  good PG *plumbing* patterns (pooled/direct URL split, `prepare:false`, graceful close, extension DDL in
+  `0000`); **nothing** for pgvector/tsvector (deferred there — plan FTS/vec from PG docs). Not actionable until
+  Phase 2.
 
 ## Resume anchors (where the full state lives — not memories)
 - `.claude/STATE.md` — current position; completed work lands here.
