@@ -1,0 +1,22 @@
+{
+  "name": "@vynel/provider-preferences",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vynel/db": "workspace:*",
+    "@vynel/providers": "workspace:*"
+  },
+  "devDependencies": {
+    "@vynel/testing": "workspace:*",
+    "typescript": "^5.6.0"
+  }
+}

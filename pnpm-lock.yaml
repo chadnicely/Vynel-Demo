@@ -301,6 +301,22 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  packages/provider-preferences:
+    dependencies:
+      '@vynel/db':
+        specifier: workspace:*
+        version: link:../db
+      '@vynel/providers':
+        specifier: workspace:*
+        version: link:../providers
+    devDependencies:
+      '@vynel/testing':
+        specifier: workspace:*
+        version: link:../testing
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/providers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':

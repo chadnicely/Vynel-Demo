@@ -13,15 +13,20 @@ the SDK-free provider-agnostic contract → a future `codex/` slots in as a sibl
 pkgs) + parity (30/7/7·8) + vitest **670 / 4 skip** (providers 23 files / 142 tests). **NOT wired to anything
 yet — by design.** Shape saved to memory (`providers-structure`).
 
+**✅ provider-preferences DONE + green** → new **`@vynel/provider-preferences`** (preferences ONLY:
+`find`/`get`/`set` default provider; `get` folds in **Claude as the default** via `DEFAULT_PROVIDER_ID`).
+Split the old `core/src/providers/` grab-bag by concern (Chad: "preference is not skills") — skills-discovery
++ provider-status ops **left in the old repo** for their own domains. Full record: `docs/module-notes/provider-preferences.md`.
+
 **⏭ NEXT ACTIONS (Chad's order):**
-1. **provider-preferences CRUD** (~8 files: `core/src/providers/*` + `core/src/skills/synchronize-skills-*`)
-   — the DB-touching feature that *consumes* the seam; makes providers usable. Hub table already in kernel.
-   The natural fast-follow.
-2. **③ agent-turn MCP binding + the real approval CARD** (`mcp-contract` + `build-in-process-server` +
-   `composeSessionMcpServers`) — now unblocked by the seam. The knowledge mutating tools wait on this
-   (auto-mode, no card today). **FOLD candidate:** adopt SDK `tool()` `annotations` (readOnly/destructive)
-   for the auto-card model (see providers.md SDK-audit).
-3. **memory pull** (+ tagging system, ~100 context/rule tags).
+1. **③ agent-turn MCP binding + the real approval CARD** (`mcp-contract` + `build-in-process-server` +
+   `composeSessionMcpServers`) — unblocked by the seam. Knowledge mutating tools wait on this (auto-mode, no
+   card today). **FOLD candidate:** SDK `tool()` `annotations` (readOnly/destructive) for the auto-card model.
+2. **memory pull** (+ tagging system, ~100 context/rule tags).
+- **Split-out follow-ons** (land with their domains, NOT re-homed early): **skills** domain
+  (`core/src/skills/*`, ~30 files — incl. `discoverInstalledSkillsForProvider`); **provider-status** ops
+  (`getProviderAuthenticationStatus`/`listProvidersWithStatus`/`ProviderRuntimeNotInstalledError`, with the
+  provider routes). `users` core-decomp (then `@vynel/core` disappears).
 - **Deferred FOLD (providers):** audit-adopt new SDK surface through the base — session helpers
   (`listSessions`/`getSessionInfo`/…), `startup()`, `Query.reinitialize()`, new hook events, `dontAsk`/`auto`
   permission modes. Each deliberate, each with a test. Details in `docs/module-notes/providers.md`.
