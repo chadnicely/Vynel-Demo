@@ -1,14 +1,24 @@
 // Public surface for `@vynel/mcp`.
 //
-// Producer shell (Step B): this package exists to receive the generator
-// output (`./generated/api-tools.ts`, emitted by `pnpm api:generate`)
-// and prove the route → MCP-tool pipeline end-to-end + parity-guarded.
-// The generated registry is intentionally NOT re-exported — it's a
-// private implementation detail its consumers import directly.
+// This package hosts Vynel's MCP surfaces:
+//   - the generated agent-bound tool registry (`./generated/api-tools.ts`,
+//     emitted by `pnpm api:generate`) — direction ③, consumed in-process by
+//     the providers layer when it lands (NOT re-exported; a private detail).
+//   - the external stdio MCP server (`./external-mcp-server.ts` + the
+//     `external-server.ts` bin) — direction ②: a generic server that reads
+//     the committed OpenAPI spec and dispatches each tool call to the api
+//     over HTTP.
 //
-// The server builders + feature descriptors that CONSUME the registry
-// (`build-in-process-server.ts` → `createSdkMcpServer`, and the
-// `McpFeatureDescriptor` wrappers) land in the move that pulls their
-// consumers — the apps/api turn composer + `packages/providers`.
+// The in-process server builders + `McpFeatureDescriptor` wrappers that
+// consume the generated registry (direction ③) land with their consumer —
+// the apps/api turn composer + `packages/providers`.
 
 export * from './mcp-types.js'
+export {
+  buildExternalMcpServer,
+  collectExternalTools,
+  type FetchDispatch,
+  type OpenApiSpec,
+  type ExternalTool,
+  type ToolResult,
+} from './external-mcp-server.js'

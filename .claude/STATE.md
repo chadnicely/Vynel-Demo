@@ -10,7 +10,7 @@ Land each feature's **backend** surfaces (api → generators/sdk/mcp → cli/ext
 **knowledge** as the reference pattern. **Skip web** (Chad reworks it). Green at every step; commit+push each.
 
 ## Repos & branch
-- **Working:** `E:\KLONE\Workspace\vynel` — git `main`, remote `github.com/kafijunior/vynel-beta`, pushed through `77bddc8`.
+- **Working:** `E:\KLONE\Workspace\vynel` — git `main`, remote `github.com/kafijunior/vynel-beta`, pushed through `d9c6c45` (Step E in progress).
 - **Source (READ-ONLY, never modify):** `E:\KAFI\WORKSPACE\v2\vynel`, branch `refactor/session-library` (tip `754615f`, clean tree). Pull with:
   `git -C /e/KAFI/WORKSPACE/v2/vynel archive refactor/session-library <paths> | tar -x -C /e/KLONE/Workspace/vynel`
 - Backups: `E:\KLONE\vynel-backups\*.bundle`.
@@ -23,19 +23,16 @@ Land each feature's **backend** surfaces (api → generators/sdk/mcp → cli/ext
 5. **Namespaced SDK (Step C)** `36088b8` — letterman's `client.knowledge.search()` facade: `describeRoute` widened for `x-sdk-name`, the 5 knowledge routes annotated, `generate-namespaced-sdk` (parse/tree/emit) → `packages/sdk/src/generated/namespaced.ts`, composed via `Object.assign` in `createVynelClient`; `SdkError` on non-2xx. sdk-parity now guards `namespaced.ts`.
 6. **Response schemas (B)** `a98fc02` — the 5 knowledge routes declare response schemas (`resolver()` on each 200); `Serialized*` types derive from them via `z.infer` (one source, −50 lines). SDK returns are now **typed** (`client.knowledge.search()` → `{ results: […] }`), flat + namespaced. `expectTypeOf` guard per route.
 7. **CLI (D)** `77bddc8` — `@vynel/cli`: `vynel knowledge <search|list|get|status|reindex> -w <id>` over the namespaced SDK (`commander`; thin, injectable `buildProgram` for tests; `env.ts` for base URL; `SdkError`→stderr+exit). Verified `--help` end-to-end.
-8. **Worker (F)** *(green + committing)* — `@vynel/worker`: faithful pull (env/factory/scheduler) + `index.ts` trimmed to the single `generate-knowledge-embeddings` cron job (node-cron; thin `(db,logger)`→core delegator). Dropped transitive `@vynel/embeddings` + the empty-registry outbox job.
-**Gate:** `pnpm install` exit 0 · `turbo typecheck` all green · `pnpm test:parity` (schema 29 · mcp · sdk) · `vitest` 507 passed / 4 skipped. **Full `pnpm test` green.**
+8. **Worker (F)** `d9c6c45` — `@vynel/worker`: faithful pull (env/factory/scheduler) + `index.ts` trimmed to the single `generate-knowledge-embeddings` cron job (node-cron; thin `(db,logger)`→core delegator). Dropped transitive `@vynel/embeddings` + the empty-registry outbox job.
+9. **External MCP (E)** *(green + committing)* — `@vynel/mcp` external stdio server (`@modelcontextprotocol/sdk`): reads `@vynel/sdk`'s `openapi.json` at boot, registers each `x-mcp.exposed` route (runtime OpenAPI→Zod), dispatches via `fetch` → direction ②. Advisor-vetted **runtime** (no new generator/parity, can't drift); mirrors ③'s curation. `VYNEL_API_URL` env; boots clean; verified real spec → 4 reads.
+**Gate:** `pnpm install` exit 0 · `turbo typecheck` all green · `pnpm test:parity` (schema 29 · mcp · sdk) · `vitest` 513 passed / 4 skipped. **Full `pnpm test` green.**
 
-## NEXT: Step E — external MCP adapter (direction ②)
-A generic `McpServer` over stdio (`@modelcontextprotocol/sdk`) in `apps/mcp`: reads `@vynel/sdk`'s committed
-`openapi.json` at boot, registers each `x-mcp.exposed` route (Zod input from its params) + dispatches via
-`fetch(API_URL + path)`. Advisor-vetted **runtime** approach: no new generator/parity (openapi.json already
-guarded by check-sdk-parity), write-once-generic, never touches `generate-mcp-tools.ts`, native MCP server
-(NOT KAFI's agent-SDK/fetch hybrid), mirrors ③'s curation (4 reads; reindex excluded). Env → `API_URL`
-(+ log level); Phase-1 local-user posture. Then:
-- **Providers/composer move** (a later feature): pull `packages/mcp-contract` + `apps/mcp/build-in-process-server.ts` +
-  the `McpFeatureDescriptor` wrappers — wires direction ③ (agent-bound MCP: `createSdkMcpServer` +
-  `composeSessionMcpServers`) to its real consumer.
+## NEXT: providers/composer move (direction ③ — a later FEATURE pull)
+The knowledge feature's backend surfaces are ALL landed (api → generators → SDK flat+namespaced typed →
+MCP registry → external MCP ② → CLI → worker). The one remaining MCP piece is **direction ③** (agent-bound):
+pull `packages/mcp-contract` + `apps/mcp/build-in-process-server.ts` (`createSdkMcpServer`) + the
+`McpFeatureDescriptor` wrappers, and wire them into the apps/api turn composer (`composeSessionMcpServers`).
+This needs the `packages/providers` layer, so it's the natural next FEATURE pull, not a knowledge slice.
 
 ## The 3 MCP directions (Chad's "be smarter" ask) — from studying letterman
 One OpenAPI source → flat SDK + namespaced SDK + MCP registry. **① CLI** over the namespaced SDK · **② external MCP**
