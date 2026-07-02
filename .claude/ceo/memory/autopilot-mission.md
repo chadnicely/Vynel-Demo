@@ -54,8 +54,52 @@ category/section (migration 0024) — extend into a tag system. Write the full d
 ## Progress log (update after every phase)
 - 2026-07-02: mission set. Refactor agent `afa5f2cc` running (shims + fold, commit-on-green).
   Knowledge design doc written. Awaiting Chad's order + shutdown-on-blocker confirm, then GO.
+- Refactor DONE + pushed: `251e1e2` (drop shims) + `de11714` (fold knowledge). Gate green
+  (typecheck 24/24, parity ok, vitest 513/4-skip). Order confirmed (ws→prov→mem); blocker policy
+  set (advisor → shutdown).
+- Knowledge migration DONE + PROVEN (NOT yet committed — gate red until consumers updated):
+  schema (`sources.ts` new; documents +sourceId/+scope/nullable-workspace/unique(sourceId,path);
+  chunks dropped workspaceId) + `drizzle.sqlite.config.ts` registered + `0038_knowledge_sources_scope.sql`
+  (drizzle snapshot + journal idx 38) + behavioral test `packages/db/src/migrate-knowledge-sources.test.ts`
+  **PASSES** (populated old-shape DB → 0038 → FTS keyword + vec KNN still return the chunk; embeddings
+  intact). Two advisor calls shaped it (source-partition; chunks = DROP COLUMN + FTS 'rebuild', NOT a
+  rebuild). Flags in the design doc: backfill covers only workspaces-with-docs; workspace list/status
+  stay workspace-only; snapshot convention followed (drizzle-generated).
+- Stage-1 agent STALLED mid-stream (infra; same as v1 refactor) — committed NOTHING; working tree
+  unchanged from my pre-spawn state. **LESSON: long agent runs (>~9 min) stall in this env; keep
+  agent tasks SMALL or do it myself.** DECISION: doing the consumer-update MYSELF (reliable) —
+  repos → core ops → gate → commit → push.
+- **Durable state right now:** refactor pushed (`702269a`); knowledge schema + `0038` migration +
+  behavioral test are UNCOMMITTED on disk (gate is RED until repos/core are updated to the source
+  model) — fully recoverable via this log + `docs/module-notes/knowledge-scope-sources.md`. Realistic
+  tonight goal: land the knowledge BACKEND (repos + core) green+committed+pushed (routes/mcp/cli +
+  the other 3 packages may not fit — solid beats all four).
 
 ## Answered by Chad before bed
 - Order: knowledge → **workspace → provider → memory**.
 - On blockers: try to unblock → **call the advisor** → if still blocked, **shut down anyway**
   (commit/push/document first).
+
+## Knowledge consumer-update — near done (resume here)
+ALL knowledge SOURCE files compile green (DB repos + all `packages/knowledge/src` core ops rewritten
+to the source model — indexFile/indexSource/file-watcher/handlers/search/etc. take a `source` object;
+chunks dropped workspaceId; ActivityEvent keys on sourceId; events payload workspaceId is `string|null`;
+`findKnowledgeDocumentByWorkspacePath` re-added for the `?path=` badge). DB repo tests + knowledge
+`index-file.test.ts` rewritten with the `seedUserWorkspaceAndSource` helper (in `_test-helpers.ts`).
+The behavioral migration test still passes.
+**DONE — knowledge scope+sources BACKEND green + committed `bbb87bc` + pushed + VERIFIED MYSELF**
+(`pnpm test`: 83 files / **514 tests passed, 4 skip**; typecheck 24/24; parity schema 30 · mcp · sdk;
+the `0038` behavioral migration test passes unmodified). This = schema + `0038` migration (proven) +
+all repos + all core ops (source model, global-fused search, watcher-by-source, auto-registered
+workspace source) + all tests. Serializers took a `workspaceId` param → response contract byte-identical,
+parity green, no regen.
+
+**REMAINING for user-facing "complete knowledge" = Stage-2** (NOT yet built — the add-directory feature
+isn't user-invocable yet; only the workspace folder auto-registers):
+- sources CRUD core ops in `packages/knowledge/src/` (new `sources/` folder): `registerKnowledgeSource`
+  (path-safety: exists + is dir + readable + reject fs/home roots; insert source → indexSource → watch →
+  outbox) · `removeKnowledgeSource` (stop watch → delete → purge vec) · `listKnowledgeSources`.
+- api routes: `POST` add-directory (`x-mcp` `add_to_knowledge`, mutating) + list/delete sources +
+  scope params → `pnpm api:generate` (regen SDK + MCP; parity) → CLI `knowledge add-directory`/`sources`.
+- ③ agent-turn MCP binding + approval card stay providers/approvals-gated (session phase, with Chad).
+Then **workspace → provider → memory**. Do NOT re-spawn big agents (they stall > ~9 min); small tasks or self.
