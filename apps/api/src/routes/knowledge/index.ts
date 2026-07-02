@@ -8,8 +8,8 @@
 //   POST /reindex                -> forceReindexWorkspace       (no x-mcp — mutating per D16)
 //
 // Locked Hono protocol per `coding-standard.md` "Hono routes" +
-// `sdk-mcp.md`: describeRoute (from the local openapi.js wrapper —
-// widens the type for x-mcp) → validator (from hono-openapi/zod) →
+// describeRoute (from the local openapi.js wrapper — widens the type
+// for x-mcp + x-sdk-name) → validator (from hono-openapi/zod) →
 // `...workspaceScoped` → handler. Chained methods on
 // `factory.createApp()`.
 //
@@ -54,6 +54,7 @@ export const knowledgeApp = factory
     describeRoute({
       tags: ['knowledge'],
       summary: 'List indexed documents for the active workspace.',
+      'x-sdk-name': 'knowledge.listDocuments',
       responses: {
         200: { description: '{ documents: SerializedKnowledgeDocument[], nextCursor }.' },
         404: { description: 'Workspace not found.' },
@@ -97,6 +98,7 @@ export const knowledgeApp = factory
     describeRoute({
       tags: ['knowledge'],
       summary: 'Get one knowledge document + its chunks (workspace-scoped).',
+      'x-sdk-name': 'knowledge.getDocument',
       responses: {
         200: {
           description:
@@ -136,6 +138,7 @@ export const knowledgeApp = factory
     describeRoute({
       tags: ['knowledge'],
       summary: 'Search knowledge chunks (FTS5, semantic, or hybrid).',
+      'x-sdk-name': 'knowledge.search',
       responses: {
         200: { description: '{ results: SerializedKnowledgeSearchResult[] }.' },
         404: { description: 'Workspace not found.' },
@@ -181,6 +184,7 @@ export const knowledgeApp = factory
     describeRoute({
       tags: ['knowledge'],
       summary: 'Get the indexer status for the active workspace.',
+      'x-sdk-name': 'knowledge.getStatus',
       responses: {
         200: { description: 'SerializedIndexerStatus.' },
         404: { description: 'Workspace not found.' },
@@ -209,6 +213,7 @@ export const knowledgeApp = factory
     describeRoute({
       tags: ['knowledge'],
       summary: 'Force-reindex every document in the active workspace.',
+      'x-sdk-name': 'knowledge.reindex',
       responses: {
         200: { description: '{ indexedCount, skippedCount, failedCount }.' },
         404: { description: 'Workspace not found.' },

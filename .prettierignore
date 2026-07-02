@@ -1,0 +1,11 @@
+# Generated artifacts — shaped by their generators, not prettier. Running
+# `prettier --write` over them would break the schema / mcp / sdk parity
+# guards, which snapshot exact generator output. ESLint already ignores
+# these (eslint.config.js); prettier needs its own list.
+**/src/generated/
+packages/sdk/openapi.json
+
+# Dependency + build output.
+**/node_modules/
+**/dist/
+pnpm-lock.yaml

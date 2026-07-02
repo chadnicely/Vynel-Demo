@@ -35,6 +35,14 @@ export interface McpExtension {
 // middleware-handler inference that downstream routes rely on.
 type DescribeRouteOptions = Parameters<typeof honoDescribeRoute>[0] & {
   'x-mcp'?: McpExtension
+  /**
+   * Dotted `namespace.method` name for the generated namespaced SDK
+   * (`x-sdk-name: 'knowledge.search'` → `client.knowledge.search()`).
+   * Optional at the type level so the annotation sweep can land in
+   * stages; `generate-namespaced-sdk.ts` enforces required-in-practice
+   * (it throws on any route missing it).
+   */
+  'x-sdk-name'?: string
 }
 
 export const describeRoute: (

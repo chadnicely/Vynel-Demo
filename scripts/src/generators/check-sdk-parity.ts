@@ -1,9 +1,9 @@
-// CI parity guard for the generated @vynel/sdk artifacts. Re-runs the
-// SDK generator + diffs its two outputs (`packages/sdk/openapi.json`
-// and `packages/sdk/src/generated/api.d.ts`) against the checked-in
-// copies. Non-zero exit on drift — the caller must run
-// `pnpm api:generate` and commit the regenerated artifacts alongside
-// any route/schema change.
+// CI parity guard for the generated @vynel/sdk artifacts. Re-runs both
+// SDK generators + diffs their three outputs
+// (`packages/sdk/openapi.json`, `src/generated/api.d.ts`, and
+// `src/generated/namespaced.ts`) against the checked-in copies. Non-zero
+// exit on drift — the caller must run `pnpm api:generate` and commit the
+// regenerated artifacts alongside any route/schema change.
 //
 // Why guard the SDK too (the MCP registry already has a golden test +
 // its own parity guard): the SDK artifacts have NO typecheck consumer
@@ -21,6 +21,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const artifacts = [
   path.join(repoRoot, 'packages', 'sdk', 'openapi.json'),
   path.join(repoRoot, 'packages', 'sdk', 'src', 'generated', 'api.d.ts'),
+  path.join(repoRoot, 'packages', 'sdk', 'src', 'generated', 'namespaced.ts'),
 ]
 
 // Snapshot the committed copies first so a missing artifact fails loud
@@ -40,18 +41,22 @@ for (const file of artifacts) {
   }
 }
 
-// Re-run the generator (writes to the real artifact paths), then diff +
-// restore each committed copy so the working tree ends in its pre-check
-// state — the parity check's job is detection, not the fix.
-const result = spawnSync(
-  'tsx',
-  [path.join(repoRoot, 'scripts', 'src', 'generators', 'generate-sdk.ts')],
-  { stdio: 'inherit', shell: true },
-)
-if (result.status !== 0) {
-  for (const [file, content] of committed) writeFileSync(file, content)
-  // eslint-disable-next-line n/no-process-exit
-  process.exit(result.status ?? 1)
+// Re-run both SDK generators IN ORDER (generate-namespaced-sdk reads the
+// openapi.json generate-sdk emits), then diff + restore each committed
+// copy so the working tree ends in its pre-check state — the parity
+// check's job is detection, not the fix.
+const generators = ['generate-sdk.ts', 'generate-namespaced-sdk.ts']
+for (const generator of generators) {
+  const result = spawnSync(
+    'tsx',
+    [path.join(repoRoot, 'scripts', 'src', 'generators', generator)],
+    { stdio: 'inherit', shell: true },
+  )
+  if (result.status !== 0) {
+    for (const [file, content] of committed) writeFileSync(file, content)
+    // eslint-disable-next-line n/no-process-exit
+    process.exit(result.status ?? 1)
+  }
 }
 
 const drifted: string[] = []

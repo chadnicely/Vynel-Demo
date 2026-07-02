@@ -84,6 +84,7 @@
           }
         ],
         "summary": "List indexed documents for the active workspace.",
+        "x-sdk-name": "knowledge.listDocuments",
         "x-mcp": {
           "exposed": true,
           "name": "list_knowledge_documents",
@@ -125,6 +126,7 @@
           }
         ],
         "summary": "Get one knowledge document + its chunks (workspace-scoped).",
+        "x-sdk-name": "knowledge.getDocument",
         "x-mcp": {
           "exposed": true,
           "name": "get_knowledge_document",
@@ -198,6 +200,7 @@
           }
         ],
         "summary": "Search knowledge chunks (FTS5, semantic, or hybrid).",
+        "x-sdk-name": "knowledge.search",
         "x-mcp": {
           "exposed": true,
           "name": "search_knowledge",
@@ -230,6 +233,7 @@
           }
         ],
         "summary": "Get the indexer status for the active workspace.",
+        "x-sdk-name": "knowledge.getStatus",
         "x-mcp": {
           "exposed": true,
           "name": "get_indexer_status",
@@ -261,7 +265,8 @@
             "required": true
           }
         ],
-        "summary": "Force-reindex every document in the active workspace."
+        "summary": "Force-reindex every document in the active workspace.",
+        "x-sdk-name": "knowledge.reindex"
       }
     }
   },

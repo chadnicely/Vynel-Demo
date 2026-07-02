@@ -18,7 +18,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "api:generate": "tsx scripts/src/generators/generate-sdk.ts && tsx scripts/src/generators/generate-mcp-tools.ts"
+    "api:generate": "tsx scripts/src/generators/generate-sdk.ts && tsx scripts/src/generators/generate-namespaced-sdk.ts && tsx scripts/src/generators/generate-mcp-tools.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",

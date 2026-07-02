@@ -10,7 +10,7 @@ Land each feature's **backend** surfaces (api → generators/sdk/mcp → cli/ext
 **knowledge** as the reference pattern. **Skip web** (Chad reworks it). Green at every step; commit+push each.
 
 ## Repos & branch
-- **Working:** `E:\KLONE\Workspace\vynel` — git `main`, remote `github.com/kafijunior/vynel-beta`, pushed through `51c7c20` (Step B staged + green; commit pending Chad).
+- **Working:** `E:\KLONE\Workspace\vynel` — git `main`, remote `github.com/kafijunior/vynel-beta`, pushed through `4764700` (Step C staged + green; commit pending Chad).
 - **Source (READ-ONLY, never modify):** `E:\KAFI\WORKSPACE\v2\vynel`, branch `refactor/session-library` (tip `754615f`, clean tree). Pull with:
   `git -C /e/KAFI/WORKSPACE/v2/vynel archive refactor/session-library <paths> | tar -x -C /e/KLONE/Workspace/vynel`
 - Backups: `E:\KLONE\vynel-backups\*.bundle`.
@@ -19,14 +19,17 @@ Land each feature's **backend** surfaces (api → generators/sdk/mcp → cli/ext
 1. **Scaffold** `291622b` — docs + CLAUDE.md + `.claude/{ceo/soul,rules}` + root config.
 2. **Knowledge vertical** `0491192` — `@vynel/db` (ALL domains' schema/repos/migrations) + errors, logger, embeddings, indexer, testing, knowledge.
 3. **Knowledge api (Step A)** `51c7c20` — `apps/api` trimmed to the knowledge route + `@vynel/core` **spine-slice** (users, workspaces, errors, knowledge, _shared).
-4. **Generation pipeline (Step B)** *(green + staged; commit pending Chad)* — `@vynel/scripts` (generators + 3 parity guards) + `@vynel/sdk` (flat `createVynelClient`) + `@vynel/mcp` **producer shell**. `pnpm api:generate` → flat SDK (5 paths) + MCP registry (4 knowledge tools). **AI-seam invariant amended** (agent-SDK *runtime* stays in providers; the SDK's *builder exports* + Vynel's `McpFeatureDescriptor` are allowed in the MCP layer). Deferred to the providers/composer move: `mcp-contract`, `build-in-process-server`, the descriptors, the external adapter (`server.ts`/`env.ts`).
-**Gate at HEAD:** `pnpm install` exit 0 · `turbo typecheck` all green · `pnpm test:parity` (schema 29 · mcp · **sdk**) · `vitest` 485 passed / 4 skipped. **Full `pnpm test` green** — parity now active.
+4. **Generation pipeline (Step B)** `4764700` — `@vynel/scripts` (generators + 3 parity guards) + `@vynel/sdk` (flat `createVynelClient`) + `@vynel/mcp` **producer shell**. `pnpm api:generate` → flat SDK (5 paths) + MCP registry (4 knowledge tools). **AI-seam invariant amended** (agent-SDK *runtime* stays in providers; the SDK's *builder exports* + Vynel's `McpFeatureDescriptor` are allowed in the MCP layer). Deferred to the providers/composer move: `mcp-contract`, `build-in-process-server`, the descriptors, the external adapter (`server.ts`/`env.ts`).
+5. **Namespaced SDK (Step C)** *(green + staged; commit pending Chad)* — letterman's `client.knowledge.search()` facade: `describeRoute` widened for `x-sdk-name`, the 5 knowledge routes annotated, `generate-namespaced-sdk` (parse/tree/emit) → `packages/sdk/src/generated/namespaced.ts`, composed via `Object.assign` in `createVynelClient`; `SdkError` on non-2xx. sdk-parity now guards `namespaced.ts`. **Loosely-typed returns** (routes declare no response schema → `data` types as `undefined`) — see NEXT.
+**Gate:** `pnpm install` exit 0 · `turbo typecheck` all green · `pnpm test:parity` (schema 29 · mcp · **sdk** incl. `namespaced.ts`) · `vitest` 489 passed / 4 skipped. **Full `pnpm test` green.**
 
-## NEXT: Step C — the namespaced SDK
-Adopt letterman's **namespaced SDK**: widen the `describeRoute` wrapper for `x-sdk-name` (today it widens
-`x-mcp` only), annotate the knowledge routes (`x-sdk-name: 'knowledge.search'` …), and add the SDK tree-builder
-so `client.knowledge.search()` works (throws `SdkError` on non-2xx). Net-new — Step B does NOT half-implement it
-(reviewer confirmed the diff is clean of namespacing). Then:
+## NEXT: response schemas (the B/C fork — pending Chad's okay) → then Step D (CLI)
+The knowledge routes declare prose responses (no `content` schema), so the SDK types every return as
+`undefined` (flat **and** namespaced). **B** = author ~5 Zod response schemas + `resolver()` on the 5
+routes → genuinely-typed SDK returns (fixes the flat SDK too; `hasSuccessBody` could revert to
+content-based). It's an API-completeness pattern every feature inherits. Shipped **C** (the pattern,
+loosely-typed returns) while Chad was away — B layers on additively (the generator keeps working).
+**Recommend B next, pending Chad's okay.** Then:
 - **D** `apps/cli` (net-new) over the namespaced SDK — direction ①.
 - **E** external MCP adapter: pull the deferred `apps/mcp/{server,env}.ts` + `@modelcontextprotocol/sdk` stdio — direction ②.
 - **F** `apps/worker` + the knowledge embeddings job.
