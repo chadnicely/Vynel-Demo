@@ -16,7 +16,7 @@ import { createFactory } from 'hono/factory'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { User } from '@vynel/core/users'
-import type { Workspace } from '@vynel/core/workspaces'
+import type { Workspace } from '@vynel/workspaces'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
 // stashed on `c.var.appRequest` so handlers can re-enter the app (the mcp

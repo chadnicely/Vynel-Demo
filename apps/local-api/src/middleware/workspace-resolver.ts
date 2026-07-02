@@ -12,7 +12,7 @@
 // the route integration tests (§10.3), matching the `user-resolver.ts`
 // precedent.
 
-import { getWorkspaceById } from '@vynel/core/workspaces'
+import { getWorkspaceById } from '@vynel/workspaces'
 import * as workspacesRepository from '@vynel/db/repositories/workspaces'
 import { factory } from '../factory.js'
 

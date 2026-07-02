@@ -1,17 +1,14 @@
-// Public surface of the `workspaces` domain (core layer). Consumer
-// domains import per-op via `@vynel/core/workspaces` per the `exports`
-// map in `packages/core/package.json` (which maps `./<d>` →
-// `./src/<d>/index.ts`). The root `packages/core/src/index.ts` stays
-// empty — consumers use the per-domain subpath. Per
-// `.claude/rules/structure-standard.md` "packages/core/src/".
+// Public surface of `@vynel/workspaces` — the workspaces domain's
+// management logic (create / list / archive / hard-delete / rename +
+// folder helpers). Surfaces (the api routes, and a future db-direct CLI)
+// call these `(db, deps)` functions directly.
 //
-// Per-op files (`create-workspace.ts`, `list-workspaces-for-user.ts`,
-// `get-workspace-by-id.ts`, `update-workspace-metadata.ts`,
-// `archive-workspace.ts`, `hard-delete-workspace.ts`,
-// `make-default-workspace-parent-directory.ts`) are created by
-// `/build-domain workspaces` TDD steps 9–15 — outside-in: write the
-// failing test first, then drive the implementation down. Each will
-// re-export its public surface from here.
+// WHY only logic lives here (not schema/repos): workspaces is a tenancy
+// HUB — every feature FKs to the `workspaces` table. Its schema +
+// repositories therefore stay in the kernel (`@vynel/db/schema/workspaces`,
+// `@vynel/db/repositories/workspaces`); moving them into this package would
+// force every feature to import `@vynel/workspaces` (cross-feature coupling
+// we forbid). Leaf features (knowledge, …) own their schema; hubs don't.
 
 export type { Workspace, NewWorkspace, WorkspaceKind } from './workspaces-types.js'
 

@@ -11,8 +11,12 @@ work pile up here. One line + link per memory `.md` in this directory.
 - **✅ `local-api` rename DONE + green** (`apps/api`→`apps/local-api`, `@vynel/api`→`@vynel/local-api`) — this
   api always runs local; the server-level api comes later as a separate app. **CLI decision RESOLVED:** keep
   it over the api for now; the vertical slice already preserves the future db-direct option. See STATE.
-- **⏭ NEXT = continue the mission** (Chad: "once this message is done we continue to mission"): knowledge
-  **Stage-2** → **workspace → provider → memory**.
+- **✅ Workspace pull DONE + green** → `@vynel/workspaces` (logic-only; it's a HUB so schema+repos stayed in
+  the kernel). Started decomposing `@vynel/core` (now just `users` + `_shared`). **Template: leaf owns
+  schema+repos+logic; hub keeps them in kernel, only logic → package.** See STATE.
+- **⏭ NEXT = PROVIDER pull** → `@vynel/providers` (AI seam; check ALL old fns vs latest SDK — big, step-by-step
+  WITH Chad) → then **memory** (+ tagging). Smaller pending: knowledge Stage-2 routes + workspace CRUD routes;
+  `users` core-decomp.
 - **Phase-2 Postgres reference captured** (from letterman) → `docs/module-notes/postgres-phase2.md`. TL;DR:
   good PG *plumbing* patterns (pooled/direct URL split, `prepare:false`, graceful close, extension DDL in
   `0000`); **nothing** for pgvector/tsvector (deferred there — plan FTS/vec from PG docs). Not actionable until

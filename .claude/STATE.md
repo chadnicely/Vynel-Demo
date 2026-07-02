@@ -65,6 +65,22 @@ issues but keep that shape we can use in cli directly if needed in future." So `
 option (core ops take `db`; the worker proves it) — so a future swap to CLI-db-direct is a drop-in when
 needed. Open-when-we-do-it Q (deferred): who runs migrations for a standalone CLI (on-open vs assume-migrated).
 
+**⏵ WORKSPACE PULL — DONE + green (this session).** `packages/core/src/workspaces/` (14 ops + events +
+types + tests) → **new `@vynel/workspaces` package**. **Hub, not leaf:** its `workspaces` TABLE + repos STAY
+in the kernel (`@vynel/db/schema|repositories/workspaces`) — every feature FKs to workspaces, so moving the
+table would force cross-feature imports; only the **management logic** moved. Clean move (zero `../` sibling
+deps; the logic only reaches kernel repos + `@vynel/errors`); 2 consumer imports rewired
+(`apps/local-api` factory + workspace-resolver: `@vynel/core/workspaces` → `@vynel/workspaces`); dep added to
+local-api. Gate green — 524 tests, parity 30 · mcp · sdk, typecheck. **This starts decomposing `@vynel/core`**
+(now holds only `users` + `_shared`); `users` is the next hub (same pattern), then core disappears.
+**Template refined:** *leaf* feature owns schema+repos+logic; *hub* entity (users, workspaces) keeps
+schema+repos in the kernel, only logic → package.
+
+**NEXT (mission order): PROVIDER pull** → `@vynel/providers` (the AI seam; `claude-agent-sdk` runtime ONLY
+here). Chad's directive: check ALL old provider functions against the latest SDK, cover all available
+functions (drop none), then fold. Big module — step-by-step WITH Chad. Then **memory** (+ tagging system).
+Smaller pending: knowledge **Stage-2** routes + workspace CRUD routes (surface work); `users` core-decomp.
+
 ## Goal
 Rebuild Vynel in KLONE by moving tested code from the old KAFI repo **module-by-module** into a clean
 modular monolith (**routes-over-packages on Hono** — logic in `@vynel/<feature>` packages, thin api).
