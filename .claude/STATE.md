@@ -3,12 +3,30 @@
 **Updated 2026-07-03.** After a compaction read this first, then `CLAUDE.md` → `docs/vision.md` →
 `docs/architecture.md` → `.claude/ceo/soul.md`. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (fresh session, Chad-directed): the PROVIDER pull → `@vynel/providers`
-Read **`docs/module-notes/providers.md`** first — it's the scoping anchor (Chad's directive: check ALL old
-provider fns vs the *latest* claude-agent-sdk, cover all, drop none; the AI-seam invariant; what this unblocks
-= ③ MCP binding + the real approval card). **Big + sensitive — SCOPE first, get Chad's okay, THEN pull.** Do
-step 1 (scope → fill providers.md: old shape + SDK audit) → step 2 (plan → Chad's okay) → faithful pull →
-green → fold. Everything below this line is DONE this session (context, not to-do).
+## ✅ PROVIDER SEAM LANDED (base shape) — next: follow-ons, then memory
+**`@vynel/providers` is DONE + green** (full record: `docs/module-notes/providers.md`). Pulled the AI-seam
+runtime (67 files) and restructured the old flat `claude/internal/` into **knowledge-style concern folders**
+under `claude/`: **`base/`** (SDK adapter — `claude-agent-sdk.ts` is the SOLE non-test SDK import site + the
+raw-SDK-shape fns; an Anthropic changelog change lands here) · `session/` (drive `query()`) · `approvals/`
+(permission wiring) · `history/` (persisted reads) · `installation/` (host install/config). `shared/` stays
+the SDK-free provider-agnostic contract → a future `codex/` slots in as a sibling. Gate green: typecheck (17
+pkgs) + parity (30/7/7·8) + vitest **670 / 4 skip** (providers 23 files / 142 tests). **NOT wired to anything
+yet — by design.** Shape saved to memory (`providers-structure`).
+
+**⏭ NEXT ACTIONS (Chad's order):**
+1. **provider-preferences CRUD** (~8 files: `core/src/providers/*` + `core/src/skills/synchronize-skills-*`)
+   — the DB-touching feature that *consumes* the seam; makes providers usable. Hub table already in kernel.
+   The natural fast-follow.
+2. **③ agent-turn MCP binding + the real approval CARD** (`mcp-contract` + `build-in-process-server` +
+   `composeSessionMcpServers`) — now unblocked by the seam. The knowledge mutating tools wait on this
+   (auto-mode, no card today). **FOLD candidate:** adopt SDK `tool()` `annotations` (readOnly/destructive)
+   for the auto-card model (see providers.md SDK-audit).
+3. **memory pull** (+ tagging system, ~100 context/rule tags).
+- **Deferred FOLD (providers):** audit-adopt new SDK surface through the base — session helpers
+  (`listSessions`/`getSessionInfo`/…), `startup()`, `Query.reinitialize()`, new hook events, `dontAsk`/`auto`
+  permission modes. Each deliberate, each with a test. Details in `docs/module-notes/providers.md`.
+
+Everything below this line is DONE (context, not to-do).
 
 ---
 

@@ -18,10 +18,15 @@ work pile up here. One line + link per memory `.md` in this directory.
   `list_knowledge_sources` / `remove_knowledge_source`), FileWatcherService wired into local-api DI, SDK+MCP
   regen, CLI (`add-directory`/`sources`/`remove-source`). **Auto mode — mutating MCP tools, NO card yet**
   (approval improved later). Knowledge is now user-facing complete. See STATE. **Chad to verify the live flow.**
-- **⏭ NEXT ACTION = PROVIDER pull** → `@vynel/providers` (the AI seam). **Read `docs/module-notes/providers.md`
-  first** (scoping anchor: check ALL old fns vs *latest* claude-agent-sdk, runtime only in `providers/src/claude/`,
-  unblocks ③ MCP binding + real approval card). Big + sensitive — SCOPE → Chad's okay → pull. Then **memory**
-  (+ tagging). Smaller pending: workspace CRUD routes; `users` core-decomp.
+- **✅ PROVIDER SEAM DONE + green** → `@vynel/providers` (67 files). Folded directly into Chad's
+  **anti-corruption base**: `claude/base/claude-agent-sdk.ts` is the SOLE non-test SDK import site (Anthropic
+  changelog = one-file update; `shared/` SDK-free → downstream consumers insulated). Gate green — vitest 670/4-skip
+  (providers 23 files/142 tests), parity 30·7·7/8. **NOT wired yet, by design.** Full record: `docs/module-notes/providers.md`.
+- **⏭ NEXT (Chad's order):** ① provider-preferences CRUD (`core/src/providers/*` — the fast-follow that makes
+  the seam usable; hub table already in kernel) → ② ③-MCP binding + real approval CARD (unblocked now;
+  knowledge mutating tools wait on it) → ③ memory pull (+ tagging). Deferred providers FOLD: audit-adopt new
+  SDK surface (session helpers, `startup()`, new hook events) through the base. Smaller: workspace CRUD routes;
+  `users` core-decomp.
 - **Phase-2 Postgres reference captured** (from letterman) → `docs/module-notes/postgres-phase2.md`. TL;DR:
   good PG *plumbing* patterns (pooled/direct URL split, `prepare:false`, graceful close, extension DDL in
   `0000`); **nothing** for pgvector/tsvector (deferred there — plan FTS/vec from PG docs). Not actionable until

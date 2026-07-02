@@ -1,0 +1,219 @@
+// Tests for `runClaudeChatSession` — the SDK-wrapping async generator. The
+// SDK's `query()` is replaced by the shared fake-query test helper, which
+// scripts a message sequence, honours `options.abortController`, and invokes
+// `options.canUseTool`. See `docs/blueprints/providers/blueprint.md §11.2`.
+
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }))
+
+import { query } from '@anthropic-ai/claude-agent-sdk'
+import { runClaudeChatSession } from './run-claude-chat-session.js'
+import { ActiveSessionRegistry } from '../../shared/active-session-registry.js'
+import { PendingApprovalRegistry } from '../../shared/pending-approval-registry.js'
+import {
+  FAKE_CLAUDE_SESSION_ID,
+  createFakeClaudeQuery,
+  fakeAssistantMessageStep,
+  fakeSuccessResultStep,
+  fakeSystemInitStep,
+  fakeTextStreamStep,
+  type FakeClaudeQueryStep,
+} from '../../test-support/fake-claude-query.js'
+import type { NormalizedSessionEvent } from '../../shared/normalized-session-event.js'
+import type { StartChatSessionInput } from '../../shared/start-chat-session-input.js'
+
+const mockQuery = vi.mocked(query)
+
+function installFakeQuery(script: FakeClaudeQueryStep[]): void {
+  mockQuery.mockImplementation(createFakeClaudeQuery(script))
+}
+
+const BASE_INPUT: StartChatSessionInput = {
+  workspacePath: '/work/demo',
+  userMessageText: 'hello',
+  permissionMode: 'ask',
+  allowedToolNames: [],
+  deniedToolNames: [],
+}
+
+function startSession(overrides?: {
+  activeSessionRegistry?: ActiveSessionRegistry
+  pendingApprovalRegistry?: PendingApprovalRegistry
+}): AsyncIterable<NormalizedSessionEvent> {
+  return runClaudeChatSession({
+    input: BASE_INPUT,
+    activeSessionRegistry: overrides?.activeSessionRegistry ?? new ActiveSessionRegistry(),
+    pendingApprovalRegistry: overrides?.pendingApprovalRegistry ?? new PendingApprovalRegistry(),
+  })
+}
+
+async function collect(
+  iterable: AsyncIterable<NormalizedSessionEvent>,
+): Promise<NormalizedSessionEvent[]> {
+  const events: NormalizedSessionEvent[] = []
+  for await (const event of iterable) events.push(event)
+  return events
+}
+
+describe('runClaudeChatSession', () => {
+  it('emits session-started -> translated content -> usage -> session-completed', async () => {
+    installFakeQuery([
+      fakeSystemInitStep(),
+      fakeTextStreamStep('Hi there.'),
+      fakeAssistantMessageStep({ text: 'Hi there.' }),
+      fakeSuccessResultStep(),
+    ])
+    const events = await collect(startSession())
+    expect(events.map((event) => event.kind)).toEqual([
+      'session-started',
+      'text-chunk',
+      'usage-reported',
+      'session-completed',
+    ])
+  })
+
+  it('registers the session while running and unregisters on completion', async () => {
+    installFakeQuery([fakeSystemInitStep(), fakeSuccessResultStep()])
+    const activeSessionRegistry = new ActiveSessionRegistry()
+    await collect(startSession({ activeSessionRegistry }))
+    expect(activeSessionRegistry.listActiveSessionIds()).toEqual([])
+  })
+
+  it('emits session-errored when the result message has an error subtype', async () => {
+    installFakeQuery([
+      fakeSystemInitStep(),
+      {
+        kind: 'emit',
+        message: {
+          type: 'result',
+          subtype: 'error_max_turns',
+          session_id: FAKE_CLAUDE_SESSION_ID,
+          errors: ['reached the turn limit'],
+        },
+      },
+    ])
+    const events = await collect(startSession())
+    const lastEvent = events.at(-1)
+    if (lastEvent?.kind !== 'session-errored') throw new Error('expected session-errored')
+    expect(lastEvent.errorCode).toBe('error_max_turns')
+    expect(lastEvent.errorMessage).toContain('turn limit')
+  })
+
+  it('interrupting the session emits session-interrupted and clears the registry', async () => {
+    installFakeQuery([fakeSystemInitStep(), fakeTextStreamStep('one'), fakeTextStreamStep('two')])
+    const activeSessionRegistry = new ActiveSessionRegistry()
+    const iterator = startSession({ activeSessionRegistry })[Symbol.asyncIterator]()
+
+    const firstEvent = await iterator.next()
+    expect(firstEvent.value).toMatchObject({ kind: 'session-started' })
+    await activeSessionRegistry.interrupt(FAKE_CLAUDE_SESSION_ID)
+
+    const remaining: NormalizedSessionEvent[] = []
+    for (let next = await iterator.next(); next.done !== true; next = await iterator.next()) {
+      remaining.push(next.value)
+    }
+    expect(remaining.at(-1)?.kind).toBe('session-interrupted')
+    expect(activeSessionRegistry.listActiveSessionIds()).toEqual([])
+  })
+
+  it('cleans up the registry when the consumer abandons iteration', async () => {
+    installFakeQuery([fakeSystemInitStep(), fakeTextStreamStep('one'), fakeTextStreamStep('two')])
+    const activeSessionRegistry = new ActiveSessionRegistry()
+    const iterator = startSession({ activeSessionRegistry })[Symbol.asyncIterator]()
+
+    await iterator.next() // session-started
+    await iterator.return?.(undefined) // abandon — runs the generator's finally
+
+    expect(activeSessionRegistry.listActiveSessionIds()).toEqual([])
+  })
+
+  it('interleaves synthetic approval events from canUseTool into the stream', async () => {
+    installFakeQuery([
+      fakeSystemInitStep(),
+      { kind: 'toolUse', toolName: 'Bash', toolInput: { command: 'ls' } },
+      fakeSuccessResultStep(),
+    ])
+    const pendingApprovalRegistry = new PendingApprovalRegistry()
+    const iterator = startSession({ pendingApprovalRegistry })[Symbol.asyncIterator]()
+
+    const events: NormalizedSessionEvent[] = []
+    for (let next = await iterator.next(); next.done !== true; next = await iterator.next()) {
+      const event = next.value
+      events.push(event)
+      if (event.kind === 'approval-requested') {
+        pendingApprovalRegistry.resolve(event.approvalRequestId, { kind: 'approved' })
+      }
+    }
+
+    const kinds = events.map((event) => event.kind)
+    expect(kinds).toContain('approval-requested')
+    expect(kinds).toContain('approval-resolved')
+    expect(kinds.indexOf('approval-requested')).toBeLessThan(kinds.indexOf('approval-resolved'))
+    expect(kinds.at(-1)).toBe('session-completed')
+  })
+
+  it('forwards agents + the PreToolUse safety hook + canUseTool into query()', async () => {
+    installFakeQuery([fakeSystemInitStep(), fakeSuccessResultStep()])
+    const agents = { researcher: { description: 'Researches.', prompt: 'You research.' } }
+    await collect(
+      runClaudeChatSession({
+        input: { ...BASE_INPUT, agents },
+        activeSessionRegistry: new ActiveSessionRegistry(),
+        pendingApprovalRegistry: new PendingApprovalRegistry(),
+      }),
+    )
+
+    const queryArg = mockQuery.mock.calls.at(-1)?.[0]
+    // Agents reach query({ agents }) — agents go live in the session.
+    expect(queryArg?.options?.agents).toEqual(agents)
+    // The full safety wiring reaches the SDK: the always-on PreToolUse
+    // backstop + the canUseTool approval bridge.
+    expect(queryArg?.options?.hooks?.PreToolUse).toBeDefined()
+    expect(typeof queryArg?.options?.canUseTool).toBe('function')
+  })
+
+  it('binds a PostCompact capture hook into query() when onCompaction is provided (Q2)', async () => {
+    installFakeQuery([fakeSystemInitStep(), fakeSuccessResultStep()])
+    const captured: Array<{ sdkSessionId: string; summary: string }> = []
+    await collect(
+      runClaudeChatSession({
+        input: {
+          ...BASE_INPUT,
+          onCompaction: (capture) => {
+            captured.push(capture)
+          },
+        },
+        activeSessionRegistry: new ActiveSessionRegistry(),
+        pendingApprovalRegistry: new PendingApprovalRegistry(),
+      }),
+    )
+
+    const queryArg = mockQuery.mock.calls.at(-1)?.[0]
+    const postCompactHook = queryArg?.options?.hooks?.PostCompact?.[0]?.hooks?.[0]
+    expect(typeof postCompactHook).toBe('function')
+
+    // The bound hook forwards the SDK's compaction summary to onCompaction.
+    await postCompactHook!(
+      {
+        hook_event_name: 'PostCompact',
+        session_id: 'sdk-7',
+        transcript_path: '',
+        cwd: '/work/demo',
+        compact_summary: 'the distilled summary',
+      } as never,
+      undefined,
+      { signal: new AbortController().signal },
+    )
+    expect(captured).toEqual([{ sdkSessionId: 'sdk-7', summary: 'the distilled summary' }])
+  })
+
+  it('omits the PostCompact hook when onCompaction is not provided', async () => {
+    installFakeQuery([fakeSystemInitStep(), fakeSuccessResultStep()])
+    await collect(startSession())
+    const queryArg = mockQuery.mock.calls.at(-1)?.[0]
+    expect(queryArg?.options?.hooks?.PostCompact).toBeUndefined()
+    // The always-on PreToolUse backstop is unaffected.
+    expect(queryArg?.options?.hooks?.PreToolUse).toBeDefined()
+  })
+})
