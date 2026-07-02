@@ -32,3 +32,7 @@ coverage/
 
 # rust (apps/desktop/src-tauri)
 target/
+
+# parallel-pull agent worktrees (fan-out scratch; branches merge back, trees don't)
+.claude/worktree/
+.claude/worktrees/
