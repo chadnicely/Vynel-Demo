@@ -22,14 +22,17 @@ Land each feature's **backend** surfaces (api → generators/sdk/mcp → cli/ext
 4. **Generation pipeline (Step B)** `4764700` — `@vynel/scripts` (generators + 3 parity guards) + `@vynel/sdk` (flat `createVynelClient`) + `@vynel/mcp` **producer shell**. `pnpm api:generate` → flat SDK (5 paths) + MCP registry (4 knowledge tools). **AI-seam invariant amended** (agent-SDK *runtime* stays in providers; the SDK's *builder exports* + Vynel's `McpFeatureDescriptor` are allowed in the MCP layer). Deferred to the providers/composer move: `mcp-contract`, `build-in-process-server`, the descriptors, the external adapter (`server.ts`/`env.ts`).
 5. **Namespaced SDK (Step C)** `36088b8` — letterman's `client.knowledge.search()` facade: `describeRoute` widened for `x-sdk-name`, the 5 knowledge routes annotated, `generate-namespaced-sdk` (parse/tree/emit) → `packages/sdk/src/generated/namespaced.ts`, composed via `Object.assign` in `createVynelClient`; `SdkError` on non-2xx. sdk-parity now guards `namespaced.ts`.
 6. **Response schemas (B)** `a98fc02` — the 5 knowledge routes declare response schemas (`resolver()` on each 200); `Serialized*` types derive from them via `z.infer` (one source, −50 lines). SDK returns are now **typed** (`client.knowledge.search()` → `{ results: […] }`), flat + namespaced. `expectTypeOf` guard per route.
-7. **CLI (D)** `77bddc8` — `@vynel/cli`: `vynel knowledge <search|list|get|status|reindex> -w <id>` over the namespaced SDK (`commander`; thin, injectable `buildProgram` for tests; `env.ts` for base URL; `SdkError`→stderr+exit). Verified `--help` end-to-end. **Knowledge backend surface complete**: api → generators → SDK (flat+namespaced, typed) → MCP registry → CLI.
-**Gate:** `pnpm install` exit 0 · `turbo typecheck` all green · `pnpm test:parity` (schema 29 · mcp · sdk) · `vitest` 506 passed / 4 skipped. **Full `pnpm test` green.**
+7. **CLI (D)** `77bddc8` — `@vynel/cli`: `vynel knowledge <search|list|get|status|reindex> -w <id>` over the namespaced SDK (`commander`; thin, injectable `buildProgram` for tests; `env.ts` for base URL; `SdkError`→stderr+exit). Verified `--help` end-to-end.
+8. **Worker (F)** *(green + committing)* — `@vynel/worker`: faithful pull (env/factory/scheduler) + `index.ts` trimmed to the single `generate-knowledge-embeddings` cron job (node-cron; thin `(db,logger)`→core delegator). Dropped transitive `@vynel/embeddings` + the empty-registry outbox job.
+**Gate:** `pnpm install` exit 0 · `turbo typecheck` all green · `pnpm test:parity` (schema 29 · mcp · sdk) · `vitest` 507 passed / 4 skipped. **Full `pnpm test` green.**
 
-## NEXT: knowledge feature backlog (all deferred — pick per Chad)
-The knowledge **backend surface is complete** (api → generators → SDK flat+namespaced → MCP registry →
-CLI). Remaining deferred pieces:
-- **E** external MCP adapter: pull the deferred `apps/mcp/{server,env}.ts` + `@modelcontextprotocol/sdk` stdio — direction ②.
-- **F** `apps/worker` + the knowledge embeddings job.
+## NEXT: Step E — external MCP adapter (direction ②)
+A generic `McpServer` over stdio (`@modelcontextprotocol/sdk`) in `apps/mcp`: reads `@vynel/sdk`'s committed
+`openapi.json` at boot, registers each `x-mcp.exposed` route (Zod input from its params) + dispatches via
+`fetch(API_URL + path)`. Advisor-vetted **runtime** approach: no new generator/parity (openapi.json already
+guarded by check-sdk-parity), write-once-generic, never touches `generate-mcp-tools.ts`, native MCP server
+(NOT KAFI's agent-SDK/fetch hybrid), mirrors ③'s curation (4 reads; reindex excluded). Env → `API_URL`
+(+ log level); Phase-1 local-user posture. Then:
 - **Providers/composer move** (a later feature): pull `packages/mcp-contract` + `apps/mcp/build-in-process-server.ts` +
   the `McpFeatureDescriptor` wrappers — wires direction ③ (agent-bound MCP: `createSdkMcpServer` +
   `composeSessionMcpServers`) to its real consumer.
@@ -54,9 +57,11 @@ trim/rewire un-pulled imports (rewiring `@vynel/core` shims → direct packages 
 - The api still imports `@vynel/core/{users,workspaces,errors,knowledge}` shims — faithful; rewire-to-direct is later.
 - **`scripts` is a workspace entry** in `pnpm-workspace.yaml` (`- "scripts"`) — without it `@vynel/scripts` deps
   (`openapi-typescript`) don't install and `pnpm api:generate` fails `ERR_MODULE_NOT_FOUND`.
-- **Step B improve-pass follow-ups** (deferred, from code review): repoint dead doc-citations in the pulled
-  generator/SDK comments (SF-2, ~8 files); split `generate-mcp-tools.ts` < 300 lines + drop banner dividers (SF-5);
-  strengthen the MCP golden test to assert tool names, not just count (SF-8).
+- **Improve-pass follow-ups** (deferred, from code reviews): repoint dead doc-citations in pulled comments —
+  generator/SDK files **and the worker** (`env`/`factory`/`scheduler`/delegator cite `docs/foundation.md`,
+  `blueprint.md §13`; factory's stale "first app to wire pino" claim + `purge-deleted-chat-sessions` examples
+  reference un-pulled domains); split `generate-mcp-tools.ts` < 300 lines + drop banner dividers; strengthen the
+  MCP golden test to assert tool names, not just count.
 - `vitest.workspace.ts` trimmed to the node project (web re-added when `apps/web` lands).
 - **Knowledge feature gaps to BUILD** (`docs/module-notes/knowledge.md`, Chad's advice, after the pipeline lands —
   it's a schema change): scope = **workspace OR global**; user **adds directories** to index; **add-to-knowledge is an
