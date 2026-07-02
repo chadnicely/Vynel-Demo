@@ -18,9 +18,10 @@ work pile up here. One line + link per memory `.md` in this directory.
   `list_knowledge_sources` / `remove_knowledge_source`), FileWatcherService wired into local-api DI, SDK+MCP
   regen, CLI (`add-directory`/`sources`/`remove-source`). **Auto mode — mutating MCP tools, NO card yet**
   (approval improved later). Knowledge is now user-facing complete. See STATE. **Chad to verify the live flow.**
-- **⏭ NEXT = PROVIDER pull** → `@vynel/providers` (AI seam; check ALL old fns vs latest SDK — big, step-by-step
-  WITH Chad) → then **memory** (+ tagging). Smaller pending: workspace CRUD routes; `users` core-decomp; the
-  ③ agent-turn MCP binding + real approval card (session/approvals phase).
+- **⏭ NEXT ACTION = PROVIDER pull** → `@vynel/providers` (the AI seam). **Read `docs/module-notes/providers.md`
+  first** (scoping anchor: check ALL old fns vs *latest* claude-agent-sdk, runtime only in `providers/src/claude/`,
+  unblocks ③ MCP binding + real approval card). Big + sensitive — SCOPE → Chad's okay → pull. Then **memory**
+  (+ tagging). Smaller pending: workspace CRUD routes; `users` core-decomp.
 - **Phase-2 Postgres reference captured** (from letterman) → `docs/module-notes/postgres-phase2.md`. TL;DR:
   good PG *plumbing* patterns (pooled/direct URL split, `prepare:false`, graceful close, extension DDL in
   `0000`); **nothing** for pgvector/tsvector (deferred there — plan FTS/vec from PG docs). Not actionable until

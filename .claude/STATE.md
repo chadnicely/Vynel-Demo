@@ -1,7 +1,16 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-02.** After a compaction read this first, then `CLAUDE.md` → `docs/vision.md` →
+**Updated 2026-07-03.** After a compaction read this first, then `CLAUDE.md` → `docs/vision.md` →
 `docs/architecture.md` → `.claude/ceo/soul.md`. State lives on disk, not chat.
+
+## ⏭ NEXT ACTION (fresh session, Chad-directed): the PROVIDER pull → `@vynel/providers`
+Read **`docs/module-notes/providers.md`** first — it's the scoping anchor (Chad's directive: check ALL old
+provider fns vs the *latest* claude-agent-sdk, cover all, drop none; the AI-seam invariant; what this unblocks
+= ③ MCP binding + the real approval card). **Big + sensitive — SCOPE first, get Chad's okay, THEN pull.** Do
+step 1 (scope → fill providers.md: old shape + SDK audit) → step 2 (plan → Chad's okay) → faithful pull →
+green → fold. Everything below this line is DONE this session (context, not to-do).
+
+---
 
 ## ⏵ AUTOPILOT UPDATE (overnight 2026-07-02) — knowledge scope + sources
 Chad ran an overnight autopilot (full log: `.claude/ceo/memory/autopilot-mission.md`). Landed on
@@ -97,7 +106,9 @@ Land each feature's **backend** surfaces (api → generators/sdk/mcp → cli/ext
 **knowledge** as the reference pattern. **Skip web** (Chad reworks it). Green at every step; commit+push each.
 
 ## Repos & branch
-- **Working:** `E:\KLONE\Workspace\vynel` — git `main`, remote `github.com/kafijunior/vynel-beta`, pushed through `b2842e3`.
+- **Working:** `E:\KLONE\Workspace\vynel` — git `main`, remote `github.com/kafijunior/vynel-beta`. This session (all pushed):
+  `6740f81` squash · `481ab3e` vertical-slice · `048eaab` local-api rename · `56d163e` postgres notes ·
+  `c637526` workspace pull · `592e01b` knowledge Stage-2 · (+ docs). Tip advances with each commit.
 - **Source (READ-ONLY, never modify):** `E:\KAFI\WORKSPACE\v2\vynel`, branch `refactor/session-library` (tip `754615f`, clean tree). Pull with:
   `git -C /e/KAFI/WORKSPACE/v2/vynel archive refactor/session-library <paths> | tar -x -C /e/KLONE/Workspace/vynel`
 - Backups: `E:\KLONE\vynel-backups\*.bundle`.
