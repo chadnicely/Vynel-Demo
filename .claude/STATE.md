@@ -3,6 +3,29 @@
 **Updated 2026-07-02.** After a compaction read this first, then `CLAUDE.md` → `docs/vision.md` →
 `docs/architecture.md` → `.claude/ceo/soul.md`. State lives on disk, not chat.
 
+## ⏵ AUTOPILOT UPDATE (overnight 2026-07-02) — knowledge scope + sources
+Chad ran an overnight autopilot (full log: `.claude/ceo/memory/autopilot-mission.md`). Landed on
+`main`, green + pushed:
+- `251e1e2` refactor(core): drop errors + knowledge re-export shims (one import name per package).
+- `de11714` refactor(knowledge): group ops into `indexing/queries/lifecycle`.
+- `bbb87bc` feat(knowledge): scope + sources source-model **backend** — new `knowledge_sources`
+  registry (workspace/global scope); documents gain `sourceId` + `scope` (workspace_id nullable);
+  migration `0038` is **data-preserving + behavioral-tested** (`packages/db/src/migrate-knowledge-sources.test.ts`
+  seeds a populated old-shape DB → migrates → asserts FTS + vec still return); all repos + core ops
+  reworked to the source model (**global-fused search**, watcher-by-source, auto-registered workspace
+  source). Design: `docs/module-notes/knowledge-scope-sources.md`.
+- `65b3025` feat(knowledge): sources CRUD core ops + path-safety (`registerKnowledgeSource` /
+  `removeKnowledgeSource` / `listKnowledgeSources`).
+**Gate:** `pnpm test` green — **86 files / 521 tests (4 skip)**, verified directly.
+
+**NEXT for knowledge (Stage-2, user-facing — NOT built yet):** add-directory ROUTE (`x-mcp
+add_to_knowledge`, mutating) + list/delete-source routes → `pnpm api:generate` (SDK + MCP) → CLI
+`knowledge add-directory`/`sources`. **Snag to resolve first:** the route needs a `FileWatcherService`
+wired into the api DI at boot — `registerKnowledgeSource` takes `deps.fileWatcher`. The ③ agent-turn
+MCP binding + the approval card stay providers/approvals-gated (the session phase, with Chad).
+**Then the mission continues: workspace → provider → memory** (Chad's order). Agents stall on long
+runs here (>~9 min) — keep agent tasks small or do it directly.
+
 ## Goal
 Rebuild Vynel in KLONE by moving tested code from the old KAFI repo **module-by-module** into a clean
 modular monolith (**routes-over-packages on Hono** — logic in `@vynel/<feature>` packages, thin api).

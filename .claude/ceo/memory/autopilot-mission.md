@@ -103,3 +103,20 @@ isn't user-invocable yet; only the workspace folder auto-registers):
   scope params → `pnpm api:generate` (regen SDK + MCP; parity) → CLI `knowledge add-directory`/`sources`.
 - ③ agent-turn MCP binding + approval card stay providers/approvals-gated (session phase, with Chad).
 Then **workspace → provider → memory**. Do NOT re-spawn big agents (they stall > ~9 min); small tasks or self.
+
+## WRAPPED (overnight) — resume from here
+Landed + pushed on `main`: `251e1e2`, `de11714`, `bbb87bc` (knowledge backend), `65b3025` (sources CRUD
+ops). All green (`pnpm test` 86 files / 521 tests). Chose to WRAP after the backend + sources-CRUD rather
+than rush the remaining surfaces/packages solo at deep context — solid+committed beats a sprawling
+half-done run. **Did NOT shut down** (Chad's shutdown was gated on completing memory; the mission isn't
+complete — machine left on for Chad's review/redirect).
+**Immediate next = knowledge Stage-2 (make add-directory user-facing):**
+1. Wire a `FileWatcherService` singleton into the apps/api DI at boot (it needs `(db, logger)`; expose
+   via `c.var` or a boot service) — `registerKnowledgeSource`/`removeKnowledgeSource` take `deps.fileWatcher`.
+2. Routes under `/workspaces/:workspaceId/knowledge/sources`: `POST` add-directory (body: absolutePath +
+   scope; `x-mcp` `add_to_knowledge`, mutating → `mutatingApproved`), `GET` list, `DELETE` remove. Thin:
+   parse → validate → call `registerKnowledgeSource`/`listKnowledgeSources`/`removeKnowledgeSource` → shape.
+   Global-scope add: workspaceId null, scope 'global'.
+3. `pnpm api:generate` (regenerates SDK flat+namespaced + MCP registry — parity guards will expect the new
+   files; commit them). CLI: `vynel knowledge add-directory <path> [--global]` / `sources list|remove`.
+4. Then the mission: **workspace → provider → memory**. Session = with Chad.
