@@ -23,7 +23,7 @@ import {
   upsertVectorIndexForChunk,
 } from '@vynel/db/repositories/knowledge'
 import { EMBEDDING_MODEL_VERSION, generateEmbedding } from '@vynel/embeddings'
-import type { StructuralLogger } from './knowledge-types.js'
+import type { StructuralLogger } from '../knowledge-types.js'
 
 export type GenerateKnowledgeEmbeddingsResult = {
   attempted: number

@@ -49,11 +49,11 @@ import {
   KNOWLEDGE_DOCUMENT_UPDATED,
   type KnowledgeDocumentIndexedPayload,
   type KnowledgeDocumentUpdatedPayload,
-} from './knowledge-events.js'
+} from '../knowledge-events.js'
 import { sha256 } from './content-hash.js'
 import { removeFileFromIndex } from './remove-file-from-index.js'
 import { upsertSkippedDocument } from './upsert-skipped-document.js'
-import type { KnowledgeDocumentRow, StructuralLogger } from './knowledge-types.js'
+import type { KnowledgeDocumentRow, StructuralLogger } from '../knowledge-types.js'
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 const SKIPPED_FOLDER_PREFIXES = ['.vynel/', 'Archive/']

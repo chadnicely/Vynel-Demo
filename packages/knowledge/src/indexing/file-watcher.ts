@@ -33,7 +33,7 @@ import path from 'node:path'
 import { indexFile } from './index-file.js'
 import { removeFileFromIndex } from './remove-file-from-index.js'
 import type { Database } from '@vynel/db'
-import type { ActivityEvent, StructuralLogger } from './knowledge-types.js'
+import type { ActivityEvent, StructuralLogger } from '../knowledge-types.js'
 
 const DEBOUNCE_MS = 300
 const MAX_ACTIVITY_PER_WORKSPACE = 100

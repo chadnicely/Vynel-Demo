@@ -6,8 +6,8 @@ import { withTestDatabase } from '@vynel/testing'
 import { listKnowledgeChunksForDocument } from '@vynel/db/repositories/knowledge'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { indexFile } from './index-file.js'
-import { KNOWLEDGE_DOCUMENT_INDEXED, KNOWLEDGE_DOCUMENT_UPDATED } from './knowledge-events.js'
-import { seedUserAndWorkspace } from './_test-helpers.js'
+import { KNOWLEDGE_DOCUMENT_INDEXED, KNOWLEDGE_DOCUMENT_UPDATED } from '../knowledge-events.js'
+import { seedUserAndWorkspace } from '../_test-helpers.js'
 
 let workspacePath: string
 

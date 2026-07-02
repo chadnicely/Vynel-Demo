@@ -18,7 +18,7 @@ import {
   type IndexWorkspaceInput,
   type IndexWorkspaceResult,
 } from './index-workspace.js'
-import type { StructuralLogger } from './knowledge-types.js'
+import type { StructuralLogger } from '../knowledge-types.js'
 
 export async function forceReindexWorkspace(
   db: Database,

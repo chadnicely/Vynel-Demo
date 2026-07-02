@@ -19,9 +19,9 @@
 // arriving after the initial scan started).
 
 import type { Database } from '@vynel/db'
-import { FileWatcherService } from './file-watcher.js'
-import { indexWorkspace, type IndexWorkspaceResult } from './index-workspace.js'
-import type { StructuralLogger } from './knowledge-types.js'
+import { FileWatcherService } from '../indexing/file-watcher.js'
+import { indexWorkspace, type IndexWorkspaceResult } from '../indexing/index-workspace.js'
+import type { StructuralLogger } from '../knowledge-types.js'
 
 export type HandleWorkspaceCreatedPayload = {
   workspaceId: string

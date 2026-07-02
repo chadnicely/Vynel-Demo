@@ -27,7 +27,7 @@ import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import {
   KNOWLEDGE_DOCUMENT_REMOVED,
   type KnowledgeDocumentRemovedPayload,
-} from './knowledge-events.js'
+} from '../knowledge-events.js'
 
 export type RemoveFileFromIndexInput = {
   workspaceId: string

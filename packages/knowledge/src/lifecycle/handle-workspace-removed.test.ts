@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { withTestDatabase } from '@vynel/testing'
-import { FileWatcherService } from './file-watcher.js'
+import { FileWatcherService } from '../indexing/file-watcher.js'
 import { handleWorkspaceRemoved } from './handle-workspace-removed.js'
 
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} }

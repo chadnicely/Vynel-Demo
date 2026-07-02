@@ -7,8 +7,8 @@
 // Idempotent: `fileWatcher.stopWatching(id)` is a no-op when no
 // watcher is open for that workspaceId.
 
-import { FileWatcherService } from './file-watcher.js'
-import type { StructuralLogger } from './knowledge-types.js'
+import { FileWatcherService } from '../indexing/file-watcher.js'
+import type { StructuralLogger } from '../knowledge-types.js'
 
 export type HandleWorkspaceRemovedPayload = {
   workspaceId: string

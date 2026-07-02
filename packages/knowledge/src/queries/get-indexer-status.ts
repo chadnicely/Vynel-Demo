@@ -10,7 +10,7 @@ import {
   getKnowledgeIndexerStatusForWorkspace,
   countUnindexedKnowledgeChunksForWorkspace,
 } from '@vynel/db/repositories/knowledge'
-import type { IndexerStatus } from './knowledge-types.js'
+import type { IndexerStatus } from '../knowledge-types.js'
 
 export function getIndexerStatus(db: Database, workspaceId: string): IndexerStatus {
   const base = getKnowledgeIndexerStatusForWorkspace(db, workspaceId)

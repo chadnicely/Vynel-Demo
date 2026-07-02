@@ -21,7 +21,7 @@ import {
   updateKnowledgeDocument,
 } from '@vynel/db/repositories/knowledge'
 import { deriveDocumentKindFromPath } from '@vynel/indexer'
-import type { KnowledgeDocumentRow, SkipReason } from './knowledge-types.js'
+import type { KnowledgeDocumentRow, SkipReason } from '../knowledge-types.js'
 import type { IndexFileInput } from './index-file.js'
 
 export function upsertSkippedDocument(

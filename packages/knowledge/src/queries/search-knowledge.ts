@@ -14,7 +14,7 @@ import { generateEmbedding } from '@vynel/embeddings'
 import { searchKnowledgeChunks } from '@vynel/db/repositories/knowledge'
 import type { Database } from '@vynel/db'
 import type { DocumentKind } from '@vynel/db/schema/knowledge'
-import type { SearchMode } from './knowledge-types.js'
+import type { SearchMode } from '../knowledge-types.js'
 
 export type SearchKnowledgeInput = {
   workspaceId: string

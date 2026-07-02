@@ -7,7 +7,7 @@ import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findKnowledgeDocumentByPath } from '@vynel/db/repositories/knowledge'
-import { FileWatcherService } from './file-watcher.js'
+import { FileWatcherService } from '../indexing/file-watcher.js'
 import { handleWorkspaceCreated } from './handle-workspace-created.js'
 
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} }

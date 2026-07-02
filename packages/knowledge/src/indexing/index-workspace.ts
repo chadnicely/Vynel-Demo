@@ -20,7 +20,7 @@ import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { indexFile } from './index-file.js'
 import type { Database } from '@vynel/db'
-import type { StructuralLogger } from './knowledge-types.js'
+import type { StructuralLogger } from '../knowledge-types.js'
 
 const INDEX_CONCURRENCY = 4
 
