@@ -2,8 +2,8 @@
 // on first call. Idempotent — second call returns the same row.
 //
 // Allowlist: this function MUST ONLY be called from
-//   - `apps/api/src/server.ts` (boot)
-//   - `apps/api/src/middleware/user-resolver.ts` (request resolver)
+//   - `apps/local-api/src/server.ts` (boot)
+//   - `apps/local-api/src/middleware/user-resolver.ts` (request resolver)
 // Anywhere else reads `c.var.user` (in routes) or accepts `userId` as
 // input. Per `docs/blueprints/users/coding.md §1.1` + decisions D7.
 //

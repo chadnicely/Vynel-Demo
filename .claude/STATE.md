@@ -51,15 +51,19 @@ hold: knowledge imports down-only, no apps/ imports, kernel dirs clean).
   +logic}`). Migration *apparatus* stays centralized (one-physical-DB invariant) — a feature owns its schema
   **files** + logic, NOT its migration lifecycle.
 
-**⏵ CLI DIRECTION (Chad's, recorded — awaiting his go on approach):** the vertical slice makes a feature a
-self-contained unit any local surface drives with just a **db client** (the worker already proves it —
-`generateKnowledgeEmbeddings(db, logger)`, no api). Chad wants the **CLI db-direct**: "I need only db
-connection even without api we can handle command actions." Today's `@vynel/cli` is the opposite — it runs
-over `@vynel/sdk` → HTTP → the api (one of the "3 directions"), so it *requires* the api up. **Rewire =
-`@vynel/cli` depends on `@vynel/knowledge` + `@vynel/db`, opens the db, calls core ops; env → db path (not
-api URL); drop `@vynel/sdk`.** One OPEN DESIGN Q (Chad's): who runs migrations for a standalone CLI — run on
-open, or assume already-migrated? NOT executed yet (reverses deliberate CLI-over-SDK work + the migrations Q
-is Chad's) — asked, he was away; awaiting his go vs. continue-the-mission.
+**⏵ LOCAL-API RENAME — DONE + green (this session).** `apps/api` → `apps/local-api`, `@vynel/api` →
+`@vynel/local-api` (git-mv + full repo sweep: 5 code refs incl. the 2 generator `createApp` imports, ~30
+comment/doc path refs, `.env.example`, generator templates; regen kept SDK/MCP consistent). WHY: this one
+always runs on the tenant's machine — the **server-level api** (Phase 2) comes later as a separate app. Gate
+green — 524 tests, parity 30 · mcp · sdk. **The architecture principle Chad affirmed:** one core function
+serves api actions AND cli actions (and the future server-api) — surfaces are thin peers over one core;
+sometimes you want the HTTP hop (server-api), sometimes not (local cli).
+
+**⏵ CLI DIRECTION — RESOLVED by Chad: keep api for now, preserve the shape.** "On cli for now use api no
+issues but keep that shape we can use in cli directly if needed in future." So `@vynel/cli` stays over
+`@vynel/sdk` → HTTP → local-api for now (NO rewrite). The vertical slice already preserves the db-direct
+option (core ops take `db`; the worker proves it) — so a future swap to CLI-db-direct is a drop-in when
+needed. Open-when-we-do-it Q (deferred): who runs migrations for a standalone CLI (on-open vs assume-migrated).
 
 ## Goal
 Rebuild Vynel in KLONE by moving tested code from the old KAFI repo **module-by-module** into a clean
@@ -76,7 +80,7 @@ Land each feature's **backend** surfaces (api → generators/sdk/mcp → cli/ext
 ## Done (green + committed + pushed)
 1. **Scaffold** `291622b` — docs + CLAUDE.md + `.claude/{ceo/soul,rules}` + root config.
 2. **Knowledge vertical** `0491192` — `@vynel/db` (ALL domains' schema/repos/migrations) + errors, logger, embeddings, indexer, testing, knowledge.
-3. **Knowledge api (Step A)** `51c7c20` — `apps/api` trimmed to the knowledge route + `@vynel/core` **spine-slice** (users, workspaces, errors, knowledge, _shared).
+3. **Knowledge api (Step A)** `51c7c20` — `apps/local-api` trimmed to the knowledge route + `@vynel/core` **spine-slice** (users, workspaces, errors, knowledge, _shared).
 4. **Generation pipeline (Step B)** `4764700` — `@vynel/scripts` (generators + 3 parity guards) + `@vynel/sdk` (flat `createVynelClient`) + `@vynel/mcp` **producer shell**. `pnpm api:generate` → flat SDK (5 paths) + MCP registry (4 knowledge tools). **AI-seam invariant amended** (agent-SDK *runtime* stays in providers; the SDK's *builder exports* + Vynel's `McpFeatureDescriptor` are allowed in the MCP layer). Deferred to the providers/composer move: `mcp-contract`, `build-in-process-server`, the descriptors, the external adapter (`server.ts`/`env.ts`).
 5. **Namespaced SDK (Step C)** `36088b8` — letterman's `client.knowledge.search()` facade: `describeRoute` widened for `x-sdk-name`, the 5 knowledge routes annotated, `generate-namespaced-sdk` (parse/tree/emit) → `packages/sdk/src/generated/namespaced.ts`, composed via `Object.assign` in `createVynelClient`; `SdkError` on non-2xx. sdk-parity now guards `namespaced.ts`.
 6. **Response schemas (B)** `a98fc02` — the 5 knowledge routes declare response schemas (`resolver()` on each 200); `Serialized*` types derive from them via `z.infer` (one source, −50 lines). SDK returns are now **typed** (`client.knowledge.search()` → `{ results: […] }`), flat + namespaced. `expectTypeOf` guard per route.
@@ -89,7 +93,7 @@ Land each feature's **backend** surfaces (api → generators/sdk/mcp → cli/ext
 The knowledge feature's backend surfaces are ALL landed (api → generators → SDK flat+namespaced typed →
 MCP registry → external MCP ② → CLI → worker). The one remaining MCP piece is **direction ③** (agent-bound):
 pull `packages/mcp-contract` + `apps/mcp/build-in-process-server.ts` (`createSdkMcpServer`) + the
-`McpFeatureDescriptor` wrappers, and wire them into the apps/api turn composer (`composeSessionMcpServers`).
+`McpFeatureDescriptor` wrappers, and wire them into the apps/local-api turn composer (`composeSessionMcpServers`).
 This needs the `packages/providers` layer, so it's the natural next FEATURE pull, not a knowledge slice.
 
 ## The 3 MCP directions (Chad's "be smarter" ask) — from studying letterman

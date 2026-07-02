@@ -1,5 +1,5 @@
 // Standalone migration runner. Invoked at server boot in Phase 1
-// (single process; `apps/api/src/server.ts` calls this before serving
+// (single process; `apps/local-api/src/server.ts` calls this before serving
 // traffic). Moves to a CI pre-deploy step in Phase 2 (multi-pod cloud).
 // Per `docs/foundation.md §2 row 11` + `.claude/rules/data-standard.md`
 // "Migrations".

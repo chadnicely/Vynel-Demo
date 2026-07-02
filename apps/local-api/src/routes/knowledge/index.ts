@@ -1,5 +1,5 @@
 // The `knowledge` HTTP surface — 5 routes mounted under
-// `/workspaces/:workspaceId/knowledge` from `apps/api/src/app.ts`:
+// `/workspaces/:workspaceId/knowledge` from `apps/local-api/src/app.ts`:
 //
 //   GET  /documents              -> listDocumentsForWorkspace   [x-mcp: list_knowledge_documents]
 //   GET  /documents/:documentId  -> getDocumentDetail           [x-mcp: get_knowledge_document]

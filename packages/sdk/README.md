@@ -18,7 +18,7 @@ pnpm api:generate
 ```
 
 Runs `scripts/src/generators/generate-sdk.ts` which:
-1. Spins up an in-memory `createApp(...)` from `@vynel/api/app`.
+1. Spins up an in-memory `createApp(...)` from `@vynel/local-api/app`.
 2. Dispatches `app.request('/openapi.json')` (the `app-request-spec-trick`
    letterman locked — `generateSpecs(app)` does NOT flatten routes
    mounted via `.route(...)`).

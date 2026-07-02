@@ -22,7 +22,7 @@ Hold **two truths at once** — don't collapse either one:
    don't rewrite history to justify the move.
 2. **But it started to *feel* unmaintainable — and that feeling is the real signal we act on.** The
    structure outgrew its catalog in one place: the agent-base / session wiring, organized by
-   *transport* (routes / streams / services) across a 29-file `apps/api/src/sessions/`, with the same
+   *transport* (routes / streams / services) across a 29-file `apps/local-api/src/sessions/`, with the same
    "run a root turn" logic reimplemented **4–5×**, and docs drifting from code. **Duplication plus a
    composition layer that sprawls make a sound codebase feel like it's collapsing under its own
    weight — even when the tests are green.** For a small team, that feeling *is* the failure: it kills

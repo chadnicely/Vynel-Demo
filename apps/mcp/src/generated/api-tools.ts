@@ -1,12 +1,12 @@
 // GENERATED — DO NOT EDIT
 //
 // Auto-emitted by `scripts/src/generators/generate-mcp-tools.ts` from
-// the OpenAPI 3.1 spec at `apps/api`'s `/openapi.json`.
+// the OpenAPI 3.1 spec at `apps/local-api`'s `/openapi.json`.
 // Regenerate via `pnpm api:generate`. Drift is caught by
 // `scripts/src/generators/check-mcp-parity.ts` (CI guard).
 //
 // To add a tool: add `'x-mcp': { exposed: true, name, description }`
-// to the route's `describeRoute({...})` in `apps/api/src/routes/`,
+// to the route's `describeRoute({...})` in `apps/local-api/src/routes/`,
 // then run `pnpm api:generate`. NEVER hand-edit this file.
 
 import { tool } from '@anthropic-ai/claude-agent-sdk'

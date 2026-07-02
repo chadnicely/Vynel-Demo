@@ -14,7 +14,7 @@ export { withTransaction } from './transactions.js'
 export { runMigrations } from './migrate.js'
 
 // Absolute path to the SQLite migrations folder, resolved at module load.
-// Callers (apps/api boot, apps/worker bootstrap if it ever migrates) pass
+// Callers (apps/local-api boot, apps/worker bootstrap if it ever migrates) pass
 // this to `runMigrations` without having to compute the path themselves —
 // keeps the migrations-folder location encapsulated inside @vynel/db. Phase
 // 2 Postgres flips this (or adds a sibling) when the cloud branch lands.

@@ -35,7 +35,7 @@ export { SdkError } from './errors.js'
  *
  * `baseUrl` is the only required field. In `apps/web` dev, leave it as
  * the empty string — the Vite dev server proxies `/workspaces`,
- * `/users`, ... to the `apps/api` process on `http://localhost:8998`.
+ * `/users`, ... to the `apps/local-api` process on `http://localhost:8998`.
  * In tests, point it at the test-server URL.
  *
  * Phase 1 has no auth. Phase 2 will widen this with `getAuthToken` +
@@ -58,7 +58,7 @@ export type VynelClient = Client<paths> & ReturnType<typeof makeNamespaced>
  * Construct a typed openapi-fetch client against the Vynel API.
  *
  * Single source of truth: the generated `paths` type ultimately
- * derives from `apps/api`'s route schemas (which import Zod schemas
+ * derives from `apps/local-api`'s route schemas (which import Zod schemas
  * from `@vynel/contracts`). One chain — no duplication.
  *
  * @example

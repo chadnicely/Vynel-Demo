@@ -1,6 +1,6 @@
 // Verifies the contract for the shared VynelError taxonomy. Every domain
 // throws these subclasses directly; the HTTP middleware in
-// `apps/api/src/app.ts onError` has one `instanceof VynelError` check that
+// `apps/local-api/src/app.ts onError` has one `instanceof VynelError` check that
 // reads `code` + `httpStatus` from the class. Per
 // `.claude/rules/error-handling.md` "Taxonomy".
 

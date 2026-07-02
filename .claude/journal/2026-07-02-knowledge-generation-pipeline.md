@@ -37,7 +37,7 @@ MCP) is Anthropic-agent-bound *by definition*; direction ② (external MCP) stay
 - `generated/api-tools.test.ts` trimmed from the source's 24 + 4 golden set to the knowledge-only
   **4 read-only tools + empty routing** — a faithful trim to current reality.
 
-**Deferred — lands with its consumers** (the apps/api turn composer + `packages/providers`, neither
+**Deferred — lands with its consumers** (the apps/local-api turn composer + `packages/providers`, neither
 pulled yet): `packages/mcp-contract`, `apps/mcp/src/build-in-process-server.ts` (`createSdkMcpServer`,
 direction ③), `vynel-mcp-feature-descriptor.ts` (the `McpFeatureDescriptor` wrappers), `server.ts` +
 `env.ts` (direction ② external adapter — Step E), the integration test.
@@ -59,7 +59,7 @@ Fixed this move:
   (the "it" was ambiguous), and separated the SDK's builder exports from Vynel's own
   `McpFeatureDescriptor` (a `@vynel/mcp-contract` type, not an SDK export).
 - *SF-3* — dropped the unused `@vynel/db` from `scripts/package.json` (reached transitively via
-  `@vynel/api`; schema-parity reads `packages/db` via the filesystem, not an import).
+  `@vynel/local-api`; schema-parity reads `packages/db` via the filesystem, not an import).
 - *SF-4* — removed a dead temp-dir (`mkdtempSync`/`rmSync`, never written to) from `check-mcp-parity.ts`.
 - *SF-7* — `mcp-types.ts` de-cited (the `/build-domain` + `docs/blueprints` refs the file was pulled
   with); the `McpToolFactory` return stays `unknown` (the SDK-typed narrowing lands with its

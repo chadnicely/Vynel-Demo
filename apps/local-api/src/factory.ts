@@ -1,5 +1,5 @@
 // The Hono factory + `AppEnv` type. Every route bundle/middleware in
-// `apps/api` builds on this. Per `docs/coding-guideline.md §4.1`.
+// `apps/local-api` builds on this. Per `docs/coding-guideline.md §4.1`.
 //
 // `c.var` shape:
 //   - `db` — the `Database` from `@vynel/db`, injected per request by the DI

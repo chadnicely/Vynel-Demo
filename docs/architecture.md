@@ -105,7 +105,7 @@ A **leaf feature package** is reusable precisely because it obeys a fixed shape:
 | its tables — `@vynel/db/schema/<domain>/` (referencing the kernel) | the **kernel** (`@vynel/db`) + shared (`errors`/`logger`/`contracts`/`config`) | one clean `src/index.ts` public surface |
 | its repositories — `@vynel/db/repositories/<domain>/` (functional, `db` first arg) | **nothing from `apps/`**, **no sibling leaf** (loose-ref + outbox only) | **functional** operations that take deps as arguments (no hidden globals) |
 | its core operations — the domain logic | `@vynel/providers` only via injected deps, never `claude-agent-sdk` directly | its lifecycle **outbox events** (the only cross-feature seam) |
-| *(optional)* its `McpFeatureDescriptor` — one object → auto-attaches its tools everywhere (§6) | | *(optional)* its routes (`apps/api`), worker jobs (`apps/worker`), UI (`apps/web`) — thin |
+| *(optional)* its `McpFeatureDescriptor` — one object → auto-attaches its tools everywhere (§6) | | *(optional)* its routes (`apps/local-api`), worker jobs (`apps/worker`), UI (`apps/web`) — thin |
 
 **Litmus for "library-shaped":** the feature FKs only into the **kernel**, never into a sibling. The
 four already-perfect libraries (`desktop-control`, `embeddings`, `indexer`, `providers`) own **zero**
@@ -155,7 +155,7 @@ Session({
 - **Memory is the durable thread** carried across swaps.
 
 This primitive is the Track-B **B-lead** extraction (today it's spread across a 29-file
-`apps/api/src/sessions/` with the runner reimplemented 4–5×). Unifying it is the #1 structural win.
+`apps/local-api/src/sessions/` with the runner reimplemented 4–5×). Unifying it is the #1 structural win.
 
 ---
 
@@ -185,7 +185,7 @@ The remaining consumer to build is **`apps/cli`** over `@vynel/sdk`.
 
 All surfaces are thin clients of the same core.
 
-- **`apps/api`** — the daemon (local HTTP + SSE). Hosts the session runtime + boot services
+- **`apps/local-api`** — the daemon (local HTTP + SSE). Hosts the session runtime + boot services
   (channels, schedules, delegation).
 - **`apps/desktop`** — the shell hosting `apps/web` + the voice overlay. Talks to the api daemon.
 - **`apps/cli`** — thin client over `@vynel/sdk`; every MCP-exposed capability becomes a command.
@@ -231,7 +231,7 @@ SSE + in-process pub/sub→Redis · Vue 3 + Vite + Pinia + Tailwind · pnpm + Tu
 Faithful move, then improve — each module lands green before the next:
 
 1. **Kernel + shared first:** `@vynel/db` (+ migrations), `errors`, `logger`, `contracts`, `config`,
-   `testing`, and `scripts/` (so the parity guards run). Root config + `apps/api` DI shell.
+   `testing`, and `scripts/` (so the parity guards run). Root config + `apps/local-api` DI shell.
 2. **`providers`** (the AI seam) — needed by any turn.
 3. **Pilot leaf: `knowledge`** — feature-complete + well-tested; proves the lift-and-re-export move
    (and pulls in `embeddings`/`indexer`). Improve as we go.

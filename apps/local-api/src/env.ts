@@ -1,4 +1,4 @@
-// Zod-validated env for `apps/api`. The SINGLE place `process.env` is
+// Zod-validated env for `apps/local-api`. The SINGLE place `process.env` is
 // touched in this app — per `docs/foundation.md §2 row 13 + §11 hard rule
 // #2` + the always-on `.claude/rules/coding-standard.md`. Bodies / Zod
 // schemas filled by `/build-domain users` TDD step 18 (per
@@ -6,7 +6,7 @@
 //
 // DB_PATH resolution: a relative path is resolved against the repo root
 // (computed from this file's location — three levels up from
-// apps/api/src/env.ts: src -> api -> apps -> repo-root), NOT against
+// apps/local-api/src/env.ts: src -> api -> apps -> repo-root), NOT against
 // process.cwd(). This keeps the api +
 // worker pointed at the SAME file regardless of where each process was
 // started from. better-sqlite3 resolves relative paths against

@@ -13,7 +13,7 @@ route x-sdk-name → openapi.json → generate-namespaced-sdk → namespaced.ts 
 ```
 
 **Built:**
-- `apps/api/src/openapi.ts` — `describeRoute` wrapper widened with `'x-sdk-name'?: string` (type-optional,
+- `apps/local-api/src/openapi.ts` — `describeRoute` wrapper widened with `'x-sdk-name'?: string` (type-optional,
   generator-required).
 - The 5 knowledge routes annotated: `knowledge.{listDocuments,getDocument,search,getStatus,reindex}`.
   `reindex` gets an SDK name despite no `x-mcp` — the SDK is the full typed surface; MCP ⊆ SDK.

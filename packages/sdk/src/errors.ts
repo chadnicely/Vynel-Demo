@@ -8,7 +8,7 @@
 // SDK ergonomic.
 //
 // The message is lifted from Vynel's error envelope (`{ code, message }`,
-// emitted by the apps/api `onError` handler); the `code` stays available
+// emitted by the apps/local-api `onError` handler); the `code` stays available
 // via `.body` for consumers that switch on it.
 //
 // Consumer pattern:

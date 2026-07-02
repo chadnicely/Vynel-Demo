@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { generatedMcpTools, generatedRoutingMcpTools } from './api-tools.js'
 
 // Knowledge-slice registry — the only x-mcp-annotated routes landed so
-// far are the four read-only knowledge GETs (`apps/api/src/routes/
+// far are the four read-only knowledge GETs (`apps/local-api/src/routes/
 // knowledge/index.ts`). Sorted to match the generator's stable-order
 // emit. As each feature's routes land (memory, channels, schedules, …),
 // its x-mcp tools join this list and the count updates in lockstep.

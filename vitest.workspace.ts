@@ -1,7 +1,7 @@
 import { defineWorkspace } from 'vitest/config'
 
 // Two projects:
-// - `node` (./vitest.config.ts)        — apps/api, apps/worker, packages/**
+// - `node` (./vitest.config.ts)        — apps/local-api, apps/worker, packages/**
 //                                        all the server-side TS tests
 // - `web`  (./apps/web/vitest.config.ts) — apps/web with `happy-dom` +
 //                                          the Vue plugin + the `@/`

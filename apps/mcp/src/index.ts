@@ -11,7 +11,7 @@
 //
 // The in-process server builders + `McpFeatureDescriptor` wrappers that
 // consume the generated registry (direction ③) land with their consumer —
-// the apps/api turn composer + `packages/providers`.
+// the apps/local-api turn composer + `packages/providers`.
 
 export * from './mcp-types.js'
 export {

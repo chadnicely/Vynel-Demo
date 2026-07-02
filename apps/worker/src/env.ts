@@ -2,7 +2,7 @@
 // touched in this app — per `docs/foundation.md §2 row 13 + §11 hard rule
 // #2` + `.claude/rules/coding-standard.md`.
 //
-// Mirrors `apps/api/src/env.ts` so both processes parse the same vars;
+// Mirrors `apps/local-api/src/env.ts` so both processes parse the same vars;
 // PORT is api-only.
 //
 // DB_PATH resolution: a relative path is resolved against the repo root
@@ -30,7 +30,7 @@ export const EnvSchema = z.object({
   DB_DIALECT: z.enum(['sqlite', 'postgres']).default('sqlite'),
   // Defaults to the one canonical dev DB at the repo root, so a launch without
   // an `.env` still lands on the single shared file (not a per-CWD stray). `.env`
-  // overrides for non-default setups. Mirrors apps/api/src/env.ts.
+  // overrides for non-default setups. Mirrors apps/local-api/src/env.ts.
   DB_PATH: z.string().default('.data/vynel.dev.db').transform(resolveAgainstRepoRoot),
   DB_URL: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),

@@ -1,6 +1,6 @@
 // Local wrapper around `hono-openapi`'s `describeRoute` that widens the
 // metadata type to allow the `x-mcp` extension. Every route file in
-// `apps/api/src/routes/<d>/` imports `describeRoute` from HERE, NOT from
+// `apps/local-api/src/routes/<d>/` imports `describeRoute` from HERE, NOT from
 // `hono-openapi` directly. Per `.claude/rules/coding-standard.md`
 // "Hono routes" + `.claude/rules/sdk-mcp.md` "MCP opt-in protocol".
 //

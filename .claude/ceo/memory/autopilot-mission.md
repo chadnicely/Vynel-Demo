@@ -111,7 +111,7 @@ than rush the remaining surfaces/packages solo at deep context — solid+committ
 half-done run. **Did NOT shut down** (Chad's shutdown was gated on completing memory; the mission isn't
 complete — machine left on for Chad's review/redirect).
 **Immediate next = knowledge Stage-2 (make add-directory user-facing):**
-1. Wire a `FileWatcherService` singleton into the apps/api DI at boot (it needs `(db, logger)`; expose
+1. Wire a `FileWatcherService` singleton into the apps/local-api DI at boot (it needs `(db, logger)`; expose
    via `c.var` or a boot service) — `registerKnowledgeSource`/`removeKnowledgeSource` take `deps.fileWatcher`.
 2. Routes under `/workspaces/:workspaceId/knowledge/sources`: `POST` add-directory (body: absolutePath +
    scope; `x-mcp` `add_to_knowledge`, mutating → `mutatingApproved`), `GET` list, `DELETE` remove. Thin:

@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config'
 
 // The `node` project of `vitest.workspace.ts` — every server-side test
-// in the repo (apps/api, apps/worker, packages/**). The `web` project
+// in the repo (apps/local-api, apps/worker, packages/**). The `web` project
 // (apps/web/vitest.config.ts) handles DOM-environment component tests
 // separately. The two projects run together via `pnpm test` (the
 // workspace file does the wiring). Per

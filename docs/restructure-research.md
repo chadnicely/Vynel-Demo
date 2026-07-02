@@ -36,7 +36,7 @@ capabilities. Plus the agent-base "brain-tree": session-continuity (shipped), gl
   max inbound degree 2, no cycles.
 - The data layer is the **most** restructure-ready part (folder-per-domain schema + repos already).
 - **The strain is localized** to the agent-base wiring: organized by *transport*
-  (`routes/streams/services/` + a 29-file `apps/api/src/sessions/`) instead of by feature, with
+  (`routes/streams/services/` + a 29-file `apps/local-api/src/sessions/`) instead of by feature, with
   **no single "run a root turn" primitive** (reimplemented 4-5×). That's the sprawl you're feeling.
 
 ---
@@ -119,7 +119,7 @@ The answer is the **layered core**: one shared brain, thin surfaces on top.
 ```
         packages/core + kernel @vynel/db + @vynel/providers   ← the brain (one home for logic)
                  ▲              ▲               ▲
-   apps/api (Hono daemon)   apps/desktop     apps/cli (NEW)
+   apps/local-api (Hono daemon)   apps/desktop     apps/cli (NEW)
    local HTTP + SSE         (UI shell)       thin client over @vynel/sdk
                  ▲              ▲               ▲
                  └──────── all call the SAME core ─────────┘

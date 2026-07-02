@@ -7,15 +7,15 @@ cause: declare response schemas so `client.knowledge.search()` returns
 `{ results: SerializedKnowledgeSearchResult[] }` — and it fixes the **flat** SDK (`client.GET(...)`) too.
 
 **Built:**
-- `apps/api/src/routes/knowledge/schemas.ts` — response schemas (`KnowledgeDocumentSchema`,
+- `apps/local-api/src/routes/knowledge/schemas.ts` — response schemas (`KnowledgeDocumentSchema`,
   `KnowledgeChunkSchema`, `KnowledgeSearchResultSchema`, `IndexerStatusSchema`) + the 4 envelopes
   (`ListKnowledgeDocumentsResponseSchema` with `nextCursor: {indexedAt,id}|null`,
   `KnowledgeDocumentDetailResponseSchema`, `SearchKnowledgeResponseSchema`, `ReindexResponseSchema`),
   reusing the existing `DocumentKindSchema` / `ParseStatusSchema` enums.
-- `apps/api/src/routes/knowledge/serializers.ts` — the `Serialized*` output types are now
+- `apps/local-api/src/routes/knowledge/serializers.ts` — the `Serialized*` output types are now
   `z.infer<typeof XSchema>` — **one source of truth** (the Zod schema). Adding a required field forces
   the serializer to satisfy it or fail typecheck. Net −50 lines of hand-authored types.
-- `apps/api/src/routes/knowledge/index.ts` — `resolver(Schema)` (from `hono-openapi/zod@0.4.8`) wired
+- `apps/local-api/src/routes/knowledge/index.ts` — `resolver(Schema)` (from `hono-openapi/zod@0.4.8`) wired
   into each route's **200** response `content`. Errors (404) stay prose — the namespaced methods throw
   `SdkError` (`body: unknown`), so a typed error body adds little.
 - Regenerated `openapi.json` + `api.d.ts` (response types now real). `namespaced.ts` **source** is

@@ -51,7 +51,26 @@ importers:
         specifier: ^9.4.0
         version: 9.4.3(eslint@9.39.4)
 
-  apps/api:
+  apps/cli:
+    dependencies:
+      '@vynel/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      commander:
+        specifier: ^15.0.0
+        version: 15.0.0
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.4
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  apps/local-api:
     dependencies:
       '@hono/node-server':
         specifier: ^1.13.0
@@ -90,25 +109,6 @@ importers:
       '@vynel/testing':
         specifier: workspace:*
         version: link:../../packages/testing
-      tsx:
-        specifier: ^4.19.0
-        version: 4.22.4
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-
-  apps/cli:
-    dependencies:
-      '@vynel/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
-      commander:
-        specifier: ^15.0.0
-        version: 15.0.0
-      zod:
-        specifier: ^3.23.0
-        version: 3.25.76
-    devDependencies:
       tsx:
         specifier: ^4.19.0
         version: 4.22.4
@@ -320,9 +320,9 @@ importers:
 
   scripts:
     dependencies:
-      '@vynel/api':
+      '@vynel/local-api':
         specifier: workspace:*
-        version: link:../apps/api
+        version: link:../apps/local-api
     devDependencies:
       openapi-typescript:
         specifier: ^7.13.0

@@ -23,11 +23,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import openapiTS, { astToString } from 'openapi-typescript'
 // Workspace-package import (NOT cross-package `..` traversal — see
-// `.claude/rules/coding-standard.md` "Imports"). `@vynel/api` exposes
+// `.claude/rules/coding-standard.md` "Imports"). `@vynel/local-api` exposes
 // `./app` via its package.json `exports` field for exactly this case
 // (the SDK generator dispatching a synthetic request to the live API
 // surface).
-import { createApp, type CreateAppOptions } from '@vynel/api/app'
+import { createApp, type CreateAppOptions } from '@vynel/local-api/app'
 
 // scripts/src/generators/ -> repo root (three levels up).
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')

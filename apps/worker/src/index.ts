@@ -1,4 +1,4 @@
-// Entry point for `apps/worker` — a separate Node process from `apps/api`
+// Entry point for `apps/worker` — a separate Node process from `apps/local-api`
 // that runs scheduled background jobs. In the knowledge slice it runs one
 // job (embedding generation); each feature adds its own `WorkerJob` entry
 // to the list below as it lands (the scheduler + factory stay generic).

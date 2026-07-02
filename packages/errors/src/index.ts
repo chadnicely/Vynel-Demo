@@ -11,7 +11,7 @@
 // Every consumer imports this package directly as `@vynel/errors`. See
 // `.claude/memory/decisions/errors-package-extraction.md`.
 //
-// The HTTP middleware in `apps/api/src/app.ts onError` has a SINGLE
+// The HTTP middleware in `apps/local-api/src/app.ts onError` has a SINGLE
 // `instanceof VynelError` check that reads `httpStatus` + `code` from the
 // class. The class IS the response shape.
 

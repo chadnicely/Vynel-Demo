@@ -3,10 +3,10 @@
 **Accepted 2026-07-02 (Chad).** Stack: **Hono** (confirmed — not Express).
 
 **The choice.** Two reference styles were compared:
-- **Modules** (`E:\GROWTH HACKING REBUILD\letterman`, Express) — `apps/api/src/modules/<domain>/` co-locates
+- **Modules** (`E:\GROWTH HACKING REBUILD\letterman`, Express) — `apps/local-api/src/modules/<domain>/` co-locates
   `routes → controller → service → model + dto + schemas`; **feature logic lives *in* the api module**;
   SDK is hand-written; it *skipped* the OpenAPI/SDK/MCP pipeline. A pragmatic single-surface MVP port.
-- **Routes** (`E:\GROWTH HACKING V2\letterman` + Vynel, Hono) — `apps/api/src/routes/<domain>/` is *thin*
+- **Routes** (`E:\GROWTH HACKING V2\letterman` + Vynel, Hono) — `apps/local-api/src/routes/<domain>/` is *thin*
   (`index`+`schemas`+`serializers`+`descriptors`); **logic lives in reusable `@vynel/<feature>` packages**;
   thin declarative routes (`x-mcp`/`x-sdk-name`) feed the **generated** OpenAPI → SDK → MCP pipeline.
 

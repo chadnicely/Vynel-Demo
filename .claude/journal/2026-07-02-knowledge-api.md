@@ -1,6 +1,6 @@
 # 2026-07-02 — knowledge api (Step A)
 
-**Moved** (git archive from KAFI `refactor/session-library` → KLONE): the api-core (`apps/api`:
+**Moved** (git archive from KAFI `refactor/session-library` → KLONE): the api-core (`apps/local-api`:
 factory, app, env, server, openapi, index) + middleware (user-resolver, workspace-resolver) +
 handler-bundles (user-scoped, workspace-scoped) + `routes/knowledge`; and a **`@vynel/core`
 spine-slice** (users, workspaces, errors, knowledge, _shared).
@@ -18,7 +18,7 @@ spine-slice** (users, workspaces, errors, knowledge, _shared).
   `_shared/dispatch-outbox-events.integration.test.ts` (schedules).
 - `_shared/outbox-consumer-registry.ts` — emptied `OUTBOX_CONSUMERS` (channels/schedules consumers
   re-register as those domains land; the dispatch impl + its generic test are unaffected).
-- Trimmed `@vynel/core` deps → db/errors/knowledge/logger; `@vynel/api` deps → core/db + the hono stack.
+- Trimmed `@vynel/core` deps → db/errors/knowledge/logger; `@vynel/local-api` deps → core/db + the hono stack.
 - Kept the `@vynel/core/{errors,knowledge}` shims + the api's `@vynel/core/*` imports (faithful; the
   rewire-to-direct-packages is a later polish per CLAUDE.md).
 
