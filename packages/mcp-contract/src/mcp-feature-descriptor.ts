@@ -1,0 +1,92 @@
+// The MCP feature-attachment contract — the ONE shape every MCP-tool surface
+// implements so it can be composed into a turn uniformly. Two producers
+// implement it today: the route-derived `vynel` server (apps/mcp, hand-written
+// descriptors wrapping the generated tool arrays) and the standalone `desktop`
+// server (@vynel/desktop-control). A future feature (voice, memory-as-library)
+// ships its own descriptor and plugs in with no turn-entry-point edits.
+//
+// DEPENDENCY-LIGHT BY DESIGN. This package depends on NOTHING from `@vynel/*`
+// (only the SDK's server type, type-only). That's what lets the core-free
+// `@vynel/desktop-control` implement the contract without taking on
+// `@vynel/db` / `@vynel/core`. The heavy context fields (`db`, `desktopReader`)
+// are typed `unknown` here; each producer narrows the one field it owns with a
+// single documented cast at its own boundary. The composer that consumes these
+// descriptors lives at the apps/local-api layer (NOT core — the locked
+// `api-side-turn-execution-with-mcp` decision keeps core below the producers).
+
+import type { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
+
+// The built in-process MCP server — the Claude Agent SDK's `createSdkMcpServer`
+// return shape. Matches the `ReturnType<typeof createSdkMcpServer>` idiom both
+// producers already use at their `build*` boundaries.
+export type SessionMcpServer = ReturnType<typeof createSdkMcpServer>
+
+// Hono's `app.request(input, init)` surface — declared structurally here so the
+// contract stays free of any `@vynel`/Hono dependency. Structurally identical to
+// `apps/local-api/src/factory.ts`'s `HonoAppRequestFn`, `apps/mcp`'s, and core's
+// `AppRequestFn`. Tool handlers dispatch through it (the in-process equivalent
+// of "wrap the API via HTTP, never call core directly").
+export type HonoAppRequestFn = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Response | Promise<Response>
+
+// The per-turn deps a feature's `build(context)` may read. Structural +
+// dependency-light: `db` and `desktopReader` are `unknown` so a producer
+// package implements the contract WITHOUT importing `@vynel/db` or
+// cross-importing another feature's package — each casts the field it owns.
+export interface SessionToolContext {
+  /** The request-scoped Drizzle database. `unknown` here — the `vynel` producer casts to `Database`. */
+  readonly db: unknown
+  readonly userId: string
+  /** Absent for workspace-scope-free turns (the global root has no workspace). */
+  readonly workspaceId?: string
+  readonly appRequest: HonoAppRequestFn
+  /** The process-wide desktop-notification reader. `unknown` here — the `desktop` producer casts it. */
+  readonly desktopReader?: unknown
+  /** Whether the mutating desktop `act_on_app` tool is enabled (default-off env flag). */
+  readonly enableDesktopActions?: boolean
+}
+
+export interface McpFeatureDescriptor {
+  // The server key — becomes the `mcp__<serverName>__*` tool prefix.
+  readonly serverName: string
+
+  // Build this feature's in-process server for the turn. Returns `null` when the
+  // feature is not applicable here (e.g. desktop with no listener running).
+  build(context: SessionToolContext): SessionMcpServer | null
+
+  // Tools whose effects are irreversible enough to require an approval card EVEN
+  // under a bypass permission mode. The composer UNIONS these into the approval
+  // backstop — ADDITIVE only (it never removes the static native floor in
+  // `@vynel/providers`). A feature that ships a destructive tool declares it
+  // once here and it cards automatically.
+  readonly mutatingToolNames: readonly string[]
+
+  // Tools denied when their capability is OFF: capabilityId → tool names. The
+  // `vynel` server is multi-capability (memory + knowledge tools alongside
+  // ungated ones), so a single per-server gate can't express it — this map is
+  // the relocated `CAPABILITY_MCP_TOOLS`. Keys are capability id STRINGS; the
+  // apps/local-api composer maps them to the typed `CapabilityId` enabled-set.
+  // Omit when none of the feature's tools are capability-gated.
+  readonly capabilityGatedTools?: Readonly<Record<string, readonly string[]>>
+
+  // CORE-CAPABILITY tier seam (future memory/knowledge direction): when `true`
+  // the composer (1) never denies this feature's tools via the capability gate,
+  // and (2) keeps its tools OUT of the mutating set regardless of mode — so a
+  // core capability is always-on + no-approval + mode-independent. The flag
+  // exists now; it is NOT set on any feature yet (the tier is wired the day the
+  // owner builds it). See `[[vynel-capability-approval-model]]`.
+  readonly alwaysOn?: boolean
+
+  // Optional system-prompt addition for a feature whose prompt is SELF-CONTAINED.
+  // Concatenated into the composed `systemPromptAppend`. NOT for the global root's
+  // own base prompt or memory's snapshot — those stay with their owners (avoids
+  // coupling a feature package to apps/local-api concepts / memory-core).
+  contributePrompt?(context: SessionToolContext): string | null
+
+  // Defense-in-depth predicate — when it returns `false` the feature is skipped
+  // entirely (a cheap pre-check that avoids building a server that won't be used).
+  // Distinct from `build` returning `null`; either path excludes the feature.
+  isApplicable?(context: SessionToolContext): boolean
+}

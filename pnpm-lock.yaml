@@ -175,6 +175,31 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  packages/agents:
+    dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.3.181
+        version: 0.3.197(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@vynel/db':
+        specifier: workspace:*
+        version: link:../db
+      '@vynel/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@vynel/logger':
+        specifier: workspace:*
+        version: link:../logger
+    devDependencies:
+      '@vynel/testing':
+        specifier: workspace:*
+        version: link:../testing
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/approvals:
     dependencies:
       '@vynel/db':
@@ -206,6 +231,16 @@ importers:
       '@vynel/testing':
         specifier: workspace:*
         version: link:../testing
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/contracts:
+    dependencies:
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -247,6 +282,28 @@ importers:
       drizzle-kit:
         specifier: ^0.31.0
         version: 0.31.10
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/desktop-control:
+    dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.3.181
+        version: 0.3.197(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
+      '@crowecawcaw/xa11y':
+        specifier: ^0.9.1
+        version: 0.9.1
+      '@vynel/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@vynel/mcp-contract':
+        specifier: workspace:*
+        version: link:../mcp-contract
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -350,6 +407,16 @@ importers:
       pino:
         specifier: ^9.5.0
         version: 9.14.0
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/mcp-contract:
+    dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.3.181
+        version: 0.3.197(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
     devDependencies:
       typescript:
         specifier: ^5.6.0
@@ -556,6 +623,48 @@ packages:
 
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
+
+  '@crowecawcaw/xa11y-darwin-arm64@0.9.1':
+    resolution: {integrity: sha512-DGHEwLjSHJesd8yYs9d9Rd6nguRB6Yp5gFc5ifOz2UNOwg5qDXrD2CAw51ioX5ymcgw6DPU6v+zcv/jvMv5xXw==}
+    engines: {node: '>=18'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@crowecawcaw/xa11y-darwin-x64@0.9.1':
+    resolution: {integrity: sha512-wDkEbkmmYVUuQx9wpEkPlRw9+scCSX7J7e8RHryV6BKvmfoP0Nm/0NpqkEK/LnPsCNNyEnaqKhKrpCgvxluTCw==}
+    engines: {node: '>=18'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@crowecawcaw/xa11y-linux-arm64-gnu@0.9.1':
+    resolution: {integrity: sha512-O2Cf0oWVEEmJeoGKHJrIBejk0C3Z6Md/jRZEfQOiKlh1AAiCpD9NaYlXXWFr2kWaOu9uuAyFFJwLWvKd2UpTmA==}
+    engines: {node: '>=18'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@crowecawcaw/xa11y-linux-x64-gnu@0.9.1':
+    resolution: {integrity: sha512-5LlIHv6q+0V4YWeZ6AIqxGir6GeTJ7GIAOHIzSvzwjldcumjwI+7hUc8yYwS6PaDjQHKj47mQOgcERcf4D9Y5Q==}
+    engines: {node: '>=18'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@crowecawcaw/xa11y-win32-arm64-msvc@0.9.1':
+    resolution: {integrity: sha512-RBgOBe6YQm9uFIZxFco/CbrqkW5LdaSFxcSbgPr27S2xo452a72P/OkN38hzGeF2QaVUpGrnLporUE4m1O9Usg==}
+    engines: {node: '>=18'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@crowecawcaw/xa11y-win32-x64-msvc@0.9.1':
+    resolution: {integrity: sha512-wpzV+PTd6SDJ1kl35WcTXz+wfgCB9FWkxE2rkIywd+NYH/GSvMocQYE3mEA6Ny5K/kVrAS3+4BWMQvUT5e6L2w==}
+    engines: {node: '>=18'}
+    cpu: [x64]
+    os: [win32]
+
+  '@crowecawcaw/xa11y@0.9.1':
+    resolution: {integrity: sha512-In9lUTdTnu/tNo0MGu3tj1wo3IWQtOfkTxof1OPrQSW3D0rxKyZcUBLEY+XoSCv1iaSU03iWJkZpfNEtnxwnvQ==}
+    engines: {node: '>=18'}
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
@@ -3736,6 +3845,33 @@ snapshots:
       '@babel/helper-validator-identifier': 7.29.7
 
   '@bcoe/v8-coverage@0.2.3': {}
+
+  '@crowecawcaw/xa11y-darwin-arm64@0.9.1':
+    optional: true
+
+  '@crowecawcaw/xa11y-darwin-x64@0.9.1':
+    optional: true
+
+  '@crowecawcaw/xa11y-linux-arm64-gnu@0.9.1':
+    optional: true
+
+  '@crowecawcaw/xa11y-linux-x64-gnu@0.9.1':
+    optional: true
+
+  '@crowecawcaw/xa11y-win32-arm64-msvc@0.9.1':
+    optional: true
+
+  '@crowecawcaw/xa11y-win32-x64-msvc@0.9.1':
+    optional: true
+
+  '@crowecawcaw/xa11y@0.9.1':
+    optionalDependencies:
+      '@crowecawcaw/xa11y-darwin-arm64': 0.9.1
+      '@crowecawcaw/xa11y-darwin-x64': 0.9.1
+      '@crowecawcaw/xa11y-linux-arm64-gnu': 0.9.1
+      '@crowecawcaw/xa11y-linux-x64-gnu': 0.9.1
+      '@crowecawcaw/xa11y-win32-arm64-msvc': 0.9.1
+      '@crowecawcaw/xa11y-win32-x64-msvc': 0.9.1
 
   '@drizzle-team/brocli@0.10.2': {}
 

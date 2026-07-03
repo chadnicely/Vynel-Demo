@@ -1,0 +1,20 @@
+{
+  "name": "@vynel/mcp-contract",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.181"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
