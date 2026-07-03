@@ -4,24 +4,24 @@
 memories (`vynel-vision-and-old-project-lesson` = the founding vision + old-project scatter we must NOT
 repeat; `vynel-rebuild-plan`; `worktree-fanout-isolation`). State lives on disk, not chat.
 
-## ⏭ NEXT ACTION: `orchestration` (substrate) → then the `@vynel/session` keystone
+## ⏭ NEXT ACTION: the `@vynel/session` keystone (the substrate is IN)
 **Reframe (2026-07-04):** `@vynel/session` is the APEX of a stack whose walls weren't in KLONE. The old
 `refactor/session-library` is mid-migration — it extracted only the global-root turn *core* + the `SessionSink`
 contract into `packages/session`; the bulk (delegation, composers, seeded-swap, resolvers, sinks) still lives
 across a 28-file `apps/api/src/sessions/`. Session hard-imports **`chat` · `orchestration` ·
-`session-continuity`** — pull them bottom-up first. **`chat` is DONE (`1568e91`)** — journal
-`.claude/journal/2026-07-04-chat-pull.md` + `docs/module-notes/chat.md`.
+`session-continuity`** — the substrate. **Both `chat` (`1568e91`) and `orchestration` (`c5e0622`) are now
+DONE**; `session-continuity` folds INTO session (Chad: continuity is a *feature of session*).
+Journals: `.claude/journal/2026-07-04-{chat,orchestration}-pull.md` + `docs/module-notes/{chat,orchestration}.md`.
 
-**NEXT: pull `orchestration`** — Gate-1 **MAPPED + SCOPED, ready to execute** (full plan:
-`docs/module-notes/orchestration.md`). The delegation engine ("the VERB over the `agents` noun") — a
-composition tier above chat+agents. Vertical-slice + fold, the chat template. **Scope call:** EXCLUDE
-`resolve-delegation-trace` (the one chat-reading file — a cross-domain trace VIEW → defers to the
-session/monitor tier, like `start-chat-turn` → session); orchestration's only remaining cross-dep is then
-`agents` (its DESIGNED dep — rewire `@vynel/core/agents` → `@vynel/agents`). `delegation-jobs` schema+repos
-git-mv from kernel; deps verified present; no layering inversions (the providers→orchestration grep hit is a
-comment). Mechanical execution remains: git-mv + pull-logic + rewire + fold + gate + review.
+**`orchestration` is DONE — landed green + faithfulness-proven, committed `c5e0622` + pushed.** New
+`@vynel/orchestration` (the delegation engine, "the VERB over the `agents` noun") — schema+repos git-mv'd from
+kernel, logic foldered (`leaf`/`agents`/`records`/`queries`/`routing`; `leaf/` groups the delegation-runtime
+cluster whose hub is `drain-leaf-turn`). EXCLUDED `resolve-delegation-trace` (the one chat-reader → session/monitor
+tier) so its only cross-dep is `agents` (by-design). Behavior-neutral (drizzle "No schema changes"), gate green
+(typecheck 43 · parity 30 · vitest 1133). Every pulled body diff-proven byte-identical modulo import rewires.
+Full record: `docs/module-notes/orchestration.md`.
 
-**THEN `@vynel/session`** — the composition tier, built LAST (Chad: ONE focused session, NOT fanned out;
+**NEXT — `@vynel/session`** — the composition tier, built LAST (Chad: ONE focused session, NOT fanned out;
 continuity is a *feature of session*, not a package). It **houses**: continuity (old 20-file
 `session-continuity/` — renew-before-compaction, `root`→**`primary`** renamed here where `primary_sessions`
 lands) + ALL runners (`start-chat-turn` (workspace) + global-root + seeded-swap + delegation) + composers +
@@ -44,7 +44,13 @@ session. Read `docs/architecture.md` §5 first.
 in the same push.
 
 ## ✅ Recently done (most recent first)
-- **chat vertical-slice + fold `1568e91`** (committed LOCAL — push pending Chad) — new `@vynel/chat` (turn
+- **orchestration vertical-slice + fold `c5e0622` (pushed)** — new `@vynel/orchestration`
+  (delegation engine); schema+repos git-mv'd from kernel, logic foldered (`leaf`/`agents`/`records`/`queries`/`routing`),
+  `resolve-delegation-trace` EXCLUDED (→ session/monitor tier → keeps orchestration chat-free; only cross-dep = `agents`,
+  by-design). Behavior-neutral (drizzle "No schema changes"), gate green (typecheck 43 · parity 30 · vitest 1133),
+  faithfulness diff-proven. `AgentDefinition` SDK type-dep flagged (type-only; possible improve = re-export via `@vynel/agents`).
+  Journal `.claude/journal/2026-07-04-orchestration-pull.md` + `docs/module-notes/orchestration.md`.
+- **chat vertical-slice + fold `1568e91`** (pushed) — new `@vynel/chat` (turn
   engine + persistence + history CRUD); schema+repos git-mv'd from the kernel, logic foldered
   (`turn-consumption`/`records`/`history`/`context`), the `start-chat-turn` runner EXCLUDED (relocates to
   session → keeps chat continuity-free). Behavior-neutral (drizzle "No schema changes"), gate green (typecheck

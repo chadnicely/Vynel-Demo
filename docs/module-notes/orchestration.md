@@ -1,7 +1,9 @@
 # Module note — `orchestration` (the delegation engine)
 
-*Gate-1 mapped + scoped 2026-07-04. The second substrate pull beneath `@vynel/session` (after `chat` `1568e91`).
-Ready to execute — vertical-slice + fold, exactly the `chat` template.*
+*Landed 2026-07-04 — vertical-slice + concern-fold, green (`pnpm test` EXIT 0: turbo typecheck 43/43 ·
+schema-parity 30 · mcp/sdk parity ok · vitest 1133 pass / 4 skip) + drizzle `generate` → "No schema
+changes" (proven in isolation after the schema move). The second substrate pull beneath `@vynel/session`
+(after `chat` `1568e91`), mirroring the blessed `chat`/`memory` template.*
 
 ## What orchestration is
 
@@ -13,52 +15,59 @@ ties orchestration's run-ops to chat persistence + continuity).
 
 ## Scope decisions (the two cross-feature edges)
 
-1. **EXCLUDE `resolve-delegation-trace(.test).ts`** — it is the ONLY file that reads `chat`
-   (`@vynel/db/repositories/chat`: `listChatMessagesByPartialSessionId` + `findChatSessionById`), which now
-   lives in `@vynel/chat` and isn't publicly exported. It is a **cross-domain composed VIEW** (the Ch3 trace
+1. **EXCLUDED `resolve-delegation-trace(.test).ts`** — it was the ONLY file that read `chat`
+   (`@vynel/db/repositories/chat`, now `@vynel/chat`). It is a **cross-domain composed VIEW** (the Ch3 trace
    panel), not core delegation logic — so it relocates to the **session/monitor composition tier** (same call
-   as `start-chat-turn` → session). Excluding it removes ALL chat coupling; orchestration's only remaining
-   cross-dep becomes `agents`. Nothing internal imports it (terminal read-op) — drop its 4 index export lines.
-2. **`orchestration → agents` is BY DESIGN, keep it** — the index says so explicitly ("designed dependency is
-   the `agents` domain"). `compose-session-agents`, `resolve-mentions`, `create-leaf-session`,
-   `map-agent-to-leaf-input` import `@vynel/core/agents` (→ rewire `@vynel/agents`) + `@vynel/db/repositories/agents`
-   (agents' repos stay in the kernel — agents is a wave-2 leaf not yet vertical-sliced). Orchestration is a
-   composition tier, so composing the `agents` leaf is tier-appropriate — assess in review, not a fix.
+   as `start-chat-turn` → session in the chat pull). Excluding it removes ALL chat coupling; orchestration's
+   only remaining cross-dep is `agents`. Nothing internal imported it (terminal read-op) — its 4 index export
+   lines were dropped; the `index.ts` now carries a comment recording where it lands + why.
+2. **`orchestration → @vynel/agents` is BY DESIGN, kept** — the index says so explicitly ("designed dependency
+   is the `agents` domain"). `compose-session-agents`, `resolve-mentions`, `create-leaf-session` rewired
+   `@vynel/core/agents` → `@vynel/agents`. `map-agent-to-leaf-input` keeps `import type { AgentRow }` from
+   `@vynel/db/repositories/agents` (agents' repos stay in the kernel — agents is a wave-2 leaf not yet
+   vertical-sliced). Orchestration is a composition tier, so composing the `agents` leaf is tier-appropriate.
 
-## The map (old `refactor/session-library`, `packages/core/src/orchestration/`)
+## As-built shape
 
-- **Logic** — ~16 non-test + tests. By concern (fold proposal, refine on pull):
-  - *runners:* `run-root-delegation-turn`, `drain-leaf-turn`, `push-to-session`
-  - *records:* `record-delegation`, `record-agent-run`
-  - *queries:* `collect-delegation-reports-for-root`, `list-in-flight-delegations`  (— `resolve-delegation-trace` EXCLUDED)
-  - *agents* (the verb over agents): `compose-session-agents`, `resolve-mentions`, `create-leaf-session`,
-    `map-agent-to-leaf-input`
-  - *routing:* `route-request`, `enqueue-workspace-delegation`
-  - *shared/root:* `orchestration-types`, `orchestration-events`, `index`, `test-support/fake-leaf-provider`
-- **Schema** `packages/db/src/schema/orchestration/` — `delegation-jobs` (1 table) — in KLONE kernel today.
-- **Repos** `packages/db/src/repositories/orchestration/` — `delegation-jobs` (+ test) — in KLONE kernel today.
+- **Schema/repos** (git-mv from kernel, history preserved): `schema/{delegation-jobs,index}` +
+  `repositories/{delegation-jobs,delegation-jobs.test,index}`. Schema FKs → `@vynel/db/schema/{users,workspaces}`
+  (hub-FK, chat precedent); repo → `@vynel/db` + `../schema/`; repo test → `@vynel/testing` +
+  `@vynel/db/repositories/{users,workspaces}`.
+- **Logic fold** (pulled from old `packages/core/src/orchestration/`, foldered):
+  - `leaf/` — the by-reference delegation runtime: `create-leaf-session`, `drain-leaf-turn`, `push-to-session`,
+    `map-agent-to-leaf-input`, `run-root-delegation-turn`. **Grouped together because `drain-leaf-turn` is the
+    hub** (all 4 others import it) — any split manufactures peer-folder edges; this is the only zero-peer-edge
+    grouping. `drainLeafTurn` + `mapAgentToLeafInput` stay OUT of the barrel (internal helpers of
+    `createLeafSession`). *Name `leaf/` is provisional (`run-root-delegation-turn` sits slightly oddly under it)
+    — refine in review if warranted.*
+  - `agents/` — compose the agents noun: `compose-session-agents`, `resolve-mentions`.
+  - `records/` — outbox writers: `record-delegation`, `record-agent-run` (→ `../orchestration-events.js`).
+  - `queries/` — read-ops: `collect-delegation-reports-for-root`, `list-in-flight-delegations`
+    (→ `../repositories/index.js`).
+  - `routing/` — the router + enqueue: `route-request`, `enqueue-workspace-delegation`.
+  - root: `orchestration-types`, `orchestration-events`, `index`. `test-support/fake-leaf-provider`.
+- **Kernel touch-points:** schema barrel dropped `./orchestration/index.js`; drizzle config repointed in place.
+  `@vynel/db` root barrel never re-exported schema (confirmed) + zero external `delegationJobs`/`DelegationJob`
+  consumers → the barrel-drop is safe.
 
-## Dependency check — after excluding the trace-read
+## Dependency set (as-built)
 
-`@vynel/db` · `@vynel/db/repositories/{orchestration,_shared,agents}` · `@vynel/providers` · `@vynel/errors` ·
-`@vynel/logger` · **`@vynel/agents`** (rewire from `@vynel/core/agents` — the designed composition dep). Tests
-seed via `@vynel/db/repositories/{users,workspaces}` + `@vynel/testing`. All present in KLONE.
+`@anthropic-ai/claude-agent-sdk` (type-only, see below) · `@vynel/agents` · `@vynel/db` ·
+`@vynel/db/repositories/{orchestration→local, _shared, agents}` · `@vynel/errors` · `@vynel/logger` ·
+`@vynel/providers`. Dev: `@vynel/testing`, `typescript`. The `providers → orchestration` grep hit was
+confirmed a comment (no layering inversion).
 
-**Verify at execution:** `packages/providers/src/shared/start-chat-session-input.ts` matched an orchestration
-grep — confirm it's a type/comment, NOT a `providers → orchestration` layering inversion (providers is below
-orchestration). Likely a `SessionDelegatedPayload`-style type reference or a comment.
+## Deferred / flagged (do NOT slip in on red)
 
-## The pull plan (chat template)
-
-Vertical-slice into `packages/orchestration/{schema,repositories,+foldered-logic}`: git-mv the `delegation-jobs`
-schema+repos from the kernel; pull logic from old repo (EXCLUDE `resolve-delegation-trace*`); rewire
-`@vynel/core/agents` → `@vynel/agents`, `@vynel/core/errors` → `@vynel/errors`, repos → `@vynel/db` +
-`../schema/`, own repos → local `../repositories/index.js`; drop the trace-read's index exports. Kernel schema
-barrel: drop `./orchestration`; drizzle config: repoint `delegation-jobs` path → `../orchestration/src/schema/`.
-**Prove neutral:** `drizzle-kit generate` → "No schema changes" + full gate green. `code-reviewer` → commit.
-
-## Deferred (tracked)
-
+- **`enqueue-workspace-delegation` writes a `delegation_jobs` row with no outbox event / no `db.transaction`**
+  (`routing/enqueue-workspace-delegation.ts`). Named against invariant 8 (co-commit the outbox in one txn), but
+  **non-blocking + faithful:** the enqueue is an intra-feature queue insert; the cross-feature `session.delegated`
+  signal fires later at EXECUTION via `recordDelegation` (which DOES co-commit its outbox). No feature needs a
+  "queued" signal today. Revisit only if a cross-feature "delegation queued" event becomes needed.
 - **`resolve-delegation-trace`** → lands at the **session/monitor** tier (with the other cross-domain composed
   reads + the trace panel backend). It reads `@vynel/chat` messages + orchestration jobs.
-- The `orchestration → agents` dep is by-design; if the review wants it decoupled, that's a session-era call.
+- **SDK type dep** — `compose-session-agents` imports `import type { AgentDefinition }` from the SDK (type-only,
+  erased; flows through the public `composeSessionAgents` return). Landed faithfully as a real dep, matching the
+  reviewed `@vynel/agents` sibling. **Possible improve:** re-export `AgentDefinition` via `@vynel/agents` so
+  orchestration carries no direct SDK dep — a clean follow-up if review wants the seam tighter.
+- The `orchestration → agents` dep is by-design; if a future review wants it decoupled, that's a session-era call.
