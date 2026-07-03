@@ -15,6 +15,6 @@ export type {
   MemoryEntryMention,
   NewMemoryEntryMention,
   MentionKind,
-} from '@vynel/db/repositories/memory'
+} from './repositories/index.js'
 
-export type { MemorySearchResult, SearchMemoryEntriesInput } from '@vynel/db/repositories/memory'
+export type { MemorySearchResult, SearchMemoryEntriesInput } from './repositories/index.js'

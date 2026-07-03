@@ -34,41 +34,41 @@ export {
   type ListMemoryEntriesInput,
   type ListMemoryEntriesResult,
   type ListMemoryEntriesCursor,
-} from './list-memory-entries-for-workspace.js'
+} from './queries/list-memory-entries-for-workspace.js'
 export {
   loadWorkspaceContextForSession,
   type LoadWorkspaceContextForSessionInput,
   type WorkspaceContextSnapshot,
-} from './load-workspace-context-for-session.js'
+} from './session/load-workspace-context-for-session.js'
 export {
   buildMemorySessionContribution,
   MEMORY_AGENT_INSTRUCTIONS,
-} from './build-memory-session-contribution.js'
+} from './session/build-memory-session-contribution.js'
 
 // Write ops
-export { createMemoryEntry, type CreateMemoryEntryInput } from './create-memory-entry.js'
-export { updateMemoryEntry, type UpdateMemoryEntryInput } from './update-memory-entry.js'
-export { deleteMemoryEntry } from './delete-memory-entry.js'
+export { createMemoryEntry, type CreateMemoryEntryInput } from './lifecycle/create-memory-entry.js'
+export { updateMemoryEntry, type UpdateMemoryEntryInput } from './lifecycle/update-memory-entry.js'
+export { deleteMemoryEntry } from './lifecycle/delete-memory-entry.js'
 export {
   recordMemoryEntryMention,
   type RecordMemoryEntryMentionInput,
-} from './record-memory-entry-mention.js'
+} from './lifecycle/record-memory-entry-mention.js'
 
 // Outbox consumers
 export {
   cleanupMemoryForChatSessionHardDeleted,
   type CleanupMemoryForChatSessionHardDeletedInput,
   type CleanupMemoryForChatSessionHardDeletedResult,
-} from './cleanup-memory-for-chat-session-hard-deleted.js'
+} from './lifecycle/cleanup-memory-for-chat-session-hard-deleted.js'
 
 // Workers + search-with-embedding (async at the boundary; model call
 // outside the tx)
 export {
   generateMemoryEmbeddings,
   type GenerateMemoryEmbeddingsResult,
-} from './generate-memory-embeddings.js'
+} from './indexing/generate-memory-embeddings.js'
 export {
   purgeSoftDeletedMemoryEntries,
   type PurgeSoftDeletedMemoryEntriesResult,
-} from './purge-soft-deleted-memory-entries.js'
-export { searchMemoryForAgent, type SearchMemoryForAgentInput } from './search-memory-for-agent.js'
+} from './lifecycle/purge-soft-deleted-memory-entries.js'
+export { searchMemoryForAgent, type SearchMemoryForAgentInput } from './queries/search-memory-for-agent.js'

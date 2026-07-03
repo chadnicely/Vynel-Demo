@@ -15,7 +15,8 @@
     "@vynel/db": "workspace:*",
     "@vynel/embeddings": "workspace:*",
     "@vynel/errors": "workspace:*",
-    "@vynel/logger": "workspace:*"
+    "@vynel/logger": "workspace:*",
+    "drizzle-orm": "^0.45.0"
   },
   "devDependencies": {
     "@vynel/testing": "workspace:*",
