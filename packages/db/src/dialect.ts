@@ -22,7 +22,7 @@ import {
 // `env.DB_DIALECT`. Consumers branch on this when behavior genuinely differs
 // between dialects (e.g. FTS5 vs tsvector in chat-search). Per
 // `docs/coding-guideline.md §5.1` + chat D17. First consumer:
-// `packages/db/src/repositories/chat/chat-search.ts`.
+// `packages/chat/src/repositories/chat-search.ts`.
 export type Dialect = 'sqlite' | 'postgres'
 export const activeDialect: Dialect = 'sqlite'
 

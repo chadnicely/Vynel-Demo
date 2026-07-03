@@ -13,7 +13,7 @@
 //
 // `ChatMessageRole` / `ToolCallStatus` / `ApprovalStatus` /
 // `AttachedImageMetadata` mirror the schema-file definitions in
-// `@vynel/db/schema/chat/*.ts` (the workspaces `WorkspaceKind` precedent —
+// `@vynel/chat`'s `src/schema/*.ts` (the workspaces `WorkspaceKind` precedent —
 // parallel sources of truth kept in sync by discipline; `@vynel/contracts`
 // is dependency-free other than zod).
 

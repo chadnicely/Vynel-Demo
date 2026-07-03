@@ -9,8 +9,8 @@
 // when the Postgres migration baseline ships.
 
 import { sql } from 'drizzle-orm'
-import type { Database } from '../../client.js'
-import { activeDialect } from '../../dialect.js'
+import type { Database } from '@vynel/db'
+import { activeDialect } from '@vynel/db/dialect'
 
 export type ChatMessageSearchResult = {
   messageId: string

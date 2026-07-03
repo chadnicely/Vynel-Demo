@@ -1,12 +1,12 @@
-// Repository tests for the `chat_sessions` table. Uses the LOCAL test-support
-// helper to avoid the `packages/db ↔ packages/testing` workspace cycle.
+// Repository tests for the `chat_sessions` table. Real SQLite via
+// `@vynel/testing`'s `withTestDatabase` (no DB mocking).
 // Spec: `docs/blueprints/chat/blueprint.md §4.1` + coding §8.1.
 
 import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { withTestDatabase } from '../../test-support/with-test-database.js'
-import { insertUser } from '../users/users.js'
-import { insertWorkspace } from '../workspaces/workspaces.js'
+import { withTestDatabase } from '@vynel/testing'
+import { insertUser } from '@vynel/db/repositories/users'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   findChatSessionById,
   listChatSessionsForWorkspace,

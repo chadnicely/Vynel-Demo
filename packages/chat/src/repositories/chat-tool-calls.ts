@@ -5,13 +5,13 @@
 // `.claude/memory/decisions/phase-1-sync-transactions.md`.
 
 import { asc, eq } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   chatToolCalls,
   type ChatToolCall,
   type NewChatToolCall,
-} from '../../schema/chat/chat-tool-calls.js'
-import { chatMessages } from '../../schema/chat/chat-messages.js'
+} from '../schema/chat-tool-calls.js'
+import { chatMessages } from '../schema/chat-messages.js'
 
 // Re-export row types + the status unions per the workspaces repo precedent.
 export type {
@@ -19,7 +19,7 @@ export type {
   NewChatToolCall,
   ToolCallStatus,
   ApprovalStatus,
-} from '../../schema/chat/chat-tool-calls.js'
+} from '../schema/chat-tool-calls.js'
 
 export function findChatToolCallById(db: Database, toolCallId: string): ChatToolCall | null {
   const [row] = db

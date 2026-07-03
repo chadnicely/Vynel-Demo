@@ -7,7 +7,6 @@
 export * from './users/index.js'
 export * from './workspaces/index.js'
 export * from './providers/index.js'
-export * from './chat/index.js'
 export * from './approvals/index.js'
 export * from './skills/index.js'
 export * from './files/index.js'

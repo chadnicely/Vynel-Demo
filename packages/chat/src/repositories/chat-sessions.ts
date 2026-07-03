@@ -8,21 +8,21 @@
 // `await` which is harmless on sync return values.
 
 import { and, eq, getTableColumns, isNull, lt, sql } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   chatSessions,
   type ChatSession,
   type NewChatSession,
-} from '../../schema/chat/chat-sessions.js'
+} from '../schema/chat-sessions.js'
 
-// Re-export row types per the workspaces repo precedent — lets `@vynel/core/
-// chat` import the types via `@vynel/db/repositories/chat`.
+// Re-export the row types (workspaces repo precedent) so chat's ops import
+// them from the repository barrel (`./index.js`), not the schema files.
 export type {
   ChatSession,
   NewChatSession,
   ChatSessionVisibility,
   ChatSessionScope,
-} from '../../schema/chat/chat-sessions.js'
+} from '../schema/chat-sessions.js'
 
 /**
  * Row shape returned by listChatSessionsForWorkspace — the chat_sessions

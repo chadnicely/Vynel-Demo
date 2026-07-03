@@ -8,12 +8,12 @@
 // session is hard-deleted by the purge job.
 
 import { asc, desc, eq, sql } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   chatMessages,
   type ChatMessage,
   type NewChatMessage,
-} from '../../schema/chat/chat-messages.js'
+} from '../schema/chat-messages.js'
 
 // Re-export row types + the AttachedImageMetadata JSON shape per the
 // workspaces repo precedent.
@@ -23,7 +23,7 @@ export type {
   ChatMessageRole,
   ChatMessageSourceKind,
   AttachedImageMetadata,
-} from '../../schema/chat/chat-messages.js'
+} from '../schema/chat-messages.js'
 
 export function findChatMessageById(db: Database, messageId: string): ChatMessage | null {
   const [row] = db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).limit(1).all()
