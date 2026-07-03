@@ -1,9 +1,53 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-03.** After a compaction read this first, then `CLAUDE.md` → `docs/vision.md` →
-`docs/architecture.md` → `.claude/ceo/soul.md`. State lives on disk, not chat.
+**Updated 2026-07-03.** After a compaction read this first, then `CLAUDE.md` → `docs/architecture.md` + the
+memories (`vynel-vision-and-old-project-lesson` = the founding vision + old-project scatter we must NOT
+repeat; `vynel-rebuild-plan`; `worktree-fanout-isolation`). State lives on disk, not chat.
 
-## ✅ PROVIDER SEAM LANDED (base shape) — next: follow-ons, then memory
+## ⏭ NEXT ACTION (fresh session, Chad-directed): BUILD `@vynel/session` — the composition keystone
+The "single focused session" build (Chad: **NOT fanned out** — do it carefully in one session). THE
+structural win: the session runner is reimplemented 4–5× across a 29-file `apps/api/src/sessions/` in the old
+repo. **Read first:** `docs/architecture.md` §5 (the parametric Session model) + memory
+`vynel-vision-and-old-project-lesson` (Session hierarchy: **Global Root** ↔ **Workspace Root**,
+renew-before-compact seeded with old context, children report up) + `docs/module-notes/memory.md` (memory's
+`context` contribution feeds the turn).
+
+**The one parametric primitive** (§5): `Session({ scope: global|workspace|agent, toolSet:
+McpFeatureDescriptor[], sink: SessionSink, realtime, background, tracking })`. Continuity intrinsic — stable
+`rootSessionId` → swappable SDK session; **renew before compaction** seeded with distilled context.
+
+**The ③ agent-turn MCP binding rides on this** (= what unblocks running memory+knowledge WITH Claude):
+- The seam ALREADY forwards `mcpServers` into the SDK `query` (`providers/src/claude/base/build-claude-sdk-options.ts`).
+- **`desktop-control` is the WORKING REFERENCE** — ships an `McpFeatureDescriptor` + `build-desktop-mcp-server.ts`
+  (in-process `createSdkMcpServer`). Copy that pattern.
+- Build `composeSessionMcpServers()`: gather ENABLED (capability-gated) features' descriptors → in-process
+  servers → `startChatSession({ mcpServers })`; inject `build-memory-session-contribution` into the system
+  prompt when memory is enabled.
+- **knowledge + memory each still owe an `McpFeatureDescriptor`** (knowledge has tool logic via routes+x-mcp;
+  memory is logic-only — owes its whole MCP tool surface). desktop-control is the ONLY feature with a
+  descriptor today.
+
+**Old-repo source** (`E:\KAFI\WORKSPACE\v2\vynel` @ `refactor/session-library`): `packages/session` (the
+unified library) + `apps/api/src/sessions/` (the 29-file spread to UNIFY) + `apps/api/src/streams/` (SSE sink).
+Pull faithfully → green → fold, like every module.
+
+**Live-test blockage (memory+knowledge with Claude):** composer + the 2 descriptors + memory's tool surface +
+a driving surface (api route or a live harness) + the live Claude runtime (works on Chad's machine, NOT
+headless CI — provider unit tests mock the SDK).
+
+## ✅ Recently done (this session, all pushed)
+- **memory vertical-slice + concern-fold `9213dfe`** — memory now owns `schema/`+`repositories/` (moved from
+  kernel) + foldered `indexing/queries/lifecycle/session`. Proven pure relocation (drizzle "No schema changes",
+  parity 30, symmetric-rename diff). **This is the TEMPLATE** for the remaining improve queue.
+- **Improve queue (one-by-one, vertical-slice + fold owed):** `capabilities` (smallest) → `approvals` →
+  `agents` → `files` (largest). Audit confirmed NO real architecture violations across the 8 leaves; hubs
+  (`workspaces`/`provider-preferences`) correctly keep schema in kernel — don't slice them.
+- **Project `code-reviewer` agent created** (`.claude/agents/code-reviewer.md`) — Vynel-tuned, reviews the
+  CURRENT codebase vs the vision (leaf-owns-schema, folders, invariants, vertical-slice purity, house-pattern
+  vs real-violation). Invoke by name on any diff/move. **Policy call pending (Chad):** bare `Error` for
+  internal invariant guards is the house pattern — sweep to typed `InvariantError` codebase-wide, or leave.
+
+## ✅ PROVIDER SEAM LANDED (base shape) — DONE (ledger)
 **`@vynel/providers` is DONE + green** (full record: `docs/module-notes/providers.md`). Pulled the AI-seam
 runtime (67 files) and restructured the old flat `claude/internal/` into **knowledge-style concern folders**
 under `claude/`: **`base/`** (SDK adapter — `claude-agent-sdk.ts` is the SOLE non-test SDK import site + the
