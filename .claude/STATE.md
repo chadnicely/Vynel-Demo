@@ -1,41 +1,51 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-03.** After a compaction read this first, then `CLAUDE.md` → `docs/architecture.md` + the
+**Updated 2026-07-04.** After a compaction read this first, then `CLAUDE.md` → `docs/architecture.md` + the
 memories (`vynel-vision-and-old-project-lesson` = the founding vision + old-project scatter we must NOT
 repeat; `vynel-rebuild-plan`; `worktree-fanout-isolation`). State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (fresh session, Chad-directed): BUILD `@vynel/session` — the composition keystone
-The "single focused session" build (Chad: **NOT fanned out** — do it carefully in one session). THE
-structural win: the session runner is reimplemented 4–5× across a 29-file `apps/api/src/sessions/` in the old
-repo. **Read first:** `docs/architecture.md` §5 (the parametric Session model) + memory
-`vynel-vision-and-old-project-lesson` (Session hierarchy: **Global Root** ↔ **Workspace Root**,
-renew-before-compact seeded with old context, children report up) + `docs/module-notes/memory.md` (memory's
-`context` contribution feeds the turn).
+## ⏭ NEXT ACTION: `orchestration` (substrate) → then the `@vynel/session` keystone
+**Reframe (2026-07-04):** `@vynel/session` is the APEX of a stack whose walls weren't in KLONE. The old
+`refactor/session-library` is mid-migration — it extracted only the global-root turn *core* + the `SessionSink`
+contract into `packages/session`; the bulk (delegation, composers, seeded-swap, resolvers, sinks) still lives
+across a 28-file `apps/api/src/sessions/`. Session hard-imports **`chat` · `orchestration` ·
+`session-continuity`** — pull them bottom-up first. **`chat` is DONE (`1568e91`)** — journal
+`.claude/journal/2026-07-04-chat-pull.md` + `docs/module-notes/chat.md`.
 
-**The one parametric primitive** (§5): `Session({ scope: global|workspace|agent, toolSet:
-McpFeatureDescriptor[], sink: SessionSink, realtime, background, tracking })`. Continuity intrinsic — stable
-`rootSessionId` → swappable SDK session; **renew before compaction** seeded with distilled context.
+**NEXT: pull `orchestration`** (the smaller foundation sibling to chat) — the delegation engine
+(`runRootDelegationTurn`, `recordDelegation`, `collectDelegationReportsForRoot`, `composeSessionAgents`). Old
+`packages/core/src/orchestration/` is **PURE** (never writes chat's tables; the session `delegate-*` layer ties
+it to chat + continuity). Vertical-slice + fold like chat (its `delegation-jobs` schema sits in the kernel today).
 
-**The ③ agent-turn MCP binding rides on this** (= what unblocks running memory+knowledge WITH Claude):
+**THEN `@vynel/session`** — the composition tier, built LAST (Chad: ONE focused session, NOT fanned out;
+continuity is a *feature of session*, not a package). It **houses**: continuity (old 20-file
+`session-continuity/` — renew-before-compaction, `root`→**`primary`** renamed here where `primary_sessions`
+lands) + ALL runners (`start-chat-turn` (workspace) + global-root + seeded-swap + delegation) + composers +
+resolvers + SSE sinks. Old source: `packages/session` + `apps/api/src/sessions/` (the 28-file spread to UNIFY)
++ `apps/api/src/streams/`. **§5 primitive:** `Session({ scope: global|workspace|agent, toolSet:
+McpFeatureDescriptor[], sink, realtime, background, tracking })` — stable `primarySessionId` → swappable SDK
+session. Read `docs/architecture.md` §5 first.
+
+**The ③ agent-turn MCP binding rides on session** (unblocks running memory+knowledge+chat-context WITH Claude):
 - The seam ALREADY forwards `mcpServers` into the SDK `query` (`providers/src/claude/base/build-claude-sdk-options.ts`).
-- **`desktop-control` is the WORKING REFERENCE** — ships an `McpFeatureDescriptor` + `build-desktop-mcp-server.ts`
-  (in-process `createSdkMcpServer`). Copy that pattern.
-- Build `composeSessionMcpServers()`: gather ENABLED (capability-gated) features' descriptors → in-process
-  servers → `startChatSession({ mcpServers })`; inject `build-memory-session-contribution` into the system
-  prompt when memory is enabled.
-- **knowledge + memory each still owe an `McpFeatureDescriptor`** (knowledge has tool logic via routes+x-mcp;
-  memory is logic-only — owes its whole MCP tool surface). desktop-control is the ONLY feature with a
-  descriptor today.
+- **`desktop-control` is the WORKING REFERENCE** — an `McpFeatureDescriptor` + in-process `createSdkMcpServer`.
+  Build `composeSessionMcpServers()`: gather ENABLED (capability-gated) descriptors → in-process servers →
+  `startChatSession({ mcpServers })`; inject `build-memory-session-contribution` when memory is enabled.
+- **knowledge + memory + chat each owe an `McpFeatureDescriptor`** — chat's = the MCP-readable *context* surface
+  (seeded by `context/get-session-context-report`) so a post-swap session recalls context on demand.
+  desktop-control is the only feature with a descriptor today.
 
-**Old-repo source** (`E:\KAFI\WORKSPACE\v2\vynel` @ `refactor/session-library`): `packages/session` (the
-unified library) + `apps/api/src/sessions/` (the 29-file spread to UNIFY) + `apps/api/src/streams/` (SSE sink).
-Pull faithfully → green → fold, like every module.
+**Paired with the session pull (Chad's directive): complete `approvals`** — fold it into concern-folders
+(the improve queue) AND decouple the deferred **`chat → approvals`** lazy-import seam (injected dep or outbox)
+in the same push.
 
-**Live-test blockage (memory+knowledge with Claude):** composer + the 2 descriptors + memory's tool surface +
-a driving surface (api route or a live harness) + the live Claude runtime (works on Chad's machine, NOT
-headless CI — provider unit tests mock the SDK).
-
-## ✅ Recently done (this session, all pushed)
+## ✅ Recently done (most recent first)
+- **chat vertical-slice + fold `1568e91`** (committed LOCAL — push pending Chad) — new `@vynel/chat` (turn
+  engine + persistence + history CRUD); schema+repos git-mv'd from the kernel, logic foldered
+  (`turn-consumption`/`records`/`history`/`context`), the `start-chat-turn` runner EXCLUDED (relocates to
+  session → keeps chat continuity-free). Behavior-neutral (drizzle "No schema changes"), gate green (typecheck
+  41 · parity 30 · vitest 1091). Code-reviewed, no blockers. `chat → approvals` lazy-import seam deferred to the
+  session pull (paired with approvals' fold). Journal `.claude/journal/2026-07-04-chat-pull.md`.
 - **memory vertical-slice + concern-fold `9213dfe`** — memory now owns `schema/`+`repositories/` (moved from
   kernel) + foldered `indexing/queries/lifecycle/session`. Proven pure relocation (drizzle "No schema changes",
   parity 30, symmetric-rename diff). **This is the TEMPLATE** for the remaining improve queue.
@@ -229,6 +239,11 @@ trim/rewire un-pulled imports (rewiring `@vynel/core` shims → direct packages 
 (conventional; **NO AI identity**).
 
 ## Gotchas
+- **Flaky vitest workspace-resolution (Windows):** a stale vite/vitest transform cache can throw a bogus
+  `packages/<pkg>/src/vitest.config.ts`-not-found **startup** error, intermittently, under high collection
+  load. A CLEAN test file "breaking" *workspace-config resolution* is NEVER a real code bug — don't bisect for
+  a culprit file (it fingers an innocent one by coincidence). Fix: clear the vite cache / re-run; foldering
+  test files off a package `src/` root also helps. Ate real time on the chat pull.
 - **pnpm 11.0.0 build-gate:** ONLY `allowBuilds: <dep>: true` silences `ERR_PNPM_IGNORED_BUILDS` — `false` and
   `ignoredBuiltDependencies` do NOT. Every build-script dep is `true` in `pnpm-workspace.yaml`; add new ones `true`.
   **Follow-up: bump pnpm to 11.9+** (fixes it → then unneeded native builds can be skipped).
