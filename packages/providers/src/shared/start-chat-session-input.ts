@@ -90,7 +90,7 @@ export type StartChatSessionInput = {
    * Enabled agents (subagents) for this session — the SDK
    * `Record<string, AgentDefinition>` passed to `query({ agents })`, making
    * each agent invokable via the Agent tool. Composed by the caller
-   * (`composeSessionAgents` in `@vynel/core/orchestration`) and forwarded
+   * (`composeSessionAgents` in `@vynel/orchestration`) and forwarded
    * verbatim. Type is `Record<string, unknown>` to keep the SDK type out of
    * this contract — same pattern as `mcpServers` (the agent-base
    * `orchestration` piece). Every irreversible (sub)agent tool call still

@@ -48,7 +48,7 @@ export default defineConfig({
     './src/schema/agents/agents.ts',
     './src/schema/agents/agent-skills.ts',
     './src/schema/session-continuity/root-sessions.ts',
-    './src/schema/orchestration/delegation-jobs.ts',
+    '../orchestration/src/schema/delegation-jobs.ts',
     './src/schema/_shared/outbox-events.ts',
   ],
   out: './src/migrations-sqlite',

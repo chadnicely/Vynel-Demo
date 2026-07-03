@@ -1,7 +1,6 @@
-// Repository tests for the `delegation_jobs` table. Uses the LOCAL
-// test-support helper to avoid the `packages/db ↔ packages/testing` workspace
-// cycle. Real migrated SQLite, no mocking. Inserts real users + workspaces FK
-// parents first (the schedules.test.ts factory precedent).
+// Repository tests for the `delegation_jobs` table. Real migrated SQLite via
+// `@vynel/testing`, no mocking. Inserts real users + workspaces FK parents
+// first (the schedules.test.ts factory precedent).
 //
 // FIFO-ordering tests use explicit increasing `createdAt` ISO dates — two
 // back-to-back `new Date()` inserts collide at `timestamp_ms` resolution and
@@ -10,9 +9,9 @@
 
 import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { withTestDatabase } from '../../test-support/with-test-database.js'
-import { insertUser } from '../users/users.js'
-import { insertWorkspace } from '../workspaces/workspaces.js'
+import { withTestDatabase } from '@vynel/testing'
+import { insertUser } from '@vynel/db/repositories/users'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   insertDelegationJob,
   findDelegationJobById,

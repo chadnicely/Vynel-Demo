@@ -9,20 +9,21 @@
 // Spec: the `orchestration` domain (Chapter 1 — async core).
 
 import { and, asc, desc, eq, gte, inArray, isNull } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   delegationJobs,
   type DelegationJob,
   type NewDelegationJob,
-} from '../../schema/orchestration/delegation-jobs.js'
+} from '../schema/delegation-jobs.js'
 
-// Re-export row + union types so `@vynel/core/orchestration` imports them via
-// `@vynel/db/repositories/orchestration` (the schedules/channels repo precedent).
+// Re-export row + union types so the orchestration logic imports them from the
+// co-located `../repositories/index.js` barrel (vertical-slice — the repo lives
+// beside its callers now, no longer via the `@vynel/db` kernel subpath).
 export type {
   DelegationJob,
   NewDelegationJob,
   DelegationJobStatus,
-} from '../../schema/orchestration/delegation-jobs.js'
+} from '../schema/delegation-jobs.js'
 
 // Bounded pending list, capped defensively per coding-standard.md
 // "Structure / patterns".
