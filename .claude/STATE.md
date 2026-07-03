@@ -18,22 +18,31 @@ yet — by design.** Shape saved to memory (`providers-structure`).
 Split the old `core/src/providers/` grab-bag by concern (Chad: "preference is not skills") — skills-discovery
 + provider-status ops **left in the old repo** for their own domains. Full record: `docs/module-notes/provider-preferences.md`.
 
-**✅ 4 LEAVES via PARALLEL FAN-OUT (`631ceb2`)** — `capabilities`/`files`/`memory`/`approvals` pulled at once,
-each by a worktree agent + code-reviewed (all PASS). Faithful package pulls (logic+tests; schema+repos stay in
-kernel for now). Gate green — vitest **900 / 4 skip** (+223). Full record: `.claude/journal/2026-07-03-leaf-fanout.md`.
-**Blocker analysis result:** `config`/`pubsub`/`queue`/`feature-flags` are empty UNUSED stubs — NOT blockers,
-skip until a real consumer needs them.
+**✅ 8 LEAVES via 2 PARALLEL FAN-OUT WAVES (2026-07-03)** — all faithful package pulls (logic+tests;
+schema+repos stay in kernel for now), each by a worktree agent + code-reviewed (all PASS, faithfulness
+diff-verified), gate green at each integration. Suite **677 → 1019** (+342).
+- Wave 1 `631ceb2` — `capabilities` · `files` · `memory` (vec/FTS live) · `approvals`. Journal:
+  `.claude/journal/2026-07-03-leaf-fanout.md`.
+- Wave 2 `ae985bb` — `mcp-contract` · `desktop-control` · `contracts` · `agents`. Journal:
+  `…-leaf-fanout-wave2.md`. **`contracts` now landed** (Zod schemas by domain, wildcard subpath exports) →
+  unblocks skills/channels/schedules/marketplace. **`mcp-contract` landed** → the ③ binding's contract is in.
+- **Blocker analysis result:** `config`/`pubsub`/`queue`/`feature-flags` are empty UNUSED stubs — NOT blockers,
+  skip until a real consumer needs them.
+- **Fan-out GOTCHA (see memory `worktree-fanout-isolation`):** an agent's `isolation:"worktree"` can silently
+  not take → it runs in the MAIN tree and moves HEAD to its branch. **Always `git checkout -f main` +
+  verify HEAD==main before integrating.**
 
-**⏭ NEXT (blockers cleared → keep fanning out + build the keystone):**
-1. **More leaves** (same fan-out pattern): `agents` (needs the `contracts/agents` schemas + a `contracts` shell
-   first) · `desktop-control` (needs `mcp-contract`, 2 files) · core-extractions `skills` (~30 files, incl.
-   `discoverInstalledSkillsForProvider`), `channels`, `schedules`, `marketplace`, `voice`.
+**⏭ NEXT (keep fanning out + build the keystone):**
+1. **More leaves** (contracts is ready now): core-extractions `skills` (~30 files, incl.
+   `discoverInstalledSkillsForProvider`), `channels`, `schedules`, `marketplace`, `voice` (check each for
+   `pubsub`/`queue` needs — pull those stubs only if a real consumer appears).
 2. **`@vynel/session`** — the composition keystone. **Build in ONE focused session** (Chad), NOT fanned out.
-3. **`@vynel/mcp-contract`** (2 files) — the ③ agent-turn MCP binding + real approval CARD ride on it +
-   the composition. **FOLD candidate:** SDK `tool()` `annotations` for the auto-card model.
-- **Serial follow-ups for the landed leaves:** the **vertical-slice** (schema+repos kernel→package, full
+   The ③ agent-turn MCP binding + real approval CARD ride on it + `mcp-contract` (now landed). **FOLD
+   candidate:** SDK `tool()` `annotations` for the auto-card model.
+- **Serial follow-ups for the 8 landed leaves:** the **vertical-slice** (schema+repos kernel→package, full
   knowledge shape) + **routes/sdk/mcp** (high-collision shared surfaces). **provider-status** ops land with the
-  provider routes. `users` core-decomp (then `@vynel/core` disappears). "instructions" domain — later (Chad).
+  provider routes. `users` core-decomp (then `@vynel/core` disappears). Improve-pass: agents' SDK type-dep,
+  `xa11y-adapter.ts` (305 lines). "instructions" domain — later (Chad).
 - **Deferred FOLD (providers):** audit-adopt new SDK surface through the base — session helpers
   (`listSessions`/`getSessionInfo`/…), `startup()`, `Query.reinitialize()`, new hook events, `dontAsk`/`auto`
   permission modes. Each deliberate, each with a test. Details in `docs/module-notes/providers.md`.
