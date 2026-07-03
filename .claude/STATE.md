@@ -12,10 +12,14 @@ across a 28-file `apps/api/src/sessions/`. Session hard-imports **`chat` · `orc
 `session-continuity`** — pull them bottom-up first. **`chat` is DONE (`1568e91`)** — journal
 `.claude/journal/2026-07-04-chat-pull.md` + `docs/module-notes/chat.md`.
 
-**NEXT: pull `orchestration`** (the smaller foundation sibling to chat) — the delegation engine
-(`runRootDelegationTurn`, `recordDelegation`, `collectDelegationReportsForRoot`, `composeSessionAgents`). Old
-`packages/core/src/orchestration/` is **PURE** (never writes chat's tables; the session `delegate-*` layer ties
-it to chat + continuity). Vertical-slice + fold like chat (its `delegation-jobs` schema sits in the kernel today).
+**NEXT: pull `orchestration`** — Gate-1 **MAPPED + SCOPED, ready to execute** (full plan:
+`docs/module-notes/orchestration.md`). The delegation engine ("the VERB over the `agents` noun") — a
+composition tier above chat+agents. Vertical-slice + fold, the chat template. **Scope call:** EXCLUDE
+`resolve-delegation-trace` (the one chat-reading file — a cross-domain trace VIEW → defers to the
+session/monitor tier, like `start-chat-turn` → session); orchestration's only remaining cross-dep is then
+`agents` (its DESIGNED dep — rewire `@vynel/core/agents` → `@vynel/agents`). `delegation-jobs` schema+repos
+git-mv from kernel; deps verified present; no layering inversions (the providers→orchestration grep hit is a
+comment). Mechanical execution remains: git-mv + pull-logic + rewire + fold + gate + review.
 
 **THEN `@vynel/session`** — the composition tier, built LAST (Chad: ONE focused session, NOT fanned out;
 continuity is a *feature of session*, not a package). It **houses**: continuity (old 20-file
