@@ -530,6 +530,215 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every channel the user owns — global + workspace (credentials excluded). */
+        get: operations["getChannels"];
+        put?: never;
+        /** Connect a bot as a global or workspace channel (verifies the token before persisting). */
+        post: operations["postChannels"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channelId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one channel the user owns (credentials excluded). */
+        get: operations["getChannelsByChannelId"];
+        put?: never;
+        post?: never;
+        /** Disconnect a channel — hard-deletes it and cascades inbound/queue/allowlist rows. */
+        delete: operations["deleteChannelsByChannelId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channelId}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable a channel (resume polling). */
+        post: operations["postChannelsByChannelIdEnable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channelId}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable a channel (pause polling). */
+        post: operations["postChannelsByChannelIdDisable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channelId}/allowed-senders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the allowed senders (allowlist) for a channel the user owns. */
+        get: operations["getChannelsByChannelIdAllowed-senders"];
+        put?: never;
+        /** Add an allowed sender to a channel the user owns. */
+        post: operations["postChannelsByChannelIdAllowed-senders"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channelId}/allowed-senders/{senderLinkId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an allowed sender from a channel the user owns. */
+        delete: operations["deleteChannelsByChannelIdAllowed-sendersBySenderLinkId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channelId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a channel's inbound message history (keyset cursor-paginated). */
+        get: operations["getChannelsByChannelIdHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every schedule the user owns — global + workspace. */
+        get: operations["getSchedules"];
+        put?: never;
+        /** Create a global or workspace schedule (recurring cron OR one-time fireAt). */
+        post: operations["postSchedules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedules/{scheduleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a schedule the user owns (hard delete; cascades to its run history). */
+        delete: operations["deleteSchedulesByScheduleId"];
+        options?: never;
+        head?: never;
+        /** Update a schedule the user owns. */
+        patch: operations["patchSchedulesByScheduleId"];
+        trace?: never;
+    };
+    "/schedules/{scheduleId}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable a schedule the user owns. */
+        post: operations["postSchedulesByScheduleIdEnable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedules/{scheduleId}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable a schedule the user owns. */
+        post: operations["postSchedulesByScheduleIdDisable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedules/{scheduleId}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a schedule's run history (owner-scoped, newest first, keyset-paginated). */
+        get: operations["getSchedulesByScheduleIdRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/approvals/pending": {
         parameters: {
             query?: never;
@@ -1787,6 +1996,545 @@ export interface operations {
                 content?: never;
             };
             /** @description No such schedule in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getChannels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of Channel (without bot credentials). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postChannels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    scope: "global";
+                    /** @enum {string} */
+                    channelKind: "telegram" | "discord";
+                    displayName: string;
+                    botCredentials: {
+                        [key: string]: string;
+                    };
+                    initialAllowedSenderId?: string;
+                } | {
+                    /** @constant */
+                    scope: "workspace";
+                    workspaceId: string;
+                    /** @enum {string} */
+                    channelKind: "telegram" | "discord";
+                    displayName: string;
+                    botCredentials: {
+                        [key: string]: string;
+                    };
+                    initialAllowedSenderId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Channel connected (credentials excluded). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bot token invalid, unsupported kind, or workspaceId missing for a workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getChannelsByChannelId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Channel (without bot credentials). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteChannelsByChannelId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Channel disconnected. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postChannelsByChannelIdEnable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated Channel. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postChannelsByChannelIdDisable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated Channel. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "getChannelsByChannelIdAllowed-senders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of ChannelUserLink. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postChannelsByChannelIdAllowed-senders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    externalSenderId: string;
+                    externalSenderHandle?: string;
+                    externalSenderDisplayName?: string;
+                    scopeContextId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description ChannelUserLink. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "deleteChannelsByChannelIdAllowed-sendersBySenderLinkId": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+                senderLinkId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sender removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getChannelsByChannelIdHistory: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursorReceivedAt?: number;
+                cursorId?: string;
+            };
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of ChannelInboundMessage (newest first). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSchedules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of Schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postSchedules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    scope: "global";
+                    /** @enum {string} */
+                    templateKind: "morning-briefing" | "weekly-summary" | "email-watch" | "custom" | "reminder";
+                    displayName?: string;
+                    cronExpression?: string;
+                    timezone?: string;
+                    promptTemplate?: string;
+                    /** @enum {string} */
+                    destinationKind?: "chat-only" | "chat-and-channel";
+                    channelId?: string;
+                    catchUpOnMiss?: boolean;
+                    approvalTimeoutMsOverride?: number;
+                    /** Format: date-time */
+                    fireAt?: string;
+                } | {
+                    /** @constant */
+                    scope: "workspace";
+                    workspaceId: string;
+                    /** @enum {string} */
+                    templateKind: "morning-briefing" | "weekly-summary" | "email-watch" | "custom" | "reminder";
+                    displayName?: string;
+                    cronExpression?: string;
+                    timezone?: string;
+                    promptTemplate?: string;
+                    /** @enum {string} */
+                    destinationKind?: "chat-only" | "chat-and-channel";
+                    channelId?: string;
+                    catchUpOnMiss?: boolean;
+                    approvalTimeoutMsOverride?: number;
+                    /** Format: date-time */
+                    fireAt?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Schedule created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid cron, missing channel, past fireAt, or workspaceId missing for a workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteSchedulesByScheduleId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schedule deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchSchedulesByScheduleId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    displayName?: string;
+                    cronExpression?: string;
+                    timezone?: string;
+                    promptTemplate?: string;
+                    /** @enum {string} */
+                    destinationKind?: "chat-only" | "chat-and-channel";
+                    channelId?: string | null;
+                    catchUpOnMiss?: boolean;
+                    approvalTimeoutMsOverride?: number | null;
+                    isEnabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Schedule updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid cron or missing channel. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postSchedulesByScheduleIdEnable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schedule enabled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postSchedulesByScheduleIdDisable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schedule disabled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSchedulesByScheduleIdRuns: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursorStartedAt?: string;
+                cursorId?: string;
+            };
+            header?: never;
+            path: {
+                scheduleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of ScheduleRun (newest first). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule owned by this user. */
             404: {
                 headers: {
                     [name: string]: unknown;

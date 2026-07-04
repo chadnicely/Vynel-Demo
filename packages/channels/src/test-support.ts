@@ -15,6 +15,12 @@ import type {
 } from './repositories/index.js'
 import type { ProcessInboundDeps } from './channels-types.js'
 
+// Re-exported for route/integration tests that seed a channel for a SPECIFIC
+// owner/scope directly (the production barrel keeps repositories internal) —
+// the `@vynel/schedules/test-support` `insertSchedule` precedent.
+export { insertChannel } from './repositories/index.js'
+export type { NewChannel } from './repositories/index.js'
+
 export function makeUser() {
   const now = new Date()
   return {

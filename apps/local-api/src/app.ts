@@ -17,7 +17,9 @@ import { knowledgeApp } from './routes/knowledge/index.js'
 import { skillsApp } from './routes/skills/index.js'
 import { marketplaceApp } from './routes/marketplace/index.js'
 import { channelsApp } from './routes/channels/index.js'
+import { channelsUserApp } from './routes/channels/user-scoped.js'
 import { schedulesApp } from './routes/schedules/index.js'
+import { schedulesUserApp } from './routes/schedules/user-scoped.js'
 import { approvalsApp } from './routes/approvals/index.js'
 
 export interface CreateAppOptions {
@@ -65,8 +67,13 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/workspaces/:workspaceId/marketplace', marketplaceApp)
   app.route('/workspaces/:workspaceId/channels', channelsApp)
   app.route('/workspaces/:workspaceId/schedules', schedulesApp)
-  // User-scoped (no workspace prefix) — the global approval queue spans every
-  // workspace + the brain, answerable from any surface.
+  // User-scoped (no workspace prefix) — GLOBAL (null-workspace) + cross-workspace
+  // resources. `/channels` + `/schedules` span a user's whole set (both scopes)
+  // so global channels/schedules are creatable, listable, and manageable; the
+  // global approval queue spans every workspace + the brain, answerable from any
+  // surface. These sit alongside the untouched workspace-scoped mounts above.
+  app.route('/channels', channelsUserApp)
+  app.route('/schedules', schedulesUserApp)
   app.route('/approvals', approvalsApp)
 
   return app

@@ -102,6 +102,77 @@ export function makeNamespaced(client: Client<paths>) {
 
   },
   },
+  channelsUser: {
+  addAllowedSender: async (channelId: string, input: NonNullable<paths["/channels/{channelId}/allowed-senders"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/channels/{channelId}/allowed-senders", {
+      params: { path: { channelId: channelId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  connect: async (input: NonNullable<paths["/channels"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/channels", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  disable: async (channelId: string) => {
+    const { data, error, response } = await client["POST"]("/channels/{channelId}/disable", {
+      params: { path: { channelId: channelId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  disconnect: async (channelId: string) => {
+    const { error, response } = await client["DELETE"]("/channels/{channelId}", {
+      params: { path: { channelId: channelId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  enable: async (channelId: string) => {
+    const { data, error, response } = await client["POST"]("/channels/{channelId}/enable", {
+      params: { path: { channelId: channelId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  get: async (channelId: string) => {
+    const { data, error, response } = await client["GET"]("/channels/{channelId}", {
+      params: { path: { channelId: channelId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  history: async (channelId: string, options?: NonNullable<paths["/channels/{channelId}/history"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/channels/{channelId}/history", {
+      params: { path: { channelId: channelId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/channels")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listAllowedSenders: async (channelId: string) => {
+    const { data, error, response } = await client["GET"]("/channels/{channelId}/allowed-senders", {
+      params: { path: { channelId: channelId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  removeAllowedSender: async (channelId: string, senderLinkId: string) => {
+    const { error, response } = await client["DELETE"]("/channels/{channelId}/allowed-senders/{senderLinkId}", {
+      params: { path: { channelId: channelId, senderLinkId: senderLinkId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  },
   knowledge: {
   addDirectory: async (workspaceId: string, input: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/knowledge/sources", {
@@ -231,6 +302,56 @@ export function makeNamespaced(client: Client<paths>) {
   update: async (workspaceId: string, scheduleId: string, input: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}"]["patch"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PATCH"]("/workspaces/{workspaceId}/schedules/{scheduleId}", {
       params: { path: { workspaceId: workspaceId, scheduleId: scheduleId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  schedulesUser: {
+  create: async (input: NonNullable<paths["/schedules"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/schedules", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  delete: async (scheduleId: string) => {
+    const { error, response } = await client["DELETE"]("/schedules/{scheduleId}", {
+      params: { path: { scheduleId: scheduleId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  disable: async (scheduleId: string) => {
+    const { data, error, response } = await client["POST"]("/schedules/{scheduleId}/disable", {
+      params: { path: { scheduleId: scheduleId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  enable: async (scheduleId: string) => {
+    const { data, error, response } = await client["POST"]("/schedules/{scheduleId}/enable", {
+      params: { path: { scheduleId: scheduleId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/schedules")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listRuns: async (scheduleId: string, options?: NonNullable<paths["/schedules/{scheduleId}/runs"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/schedules/{scheduleId}/runs", {
+      params: { path: { scheduleId: scheduleId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  update: async (scheduleId: string, input: NonNullable<paths["/schedules/{scheduleId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/schedules/{scheduleId}", {
+      params: { path: { scheduleId: scheduleId } },
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

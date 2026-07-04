@@ -52,8 +52,19 @@ Clearing every deferred item. Progress (TaskList #7-13):
   column + nullable `cronExpression`; `isOneTimeSchedule` reads the column; response surfaces it. Baseline-folded
   (zero-data → the migration-0029 risk the sentinel dodged no longer applies). drizzle "No schema changes"; gate
   **1463**; reviewer CLEAN (no-must-fix). `ONE_TIME_CRON_SENTINEL` removed.
-- ⏳ next: global-scope create/list routes · CLI commands · cleanups · channel ticks · the ③ MCP keystone ·
-  schedule fire-tick + fire-now.
+- ✅ **Global-scope user-scoped routes** — added `/channels` (`channelsUser.*`, 10) + `/schedules`
+  (`schedulesUser.*`, 7) at the root; global (null-workspace) + cross-workspace resources now creatable/
+  listable/manageable. New userId-scoped core ops (getChannelForUserOrThrow + thin user-ops; listSchedulesForUser).
+  TENANT-isolation test present. Gate **1494**; kept workspace-scoped routes. `.claude/journal/2026-07-05-global-scope-routes.md`.
+- ⏳ next: CLI commands · cleanups (.data mkdir + stale comments + integration-test) · channel ticks ·
+  the ③ MCP keystone · schedule fire-tick + fire-now.
+
+## ⚠ PARALLEL UI WORK IN TREE (2026-07-05) — coordinate
+Chad has an UNCOMMITTED desktop-UI milestone in the working tree: `apps/local-web/`, `packages/ui/`
+(`@vynel/ui`), `.claude/journal/2026-07-05-desktop-ui-m1.md`, `docs/module-notes/desktop-ui.md`, + config
+(vue-demi allowBuilds, vitest.workspace web project, eslint, .gitignore, package.json, pnpm-lock/workspace).
+**Backend commits in the finish-everything pass stage ONLY backend files explicitly (no `git add -A`)** so his
+UI work stays intact/uncommitted for him to handle. Combined gate is green. See memory `ui-fresh-design-no-v1-porting`.
 
 **Guardrails that held (for the next autopilot):** main loop owned diff-check + full gate + code-reviewer +
 commit; subagents did heavy file work on the main tree (no worktrees); never committed on red; STATE every

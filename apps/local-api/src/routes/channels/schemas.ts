@@ -25,6 +25,22 @@ export const ConnectChannelRequestSchema = z.object({
   initialAllowedSenderId: z.string().min(1).optional(),
 })
 
+// The user-scoped `POST /channels` body. `scope` discriminates a GLOBAL channel
+// (no workspace) from a WORKSPACE channel; the discriminated union makes
+// `workspaceId` REQUIRED in the workspace branch, so the validator rejects a
+// workspace scope missing it with 400 at the boundary — no route-level check.
+const connectChannelFields = {
+  channelKind: z.enum(['telegram', 'discord']),
+  displayName: z.string().min(1).max(120),
+  botCredentials: z.record(z.string(), z.string()),
+  initialAllowedSenderId: z.string().min(1).optional(),
+}
+
+export const ConnectChannelForUserRequestSchema = z.discriminatedUnion('scope', [
+  z.object({ scope: z.literal('global'), ...connectChannelFields }),
+  z.object({ scope: z.literal('workspace'), workspaceId: z.string().min(1), ...connectChannelFields }),
+])
+
 export const AddAllowedSenderRequestSchema = z.object({
   externalSenderId: z.string().min(1),
   externalSenderHandle: z.string().optional(),

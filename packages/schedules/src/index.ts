@@ -17,6 +17,7 @@ export {
 // CRUD + render ops (sync).
 export { createSchedule, type CreateScheduleInput } from './lifecycle/create-schedule.js'
 export { listSchedules } from './queries/list-schedules.js'
+export { listSchedulesForUser } from './queries/list-schedules-for-user.js'
 export { updateSchedule, type UpdateScheduleInput } from './lifecycle/update-schedule.js'
 export { setScheduleEnabled } from './lifecycle/set-schedule-enabled.js'
 export { deleteSchedule } from './lifecycle/delete-schedule.js'

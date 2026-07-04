@@ -2301,6 +2301,830 @@
         }
       }
     },
+    "/channels": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of Channel (without bot credentials)."
+          }
+        },
+        "operationId": "getChannels",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [],
+        "summary": "List every channel the user owns — global + workspace (credentials excluded).",
+        "x-sdk-name": "channelsUser.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_my_channels",
+          "description": "List every connected messaging channel the user owns — both global (no workspace) and workspace-scoped. Returns each channel WITHOUT its bot credentials. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Channel connected (credentials excluded)."
+          },
+          "400": {
+            "description": "Bot token invalid, unsupported kind, or workspaceId missing for a workspace scope."
+          }
+        },
+        "operationId": "postChannels",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [],
+        "summary": "Connect a bot as a global or workspace channel (verifies the token before persisting).",
+        "x-sdk-name": "channelsUser.connect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "global"
+                      },
+                      "channelKind": {
+                        "type": "string",
+                        "enum": [
+                          "telegram",
+                          "discord"
+                        ]
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "botCredentials": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "initialAllowedSenderId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "channelKind",
+                      "displayName",
+                      "botCredentials"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "workspace"
+                      },
+                      "workspaceId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "channelKind": {
+                        "type": "string",
+                        "enum": [
+                          "telegram",
+                          "discord"
+                        ]
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "botCredentials": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "initialAllowedSenderId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "workspaceId",
+                      "channelKind",
+                      "displayName",
+                      "botCredentials"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/channels/{channelId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Channel (without bot credentials)."
+          },
+          "404": {
+            "description": "No such channel owned by this user."
+          }
+        },
+        "operationId": "getChannelsByChannelId",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Get one channel the user owns (credentials excluded).",
+        "x-sdk-name": "channelsUser.get"
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Channel disconnected."
+          },
+          "404": {
+            "description": "No such channel owned by this user."
+          }
+        },
+        "operationId": "deleteChannelsByChannelId",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Disconnect a channel — hard-deletes it and cascades inbound/queue/allowlist rows.",
+        "x-sdk-name": "channelsUser.disconnect"
+      }
+    },
+    "/channels/{channelId}/enable": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Updated Channel."
+          },
+          "404": {
+            "description": "No such channel owned by this user."
+          }
+        },
+        "operationId": "postChannelsByChannelIdEnable",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Enable a channel (resume polling).",
+        "x-sdk-name": "channelsUser.enable"
+      }
+    },
+    "/channels/{channelId}/disable": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Updated Channel."
+          },
+          "404": {
+            "description": "No such channel owned by this user."
+          }
+        },
+        "operationId": "postChannelsByChannelIdDisable",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Disable a channel (pause polling).",
+        "x-sdk-name": "channelsUser.disable"
+      }
+    },
+    "/channels/{channelId}/allowed-senders": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of ChannelUserLink."
+          },
+          "404": {
+            "description": "No such channel owned by this user."
+          }
+        },
+        "operationId": "getChannelsByChannelIdAllowed-senders",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "List the allowed senders (allowlist) for a channel the user owns.",
+        "x-sdk-name": "channelsUser.listAllowedSenders"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "ChannelUserLink."
+          },
+          "404": {
+            "description": "No such channel owned by this user."
+          }
+        },
+        "operationId": "postChannelsByChannelIdAllowed-senders",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Add an allowed sender to a channel the user owns.",
+        "x-sdk-name": "channelsUser.addAllowedSender",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "externalSenderId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "externalSenderHandle": {
+                    "type": "string"
+                  },
+                  "externalSenderDisplayName": {
+                    "type": "string"
+                  },
+                  "scopeContextId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "externalSenderId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/channels/{channelId}/allowed-senders/{senderLinkId}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Sender removed."
+          },
+          "404": {
+            "description": "No such channel owned by this user."
+          }
+        },
+        "operationId": "deleteChannelsByChannelIdAllowed-sendersBySenderLinkId",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "senderLinkId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Remove an allowed sender from a channel the user owns.",
+        "x-sdk-name": "channelsUser.removeAllowedSender"
+      }
+    },
+    "/channels/{channelId}/history": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of ChannelInboundMessage (newest first)."
+          },
+          "404": {
+            "description": "No such channel owned by this user."
+          }
+        },
+        "operationId": "getChannelsByChannelIdHistory",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorReceivedAt",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorId",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "List a channel's inbound message history (keyset cursor-paginated).",
+        "x-sdk-name": "channelsUser.history"
+      }
+    },
+    "/schedules": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of Schedule."
+          }
+        },
+        "operationId": "getSchedules",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [],
+        "summary": "List every schedule the user owns — global + workspace.",
+        "x-sdk-name": "schedulesUser.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_my_schedules",
+          "description": "List every scheduled routine the user owns — both global (no workspace) and workspace-scoped. Each has its cron expression (or one-time fire time), destination, enabled flag, and next fire time. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Schedule created."
+          },
+          "400": {
+            "description": "Invalid cron, missing channel, past fireAt, or workspaceId missing for a workspace scope."
+          }
+        },
+        "operationId": "postSchedules",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [],
+        "summary": "Create a global or workspace schedule (recurring cron OR one-time fireAt).",
+        "x-sdk-name": "schedulesUser.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "global"
+                      },
+                      "templateKind": {
+                        "type": "string",
+                        "enum": [
+                          "morning-briefing",
+                          "weekly-summary",
+                          "email-watch",
+                          "custom",
+                          "reminder"
+                        ]
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "cronExpression": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "timezone": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "promptTemplate": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 8000
+                      },
+                      "destinationKind": {
+                        "type": "string",
+                        "enum": [
+                          "chat-only",
+                          "chat-and-channel"
+                        ]
+                      },
+                      "channelId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "catchUpOnMiss": {
+                        "type": "boolean"
+                      },
+                      "approvalTimeoutMsOverride": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "fireAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "templateKind"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "workspace"
+                      },
+                      "workspaceId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "templateKind": {
+                        "type": "string",
+                        "enum": [
+                          "morning-briefing",
+                          "weekly-summary",
+                          "email-watch",
+                          "custom",
+                          "reminder"
+                        ]
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "cronExpression": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "timezone": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "promptTemplate": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 8000
+                      },
+                      "destinationKind": {
+                        "type": "string",
+                        "enum": [
+                          "chat-only",
+                          "chat-and-channel"
+                        ]
+                      },
+                      "channelId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "catchUpOnMiss": {
+                        "type": "boolean"
+                      },
+                      "approvalTimeoutMsOverride": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "fireAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "workspaceId",
+                      "templateKind"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/schedules/{scheduleId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Schedule updated."
+          },
+          "400": {
+            "description": "Invalid cron or missing channel."
+          },
+          "404": {
+            "description": "No such schedule owned by this user."
+          }
+        },
+        "operationId": "patchSchedulesByScheduleId",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Update a schedule the user owns.",
+        "x-sdk-name": "schedulesUser.update",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "cronExpression": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "promptTemplate": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8000
+                  },
+                  "destinationKind": {
+                    "type": "string",
+                    "enum": [
+                      "chat-only",
+                      "chat-and-channel"
+                    ]
+                  },
+                  "channelId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1
+                  },
+                  "catchUpOnMiss": {
+                    "type": "boolean"
+                  },
+                  "approvalTimeoutMsOverride": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "exclusiveMinimum": 0
+                  },
+                  "isEnabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Schedule deleted."
+          },
+          "404": {
+            "description": "No such schedule owned by this user."
+          }
+        },
+        "operationId": "deleteSchedulesByScheduleId",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Delete a schedule the user owns (hard delete; cascades to its run history).",
+        "x-sdk-name": "schedulesUser.delete"
+      }
+    },
+    "/schedules/{scheduleId}/enable": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Schedule enabled."
+          },
+          "404": {
+            "description": "No such schedule owned by this user."
+          }
+        },
+        "operationId": "postSchedulesByScheduleIdEnable",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Enable a schedule the user owns.",
+        "x-sdk-name": "schedulesUser.enable"
+      }
+    },
+    "/schedules/{scheduleId}/disable": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Schedule disabled."
+          },
+          "404": {
+            "description": "No such schedule owned by this user."
+          }
+        },
+        "operationId": "postSchedulesByScheduleIdDisable",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Disable a schedule the user owns.",
+        "x-sdk-name": "schedulesUser.disable"
+      }
+    },
+    "/schedules/{scheduleId}/runs": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of ScheduleRun (newest first)."
+          },
+          "404": {
+            "description": "No such schedule owned by this user."
+          }
+        },
+        "operationId": "getSchedulesByScheduleIdRuns",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorStartedAt",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorId",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "List a schedule's run history (owner-scoped, newest first, keyset-paginated).",
+        "x-sdk-name": "schedulesUser.listRuns"
+      }
+    },
     "/approvals/pending": {
       "get": {
         "responses": {

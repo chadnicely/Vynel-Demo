@@ -10,6 +10,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   listDueSchedules,
   listSchedulesForWorkspace,
+  listSchedulesForUser,
   claimDueSchedule,
   findScheduleById,
   insertSchedule,
@@ -142,6 +143,21 @@ describe('schedules repository', () => {
       expect(
         listSchedulesForWorkspace(db, { userId: user.id, workspaceId: workspaceB.id }),
       ).toHaveLength(1)
+    })
+  })
+
+  it('listSchedulesForUser returns ALL a user’s schedules (workspace + global), scoped to userId', async () => {
+    await withTestDatabase(async (db) => {
+      const userA = insertUser(db, makeUser())
+      const userB = insertUser(db, makeUser())
+      const workspaceA = insertWorkspace(db, makeWorkspace(userA.id))
+      insertSchedule(db, makeSchedule(userA.id, workspaceA.id)) // workspace-scoped
+      insertSchedule(db, makeSchedule(userA.id, workspaceA.id, { workspaceId: null })) // global
+      insertSchedule(db, makeSchedule(userB.id, workspaceA.id)) // another user's — must be excluded
+      // Both of userA's scopes come back; userB's does not (tenant isolation).
+      expect(listSchedulesForUser(db, { userId: userA.id })).toHaveLength(2)
+      expect(listSchedulesForUser(db, { userId: userB.id })).toHaveLength(1)
+      expect(listSchedulesForUser(db, { userId: randomUUID() })).toHaveLength(0)
     })
   })
 

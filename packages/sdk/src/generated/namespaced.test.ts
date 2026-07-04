@@ -48,6 +48,23 @@ const EXPECTED_CHANNELS_METHODS = [
   'removeAllowedSender',
 ] as const
 
+// The channelsUser namespace's methods, sorted — the USER-scoped `/channels`
+// surface (a user's global + workspace channels alike). Full lifecycle, distinct
+// top namespace from the workspace-scoped `channels.*` (no x-sdk-name collision).
+// Only `list` (list_my_channels) is x-mcp; connect carries the bot token.
+const EXPECTED_CHANNELS_USER_METHODS = [
+  'addAllowedSender',
+  'connect',
+  'disable',
+  'disconnect',
+  'enable',
+  'get',
+  'history',
+  'list',
+  'listAllowedSenders',
+  'removeAllowedSender',
+] as const
+
 // The skills namespace's methods, sorted. The 2 read GETs + the 6
 // mutating lifecycle/settings routes all carry `x-sdk-name` (x-mcp is a
 // separate, narrower opt-in — only the 2 GETs are MCP-exposed).
@@ -84,6 +101,20 @@ const EXPECTED_SCHEDULES_METHODS = [
   'update',
 ] as const
 
+// The schedulesUser namespace's methods, sorted — the USER-scoped `/schedules`
+// surface (a user's global + workspace schedules alike). Distinct top namespace
+// from the workspace-scoped `schedules.*`. `/templates` is omitted (already
+// global via the workspace route). Only `list` (list_my_schedules) is x-mcp.
+const EXPECTED_SCHEDULES_USER_METHODS = [
+  'create',
+  'delete',
+  'disable',
+  'enable',
+  'list',
+  'listRuns',
+  'update',
+] as const
+
 // Build a client stub whose every verb resolves to one canned
 // openapi-fetch result — drives the generated dispatch's success + error branches.
 function clientReturning(result: {
@@ -117,22 +148,26 @@ function capturingClient(): { client: Client<paths>; calls: CapturedCall[] } {
 }
 
 describe('makeNamespaced — shape', () => {
-  it('exposes the knowledge + approvals + skills + channels + marketplace + schedules namespaces with their annotated methods', () => {
+  it('exposes the knowledge + approvals + skills + channels(+User) + marketplace + schedules(+User) namespaces with their annotated methods', () => {
     const sdk = makeNamespaced(stubClient)
     expect(Object.keys(sdk).sort()).toEqual([
       'approvals',
       'channels',
+      'channelsUser',
       'knowledge',
       'marketplace',
       'schedules',
+      'schedulesUser',
       'skills',
     ])
     expect(Object.keys(sdk.knowledge).sort()).toEqual([...EXPECTED_KNOWLEDGE_METHODS])
     expect(Object.keys(sdk.approvals).sort()).toEqual([...EXPECTED_APPROVALS_METHODS])
     expect(Object.keys(sdk.skills).sort()).toEqual([...EXPECTED_SKILLS_METHODS])
     expect(Object.keys(sdk.channels).sort()).toEqual([...EXPECTED_CHANNELS_METHODS])
+    expect(Object.keys(sdk.channelsUser).sort()).toEqual([...EXPECTED_CHANNELS_USER_METHODS])
     expect(Object.keys(sdk.marketplace).sort()).toEqual([...EXPECTED_MARKETPLACE_METHODS])
     expect(Object.keys(sdk.schedules).sort()).toEqual([...EXPECTED_SCHEDULES_METHODS])
+    expect(Object.keys(sdk.schedulesUser).sort()).toEqual([...EXPECTED_SCHEDULES_USER_METHODS])
   })
 
   it('every method is a function', () => {
@@ -142,8 +177,10 @@ describe('makeNamespaced — shape', () => {
       ...Object.values(sdk.approvals),
       ...Object.values(sdk.skills),
       ...Object.values(sdk.channels),
+      ...Object.values(sdk.channelsUser),
       ...Object.values(sdk.marketplace),
       ...Object.values(sdk.schedules),
+      ...Object.values(sdk.schedulesUser),
     ]) {
       expect(typeof method).toBe('function')
     }

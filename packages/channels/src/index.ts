@@ -42,6 +42,23 @@ export { enqueueChannelReply, type EnqueueChannelReplyInput } from './delivery/e
 export { listChannelsForUser } from './queries/list-channels-for-user.js'
 export { sendToChannel, type SendToChannelInput } from './delivery/send-to-channel.js'
 
+// User-scoped single-channel ops — the `/channels` HTTP surface (a user's
+// global + workspace channels alike). Each authorizes by (userId, channelId)
+// via `getChannelForUserOrThrow` — `userId` is the tenant boundary.
+export { getChannelForUserOrThrow } from './queries/get-channel-for-user.js'
+export { setChannelEnabledForUser } from './lifecycle/set-channel-enabled-for-user.js'
+export { disconnectChannelForUser } from './lifecycle/disconnect-channel-for-user.js'
+export {
+  addAllowedSenderForUser,
+  type AddAllowedSenderForUserInput,
+} from './senders/add-allowed-sender-for-user.js'
+export { removeAllowedSenderForUser } from './senders/remove-allowed-sender-for-user.js'
+export { listAllowedSendersForUser } from './senders/list-allowed-senders-for-user.js'
+export {
+  listChannelHistoryForUser,
+  type ListChannelHistoryForUserInput,
+} from './queries/list-channel-history-for-user.js'
+
 // The processing entry point (the api-side service claims + fires it per pending row). The
 // polling / delivery TICK runners are the worker-cron composition bodies — deferred to app-wiring.
 export { processInboundMessage } from './inbound/process-inbound-message.js'

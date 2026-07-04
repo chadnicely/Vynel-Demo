@@ -51,6 +51,23 @@ export function listSchedulesForWorkspace(
     .all()
 }
 
+// All of a user's schedules across every workspace + the global (null-workspace)
+// scope — the user-scoped `/schedules` surface. Filters by userId only (the
+// tenant boundary); workspace scope is not narrowed.
+export function listSchedulesForUser(
+  db: Database,
+  input: { userId: string; limit?: number },
+): Schedule[] {
+  const limit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
+  return db
+    .select()
+    .from(schedules)
+    .where(eq(schedules.userId, input.userId))
+    .orderBy(asc(schedules.createdAt))
+    .limit(limit)
+    .all()
+}
+
 // Guarded UPDATE: advance nextScheduledFireAt to the next slot ONLY if it
 // still equals the value the caller observed. Returns true if THIS caller won
 // the claim (better-sqlite3 reports affected-row count on .run(); >0 means we

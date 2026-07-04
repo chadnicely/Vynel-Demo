@@ -27,6 +27,30 @@ export const CreateScheduleRequestSchema = z.object({
   fireAt: z.string().datetime({ offset: true }).optional(),
 })
 
+// The user-scoped `POST /schedules` body. `scope` discriminates a GLOBAL
+// schedule (no workspace) from a WORKSPACE schedule; the discriminated union
+// makes `workspaceId` REQUIRED in the workspace branch, so the validator
+// rejects a workspace scope missing it with 400 at the boundary — no
+// route-level check. Exposes BOTH `cronExpression` (recurring) and `fireAt`
+// (one-time), like the workspace-scoped create.
+const createScheduleFields = {
+  templateKind: z.enum(['morning-briefing', 'weekly-summary', 'email-watch', 'custom', 'reminder']),
+  displayName: z.string().min(1).max(200).optional(),
+  cronExpression: z.string().min(1).max(120).optional(),
+  timezone: z.string().min(1).max(80).optional(),
+  promptTemplate: z.string().min(1).max(8000).optional(),
+  destinationKind: z.enum(['chat-only', 'chat-and-channel']).optional(),
+  channelId: z.string().min(1).optional(),
+  catchUpOnMiss: z.boolean().optional(),
+  approvalTimeoutMsOverride: z.number().int().positive().optional(),
+  fireAt: z.string().datetime({ offset: true }).optional(),
+}
+
+export const CreateScheduleForUserRequestSchema = z.discriminatedUnion('scope', [
+  z.object({ scope: z.literal('global'), ...createScheduleFields }),
+  z.object({ scope: z.literal('workspace'), workspaceId: z.string().min(1), ...createScheduleFields }),
+])
+
 export const UpdateScheduleRequestSchema = z.object({
   displayName: z.string().min(1).max(200).optional(),
   cronExpression: z.string().min(1).max(120).optional(),
