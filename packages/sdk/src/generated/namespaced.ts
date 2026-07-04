@@ -161,6 +161,22 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  marketplace: {
+  getItem: async (workspaceId: string, itemId: string) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/marketplace/items/{itemId}", {
+      params: { path: { workspaceId: workspaceId, itemId: itemId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listItems: async (workspaceId: string, options?: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/marketplace/items", {
+      params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   schedules: {
   create: async (workspaceId: string, input: NonNullable<paths["/workspaces/{workspaceId}/schedules"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/schedules", {

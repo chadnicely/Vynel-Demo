@@ -70,6 +70,13 @@ working `McpFeatureDescriptor` reference; knowledge/memory/chat each still owe o
 (`surface-up`). Deferred Layer-B vocab: `globalRootSessionId`/`rootSessionId` fields rename when these land.
 
 ## ✅ Recently done (most recent first)
+- **`@vynel/marketplace` vertical + API (autopilot — LAST remaining leaf)** — table-less leaf (flat), install-
+  status coupling to skills DECOUPLED via injection: `MarketplaceDeps.listInstalledSkills` injected by the
+  ROUTE (composition point imports `@vynel/skills`); leaf is PURE (deps=contracts/db/errors, zero skills import).
+  2 GET routes → SDK `client.marketplace.*`; NO x-mcp (reads = join of already-exposed skills tools). Route
+  test's real skills-install is `withHomeDir`-isolated. Gate **1462**; reviewer CLEAN.
+  `.claude/journal/2026-07-04-marketplace-pull.md`. **🏁 ALL 5 REMAINING LEAVES DONE (voice·skills·channels·
+  schedules·marketplace).**
 - **`@vynel/schedules` vertical-slice + DECOUPLE (autopilot, Chad priority #2)** — last big leaf. Schema
   (schedules+schedule-runs) + repos + logic, folded (`lifecycle/firing/queries/rendering`). Decouple:
   `startChatTurn` INJECTED via `FireScheduleDeps` (structural); `ChatTurnEvent`→contracts; **hub reads
@@ -78,7 +85,10 @@ working `McpFeatureDescriptor` reference; knowledge/memory/chat each still owe o
   (`fireAt`+`ONE_TIME_CRON_SENTINEL`, fires-once-disarms) vs recurring (cron); no `scheduleKind` column
   needed (contracts deliberately use the sentinel). drizzle **"No schema changes"**; gate **1412**; reviewer
   CLEAN. **Still owed: workspaceId-nullable scope + schedules CRUD API.** Deferred improve: explicit
-  `scheduleKind` column (Chad's call). `.claude/journal/2026-07-04-schedules-pull.md`.
+  `scheduleKind` column (Chad's call). **scope+API DONE** (`a786cbe`): workspaceId nullable (baseline-folded,
+  tenant-safe null-fire path — reviewer-confirmed no regression); 8 CRUD routes (fire-now DEFERRED to Slice-3),
+  SDK `client.schedules.*` (8), MCP 3 reads; create exposes BOTH fireAt+cron. Gate **1426**; reviewer CLEAN.
+  `.claude/journal/2026-07-04-schedules-pull.md`.
 - **`@vynel/channels` vertical-slice + DECOUPLE (autopilot, Chad priority #1)** — new leaf owning channels
   schema (4 tables) + repos + logic, folded (`lifecycle/senders/queries/inbound/delivery/adapters`).
   **First coupled leaf → real decoupling** (invariant #2): `resolveApproval` now INJECTED via

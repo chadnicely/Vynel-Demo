@@ -99,6 +99,9 @@ importers:
       '@vynel/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
+      '@vynel/marketplace':
+        specifier: workspace:*
+        version: link:../../packages/marketplace
       '@vynel/providers':
         specifier: workspace:*
         version: link:../../packages/providers
@@ -485,6 +488,25 @@ importers:
         specifier: ^9.5.0
         version: 9.14.0
     devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/marketplace:
+    dependencies:
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@vynel/db':
+        specifier: workspace:*
+        version: link:../db
+      '@vynel/errors':
+        specifier: workspace:*
+        version: link:../errors
+    devDependencies:
+      '@vynel/testing':
+        specifier: workspace:*
+        version: link:../testing
       typescript:
         specifier: ^5.6.0
         version: 5.9.3

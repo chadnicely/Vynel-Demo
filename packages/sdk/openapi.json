@@ -1325,6 +1325,132 @@
         "x-sdk-name": "skills.synchronize"
       }
     },
+    "/workspaces/{workspaceId}/marketplace/items": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Annotated marketplace items."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdMarketplaceItems",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "category",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "email",
+                "documents",
+                "calendar",
+                "files",
+                "research",
+                "notes",
+                "context"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "publisherTier",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "anthropic-official",
+                "community"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "installState",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "installed",
+                "not-installed"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "searchQuery",
+            "schema": {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "sortBy",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "recommended",
+                "name-asc",
+                "newest"
+              ]
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List marketplace items annotated with install status.",
+        "x-sdk-name": "marketplace.listItems"
+      }
+    },
+    "/workspaces/{workspaceId}/marketplace/items/{itemId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The annotated marketplace item."
+          },
+          "404": {
+            "description": "Item not in catalog OR workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdMarketplaceItemsByItemId",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Get one marketplace item annotated with install status.",
+        "x-sdk-name": "marketplace.getItem"
+      }
+    },
     "/workspaces/{workspaceId}/channels": {
       "get": {
         "responses": {

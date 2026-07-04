@@ -62,6 +62,12 @@ const EXPECTED_SKILLS_METHODS = [
   'updateSettings',
 ] as const
 
+// The marketplace namespace's methods, sorted. Two read GETs
+// (listItems / getItem) carry `x-sdk-name`; NEITHER carries x-mcp (D9 —
+// marketplace's reads are the join of skills' already-exposed
+// list_available + list_installed tools, redundant for the LLM).
+const EXPECTED_MARKETPLACE_METHODS = ['getItem', 'listItems'] as const
+
 // The schedules namespace's methods, sorted. The 3 read GETs (list /
 // listTemplates / listRuns) + the 5 mutating lifecycle routes all carry
 // `x-sdk-name`; x-mcp is the narrower opt-in (only the 3 GETs are exposed).
@@ -111,12 +117,13 @@ function capturingClient(): { client: Client<paths>; calls: CapturedCall[] } {
 }
 
 describe('makeNamespaced — shape', () => {
-  it('exposes the knowledge + approvals + skills + channels + schedules namespaces with their annotated methods', () => {
+  it('exposes the knowledge + approvals + skills + channels + marketplace + schedules namespaces with their annotated methods', () => {
     const sdk = makeNamespaced(stubClient)
     expect(Object.keys(sdk).sort()).toEqual([
       'approvals',
       'channels',
       'knowledge',
+      'marketplace',
       'schedules',
       'skills',
     ])
@@ -124,6 +131,7 @@ describe('makeNamespaced — shape', () => {
     expect(Object.keys(sdk.approvals).sort()).toEqual([...EXPECTED_APPROVALS_METHODS])
     expect(Object.keys(sdk.skills).sort()).toEqual([...EXPECTED_SKILLS_METHODS])
     expect(Object.keys(sdk.channels).sort()).toEqual([...EXPECTED_CHANNELS_METHODS])
+    expect(Object.keys(sdk.marketplace).sort()).toEqual([...EXPECTED_MARKETPLACE_METHODS])
     expect(Object.keys(sdk.schedules).sort()).toEqual([...EXPECTED_SCHEDULES_METHODS])
   })
 
@@ -134,6 +142,7 @@ describe('makeNamespaced — shape', () => {
       ...Object.values(sdk.approvals),
       ...Object.values(sdk.skills),
       ...Object.values(sdk.channels),
+      ...Object.values(sdk.marketplace),
       ...Object.values(sdk.schedules),
     ]) {
       expect(typeof method).toBe('function')

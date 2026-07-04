@@ -255,6 +255,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/marketplace/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List marketplace items annotated with install status. */
+        get: operations["getWorkspacesByWorkspaceIdMarketplaceItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/marketplace/items/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one marketplace item annotated with install status. */
+        get: operations["getWorkspacesByWorkspaceIdMarketplaceItemsByItemId"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/channels": {
         parameters: {
             query?: never;
@@ -1152,6 +1186,67 @@ export interface operations {
         responses: {
             /** @description { healthyCount, missingOnDiskCount, externalDiscoveredCount }. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdMarketplaceItems: {
+        parameters: {
+            query?: {
+                category?: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context";
+                publisherTier?: "verified" | "anthropic-official" | "community";
+                installState?: "installed" | "not-installed";
+                searchQuery?: string;
+                sortBy?: "recommended" | "name-asc" | "newest";
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Annotated marketplace items. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdMarketplaceItemsByItemId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                itemId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The annotated marketplace item. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Item not in catalog OR workspace not found. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
