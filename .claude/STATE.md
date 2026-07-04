@@ -16,6 +16,12 @@ deferred legibility improve, Chad's call).
 
 **The APIs Chad can build UI on now** (typed SDK, `apps/local-api`): `client.skills.*` (8) · `client.channels.*`
 (9) · `client.schedules.*` (8) · `client.marketplace.*` (2). All workspace-scoped under `/workspaces/:id/…`.
+**✅ BOOT-SMOKE VERIFIED** (not just `pnpm test`): `pnpm --filter @vynel/local-api dev` boots clean (migrations
+run, DB created), `GET /openapi.json` → 200, all 34 new routes live in the spec, marketplace→skills composes at
+boot. **Boot prereq (papercut):** the default `DB_PATH=.data/vynel.dev.db` dir must EXIST first — better-sqlite3
+won't mkdir it. I created `.data/` (gitignored, so it's there on this machine); a fresh clone needs `mkdir .data`
+first. Cheap real fix (deferred, out of mission scope): `mkdirSync(dirname(path),{recursive:true})` in
+`packages/db/src/client.ts createSqliteDatabase`.
 
 **Deferred to the session Slice-3 app-wiring** (the SAME app-wiring already owed for delegation SSE sinks;
 they compose env-coupled/turn-firing machinery a leaf can't own — NOT gaps, deliberate deferrals):
@@ -25,8 +31,14 @@ they compose env-coupled/turn-firing machinery a leaf can't own — NOT gaps, de
   lands as 1 route + a `FireScheduleDeps` binding.
 - **Injection-cast reconciliation** at wiring: channels `resolveApproval` (workspaceId string→user-scope adapter),
   the contracts-`ChatTurnEvent` (wire) → runtime-event cast at the polling tick.
-- **Global-scope CREATE routes** (a user-scoped `/channels` + `/schedules` connect/create) — the schema + core
-  ops already accept null workspaceId; only a route surface is missing (Chad decides global-create UX).
+- **⚠ Global scope is SCHEMA-READY but NOT YET API-REACHABLE** (Chad — this is the consequence of your
+  global-or-workspace note). The schema + core ops accept null `workspaceId`, BUT the channels/schedules HTTP
+  routes are ALL workspace-scoped: `create` takes `workspaceId` from the URL path, and `list` filters
+  `WHERE workspaceId = ?`. So via the API you'll build UI on, a **global** channel/schedule is currently
+  **uncreatable and invisible** — a "remind me in 20 min" global reminder can't be made through the API yet.
+  Cheap close (when you decide the UX): a user-scoped `/channels` + `/schedules` create/list, using knowledge's
+  in-repo precedent — a `scope: 'global'|'workspace'` body param → `scope === 'global' ? null : workspaceId`
+  (see `apps/local-api/src/routes/knowledge` `POST /sources`). Small change; the data model is already there.
 - The cross-feature `schedule-channel-delivery.integration.test` (relocate to the app composition layer).
 - **CLI commands** for the 4 features (deferred mission-wide — a nicety, not UI/parity-critical; mirror
   `apps/cli/src/knowledge-commands.ts`).
