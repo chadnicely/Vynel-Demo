@@ -4,17 +4,17 @@
 // Spec: `docs/blueprints/channels/blueprint.md §4`.
 
 import { and, asc, eq, isNull } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   channelUserLinks,
   type ChannelUserLink,
   type NewChannelUserLink,
-} from '../../schema/channels/channel-user-links.js'
+} from '../schema/channel-user-links.js'
 
 export type {
   ChannelUserLink,
   NewChannelUserLink,
-} from '../../schema/channels/channel-user-links.js'
+} from '../schema/channel-user-links.js'
 
 // The allowlist check — used by the polling tick to classify a sender.
 // scopeContextId may be null (uses IS NULL); in Phase 1 Telegram DMs it

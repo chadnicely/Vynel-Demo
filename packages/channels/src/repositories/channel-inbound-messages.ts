@@ -5,21 +5,21 @@
 // Spec: `docs/blueprints/channels/blueprint.md §4` + `coding.md §6`.
 
 import { and, asc, desc, eq, inArray, isNotNull, lt, or } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   channelInboundMessages,
   type ChannelInboundMessage,
   type NewChannelInboundMessage,
   type InboundIntentKind,
   type InboundMessageStatus,
-} from '../../schema/channels/channel-inbound-messages.js'
+} from '../schema/channel-inbound-messages.js'
 
 export type {
   ChannelInboundMessage,
   NewChannelInboundMessage,
   InboundIntentKind,
   InboundMessageStatus,
-} from '../../schema/channels/channel-inbound-messages.js'
+} from '../schema/channel-inbound-messages.js'
 
 const DEFAULT_HISTORY_LIMIT = 50
 const MAX_HISTORY_LIMIT = 100

@@ -4,20 +4,20 @@
 // Spec: `docs/blueprints/channels/blueprint.md §4`.
 
 import { and, asc, inArray, eq, lt, lte } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   channelMessageQueue,
   type ChannelMessageQueueEntry,
   type NewChannelMessageQueueEntry,
   type OutboundMessageStatus,
-} from '../../schema/channels/channel-message-queue.js'
+} from '../schema/channel-message-queue.js'
 
 export type {
   ChannelMessageQueueEntry,
   NewChannelMessageQueueEntry,
   OutboundPayloadKind,
   OutboundMessageStatus,
-} from '../../schema/channels/channel-message-queue.js'
+} from '../schema/channel-message-queue.js'
 
 const DEFAULT_READY_LIMIT = 50
 const MAX_READY_LIMIT = 100

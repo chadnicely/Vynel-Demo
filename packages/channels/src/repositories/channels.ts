@@ -5,14 +5,14 @@
 // Spec: `docs/blueprints/channels/blueprint.md §4`.
 
 import { asc, eq } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   channels,
   type Channel,
   type NewChannel,
   type ChannelKind,
   type ChannelConnectionStatus,
-} from '../../schema/channels/channels.js'
+} from '../schema/channels.js'
 
 // Re-export row + union types so `@vynel/core/channels` imports them via
 // `@vynel/db/repositories/channels` (the workspaces/chat repo precedent).
@@ -21,7 +21,7 @@ export type {
   NewChannel,
   ChannelKind,
   ChannelConnectionStatus,
-} from '../../schema/channels/channels.js'
+} from '../schema/channels.js'
 
 // Bounded list (1–3 channels/user in Phase 1) but capped defensively per
 // coding-standard.md "Structure / patterns".

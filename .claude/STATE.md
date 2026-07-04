@@ -70,6 +70,14 @@ working `McpFeatureDescriptor` reference; knowledge/memory/chat each still owe o
 (`surface-up`). Deferred Layer-B vocab: `globalRootSessionId`/`rootSessionId` fields rename when these land.
 
 ## ✅ Recently done (most recent first)
+- **`@vynel/channels` vertical-slice + DECOUPLE (autopilot, Chad priority #1)** — new leaf owning channels
+  schema (4 tables) + repos + logic, folded (`lifecycle/senders/queries/inbound/delivery/adapters`).
+  **First coupled leaf → real decoupling** (invariant #2): `resolveApproval` now INJECTED via
+  `ProcessInboundDeps` (structural, like runRootTurn); `ChatTurnEvent` rewired to `@vynel/contracts/chat`
+  (verified no Date/string bug); poll-tick runners (`run-channel-{polling,delivery}-tick`) DEFERRED to
+  app-wiring (orchestration precedent). Tests converted `vi.mock`→injection, assertions unchanged. drizzle
+  **"No schema changes"**; gate **1380**; reviewer CLEAN; zero sibling-leaf runtime import. **Still owed:
+  workspaceId-nullable scope improve + channels CRUD API.** `.claude/journal/2026-07-04-channels-pull.md`.
 - **`@vynel/skills` vertical-slice (autopilot)** — new leaf owning skills schema+repos+logic, folded
   memory-style (`schema/`·`repositories/`·`lifecycle/`·`settings/`·`queries/`·`internal/`). Schema+repos
   git-mv'd from kernel; logic from source `core/src/skills/`. Leaf-clean (kernel+shared+contracts+

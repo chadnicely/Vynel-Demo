@@ -16,8 +16,8 @@
 // `lastPolledCursor` is the opaque per-channel poll cursor (OQ-2).
 
 import { table, id, text, timestamp, boolean, index } from '@vynel/db/dialect'
-import { users } from '../users/users.js'
-import { workspaces } from '../workspaces/workspaces.js'
+import { users } from '@vynel/db/schema/users'
+import { workspaces } from '@vynel/db/schema/workspaces'
 
 export type ChannelKind = 'telegram' | 'discord' // discord = Phase 1.5
 
