@@ -17,7 +17,7 @@ import type {
   AgentEffort,
   AgentPermissionMode,
 } from '@vynel/db/repositories/agents'
-import type { StructuralLogger } from './agents-types.js'
+import type { StructuralLogger } from '../agents-types.js'
 
 export type UpdateAgentInput = {
   agentId: string

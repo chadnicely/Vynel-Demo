@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { createAgent, type CreateAgentInput } from './create-agent.js'
+import { createAgent, type CreateAgentInput } from '../lifecycle/create-agent.js'
 import { resolveEnabledAgentsForSession } from './resolve-enabled-agents-for-session.js'
 
 function makeUser(id: string = randomUUID()) {

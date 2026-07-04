@@ -6,7 +6,7 @@
 import type { Database } from '@vynel/db'
 import { NotFoundError } from '@vynel/errors'
 import * as agentsRepository from '@vynel/db/repositories/agents'
-import type { StructuralLogger } from './agents-types.js'
+import type { StructuralLogger } from '../agents-types.js'
 
 export type SoftDeleteAgentInput = {
   agentId: string

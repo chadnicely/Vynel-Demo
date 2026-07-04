@@ -16,7 +16,7 @@
 import type { AgentDefinition } from '@anthropic-ai/claude-agent-sdk'
 import type { Database } from '@vynel/db'
 import * as agentsRepository from '@vynel/db/repositories/agents'
-import { mapAgentToDefinition } from './internal/map-agent-to-definition.js'
+import { mapAgentToDefinition } from '../internal/map-agent-to-definition.js'
 
 export type ResolveEnabledAgentsForSessionInput = {
   userId: string

@@ -14,7 +14,7 @@ import type { Database } from '@vynel/db'
 import { NotFoundError } from '@vynel/errors'
 import { findCuratedAgentBySlug } from '@vynel/contracts/agents/curated-agents/curated-agent-catalog'
 import { createAgent, type CreateAgentInput } from './create-agent.js'
-import type { AgentRow, StructuralLogger } from './agents-types.js'
+import type { AgentRow, StructuralLogger } from '../agents-types.js'
 
 export type InstallCuratedAgentInput = {
   userId: string

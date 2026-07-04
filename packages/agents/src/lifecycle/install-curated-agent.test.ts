@@ -11,7 +11,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { listSkillIdsForAgent } from '@vynel/db/repositories/agents'
 import { NotFoundError } from '@vynel/errors'
 import { installCuratedAgent } from './install-curated-agent.js'
-import { resolveEnabledAgentsForSession } from './resolve-enabled-agents-for-session.js'
+import { resolveEnabledAgentsForSession } from '../session/resolve-enabled-agents-for-session.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
