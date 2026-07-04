@@ -27,6 +27,7 @@
     "@vynel/marketplace": "workspace:*",
     "@vynel/mcp": "workspace:*",
     "@vynel/mcp-contract": "workspace:*",
+    "@vynel/orchestration": "workspace:*",
     "@vynel/providers": "workspace:*",
     "@vynel/schedules": "workspace:*",
     "@vynel/session": "workspace:*",

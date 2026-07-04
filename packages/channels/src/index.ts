@@ -59,8 +59,10 @@ export {
   type ListChannelHistoryForUserInput,
 } from './queries/list-channel-history-for-user.js'
 
-// The processing entry point (the api-side service claims + fires it per pending row).
+// The processing entry point (the api-side service claims + fires it per pending row),
+// plus the pending-row list the service drains each processing tick to find work.
 export { processInboundMessage } from './inbound/process-inbound-message.js'
+export { listPendingInboundMessages } from './repositories/index.js'
 
 // The two channel ticks that do NOT run a turn — the api-side channels service drives them on
 // its poll(5s) / deliver(2s) timers. Polling fetches inbound messages from the channel adapter

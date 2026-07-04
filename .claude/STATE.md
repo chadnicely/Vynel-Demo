@@ -69,10 +69,17 @@ Clearing every deferred item. Progress (TaskList #7-13):
 - ✅ **Channel poll + delivery ticks (11a)** — ported `run-channel-polling-tick` + `run-channel-delivery-tick`
   to `@vynel/channels` (were deferred); `startChannelsService` boot service runs poll(5s)+deliver(2s), errors
   scrubbed via `extractErrorMessage` (+ token-scrub regression tests). Leaf pure. Gate **1561**; reviewer CLEAN.
-- ⏳ next: **channel inbound-PROCESSING (11b)** — the deep piece: `run-global-root-turn.ts` (runGlobalRootTurnCore
-  + composeSessionMcpServers([vynelRoutingDescriptor]) + wrapAppRequestWithOrigin + drain sink) + resolve-global-
-  root-conversation + global-root-workspace + delegation-origin-header (Slice-3 edge, several files) + the
-  processing setInterval. Then CLI · cleanups.
+- ✅ **Channel inbound-PROCESSING (11b) WIRED** — ported the global-root turn EDGE into apps/local-api/src/sessions/
+  (`run-global-root-turn` + drain sink · `resolve-global-root-conversation` [root→primary rename] · `global-root-
+  workspace` · `delegation-origin-header`) + the channels-service processing loop (turnDeps: runRootTurn→
+  runGlobalRootTurn, resolveApproval from @vynel/approvals). A channel message → global-root turn (routing-toolless
+  direct answer today) → reply. My backend slice GREEN (59/59 backend typecheck · full vitest **1571** · parity);
+  reviewer CLEAN. Desktop de-scoped (KLONE boots no desktop reader). Deferred-improve: failed turn is silent to the
+  channel SENDER (marked failed+logged, but no error status enqueued back — small UX add in route-as-chat-turn).
+- ⚠ **FULL `pnpm test` is RED at typecheck — ONLY on Chad's `@vynel/local-web`/`@vynel/ui` UI WIP** (uncommitted;
+  broken component types, e.g. MenuListView.vue missing). NOT my code (backend 59/59 green). Chad must fix his UI
+  types for the combined gate to go green. Backend commits verified via `--filter=!local-web --filter=!ui`.
+- ⏳ next: CLI · cleanups (.data mkdir + stale comments + integration-test relocation).
 
 ## ⚠ PARALLEL UI WORK IN TREE (2026-07-05) — coordinate
 Chad has an UNCOMMITTED desktop-UI milestone in the working tree: `apps/local-web/`, `packages/ui/`

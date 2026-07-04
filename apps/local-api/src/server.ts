@@ -47,11 +47,12 @@ export async function boot(): Promise<void> {
   // headless workspace turn. MCP-intrinsic, so it lives in the api process (not
   // the worker). Stopped on shutdown, like the file watcher.
   const schedulesService = await startSchedulesService({ db, logger, appRequest })
-  // The channel poll(5s) / deliver(2s) loops — fetch inbound messages from each
-  // enabled channel's adapter and persist them; send queued outbound messages.
-  // Sub-minute cadence, so it lives in the api process (not the worker). The
-  // inbound-PROCESSING loop (a global-root turn) is a separate follow-on.
-  const channelsService = startChannelsService({ db, logger })
+  // The channel poll(5s) / process(1s) / deliver(2s) loops — fetch inbound messages
+  // from each enabled channel's adapter and persist them; run a global-root turn per
+  // pending inbound message and queue the answer; send queued outbound messages.
+  // Sub-minute cadence + MCP-intrinsic processing, so it lives in the api process
+  // (not the worker); `appRequest` re-enters the api from each processing turn.
+  const channelsService = startChannelsService({ db, logger, appRequest })
 
   // Bind to loopback only in Phase 1 — the local API is unauthenticated.
   const server = serve({ fetch: app.fetch, hostname: '127.0.0.1', port: env.PORT }, (info) => {
