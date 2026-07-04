@@ -6,13 +6,21 @@
 import { Command } from 'commander'
 import type { VynelClient } from '@vynel/sdk'
 import { registerKnowledgeCommands } from './knowledge-commands.js'
+import { registerSkillsCommands } from './skills-commands.js'
+import { registerChannelsCommands } from './channels-commands.js'
+import { registerSchedulesCommands } from './schedules-commands.js'
+import { registerMarketplaceCommands } from './marketplace-commands.js'
 
 export function buildProgram(getClient: () => VynelClient): Command {
   const program = new Command()
   program
     .name('vynel')
-    .description('Vynel CLI — knowledge search + inspection over the local API.')
+    .description('Vynel CLI — knowledge, skills, channels, schedules + marketplace over the local API.')
     .version('0.0.0')
   registerKnowledgeCommands(program, getClient)
+  registerSkillsCommands(program, getClient)
+  registerChannelsCommands(program, getClient)
+  registerSchedulesCommands(program, getClient)
+  registerMarketplaceCommands(program, getClient)
   return program
 }
