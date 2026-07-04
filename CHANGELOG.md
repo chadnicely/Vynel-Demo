@@ -16,3 +16,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   (Slice 2a) + workspace machinery + resolvers + composers + continuity.
 - **`@vynel/chat/repositories`** subpath export — surfaces the chat repositories for cross-package composition
   by the session tier, the faithful analog of the former kernel `@vynel/db/repositories/chat`.
+- **Global approval queue — backend foundation** (`@vynel/approvals`). Global-root ("brain") approval cards now
+  **persist** (they were previously dropped and lost to the stream — the root cause of stuck/never-shown
+  approvals); `listPendingApprovalsForUser` lists every pending card for a user across all sessions/workspaces +
+  the brain; and `resolveApproval` is **user-scoped**, so a workspace-less card can be answered from any surface
+  rather than only timing out. This is the backend the "answer approvals from any screen" experience runs on
+  (the HTTP routes + notification UI arrive with `apps/api`).
+
+### Changed
+
+- `@vynel/approvals` now owns its schema + repositories (moved from the `@vynel/db` kernel — the vertical-slice
+  shape). `approval_requests.workspaceId` is now nullable (holds workspace-less brain cards). Behavior-neutral
+  schema relocation (drizzle "No schema changes").

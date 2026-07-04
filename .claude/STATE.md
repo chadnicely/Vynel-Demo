@@ -4,7 +4,7 @@
 memories (`vynel-vision-and-old-project-lesson` = the founding vision + old-project scatter we must NOT
 repeat; `vynel-rebuild-plan`; `worktree-fanout-isolation`). State lives on disk, not chat.
 
-## ⏭ NEXT ACTION: `@vynel/session` PACKAGE DONE (2a+2b) — Slice 3 (app-wiring) deferred to `apps/api`; pick the next module
+## ⏭ NEXT ACTION: pick the next module — `apps/api` (lights up the visible approval queue + session Slice 3) OR more leaves / improve-queue
 **Full plan + the reframing + the architecture decision: `docs/module-notes/session.md` (read it first).**
 
 **The keystone is SMALLER than STATE assumed.** The source already did its hard refactor (B0–B2b: SessionSink,
@@ -56,7 +56,16 @@ working `McpFeatureDescriptor` reference; knowledge/memory/chat each still owe o
 (`surface-up`). Deferred Layer-B vocab: `globalRootSessionId`/`rootSessionId` fields rename when these land.
 
 ## ✅ Recently done (most recent first)
-- **`@vynel/session` Slice 2b — the workspace turn machinery (commit pending, local)** — lifted `start-chat-turn`
+- **`@vynel/approvals` A+B — global approval-queue backend foundation (Chad's "approval" module)** — **A `0fe8192`**
+  vertical-slice (schema+repos kernel→package, drizzle "No schema changes"); **B (commit pending)** the global-queue
+  data layer: `approval_requests.workspaceId` nullable (baseline-folded) so brain/global-root cards PERSIST (were
+  dropped — the stuck-card root cause); `listPendingApprovalsForUser` (user-scoped global pending); `resolveApproval`
+  user-scoped (`workspaceId` dropped from the contract, userId-only guard) so a brain card can be ANSWERED, not just
+  time out. Green (drizzle "No schema changes", vitest 1186, +4); reviewer MUST-FIX (half-widened resolve) CLOSED.
+  Backend only — routes/UI/`SessionSink` seam wait on `apps/api` (Chad chose "backend foundation" scope; the seam's
+  **notify-not-deny for top-level** decision is recorded). `docs/module-notes/approvals.md` +
+  `.claude/journal/2026-07-04-approvals-backend.md`.
+- **`@vynel/session` Slice 2b — the workspace turn machinery `9825f68`+`87a6868` (local)** — lifted `start-chat-turn`
   (workspace runner) + `run-seeded-swap-session` + `resolve-primary-conversation` + `apply-primary-turn-continuity` +
   `bridge-primary-session-after-turn` + `compose-session-capabilities` (+ `vynel-agent-instructions`) +
   `test-support/fake-ai-agent-provider` into `runtime/`. MCP composer + global-root resolver + `global-root-workspace`
