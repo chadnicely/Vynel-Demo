@@ -4,8 +4,22 @@
 memories (`vynel-vision-and-old-project-lesson` = the founding vision + old-project scatter we must NOT
 repeat; `vynel-rebuild-plan`; `worktree-fanout-isolation`). State lives on disk, not chat.
 
-## ⏭ NEXT ACTION: pull 3 more packages from the old repo (Chad's next, post-compact) — the approval-queue HTTP surface just landed in `apps/local-api`
-**Full plan + the reframing + the architecture decision: `docs/module-notes/session.md` (read it first).**
+## ⏭ NEXT ACTION (AUTOPILOT MISSION, 2026-07-04): remaining leaves, per-feature vertical, then shutdown
+**Chad launched an autopilot: complete the last leaves (voice ✅ · marketplace · skills · channels ·
+schedules) as PER-FEATURE VERTICALS (pull → scope/kind improve → routes → SDK/MCP → CLI → green →
+commit), then shut the computer down.** Order is achievable-first (all 5 have CLEAN production code —
+recon proved zero sibling-leaf imports; the only cross-feature coupling is ONE test,
+`schedule-channel-delivery.integration.test.ts`, which relocates to the app layer at the schedules
+pull). Chad's two notes = deliberate schema improves AFTER each faithful green pull:
+- **scope global-or-workspace** for schedules + channels → `workspaceId` nullable (approvals precedent,
+  baseline-folded, pre-release zero-data).
+- **schedule kinds** repeat vs one-time → add `scheduleKind` + nullable `cronExpression`; one-time
+  fires once then `isEnabled=false` (the ONLY behavioral fork in the fire-tick). `@vynel/contracts`
+  already carries `schedules/one-time` schemas — reuse them.
+Guardrails (advisor-vetted): main loop holds diff-check + full gate + code-reviewer + commit + shutdown;
+subagents do heavy file work on the main tree (no worktrees); never commit on red; STATE every module;
+channels serializer strips `botCredentials`, no x-mcp on credential/connect paths. voice = no API.
+Progress: TaskList #1-6. **Full plan + the reframing + the architecture decision: `docs/module-notes/session.md`.**
 
 **The keystone is SMALLER than STATE assumed.** The source already did its hard refactor (B0–B2b: SessionSink,
 global-root twin collapsed, global-root runner relocated) and **dropped the "one generic runner" goal** as
@@ -56,6 +70,12 @@ working `McpFeatureDescriptor` reference; knowledge/memory/chat each still owe o
 (`surface-up`). Deferred Layer-B vocab: `globalRootSessionId`/`rootSessionId` fields rename when these land.
 
 ## ✅ Recently done (most recent first)
+- **`@vynel/voice` leaf pulled (autopilot warmup)** — stateless voice-relay core (ack-library,
+  audio-segmenter, barge-in, relay-task-notifier, sentence-buffer, summarize-turn-for-voice,
+  turn-taking-gate, wake-word) moved byte-faithfully from `core/src/voice/`; owns no tables; sole dep
+  `@vynel/providers` (type-only `NormalizedSessionEvent`). Flat (no fold, correct). No HTTP surface.
+  Green — full gate **1241 passed / 4 skipped** (+48); reviewer CLEAN; byte-faithful proven.
+  `.claude/journal/2026-07-04-voice-pull.md`.
 - **Approval queue HTTP surface in `apps/local-api` (`f2d7db2`)** — the first user-scoped routes: `GET
   /approvals/pending` (→ `listPendingApprovalsForUser`, the global queue) + `POST /approvals/:providerApprovalId/decide`
   (→ `resolveApproval`; 404/409 via global onError). Responses CAST from `@vynel/contracts` `ApprovalRequestResponse`
