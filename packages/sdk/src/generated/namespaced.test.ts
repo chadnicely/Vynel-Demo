@@ -32,6 +32,22 @@ const EXPECTED_KNOWLEDGE_METHODS = [
 // The approvals namespace's methods (the global-queue surface), sorted.
 const EXPECTED_APPROVALS_METHODS = ['decide', 'listPending'] as const
 
+// The channels namespace's methods, sorted. The 2 read GETs (list /
+// listAllowedSenders) + the 7 mutating lifecycle/allowlist routes all carry
+// `x-sdk-name`; x-mcp is the narrower opt-in (only the 2 GETs are exposed —
+// connect carries the bot token and is never an MCP tool).
+const EXPECTED_CHANNELS_METHODS = [
+  'addAllowedSender',
+  'connect',
+  'disable',
+  'disconnect',
+  'enable',
+  'history',
+  'list',
+  'listAllowedSenders',
+  'removeAllowedSender',
+] as const
+
 // The skills namespace's methods, sorted. The 2 read GETs + the 6
 // mutating lifecycle/settings routes all carry `x-sdk-name` (x-mcp is a
 // separate, narrower opt-in — only the 2 GETs are MCP-exposed).
@@ -79,12 +95,13 @@ function capturingClient(): { client: Client<paths>; calls: CapturedCall[] } {
 }
 
 describe('makeNamespaced — shape', () => {
-  it('exposes the knowledge + approvals + skills namespaces with their annotated methods', () => {
+  it('exposes the knowledge + approvals + skills + channels namespaces with their annotated methods', () => {
     const sdk = makeNamespaced(stubClient)
-    expect(Object.keys(sdk).sort()).toEqual(['approvals', 'knowledge', 'skills'])
+    expect(Object.keys(sdk).sort()).toEqual(['approvals', 'channels', 'knowledge', 'skills'])
     expect(Object.keys(sdk.knowledge).sort()).toEqual([...EXPECTED_KNOWLEDGE_METHODS])
     expect(Object.keys(sdk.approvals).sort()).toEqual([...EXPECTED_APPROVALS_METHODS])
     expect(Object.keys(sdk.skills).sort()).toEqual([...EXPECTED_SKILLS_METHODS])
+    expect(Object.keys(sdk.channels).sort()).toEqual([...EXPECTED_CHANNELS_METHODS])
   })
 
   it('every method is a function', () => {
@@ -93,6 +110,7 @@ describe('makeNamespaced — shape', () => {
       ...Object.values(sdk.knowledge),
       ...Object.values(sdk.approvals),
       ...Object.values(sdk.skills),
+      ...Object.values(sdk.channels),
     ]) {
       expect(typeof method).toBe('function')
     }

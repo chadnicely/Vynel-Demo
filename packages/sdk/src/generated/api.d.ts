@@ -255,6 +255,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List connected channels for the workspace (owner-scoped; credentials excluded). */
+        get: operations["getWorkspacesByWorkspaceIdChannels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/channels/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Connect a bot to the workspace (verifies the token before persisting). */
+        post: operations["postWorkspacesByWorkspaceIdChannelsConnect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/channels/{channelId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Disconnect a channel — hard-deletes it and cascades inbound/queue/allowlist rows. */
+        delete: operations["deleteWorkspacesByWorkspaceIdChannelsByChannelId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/channels/{channelId}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable a channel (resume polling). */
+        post: operations["postWorkspacesByWorkspaceIdChannelsByChannelIdEnable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/channels/{channelId}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable a channel (pause polling). */
+        post: operations["postWorkspacesByWorkspaceIdChannelsByChannelIdDisable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/channels/{channelId}/allowed-senders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the allowed senders (allowlist) for a channel (owner-scoped). */
+        get: operations["getWorkspacesByWorkspaceIdChannelsByChannelIdAllowed-senders"];
+        put?: never;
+        /** Add an allowed sender to a channel. */
+        post: operations["postWorkspacesByWorkspaceIdChannelsByChannelIdAllowed-senders"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/channels/{channelId}/allowed-senders/{senderLinkId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an allowed sender from a channel. */
+        delete: operations["deleteWorkspacesByWorkspaceIdChannelsByChannelIdAllowed-sendersBySenderLinkId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/channels/{channelId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a channel’s inbound message history (keyset cursor-paginated). */
+        get: operations["getWorkspacesByWorkspaceIdChannelsByChannelIdHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/approvals/pending": {
         parameters: {
             query?: never;
@@ -911,6 +1048,289 @@ export interface operations {
         responses: {
             /** @description { healthyCount, missingOnDiskCount, externalDiscoveredCount }. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdChannels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of Channel (without bot credentials). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdChannelsConnect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    channelKind: "telegram" | "discord";
+                    displayName: string;
+                    botCredentials: {
+                        [key: string]: string;
+                    };
+                    initialAllowedSenderId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Channel connected (credentials excluded). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bot token invalid or unsupported channel kind. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteWorkspacesByWorkspaceIdChannelsByChannelId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Channel disconnected. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdChannelsByChannelIdEnable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated Channel. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdChannelsByChannelIdDisable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated Channel. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "getWorkspacesByWorkspaceIdChannelsByChannelIdAllowed-senders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of ChannelUserLink. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postWorkspacesByWorkspaceIdChannelsByChannelIdAllowed-senders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    externalSenderId: string;
+                    externalSenderHandle?: string;
+                    externalSenderDisplayName?: string;
+                    scopeContextId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description ChannelUserLink. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "deleteWorkspacesByWorkspaceIdChannelsByChannelIdAllowed-sendersBySenderLinkId": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+                senderLinkId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sender removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdChannelsByChannelIdHistory: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursorReceivedAt?: number;
+                cursorId?: string;
+            };
+            header?: never;
+            path: {
+                channelId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of ChannelInboundMessage (newest first). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such channel in this workspace. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

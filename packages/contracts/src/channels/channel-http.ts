@@ -19,7 +19,10 @@ export type ChannelConnectionStatus =
 export interface ChannelResponse {
   id: string
   userId: string
-  workspaceId: string
+  // Nullable: NULL = global scope (a user-level channel with no workspace);
+  // a non-null value scopes it to that workspace (mirrors the `channels`
+  // schema, where `workspaceId` is nullable).
+  workspaceId: string | null
   channelKind: ChannelKind
   displayName: string
   botMetadata: Record<string, unknown>

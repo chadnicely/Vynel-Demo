@@ -1325,6 +1325,429 @@
         "x-sdk-name": "skills.synchronize"
       }
     },
+    "/workspaces/{workspaceId}/channels": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of Channel (without bot credentials)."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdChannels",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List connected channels for the workspace (owner-scoped; credentials excluded).",
+        "x-sdk-name": "channels.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_channels",
+          "description": "List the connected messaging channels for the active workspace (owner-scoped). Returns each channel WITHOUT its bot credentials. Read-only."
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/channels/connect": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Channel connected (credentials excluded)."
+          },
+          "400": {
+            "description": "Bot token invalid or unsupported channel kind."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdChannelsConnect",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Connect a bot to the workspace (verifies the token before persisting).",
+        "x-sdk-name": "channels.connect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channelKind": {
+                    "type": "string",
+                    "enum": [
+                      "telegram",
+                      "discord"
+                    ]
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "botCredentials": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "initialAllowedSenderId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "channelKind",
+                  "displayName",
+                  "botCredentials"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/channels/{channelId}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Channel disconnected."
+          },
+          "404": {
+            "description": "No such channel in this workspace."
+          }
+        },
+        "operationId": "deleteWorkspacesByWorkspaceIdChannelsByChannelId",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Disconnect a channel — hard-deletes it and cascades inbound/queue/allowlist rows.",
+        "x-sdk-name": "channels.disconnect"
+      }
+    },
+    "/workspaces/{workspaceId}/channels/{channelId}/enable": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Updated Channel."
+          },
+          "404": {
+            "description": "No such channel in this workspace."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdChannelsByChannelIdEnable",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Enable a channel (resume polling).",
+        "x-sdk-name": "channels.enable"
+      }
+    },
+    "/workspaces/{workspaceId}/channels/{channelId}/disable": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Updated Channel."
+          },
+          "404": {
+            "description": "No such channel in this workspace."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdChannelsByChannelIdDisable",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Disable a channel (pause polling).",
+        "x-sdk-name": "channels.disable"
+      }
+    },
+    "/workspaces/{workspaceId}/channels/{channelId}/allowed-senders": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of ChannelUserLink."
+          },
+          "404": {
+            "description": "No such channel in this workspace."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdChannelsByChannelIdAllowed-senders",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List the allowed senders (allowlist) for a channel (owner-scoped).",
+        "x-sdk-name": "channels.listAllowedSenders",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_allowed_senders",
+          "description": "List the external senders allowed to message a connected channel (owner-scoped — 404 if the channel is not in the active workspace). Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "ChannelUserLink."
+          },
+          "404": {
+            "description": "No such channel in this workspace."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdChannelsByChannelIdAllowed-senders",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Add an allowed sender to a channel.",
+        "x-sdk-name": "channels.addAllowedSender",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "externalSenderId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "externalSenderHandle": {
+                    "type": "string"
+                  },
+                  "externalSenderDisplayName": {
+                    "type": "string"
+                  },
+                  "scopeContextId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "externalSenderId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/channels/{channelId}/allowed-senders/{senderLinkId}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Sender removed."
+          },
+          "404": {
+            "description": "No such channel in this workspace."
+          }
+        },
+        "operationId": "deleteWorkspacesByWorkspaceIdChannelsByChannelIdAllowed-sendersBySenderLinkId",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "senderLinkId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Remove an allowed sender from a channel.",
+        "x-sdk-name": "channels.removeAllowedSender"
+      }
+    },
+    "/workspaces/{workspaceId}/channels/{channelId}/history": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of ChannelInboundMessage (newest first)."
+          },
+          "404": {
+            "description": "No such channel in this workspace."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdChannelsByChannelIdHistory",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorReceivedAt",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List a channel’s inbound message history (keyset cursor-paginated).",
+        "x-sdk-name": "channels.history"
+      }
+    },
     "/approvals/pending": {
       "get": {
         "responses": {

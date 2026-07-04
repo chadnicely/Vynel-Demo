@@ -40,3 +40,16 @@ memory-style: `schema/`·`repositories/`·`lifecycle/`·`senders/`·`queries/`·
 Stale kernel-location doc-comments in `repositories/{channels,index}.ts` + `schema/index.ts` (name the
 old `@vynel/db/...` home). Comment-only; sweep in an improve pass. **Next: workspaceId-nullable scope
 improve, then the channels CRUD API.**
+
+## scope-improve + API vertical — DONE
+- **Scope improve** (`c3bc071`): `channels.workspaceId` nullable (null=global), baseline-folded
+  (`id()`→`text()`, baseline SQL + snapshot `notNull:false`), `connectChannel` accepts `string|null`.
+  drizzle "No schema changes"; migrate-baseline green. Reviewer confirmed approvals-precedent-correct.
+- **API port**: 9 routes (source `apps/api/src/routes/channels`, workspace-scoped) → `apps/local-api`.
+  SDK `client.channels.*` (9); MCP 2 read tools (list_channels, list_allowed_senders) — NO mutating/
+  credential route exposed (connect carries the bot token → SDK-only). Serializer OMITS botCredentials +
+  lastPolledCursor (TS-enforced); credential-leak test seeds non-null cursor + asserts undefined.
+  `ChannelResponse.workspaceId`→`string|null` (matches column). Gate **1389**; reviewer CLEAN.
+- **Deferred**: global-channel CREATION via API (schema+op ready; workspace-scoped routes are the faithful
+  port — a user-scoped `/channels` connect is a follow-up for Chad). disconnect null-workspace path (fwd-note).
+  Serializer asymmetry (allowed-senders/history raw rows — no credential surface).

@@ -19,6 +19,10 @@ export type {
   NormalizedMessageStructure,
 } from './channels-types.js'
 
+// The channel row shape — consumers (apps/local-api serializer) type the
+// value they serialize; the ops below return it. Repos + schema stay internal.
+export type { Channel } from './repositories/index.js'
+
 // Connect / list / allowlist / enable ops.
 export { connectChannel, type ConnectChannelInput } from './lifecycle/connect-channel.js'
 export { disconnectChannel } from './lifecycle/disconnect-channel.js'

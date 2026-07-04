@@ -35,6 +35,73 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  channels: {
+  addAllowedSender: async (workspaceId: string, channelId: string, input: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/allowed-senders"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/channels/{channelId}/allowed-senders", {
+      params: { path: { workspaceId: workspaceId, channelId: channelId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  connect: async (workspaceId: string, input: NonNullable<paths["/workspaces/{workspaceId}/channels/connect"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/channels/connect", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  disable: async (workspaceId: string, channelId: string) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/channels/{channelId}/disable", {
+      params: { path: { workspaceId: workspaceId, channelId: channelId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  disconnect: async (workspaceId: string, channelId: string) => {
+    const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/channels/{channelId}", {
+      params: { path: { workspaceId: workspaceId, channelId: channelId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  enable: async (workspaceId: string, channelId: string) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/channels/{channelId}/enable", {
+      params: { path: { workspaceId: workspaceId, channelId: channelId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  history: async (workspaceId: string, channelId: string, options?: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/history"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/channels/{channelId}/history", {
+      params: { path: { workspaceId: workspaceId, channelId: channelId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async (workspaceId: string) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/channels", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listAllowedSenders: async (workspaceId: string, channelId: string) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/channels/{channelId}/allowed-senders", {
+      params: { path: { workspaceId: workspaceId, channelId: channelId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  removeAllowedSender: async (workspaceId: string, channelId: string, senderLinkId: string) => {
+    const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/channels/{channelId}/allowed-senders/{senderLinkId}", {
+      params: { path: { workspaceId: workspaceId, channelId: channelId, senderLinkId: senderLinkId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  },
   knowledge: {
   addDirectory: async (workspaceId: string, input: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/knowledge/sources", {

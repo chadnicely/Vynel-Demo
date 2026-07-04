@@ -19,11 +19,17 @@ import { generatedMcpTools, generatedRoutingMcpTools } from './api-tools.js'
 //   - skills (`apps/local-api/src/routes/skills/index.ts`): 2 read-only
 //     GETs (list_available_skills / list_installed_skills); the mutating
 //     install/enable/disable/uninstall/settings routes carry NO x-mcp.
+//   - channels (`apps/local-api/src/routes/channels/index.ts`): 2 read-only
+//     GETs (list_channels / list_allowed_senders); the mutating
+//     connect/disconnect/enable/disable/allowed-sender routes carry NO x-mcp
+//     (connect carries the bot token — never an MCP tool).
 const EXPECTED_TOOL_NAMES = [
   'add_to_knowledge',
   'get_indexer_status',
   'get_knowledge_document',
+  'list_allowed_senders',
   'list_available_skills',
+  'list_channels',
   'list_installed_skills',
   'list_knowledge_documents',
   'list_knowledge_sources',
