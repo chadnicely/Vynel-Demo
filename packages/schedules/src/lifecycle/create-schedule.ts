@@ -1,0 +1,122 @@
+// Core op — create a schedule from a template (or custom). sync (DB reads
+// only). Computes the first `nextScheduledFireAt` via croner; throws
+// ValidationError on a bad cron or a missing channel.
+//
+// Spec: `docs/blueprints/schedules/blueprint.md §5.1` + coding.md §5.
+
+import { randomUUID } from 'node:crypto'
+import { Cron } from 'croner'
+import { findScheduleTemplateByKind } from '@vynel/contracts/schedules/schedule-template-catalog'
+import { ONE_TIME_CRON_SENTINEL } from '@vynel/contracts/schedules/one-time'
+import * as schedulesRepository from '../repositories/index.js'
+import * as usersRepository from '@vynel/db/repositories/users'
+import { ValidationError } from '@vynel/errors'
+import type { Database } from '@vynel/db'
+import type {
+  Schedule,
+  ScheduleTemplateKind,
+  ScheduleDestinationKind,
+} from '../repositories/index.js'
+import type { StructuralLogger } from '../schedules-types.js'
+
+export interface CreateScheduleInput {
+  userId: string
+  workspaceId: string
+  templateKind: ScheduleTemplateKind
+  displayName?: string
+  cronExpression?: string
+  timezone?: string
+  promptTemplate?: string
+  destinationKind?: ScheduleDestinationKind
+  channelId?: string
+  catchUpOnMiss?: boolean
+  approvalTimeoutMsOverride?: number
+  // When set, the schedule is ONE-TIME: it fires once at this absolute instant,
+  // then disarms (no cron). Takes precedence over cronExpression.
+  fireAt?: Date
+}
+
+export function createSchedule(
+  db: Database,
+  input: CreateScheduleInput,
+  deps: { logger?: StructuralLogger } = {},
+): Schedule {
+  const template = findScheduleTemplateByKind(input.templateKind)
+  if (!template) {
+    throw new ValidationError(`Unknown schedule template "${input.templateKind}".`)
+  }
+
+  // The sentinel is internal — a one-time schedule is created via fireAt, never
+  // by passing the reserved expression as a user cron.
+  if (input.cronExpression === ONE_TIME_CRON_SENTINEL) {
+    throw new ValidationError(
+      'That cron expression is reserved. Create a one-time schedule with a fire time (fireAt).',
+    )
+  }
+
+  const timezone =
+    input.timezone ?? usersRepository.findUserById(db, input.userId)?.timezone ?? 'UTC'
+  const now = new Date()
+
+  // A one-time schedule (input.fireAt set) fires once at that absolute instant,
+  // then disarms — it carries the sentinel cron instead of a real expression
+  // (the poll's computeNextFireAt returns null for it; see
+  // @vynel/contracts schedules/one-time). The explicit `scheduleKind` column is
+  // deferred to avoid an unverified migration on the live dev DB.
+  let cronExpression: string
+  let nextFireAt: Date | null
+  if (input.fireAt !== undefined) {
+    if (input.fireAt.getTime() <= now.getTime()) {
+      throw new ValidationError('A one-time schedule must fire in the future.')
+    }
+    cronExpression = ONE_TIME_CRON_SENTINEL
+    nextFireAt = input.fireAt
+  } else {
+    cronExpression = input.cronExpression ?? template.defaultCronExpression
+    try {
+      nextFireAt = new Cron(cronExpression, { timezone }).nextRun()
+    } catch {
+      throw new ValidationError(
+        `Invalid cron expression "${cronExpression}". Use 5-field cron, e.g. "0 9 * * MON".`,
+      )
+    }
+  }
+
+  const destinationKind = input.destinationKind ?? template.defaultDestinationKind
+  if (destinationKind === 'chat-and-channel' && !input.channelId) {
+    throw new ValidationError('A channel is required when the destination is "chat and channel".')
+  }
+
+  // One-time reminders default to catch-up: if Vynel was offline at the fire
+  // time, deliver it late rather than silently dropping it (the poll would
+  // otherwise record a 'missed' run and disarm without ever firing).
+  const catchUpOnMiss =
+    input.catchUpOnMiss ?? (input.fireAt !== undefined ? true : template.defaultCatchUpOnMiss)
+
+  const schedule = schedulesRepository.insertSchedule(db, {
+    id: randomUUID(),
+    userId: input.userId,
+    workspaceId: input.workspaceId,
+    templateKind: input.templateKind,
+    displayName: input.displayName ?? template.displayLabel,
+    cronExpression,
+    timezone,
+    promptTemplate: input.promptTemplate ?? template.promptTemplate,
+    destinationKind,
+    channelId: input.channelId ?? null,
+    catchUpOnMiss,
+    isEnabled: true,
+    approvalTimeoutMsOverride:
+      input.approvalTimeoutMsOverride ?? template.defaultApprovalTimeoutMsOverride,
+    lastFiredAt: null,
+    nextScheduledFireAt: nextFireAt,
+    createdAt: now,
+    updatedAt: now,
+  })
+
+  deps.logger?.info(
+    { scheduleId: schedule.id, templateKind: schedule.templateKind },
+    'schedule created',
+  )
+  return schedule
+}

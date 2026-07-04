@@ -7,19 +7,19 @@
 // Spec: `docs/blueprints/schedules/blueprint.md §4` + coding.md §6.
 
 import { and, desc, eq, lt, or } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   scheduleRuns,
   type ScheduleRun,
   type NewScheduleRun,
-} from '../../schema/schedules/schedule-runs.js'
+} from '../schema/schedule-runs.js'
 
 export type {
   ScheduleRun,
   NewScheduleRun,
   ScheduleRunStatus,
   ScheduleRunTriggerKind,
-} from '../../schema/schedules/schedule-runs.js'
+} from '../schema/schedule-runs.js'
 
 const DEFAULT_RUNS_LIMIT = 50
 const MAX_RUNS_LIMIT = 100

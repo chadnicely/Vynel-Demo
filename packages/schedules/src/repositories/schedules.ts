@@ -6,12 +6,12 @@
 // Spec: `docs/blueprints/schedules/blueprint.md §4` + coding.md §6.
 
 import { and, asc, eq, lte } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   schedules,
   type Schedule,
   type NewSchedule,
-} from '../../schema/schedules/schedules.js'
+} from '../schema/schedules.js'
 
 // Re-export row + union types so `@vynel/core/schedules` imports them via
 // `@vynel/db/repositories/schedules` (the channels/chat repo precedent).
@@ -20,7 +20,7 @@ export type {
   NewSchedule,
   ScheduleTemplateKind,
   ScheduleDestinationKind,
-} from '../../schema/schedules/schedules.js'
+} from '../schema/schedules.js'
 
 // Bounded list (a user's schedules per workspace in Phase 1) but capped
 // defensively per coding-standard.md "Structure / patterns".

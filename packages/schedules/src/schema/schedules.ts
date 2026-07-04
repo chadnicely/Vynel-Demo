@@ -13,8 +13,8 @@
 // INDEX). Phase 1 SYNC repo discipline applies.
 
 import { table, id, text, timestamp, boolean, integer, index } from '@vynel/db/dialect'
-import { users } from '../users/users.js'
-import { workspaces } from '../workspaces/workspaces.js'
+import { users } from '@vynel/db/schema/users'
+import { workspaces } from '@vynel/db/schema/workspaces'
 
 export type ScheduleTemplateKind =
   | 'morning-briefing'
