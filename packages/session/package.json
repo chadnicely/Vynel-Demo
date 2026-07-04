@@ -14,13 +14,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@vynel/capabilities": "workspace:*",
     "@vynel/chat": "workspace:*",
+    "@vynel/contracts": "workspace:*",
     "@vynel/db": "workspace:*",
     "@vynel/errors": "workspace:*",
     "@vynel/logger": "workspace:*",
+    "@vynel/memory": "workspace:*",
     "@vynel/orchestration": "workspace:*",
     "@vynel/providers": "workspace:*",
-    "drizzle-orm": "^0.45.0"
+    "drizzle-orm": "^0.45.0",
+    "pino": "^9.5.0"
   },
   "devDependencies": {
     "@vynel/testing": "workspace:*",
