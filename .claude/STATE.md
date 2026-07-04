@@ -4,7 +4,7 @@
 memories (`vynel-vision-and-old-project-lesson` = the founding vision + old-project scatter we must NOT
 repeat; `vynel-rebuild-plan`; `worktree-fanout-isolation`). State lives on disk, not chat.
 
-## ⏭ NEXT ACTION: `@vynel/session` Slice 2b — the workspace runner + composers
+## ⏭ NEXT ACTION: `@vynel/session` PACKAGE DONE (2a+2b) — Slice 3 (app-wiring) deferred to `apps/api`; pick the next module
 **Full plan + the reframing + the architecture decision: `docs/module-notes/session.md` (read it first).**
 
 **The keystone is SMALLER than STATE assumed.** The source already did its hard refactor (B0–B2b: SessionSink,
@@ -30,12 +30,22 @@ barrel** (`.`=mode · `./runtime` · `./continuity` — constraint #1 satisfied)
 from the `@vynel/orchestration` barrel (catch-up write-back). Primary rename applied to the runner. Green (vitest
 1170), reviewer CLEAN, diff-proven faithful.
 
-**NEXT — Slice 2b: the workspace runner + resolvers/composers.** `start-chat-turn` (workspace) + seeded-swap +
-Hono-free resolvers (`resolve-*-conversation`) + composers (`compose-session-{capabilities,mcp-servers}`) +
-continuity-application (`apply-root-turn-continuity`, `bridge-root-session-after-turn`, `run-seeded-swap-session`).
-Deps expand to capabilities, memory. **Decision at 2b:** may `@vynel/session` dep the MCP producers
-(`@vynel/mcp`+`@vynel/desktop-control`) for `compose-session-mcp-servers`, or does MCP composition stay at the app
-edge? (`api-side-turn-execution-with-mcp`).
+**Slice 2b is DONE (commit pending) — the workspace turn machinery.** Lifted into `runtime/`: `start-chat-turn`
+(workspace runner) · `run-seeded-swap-session` · `resolve-primary-conversation` · `apply-primary-turn-continuity` ·
+`bridge-primary-session-after-turn` · `compose-session-capabilities` (+ `vynel-agent-instructions`) ·
+`test-support/fake-ai-agent-provider`. **The MCP "fork" resolved itself** — `compose-session-mcp-servers` +
+`resolve-global-root-conversation` + `global-root-workspace` STAY at the apps/api edge (LOCKED `api-side-turn-execution-with-mcp`
+/ env-coupled — injected via `resolveTarget`; the 2a core already takes opaque `mcpServers`). **`start-chat-turn`'s home
+INVERTED the old plan** (it imports continuity → can't live in continuity-free chat; the monolith cycle dissolves).
+New surface: `@vynel/chat/repositories`. Green (typecheck 48 · parity 30/7/8 · vitest 1182, +12) · faithfulness
+diff-proven · reviewer COMPLETE. Full as-built: `docs/module-notes/session.md`.
+
+**The `@vynel/session` PACKAGE is now complete** (2a global-root core + 2b workspace machinery + resolvers + composers
++ continuity). **Slice 3 (app-wiring) is DEFERRED until `apps/api` lands:** the SSE sinks
+(`streams/{chat-turn,global-root-turn}`), the `delegate-to-*` compositions, `run-delegation-claim-and-run-tick`,
+`wrapAppRequestWithOrigin`, the ③ agent-turn MCP binding, `approvals` completion (fold + decouple the `chat→approvals`
+seam). **Until then, pick the next module (Chad's call):** the improve queue (`capabilities` vertical-slice → `approvals`
+→ `agents` → `files`) or more leaves (`skills`/`channels`/`schedules`).
 
 **Then — Slice 3 (app wiring, when `apps/api` lands):** the SSE sinks (`streams/{chat-turn,global-root-turn}`),
 the `delegate-to-*` compositions, `run-delegation-claim-and-run-tick`, origin-wrap. **The ③ agent-turn MCP
@@ -46,6 +56,14 @@ working `McpFeatureDescriptor` reference; knowledge/memory/chat each still owe o
 (`surface-up`). Deferred Layer-B vocab: `globalRootSessionId`/`rootSessionId` fields rename when these land.
 
 ## ✅ Recently done (most recent first)
+- **`@vynel/session` Slice 2b — the workspace turn machinery (commit pending, local)** — lifted `start-chat-turn`
+  (workspace runner) + `run-seeded-swap-session` + `resolve-primary-conversation` + `apply-primary-turn-continuity` +
+  `bridge-primary-session-after-turn` + `compose-session-capabilities` (+ `vynel-agent-instructions`) +
+  `test-support/fake-ai-agent-provider` into `runtime/`. MCP composer + global-root resolver + `global-root-workspace`
+  STAY at edge (locked/env — injected `resolveTarget`). New `@vynel/chat/repositories` subpath. `start-chat-turn`'s
+  continuity dep INVERTS the old "belongs to chat" plan (chat is continuity-free → the monolith cycle dissolves).
+  Green (typecheck 48 · parity 30/7/8 · vitest 1182, +12), reviewer COMPLETE, faithfulness diff-proven.
+  `docs/module-notes/session.md` + `.claude/journal/2026-07-04-session-slice2b.md`.
 - **`@vynel/session` Slice 2a — global-root runner core + web-safe barrel `8118d24` (local)** — pulled
   `run-global-root-turn-core` + `SessionSink` + `root-turn-lock` + `global-root-instructions` + `session-mode`;
   split the package into `.`(web-safe mode) · `./runtime` · `./continuity`; exposed `markDelegationsSurfacedToRoot`

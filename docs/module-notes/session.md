@@ -93,14 +93,44 @@ stream (SSE sink) or a response (drain sink)*. The layering:
   split. Exposed `markDelegationsSurfacedToRoot` from the `@vynel/orchestration` barrel (the write-back half of
   the Ch3.5 catch-up, paired with the already-public `collectDelegationReportsForRoot`). Applied the Slice-1
   primary rename to the runner (`primarySessionId`, `linkPrimarySessionToSdkSession`). Deps +chat/orchestration/providers.
-- **Slice 2b — NEXT: the workspace runner + resolvers/composers.** `start-chat-turn` (workspace) + seeded-swap +
-  Hono-free resolvers (`resolve-*-conversation`) + composers (`compose-session-{capabilities,mcp-servers}`) +
-  continuity-application (`apply-root-turn-continuity`, `bridge-root-session-after-turn`, `run-seeded-swap-session`).
-  Deps expand to capabilities, memory. **Decision at 2b:** may `@vynel/session` dep the MCP producers
-  (`@vynel/mcp`+`@vynel/desktop-control`) for `compose-session-mcp-servers`, or does MCP composition stay at the
-  app edge? (`api-side-turn-execution-with-mcp`).
+- **Slice 2b — DONE (commit pending): the workspace turn machinery.** Green (typecheck 48 · parity 30/7/8 · vitest
+  1182, +12) · faithfulness diff-proven · reviewer COMPLETE/behavior-neutral (zero must-fix). Ground-truthed against the shipped B2b edge
+  (`run-global-root-turn.ts:138` builds `resolveTarget` = resolve + env-cwd, injected into the 2a core). **The seam
+  rule (2a-consistent):** the package owns env-free + Hono-free + non-MCP-locked logic; the edge (Slice 3) owns env
+  reads, SSE/sinks, MCP-producer composition, origin-wrap, and INJECTS them.
+  - **LIFTS → `runtime/`:** `start-chat-turn` (workspace runner; MUST be here — it imports continuity, and chat is
+    continuity-FREE, so chat can't hold it without a `chat↔session` cycle: the monolith's "belongs to core/chat"
+    INVERTS under decomposition, since continuity moved to session) · `run-seeded-swap-session` ·
+    `resolve-primary-conversation` (was `resolve-root-conversation`, workspace) · `apply-primary-turn-continuity` ·
+    `bridge-primary-session-after-turn` · `compose-session-capabilities` (+ `vynel-agent-instructions`) ·
+    `test-support/fake-ai-agent-provider`.
+  - **STAYS at edge (Slice 3):** `compose-session-mcp-servers` (LOCKED `api-side-turn-execution-with-mcp` — the 2a
+    core already takes opaque `mcpServers`; the DRAFT `b-lead-session-library-design.md` that listed it in session is
+    overridden by the LOCKED decision + APPROVED-shipped B2a) · `resolve-global-root-conversation` +
+    `global-root-workspace` (env-coupled — they ARE the injected `resolveTarget`).
+  - **Resolver asymmetry (documented, per reviewer):** the workspace resolver LIFTS (its cwd is a workspace-record
+    field); the global-root resolver STAYS at edge (its cwd is an env read, `VYNEL_USER_DATA_DIR`, via
+    `global-root-workspace`). Both resolve `primary_sessions` rows — the SAME kind of thing, split only by the env seam.
+  - **New surface — `@vynel/chat/repositories`:** the lifted code imports `updateChatSession` (impl) + `find`/`insert`
+    `ChatSession` (swap test), which the chat vertical-slice left internal (barrel-ops only). Expose the repos via a
+    subpath — the faithful analog of the old `@vynel/db/repositories/chat` these files imported, and a legit session→chat
+    down-call (session is the cross-domain composition tier above chat). Driven by a real consumer, not speculative.
+  - **Deps expand:** `@vynel/capabilities`, `@vynel/memory`, `@vynel/contracts`, `pino`. **Rename:** the root→primary
+    identity rename (Slice 1) extends to every lifted file (`rootSessionId`→`primarySessionId`; `Root*` fns/types →
+    `Primary*`); `start-chat-turn` + `run-seeded-swap-session` keep their names (no identity-root in them).
+  - **Deferred dedup:** `fake-ai-agent-provider` is session's FIRST copy (orchestration's leaf tests use inline mocks).
+    If both converge, the shared home is `@vynel/testing`.
+  - **Deferred improves (reviewer, none block):** trim the barrel's internal-helper exports (`bridgePrimarySessionAfterTurn`
+    + `runSeededSwapSession` — internal to the `apply → bridge → run-seeded` chain) once Slice 3 reveals the edge's real
+    surface · unify `run-seeded-swap`/`bridge` onto `StructuralLogger` (drops the direct `pino` dep; the 2a-runner pattern)
+    · a curated `hideChatSession(db, id)` chat op to replace the raw `updateChatSession(…, {visibility:'hidden'})` patch
+    (keeps the subpath — the swap test still needs raw `insert`/`find` — but reveals intent) · `run-seeded-swap`'s
+    bare-`Error` "no session id" guard folds into the tracked codebase-wide `InvariantError` policy call.
 - **Slice 3 — app wiring + the SSE sinks** (when `apps/api` lands): `streams/{chat-turn,global-root-turn}`
   (Hono glue), the `delegate-to-*` compositions, `run-delegation-claim-and-run-tick`, `wrapAppRequestWithOrigin`.
+  **Live swap smoke (don't lose it):** the bridge/apply tests defer carry-FIDELITY + next-turn RECALL to a
+  real-provider *live swap smoke* that still lives in the old repo (build brief Slice 1 §6) — it needs a home + a
+  run when `apps/api` lands; it's the behavioral proof the unit tests intentionally stub with the fake provider.
 - **The b-lead owner-forks (later, not blockers):** event-vocabulary unification (workspace `ChatTurnEvent`
   vs global-root `NormalizedSessionEvent`) — a UI-domain product call; approval routing Fork 2
   (`interactive` + `auto-deny` now, `surface-up` as a seam) — the real approval card. Both preserve the
