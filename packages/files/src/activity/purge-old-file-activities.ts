@@ -6,7 +6,7 @@
 
 import type { Database } from '@vynel/db'
 import { hardDeleteFileActivitiesOccurredBefore } from '@vynel/db/repositories/files'
-import type { StructuralLogger } from './files-types.js'
+import type { StructuralLogger } from '../files-types.js'
 
 // 90 days per D13. Lives here so the worker file (a thin delegator)
 // doesn't need to carry the number itself.

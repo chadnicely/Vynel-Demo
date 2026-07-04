@@ -3,7 +3,7 @@
 // plain-text / unsupported) and the raw-response Content-Type.
 
 import path from 'node:path'
-import type { FileContentKind } from './files-types.js'
+import type { FileContentKind } from '../files-types.js'
 
 // Editable size cap. Larger text files preview-truncated; the editor
 // refuses to open them (the user downloads via /raw).

@@ -8,10 +8,10 @@
 
 import { readFile, stat } from 'node:fs/promises'
 import { NotFoundError } from '@vynel/errors'
-import { assertRealpathContained } from './assert-realpath-contained.js'
+import { assertRealpathContained } from '../path/assert-realpath-contained.js'
 import { MAX_EDITABLE_BYTES, deriveFileContentKind, isTextKind } from './file-content-kind.js'
-import { resolveWorkspaceRelativePath } from './resolve-workspace-relative-path.js'
-import type { FileContent } from './files-types.js'
+import { resolveWorkspaceRelativePath } from '../path/resolve-workspace-relative-path.js'
+import type { FileContent } from '../files-types.js'
 
 export type ReadFileContentInput = {
   workspacePath: string

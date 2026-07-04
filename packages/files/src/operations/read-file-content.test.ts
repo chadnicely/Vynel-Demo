@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { withTestDatabase } from '@vynel/testing'
 import { readFileContent } from './read-file-content.js'
 import { MAX_EDITABLE_BYTES } from './file-content-kind.js'
-import { seedUserAndWorkspace } from './_test-helpers.js'
+import { seedUserAndWorkspace } from '../_test-helpers.js'
 
 describe('readFileContent', () => {
   it('reads a small markdown file as UTF-8 text', async () => {

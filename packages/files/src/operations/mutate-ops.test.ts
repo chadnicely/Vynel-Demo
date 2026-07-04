@@ -13,7 +13,7 @@ import { createDirectory } from './create-directory.js'
 import { moveEntry } from './move-entry.js'
 import { deleteEntry } from './delete-entry.js'
 import { MAX_EDITABLE_BYTES } from './file-content-kind.js'
-import { seedUserAndWorkspace } from './_test-helpers.js'
+import { seedUserAndWorkspace } from '../_test-helpers.js'
 
 describe('writeFileContent', () => {
   it("writes a new file and records 'file-created' with editor='self'", async () => {

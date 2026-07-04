@@ -8,11 +8,11 @@ import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { ConflictError, ValidationError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
 import { insertFileActivity } from '@vynel/db/repositories/files'
-import { assertRealpathContained } from './assert-realpath-contained.js'
+import { assertRealpathContained } from '../path/assert-realpath-contained.js'
 import { MAX_EDITABLE_BYTES } from './file-content-kind.js'
-import { assertWritableTarget } from './path-safety.js'
-import { resolveWorkspaceRelativePath } from './resolve-workspace-relative-path.js'
-import type { StructuralLogger } from './files-types.js'
+import { assertWritableTarget } from '../path/path-safety.js'
+import { resolveWorkspaceRelativePath } from '../path/resolve-workspace-relative-path.js'
+import type { StructuralLogger } from '../files-types.js'
 
 export type CreateFileInput = {
   workspaceId: string

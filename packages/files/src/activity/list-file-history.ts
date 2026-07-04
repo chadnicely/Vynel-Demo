@@ -11,7 +11,7 @@ import {
   listFileActivitiesForPath,
   type FileActivity,
 } from '@vynel/db/repositories/files'
-import type { FileActivityCursor } from './files-types.js'
+import type { FileActivityCursor } from '../files-types.js'
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200

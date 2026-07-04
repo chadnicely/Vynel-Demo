@@ -13,7 +13,7 @@ import {
 import { listRecentActivity } from './list-recent-activity.js'
 import { listFileHistory } from './list-file-history.js'
 import { purgeOldFileActivities } from './purge-old-file-activities.js'
-import { seedUserAndWorkspace } from './_test-helpers.js'
+import { seedUserAndWorkspace } from '../_test-helpers.js'
 
 function makeRow(
   userId: string,

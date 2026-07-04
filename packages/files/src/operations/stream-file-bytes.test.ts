@@ -6,7 +6,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { withTestDatabase } from '@vynel/testing'
 import { streamFileBytes } from './stream-file-bytes.js'
-import { seedUserAndWorkspace } from './_test-helpers.js'
+import { seedUserAndWorkspace } from '../_test-helpers.js'
 
 describe('streamFileBytes', () => {
   it('returns absolutePath + content-type + size for a file', async () => {

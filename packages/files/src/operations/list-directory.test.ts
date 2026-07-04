@@ -6,7 +6,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { withTestDatabase } from '@vynel/testing'
 import { listDirectory } from './list-directory.js'
-import { seedUserAndWorkspace } from './_test-helpers.js'
+import { seedUserAndWorkspace } from '../_test-helpers.js'
 
 describe('listDirectory', () => {
   it('returns an empty array for an empty workspace root', async () => {

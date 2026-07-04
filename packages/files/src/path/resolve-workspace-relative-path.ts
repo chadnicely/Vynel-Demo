@@ -12,7 +12,7 @@
 
 import path from 'node:path'
 import { ValidationError } from '@vynel/errors'
-import type { ResolvedWorkspacePath } from './files-types.js'
+import type { ResolvedWorkspacePath } from '../files-types.js'
 
 // NUL byte (U+0000). Node's `path.*` functions silently truncate at NUL
 // on some platforms; `fs.*` calls throw on NUL but the error class varies.

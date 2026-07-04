@@ -9,9 +9,9 @@
 import path from 'node:path'
 import { readdir, stat } from 'node:fs/promises'
 import { NotFoundError } from '@vynel/errors'
-import { assertRealpathContained } from './assert-realpath-contained.js'
-import { isHiddenEntry } from './path-safety.js'
-import { resolveWorkspaceRelativePath } from './resolve-workspace-relative-path.js'
+import { assertRealpathContained } from '../path/assert-realpath-contained.js'
+import { isHiddenEntry } from '../path/path-safety.js'
+import { resolveWorkspaceRelativePath } from '../path/resolve-workspace-relative-path.js'
 
 export type DirectoryEntryKind = 'file' | 'directory'
 

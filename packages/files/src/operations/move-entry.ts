@@ -9,10 +9,10 @@ import { mkdir, rename, stat } from 'node:fs/promises'
 import { ConflictError, NotFoundError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
 import { insertFileActivity } from '@vynel/db/repositories/files'
-import { assertRealpathContained } from './assert-realpath-contained.js'
-import { assertWritableTarget } from './path-safety.js'
-import { resolveWorkspaceRelativePath } from './resolve-workspace-relative-path.js'
-import type { StructuralLogger } from './files-types.js'
+import { assertRealpathContained } from '../path/assert-realpath-contained.js'
+import { assertWritableTarget } from '../path/path-safety.js'
+import { resolveWorkspaceRelativePath } from '../path/resolve-workspace-relative-path.js'
+import type { StructuralLogger } from '../files-types.js'
 
 export type MoveEntryInput = {
   workspaceId: string
