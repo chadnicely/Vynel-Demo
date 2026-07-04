@@ -8,9 +8,13 @@ export type Theme = "dark" | "light";
  *  default — Vynel's "one brain"), a fresh topic, or one history session. */
 export type ChatTarget = "continuous" | "fresh" | { sessionId: string };
 
-/** What the canvas shows: the chat itself or a menu item's view
- *  (Application globally; a feature section in a workspace). */
-export type ChatMainView = "chat" | "application" | WorkspaceSectionId;
+/** What the canvas shows: the chat itself, a menu item's view (Application
+ *  globally; a feature section in a workspace), or an open file. */
+export type ChatMainView =
+  | "chat"
+  | "application"
+  | WorkspaceSectionId
+  | { kind: "file"; filePath: string };
 
 export interface ChatShellState {
   mainView: ChatMainView;

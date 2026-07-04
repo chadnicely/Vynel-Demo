@@ -1,16 +1,52 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-vue-next";
+import { computed, ref } from "vue";
+import {
+  ChevronRight,
+  File,
+  FileCode2,
+  FileJson,
+  FileText,
+  Folder,
+  FolderOpen,
+  Image,
+} from "lucide-vue-next";
 import type { DemoFileNode } from "../../demo/fixtures/file-trees.js";
+import { fileColorFamily } from "./file-colors.js";
 
 // Recursive tree row (self-referencing component). Demo-phase: reads the
 // fixture tree; the files API swaps in a lazy directory listing later.
 const props = defineProps<{
   node: DemoFileNode;
   depth: number;
+  /** "/"-joined path of the parent directory ("" at the root). */
+  parentPath: string;
+  activeFilePath: string | null;
+}>();
+
+const emit = defineEmits<{
+  openFile: [filePath: string];
 }>();
 
 const isOpen = ref(props.depth === 0);
+
+const nodePath = computed(() =>
+  props.parentPath === ""
+    ? props.node.name
+    : `${props.parentPath}/${props.node.name}`,
+);
+
+const colorFamily = computed(() =>
+  props.node.kind === "directory" ? "folder" : fileColorFamily(props.node.name),
+);
+
+const FILE_ICONS = {
+  folder: Folder,
+  doc: FileText,
+  data: FileJson,
+  image: Image,
+  code: FileCode2,
+  plain: File,
+} as const;
 </script>
 
 <template>
@@ -24,19 +60,27 @@ const isOpen = ref(props.depth === 0);
       @click="isOpen = !isOpen"
     >
       <ChevronRight :size="12" class="caret" :class="{ 'is-open': isOpen }" />
-      <FolderOpen v-if="isOpen" :size="13" class="icon" />
-      <Folder v-else :size="13" class="icon" />
+      <FolderOpen v-if="isOpen" :size="13" class="icon tone-folder" />
+      <Folder v-else :size="13" class="icon tone-folder" />
       <span class="name">{{ props.node.name }}</span>
     </button>
 
-    <div
+    <button
       v-else
+      type="button"
       class="row is-file"
+      :class="{ 'is-active': nodePath === props.activeFilePath }"
       :style="{ paddingLeft: `${24 + props.depth * 14}px` }"
+      @click="emit('openFile', nodePath)"
     >
-      <FileText :size="13" class="icon" />
+      <component
+        :is="FILE_ICONS[colorFamily]"
+        :size="13"
+        class="icon"
+        :class="`tone-${colorFamily}`"
+      />
       <span class="name">{{ props.node.name }}</span>
-    </div>
+    </button>
 
     <template v-if="props.node.kind === 'directory' && isOpen">
       <FileTreeNode
@@ -44,6 +88,9 @@ const isOpen = ref(props.depth === 0);
         :key="child.name"
         :node="child"
         :depth="props.depth + 1"
+        :parent-path="nodePath"
+        :active-file-path="props.activeFilePath"
+        @open-file="(path) => emit('openFile', path)"
       />
     </template>
   </div>
@@ -65,8 +112,12 @@ const isOpen = ref(props.depth === 0);
   text-align: left;
 }
 
-.row:not(.is-file):hover {
+.row:hover {
   background: var(--row-hover);
+}
+
+.row.is-active {
+  background: var(--row-active);
 }
 
 .row:focus-visible {
@@ -85,8 +136,31 @@ const isOpen = ref(props.depth === 0);
 }
 
 .icon {
-  color: var(--ink-3);
   flex: none;
+}
+
+.tone-folder {
+  color: var(--file-folder);
+}
+
+.tone-doc {
+  color: var(--file-doc);
+}
+
+.tone-data {
+  color: var(--file-data);
+}
+
+.tone-image {
+  color: var(--file-image);
+}
+
+.tone-code {
+  color: var(--file-code);
+}
+
+.tone-plain {
+  color: var(--ink-3);
 }
 
 .name {
@@ -98,6 +172,10 @@ const isOpen = ref(props.depth === 0);
 }
 
 .row:not(.is-file) .name {
+  color: var(--ink-1);
+}
+
+.row.is-active .name {
   color: var(--ink-1);
 }
 

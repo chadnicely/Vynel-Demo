@@ -7,10 +7,12 @@ import FileTreeNode from "./FileTreeNode.vue";
 const props = defineProps<{
   workspaceName: string;
   tree: DemoFileNode[];
+  activeFilePath: string | null;
 }>();
 
 const emit = defineEmits<{
   close: [];
+  openFile: [filePath: string];
 }>();
 </script>
 
@@ -34,6 +36,9 @@ const emit = defineEmits<{
         :key="node.name"
         :node="node"
         :depth="0"
+        parent-path=""
+        :active-file-path="props.activeFilePath"
+        @open-file="(path) => emit('openFile', path)"
       />
     </div>
   </aside>

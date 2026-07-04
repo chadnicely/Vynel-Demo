@@ -7,6 +7,7 @@ import ThreadStream from "../components/chat/ThreadStream.vue";
 import Composer from "../components/chat/Composer.vue";
 import MenuPanel from "../components/shell/MenuPanel.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
+import FileEditorView from "../components/workspace/FileEditorView.vue";
 import WorkspaceSectionPanel from "../components/workspace/WorkspaceSectionPanel.vue";
 import { WORKSPACE_SECTIONS } from "../components/workspace/workspace-sections.js";
 import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
@@ -117,10 +118,20 @@ const fileTree = computed(() =>
 );
 
 const activeSection = computed<WorkspaceSectionId | null>(() =>
-  shell.mainView !== "chat" && shell.mainView !== "application"
+  typeof shell.mainView === "string" &&
+  shell.mainView !== "chat" &&
+  shell.mainView !== "application"
     ? shell.mainView
     : null,
 );
+
+const openFile = computed(() =>
+  typeof shell.mainView === "object" ? shell.mainView : null,
+);
+
+function openFileOnCanvas(filePath: string) {
+  shell.mainView = { kind: "file", filePath };
+}
 
 function sendMessage(text: string) {
   const turn = chatTurn.startTurn({
@@ -157,7 +168,7 @@ function openContinuous() {
       v-if="ui.isMenuOpen"
       :title="activeWorkspace?.name ?? 'Workspace'"
       :items="WORKSPACE_MENU_ITEMS"
-      :active-id="shell.mainView"
+      :active-id="typeof shell.mainView === 'string' ? shell.mainView : ''"
       @select="onMenuSelect"
     />
 
@@ -180,6 +191,14 @@ function openContinuous() {
         />
       </div>
     </div>
+
+    <FileEditorView
+      v-else-if="openFile"
+      class="canvas"
+      :workspace-id="ui.activeWorkspaceId ?? ''"
+      :file-path="openFile.filePath"
+      @close="shell.mainView = 'chat'"
+    />
 
     <section v-else class="canvas thread-pane">
       <div class="thread-toolbar">
@@ -228,7 +247,9 @@ function openContinuous() {
       v-if="isFilesPanelOpen && !activeSection"
       :workspace-name="activeWorkspace?.name ?? 'Workspace'"
       :tree="fileTree"
+      :active-file-path="openFile?.filePath ?? null"
       @close="isFilesPanelOpen = false"
+      @open-file="openFileOnCanvas"
     />
   </div>
 </template>

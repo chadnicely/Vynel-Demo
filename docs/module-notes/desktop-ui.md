@@ -118,6 +118,13 @@
     history sessions below.
   - **Approval notifications: bottom-right**, decidable from any view (workspace context +
     plain-language description + Approve/Deny).
+- **File viewer/editor + colorful tree (2026-07-05, while waiting on APIs):** clicking a file in
+  the tree opens it ON THE CANVAS (`ChatMainView` gained `{kind:'file', filePath}`) —
+  view mode = highlighted CodeBlock with line numbers, edit mode = plain textarea + Save
+  (in-memory demo file store `demo-file-store.ts`; the files API's read/write routes swap in
+  behind the same two calls; **CodeMirror is the recorded upgrade path** once real file I/O
+  lands). Tree icons are type-colored via `--file-*` tokens + `file-colors.ts`
+  (folder tan is muted — vivid gold stays presence-only).
 - M6 Desktop shell (Tauri window + overlay window hosting `VoiceOrb`) — pending; needs a
   Rust-toolchain session (first `cargo build` is long).
 

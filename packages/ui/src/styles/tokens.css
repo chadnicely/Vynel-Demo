@@ -40,6 +40,14 @@
   --danger: #e5484d;
   --info: #5c9dd9;
 
+  /* File-type colors (tree + editor chrome). Folder tan is deliberately
+     muted — the vivid gold stays reserved for assistant presence. */
+  --file-folder: #b3925f;
+  --file-doc: #5c9dd9;
+  --file-data: #4fb984;
+  --file-image: #a78bfa;
+  --file-code: #e08543;
+
   /* Shape */
   --radius-s: 6px;
   --radius-m: 10px;
@@ -86,6 +94,12 @@
   --ok: #1f9d67;
   --danger: #d33f44;
   --info: #3b82c4;
+
+  --file-folder: #8f7340;
+  --file-doc: #3b82c4;
+  --file-data: #1f9d67;
+  --file-image: #7c5fd3;
+  --file-code: #c26a2b;
 
   --shadow-raised:
     0 1px 2px rgba(24, 30, 40, 0.08), 0 4px 16px rgba(24, 30, 40, 0.07);
