@@ -92,12 +92,18 @@ export async function fireSchedule(
     if (deliversVerbatim) {
       producedText = renderedPrompt
     } else {
+      // A workspace-scoped turn requires a workspace. A GLOBAL schedule (null
+      // workspaceId) has none — its natural case is a verbatim reminder handled
+      // above; a non-verbatim global turn would need the global-root machinery
+      // this leaf does not run, so a null workspace surfaces the same clean
+      // NotFoundError as a missing one (caught → run marked 'failed').
       // workspacePath via the KERNEL workspaces repo — the owner check that the
       // workspaces core `getWorkspaceById` did is reproduced inline (same
       // NotFoundError for not-found and not-owned; no enumeration leak).
-      const workspace = findWorkspaceById(db, schedule.workspaceId)
+      const workspace =
+        schedule.workspaceId !== null ? findWorkspaceById(db, schedule.workspaceId) : null
       if (!workspace || workspace.userId !== schedule.userId) {
-        throw new NotFoundError('workspace', schedule.workspaceId)
+        throw new NotFoundError('workspace', schedule.workspaceId ?? undefined)
       }
 
       // Compose the workspace MCP attachment for THIS turn — the full route-derived
@@ -107,7 +113,7 @@ export async function fireSchedule(
       const composedMcp = deps.composeWorkspaceMcpServers({
         db,
         userId: schedule.userId,
-        workspaceId: schedule.workspaceId,
+        workspaceId: workspace.id,
       })
 
       // Compose the workspace's capability PROMPT for THIS turn (Vynel rules +
@@ -115,7 +121,7 @@ export async function fireSchedule(
       // gate now rides on composeWorkspaceMcpServers above. Injected via deps so
       // the leaf never imports apps/api.
       const composed = deps.composeSessionCapabilities(db, {
-        workspaceId: schedule.workspaceId,
+        workspaceId: workspace.id,
       })
 
       // Schedules always start a FRESH session (resumeSessionId omitted — D3).
@@ -123,7 +129,7 @@ export async function fireSchedule(
         db,
         {
           userId: schedule.userId,
-          workspaceId: schedule.workspaceId,
+          workspaceId: workspace.id,
           workspacePath: workspace.path,
           providerId: DEFAULT_PROVIDER_ID,
           userMessageText: renderedPrompt,

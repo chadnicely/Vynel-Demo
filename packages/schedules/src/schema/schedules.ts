@@ -7,7 +7,8 @@
 //
 // Schema files import from `@vynel/db/dialect` ONLY — never from
 // `drizzle-orm/*-core`. `userId` is the tenant boundary; `workspaceId` is
-// the domain scope. `channelId` is a LOOSE `text()` cross-domain ref (NO FK
+// the domain scope — nullable, NULL = global (no workspace). `channelId` is a
+// LOOSE `text()` cross-domain ref (NO FK
 // to channels — D7); the file does NOT import channels' schema. Indexes are
 // declared via the `index()` helper in the second arg (never raw CREATE
 // INDEX). Phase 1 SYNC repo discipline applies.
@@ -32,7 +33,11 @@ export const schedules = table(
   {
     id: id().primaryKey(),
     userId: id().references(() => users.id, { onDelete: 'cascade' }),
-    workspaceId: id().references(() => workspaces.id, { onDelete: 'cascade' }),
+    // Nullable: NULL = GLOBAL scope (a user-level schedule with no workspace);
+    // a non-null value scopes the schedule to that workspace. Mirrors
+    // `approval_requests.workspaceId` / `channels.workspaceId` (approvals
+    // precedent). Uses `text().references(...)` since `id()` is NOT NULL by contract.
+    workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
     templateKind: text().$type<ScheduleTemplateKind>().notNull(),
     displayName: text().notNull(), // user-editable; defaults to the template label
     cronExpression: text().notNull(), // e.g. '0 9 * * MON'

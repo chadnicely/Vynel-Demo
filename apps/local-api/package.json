@@ -24,6 +24,7 @@
     "@vynel/errors": "workspace:*",
     "@vynel/knowledge": "workspace:*",
     "@vynel/providers": "workspace:*",
+    "@vynel/schedules": "workspace:*",
     "@vynel/skills": "workspace:*",
     "@vynel/workspaces": "workspace:*",
     "hono": "^4.6.0",

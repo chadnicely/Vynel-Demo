@@ -10,7 +10,9 @@ export const SCHEDULE_RUN_COMPLETED_EVENT_TYPE = 'schedule.run-completed' as con
 export interface ScheduleRunCompletedPayload {
   scheduleId: string
   userId: string
-  workspaceId: string
+  // Nullable to match the schema — a GLOBAL schedule (NULL workspace) that
+  // delivers to a channel emits this event with a null workspaceId.
+  workspaceId: string | null
   channelId: string
   chatSessionId: string
   renderedOutput: string // the channel body — the 📅 header is already baked in

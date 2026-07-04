@@ -392,7 +392,7 @@ CREATE INDEX `idx_channel_queue_channel_chat` ON `channel_message_queue` (`chann
 CREATE TABLE `schedules` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
-	`workspace_id` text NOT NULL,
+	`workspace_id` text,
 	`template_kind` text NOT NULL,
 	`display_name` text NOT NULL,
 	`cron_expression` text NOT NULL,

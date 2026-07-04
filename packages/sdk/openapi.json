@@ -1748,6 +1748,433 @@
         "x-sdk-name": "channels.history"
       }
     },
+    "/workspaces/{workspaceId}/schedules": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of Schedule."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdSchedules",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List schedules for the active workspace (owner-scoped).",
+        "x-sdk-name": "schedules.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_schedules",
+          "description": "List the scheduled routines for the active workspace (owner-scoped). Returns each schedule with its cron expression, destination, enabled flag, and next fire time."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Schedule created."
+          },
+          "400": {
+            "description": "Invalid cron or missing channel."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdSchedules",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Create a schedule (from a template or custom).",
+        "x-sdk-name": "schedules.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "templateKind": {
+                    "type": "string",
+                    "enum": [
+                      "morning-briefing",
+                      "weekly-summary",
+                      "email-watch",
+                      "custom",
+                      "reminder"
+                    ]
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "cronExpression": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "promptTemplate": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8000
+                  },
+                  "destinationKind": {
+                    "type": "string",
+                    "enum": [
+                      "chat-only",
+                      "chat-and-channel"
+                    ]
+                  },
+                  "channelId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "catchUpOnMiss": {
+                    "type": "boolean"
+                  },
+                  "approvalTimeoutMsOverride": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "fireAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "templateKind"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/schedules/templates": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of ScheduleTemplateDefinition."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdSchedulesTemplates",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List the available schedule templates.",
+        "x-sdk-name": "schedules.listTemplates",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_schedule_templates",
+          "description": "List the built-in schedule templates (morning briefing, weekly summary, email watch, custom)."
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/schedules/{scheduleId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Schedule updated."
+          },
+          "400": {
+            "description": "Invalid cron or missing channel."
+          },
+          "404": {
+            "description": "No such schedule in this workspace."
+          }
+        },
+        "operationId": "patchWorkspacesByWorkspaceIdSchedulesByScheduleId",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Update a schedule.",
+        "x-sdk-name": "schedules.update",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "cronExpression": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "promptTemplate": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8000
+                  },
+                  "destinationKind": {
+                    "type": "string",
+                    "enum": [
+                      "chat-only",
+                      "chat-and-channel"
+                    ]
+                  },
+                  "channelId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1
+                  },
+                  "catchUpOnMiss": {
+                    "type": "boolean"
+                  },
+                  "approvalTimeoutMsOverride": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "exclusiveMinimum": 0
+                  },
+                  "isEnabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Schedule deleted."
+          },
+          "404": {
+            "description": "No such schedule in this workspace."
+          }
+        },
+        "operationId": "deleteWorkspacesByWorkspaceIdSchedulesByScheduleId",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Delete a schedule (hard delete; cascades to its run history).",
+        "x-sdk-name": "schedules.delete"
+      }
+    },
+    "/workspaces/{workspaceId}/schedules/{scheduleId}/enable": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Schedule enabled."
+          },
+          "404": {
+            "description": "No such schedule in this workspace."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdSchedulesByScheduleIdEnable",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Enable a schedule.",
+        "x-sdk-name": "schedules.enable"
+      }
+    },
+    "/workspaces/{workspaceId}/schedules/{scheduleId}/disable": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Schedule disabled."
+          },
+          "404": {
+            "description": "No such schedule in this workspace."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdSchedulesByScheduleIdDisable",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Disable a schedule.",
+        "x-sdk-name": "schedules.disable"
+      }
+    },
+    "/workspaces/{workspaceId}/schedules/{scheduleId}/runs": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of ScheduleRun (newest first)."
+          },
+          "404": {
+            "description": "No such schedule in this workspace."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdSchedulesByScheduleIdRuns",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorStartedAt",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List a schedule’s run history (owner-scoped, newest first, keyset-paginated).",
+        "x-sdk-name": "schedules.listRuns",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_schedule_runs",
+          "description": "List the recent runs of a schedule (owner-scoped, newest first). Each run has its status (completed / failed / missed), timing, and chat session id."
+        }
+      }
+    },
     "/approvals/pending": {
       "get": {
         "responses": {

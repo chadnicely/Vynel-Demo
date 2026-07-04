@@ -102,6 +102,9 @@ importers:
       '@vynel/providers':
         specifier: workspace:*
         version: link:../../packages/providers
+      '@vynel/schedules':
+        specifier: workspace:*
+        version: link:../../packages/schedules
       '@vynel/skills':
         specifier: workspace:*
         version: link:../../packages/skills

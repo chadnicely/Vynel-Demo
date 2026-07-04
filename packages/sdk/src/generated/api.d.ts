@@ -392,6 +392,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List schedules for the active workspace (owner-scoped). */
+        get: operations["getWorkspacesByWorkspaceIdSchedules"];
+        put?: never;
+        /** Create a schedule (from a template or custom). */
+        post: operations["postWorkspacesByWorkspaceIdSchedules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/schedules/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the available schedule templates. */
+        get: operations["getWorkspacesByWorkspaceIdSchedulesTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/schedules/{scheduleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a schedule (hard delete; cascades to its run history). */
+        delete: operations["deleteWorkspacesByWorkspaceIdSchedulesByScheduleId"];
+        options?: never;
+        head?: never;
+        /** Update a schedule. */
+        patch: operations["patchWorkspacesByWorkspaceIdSchedulesByScheduleId"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/schedules/{scheduleId}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable a schedule. */
+        post: operations["postWorkspacesByWorkspaceIdSchedulesByScheduleIdEnable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/schedules/{scheduleId}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable a schedule. */
+        post: operations["postWorkspacesByWorkspaceIdSchedulesByScheduleIdDisable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/schedules/{scheduleId}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a schedule’s run history (owner-scoped, newest first, keyset-paginated). */
+        get: operations["getWorkspacesByWorkspaceIdSchedulesByScheduleIdRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/approvals/pending": {
         parameters: {
             query?: never;
@@ -1330,6 +1434,264 @@ export interface operations {
                 content?: never;
             };
             /** @description No such channel in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdSchedules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of Schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdSchedules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    templateKind: "morning-briefing" | "weekly-summary" | "email-watch" | "custom" | "reminder";
+                    displayName?: string;
+                    cronExpression?: string;
+                    timezone?: string;
+                    promptTemplate?: string;
+                    /** @enum {string} */
+                    destinationKind?: "chat-only" | "chat-and-channel";
+                    channelId?: string;
+                    catchUpOnMiss?: boolean;
+                    approvalTimeoutMsOverride?: number;
+                    /** Format: date-time */
+                    fireAt?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Schedule created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid cron or missing channel. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdSchedulesTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of ScheduleTemplateDefinition. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteWorkspacesByWorkspaceIdSchedulesByScheduleId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schedule deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchWorkspacesByWorkspaceIdSchedulesByScheduleId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    displayName?: string;
+                    cronExpression?: string;
+                    timezone?: string;
+                    promptTemplate?: string;
+                    /** @enum {string} */
+                    destinationKind?: "chat-only" | "chat-and-channel";
+                    channelId?: string | null;
+                    catchUpOnMiss?: boolean;
+                    approvalTimeoutMsOverride?: number | null;
+                    isEnabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Schedule updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid cron or missing channel. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdSchedulesByScheduleIdEnable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schedule enabled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdSchedulesByScheduleIdDisable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schedule disabled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdSchedulesByScheduleIdRuns: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursorStartedAt?: string;
+                cursorId?: string;
+            };
+            header?: never;
+            path: {
+                scheduleId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of ScheduleRun (newest first). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule in this workspace. */
             404: {
                 headers: {
                     [name: string]: unknown;

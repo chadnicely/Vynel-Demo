@@ -34,3 +34,19 @@ New leaf `@vynel/schedules` owning schedules + schedule-runs schema+repos + logi
 workspaceId-nullable scope improve (same as channels) + schedules CRUD API (exposes fireAt one-time +
 cronExpression recurring). Deferred improve: explicit `scheduleKind` column (the window is open now —
 zero-data baseline-fold — Chad's call).
+
+## scope-improve + API vertical — DONE
+- **Scope improve**: `schedules.workspaceId` nullable (null=global), baseline-folded (`id()`→`text()`,
+  baseline SQL + snapshot `notNull:false`), `createSchedule` accepts `string|null`. Ripples handled:
+  fire-schedule guards the workspace lookup+owner-check when null (workspace-scoped path BYTE-IDENTICAL —
+  reviewer confirmed no tenant-isolation regression; global fails closed via NotFoundError); render-prompt
+  null-guards; `ScheduleResponse.workspaceId` + `ScheduleRunCompletedPayload.workspaceId` (producer +
+  channels consumer copy) → `string|null`. drizzle "No schema changes".
+- **API port**: 8 of 9 routes (source `apps/api/src/routes/schedules`) → local-api. SDK `client.schedules.*`
+  (list/listTemplates/create/update/enable/disable/delete/listRuns); MCP 3 read tools; **create exposes
+  BOTH fireAt (one-time) + cronExpression (recurring)** — Chad's two kinds, tested. NO mutating/fire MCP tool.
+  **`POST /:id/fire-now` DEFERRED** — drives a headless turn needing `composeSessionMcpServers`+
+  `vynelWorkspaceDescriptor` (Slice-3 app-wiring, LOCKED at apps/api edge) + injected `startChatTurn`;
+  lands with app-wiring as 1 route + a FireScheduleDeps binding. Gate **1426**; reviewer CLEAN.
+- **Deferred**: global-schedule CREATION via API (schema+op ready; workspace-scoped routes faithful);
+  fire-now route; explicit `scheduleKind` column.

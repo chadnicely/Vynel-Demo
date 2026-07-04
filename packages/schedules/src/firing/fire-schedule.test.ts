@@ -5,6 +5,7 @@ import {
   seedChatAndChannelSchedule,
   seedChatOnlySchedule,
   seedReminderSchedule,
+  seedGlobalReminderSchedule,
   stubFireDeps,
 } from '../test-support.js'
 import { fireSchedule } from './fire-schedule.js'
@@ -133,6 +134,31 @@ describe('fireSchedule', () => {
       const payload = events[0]!.payload as { renderedOutput: string; chatSessionId: string | null }
       expect(payload.renderedOutput).toContain('Attend your 2pm meeting.')
       expect(payload.chatSessionId).toBeNull()
+    })
+  })
+
+  it('fires a GLOBAL verbatim reminder (null workspace) without a workspace lookup', async () => {
+    await withTestDatabase(async (db) => {
+      const schedule = seedGlobalReminderSchedule(db)
+      expect(schedule.workspaceId).toBeNull()
+      const deps = { ...stubFireDeps(), startChatTurn }
+
+      const run = await fireSchedule(
+        db,
+        { scheduleId: schedule.id, scheduledFireAt: new Date('2026-06-23T14:00:00Z'), triggerKind: 'manual' },
+        deps,
+      )
+
+      expect(run.status).toBe('completed')
+      expect(run.chatSessionId).toBeNull()
+      expect(startChatTurn).not.toHaveBeenCalled()
+      expect(deps.state.builtMcpServer).toBe(false) // the workspace-turn machinery was never built
+
+      const events = listOutboxEventsByType(db, 'schedule.run-completed')
+      expect(events).toHaveLength(1)
+      const payload = events[0]!.payload as { workspaceId: string | null; renderedOutput: string }
+      expect(payload.workspaceId).toBeNull() // the outbox payload carries the null (global) scope
+      expect(payload.renderedOutput).toContain('Attend your 2pm meeting.')
     })
   })
 })

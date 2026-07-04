@@ -10,6 +10,11 @@ import type { Database } from '@vynel/db'
 import type { Schedule, NewSchedule } from './repositories/index.js'
 import type { FireScheduleDeps } from './schedules-types.js'
 
+// Re-exported for route/integration tests that seed schedules + runs directly
+// (the production barrel keeps repositories internal).
+export { insertSchedule, insertScheduleRun } from './repositories/index.js'
+export type { NewSchedule } from './repositories/index.js'
+
 function seedUserWorkspace(db: Database): { userId: string; workspaceId: string } {
   const now = new Date()
   const user = insertUser(db, {
@@ -38,7 +43,7 @@ function seedUserWorkspace(db: Database): { userId: string; workspaceId: string 
 
 function makeSchedule(
   userId: string,
-  workspaceId: string,
+  workspaceId: string | null,
   overrides: Partial<NewSchedule> = {},
 ): NewSchedule {
   const now = new Date()
@@ -84,6 +89,32 @@ export function seedReminderSchedule(db: Database): Schedule {
   return insertSchedule(
     db,
     makeSchedule(userId, workspaceId, {
+      templateKind: 'reminder',
+      destinationKind: 'chat-and-channel',
+      channelId: 'channel-1',
+      promptTemplate: 'Attend your 2pm meeting.',
+    }),
+  )
+}
+
+// A GLOBAL verbatim reminder (null workspaceId) bound to a channel — fires
+// WITHOUT an LLM turn, so it never reaches the workspace lookup. Proves a
+// global schedule fires with no workspace.
+export function seedGlobalReminderSchedule(db: Database): Schedule {
+  const now = new Date()
+  const user = insertUser(db, {
+    id: randomUUID(),
+    displayName: 'Dana',
+    emailAddress: null,
+    locale: 'en-US',
+    timezone: 'UTC',
+    hasCompletedOnboarding: false,
+    createdAt: now,
+    updatedAt: now,
+  })
+  return insertSchedule(
+    db,
+    makeSchedule(user.id, null, {
       templateKind: 'reminder',
       destinationKind: 'chat-and-channel',
       channelId: 'channel-1',

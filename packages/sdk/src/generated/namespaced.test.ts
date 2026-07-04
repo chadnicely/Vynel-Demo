@@ -62,6 +62,22 @@ const EXPECTED_SKILLS_METHODS = [
   'updateSettings',
 ] as const
 
+// The schedules namespace's methods, sorted. The 3 read GETs (list /
+// listTemplates / listRuns) + the 5 mutating lifecycle routes all carry
+// `x-sdk-name`; x-mcp is the narrower opt-in (only the 3 GETs are exposed).
+// The source `fire-now` route is deferred (its MCP-turn composition lands with
+// the session Slice-3 app-wiring), so there is no `fireNow` method here.
+const EXPECTED_SCHEDULES_METHODS = [
+  'create',
+  'delete',
+  'disable',
+  'enable',
+  'list',
+  'listRuns',
+  'listTemplates',
+  'update',
+] as const
+
 // Build a client stub whose every verb resolves to one canned
 // openapi-fetch result — drives the generated dispatch's success + error branches.
 function clientReturning(result: {
@@ -95,13 +111,20 @@ function capturingClient(): { client: Client<paths>; calls: CapturedCall[] } {
 }
 
 describe('makeNamespaced — shape', () => {
-  it('exposes the knowledge + approvals + skills + channels namespaces with their annotated methods', () => {
+  it('exposes the knowledge + approvals + skills + channels + schedules namespaces with their annotated methods', () => {
     const sdk = makeNamespaced(stubClient)
-    expect(Object.keys(sdk).sort()).toEqual(['approvals', 'channels', 'knowledge', 'skills'])
+    expect(Object.keys(sdk).sort()).toEqual([
+      'approvals',
+      'channels',
+      'knowledge',
+      'schedules',
+      'skills',
+    ])
     expect(Object.keys(sdk.knowledge).sort()).toEqual([...EXPECTED_KNOWLEDGE_METHODS])
     expect(Object.keys(sdk.approvals).sort()).toEqual([...EXPECTED_APPROVALS_METHODS])
     expect(Object.keys(sdk.skills).sort()).toEqual([...EXPECTED_SKILLS_METHODS])
     expect(Object.keys(sdk.channels).sort()).toEqual([...EXPECTED_CHANNELS_METHODS])
+    expect(Object.keys(sdk.schedules).sort()).toEqual([...EXPECTED_SCHEDULES_METHODS])
   })
 
   it('every method is a function', () => {
@@ -111,6 +134,7 @@ describe('makeNamespaced — shape', () => {
       ...Object.values(sdk.approvals),
       ...Object.values(sdk.skills),
       ...Object.values(sdk.channels),
+      ...Object.values(sdk.schedules),
     ]) {
       expect(typeof method).toBe('function')
     }

@@ -351,6 +351,115 @@ export const listKnowledgeSources: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listScheduleRuns: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_schedule_runs',
+    "List the recent runs of a schedule (owner-scoped, newest first). Each run has its status (completed / failed / missed), timing, and chat session id.",
+    {
+    scheduleId: z.string(),
+    workspaceId: z.string(),
+    limit: z.number().optional(),
+    cursorStartedAt: z.string().optional(),
+    cursorId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/schedules/{scheduleId}/runs'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{scheduleId}', encodeURIComponent(String(args['scheduleId'] ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['limit', 'cursorStartedAt', 'cursorId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listScheduleTemplates: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_schedule_templates',
+    "List the built-in schedule templates (morning briefing, weekly summary, email watch, custom).",
+    {
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/schedules/templates'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listSchedules: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_schedules',
+    "List the scheduled routines for the active workspace (owner-scoped). Returns each schedule with its cron expression, destination, enabled flag, and next fire time.",
+    {
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/schedules'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const removeKnowledgeSource: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'remove_knowledge_source',
@@ -439,6 +548,9 @@ export const generatedMcpTools: McpToolFactory[] = [
   listInstalledSkills,
   listKnowledgeDocuments,
   listKnowledgeSources,
+  listScheduleRuns,
+  listScheduleTemplates,
+  listSchedules,
   removeKnowledgeSource,
   searchKnowledge,
 ]

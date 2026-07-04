@@ -16,6 +16,7 @@ import { openApiInfo } from './openapi.js'
 import { knowledgeApp } from './routes/knowledge/index.js'
 import { skillsApp } from './routes/skills/index.js'
 import { channelsApp } from './routes/channels/index.js'
+import { schedulesApp } from './routes/schedules/index.js'
 import { approvalsApp } from './routes/approvals/index.js'
 
 export interface CreateAppOptions {
@@ -61,6 +62,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/workspaces/:workspaceId/knowledge', knowledgeApp)
   app.route('/workspaces/:workspaceId/skills', skillsApp)
   app.route('/workspaces/:workspaceId/channels', channelsApp)
+  app.route('/workspaces/:workspaceId/schedules', schedulesApp)
   // User-scoped (no workspace prefix) — the global approval queue spans every
   // workspace + the brain, answerable from any surface.
   app.route('/approvals', approvalsApp)

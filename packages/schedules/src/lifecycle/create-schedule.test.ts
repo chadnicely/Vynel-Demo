@@ -141,6 +141,23 @@ describe('createSchedule', () => {
     })
   })
 
+  it('creates a GLOBAL one-time reminder (null workspaceId) and persists it with null workspaceId', async () => {
+    await withTestDatabase(async (db) => {
+      const { user } = seedUserWorkspace(db)
+      const schedule = createSchedule(db, {
+        userId: user.id,
+        workspaceId: null, // GLOBAL scope — no workspace
+        templateKind: 'custom',
+        destinationKind: 'chat-only',
+        promptTemplate: 'Remind me to take a break.',
+        fireAt: new Date(Date.now() + 15 * 60_000),
+      })
+      expect(schedule.workspaceId).toBeNull()
+      expect(isOneTimeSchedule(schedule)).toBe(true)
+      expect(findScheduleById(db, schedule.id)?.workspaceId).toBeNull()
+    })
+  })
+
   it('defaults a one-time schedule to catch-up (overriding the template) so an offline miss is delivered late, not dropped', async () => {
     await withTestDatabase(async (db) => {
       const { user, workspace } = seedUserWorkspace(db)

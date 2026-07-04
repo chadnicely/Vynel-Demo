@@ -23,6 +23,10 @@ import { generatedMcpTools, generatedRoutingMcpTools } from './api-tools.js'
 //     GETs (list_channels / list_allowed_senders); the mutating
 //     connect/disconnect/enable/disable/allowed-sender routes carry NO x-mcp
 //     (connect carries the bot token — never an MCP tool).
+//   - schedules (`apps/local-api/src/routes/schedules/index.ts`): 3 read-only
+//     GETs (list_schedules / list_schedule_templates / list_schedule_runs);
+//     the mutating create/update/enable/disable/delete routes carry NO x-mcp
+//     (and the fire-now route is deferred entirely).
 const EXPECTED_TOOL_NAMES = [
   'add_to_knowledge',
   'get_indexer_status',
@@ -33,6 +37,9 @@ const EXPECTED_TOOL_NAMES = [
   'list_installed_skills',
   'list_knowledge_documents',
   'list_knowledge_sources',
+  'list_schedule_runs',
+  'list_schedule_templates',
+  'list_schedules',
   'remove_knowledge_source',
   'search_knowledge',
 ] as const

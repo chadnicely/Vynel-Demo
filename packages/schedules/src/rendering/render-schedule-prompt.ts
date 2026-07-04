@@ -13,10 +13,13 @@ const SCHEDULE_PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g
 
 export function renderSchedulePrompt(
   db: Database,
-  input: { promptTemplate: string; userId: string; workspaceId: string; now: Date },
+  input: { promptTemplate: string; userId: string; workspaceId: string | null; now: Date },
 ): string {
   const user = findUserById(db, input.userId)
-  const workspace = findWorkspaceById(db, input.workspaceId)
+  // A GLOBAL schedule (null workspaceId) has no workspace row — its
+  // `{{workspace.*}}` placeholders resolve to '' (the same fallback as a
+  // missing workspace).
+  const workspace = input.workspaceId !== null ? findWorkspaceById(db, input.workspaceId) : null
 
   const placeholderValues: Record<string, string> = {
     'user.displayName': user?.displayName ?? '',

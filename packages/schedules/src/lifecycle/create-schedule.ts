@@ -21,7 +21,7 @@ import type { StructuralLogger } from '../schedules-types.js'
 
 export interface CreateScheduleInput {
   userId: string
-  workspaceId: string
+  workspaceId: string | null // null = GLOBAL scope (no workspace); a value scopes to that workspace
   templateKind: ScheduleTemplateKind
   displayName?: string
   cronExpression?: string

@@ -24,7 +24,10 @@ import type { Channel, ChannelUserLink } from '../repositories/index.js'
 export interface ScheduleRunCompletedPayload {
   scheduleId: string
   userId: string
-  workspaceId: string
+  // Nullable, field-for-field with the schedules producer — a GLOBAL schedule
+  // (NULL workspace) can still deliver to a channel. Not read here (delivery
+  // keys off channelId), kept accurate for the loose cross-domain contract.
+  workspaceId: string | null
   channelId: string
   // The chat session the fired turn produced — carried for traceability, not
   // used for delivery. Null for a verbatim reminder (no LLM turn, no session).

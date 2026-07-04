@@ -2804,7 +2804,7 @@
           "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "template_kind": {

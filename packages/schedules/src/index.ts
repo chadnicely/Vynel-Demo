@@ -5,6 +5,10 @@
 
 export type { StructuralLogger, FireScheduleDeps } from './schedules-types.js'
 
+// Row types — the HTTP serializers type their inputs against these (the
+// channels `Channel` re-export precedent). Repositories stay internal.
+export type { Schedule, ScheduleRun } from './repositories/index.js'
+
 export {
   SCHEDULE_RUN_COMPLETED_EVENT_TYPE,
   type ScheduleRunCompletedPayload,

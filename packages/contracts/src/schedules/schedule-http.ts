@@ -20,7 +20,9 @@ export type ScheduleRunTriggerKind = 'poll' | 'catchup' | 'manual'
 export interface ScheduleResponse {
   id: string
   userId: string
-  workspaceId: string
+  // Nullable to match the schema, where `workspaceId` is nullable (NULL =
+  // GLOBAL scope — a user-level schedule with no workspace).
+  workspaceId: string | null
   templateKind: ScheduleTemplateKind
   displayName: string
   cronExpression: string
