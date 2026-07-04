@@ -10,14 +10,14 @@
 // hard-delete on the parent (D13).
 
 import { eq } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   skillSettings,
   type SkillSettingRow,
   type NewSkillSettingRow,
-} from '../../schema/skills/skill-settings.js'
+} from '../schema/skill-settings.js'
 
-export type { SkillSettingRow, NewSkillSettingRow } from '../../schema/skills/skill-settings.js'
+export type { SkillSettingRow, NewSkillSettingRow } from '../schema/skill-settings.js'
 
 export function listSettingsForInstalledSkill(
   db: Database,

@@ -12,12 +12,12 @@
 // empty).
 
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   installedSkills,
   type InstalledSkillRow,
   type NewInstalledSkillRow,
-} from '../../schema/skills/installed-skills.js'
+} from '../schema/installed-skills.js'
 
 export type {
   InstalledSkillRow,
@@ -25,7 +25,7 @@ export type {
   SkillScope,
   InstalledFromSource,
   InstallHealth,
-} from '../../schema/skills/installed-skills.js'
+} from '../schema/installed-skills.js'
 
 export function findInstalledSkillById(
   db: Database,

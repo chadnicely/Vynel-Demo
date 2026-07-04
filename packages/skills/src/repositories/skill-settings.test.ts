@@ -4,8 +4,8 @@
 
 import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { withTestDatabase } from '../../test-support/with-test-database.js'
-import { insertUser } from '../users/users.js'
+import { withTestDatabase } from '@vynel/testing'
+import { insertUser } from '@vynel/db/repositories/users'
 import {
   listSettingsForInstalledSkill,
   upsertSkillSetting,

@@ -70,6 +70,13 @@ working `McpFeatureDescriptor` reference; knowledge/memory/chat each still owe o
 (`surface-up`). Deferred Layer-B vocab: `globalRootSessionId`/`rootSessionId` fields rename when these land.
 
 ## ✅ Recently done (most recent first)
+- **`@vynel/skills` vertical-slice (autopilot)** — new leaf owning skills schema+repos+logic, folded
+  memory-style (`schema/`·`repositories/`·`lifecycle/`·`settings/`·`queries/`·`internal/`). Schema+repos
+  git-mv'd from kernel; logic from source `core/src/skills/`. Leaf-clean (kernel+shared+contracts+
+  providers type-only; NO cross-leaf). drizzle **"No schema changes"**; full gate **1311 passed / 4 skip**
+  (+70); reviewer CLEAN. Killed the stale `@vynel/core/skills` index header. **Marketplace read-seam:**
+  skills publishes `listInstalledSkillsForUserAndWorkspace` for marketplace install-status.
+  **Still owed: skills API vertical.** `.claude/journal/2026-07-04-skills-pull.md`.
 - **`@vynel/voice` leaf pulled (autopilot warmup)** — stateless voice-relay core (ack-library,
   audio-segmenter, barge-in, relay-task-notifier, sentence-buffer, summarize-turn-for-voice,
   turn-taking-gate, wake-word) moved byte-faithfully from `core/src/voice/`; owns no tables; sole dep

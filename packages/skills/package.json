@@ -1,0 +1,26 @@
+{
+  "name": "@vynel/skills",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vynel/contracts": "workspace:*",
+    "@vynel/db": "workspace:*",
+    "@vynel/errors": "workspace:*",
+    "@vynel/logger": "workspace:*",
+    "@vynel/providers": "workspace:*",
+    "drizzle-orm": "^0.45.0"
+  },
+  "devDependencies": {
+    "@vynel/testing": "workspace:*",
+    "typescript": "^5.6.0"
+  }
+}
