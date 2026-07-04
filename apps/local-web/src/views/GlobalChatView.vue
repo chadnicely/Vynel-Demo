@@ -5,7 +5,7 @@ import { EmptyState } from "@vynel/ui";
 import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import Composer from "../components/chat/Composer.vue";
-import MenuListView from "../components/shell/MenuListView.vue";
+import MenuPanel from "../components/shell/MenuPanel.vue";
 import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
@@ -14,17 +14,13 @@ import { useUiStore } from "../stores/ui-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 
 // The global chat — ONE continuous conversation by default (the product's
-// "one brain"). History is opt-in behind the titlebar toggle; the titlebar
-// menu swaps this area for the menu view.
+// "one brain"). Panels are opt-in: the menu (persistent, leftmost) and the
+// history list both sit beside the canvas, never over it.
 const GLOBAL_SCOPE = { kind: "global" } as const;
 
 const GLOBAL_MENU_ITEMS = [
-  { id: "chat", label: "Chat", hint: "Back to your conversation" },
-  {
-    id: "application",
-    label: "Application",
-    hint: "Global settings — model, voice, appearance",
-  },
+  { id: "chat", label: "Chat", hint: "Your conversation" },
+  { id: "application", label: "Application", hint: "Global settings" },
 ];
 
 const ui = useUiStore();
@@ -88,12 +84,30 @@ function sendMessage(text: string) {
 }
 
 function onMenuSelect(itemId: string) {
-  shell.mainView = itemId === "chat" ? "chat" : "application";
+  shell.mainView = itemId === "application" ? "application" : "chat";
+}
+
+function openHistorySession(sessionId: string) {
+  shell.target = { sessionId };
+  shell.mainView = "chat";
+}
+
+function openContinuous() {
+  shell.target = "continuous";
+  shell.mainView = "chat";
 }
 </script>
 
 <template>
-  <div class="chat-view" :class="{ 'has-history': ui.isSessionListOpen }">
+  <div class="chat-view">
+    <MenuPanel
+      v-if="ui.isMenuOpen"
+      title="Menu"
+      :items="GLOBAL_MENU_ITEMS"
+      :active-id="shell.mainView === 'chat' ? 'chat' : 'application'"
+      @select="onMenuSelect"
+    />
+
     <SessionsPanel
       v-if="ui.isSessionListOpen"
       :sessions="sessions"
@@ -101,18 +115,14 @@ function onMenuSelect(itemId: string) {
       :is-continuous-active="shell.target === 'continuous'"
       :is-loading="sessionsQuery.isPending.value"
       :error-text="sessionsErrorText"
-      @select="(id) => (shell.target = { sessionId: id })"
-      @select-continuous="shell.target = 'continuous'"
+      @select="openHistorySession"
+      @select-continuous="openContinuous"
     />
 
-    <MenuListView
-      v-if="shell.mainView === 'menu'"
-      title="Menu"
-      :items="GLOBAL_MENU_ITEMS"
-      @select="onMenuSelect"
-    />
-
-    <div v-else-if="shell.mainView === 'application'" class="application-view">
+    <div
+      v-if="shell.mainView === 'application'"
+      class="canvas application-view"
+    >
       <EmptyState
         title="Application"
         hint="Global settings — model, voice, appearance — land here as their options come online."
@@ -123,7 +133,7 @@ function onMenuSelect(itemId: string) {
       </EmptyState>
     </div>
 
-    <section v-else class="thread-pane">
+    <section v-else class="canvas thread-pane">
       <div v-if="showsWelcome" class="welcome">
         <EmptyState
           title="Your assistant is ready"
@@ -157,13 +167,17 @@ function onMenuSelect(itemId: string) {
 <style scoped>
 .chat-view {
   height: 100%;
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
   min-height: 0;
 }
 
-.chat-view.has-history {
-  grid-template-columns: 280px 1fr;
+.chat-view > :not(.canvas) {
+  flex: none;
+}
+
+.canvas {
+  flex: 1;
+  min-width: 0;
 }
 
 .thread-pane {
@@ -183,6 +197,7 @@ function onMenuSelect(itemId: string) {
   display: grid;
   place-items: center;
   overflow-y: auto;
+  background: var(--bg-shell);
 }
 
 .composer-dock {

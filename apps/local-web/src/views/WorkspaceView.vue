@@ -5,7 +5,7 @@ import { EmptyState, IconButton } from "@vynel/ui";
 import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import Composer from "../components/chat/Composer.vue";
-import MenuListView from "../components/shell/MenuListView.vue";
+import MenuPanel from "../components/shell/MenuPanel.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
 import WorkspaceSectionPanel from "../components/workspace/WorkspaceSectionPanel.vue";
 import { WORKSPACE_SECTIONS } from "../components/workspace/workspace-sections.js";
@@ -21,12 +21,12 @@ import { formatSdkError } from "../utils/format-sdk-error.js";
 import { demoFileTreesByWorkspaceId } from "../demo/fixtures/file-trees.js";
 
 // The workspace room — same continuous-first chat as global, scoped to one
-// workspace, plus its files panel and the menu's feature sections.
+// workspace. Panels beside the canvas: menu (persistent) · history · files.
 const ui = useUiStore();
 const shell = ui.workspaceChat;
 
 const WORKSPACE_MENU_ITEMS = [
-  { id: "chat", label: "Chat", hint: "Back to the conversation" },
+  { id: "chat", label: "Chat", hint: "The conversation" },
   ...WORKSPACE_SECTIONS.map((section) => ({
     id: section.id,
     label: section.label,
@@ -117,9 +117,7 @@ const fileTree = computed(() =>
 );
 
 const activeSection = computed<WorkspaceSectionId | null>(() =>
-  shell.mainView !== "chat" &&
-  shell.mainView !== "menu" &&
-  shell.mainView !== "application"
+  shell.mainView !== "chat" && shell.mainView !== "application"
     ? shell.mainView
     : null,
 );
@@ -141,16 +139,28 @@ function sendMessage(text: string) {
 function onMenuSelect(itemId: string) {
   shell.mainView = itemId === "chat" ? "chat" : (itemId as WorkspaceSectionId);
 }
+
+function openHistorySession(sessionId: string) {
+  shell.target = { sessionId };
+  shell.mainView = "chat";
+}
+
+function openContinuous() {
+  shell.target = "continuous";
+  shell.mainView = "chat";
+}
 </script>
 
 <template>
-  <div
-    class="workspace-view"
-    :class="{
-      'has-history': ui.isSessionListOpen,
-      'has-files': isFilesPanelOpen && shell.mainView === 'chat',
-    }"
-  >
+  <div class="workspace-view">
+    <MenuPanel
+      v-if="ui.isMenuOpen"
+      :title="activeWorkspace?.name ?? 'Workspace'"
+      :items="WORKSPACE_MENU_ITEMS"
+      :active-id="shell.mainView"
+      @select="onMenuSelect"
+    />
+
     <SessionsPanel
       v-if="ui.isSessionListOpen"
       :sessions="sessions"
@@ -158,18 +168,11 @@ function onMenuSelect(itemId: string) {
       :is-continuous-active="shell.target === 'continuous'"
       :is-loading="sessionsQuery.isPending.value"
       :error-text="sessionsErrorText"
-      @select="(id) => (shell.target = { sessionId: id })"
-      @select-continuous="shell.target = 'continuous'"
+      @select="openHistorySession"
+      @select-continuous="openContinuous"
     />
 
-    <MenuListView
-      v-if="shell.mainView === 'menu'"
-      :title="activeWorkspace?.name ?? 'Workspace'"
-      :items="WORKSPACE_MENU_ITEMS"
-      @select="onMenuSelect"
-    />
-
-    <div v-else-if="activeSection" class="section-view">
+    <div v-if="activeSection" class="canvas section-view">
       <div class="section-column">
         <WorkspaceSectionPanel
           :section="activeSection"
@@ -178,7 +181,7 @@ function onMenuSelect(itemId: string) {
       </div>
     </div>
 
-    <section v-else class="thread-pane">
+    <section v-else class="canvas thread-pane">
       <div class="thread-toolbar">
         <IconButton
           label="Toggle files"
@@ -222,7 +225,7 @@ function onMenuSelect(itemId: string) {
     </section>
 
     <FilesPanel
-      v-if="isFilesPanelOpen && shell.mainView === 'chat'"
+      v-if="isFilesPanelOpen && !activeSection"
       :workspace-name="activeWorkspace?.name ?? 'Workspace'"
       :tree="fileTree"
       @close="isFilesPanelOpen = false"
@@ -233,21 +236,17 @@ function onMenuSelect(itemId: string) {
 <style scoped>
 .workspace-view {
   height: 100%;
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
   min-height: 0;
 }
 
-.workspace-view.has-history {
-  grid-template-columns: 280px 1fr;
+.workspace-view > :not(.canvas) {
+  flex: none;
 }
 
-.workspace-view.has-files {
-  grid-template-columns: 1fr 280px;
-}
-
-.workspace-view.has-history.has-files {
-  grid-template-columns: 280px 1fr 280px;
+.canvas {
+  flex: 1;
+  min-width: 0;
 }
 
 .thread-pane {

@@ -8,9 +8,9 @@ export type Theme = "dark" | "light";
  *  default — Vynel's "one brain"), a fresh topic, or one history session. */
 export type ChatTarget = "continuous" | "fresh" | { sessionId: string };
 
-/** What fills a tab's main area: the chat itself, the in-place menu, or a
- *  menu item's view (Application globally; a feature section in a workspace). */
-export type ChatMainView = "chat" | "menu" | "application" | WorkspaceSectionId;
+/** What the canvas shows: the chat itself or a menu item's view
+ *  (Application globally; a feature section in a workspace). */
+export type ChatMainView = "chat" | "application" | WorkspaceSectionId;
 
 export interface ChatShellState {
   mainView: ChatMainView;
@@ -61,6 +61,10 @@ export const useUiStore = defineStore("ui", () => {
   // continuous single conversation unless the user toggles the list open.
   const isSessionListOpen = ref(false);
 
+  // The menu is a persistent panel sitting BEFORE the conversations panel;
+  // its items render their views on the canvas (chat included).
+  const isMenuOpen = ref(false);
+
   const globalChat = reactive<ChatShellState>({
     mainView: "chat",
     target: "continuous",
@@ -70,11 +74,6 @@ export const useUiStore = defineStore("ui", () => {
     target: "continuous",
   });
 
-  /** The titlebar menu button: flips a tab between its chat and its menu. */
-  function toggleMenuView(shell: ChatShellState) {
-    shell.mainView = shell.mainView === "menu" ? "chat" : "menu";
-  }
-
   // The Jarvis voice overlay (demo animation until the voice engine lands).
   const isVoiceOverlayOpen = ref(false);
 
@@ -83,9 +82,9 @@ export const useUiStore = defineStore("ui", () => {
     toggleTheme,
     activeWorkspaceId,
     isSessionListOpen,
+    isMenuOpen,
     globalChat,
     workspaceChat,
-    toggleMenuView,
     isVoiceOverlayOpen,
   };
 });

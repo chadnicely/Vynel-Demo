@@ -30,10 +30,6 @@ const isChatSurface = computed(
 );
 const isWorkspaceTab = computed(() => activeTab.value === "workspace");
 
-const activeShell = computed(() =>
-  activeTab.value === "workspace" ? ui.workspaceChat : ui.globalChat,
-);
-
 // The status light: gold ring = needs you, gold pulse = working.
 const pendingCount = computed(
   () => pendingApprovalsQuery.data.value?.length ?? 0,
@@ -66,8 +62,8 @@ function startFreshConversation() {
       <template v-if="isChatSurface">
         <IconButton
           label="Menu"
-          :active="activeShell.mainView === 'menu'"
-          @click="ui.toggleMenuView(activeShell)"
+          :active="ui.isMenuOpen"
+          @click="ui.isMenuOpen = !ui.isMenuOpen"
         >
           <Menu :size="15" />
         </IconButton>

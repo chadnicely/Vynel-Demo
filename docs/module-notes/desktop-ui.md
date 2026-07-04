@@ -109,10 +109,11 @@
   - Titlebar left: **menu icon** (no "vynel" wordmark) + **history toggle** (PanelLeft); on
     Workspace additionally **workspace switcher + "+"** (new topic conversation). Presence dot
     moved to the right cluster.
-  - The **menu replaces the chat area in place** (no drawer — AppDrawer deleted): global menu =
-    Chat + Application; workspace menu = Chat + the 7 feature sections; picking a section fills
-    the main area; "Chat" returns. State: `ui-store` `ChatShellState` per tab
-    (`mainView`/`target`) + shared `isSessionListOpen`.
+  - The **menu is a persistent PANEL** (Chad's follow-up), sitting just BEFORE the conversations
+    panel: `[menu panel] [conversations panel] [canvas]`. Menu items render their views **on the
+    canvas** (Chat included); the menu stays open while navigating. Global menu = Chat +
+    Application; workspace menu = Chat + the 7 feature sections. State: `ui-store`
+    `ChatShellState` per tab (`mainView`/`target`) + shared `isSessionListOpen` + `isMenuOpen`.
   - History panel: pinned **"Current conversation"** row returns to the continuous thread;
     history sessions below.
   - **Approval notifications: bottom-right**, decidable from any view (workspace context +

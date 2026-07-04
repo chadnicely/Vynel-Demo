@@ -44,6 +44,7 @@ const emit = defineEmits<{
   display: grid;
   grid-template-rows: auto 1fr;
   min-height: 0;
+  width: 280px;
   background: var(--bg-panel);
   border-left: 1px solid var(--hair);
 }
