@@ -10,6 +10,7 @@ import {
   findApprovalRequestById,
   findApprovalRequestByProviderApprovalId,
   listPendingApprovalRequestsForSession,
+  listPendingApprovalsForUser,
   listApprovalRequestsForWorkspace,
   listStalePendingApprovalRequests,
   insertApprovalRequest,
@@ -49,7 +50,7 @@ function makeWorkspace(userId: string) {
 
 function makeApprovalRequest(
   userId: string,
-  workspaceId: string,
+  workspaceId: string | null,
   overrides: Partial<NewApprovalRequest> = {},
 ): NewApprovalRequest {
   const now = new Date()
@@ -149,6 +150,53 @@ describe('approval-requests repository', () => {
         const rows = listPendingApprovalRequestsForSession(db, sessionId)
         expect(rows).toHaveLength(2)
         expect(rows[0]!.id).toBe(newer.id)
+      })
+    })
+  })
+
+  describe('listPendingApprovalsForUser', () => {
+    it('returns pending across ALL workspaces + sessions for the user, newest first', async () => {
+      await withTestDatabase((db) => {
+        const user = insertUser(db, makeUser())
+        const other = insertUser(db, makeUser())
+        const ws1 = insertWorkspace(db, makeWorkspace(user.id))
+        const ws2 = insertWorkspace(db, makeWorkspace(user.id))
+        const t1 = new Date('2026-05-23T10:00:00Z')
+        const t2 = new Date('2026-05-23T11:00:00Z')
+        insertApprovalRequest(db, makeApprovalRequest(user.id, ws1.id, { requestedAt: t1 }))
+        const newer = insertApprovalRequest(
+          db,
+          makeApprovalRequest(user.id, ws2.id, { requestedAt: t2 }),
+        )
+        // Resolved row — excluded.
+        insertApprovalRequest(
+          db,
+          makeApprovalRequest(user.id, ws1.id, {
+            status: 'resolved',
+            resolutionKind: 'approved',
+            resolvedAt: new Date(),
+          }),
+        )
+        // Another user's pending — excluded (tenant isolation).
+        const otherWs = insertWorkspace(db, makeWorkspace(other.id))
+        insertApprovalRequest(db, makeApprovalRequest(other.id, otherWs.id))
+
+        const rows = listPendingApprovalsForUser(db, user.id)
+        expect(rows).toHaveLength(2)
+        expect(rows[0]!.id).toBe(newer.id)
+      })
+    })
+
+    it('includes workspace-less global-root (brain) cards', async () => {
+      await withTestDatabase((db) => {
+        const user = insertUser(db, makeUser())
+        const brain = insertApprovalRequest(
+          db,
+          makeApprovalRequest(user.id, null, { sessionId: 'brain-1' }),
+        )
+        const rows = listPendingApprovalsForUser(db, user.id)
+        expect(rows.map((r) => r.id)).toContain(brain.id)
+        expect(rows.find((r) => r.id === brain.id)?.workspaceId).toBeNull()
       })
     })
   })

@@ -54,7 +54,11 @@ export const approvalRequests = table(
     id: id().primaryKey(),
     providerApprovalId: text().notNull(),
     userId: id().references(() => users.id, { onDelete: 'cascade' }),
-    workspaceId: id().references(() => workspaces.id, { onDelete: 'cascade' }),
+    // Nullable: a workspace card carries its workspace; a global-root (brain) card
+    // has NONE (mirrors `primary_sessions.workspaceId`). Persisting the brain's cards
+    // — rather than dropping them — is what makes them reachable in the user's global
+    // approval queue. Uses `text().references(...)` since `id()` is NOT NULL by contract.
+    workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
     sessionId: text().notNull(),
     parentMessageId: text().notNull(),
     toolUseId: text().notNull(),

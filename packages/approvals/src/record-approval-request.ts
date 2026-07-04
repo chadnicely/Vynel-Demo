@@ -33,7 +33,9 @@ const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000
 export type RecordApprovalRequestInput = {
   providerApprovalId: string
   userId: string
-  workspaceId: string
+  /** Null for a global-root (brain) card — it persists (nullable column) and always
+   *  parks as pending (no workspace-scoped rule can match a workspace-less card). */
+  workspaceId: string | null
   sessionId: string
   parentMessageId: string
   toolUseId: string
@@ -99,6 +101,12 @@ export async function recordApprovalRequest(
     })
     return inserted
   })
+
+  // A global-root (brain) card has no workspace, so no workspace-scoped rule can
+  // match — it always parks as pending (the user answers it from the global queue).
+  if (input.workspaceId === null) {
+    return { kind: 'pending', request }
+  }
 
   // Outside tx — fetch enabled rules + evaluate (pure).
   const workspaceRules = approvalRulesRepository.listEnabledApprovalRulesForWorkspace(

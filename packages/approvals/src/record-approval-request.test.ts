@@ -230,4 +230,31 @@ describe('recordApprovalRequest', () => {
       expect(audit?.status).toBe('pending')
     })
   })
+
+  it('persists a global-root (brain) card with null workspaceId as pending, skipping rule-eval', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      // A brain card — no workspace. Previously these were DROPPED (never persisted);
+      // now they persist so they reach the user's global approval queue.
+      const result = await recordApprovalRequest(db, {
+        providerApprovalId: 'prov-brain',
+        userId: user.id,
+        workspaceId: null,
+        sessionId: 'brain-session-1',
+        parentMessageId: 'message-1',
+        toolUseId: 'tool-1',
+        providerId: 'claude',
+        toolName: 'act_on_app',
+        toolInput: { app: 'Mail' },
+      })
+
+      expect(result.kind).toBe('pending')
+      expect(result.request.workspaceId).toBeNull()
+      expect(result.request.status).toBe('pending')
+      // No workspace → no workspace-rule-eval → provider never called.
+      expect(respondToApprovalRequestSpy).not.toHaveBeenCalled()
+      // Persisted + emitted (not dropped) — the stuck-card fix at the record layer.
+      expect(listOutboxEventsByType(db, 'approval.requested')).toHaveLength(1)
+    })
+  })
 })

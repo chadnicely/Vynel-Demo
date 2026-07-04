@@ -24,7 +24,8 @@ export const APPROVAL_RULE_CREATED = 'approval.rule-created' as const
 
 export type ApprovalRequestedPayload = {
   userId: string
-  workspaceId: string
+  // Null for a global-root (brain) card — the brain has no workspace.
+  workspaceId: string | null
   sessionId: string
   parentMessageId: string
   toolUseId: string
@@ -37,7 +38,8 @@ export type ApprovalRequestedPayload = {
 
 export type ApprovalResolvedPayload = {
   userId: string
-  workspaceId: string
+  // Null for a global-root (brain) card — the brain has no workspace.
+  workspaceId: string | null
   sessionId: string
   parentMessageId: string
   toolUseId: string

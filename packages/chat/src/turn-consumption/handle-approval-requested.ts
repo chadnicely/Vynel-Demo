@@ -26,8 +26,8 @@ export type HandleApprovalRequestedInput = {
   event: Extract<NormalizedSessionEvent, { kind: 'approval-requested' }>
   sessionId: string | null
   userId: string
-  /** Null for a global-root (brain) session — a workspace-less card is forwarded
-   *  without persisting the workspace-scoped audit row (see the guard below). */
+  /** Null for a global-root (brain) session — the card persists with a null
+   *  workspaceId (the column is nullable) so it reaches the user's global queue. */
   workspaceId: string | null
   providerId: AiAgentProviderId
   logger: StructuralLogger | undefined
@@ -38,15 +38,15 @@ export async function handleApprovalRequested(
 ): Promise<ChatTurnEvent> {
   const { db, event, sessionId, userId, workspaceId, providerId, logger } = input
 
-  // Forward the card WITHOUT persisting the workspace-scoped audit row when there's
-  // no session row yet, OR when this is a workspace-less global-root (brain) session.
-  // The brain only cards when desktop act is enabled (rare); full brain-approval
-  // persistence is deferred with the desktop-act-for-brain work. Non-regressive —
-  // the brain never persisted approvals before the session unification either.
-  if (!sessionId || workspaceId === null) {
+  // Forward the card WITHOUT persisting ONLY when there's no session row yet (the
+  // FK-less `sessionId` audit column is NOT NULL — a card can briefly arrive before
+  // session-started). A workspace-less global-root (brain) card DOES persist now
+  // (`approval_requests.workspaceId` is nullable), so it surfaces in the user's
+  // global approval queue instead of being lost to the stream — the stuck-card fix.
+  if (!sessionId) {
     logger?.warn(
-      { approvalRequestId: event.approvalRequestId, sessionId, hasWorkspace: workspaceId !== null },
-      'approval-requested forwarded without persistence (no session row yet, or a global-root session)',
+      { approvalRequestId: event.approvalRequestId },
+      'approval-requested forwarded without persistence (no session row yet)',
     )
     return {
       kind: 'approval-requested',

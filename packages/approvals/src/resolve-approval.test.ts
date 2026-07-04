@@ -74,7 +74,7 @@ function makeWorkspace(userId: string) {
 }
 function makePendingRow(
   userId: string,
-  workspaceId: string,
+  workspaceId: string | null,
   providerApprovalId: string,
 ): NewApprovalRequest {
   return {
@@ -108,7 +108,6 @@ describe('resolveApproval', () => {
         resolveApproval(db, {
           providerApprovalId: 'nonexistent',
           userId: user.id,
-          workspaceId: workspace.id,
           providerId: 'claude',
           decision: { kind: 'denied', reason: 'no' },
         }),
@@ -128,7 +127,6 @@ describe('resolveApproval', () => {
         resolveApproval(db, {
           providerApprovalId: 'prov-1',
           userId: other.id,
-          workspaceId: workspace.id,
           providerId: 'claude',
           decision: { kind: 'approved' },
         }),
@@ -145,7 +143,6 @@ describe('resolveApproval', () => {
       await resolveApproval(db, {
         providerApprovalId: 'prov-double',
         userId: user.id,
-        workspaceId: workspace.id,
         providerId: 'claude',
         decision: { kind: 'approved' },
       })
@@ -153,7 +150,6 @@ describe('resolveApproval', () => {
         resolveApproval(db, {
           providerApprovalId: 'prov-double',
           userId: user.id,
-          workspaceId: workspace.id,
           providerId: 'claude',
           decision: { kind: 'denied', reason: 'no' },
         }),
@@ -170,7 +166,6 @@ describe('resolveApproval', () => {
       const updated = await resolveApproval(db, {
         providerApprovalId: 'prov-yes',
         userId: user.id,
-        workspaceId: workspace.id,
         providerId: 'claude',
         decision: { kind: 'approved' },
       })
@@ -194,7 +189,6 @@ describe('resolveApproval', () => {
       const updated = await resolveApproval(db, {
         providerApprovalId: 'prov-remember',
         userId: user.id,
-        workspaceId: workspace.id,
         providerId: 'claude',
         decision: {
           kind: 'approved',
@@ -224,7 +218,6 @@ describe('resolveApproval', () => {
       const updated = await resolveApproval(db, {
         providerApprovalId: 'prov-edit',
         userId: user.id,
-        workspaceId: workspace.id,
         providerId: 'claude',
         decision: {
           kind: 'approved',
@@ -251,7 +244,6 @@ describe('resolveApproval', () => {
       const updated = await resolveApproval(db, {
         providerApprovalId: 'prov-no',
         userId: user.id,
-        workspaceId: workspace.id,
         providerId: 'claude',
         decision: { kind: 'denied', reason: 'not safe' },
       })
@@ -276,7 +268,6 @@ describe('resolveApproval', () => {
         resolveApproval(db, {
           providerApprovalId: 'prov-crash',
           userId: user.id,
-          workspaceId: workspace.id,
           providerId: 'claude',
           decision: { kind: 'approved' },
         }),
@@ -285,6 +276,27 @@ describe('resolveApproval', () => {
       const reloaded = findApprovalRequestByProviderApprovalId(db, 'prov-crash')
       expect(reloaded?.status).toBe('pending')
       expect(listOutboxEventsByType(db, 'approval.user-resolved')).toHaveLength(0)
+    })
+  })
+
+  it('resolves a workspace-less global-root (brain) card — userId-only tenant guard', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      // A brain card: null workspace. The whole point of the global queue is that the
+      // user can ANSWER it (not just have it time out) — this is the resolve half.
+      insertApprovalRequest(db, makePendingRow(user.id, null, 'prov-brain'))
+
+      const updated = await resolveApproval(db, {
+        providerApprovalId: 'prov-brain',
+        userId: user.id,
+        providerId: 'claude',
+        decision: { kind: 'approved' },
+      })
+
+      expect(updated.status).toBe('resolved')
+      expect(updated.workspaceId).toBeNull()
+      expect(respondToApprovalRequestSpy).toHaveBeenCalledWith('prov-brain', { kind: 'approved' })
+      expect(listOutboxEventsByType(db, 'approval.user-resolved')).toHaveLength(1)
     })
   })
 })

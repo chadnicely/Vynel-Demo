@@ -1,7 +1,7 @@
 // Core op — resolve a pending approval at the user's direction (HTTP
 // decide route or channel-relay forward). Throws NotFoundError when the
-// request doesn't exist OR is owned by another user/workspace (no
-// enumeration leak — workspaces D14 precedent). Throws ConflictError
+// request doesn't exist OR is owned by another user (no enumeration
+// leak — workspaces D14 precedent). Throws ConflictError
 // when the request is already resolved.
 //
 // Ordering invariant: provider call BEFORE row update.
@@ -30,7 +30,6 @@ export type { RememberRuleInput } from './save-approval-rule-from-decision.js'
 export type ResolveApprovalInput = {
   providerApprovalId: string
   userId: string
-  workspaceId: string
   providerId: AiAgentProviderId
   decision:
     | { kind: 'approved'; updatedInput?: unknown; rememberRule?: RememberRuleInput }
@@ -47,10 +46,12 @@ export async function resolveApproval(
     input.providerApprovalId,
   )
   if (!request) throw new NotFoundError('approval-request', input.providerApprovalId)
-  if (request.userId !== input.userId || request.workspaceId !== input.workspaceId) {
-    // No enumeration: same response shape as "not found" (workspaces D14
-    // precedent). Phase 1 has one user so the leak is theoretical; the
-    // pattern locks in for Phase 2.
+  // Tenant isolation is by userId ALONE — the row is uniquely found by
+  // providerApprovalId, and workspaceId is deliberately NOT part of the resolve
+  // contract: a global-queue caller answers a card from any surface (and a brain
+  // card has no workspace to name). Same 404 shape as "not found" — no enumeration
+  // leak (workspaces D14 precedent); Phase 1 has one user, the pattern locks in for Phase 2.
+  if (request.userId !== input.userId) {
     throw new NotFoundError('approval-request', input.providerApprovalId)
   }
   if (request.status === 'resolved') {
@@ -79,7 +80,13 @@ export async function resolveApproval(
     }
     const updated = approvalRequestsRepository.updateApprovalRequest(tx, request.id, patch)
 
-    if (input.decision.kind === 'approved' && input.decision.rememberRule) {
+    // A brain card has no workspace, so it can't seed a workspace-scoped rule —
+    // "remember" is a no-op for it (the null guard also narrows workspaceId to string).
+    if (
+      input.decision.kind === 'approved' &&
+      input.decision.rememberRule &&
+      request.workspaceId !== null
+    ) {
       saveApprovalRuleFromDecision(tx, {
         userId: request.userId,
         workspaceId: request.workspaceId,

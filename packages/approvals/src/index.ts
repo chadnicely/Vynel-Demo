@@ -43,6 +43,11 @@ export type {
 export { resolveApproval } from './resolve-approval.js'
 export type { ResolveApprovalInput, RememberRuleInput } from './resolve-approval.js'
 
+// The global approval-queue read — every pending card for a user across all
+// sessions/workspaces + the brain (the "answer from any screen" surface; its HTTP
+// route lands with apps/api).
+export { listPendingApprovalsForUser } from './repositories/index.js'
+
 export { saveApprovalRuleFromDecision } from './save-approval-rule-from-decision.js'
 export type { SaveApprovalRuleFromDecisionInput } from './save-approval-rule-from-decision.js'
 

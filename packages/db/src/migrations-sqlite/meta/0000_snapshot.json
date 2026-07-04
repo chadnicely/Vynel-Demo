@@ -970,7 +970,7 @@
           "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "session_id": {

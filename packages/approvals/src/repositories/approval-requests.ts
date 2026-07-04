@@ -68,6 +68,19 @@ export function listPendingApprovalRequestsForSession(
     .all()
 }
 
+// Every PENDING approval for a user across ALL sessions + workspaces — INCLUDING
+// the workspace-less global-root (brain) cards. Backs the global approval queue:
+// the user sees + answers these one-by-one from any surface, not just the session
+// stream that raised them. Newest first. Served by (status, requested_at) + (user).
+export function listPendingApprovalsForUser(db: Database, userId: string): ApprovalRequest[] {
+  return db
+    .select()
+    .from(approvalRequests)
+    .where(and(eq(approvalRequests.userId, userId), eq(approvalRequests.status, 'pending')))
+    .orderBy(desc(approvalRequests.requestedAt))
+    .all()
+}
+
 export type ListApprovalRequestsForWorkspaceOptions = {
   limit?: number
   cursor?: { requestedAt: Date; id: string }

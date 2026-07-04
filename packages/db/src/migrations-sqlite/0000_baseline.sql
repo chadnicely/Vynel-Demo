@@ -137,7 +137,7 @@ CREATE TABLE `approval_requests` (
 	`id` text PRIMARY KEY NOT NULL,
 	`provider_approval_id` text NOT NULL,
 	`user_id` text NOT NULL,
-	`workspace_id` text NOT NULL,
+	`workspace_id` text,
 	`session_id` text NOT NULL,
 	`parent_message_id` text NOT NULL,
 	`tool_use_id` text NOT NULL,
