@@ -25,6 +25,16 @@ and is the lever that un-pauses it. Delivery breaks four ways:
 The table is ALREADY indexed on `(status, requestedAt)` and `userId`, and the `approval.requested` outbox event is
 ALREADY emitted (with no consumer wired). So a user-scoped global queue is a small data addition, not new machinery.
 
+**"Multiple approvals at once" is the acute trigger (owner-reported), and it's a data/surfacing failure — NOT a
+concurrency bug.** When one turn raises several cards at once (Claude's parallel tool calls → N parked `canUseTool`
+promises), the failure compounds: on the brain ALL N were dropped (#3); with no global surface (#2) even persisted
+ones can't be answered together. **Verified the provider layer is clean** — `run-claude-chat-session`'s merge loop
+drains all N synthetic cards while the SDK is paused, persisting the pending `queryInstance.next()` + `dequeue()`
+promises across iterations to avoid the classic async-iterator race (so no card is lost). Concurrent approvals surface
+correctly at the provider; the stuck was purely the data + surfacing layers Slice B fixes (persist every card +
+`listPendingApprovalsForUser`). The frontend must still render the list + let the user answer each — the deferred UI,
+now buildable directly on the query.
+
 ## THE decision (record once — do NOT re-litigate): notify-not-deny for top-level
 
 Two behaviors that look similar and are opposites:
