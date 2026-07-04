@@ -1,30 +1,18 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import {
-  File,
-  FileCode2,
-  FileJson,
-  FileText,
-  Image,
-  Pencil,
-  X,
-} from "lucide-vue-next";
-import {
-  CodeBlock,
-  EmptyState,
-  IconButton,
-  languageForFilePath,
-} from "@vynel/ui";
+import { File, FileCode2, FileJson, FileText, Image, X } from "lucide-vue-next";
+import { IconButton, MarkdownText, SegmentedTabs } from "@vynel/ui";
 import {
   getDemoFileContent,
   saveDemoFileContent,
 } from "../../demo/demo-file-store.js";
 import { fileColorFamily } from "./file-colors.js";
 
-// The canvas file editor — view (highlighted, line numbers) + a plain edit
-// mode with save. Demo-phase: reads/writes the in-memory demo file store;
-// the files API's read/write routes swap in behind the same two calls.
-// (CodeMirror is the deliberate upgrade path once real file I/O lands.)
+// The canvas file editor, VS Code semantics: a file opens straight into an
+// editable buffer; markdown additionally gets a Code | Preview toggle.
+// Demo-phase: reads/writes the in-memory demo file store; the files API's
+// read/write routes swap in behind the same two calls. (CodeMirror is the
+// deliberate upgrade path for highlighted editing once real file I/O lands.)
 const props = defineProps<{
   workspaceId: string;
   filePath: string;
@@ -34,23 +22,30 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const isEditing = ref(false);
-const draft = ref("");
+const EDITOR_MODES = [
+  { id: "code", label: "Code" },
+  { id: "preview", label: "Preview" },
+];
+
+const savedContent = ref(getDemoFileContent(props.workspaceId, props.filePath));
+const draft = ref(savedContent.value);
+const mode = ref<"code" | "preview">("code");
 const justSaved = ref(false);
 
 const fileName = computed(
   () => props.filePath.split("/").pop() ?? props.filePath,
 );
 const colorFamily = computed(() => fileColorFamily(fileName.value));
-const language = computed(() => languageForFilePath(fileName.value));
-const content = ref(getDemoFileContent(props.workspaceId, props.filePath));
+const isPreviewable = computed(() => /\.(md|markdown)$/i.test(fileName.value));
+const isDirty = computed(() => draft.value !== savedContent.value);
 
-// Opening another file swaps the whole view state.
+// Opening another file swaps the whole buffer.
 watch(
   () => [props.workspaceId, props.filePath] as const,
   () => {
-    content.value = getDemoFileContent(props.workspaceId, props.filePath);
-    isEditing.value = false;
+    savedContent.value = getDemoFileContent(props.workspaceId, props.filePath);
+    draft.value = savedContent.value;
+    mode.value = "code";
     justSaved.value = false;
   },
 );
@@ -64,21 +59,14 @@ const FILE_ICONS = {
   plain: File,
 } as const;
 
-function startEditing() {
-  draft.value = content.value;
-  isEditing.value = true;
-  justSaved.value = false;
-}
-
 function save() {
   saveDemoFileContent(props.workspaceId, props.filePath, draft.value);
-  content.value = draft.value;
-  isEditing.value = false;
+  savedContent.value = draft.value;
   justSaved.value = true;
 }
 
-function cancel() {
-  isEditing.value = false;
+function discard() {
+  draft.value = savedContent.value;
 }
 </script>
 
@@ -92,46 +80,44 @@ function cancel() {
         :class="`tone-${colorFamily}`"
       />
       <div class="titles">
-        <p class="file-name">{{ fileName }}</p>
+        <p class="file-name">
+          {{ fileName }}
+          <span v-if="isDirty" class="dirty-dot" title="Unsaved changes" />
+        </p>
         <p class="file-path">{{ props.filePath }}</p>
       </div>
 
-      <span v-if="justSaved" class="saved-note">Saved</span>
+      <span v-if="justSaved && !isDirty" class="saved-note">Saved</span>
 
-      <template v-if="isEditing">
+      <SegmentedTabs
+        v-if="isPreviewable"
+        :tabs="EDITOR_MODES"
+        :model-value="mode"
+        @update:model-value="(id) => (mode = id as 'code' | 'preview')"
+      />
+
+      <template v-if="isDirty">
         <button type="button" class="action is-primary" @click="save()">
           Save
         </button>
-        <button type="button" class="action" @click="cancel()">Cancel</button>
+        <button type="button" class="action" @click="discard()">Discard</button>
       </template>
-      <template v-else>
-        <IconButton label="Edit file" @click="startEditing()">
-          <Pencil :size="14" />
-        </IconButton>
-        <IconButton label="Close file" @click="emit('close')">
-          <X :size="15" />
-        </IconButton>
-      </template>
+
+      <IconButton label="Close file" @click="emit('close')">
+        <X :size="15" />
+      </IconButton>
     </header>
 
     <div class="editor-body">
+      <div v-if="isPreviewable && mode === 'preview'" class="preview">
+        <MarkdownText :source="draft" />
+      </div>
       <textarea
-        v-if="isEditing"
+        v-else
         v-model="draft"
         class="edit-area"
         spellcheck="false"
-      />
-      <EmptyState
-        v-else-if="content.length === 0"
-        title="Nothing here yet"
-        hint="This file is empty — hit the pencil to start writing."
-      />
-      <CodeBlock
-        v-else
-        class="view-block"
-        :code="content"
-        :language="language"
-        line-numbers
+        placeholder="Start writing…"
       />
     </div>
   </div>
@@ -186,8 +172,18 @@ function cancel() {
 
 .file-name {
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--ink-1);
   font: 600 13px/1.4 var(--font-ui);
+}
+
+.dirty-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-2);
 }
 
 .file-path {
@@ -241,16 +237,18 @@ function cancel() {
   padding: 14px 18px;
 }
 
-.view-block {
-  max-height: none;
+.preview {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 8px 4px;
 }
 
 .edit-area {
   width: 100%;
   height: 100%;
-  min-height: 320px;
+  min-height: 360px;
   resize: none;
-  border: 1px solid var(--hair-strong);
+  border: 1px solid var(--hair);
   border-radius: var(--radius-s);
   background: var(--bg-panel);
   color: var(--ink-1);
@@ -261,5 +259,9 @@ function cancel() {
 
 .edit-area:focus {
   border-color: var(--ink-3);
+}
+
+.edit-area::placeholder {
+  color: var(--ink-3);
 }
 </style>
