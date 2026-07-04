@@ -4,22 +4,41 @@
 memories (`vynel-vision-and-old-project-lesson` = the founding vision + old-project scatter we must NOT
 repeat; `vynel-rebuild-plan`; `worktree-fanout-isolation`). State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (AUTOPILOT MISSION, 2026-07-04): remaining leaves, per-feature vertical, then shutdown
-**Chad launched an autopilot: complete the last leaves (voice ✅ · marketplace · skills · channels ·
-schedules) as PER-FEATURE VERTICALS (pull → scope/kind improve → routes → SDK/MCP → CLI → green →
-commit), then shut the computer down.** Order is achievable-first (all 5 have CLEAN production code —
-recon proved zero sibling-leaf imports; the only cross-feature coupling is ONE test,
-`schedule-channel-delivery.integration.test.ts`, which relocates to the app layer at the schedules
-pull). Chad's two notes = deliberate schema improves AFTER each faithful green pull:
-- **scope global-or-workspace** for schedules + channels → `workspaceId` nullable (approvals precedent,
-  baseline-folded, pre-release zero-data).
-- **schedule kinds** repeat vs one-time → add `scheduleKind` + nullable `cronExpression`; one-time
-  fires once then `isEnabled=false` (the ONLY behavioral fork in the fire-tick). `@vynel/contracts`
-  already carries `schedules/one-time` schemas — reuse them.
-Guardrails (advisor-vetted): main loop holds diff-check + full gate + code-reviewer + commit + shutdown;
-subagents do heavy file work on the main tree (no worktrees); never commit on red; STATE every module;
-channels serializer strips `botCredentials`, no x-mcp on credential/connect paths. voice = no API.
-Progress: TaskList #1-6. **Full plan + the reframing + the architecture decision: `docs/module-notes/session.md`.**
+## ⏭ NEXT ACTION (for Chad's return, 2026-07-04): the AUTOPILOT MISSION IS COMPLETE — pick up the deferred app-wiring
+**🏁 The "remaining leaves" autopilot finished GREEN.** All 5 leaves landed as per-feature verticals
+(voice · skills · channels · schedules · marketplace), each pull → decouple → scope-improve → HTTP API →
+full-gate → code-reviewer → commit. Suite **1462 passed / 4 skip**; **10 commits `0194ec3..3a92ed5`**
+(local, unpushed — matches the recent local-only cadence). Journals: `.claude/journal/2026-07-04-{voice,
+skills,channels,schedules,marketplace}-pull.md`. Chad's two notes both delivered: **global-or-workspace
+scope** (channels + schedules `workspaceId` nullable) and **two schedule kinds** (recurring cron vs one-time
+`fireAt`, create exposes both — the source already implements it; the explicit `scheduleKind` column is a
+deferred legibility improve, Chad's call).
+
+**The APIs Chad can build UI on now** (typed SDK, `apps/local-api`): `client.skills.*` (8) · `client.channels.*`
+(9) · `client.schedules.*` (8) · `client.marketplace.*` (2). All workspace-scoped under `/workspaces/:id/…`.
+
+**Deferred to the session Slice-3 app-wiring** (the SAME app-wiring already owed for delegation SSE sinks;
+they compose env-coupled/turn-firing machinery a leaf can't own — NOT gaps, deliberate deferrals):
+- **Poll-tick worker bodies**: `run-channel-{polling,delivery}-tick`, `run-schedule-claim-and-fire-tick`
+  (worker cron; provide the real injected `resolveApproval`/`startChatTurn`).
+- **`POST /schedules/:id/fire-now`** (route 9/9) — needs `composeSessionMcpServers` + `vynelWorkspaceDescriptor`;
+  lands as 1 route + a `FireScheduleDeps` binding.
+- **Injection-cast reconciliation** at wiring: channels `resolveApproval` (workspaceId string→user-scope adapter),
+  the contracts-`ChatTurnEvent` (wire) → runtime-event cast at the polling tick.
+- **Global-scope CREATE routes** (a user-scoped `/channels` + `/schedules` connect/create) — the schema + core
+  ops already accept null workspaceId; only a route surface is missing (Chad decides global-create UX).
+- The cross-feature `schedule-channel-delivery.integration.test` (relocate to the app composition layer).
+- **CLI commands** for the 4 features (deferred mission-wide — a nicety, not UI/parity-critical; mirror
+  `apps/cli/src/knowledge-commands.ts`).
+
+**Deferred improves** (mission-wide, non-blocking): stale kernel-location doc-comments in the new leaves'
+`repositories/*` + `schema/index.ts` (name the old `@vynel/db/...` home); explicit `scheduleKind` column.
+
+**Guardrails that held (for the next autopilot):** main loop owned diff-check + full gate + code-reviewer +
+commit; subagents did heavy file work on the main tree (no worktrees); never committed on red; STATE every
+module. **The API-vertical recipe:** the source `apps/api/src/routes/{feature}` already exist with KLONE-
+identical conventions → faithful PORT + rewire + `x-sdk-name` + `pnpm api:generate`, NOT invention.
+**Full plan + the session architecture: `docs/module-notes/session.md`.**
 
 **The keystone is SMALLER than STATE assumed.** The source already did its hard refactor (B0–B2b: SessionSink,
 global-root twin collapsed, global-root runner relocated) and **dropped the "one generic runner" goal** as
