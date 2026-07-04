@@ -11,12 +11,12 @@
 // rows older than 90 days.
 
 import { and, asc, desc, eq, lt, or, sql } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   approvalRequests,
   type ApprovalRequest,
   type NewApprovalRequest,
-} from '../../schema/approvals/approval-requests.js'
+} from '../schema/approval-requests.js'
 
 export type {
   ApprovalRequest,
@@ -24,7 +24,7 @@ export type {
   ActionKind,
   ApprovalRequestStatus,
   ApprovalResolutionKind,
-} from '../../schema/approvals/approval-requests.js'
+} from '../schema/approval-requests.js'
 
 // Defensive caps on listApprovalRequestsForWorkspace per coding-standard.md
 // "Structure / patterns" — every list* that scales with tenant data is

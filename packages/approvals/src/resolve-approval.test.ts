@@ -23,7 +23,7 @@ import {
   insertApprovalRequest,
   listApprovalRulesForWorkspace,
   type NewApprovalRequest,
-} from '@vynel/db/repositories/approvals'
+} from './repositories/index.js'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 
 const respondToApprovalRequestSpy = vi.fn().mockResolvedValue(undefined)

@@ -13,7 +13,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { resolveAiAgentProvider } from '@vynel/providers'
-import * as approvalRequestsRepository from '@vynel/db/repositories/approvals'
+import * as approvalRequestsRepository from './repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { ConflictError, NotFoundError } from '@vynel/errors'
 import { APPROVAL_USER_RESOLVED, type ApprovalResolvedPayload } from './approvals-events.js'

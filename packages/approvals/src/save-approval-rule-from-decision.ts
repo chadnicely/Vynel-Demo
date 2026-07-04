@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
-import * as approvalRulesRepository from '@vynel/db/repositories/approvals'
+import * as approvalRulesRepository from './repositories/index.js'
 import { APPROVAL_RULE_CREATED, type ApprovalRuleCreatedPayload } from './approvals-events.js'
 import { describeApprovalRule } from './describe-approval-rule.js'
 import type { ApprovalRequest, ApprovalRule, ApprovalRuleMatcher } from './approvals-types.js'

@@ -8,19 +8,19 @@
 // Phase 1 SYNC return values.
 
 import { and, eq, inArray, isNull, lt } from 'drizzle-orm'
-import type { Database } from '../../client.js'
+import type { Database } from '@vynel/db'
 import {
   approvalRules,
   type ApprovalRule,
   type NewApprovalRule,
-} from '../../schema/approvals/approval-rules.js'
+} from '../schema/approval-rules.js'
 
 export type {
   ApprovalRule,
   NewApprovalRule,
   ApprovalRuleKind,
   ApprovalRuleMatcher,
-} from '../../schema/approvals/approval-rules.js'
+} from '../schema/approval-rules.js'
 
 export function findApprovalRuleById(db: Database, ruleId: string): ApprovalRule | null {
   const [row] = db

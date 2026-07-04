@@ -13,8 +13,8 @@
 
 import { randomUUID } from 'node:crypto'
 import { resolveAiAgentProvider } from '@vynel/providers'
-import * as approvalRequestsRepository from '@vynel/db/repositories/approvals'
-import * as approvalRulesRepository from '@vynel/db/repositories/approvals'
+import * as approvalRequestsRepository from './repositories/index.js'
+import * as approvalRulesRepository from './repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { withTransaction, type Database } from '@vynel/db'
 import type { AiAgentProviderId } from '@vynel/providers'

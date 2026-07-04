@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { findApprovalRequestById, insertApprovalRule } from '@vynel/db/repositories/approvals'
+import { findApprovalRequestById, insertApprovalRule } from './repositories/index.js'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 
 const respondToApprovalRequestSpy = vi.fn().mockResolvedValue(undefined)

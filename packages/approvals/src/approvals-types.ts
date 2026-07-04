@@ -17,4 +17,4 @@ export type {
   NewApprovalRule,
   ApprovalRuleKind,
   ApprovalRuleMatcher,
-} from '@vynel/db/repositories/approvals'
+} from './repositories/index.js'

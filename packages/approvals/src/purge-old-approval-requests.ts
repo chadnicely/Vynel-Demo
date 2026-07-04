@@ -5,7 +5,7 @@
 // No outbox event on purge (consumers don't need to know audit was
 // reaped). Same shape as chat's purgeDeletedChatSessions.
 
-import * as approvalRequestsRepository from '@vynel/db/repositories/approvals'
+import * as approvalRequestsRepository from './repositories/index.js'
 import type { Database } from '@vynel/db'
 import type { StructuralLogger } from './approvals-types.js'
 

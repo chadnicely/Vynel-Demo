@@ -29,8 +29,8 @@
 // Phase 1 SYNC discipline applies.
 
 import { table, id, text, timestamp, integer, json, index, uniqueIndex } from '@vynel/db/dialect'
-import { users } from '../users/users.js'
-import { workspaces } from '../workspaces/workspaces.js'
+import { users } from '@vynel/db/schema/users'
+import { workspaces } from '@vynel/db/schema/workspaces'
 import { approvalRules } from './approval-rules.js'
 
 export type ActionKind =

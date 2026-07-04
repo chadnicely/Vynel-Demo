@@ -14,7 +14,7 @@
 // approvals the user might still be actively deciding.
 
 import { randomUUID } from 'node:crypto'
-import * as approvalRequestsRepository from '@vynel/db/repositories/approvals'
+import * as approvalRequestsRepository from './repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { APPROVAL_TIMED_OUT, type ApprovalResolvedPayload } from './approvals-events.js'
 import type { StructuralLogger } from './approvals-types.js'

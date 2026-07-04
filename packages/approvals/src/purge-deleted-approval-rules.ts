@@ -2,7 +2,7 @@
 // `deletedAt < now - 30d`. Matches chat's purgeDeletedChatSessions
 // precedent exactly. Per D14: 30-day soft-delete + retention + purge.
 
-import * as approvalRulesRepository from '@vynel/db/repositories/approvals'
+import * as approvalRulesRepository from './repositories/index.js'
 import type { Database } from '@vynel/db'
 import type { StructuralLogger } from './approvals-types.js'
 

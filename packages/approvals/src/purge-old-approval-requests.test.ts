@@ -7,7 +7,7 @@ import {
   insertApprovalRequest,
   listApprovalRequestsForWorkspace,
   type NewApprovalRequest,
-} from '@vynel/db/repositories/approvals'
+} from './repositories/index.js'
 import { purgeOldApprovalRequests } from './purge-old-approval-requests.js'
 
 function makeUser() {
