@@ -1,7 +1,21 @@
-import { ref, watch } from "vue";
+import { reactive, ref, watch } from "vue";
 import { defineStore } from "pinia";
+import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
 
 export type Theme = "dark" | "light";
+
+/** What the chat surface is pointed at: the ongoing single conversation (the
+ *  default — Vynel's "one brain"), a fresh topic, or one history session. */
+export type ChatTarget = "continuous" | "fresh" | { sessionId: string };
+
+/** What fills a tab's main area: the chat itself, the in-place menu, or a
+ *  menu item's view (Application globally; a feature section in a workspace). */
+export type ChatMainView = "chat" | "menu" | "application" | WorkspaceSectionId;
+
+export interface ChatShellState {
+  mainView: ChatMainView;
+  target: ChatTarget;
+}
 
 const THEME_STORAGE_KEY = "vynel.theme";
 const WORKSPACE_STORAGE_KEY = "vynel.active-workspace";
@@ -11,8 +25,9 @@ function readStoredTheme(): Theme {
   return stored === "light" ? "light" : "dark";
 }
 
-// Shell UI state only (server state lives in vue-query). Grows drawer/panel
-// state as the shell grows — one home for how the window presents itself.
+// Shell UI state only (server state lives in vue-query). One home for how the
+// window presents itself: theme, active workspace, the chat shells' view
+// state, the session-list toggle, the voice overlay.
 export const useUiStore = defineStore("ui", () => {
   const theme = ref<Theme>(readStoredTheme());
 
@@ -42,8 +57,35 @@ export const useUiStore = defineStore("ui", () => {
     else localStorage.setItem(WORKSPACE_STORAGE_KEY, value);
   });
 
+  // The session-history list is opt-in (Chad's model): chat is ALWAYS the
+  // continuous single conversation unless the user toggles the list open.
+  const isSessionListOpen = ref(false);
+
+  const globalChat = reactive<ChatShellState>({
+    mainView: "chat",
+    target: "continuous",
+  });
+  const workspaceChat = reactive<ChatShellState>({
+    mainView: "chat",
+    target: "continuous",
+  });
+
+  /** The titlebar menu button: flips a tab between its chat and its menu. */
+  function toggleMenuView(shell: ChatShellState) {
+    shell.mainView = shell.mainView === "menu" ? "chat" : "menu";
+  }
+
   // The Jarvis voice overlay (demo animation until the voice engine lands).
   const isVoiceOverlayOpen = ref(false);
 
-  return { theme, toggleTheme, activeWorkspaceId, isVoiceOverlayOpen };
+  return {
+    theme,
+    toggleTheme,
+    activeWorkspaceId,
+    isSessionListOpen,
+    globalChat,
+    workspaceChat,
+    toggleMenuView,
+    isVoiceOverlayOpen,
+  };
 });

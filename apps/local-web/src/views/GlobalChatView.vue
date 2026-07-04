@@ -1,27 +1,54 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { Settings2, Sparkles } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import Composer from "../components/chat/Composer.vue";
-import AppDrawer from "../components/shell/AppDrawer.vue";
+import MenuListView from "../components/shell/MenuListView.vue";
 import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
+import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
+import { useUiStore } from "../stores/ui-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 
-// The global root chat — the single control surface. One conversation with
-// one assistant; tasks route to workspaces and every step streams back here.
+// The global chat — ONE continuous conversation by default (the product's
+// "one brain"). History is opt-in behind the titlebar toggle; the titlebar
+// menu swaps this area for the menu view.
 const GLOBAL_SCOPE = { kind: "global" } as const;
 
-const selectedSessionId = ref<string | null>(null);
-const isDrawerOpen = ref(false);
+const GLOBAL_MENU_ITEMS = [
+  { id: "chat", label: "Chat", hint: "Back to your conversation" },
+  {
+    id: "application",
+    label: "Application",
+    hint: "Global settings — model, voice, appearance",
+  },
+];
+
+const ui = useUiStore();
+const shell = ui.globalChat;
+
+const continuingQuery = useContinuingConversation(() => GLOBAL_SCOPE);
+
+/** The session the thread shows: continuous (default), a history pick, or none (fresh). */
+const activeSessionId = computed<string | null>(() => {
+  if (shell.target === "continuous")
+    return continuingQuery.data.value?.currentSdkSessionId ?? null;
+  if (shell.target === "fresh") return null;
+  return shell.target.sessionId;
+});
 
 const sessionsQuery = useSessionList(() => GLOBAL_SCOPE);
 const sessions = computed(() => sessionsQuery.data.value?.sessions ?? []);
+const sessionsErrorText = computed(() =>
+  sessionsQuery.isError.value
+    ? formatSdkError(sessionsQuery.error.value)
+    : null,
+);
 
-const detailQuery = useSessionDetail(() => selectedSessionId.value);
+const detailQuery = useSessionDetail(() => activeSessionId.value);
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
@@ -30,75 +57,90 @@ const toolCallsByMessageId = computed(
 const chatTurn = useChatTurn({
   scope: () => GLOBAL_SCOPE,
   onSessionCreated: (session) => {
-    selectedSessionId.value = session.id;
+    shell.target = { sessionId: session.id };
   },
 });
 
-// The live turn renders only in the thread it belongs to — switching sessions
-// mid-stream must not graft session A's activity under session B's history.
-const activeTurnForSelection = computed(() =>
+const activeTurn = computed(() =>
   chatTurn.activeSessionId.value !== null &&
-  chatTurn.activeSessionId.value === selectedSessionId.value
+  chatTurn.activeSessionId.value === activeSessionId.value
     ? chatTurn.view.value
     : null,
 );
 
-const showsThread = computed(
-  () =>
-    selectedSessionId.value !== null || activeTurnForSelection.value !== null,
-);
-
-const sessionsErrorText = computed(() =>
-  sessionsQuery.isError.value
-    ? formatSdkError(sessionsQuery.error.value)
-    : null,
+const showsWelcome = computed(
+  () => messages.value.length === 0 && activeTurn.value === null,
 );
 
 function sendMessage(text: string) {
   const turn = chatTurn.startTurn({
-    sessionId: selectedSessionId.value,
+    sessionId: activeSessionId.value,
     userText: text,
   });
-  // startTurn resolves the session synchronously — select a brand-new one
-  // right away so its live turn is visible from the first event.
-  if (selectedSessionId.value === null) {
-    selectedSessionId.value = chatTurn.activeSessionId.value;
+  // A fresh conversation resolves its session synchronously — bind to it now.
+  if (
+    activeSessionId.value === null &&
+    chatTurn.activeSessionId.value !== null
+  ) {
+    shell.target = { sessionId: chatTurn.activeSessionId.value };
   }
   void turn;
+}
+
+function onMenuSelect(itemId: string) {
+  shell.mainView = itemId === "chat" ? "chat" : "application";
 }
 </script>
 
 <template>
-  <div class="chat-view">
+  <div class="chat-view" :class="{ 'has-history': ui.isSessionListOpen }">
     <SessionsPanel
-      title="Chat"
+      v-if="ui.isSessionListOpen"
       :sessions="sessions"
-      :active-session-id="selectedSessionId"
+      :active-session-id="activeSessionId"
+      :is-continuous-active="shell.target === 'continuous'"
       :is-loading="sessionsQuery.isPending.value"
       :error-text="sessionsErrorText"
-      @select="(id) => (selectedSessionId = id)"
-      @new-session="selectedSessionId = null"
-      @open-menu="isDrawerOpen = true"
+      @select="(id) => (shell.target = { sessionId: id })"
+      @select-continuous="shell.target = 'continuous'"
     />
 
-    <section class="thread-pane">
-      <ThreadStream
-        v-if="showsThread"
-        :messages="messages"
-        :tool-calls-by-message-id="toolCallsByMessageId"
-        :active-turn="activeTurnForSelection"
-        @decide-approval="chatTurn.decideApproval"
-      />
-      <div v-else class="welcome">
+    <MenuListView
+      v-if="shell.mainView === 'menu'"
+      title="Menu"
+      :items="GLOBAL_MENU_ITEMS"
+      @select="onMenuSelect"
+    />
+
+    <div v-else-if="shell.mainView === 'application'" class="application-view">
+      <EmptyState
+        title="Application"
+        hint="Global settings — model, voice, appearance — land here as their options come online."
+      >
+        <template #icon>
+          <Settings2 :size="22" />
+        </template>
+      </EmptyState>
+    </div>
+
+    <section v-else class="thread-pane">
+      <div v-if="showsWelcome" class="welcome">
         <EmptyState
           title="Your assistant is ready"
-          hint="Ask for anything below — one conversation that routes work to the right workspace and shows you every step."
+          hint="Ask for anything below — one continuous conversation that routes work to the right workspace and shows you every step."
         >
           <template #icon>
             <Sparkles :size="22" />
           </template>
         </EmptyState>
       </div>
+      <ThreadStream
+        v-else
+        :messages="messages"
+        :tool-calls-by-message-id="toolCallsByMessageId"
+        :active-turn="activeTurn"
+        @decide-approval="chatTurn.decideApproval"
+      />
 
       <footer class="composer-dock">
         <Composer
@@ -109,19 +151,6 @@ function sendMessage(text: string) {
         />
       </footer>
     </section>
-
-    <AppDrawer :open="isDrawerOpen" title="Menu" @close="isDrawerOpen = false">
-      <div class="drawer-item">
-        <Settings2 :size="15" class="drawer-item-icon" />
-        <div>
-          <p class="drawer-item-title">Application</p>
-          <p class="drawer-item-hint">
-            Global settings — model, voice, appearance — land here as their
-            options come online.
-          </p>
-        </div>
-      </div>
-    </AppDrawer>
   </div>
 </template>
 
@@ -129,8 +158,12 @@ function sendMessage(text: string) {
 .chat-view {
   height: 100%;
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 1fr;
   min-height: 0;
+}
+
+.chat-view.has-history {
+  grid-template-columns: 280px 1fr;
 }
 
 .thread-pane {
@@ -146,39 +179,16 @@ function sendMessage(text: string) {
   overflow-y: auto;
 }
 
+.application-view {
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+}
+
 .composer-dock {
   padding: 0 24px 18px;
   max-width: 808px;
   width: 100%;
   margin: 0 auto;
-}
-
-.drawer-item {
-  display: flex;
-  gap: 10px;
-  padding: 10px;
-  border-radius: var(--radius-s);
-}
-
-.drawer-item:hover {
-  background: var(--row-hover);
-}
-
-.drawer-item-icon {
-  flex: none;
-  margin-top: 2px;
-  color: var(--ink-2);
-}
-
-.drawer-item-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 12.5px/1.5 var(--font-ui);
-}
-
-.drawer-item-hint {
-  margin: 2px 0 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
 }
 </style>

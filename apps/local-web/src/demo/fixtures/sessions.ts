@@ -7,6 +7,10 @@ import type {
 /** The pseudo-workspace the global root chat's demo sessions hang off. */
 export const DEMO_GLOBAL_ROOT_WORKSPACE_ID = "demo-ws-global-root";
 
+/** The global "one brain" thread — hidden from the history list (the real
+ *  continuing-root model keeps its segments unlisted too). */
+export const DEMO_GLOBAL_CONTINUOUS_SESSION_ID = "demo-continuous-global";
+
 function makeSession(
   overrides: Partial<ChatSessionResponse> &
     Pick<ChatSessionResponse, "id" | "workspaceId" | "title">,
@@ -31,9 +35,10 @@ function makeSession(
 
 export const demoSessions: ChatSessionResponse[] = [
   makeSession({
-    id: "demo-session-journal",
+    id: DEMO_GLOBAL_CONTINUOUS_SESSION_ID,
     workspaceId: DEMO_GLOBAL_ROOT_WORKSPACE_ID,
-    title: "Daily journal file",
+    title: "Ongoing conversation",
+    visibility: "hidden",
     lastMessagePreview:
       "Done — your journal template is saved and tomorrow's page is ready.",
     startedAt: "2026-07-04T07:58:00.000Z",
@@ -73,10 +78,10 @@ export const demoSessions: ChatSessionResponse[] = [
 // One finished conversation with a full activity trail, so history rendering
 // (messages + tool cards) is demonstrable before the chat read API exists.
 export const demoMessagesBySessionId: Record<string, ChatMessageResponse[]> = {
-  "demo-session-journal": [
+  [DEMO_GLOBAL_CONTINUOUS_SESSION_ID]: [
     {
       id: "demo-msg-journal-user",
-      sessionId: "demo-session-journal",
+      sessionId: DEMO_GLOBAL_CONTINUOUS_SESSION_ID,
       role: "user",
       body: "On vynel I want to create a journal file I fill in every morning. Set it up for me?",
       thinkingBody: null,
@@ -91,7 +96,7 @@ export const demoMessagesBySessionId: Record<string, ChatMessageResponse[]> = {
     },
     {
       id: "demo-msg-journal-assistant",
-      sessionId: "demo-session-journal",
+      sessionId: DEMO_GLOBAL_CONTINUOUS_SESSION_ID,
       role: "assistant",
       body: "All set. I created **journal/2026-07-04.md** from a template with three prompts — *focus*, *gratitude*, and *notes* — and a small script that copies it forward each morning.\n\nTomorrow's page will be waiting for you. Want me to add a reminder through Telegram as well?",
       thinkingBody:

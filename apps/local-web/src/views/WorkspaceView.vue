@@ -5,8 +5,7 @@ import { EmptyState, IconButton } from "@vynel/ui";
 import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import Composer from "../components/chat/Composer.vue";
-import AppDrawer from "../components/shell/AppDrawer.vue";
-import WorkspaceSwitcher from "../components/workspace/WorkspaceSwitcher.vue";
+import MenuListView from "../components/shell/MenuListView.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
 import WorkspaceSectionPanel from "../components/workspace/WorkspaceSectionPanel.vue";
 import { WORKSPACE_SECTIONS } from "../components/workspace/workspace-sections.js";
@@ -14,20 +13,31 @@ import type { WorkspaceSectionId } from "../components/workspace/workspace-secti
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
+import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import type { SessionScope } from "../composables/chat/session-scope.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 import { demoFileTreesByWorkspaceId } from "../demo/fixtures/file-trees.js";
 
-// The workspace room: its chat, its files, its capabilities — same components
-// as global chat, scoped to one workspace.
+// The workspace room — same continuous-first chat as global, scoped to one
+// workspace, plus its files panel and the menu's feature sections.
 const ui = useUiStore();
+const shell = ui.workspaceChat;
+
+const WORKSPACE_MENU_ITEMS = [
+  { id: "chat", label: "Chat", hint: "Back to the conversation" },
+  ...WORKSPACE_SECTIONS.map((section) => ({
+    id: section.id,
+    label: section.label,
+    hint: section.hint,
+  })),
+];
 
 const workspacesQuery = useWorkspaceList();
 const workspaces = computed(() => workspacesQuery.data.value?.workspaces ?? []);
 
-// Land on the most recently used workspace so the tab never opens dead.
+// Land on the last-used workspace so the tab never opens dead.
 watch(
   workspaces,
   (rows) => {
@@ -38,64 +48,66 @@ watch(
   { immediate: true },
 );
 
+// Switching rooms returns to that room's continuous chat.
+watch(
+  () => ui.activeWorkspaceId,
+  () => {
+    shell.target = "continuous";
+    shell.mainView = "chat";
+  },
+);
+
 const activeWorkspace = computed(
   () => workspaces.value.find((row) => row.id === ui.activeWorkspaceId) ?? null,
 );
 
-const scope = computed<SessionScope | null>(() =>
+const scope = computed<SessionScope>(() =>
   ui.activeWorkspaceId === null
-    ? null
+    ? { kind: "global" }
     : { kind: "workspace", workspaceId: ui.activeWorkspaceId },
 );
 
-const selectedSessionId = ref<string | null>(null);
-const isDrawerOpen = ref(false);
 const isFilesPanelOpen = ref(false);
-const activeSection = ref<WorkspaceSectionId | null>(null);
 
-// Switching rooms resets the room-local selection.
-watch(
-  () => ui.activeWorkspaceId,
-  () => {
-    selectedSessionId.value = null;
-    activeSection.value = null;
-  },
-);
+const continuingQuery = useContinuingConversation(() => scope.value);
 
-const sessionsQuery = useSessionList(
-  () => scope.value ?? { kind: "workspace", workspaceId: "none" },
-);
+const activeSessionId = computed<string | null>(() => {
+  if (shell.target === "continuous")
+    return continuingQuery.data.value?.currentSdkSessionId ?? null;
+  if (shell.target === "fresh") return null;
+  return shell.target.sessionId;
+});
+
+const sessionsQuery = useSessionList(() => scope.value);
 const sessions = computed(() => sessionsQuery.data.value?.sessions ?? []);
+const sessionsErrorText = computed(() =>
+  sessionsQuery.isError.value
+    ? formatSdkError(sessionsQuery.error.value)
+    : null,
+);
 
-const detailQuery = useSessionDetail(() => selectedSessionId.value);
+const detailQuery = useSessionDetail(() => activeSessionId.value);
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
 );
 
 const chatTurn = useChatTurn({
-  scope: () => scope.value ?? { kind: "global" },
+  scope: () => scope.value,
   onSessionCreated: (session) => {
-    selectedSessionId.value = session.id;
+    shell.target = { sessionId: session.id };
   },
 });
 
-const activeTurnForSelection = computed(() =>
+const activeTurn = computed(() =>
   chatTurn.activeSessionId.value !== null &&
-  chatTurn.activeSessionId.value === selectedSessionId.value
+  chatTurn.activeSessionId.value === activeSessionId.value
     ? chatTurn.view.value
     : null,
 );
 
-const showsThread = computed(
-  () =>
-    selectedSessionId.value !== null || activeTurnForSelection.value !== null,
-);
-
-const sessionsErrorText = computed(() =>
-  sessionsQuery.isError.value
-    ? formatSdkError(sessionsQuery.error.value)
-    : null,
+const showsWelcome = computed(
+  () => messages.value.length === 0 && activeTurn.value === null,
 );
 
 const fileTree = computed(() =>
@@ -104,42 +116,69 @@ const fileTree = computed(() =>
     : (demoFileTreesByWorkspaceId[ui.activeWorkspaceId] ?? []),
 );
 
+const activeSection = computed<WorkspaceSectionId | null>(() =>
+  shell.mainView !== "chat" &&
+  shell.mainView !== "menu" &&
+  shell.mainView !== "application"
+    ? shell.mainView
+    : null,
+);
+
 function sendMessage(text: string) {
   const turn = chatTurn.startTurn({
-    sessionId: selectedSessionId.value,
+    sessionId: activeSessionId.value,
     userText: text,
   });
-  if (selectedSessionId.value === null) {
-    selectedSessionId.value = chatTurn.activeSessionId.value;
+  if (
+    activeSessionId.value === null &&
+    chatTurn.activeSessionId.value !== null
+  ) {
+    shell.target = { sessionId: chatTurn.activeSessionId.value };
   }
   void turn;
+}
+
+function onMenuSelect(itemId: string) {
+  shell.mainView = itemId === "chat" ? "chat" : (itemId as WorkspaceSectionId);
 }
 </script>
 
 <template>
-  <div class="workspace-view" :class="{ 'has-files': isFilesPanelOpen }">
-    <aside class="left-column">
-      <div class="switcher-row">
-        <WorkspaceSwitcher
-          :workspaces="workspaces"
-          :active-workspace-id="ui.activeWorkspaceId"
-          @select="(id) => (ui.activeWorkspaceId = id)"
+  <div
+    class="workspace-view"
+    :class="{
+      'has-history': ui.isSessionListOpen,
+      'has-files': isFilesPanelOpen && shell.mainView === 'chat',
+    }"
+  >
+    <SessionsPanel
+      v-if="ui.isSessionListOpen"
+      :sessions="sessions"
+      :active-session-id="activeSessionId"
+      :is-continuous-active="shell.target === 'continuous'"
+      :is-loading="sessionsQuery.isPending.value"
+      :error-text="sessionsErrorText"
+      @select="(id) => (shell.target = { sessionId: id })"
+      @select-continuous="shell.target = 'continuous'"
+    />
+
+    <MenuListView
+      v-if="shell.mainView === 'menu'"
+      :title="activeWorkspace?.name ?? 'Workspace'"
+      :items="WORKSPACE_MENU_ITEMS"
+      @select="onMenuSelect"
+    />
+
+    <div v-else-if="activeSection" class="section-view">
+      <div class="section-column">
+        <WorkspaceSectionPanel
+          :section="activeSection"
+          :workspace-id="ui.activeWorkspaceId ?? ''"
         />
       </div>
-      <SessionsPanel
-        class="sessions"
-        :title="activeWorkspace?.name ?? 'Workspace'"
-        :sessions="sessions"
-        :active-session-id="selectedSessionId"
-        :is-loading="sessionsQuery.isPending.value"
-        :error-text="sessionsErrorText"
-        @select="(id) => (selectedSessionId = id)"
-        @new-session="selectedSessionId = null"
-        @open-menu="isDrawerOpen = true"
-      />
-    </aside>
+    </div>
 
-    <section class="thread-pane">
+    <section v-else class="thread-pane">
       <div class="thread-toolbar">
         <IconButton
           label="Toggle files"
@@ -150,14 +189,7 @@ function sendMessage(text: string) {
         </IconButton>
       </div>
 
-      <ThreadStream
-        v-if="showsThread"
-        :messages="messages"
-        :tool-calls-by-message-id="toolCallsByMessageId"
-        :active-turn="activeTurnForSelection"
-        @decide-approval="chatTurn.decideApproval"
-      />
-      <div v-else class="welcome">
+      <div v-if="showsWelcome" class="welcome">
         <EmptyState
           :title="
             activeWorkspace
@@ -171,6 +203,13 @@ function sendMessage(text: string) {
           </template>
         </EmptyState>
       </div>
+      <ThreadStream
+        v-else
+        :messages="messages"
+        :tool-calls-by-message-id="toolCallsByMessageId"
+        :active-turn="activeTurn"
+        @decide-approval="chatTurn.decideApproval"
+      />
 
       <footer class="composer-dock">
         <Composer
@@ -183,39 +222,11 @@ function sendMessage(text: string) {
     </section>
 
     <FilesPanel
-      v-if="isFilesPanelOpen"
+      v-if="isFilesPanelOpen && shell.mainView === 'chat'"
       :workspace-name="activeWorkspace?.name ?? 'Workspace'"
       :tree="fileTree"
       @close="isFilesPanelOpen = false"
     />
-
-    <AppDrawer
-      :open="isDrawerOpen"
-      :title="
-        activeSection === null ? (activeWorkspace?.name ?? 'Workspace') : 'Back'
-      "
-      @close="
-        activeSection === null ? (isDrawerOpen = false) : (activeSection = null)
-      "
-    >
-      <div v-if="activeSection === null" class="section-list">
-        <button
-          v-for="section in WORKSPACE_SECTIONS"
-          :key="section.id"
-          type="button"
-          class="section-row"
-          @click="activeSection = section.id"
-        >
-          <span class="section-label">{{ section.label }}</span>
-          <span class="section-hint">{{ section.hint }}</span>
-        </button>
-      </div>
-      <WorkspaceSectionPanel
-        v-else
-        :section="activeSection"
-        :workspace-id="ui.activeWorkspaceId ?? ''"
-      />
-    </AppDrawer>
   </div>
 </template>
 
@@ -223,29 +234,20 @@ function sendMessage(text: string) {
 .workspace-view {
   height: 100%;
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 1fr;
   min-height: 0;
+}
+
+.workspace-view.has-history {
+  grid-template-columns: 280px 1fr;
 }
 
 .workspace-view.has-files {
+  grid-template-columns: 1fr 280px;
+}
+
+.workspace-view.has-history.has-files {
   grid-template-columns: 280px 1fr 280px;
-}
-
-.left-column {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  min-height: 0;
-  background: var(--bg-panel);
-  border-right: 1px solid var(--hair);
-}
-
-.switcher-row {
-  padding: 6px;
-  border-bottom: 1px solid var(--hair);
-}
-
-.sessions {
-  border-right: 0;
 }
 
 .thread-pane {
@@ -269,47 +271,21 @@ function sendMessage(text: string) {
   overflow-y: auto;
 }
 
+.section-view {
+  overflow-y: auto;
+  background: var(--bg-shell);
+}
+
+.section-column {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
 .composer-dock {
   padding: 0 24px 18px;
   max-width: 808px;
   width: 100%;
   margin: 0 auto;
-}
-
-.section-list {
-  display: grid;
-  gap: 2px;
-}
-
-.section-row {
-  appearance: none;
-  border: 0;
-  margin: 0;
-  display: grid;
-  gap: 1px;
-  padding: 9px 10px;
-  border-radius: var(--radius-s);
-  background: transparent;
-  text-align: left;
-  cursor: default;
-}
-
-.section-row:hover {
-  background: var(--row-hover);
-}
-
-.section-row:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -2px;
-}
-
-.section-label {
-  color: var(--ink-1);
-  font: 500 12.5px/1.5 var(--font-ui);
-}
-
-.section-hint {
-  color: var(--ink-3);
-  font: 400 11px/1.5 var(--font-ui);
 }
 </style>

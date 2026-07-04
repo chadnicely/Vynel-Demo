@@ -7,6 +7,7 @@ import type {
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 import { demoWorkspaces } from "./fixtures/workspaces.js";
 import {
+  DEMO_GLOBAL_CONTINUOUS_SESSION_ID,
   DEMO_GLOBAL_ROOT_WORKSPACE_ID,
   demoMessagesBySessionId,
   demoSessions,
@@ -26,10 +27,13 @@ export interface DemoTurnResult {
 // will against the real API.
 export interface DemoStore {
   listWorkspaces(): WorkspaceResponse[];
+  /** History only — the continuous thread stays unlisted (`visibility: 'hidden'`). */
   listSessions(workspaceId: string): ChatSessionResponse[];
   /** Newest-first across every scope (global + all workspaces) — the dashboard feed. */
   listRecentSessions(limit: number): ChatSessionResponse[];
   getSessionDetail(sessionId: string): ChatSessionDetailResponse | null;
+  /** The scope's ongoing single conversation — the "one brain" thread. */
+  getOrCreateContinuousSession(workspaceId: string): ChatSessionResponse;
   createSession(workspaceId: string, title: string): ChatSessionResponse;
   appendTurnResult(sessionId: string, result: DemoTurnResult): void;
 }
@@ -43,6 +47,31 @@ export function createDemoStore(): DemoStore {
   const toolCallsByMessageId: Record<string, ChatToolCallResponse[]> = {
     ...demoToolCallsByMessageId,
   };
+  const continuousSessionIdByWorkspace = new Map<string, string>([
+    [DEMO_GLOBAL_ROOT_WORKSPACE_ID, DEMO_GLOBAL_CONTINUOUS_SESSION_ID],
+  ]);
+
+  function makeContinuousSession(workspaceId: string): ChatSessionResponse {
+    const now = new Date().toISOString();
+    return {
+      id: makeDemoId("continuous"),
+      userId: "demo-user",
+      workspaceId,
+      providerId: "claude",
+      model: "claude-opus-4-8",
+      title: "Ongoing conversation",
+      isArchived: false,
+      visibility: "hidden",
+      deletedAt: null,
+      totalMessageCount: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      lastMessagePreview: null,
+      startedAt: now,
+      lastMessageAt: now,
+      updatedAt: now,
+    };
+  }
 
   return {
     listWorkspaces() {
@@ -51,14 +80,33 @@ export function createDemoStore(): DemoStore {
 
     listSessions(workspaceId) {
       return sessions
-        .filter((session) => session.workspaceId === workspaceId)
+        .filter(
+          (session) =>
+            session.workspaceId === workspaceId &&
+            session.visibility === "listed",
+        )
         .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
     },
 
     listRecentSessions(limit) {
       return [...sessions]
+        .filter((session) => session.visibility === "listed")
         .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt))
         .slice(0, limit);
+    },
+
+    getOrCreateContinuousSession(workspaceId) {
+      const existingId = continuousSessionIdByWorkspace.get(workspaceId);
+      const existing = existingId
+        ? sessions.find((row) => row.id === existingId)
+        : undefined;
+      if (existing) return existing;
+
+      const session = makeContinuousSession(workspaceId);
+      sessions.push(session);
+      messagesBySessionId[session.id] = [];
+      continuousSessionIdByWorkspace.set(workspaceId, session.id);
+      return session;
     },
 
     getSessionDetail(sessionId) {

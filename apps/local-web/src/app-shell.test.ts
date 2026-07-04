@@ -18,6 +18,10 @@ function makeFakeVynelClient(): LocalVynelClient {
       getSessionDetail: async () => {
         throw new Error("not in this test");
       },
+      getContinuingConversation: async () => ({
+        rootSessionId: null,
+        currentSdkSessionId: null,
+      }),
     },
     dashboard: {
       getOverview: async () => ({

@@ -101,6 +101,22 @@
   **Sanctioned demo-import spots grew for this phase** (documented in-file):
   `WorkspaceSectionPanel` (section fixtures), `WorkspaceView` + `FilesPanel`/`FileTreeNode`
   (file trees), `HomeView` (global-root constant).
+- **Continuous-first reshape (Chad's feedback, 2026-07-05 — THE chat UX contract):**
+  - Chat (global AND workspace) opens straight into **the one continuous conversation** — no
+    session list by default. Modeled on the REAL `GET /chat/continuing` contract
+    (`ContinuingConversationResponse`); demo continuous threads are `visibility: 'hidden'`
+    (unlisted), exactly like the real continuing-root segments.
+  - Titlebar left: **menu icon** (no "vynel" wordmark) + **history toggle** (PanelLeft); on
+    Workspace additionally **workspace switcher + "+"** (new topic conversation). Presence dot
+    moved to the right cluster.
+  - The **menu replaces the chat area in place** (no drawer — AppDrawer deleted): global menu =
+    Chat + Application; workspace menu = Chat + the 7 feature sections; picking a section fills
+    the main area; "Chat" returns. State: `ui-store` `ChatShellState` per tab
+    (`mainView`/`target`) + shared `isSessionListOpen`.
+  - History panel: pinned **"Current conversation"** row returns to the continuous thread;
+    history sessions below.
+  - **Approval notifications: bottom-right**, decidable from any view (workspace context +
+    plain-language description + Approve/Deny).
 - M6 Desktop shell (Tauri window + overlay window hosting `VoiceOrb`) — pending; needs a
   Rust-toolchain session (first `cargo build` is long).
 

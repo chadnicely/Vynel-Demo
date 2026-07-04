@@ -65,14 +65,17 @@ function decide(providerApprovalId: string, kind: "approved" | "denied") {
 </template>
 
 <style scoped>
+/* Bottom-right (Chad's call): visible and decidable from any view, without
+   covering the titlebar or the top of the content. */
 .approval-notifier {
   position: fixed;
-  top: 52px;
+  bottom: 16px;
   right: 14px;
   z-index: 50;
   width: 340px;
   display: grid;
   gap: 8px;
+  align-content: end;
   pointer-events: none;
 }
 
@@ -97,7 +100,7 @@ function decide(providerApprovalId: string, kind: "approved" | "denied") {
 .toast-enter-from,
 .toast-leave-to {
   opacity: 0;
-  transform: translateX(16px);
+  transform: translateY(12px);
 }
 
 @media (prefers-reduced-motion: reduce) {

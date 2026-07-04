@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { Mic, Moon, Sun } from "lucide-vue-next";
+import { Menu, Mic, Moon, PanelLeft, Plus, Sun } from "lucide-vue-next";
 import { IconButton, PresenceDot, SegmentedTabs } from "@vynel/ui";
 import { useUiStore } from "../../stores/ui-store.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
+import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
+import WorkspaceSwitcher from "../workspace/WorkspaceSwitcher.vue";
 
 const TABS = [
   { id: "home", label: "Home" },
@@ -18,12 +20,21 @@ const router = useRouter();
 const ui = useUiStore();
 const activity = useActivityStore();
 const pendingApprovalsQuery = usePendingApprovals();
+const workspacesQuery = useWorkspaceList();
 
 const activeTab = computed(() =>
   typeof route.name === "string" ? route.name : "home",
 );
+const isChatSurface = computed(
+  () => activeTab.value === "chat" || activeTab.value === "workspace",
+);
+const isWorkspaceTab = computed(() => activeTab.value === "workspace");
 
-// The brand dot IS the status: gold pulse = working, gold ring = needs you.
+const activeShell = computed(() =>
+  activeTab.value === "workspace" ? ui.workspaceChat : ui.globalChat,
+);
+
+// The status light: gold ring = needs you, gold pulse = working.
 const pendingCount = computed(
   () => pendingApprovalsQuery.data.value?.length ?? 0,
 );
@@ -42,13 +53,44 @@ const presenceLabel = computed(() => {
 function goToTab(tabId: string) {
   void router.push({ name: tabId });
 }
+
+function startFreshConversation() {
+  ui.workspaceChat.target = "fresh";
+  ui.workspaceChat.mainView = "chat";
+}
 </script>
 
 <template>
   <header class="title-bar" data-tauri-drag-region>
-    <div class="brand">
-      <span class="wordmark">vynel</span>
-      <PresenceDot :state="presenceState" :label="presenceLabel" />
+    <div class="left-cluster">
+      <template v-if="isChatSurface">
+        <IconButton
+          label="Menu"
+          :active="activeShell.mainView === 'menu'"
+          @click="ui.toggleMenuView(activeShell)"
+        >
+          <Menu :size="15" />
+        </IconButton>
+        <IconButton
+          label="Toggle conversation history"
+          :active="ui.isSessionListOpen"
+          @click="ui.isSessionListOpen = !ui.isSessionListOpen"
+        >
+          <PanelLeft :size="15" />
+        </IconButton>
+      </template>
+
+      <template v-if="isWorkspaceTab">
+        <WorkspaceSwitcher
+          class="switcher"
+          :workspaces="workspacesQuery.data.value?.workspaces ?? []"
+          :active-workspace-id="ui.activeWorkspaceId"
+          @select="(id) => (ui.activeWorkspaceId = id)"
+        />
+        <IconButton label="New conversation" @click="startFreshConversation()">
+          <Plus :size="15" />
+        </IconButton>
+      </template>
     </div>
 
     <nav class="tabs">
@@ -60,6 +102,11 @@ function goToTab(tabId: string) {
     </nav>
 
     <div class="controls">
+      <PresenceDot
+        :state="presenceState"
+        :label="presenceLabel"
+        class="presence"
+      />
       <IconButton
         label="Open voice"
         :active="ui.isVoiceOverlayOpen"
@@ -93,18 +140,16 @@ function goToTab(tabId: string) {
   -webkit-user-select: none;
 }
 
-.brand {
+.left-cluster {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   justify-self: start;
-  padding-left: 4px;
+  min-width: 0;
 }
 
-.wordmark {
-  color: var(--ink-1);
-  font: 600 13px/1 var(--font-ui);
-  letter-spacing: 0.02em;
+.switcher {
+  max-width: 220px;
 }
 
 .tabs {
@@ -114,7 +159,11 @@ function goToTab(tabId: string) {
 .controls {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   justify-self: end;
+}
+
+.presence {
+  margin-right: 2px;
 }
 </style>

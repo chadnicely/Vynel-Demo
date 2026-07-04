@@ -1,38 +1,47 @@
 <script setup lang="ts">
-import { Menu, Plus } from "lucide-vue-next";
+import { MessageCircle } from "lucide-vue-next";
 import type { ChatSessionResponse } from "@vynel/contracts/chat/chat-http";
-import { EmptyState, IconButton } from "@vynel/ui";
+import { EmptyState } from "@vynel/ui";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 
+// The opt-in history list (hidden by default — chat IS the one continuous
+// conversation). The pinned row returns to that ongoing thread.
 const props = defineProps<{
-  title: string;
   sessions: ChatSessionResponse[];
+  /** The highlighted history session, or null when the continuous thread is active. */
   activeSessionId: string | null;
+  isContinuousActive?: boolean;
   isLoading?: boolean;
   errorText?: string | null;
 }>();
 
 const emit = defineEmits<{
   select: [sessionId: string];
-  newSession: [];
-  openMenu: [];
+  selectContinuous: [];
 }>();
 </script>
 
 <template>
   <aside class="sessions-panel">
     <header class="panel-header">
-      <IconButton label="Open menu" @click="emit('openMenu')">
-        <Menu :size="15" />
-      </IconButton>
-      <p class="panel-title">{{ props.title }}</p>
-      <IconButton label="New conversation" @click="emit('newSession')">
-        <Plus :size="15" />
-      </IconButton>
+      <p class="panel-title">Conversations</p>
     </header>
 
     <div class="session-list">
-      <p v-if="props.isLoading" class="loading-note">Loading conversations…</p>
+      <button
+        type="button"
+        class="session-row is-pinned"
+        :class="{ 'is-active': props.isContinuousActive }"
+        @click="emit('selectContinuous')"
+      >
+        <span class="session-title pinned-title">
+          <MessageCircle :size="13" />
+          Current conversation
+        </span>
+        <span class="session-preview">The ongoing thread — always here.</span>
+      </button>
+
+      <p v-if="props.isLoading" class="loading-note">Loading history…</p>
 
       <p v-else-if="props.errorText" class="error-note">
         {{ props.errorText }}
@@ -40,8 +49,8 @@ const emit = defineEmits<{
 
       <EmptyState
         v-else-if="props.sessions.length === 0"
-        title="No conversations yet"
-        hint="Start one below — it shows up here."
+        title="No past conversations"
+        hint="Finished topics land here."
       />
 
       <button
@@ -49,7 +58,10 @@ const emit = defineEmits<{
         :key="session.id"
         type="button"
         class="session-row"
-        :class="{ 'is-active': session.id === props.activeSessionId }"
+        :class="{
+          'is-active':
+            !props.isContinuousActive && session.id === props.activeSessionId,
+        }"
         @click="emit('select', session.id)"
       >
         <span class="session-title">{{ session.title }}</span>
@@ -76,15 +88,12 @@ const emit = defineEmits<{
 .panel-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
+  padding: 10px 12px 8px;
   border-bottom: 1px solid var(--hair);
 }
 
 .panel-title {
   margin: 0;
-  flex: 1;
-  text-align: center;
   color: var(--ink-2);
   font: 600 12px/1.5 var(--font-ui);
 }
@@ -124,12 +133,23 @@ const emit = defineEmits<{
   cursor: default;
 }
 
+.session-row.is-pinned {
+  border: 1px solid var(--hair);
+  background: var(--bg-raised);
+  margin-bottom: 6px;
+}
+
 .session-row:hover {
   background: var(--row-hover);
 }
 
 .session-row.is-active {
   background: var(--row-active);
+}
+
+.session-row.is-pinned.is-active {
+  border-color: var(--gold-soft);
+  background: var(--gold-soft);
 }
 
 .session-row:focus-visible {
@@ -143,6 +163,12 @@ const emit = defineEmits<{
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.pinned-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .session-preview {

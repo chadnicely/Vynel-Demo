@@ -1,6 +1,7 @@
 import type {
   ChatSessionDetailResponse,
   ChatSessionResponse,
+  ContinuingConversationResponse,
 } from "@vynel/contracts/chat/chat-http";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 import type { ScheduleResponse } from "@vynel/contracts/schedules/schedule-http";
@@ -26,6 +27,11 @@ export interface DemoChatNamespace {
     scope: SessionScope,
   ): Promise<{ sessions: ChatSessionResponse[] }>;
   getSessionDetail(sessionId: string): Promise<ChatSessionDetailResponse>;
+  /** The scope's continuous single conversation — mirrors the real
+   *  `GET /workspaces/{id}/chat/continuing` (`ContinuingConversationResponse`). */
+  getContinuingConversation(
+    scope: SessionScope,
+  ): Promise<ContinuingConversationResponse>;
 }
 
 /** The Home dashboard's aggregate read — a plausible future real route. */
@@ -77,6 +83,17 @@ export function attachDemoNamespaces(client: VynelClient): LocalVynelClient {
         );
       }
       return withLatency(detail);
+    },
+    getContinuingConversation: (scope) => {
+      const workspaceId =
+        scope.kind === "global"
+          ? DEMO_GLOBAL_ROOT_WORKSPACE_ID
+          : scope.workspaceId;
+      const session = demoStore.getOrCreateContinuousSession(workspaceId);
+      return withLatency({
+        rootSessionId: session.id,
+        currentSdkSessionId: session.id,
+      });
     },
   };
 
