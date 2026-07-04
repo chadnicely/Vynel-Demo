@@ -23,6 +23,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   rather than only timing out. This is the backend the "answer approvals from any screen" experience runs on
   (the HTTP routes + notification UI arrive with `apps/api`).
 
+- **Approval queue HTTP surface** (`apps/local-api`) — `GET /approvals/pending` + `POST /approvals/:id/decide` over
+  the global-queue backend, with a typed SDK (`client.approvals.listPending()` / `.decide()`). Withheld from MCP —
+  approvals are the sensitive human-in-the-loop path an agent must never self-approve.
+
 ### Changed
 
 - `@vynel/approvals` now owns its schema + repositories (moved from the `@vynel/db` kernel — the vertical-slice

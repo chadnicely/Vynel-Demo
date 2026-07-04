@@ -63,8 +63,12 @@ top-level park-and-notify is safe WITHOUT auto-deny. **Never hard-code fail-clos
   scheduled caller). Its shape depends on the three consumers (SSE = notify+stream, channel = notify+out-of-band,
   routed-leaf = deny). Building it now = guessing. **Build it WITH `apps/api`** (same discipline that excluded
   `start-chat-turn` from chat). The notify-not-deny decision above is the durable part.
-- **The HTTP routes** — `GET /pending` (promote to **user-scoped**, not workspace-scoped), `GET /recent`, `POST
-  /:id/decide` (old repo has all three) — land with `apps/api`.
+- **The HTTP routes** — ✅ **DONE in `apps/local-api` (`f2d7db2`):** `GET /approvals/pending` (user-scoped global
+  queue → `listPendingApprovalsForUser`) + `POST /approvals/:providerApprovalId/decide` (→ `resolveApproval`;
+  NotFound→404/Conflict→409). Responses CAST from `@vynel/contracts` `ApprovalRequestResponse` (extended with a
+  nullable `workspaceId`) per the approvals convention; typed SDK `client.approvals.listPending()`/`.decide()`;
+  **no `x-mcp`** (an agent must never self-approve). 7 route tests. **Still owed (when needed):** `GET /recent`
+  (audit view) + the rules routes (list/toggle/delete auto-approve rules).
 - **The notification consumer + UI** — the outbox handler that materializes a per-user notification from
   `approval.requested`, and the actual notification UI. UI is Chad's (web is his); a KLONE notifications/channels home
   doesn't exist yet.

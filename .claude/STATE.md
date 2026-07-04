@@ -4,7 +4,7 @@
 memories (`vynel-vision-and-old-project-lesson` = the founding vision + old-project scatter we must NOT
 repeat; `vynel-rebuild-plan`; `worktree-fanout-isolation`). State lives on disk, not chat.
 
-## ⏭ NEXT ACTION: pick the next module — `apps/api` (lights up the visible approval queue + session Slice 3) OR more leaves / improve-queue
+## ⏭ NEXT ACTION: pull 3 more packages from the old repo (Chad's next, post-compact) — the approval-queue HTTP surface just landed in `apps/local-api`
 **Full plan + the reframing + the architecture decision: `docs/module-notes/session.md` (read it first).**
 
 **The keystone is SMALLER than STATE assumed.** The source already did its hard refactor (B0–B2b: SessionSink,
@@ -56,6 +56,13 @@ working `McpFeatureDescriptor` reference; knowledge/memory/chat each still owe o
 (`surface-up`). Deferred Layer-B vocab: `globalRootSessionId`/`rootSessionId` fields rename when these land.
 
 ## ✅ Recently done (most recent first)
+- **Approval queue HTTP surface in `apps/local-api` (`f2d7db2`)** — the first user-scoped routes: `GET
+  /approvals/pending` (→ `listPendingApprovalsForUser`, the global queue) + `POST /approvals/:providerApprovalId/decide`
+  (→ `resolveApproval`; 404/409 via global onError). Responses CAST from `@vynel/contracts` `ApprovalRequestResponse`
+  (+nullable `workspaceId`) per the approvals convention; regen'd SDK (`client.approvals.listPending()`/`.decide()`,
+  9 paths/10 methods); **no x-mcp** (sensitive path). Green (typecheck · parity · vitest 1193, +7 route tests). This
+  completes the approval story's backend→API; only the notification UI (Chad's frontend) + the `SessionSink`
+  notify-not-deny seam (deferred to the runners' consumers) remain. `docs/module-notes/approvals.md`.
 - **files / workspaces / agents concern-fold — via a parallel Workflow (`5517f1e` + `a5d84ff` + `a899f93`)** — folded
   the flat logic of all 3 packages into concern folders (files: `path/`+`operations/`+`activity/`; workspaces:
   `lifecycle/`+`directory/`; agents: `lifecycle/`+`session/`) using a **Workflow pipeline: 3 fold agents (parallel) →
