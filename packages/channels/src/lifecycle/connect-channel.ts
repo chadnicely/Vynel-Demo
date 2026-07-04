@@ -18,7 +18,7 @@ import type { BotCredentials, StructuralLogger } from '../channels-types.js'
 
 export interface ConnectChannelInput {
   userId: string
-  workspaceId: string
+  workspaceId: string | null // null = GLOBAL scope (no workspace); a value scopes to that workspace
   channelKind: ChannelKind
   displayName: string
   botCredentials: BotCredentials

@@ -47,14 +47,16 @@ export interface ProcessInboundDeps {
   // typed STRUCTURALLY here so the channels leaf never imports the approvals leaf (invariant #2 —
   // no sibling-leaf import). The api-side service supplies the real `resolveApproval`; this type
   // only describes the call shape route-as-approval-reply invokes it with. `workspaceId` is passed
-  // faithfully by the caller though the current approvals resolve is user-scoped — the injected
-  // adapter drops it (the deferred app-wiring maps the wider call to the narrower op).
+  // faithfully by the caller — nullable, since a GLOBAL channel (null workspace) resolves a
+  // global-root card that has no workspace (mirrors `approval_requests.workspaceId`). The current
+  // approvals resolve is user-scoped, so the injected adapter drops it (the deferred app-wiring
+  // maps the wider call to the narrower op).
   resolveApproval: (
     db: Database,
     input: {
       providerApprovalId: string
       userId: string
-      workspaceId: string
+      workspaceId: string | null
       providerId: string
       decision: { kind: 'approved' } | { kind: 'denied'; reason: string }
     },

@@ -313,7 +313,7 @@ CREATE INDEX `idx_file_activities_user` ON `file_activities` (`user_id`);--> sta
 CREATE TABLE `channels` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
-	`workspace_id` text NOT NULL,
+	`workspace_id` text,
 	`channel_kind` text NOT NULL,
 	`display_name` text NOT NULL,
 	`bot_credentials` text NOT NULL,

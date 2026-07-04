@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { listChannelsForWorkspace, listAllowedSenders } from '../repositories/index.js'
+import {
+  listChannelsForWorkspace,
+  listChannelsForUser,
+  listAllowedSenders,
+} from '../repositories/index.js'
 import { makeUser, makeWorkspace } from '../test-support.js'
 import { connectChannel } from './connect-channel.js'
 
@@ -33,6 +37,24 @@ describe('connectChannel', () => {
       const senders = listAllowedSenders(db, channel.id)
       expect(senders).toHaveLength(1)
       expect(senders[0]?.externalSenderId).toBe('999')
+    })
+  })
+
+  it('connects a GLOBAL channel (null workspace) and persists it with null workspaceId', async () => {
+    getMe.mockResolvedValue({ id: 42, first_name: 'Bakery', username: 'bakery_bot' })
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const channel = await connectChannel(db, {
+        userId: user.id,
+        workspaceId: null,
+        channelKind: 'telegram',
+        displayName: 'Global Bot',
+        botCredentials: { botToken: 'good-token' },
+      })
+      expect(channel.workspaceId).toBeNull()
+      const persisted = listChannelsForUser(db, user.id)
+      expect(persisted).toHaveLength(1)
+      expect(persisted[0]?.workspaceId).toBeNull()
     })
   })
 

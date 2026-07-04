@@ -6,7 +6,8 @@
 //
 // Schema files import from `@vynel/db/dialect` ONLY — never from
 // `drizzle-orm/*-core`. `userId` is the tenant boundary; `workspaceId`
-// is the domain scope. Child tables omit `userId` (scoped through
+// is the domain scope — nullable, NULL = global (no workspace). Child
+// tables omit `userId` (scoped through
 // `channelId -> channels.userId`). Phase 1 SYNC repo discipline applies.
 //
 // `botCredentials` / `botMetadata` are opaque JSON-encoded strings read
@@ -33,7 +34,11 @@ export const channels = table(
   {
     id: id().primaryKey(),
     userId: id().references(() => users.id, { onDelete: 'cascade' }),
-    workspaceId: id().references(() => workspaces.id, { onDelete: 'cascade' }),
+    // Nullable: NULL = GLOBAL scope (a user-level channel with no workspace);
+    // a non-null value scopes the channel to that workspace. Mirrors
+    // `approval_requests.workspaceId` (approvals precedent). Uses
+    // `text().references(...)` since `id()` is NOT NULL by contract.
+    workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
     channelKind: text().$type<ChannelKind>().notNull(),
     displayName: text().notNull(),
     botCredentials: text().notNull(), // JSON-encoded; sensitive — never returned, never logged
