@@ -16,6 +16,7 @@ export function serializeScheduleForResponse(schedule: Schedule): ScheduleRespon
     userId: schedule.userId,
     workspaceId: schedule.workspaceId,
     templateKind: schedule.templateKind,
+    scheduleKind: schedule.scheduleKind,
     displayName: schedule.displayName,
     cronExpression: schedule.cronExpression,
     timezone: schedule.timezone,

@@ -59,6 +59,7 @@ function makeSchedule(
     userId,
     workspaceId,
     templateKind: 'morning-briefing',
+    scheduleKind: 'recurring',
     displayName: 'Morning briefing',
     cronExpression: '0 8 * * *',
     timezone: 'UTC',

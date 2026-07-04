@@ -44,6 +44,7 @@ function seedSchedule(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0])
     userId: user.id,
     workspaceId: workspace.id,
     templateKind: 'custom',
+    scheduleKind: 'recurring',
     displayName: 'Custom',
     cronExpression: '0 9 * * *',
     timezone: 'UTC',

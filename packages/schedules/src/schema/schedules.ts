@@ -28,6 +28,12 @@ export type ScheduleDestinationKind =
   | 'chat-only' // result lives only in the chat session
   | 'chat-and-channel' // result also delivered to a connected channel (via the outbox event)
 
+// Discriminates a recurring schedule (fires on a cron) from a one-time one
+// (fires once at `nextScheduledFireAt`, then disarms — carries no cron). The
+// explicit column replaces the former `@once` sentinel; the single predicate
+// `isOneTimeSchedule` (in @vynel/contracts) reads it.
+export type ScheduleKind = 'recurring' | 'one-time'
+
 export const schedules = table(
   'schedules',
   {
@@ -39,8 +45,9 @@ export const schedules = table(
     // precedent). Uses `text().references(...)` since `id()` is NOT NULL by contract.
     workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
     templateKind: text().$type<ScheduleTemplateKind>().notNull(),
+    scheduleKind: text().$type<ScheduleKind>().notNull(), // 'recurring' | 'one-time'
     displayName: text().notNull(), // user-editable; defaults to the template label
-    cronExpression: text().notNull(), // e.g. '0 9 * * MON'
+    cronExpression: text(), // e.g. '0 9 * * MON'; NULL for a one-time schedule (fires by fireAt)
     timezone: text().notNull(), // IANA tz, e.g. 'America/Los_Angeles'
     promptTemplate: text().notNull(), // {{placeholders}} resolved at fire time
     destinationKind: text().$type<ScheduleDestinationKind>().notNull(),

@@ -77,6 +77,26 @@ describe('updateSchedule', () => {
     })
   })
 
+  it('rejects a cron change on a one-time schedule (a one-time schedule has no cron)', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedSchedule(db)
+      const oneTime = createSchedule(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        templateKind: 'custom',
+        destinationKind: 'chat-only',
+        fireAt: new Date(Date.now() + 15 * 60_000),
+      })
+      expect(() =>
+        updateSchedule(db, {
+          scheduleId: oneTime.id,
+          userId: user.id,
+          cronExpression: '0 9 * * MON',
+        }),
+      ).toThrow(/one-time schedule has no cron/)
+    })
+  })
+
   it('rejects clearing the channel while destination is chat-and-channel', async () => {
     await withTestDatabase(async (db) => {
       const { user, schedule } = seedSchedule(db)

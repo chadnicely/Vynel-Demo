@@ -70,6 +70,7 @@ function seedSchedule(
     userId,
     workspaceId,
     templateKind: 'custom',
+    scheduleKind: 'recurring',
     displayName: 'Custom',
     cronExpression: '0 9 * * *',
     timezone: 'UTC',
@@ -124,7 +125,12 @@ describe('schedules routes', () => {
         jsonBody('POST', { templateKind: 'morning-briefing', channelId: 'chan-1' }),
       )
       expect(res.status).toBe(201)
-      const created = (await res.json()) as { nextScheduledFireAt: string | null; cronExpression: string }
+      const created = (await res.json()) as {
+        nextScheduledFireAt: string | null
+        cronExpression: string | null
+        scheduleKind: string
+      }
+      expect(created.scheduleKind).toBe('recurring')
       expect(created.nextScheduledFireAt).not.toBeNull()
       expect(created.cronExpression).toBe('0 8 * * *') // the morning-briefing cron
 
@@ -167,7 +173,13 @@ describe('schedules routes', () => {
         jsonBody('POST', { templateKind: 'custom', destinationKind: 'chat-only', fireAt }),
       )
       expect(res.status).toBe(201)
-      const created = (await res.json()) as { nextScheduledFireAt: string | null }
+      const created = (await res.json()) as {
+        nextScheduledFireAt: string | null
+        cronExpression: string | null
+        scheduleKind: string
+      }
+      expect(created.scheduleKind).toBe('one-time')
+      expect(created.cronExpression).toBeNull() // a one-time schedule has no cron
       // A one-time schedule fires at exactly the requested instant — a recurring
       // schedule would have computed a different next-fire from its cron.
       expect(created.nextScheduledFireAt).toBe(fireAt)

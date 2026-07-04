@@ -6,7 +6,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findScheduleById } from '../repositories/index.js'
 import type { Database } from '@vynel/db'
 import { createSchedule } from './create-schedule.js'
-import { ONE_TIME_CRON_SENTINEL, isOneTimeSchedule } from '@vynel/contracts/schedules/one-time'
+import { isOneTimeSchedule } from '@vynel/contracts/schedules/one-time'
 
 function seedUserWorkspace(db: Database) {
   const now = new Date()
@@ -45,6 +45,7 @@ describe('createSchedule', () => {
         channelId: 'channel-1',
       })
       expect(schedule.templateKind).toBe('morning-briefing')
+      expect(schedule.scheduleKind).toBe('recurring')
       expect(schedule.cronExpression).toBe('0 8 * * *')
       expect(schedule.timezone).toBe('America/Los_Angeles') // defaulted from the user row
       expect(schedule.destinationKind).toBe('chat-and-channel')
@@ -94,7 +95,7 @@ describe('createSchedule', () => {
     })
   })
 
-  it('creates a one-time schedule (fireAt) carrying the sentinel cron + the exact fire time', async () => {
+  it('creates a one-time schedule (fireAt) with scheduleKind "one-time", null cron + the exact fire time', async () => {
     await withTestDatabase(async (db) => {
       const { user, workspace } = seedUserWorkspace(db)
       const fireAt = new Date(Date.now() + 15 * 60_000) // "remind me in 15 minutes"
@@ -106,8 +107,9 @@ describe('createSchedule', () => {
         promptTemplate: 'Remind me about my 2pm meeting.',
         fireAt,
       })
+      expect(schedule.scheduleKind).toBe('one-time')
       expect(isOneTimeSchedule(schedule)).toBe(true)
-      expect(schedule.cronExpression).toBe(ONE_TIME_CRON_SENTINEL)
+      expect(schedule.cronExpression).toBeNull()
       expect(schedule.nextScheduledFireAt?.getTime()).toBe(fireAt.getTime())
     })
   })
@@ -126,7 +128,7 @@ describe('createSchedule', () => {
     })
   })
 
-  it('rejects the reserved one-time sentinel as a user-supplied cron expression', async () => {
+  it('treats the former "@once" sentinel as just an invalid cron (no longer reserved)', async () => {
     await withTestDatabase(async (db) => {
       const { user, workspace } = seedUserWorkspace(db)
       expect(() =>
@@ -135,9 +137,9 @@ describe('createSchedule', () => {
           workspaceId: workspace.id,
           templateKind: 'custom',
           destinationKind: 'chat-only',
-          cronExpression: ONE_TIME_CRON_SENTINEL,
+          cronExpression: '@once',
         }),
-      ).toThrow(/reserved/)
+      ).toThrow(/Invalid cron/)
     })
   })
 

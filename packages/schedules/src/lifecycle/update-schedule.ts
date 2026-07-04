@@ -6,7 +6,7 @@
 
 import { Cron } from 'croner'
 import * as schedulesRepository from '../repositories/index.js'
-import { isOneTimeSchedule, ONE_TIME_CRON_SENTINEL } from '@vynel/contracts/schedules/one-time'
+import { isOneTimeSchedule } from '@vynel/contracts/schedules/one-time'
 import { NotFoundError, ValidationError } from '@vynel/errors'
 import type { Database } from '@vynel/db'
 import type {
@@ -35,10 +35,12 @@ export function updateSchedule(db: Database, input: UpdateScheduleInput): Schedu
     throw new NotFoundError('schedule', input.scheduleId)
   }
 
-  // The sentinel is internal — never settable as a user cron.
-  if (input.cronExpression === ONE_TIME_CRON_SENTINEL) {
+  // A one-time schedule fires once at a fixed time and carries no cron. A cron
+  // change would desync `scheduleKind` from `cronExpression` (an inconsistent
+  // row) — reject it rather than silently drop it (fail fast).
+  if (isOneTimeSchedule(schedule) && input.cronExpression !== undefined) {
     throw new ValidationError(
-      'That cron expression is reserved. Create a one-time schedule with a fire time (fireAt).',
+      'A one-time schedule has no cron expression; it fires once at its scheduled time.',
     )
   }
 
@@ -61,14 +63,18 @@ export function updateSchedule(db: Database, input: UpdateScheduleInput): Schedu
     throw new ValidationError('A channel is required when the destination is "chat and channel".')
   }
 
-  // Only a cron/timezone change moves the next-fire time; otherwise the poll
-  // claim remains the sole writer of nextScheduledFireAt (D9).
-  if (input.cronExpression !== undefined || input.timezone !== undefined) {
+  // Only a cron/timezone change on a RECURRING schedule moves the next-fire
+  // time; otherwise the poll claim remains the sole writer of
+  // nextScheduledFireAt (D9). A one-time schedule keeps its fixed fire time.
+  if (
+    !isOneTimeSchedule(schedule) &&
+    (input.cronExpression !== undefined || input.timezone !== undefined)
+  ) {
     const nextCron = input.cronExpression ?? schedule.cronExpression
     const nextTimezone = input.timezone ?? schedule.timezone
-    // One-time schedules carry the sentinel cron and keep their fixed fire time
-    // — never recompute (and never hand the sentinel to croner).
-    if (!isOneTimeSchedule({ cronExpression: nextCron })) {
+    // A recurring schedule always carries a real cron; the null-guard is
+    // defensive (and satisfies the nullable column type).
+    if (nextCron !== null) {
       try {
         patch.nextScheduledFireAt = new Cron(nextCron, { timezone: nextTimezone }).nextRun()
       } catch {

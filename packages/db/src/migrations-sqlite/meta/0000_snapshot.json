@@ -2814,6 +2814,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "schedule_kind": {
+          "name": "schedule_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "display_name": {
           "name": "display_name",
           "type": "text",
@@ -2825,7 +2832,7 @@
           "name": "cron_expression",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "timezone": {

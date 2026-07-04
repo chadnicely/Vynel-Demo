@@ -7,6 +7,8 @@
 // Union types re-declared locally — `@vynel/contracts` has no `@vynel/db` dep
 // (the workspaces/channels precedent; kept in sync with the schema files).
 
+import type { ScheduleKind } from './one-time.js'
+
 export type ScheduleTemplateKind =
   | 'morning-briefing'
   | 'weekly-summary'
@@ -24,8 +26,11 @@ export interface ScheduleResponse {
   // GLOBAL scope — a user-level schedule with no workspace).
   workspaceId: string | null
   templateKind: ScheduleTemplateKind
+  // 'recurring' fires on the cron; 'one-time' fires once at nextScheduledFireAt.
+  scheduleKind: ScheduleKind
   displayName: string
-  cronExpression: string
+  // Null for a one-time schedule (it has no cron — it fires by nextScheduledFireAt).
+  cronExpression: string | null
   timezone: string
   promptTemplate: string
   destinationKind: ScheduleDestinationKind

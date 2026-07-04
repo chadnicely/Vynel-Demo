@@ -7,7 +7,6 @@
 import { randomUUID } from 'node:crypto'
 import { Cron } from 'croner'
 import { findScheduleTemplateByKind } from '@vynel/contracts/schedules/schedule-template-catalog'
-import { ONE_TIME_CRON_SENTINEL } from '@vynel/contracts/schedules/one-time'
 import * as schedulesRepository from '../repositories/index.js'
 import * as usersRepository from '@vynel/db/repositories/users'
 import { ValidationError } from '@vynel/errors'
@@ -16,6 +15,7 @@ import type {
   Schedule,
   ScheduleTemplateKind,
   ScheduleDestinationKind,
+  ScheduleKind,
 } from '../repositories/index.js'
 import type { StructuralLogger } from '../schedules-types.js'
 
@@ -46,30 +46,22 @@ export function createSchedule(
     throw new ValidationError(`Unknown schedule template "${input.templateKind}".`)
   }
 
-  // The sentinel is internal — a one-time schedule is created via fireAt, never
-  // by passing the reserved expression as a user cron.
-  if (input.cronExpression === ONE_TIME_CRON_SENTINEL) {
-    throw new ValidationError(
-      'That cron expression is reserved. Create a one-time schedule with a fire time (fireAt).',
-    )
-  }
-
   const timezone =
     input.timezone ?? usersRepository.findUserById(db, input.userId)?.timezone ?? 'UTC'
   const now = new Date()
 
   // A one-time schedule (input.fireAt set) fires once at that absolute instant,
-  // then disarms — it carries the sentinel cron instead of a real expression
-  // (the poll's computeNextFireAt returns null for it; see
-  // @vynel/contracts schedules/one-time). The explicit `scheduleKind` column is
-  // deferred to avoid an unverified migration on the live dev DB.
-  let cronExpression: string
+  // then disarms — it carries a NULL cron and `scheduleKind = 'one-time'` (the
+  // poll's next-fire computation returns null for it; see @vynel/contracts
+  // schedules/one-time). A recurring schedule carries a real cron.
+  const scheduleKind: ScheduleKind = input.fireAt !== undefined ? 'one-time' : 'recurring'
+  let cronExpression: string | null
   let nextFireAt: Date | null
   if (input.fireAt !== undefined) {
     if (input.fireAt.getTime() <= now.getTime()) {
       throw new ValidationError('A one-time schedule must fire in the future.')
     }
-    cronExpression = ONE_TIME_CRON_SENTINEL
+    cronExpression = null
     nextFireAt = input.fireAt
   } else {
     cronExpression = input.cronExpression ?? template.defaultCronExpression
@@ -98,6 +90,7 @@ export function createSchedule(
     userId: input.userId,
     workspaceId: input.workspaceId,
     templateKind: input.templateKind,
+    scheduleKind,
     displayName: input.displayName ?? template.displayLabel,
     cronExpression,
     timezone,

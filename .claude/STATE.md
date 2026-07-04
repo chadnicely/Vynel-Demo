@@ -44,7 +44,16 @@ they compose env-coupled/turn-firing machinery a leaf can't own — NOT gaps, de
   `apps/cli/src/knowledge-commands.ts`).
 
 **Deferred improves** (mission-wide, non-blocking): stale kernel-location doc-comments in the new leaves'
-`repositories/*` + `schema/index.ts` (name the old `@vynel/db/...` home); explicit `scheduleKind` column.
+`repositories/*` + `schema/index.ts` (name the old `@vynel/db/...` home).
+
+## 🔨 FINISH-EVERYTHING pass (2026-07-05) — Chad: "complete them all, no deferring"
+Clearing every deferred item. Progress (TaskList #7-13):
+- ✅ **Explicit `scheduleKind` column** — replaced the `@once` sentinel with a `scheduleKind:'recurring'|'one-time'`
+  column + nullable `cronExpression`; `isOneTimeSchedule` reads the column; response surfaces it. Baseline-folded
+  (zero-data → the migration-0029 risk the sentinel dodged no longer applies). drizzle "No schema changes"; gate
+  **1463**; reviewer CLEAN (no-must-fix). `ONE_TIME_CRON_SENTINEL` removed.
+- ⏳ next: global-scope create/list routes · CLI commands · cleanups · channel ticks · the ③ MCP keystone ·
+  schedule fire-tick + fire-now.
 
 **Guardrails that held (for the next autopilot):** main loop owned diff-check + full gate + code-reviewer +
 commit; subagents did heavy file work on the main tree (no worktrees); never committed on red; STATE every

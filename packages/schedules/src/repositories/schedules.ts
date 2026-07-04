@@ -20,6 +20,7 @@ export type {
   NewSchedule,
   ScheduleTemplateKind,
   ScheduleDestinationKind,
+  ScheduleKind,
 } from '../schema/schedules.js'
 
 // Bounded list (a user's schedules per workspace in Phase 1) but capped
