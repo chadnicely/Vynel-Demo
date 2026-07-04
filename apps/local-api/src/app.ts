@@ -14,6 +14,7 @@ import { FileWatcherService } from '@vynel/knowledge'
 import type { AppEnv } from './factory.js'
 import { openApiInfo } from './openapi.js'
 import { knowledgeApp } from './routes/knowledge/index.js'
+import { skillsApp } from './routes/skills/index.js'
 import { approvalsApp } from './routes/approvals/index.js'
 
 export interface CreateAppOptions {
@@ -57,6 +58,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.get('/openapi.json', openAPISpecs(app, openApiInfo))
 
   app.route('/workspaces/:workspaceId/knowledge', knowledgeApp)
+  app.route('/workspaces/:workspaceId/skills', skillsApp)
   // User-scoped (no workspace prefix) — the global approval queue spans every
   // workspace + the brain, answerable from any surface.
   app.route('/approvals', approvalsApp)

@@ -99,6 +99,9 @@ importers:
       '@vynel/providers':
         specifier: workspace:*
         version: link:../../packages/providers
+      '@vynel/skills':
+        specifier: workspace:*
+        version: link:../../packages/skills
       '@vynel/workspaces':
         specifier: workspace:*
         version: link:../../packages/workspaces

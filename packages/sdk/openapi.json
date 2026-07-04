@@ -976,6 +976,355 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/skills/available": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of catalog entries (definitions only)."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdSkillsAvailable",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List the Verified-skill catalog (available to install).",
+        "x-sdk-name": "skills.listAvailable",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_available_skills",
+          "description": "List the Verified-skill catalog the user can install (read-only). Returns each skill's id, display name, one-line description, category, recommended scope, and settings schema. Use this when the user asks what skills exist or which to install. Does NOT modify state."
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/skills/installed": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Each installed skill joined with its catalog definition (if any) + resolved settings."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdSkillsInstalled",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List skills installed in this user+workspace context.",
+        "x-sdk-name": "skills.listInstalled",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_installed_skills",
+          "description": "List skills installed in the current user+workspace context (owner-scoped). Returns the union of user-scope (available across every workspace) + workspace-scope (this workspace only) entries, each with version, scope, isEnabled flag, install health, and resolved settings. Read-only — use this to know what skills the agent currently has available, not to install them."
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/skills/install": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The installed-skill row."
+          },
+          "400": {
+            "description": "Invalid initial settings."
+          },
+          "404": {
+            "description": "Skill or workspace not found."
+          },
+          "409": {
+            "description": "Already installed at the requested scope."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdSkillsInstall",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Install a Verified skill at user or workspace scope.",
+        "x-sdk-name": "skills.install",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "skillId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "workspace"
+                    ]
+                  },
+                  "initialSettings": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "skillId",
+                  "scope"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/skills/installed/{installedSkillId}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Uninstalled."
+          },
+          "403": {
+            "description": "Skill is system-installed; uninstall blocked."
+          },
+          "404": {
+            "description": "Installed-skill row not found OR owned by another user."
+          }
+        },
+        "operationId": "deleteWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillId",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installedSkillId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Uninstall a skill (hard-delete + cascade per D13).",
+        "x-sdk-name": "skills.uninstall"
+      }
+    },
+    "/workspaces/{workspaceId}/skills/installed/{installedSkillId}/enable": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The updated installed-skill row."
+          },
+          "404": {
+            "description": "Installed-skill row not found OR owned by another user."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillIdEnable",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installedSkillId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Enable an installed skill — rewrites files from current settings.",
+        "x-sdk-name": "skills.enable"
+      }
+    },
+    "/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The updated installed-skill row."
+          },
+          "404": {
+            "description": "Installed-skill row not found OR owned by another user."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillIdDisable",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installedSkillId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Disable an installed skill — removes files from disk; preserves row + settings.",
+        "x-sdk-name": "skills.disable"
+      }
+    },
+    "/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "The resolved settings (defaults merged with overrides)."
+          },
+          "400": {
+            "description": "Invalid setting key or value."
+          },
+          "404": {
+            "description": "Installed-skill row not found OR owned by another user."
+          }
+        },
+        "operationId": "patchWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillIdSettings",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installedSkillId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Update settings on an installed skill — re-renders SKILL.md if enabled.",
+        "x-sdk-name": "skills.updateSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "newSettings": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "newSettings"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/skills/synchronize": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ healthyCount, missingOnDiskCount, externalDiscoveredCount }."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdSkillsSynchronize",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Reconcile installed skills with what the provider sees on disk.",
+        "x-sdk-name": "skills.synchronize"
+      }
+    },
     "/approvals/pending": {
       "get": {
         "responses": {

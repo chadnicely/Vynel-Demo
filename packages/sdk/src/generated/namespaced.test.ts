@@ -32,6 +32,20 @@ const EXPECTED_KNOWLEDGE_METHODS = [
 // The approvals namespace's methods (the global-queue surface), sorted.
 const EXPECTED_APPROVALS_METHODS = ['decide', 'listPending'] as const
 
+// The skills namespace's methods, sorted. The 2 read GETs + the 6
+// mutating lifecycle/settings routes all carry `x-sdk-name` (x-mcp is a
+// separate, narrower opt-in — only the 2 GETs are MCP-exposed).
+const EXPECTED_SKILLS_METHODS = [
+  'disable',
+  'enable',
+  'install',
+  'listAvailable',
+  'listInstalled',
+  'synchronize',
+  'uninstall',
+  'updateSettings',
+] as const
+
 // Build a client stub whose every verb resolves to one canned
 // openapi-fetch result — drives the generated dispatch's success + error branches.
 function clientReturning(result: {
@@ -65,16 +79,21 @@ function capturingClient(): { client: Client<paths>; calls: CapturedCall[] } {
 }
 
 describe('makeNamespaced — shape', () => {
-  it('exposes the knowledge + approvals namespaces with their annotated methods', () => {
+  it('exposes the knowledge + approvals + skills namespaces with their annotated methods', () => {
     const sdk = makeNamespaced(stubClient)
-    expect(Object.keys(sdk).sort()).toEqual(['approvals', 'knowledge'])
+    expect(Object.keys(sdk).sort()).toEqual(['approvals', 'knowledge', 'skills'])
     expect(Object.keys(sdk.knowledge).sort()).toEqual([...EXPECTED_KNOWLEDGE_METHODS])
     expect(Object.keys(sdk.approvals).sort()).toEqual([...EXPECTED_APPROVALS_METHODS])
+    expect(Object.keys(sdk.skills).sort()).toEqual([...EXPECTED_SKILLS_METHODS])
   })
 
   it('every method is a function', () => {
     const sdk = makeNamespaced(stubClient)
-    for (const method of [...Object.values(sdk.knowledge), ...Object.values(sdk.approvals)]) {
+    for (const method of [
+      ...Object.values(sdk.knowledge),
+      ...Object.values(sdk.approvals),
+      ...Object.values(sdk.skills),
+    ]) {
       expect(typeof method).toBe('function')
     }
   })

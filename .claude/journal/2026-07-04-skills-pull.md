@@ -40,6 +40,18 @@ New leaf `@vynel/skills` owning its schema + repositories + logic, folded memory
 install-status annotation reads THIS (not the skills repo directly). That's the skills→marketplace
 read seam — decide inject-vs-import at the marketplace step.
 
-## Still owed for this feature
-The skills **API vertical** (routes install/uninstall/enable/disable/list/settings → SDK/MCP → CLI) —
-next, before marketplace.
+## API vertical — DONE (faithful port)
+Ported the 8-route skills surface from source `apps/api/src/routes/skills/` → `apps/local-api`
+(`/workspaces/:workspaceId/skills`): `available`·`installed` (read, x-mcp) + install·uninstall·
+enable·disable·settings·synchronize (mutating, NO x-mcp — safe-by-default, faithful). Rewired
+`@vynel/core/skills`→`@vynel/skills`. **The source routes use IDENTICAL conventions to KLONE's
+local-api** (it was seeded from apps/api) → port, not invent. Added `x-sdk-name` to all 8 (KLONE's
+namespaced-SDK generator throws without it). `pnpm api:generate` → SDK `client.skills.*` (8) + MCP
+2 read tools (registry 7→9). Golden tests updated (+skills namespace, +2 tool names).
+- **Data-loss save:** the source route test wrote to & DELETED the real `~/.claude/skills/email-drafter/`.
+  Added `@vynel/skills/test-support` (re-exports the existing `withHomeDir` seam, embeddings precedent);
+  route tests wrap install/uninstall in a tmp home. Verified the real skill untouched.
+- Serializers omit `installLocation` (host path) + `userId`. Reviewer CLEAN; gate **1323 passed**.
+- Defer: `/synchronize` resolves provider inline (`resolveAiAgentProvider('claude')`) not via `c.var` —
+  faithful-acceptable; improve = inject provider via c.var (also de-hardcodes 'claude' + makes it testable).
+- **CLI deferred** (mission-wide: CLI is a nicety, not needed for UI/parity — batched at the end or per STATE).

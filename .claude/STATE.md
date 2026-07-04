@@ -76,7 +76,14 @@ working `McpFeatureDescriptor` reference; knowledge/memory/chat each still owe o
   providers type-only; NO cross-leaf). drizzle **"No schema changes"**; full gate **1311 passed / 4 skip**
   (+70); reviewer CLEAN. Killed the stale `@vynel/core/skills` index header. **Marketplace read-seam:**
   skills publishes `listInstalledSkillsForUserAndWorkspace` for marketplace install-status.
-  **Still owed: skills API vertical.** `.claude/journal/2026-07-04-skills-pull.md`.
+  **API vertical DONE** — ported the 8-route skills surface (source `apps/api/src/routes/skills`, KLONE-
+  identical conventions → faithful port) to `apps/local-api`; SDK `client.skills.*` (8) + MCP 2 read tools;
+  serializers omit host path; added `@vynel/skills/test-support` (`withHomeDir`) so route tests don't clobber
+  real `~/.claude/skills`. Gate **1323**; reviewer CLEAN. `.claude/journal/2026-07-04-skills-pull.md`.
+  **KEY MISSION LEARNING:** source `apps/api/src/routes/{skills,channels,schedules}` ALREADY exist with
+  KLONE-identical conventions → every API vertical is a faithful PORT + rewire, not an invention. Source has
+  NO cli (net-new). API-vertical scope = routes+schemas+serializers+colocated tests+`api:generate`+parity;
+  **CLI deferred mission-wide** (a nicety; not UI/parity-critical).
 - **`@vynel/voice` leaf pulled (autopilot warmup)** — stateless voice-relay core (ack-library,
   audio-segmenter, barge-in, relay-task-notifier, sentence-buffer, summarize-turn-for-voice,
   turn-taking-gate, wake-word) moved byte-faithfully from `core/src/voice/`; owns no tables; sole dep

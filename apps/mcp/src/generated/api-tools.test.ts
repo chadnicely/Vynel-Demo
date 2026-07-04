@@ -10,16 +10,21 @@
 import { describe, expect, it } from 'vitest'
 import { generatedMcpTools, generatedRoutingMcpTools } from './api-tools.js'
 
-// Knowledge-slice registry — the x-mcp-annotated knowledge routes
-// (`apps/local-api/src/routes/knowledge/index.ts`): 5 read-only GETs +
-// 2 mutating source tools (add_to_knowledge / remove_knowledge_source,
-// `mutatingApproved` auto-mode — no approval card yet). Sorted to match
-// the generator's stable-order emit. As each feature's routes land, its
-// x-mcp tools join this list and the count updates in lockstep.
+// The x-mcp-annotated route registry. Sorted to match the generator's
+// stable-order emit. As each feature's routes land, its x-mcp tools join
+// this list and the count updates in lockstep.
+//   - knowledge (`apps/local-api/src/routes/knowledge/index.ts`): 4
+//     read-only GETs + 2 mutating source tools (add_to_knowledge /
+//     remove_knowledge_source, `mutatingApproved` auto-mode) + list_*.
+//   - skills (`apps/local-api/src/routes/skills/index.ts`): 2 read-only
+//     GETs (list_available_skills / list_installed_skills); the mutating
+//     install/enable/disable/uninstall/settings routes carry NO x-mcp.
 const EXPECTED_TOOL_NAMES = [
   'add_to_knowledge',
   'get_indexer_status',
   'get_knowledge_document',
+  'list_available_skills',
+  'list_installed_skills',
   'list_knowledge_documents',
   'list_knowledge_sources',
   'remove_knowledge_source',

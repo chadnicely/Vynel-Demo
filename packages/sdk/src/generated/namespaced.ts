@@ -94,5 +94,65 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  skills: {
+  disable: async (workspaceId: string, installedSkillId: string) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable", {
+      params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  enable: async (workspaceId: string, installedSkillId: string) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}/enable", {
+      params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  install: async (workspaceId: string, input: NonNullable<paths["/workspaces/{workspaceId}/skills/install"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/install", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listAvailable: async (workspaceId: string) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/skills/available", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listInstalled: async (workspaceId: string) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/skills/installed", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  synchronize: async (workspaceId: string) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/synchronize", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  uninstall: async (workspaceId: string, installedSkillId: string) => {
+    const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}", {
+      params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  updateSettings: async (workspaceId: string, installedSkillId: string, input: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings", {
+      params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
 }
 }
