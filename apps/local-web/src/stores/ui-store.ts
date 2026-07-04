@@ -4,6 +4,7 @@ import { defineStore } from "pinia";
 export type Theme = "dark" | "light";
 
 const THEME_STORAGE_KEY = "vynel.theme";
+const WORKSPACE_STORAGE_KEY = "vynel.active-workspace";
 
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -30,5 +31,19 @@ export const useUiStore = defineStore("ui", () => {
     theme.value = theme.value === "dark" ? "light" : "dark";
   }
 
-  return { theme, toggleTheme };
+  // The workspace the Workspace tab shows — survives reloads so the user
+  // returns to the room they were working in.
+  const activeWorkspaceId = ref<string | null>(
+    localStorage.getItem(WORKSPACE_STORAGE_KEY),
+  );
+
+  watch(activeWorkspaceId, (value) => {
+    if (value === null) localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+    else localStorage.setItem(WORKSPACE_STORAGE_KEY, value);
+  });
+
+  // The Jarvis voice overlay (demo animation until the voice engine lands).
+  const isVoiceOverlayOpen = ref(false);
+
+  return { theme, toggleTheme, activeWorkspaceId, isVoiceOverlayOpen };
 });

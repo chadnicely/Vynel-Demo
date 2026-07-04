@@ -87,7 +87,22 @@
   `action-kind` dropped (contract gap noted below), live turn session-bound, MarkdownText XSS
   tests, `format-sdk-error` wired into the sessions panel. 43 tests / 12 files, lint+typecheck
   clean, full browser drive verified (stream → approval → complete → persist → refetch).
-- M4 Workspace tab · M5 Home dashboard · M6 Desktop shell + Jarvis overlay — pending.
+- M4 Workspace tab + M5 Home dashboard + voice demo — DONE (2026-07-05, Chad's "complete UI on
+  demo, no real engagement" directive): workspace switcher (persisted `activeWorkspaceId`),
+  per-workspace sessions + chat (same M3 components, workspace scope), files panel (recursive demo
+  tree), the drawer's 7 feature sections (skills/channels/schedules/knowledge/marketplace demo
+  lists typed by contracts; memory/agents honest empty states), Home dashboard (recent
+  conversations across scopes · workspaces with manager personas · upcoming schedules · approvals
+  note) over a demo `dashboard.getOverview()` aggregate (a plausible future real route), and the
+  **Jarvis voice demo** — `VoiceOrb` (pure-CSS, 6 states, gold) driven by a scripted beat loop in
+  `VoiceOverlayDemo` (mic button in the titlebar; mute; "engine plugs in later" note). Reviewer
+  CLEAN; should-fixes applied (switcher outside-click close, `activeWorkspaceId` persistence
+  tests, `workspace-sections.ts` extraction). 48 tests.
+  **Sanctioned demo-import spots grew for this phase** (documented in-file):
+  `WorkspaceSectionPanel` (section fixtures), `WorkspaceView` + `FilesPanel`/`FileTreeNode`
+  (file trees), `HomeView` (global-root constant).
+- M6 Desktop shell (Tauri window + overlay window hosting `VoiceOrb`) — pending; needs a
+  Rust-toolchain session (first `cargo build` is long).
 
 ## Slice-3 contract asks (for the API session)
 
@@ -95,5 +110,9 @@
   classify danger without it — the card currently shows the generic headline).
 - Generated `chat.listSessions` will be `(workspaceId|options)`-shaped vs the demo's `(scope)` —
   one-line queryFn adaptation in `use-session-list.ts` at swap time (recorded, expected).
-- M2 Data layer · M3 Chat experience · M4 Workspace tab · M5 Home dashboard ·
-  M6 Desktop shell + Jarvis overlay — pending.
+- A dashboard aggregate read (`GET /dashboard/overview`-ish: recent sessions across scopes +
+  upcoming schedules + workspaces) would serve Home in one query — the demo namespace models it.
+- At swap time: gate `useSessionList` with `enabled` when no workspace is selected (the demo uses
+  a harmless `workspaceId: "none"` sentinel that must not become a real request), and give
+  dashboard "recent conversation" rows a session-preselect (needs cross-view selected-session
+  state — today they open the right tab only).

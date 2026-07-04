@@ -11,4 +11,6 @@ export { default as SegmentedTabs } from "./components/SegmentedTabs.vue";
 export { default as ThinkingBlock } from "./components/ThinkingBlock.vue";
 export { default as ToolCallCard } from "./components/ToolCallCard.vue";
 export { default as ToolCallList } from "./components/ToolCallList.vue";
+export { default as VoiceOrb } from "./components/VoiceOrb.vue";
 export type { SegmentedTab } from "./components/SegmentedTabs.vue";
+export type { VoiceOrbState } from "./components/VoiceOrb.vue";

@@ -3,9 +3,11 @@ import type {
   ChatSessionResponse,
 } from "@vynel/contracts/chat/chat-http";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
+import type { ScheduleResponse } from "@vynel/contracts/schedules/schedule-http";
 import type { VynelClient } from "@vynel/sdk";
 import type { SessionScope } from "../composables/chat/session-scope.js";
 import { DEMO_GLOBAL_ROOT_WORKSPACE_ID, demoStore } from "./demo-store.js";
+import { demoSchedules } from "./fixtures/feature-sections.js";
 
 // THE SWAP SEAM. Hand-written namespaces for surfaces whose HTTP routes don't
 // exist yet (workspaces CRUD, chat reads — Slice-3). Method names follow the
@@ -26,9 +28,21 @@ export interface DemoChatNamespace {
   getSessionDetail(sessionId: string): Promise<ChatSessionDetailResponse>;
 }
 
+/** The Home dashboard's aggregate read — a plausible future real route. */
+export interface DashboardOverview {
+  workspaces: WorkspaceResponse[];
+  recentSessions: ChatSessionResponse[];
+  upcomingSchedules: ScheduleResponse[];
+}
+
+export interface DemoDashboardNamespace {
+  getOverview(): Promise<DashboardOverview>;
+}
+
 export interface DemoNamespaces {
   workspaces: DemoWorkspacesNamespace;
   chat: DemoChatNamespace;
+  dashboard: DemoDashboardNamespace;
 }
 
 export type LocalVynelClient = VynelClient & DemoNamespaces;
@@ -66,5 +80,23 @@ export function attachDemoNamespaces(client: VynelClient): LocalVynelClient {
     },
   };
 
-  return Object.assign(client, { workspaces, chat });
+  const dashboard: DemoDashboardNamespace = {
+    getOverview: () =>
+      withLatency({
+        workspaces: demoStore.listWorkspaces(),
+        recentSessions: demoStore.listRecentSessions(5),
+        upcomingSchedules: [...demoSchedules]
+          .filter(
+            (schedule) =>
+              schedule.isEnabled && schedule.nextScheduledFireAt !== null,
+          )
+          .sort((a, b) =>
+            (a.nextScheduledFireAt ?? "").localeCompare(
+              b.nextScheduledFireAt ?? "",
+            ),
+          ),
+      }),
+  };
+
+  return Object.assign(client, { workspaces, chat, dashboard });
 }

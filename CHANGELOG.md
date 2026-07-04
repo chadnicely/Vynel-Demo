@@ -23,6 +23,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   Runs on a **contracts-typed demo seam** until the chat/workspaces routes land: hand-written demo
   namespaces on the SDK client + a scripted `ChatTurnEvent` player (thinking, text, tool calls, a real
   approval pause, interrupt) — swap = regenerate SDK + delete `src/demo/`.
+- **Workspace tab, Home dashboard, and the Jarvis voice demo** (`apps/local-web`, demo-phase). The
+  Workspace room: workspace switcher (persisted), its own sessions + chat, a files panel, and the hidden
+  menu's seven feature sections (Skills / Channels / Schedules / Knowledge / Marketplace demo lists typed
+  by the real contracts; Memory / Agents arrive with their APIs). Home: recent conversations across
+  every scope, workspaces with their manager personas, upcoming schedules, and the approvals note. Voice:
+  the `VoiceOrb` (pure-CSS gold presence, six states) behind the titlebar mic — a scripted demo loop
+  until the voice engine module lands; the future Tauri overlay window mounts the same orb.
 
 - **`@vynel/session` — the workspace turn machinery** (Slice 2b). The workspace chat runner (`startChatTurn`),
   the seed-fresh swap primitive (`runSeededSwapSession`), the primary-conversation resolver, post-turn

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import TitleBar from "./components/shell/TitleBar.vue";
 import ApprovalNotifier from "./components/shell/ApprovalNotifier.vue";
+import VoiceOverlayDemo from "./components/voice/VoiceOverlayDemo.vue";
 </script>
 
 <template>
@@ -10,6 +11,7 @@ import ApprovalNotifier from "./components/shell/ApprovalNotifier.vue";
       <RouterView />
     </main>
     <ApprovalNotifier />
+    <VoiceOverlayDemo />
   </div>
 </template>
 

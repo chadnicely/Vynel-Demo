@@ -19,6 +19,13 @@ function makeFakeVynelClient(): LocalVynelClient {
         throw new Error("not in this test");
       },
     },
+    dashboard: {
+      getOverview: async () => ({
+        workspaces: [],
+        recentSessions: [],
+        upcomingSchedules: [],
+      }),
+    },
   } as unknown as LocalVynelClient;
 }
 
@@ -59,7 +66,7 @@ describe("app shell", () => {
       "Workspace",
     ]);
     expect(wrapper.text()).toContain(
-      "Everything your assistant does shows up here.",
+      "everything your assistant does shows up here",
     );
   });
 

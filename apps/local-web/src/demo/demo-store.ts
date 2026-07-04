@@ -27,6 +27,8 @@ export interface DemoTurnResult {
 export interface DemoStore {
   listWorkspaces(): WorkspaceResponse[];
   listSessions(workspaceId: string): ChatSessionResponse[];
+  /** Newest-first across every scope (global + all workspaces) — the dashboard feed. */
+  listRecentSessions(limit: number): ChatSessionResponse[];
   getSessionDetail(sessionId: string): ChatSessionDetailResponse | null;
   createSession(workspaceId: string, title: string): ChatSessionResponse;
   appendTurnResult(sessionId: string, result: DemoTurnResult): void;
@@ -51,6 +53,12 @@ export function createDemoStore(): DemoStore {
       return sessions
         .filter((session) => session.workspaceId === workspaceId)
         .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
+    },
+
+    listRecentSessions(limit) {
+      return [...sessions]
+        .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt))
+        .slice(0, limit);
     },
 
     getSessionDetail(sessionId) {

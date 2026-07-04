@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { Moon, Sun } from "lucide-vue-next";
+import { Mic, Moon, Sun } from "lucide-vue-next";
 import { IconButton, PresenceDot, SegmentedTabs } from "@vynel/ui";
 import { useUiStore } from "../../stores/ui-store.js";
 import { useActivityStore } from "../../stores/activity-store.js";
@@ -60,6 +60,13 @@ function goToTab(tabId: string) {
     </nav>
 
     <div class="controls">
+      <IconButton
+        label="Open voice"
+        :active="ui.isVoiceOverlayOpen"
+        @click="ui.isVoiceOverlayOpen = !ui.isVoiceOverlayOpen"
+      >
+        <Mic :size="15" />
+      </IconButton>
       <IconButton
         :label="
           ui.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'
