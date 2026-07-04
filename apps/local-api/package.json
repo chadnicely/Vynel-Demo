@@ -24,6 +24,7 @@
     "@vynel/errors": "workspace:*",
     "@vynel/knowledge": "workspace:*",
     "@vynel/marketplace": "workspace:*",
+    "@vynel/mcp-contract": "workspace:*",
     "@vynel/providers": "workspace:*",
     "@vynel/schedules": "workspace:*",
     "@vynel/skills": "workspace:*",

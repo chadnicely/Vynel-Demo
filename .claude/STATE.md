@@ -56,8 +56,12 @@ Clearing every deferred item. Progress (TaskList #7-13):
   (`schedulesUser.*`, 7) at the root; global (null-workspace) + cross-workspace resources now creatable/
   listable/manageable. New userId-scoped core ops (getChannelForUserOrThrow + thin user-ops; listSchedulesForUser).
   TENANT-isolation test present. Gate **1494**; kept workspace-scoped routes. `.claude/journal/2026-07-05-global-scope-routes.md`.
-- ⏳ next: CLI commands · cleanups (.data mkdir + stale comments + integration-test) · channel ticks ·
-  the ③ MCP keystone · schedule fire-tick + fire-now.
+- ✅ **③ agent-turn MCP binding keystone** — ported `buildInProcessMcpServer` + `vynelWorkspaceDescriptor`
+  (apps/mcp) + `composeSessionMcpServers` (apps/local-api/src/sessions). Wraps the 16 generated tool factories
+  in `createSdkMcpServer` (SDK builder, single-site, MCP-layer-allowed); tool-gating aligned to KLONE's real
+  registry (7 knowledge tools gated; mutatingToolNames [] = auto-approved). NOT yet wired to a live turn.
+  Gate **1517**; reviewer CLEAN. `.claude/journal/2026-07-05-mcp-binding-keystone.md`.
+- ⏳ next: channel ticks · schedule fire-tick + fire-now (wire the keystone into FireScheduleDeps) · CLI · cleanups.
 
 ## ⚠ PARALLEL UI WORK IN TREE (2026-07-05) — coordinate
 Chad has an UNCOMMITTED desktop-UI milestone in the working tree: `apps/local-web/`, `packages/ui/`

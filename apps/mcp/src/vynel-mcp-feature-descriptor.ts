@@ -1,0 +1,66 @@
+// The `vynel` MCP feature descriptors — the route-derived in-process server
+// expressed as `McpFeatureDescriptor`s the turn composer (`composeSessionMcpServers`)
+// attaches to a turn uniformly (alongside any future feature). Hand-written
+// wrappers around the generated-array builders — the generator + parity pipeline
+// stay untouched; only this thin descriptor layer is new.
+//
+// TWO descriptors because the `vynel` server carries a DIFFERENT toolset per turn
+// type, both under the same `mcp__vynel__*` prefix (they never coexist in one turn):
+//   - workspace turn  → the full route registry (`buildInProcessMcpServer`)
+//   - global-root turn → the routing tools only (`buildGlobalRootMcpServer`)
+//
+// `context.db` is `unknown` in the dependency-light contract; this is the producer
+// boundary that owns the `vynel` server, so it casts to `Database` once (documented).
+
+import type { Database } from '@vynel/db'
+import type { McpFeatureDescriptor, SessionToolContext } from '@vynel/mcp-contract'
+import type { McpScope } from './mcp-types.js'
+import { buildInProcessMcpServer, buildGlobalRootMcpServer } from './build-in-process-server.js'
+
+// The MCP tools each capability owns (server name `vynel` → `mcp__vynel__<x-mcp
+// name>`); the composer denies a capability's tools when that capability is off.
+// Aligned to KLONE's ACTUAL generated registry: only `knowledge` produces tools
+// today (all 7 knowledge tools, read + mutating, gate together — knowledge OFF
+// means no knowledge tool at all). `memory` is a valid CapabilityId but emits zero
+// MCP tools yet, so it has no entry; skills/channels/schedules tools are ungated.
+const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly string[]>> = {
+  knowledge: [
+    'mcp__vynel__search_knowledge',
+    'mcp__vynel__list_knowledge_documents',
+    'mcp__vynel__get_knowledge_document',
+    'mcp__vynel__get_indexer_status',
+    'mcp__vynel__list_knowledge_sources',
+    'mcp__vynel__add_to_knowledge',
+    'mcp__vynel__remove_knowledge_source',
+  ],
+}
+
+function toMcpScope(context: SessionToolContext): McpScope {
+  return {
+    // The one documented producer-boundary cast — see file header.
+    db: context.db as Database,
+    userId: context.userId,
+    ...(context.workspaceId !== undefined ? { workspaceId: context.workspaceId } : {}),
+  }
+}
+
+// The full route-derived registry for a WORKSPACE turn. `mutatingToolNames` is
+// EMPTY today: KLONE's only mutating vynel tools (`add_to_knowledge`,
+// `remove_knowledge_source`) are exposed with `x-mcp.mutatingApproved` (auto —
+// no card, per the current approval stance). When the real approval card lands,
+// they move here so the composer unions them into the backstop.
+export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
+  serverName: 'vynel',
+  build: (context) => buildInProcessMcpServer(toMcpScope(context), context.appRequest),
+  mutatingToolNames: [],
+  capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
+}
+
+// The routing-only tools for a GLOBAL-ROOT turn (the root SEES workspaces +
+// DELEGATES, never reads them). No capability gate + no mutating tool in the
+// routing set. Lands ready for the global-root routing surface.
+export const vynelRoutingDescriptor: McpFeatureDescriptor = {
+  serverName: 'vynel',
+  build: (context) => buildGlobalRootMcpServer(toMcpScope(context), context.appRequest),
+  mutatingToolNames: [],
+}
