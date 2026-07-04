@@ -17,9 +17,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   content, Edit → before/after diff, Bash → terminal, unknown → payload panes), ToolCallList ("Read 2 files"
   grouping).
 - **`apps/local-web` — the desktop web UI** (Vue 3 + Vite + Pinia + vue-query over the typed SDK).
-  Custom titlebar with the Home | Chat | Workspace tabs and the brand presence dot; the Global Chat view
-  (sessions panel, streaming activity thread, composer with stop, Application drawer); the approval
-  notifier — pending approvals surface as decidable toast cards on ANY view (polls the live approvals API).
+  Custom titlebar (menu · history toggle · workspace switcher · new conversation · tabs · presence dot);
+  **continuous-first chat** — Chat and each Workspace open straight into the one ongoing conversation,
+  with session history opt-in behind a toggle and a persistent menu panel whose items (Application,
+  the workspace feature sections) render on the canvas; the approval notifier — pending approvals
+  surface bottom-right as decidable cards on ANY view (polls the live approvals API).
   Runs on a **contracts-typed demo seam** until the chat/workspaces routes land: hand-written demo
   namespaces on the SDK client + a scripted `ChatTurnEvent` player (thinking, text, tool calls, a real
   approval pause, interrupt) — swap = regenerate SDK + delete `src/demo/`.
@@ -66,7 +68,7 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   `POST /schedules/:id/fire-now` route. A due (or manually-fired) schedule now runs a real headless workspace
   turn with the route-derived Vynel tools attached. Fire-now is SDK-only — a turn is never itself an agent tool.
 - **Global-or-workspace is API-reachable** — user-scoped `/channels` + `/schedules` route groups (create with a
-  `scope` field, list-all, full id-ops) sit alongside the workspace-scoped routes, so a *global* channel or
+  `scope` field, list-all, full id-ops) sit alongside the workspace-scoped routes, so a _global_ channel or
   schedule can be created, listed, and managed. Every id-op authorizes by `userId` (tenant-safe).
 - **`@vynel/marketplace` + marketplace HTTP API** — the table-less marketplace leaf (browse + get catalog items,
   annotated with per-user install-status) and `client.marketplace.*` (2 methods). Install-status is composed at the
