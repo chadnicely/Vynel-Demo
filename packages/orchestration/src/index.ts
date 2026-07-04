@@ -58,6 +58,10 @@ export {
   collectDelegationReportsForRoot,
   type DelegationReportsForRoot,
 } from './queries/collect-delegation-reports-for-root.js'
+// The write-back half of that catch-up: mark the surfaced terminal delegations so the
+// next collect skips them. The session-tier global-root runner calls it AFTER the turn
+// absorbs the reports — paired with the read above.
+export { markDelegationsSurfacedToRoot } from './repositories/index.js'
 
 // The user's in-flight delegations (Ch3.5) — drives the /global "Vynel is processing…" indicator.
 export {

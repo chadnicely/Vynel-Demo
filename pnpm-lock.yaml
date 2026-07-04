@@ -547,6 +547,9 @@ importers:
 
   packages/session:
     dependencies:
+      '@vynel/chat':
+        specifier: workspace:*
+        version: link:../chat
       '@vynel/db':
         specifier: workspace:*
         version: link:../db
@@ -556,6 +559,12 @@ importers:
       '@vynel/logger':
         specifier: workspace:*
         version: link:../logger
+      '@vynel/orchestration':
+        specifier: workspace:*
+        version: link:../orchestration
+      '@vynel/providers':
+        specifier: workspace:*
+        version: link:../providers
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)
