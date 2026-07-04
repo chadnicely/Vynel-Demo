@@ -7,7 +7,7 @@
 // `userId` is the tenant boundary (FK → users.id, cascade). `workspaceId` is a
 // NULLABLE FK → workspaces.id (cascade): non-null for a workspace source, NULL
 // for a global (user-level) source. Uses `text().references(...)` rather than
-// `id()` because `id()` is NOT NULL by dialect contract (the `root_sessions` /
+// `id()` because `id()` is NOT NULL by dialect contract (the `primary_sessions` /
 // `agents` nullable-FK precedent). Two partial unique indexes: one workspace
 // source per (workspace, path); one global source per (user, path) — SQLite
 // treats NULLs as distinct, so a plain unique on (workspace_id, path) cannot pin

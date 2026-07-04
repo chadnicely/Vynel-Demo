@@ -31,7 +31,7 @@ import { workspaces } from '@vynel/db/schema/workspaces'
 export type ChatSessionVisibility = 'listed' | 'hidden'
 
 // The session's scope — the explicit type discriminator (mirrors
-// `root_sessions.scope`). `'workspace'` = the user's direct conversation in a
+// `primary_sessions.scope`). `'workspace'` = the user's direct conversation in a
 // workspace; `'global'` = the global root (the brain above all workspaces,
 // `workspaceId` null); `'agent'` = a delegated agent/leaf session. Lets the
 // platform — and a future "read session history" tool — filter sessions by type

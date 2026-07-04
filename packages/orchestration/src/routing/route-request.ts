@@ -3,7 +3,7 @@
 // route by calling the routing MCP tool; that tool invokes this coordinator. It
 // delegates the task DOWN to the injected target and reports the result UP as a thin
 // envelope (status + distilled result). The `delegate` dep is INJECTED — the
-// `bridgeRootSession` dependency-injection precedent keeps this op pure +
+// `bridgePrimarySession` dependency-injection precedent keeps this op pure +
 // unit-testable, with no `@vynel/db` / `@vynel/providers` import.
 //
 // Delegation target (brain-tree Phase 1): the injected `delegate` routes into the

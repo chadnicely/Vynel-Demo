@@ -3562,8 +3562,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "root_sessions": {
-      "name": "root_sessions",
+    "primary_sessions": {
+      "name": "primary_sessions",
       "columns": {
         "id": {
           "name": "id",
@@ -3631,57 +3631,57 @@
         }
       },
       "indexes": {
-        "idx_root_sessions_user": {
-          "name": "idx_root_sessions_user",
+        "idx_primary_sessions_user": {
+          "name": "idx_primary_sessions_user",
           "columns": [
             "user_id"
           ],
           "isUnique": false
         },
-        "idx_root_sessions_workspace": {
-          "name": "idx_root_sessions_workspace",
+        "idx_primary_sessions_workspace": {
+          "name": "idx_primary_sessions_workspace",
           "columns": [
             "workspace_id"
           ],
           "isUnique": false
         },
-        "idx_root_sessions_deleted_at": {
-          "name": "idx_root_sessions_deleted_at",
+        "idx_primary_sessions_deleted_at": {
+          "name": "idx_primary_sessions_deleted_at",
           "columns": [
             "deleted_at"
           ],
           "isUnique": false
         },
-        "uniq_root_sessions_user_workspace": {
-          "name": "uniq_root_sessions_user_workspace",
+        "uniq_primary_sessions_user_workspace": {
+          "name": "uniq_primary_sessions_user_workspace",
           "columns": [
             "user_id",
             "workspace_id"
           ],
           "isUnique": true,
-          "where": "\"root_sessions\".\"deleted_at\" IS NULL"
+          "where": "\"primary_sessions\".\"deleted_at\" IS NULL"
         },
-        "uniq_root_sessions_global_user": {
-          "name": "uniq_root_sessions_global_user",
+        "uniq_primary_sessions_global_user": {
+          "name": "uniq_primary_sessions_global_user",
           "columns": [
             "user_id"
           ],
           "isUnique": true,
-          "where": "\"root_sessions\".\"scope\" = 'global' AND \"root_sessions\".\"deleted_at\" IS NULL"
+          "where": "\"primary_sessions\".\"scope\" = 'global' AND \"primary_sessions\".\"deleted_at\" IS NULL"
         },
-        "uniq_root_sessions_voice_user": {
-          "name": "uniq_root_sessions_voice_user",
+        "uniq_primary_sessions_voice_user": {
+          "name": "uniq_primary_sessions_voice_user",
           "columns": [
             "user_id"
           ],
           "isUnique": true,
-          "where": "\"root_sessions\".\"scope\" = 'voice' AND \"root_sessions\".\"deleted_at\" IS NULL"
+          "where": "\"primary_sessions\".\"scope\" = 'voice' AND \"primary_sessions\".\"deleted_at\" IS NULL"
         }
       },
       "foreignKeys": {
-        "root_sessions_user_id_users_id_fk": {
-          "name": "root_sessions_user_id_users_id_fk",
-          "tableFrom": "root_sessions",
+        "primary_sessions_user_id_users_id_fk": {
+          "name": "primary_sessions_user_id_users_id_fk",
+          "tableFrom": "primary_sessions",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
@@ -3692,9 +3692,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "root_sessions_workspace_id_workspaces_id_fk": {
-          "name": "root_sessions_workspace_id_workspaces_id_fk",
-          "tableFrom": "root_sessions",
+        "primary_sessions_workspace_id_workspaces_id_fk": {
+          "name": "primary_sessions_workspace_id_workspaces_id_fk",
+          "tableFrom": "primary_sessions",
           "tableTo": "workspaces",
           "columnsFrom": [
             "workspace_id"

@@ -498,7 +498,7 @@ CREATE TABLE `agent_skills` (
 	FOREIGN KEY (`agent_id`) REFERENCES `agents`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE TABLE `root_sessions` (
+CREATE TABLE `primary_sessions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
 	`workspace_id` text,
@@ -512,12 +512,12 @@ CREATE TABLE `root_sessions` (
 	FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `idx_root_sessions_user` ON `root_sessions` (`user_id`);--> statement-breakpoint
-CREATE INDEX `idx_root_sessions_workspace` ON `root_sessions` (`workspace_id`);--> statement-breakpoint
-CREATE INDEX `idx_root_sessions_deleted_at` ON `root_sessions` (`deleted_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `uniq_root_sessions_user_workspace` ON `root_sessions` (`user_id`,`workspace_id`) WHERE "root_sessions"."deleted_at" IS NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX `uniq_root_sessions_global_user` ON `root_sessions` (`user_id`) WHERE "root_sessions"."scope" = 'global' AND "root_sessions"."deleted_at" IS NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX `uniq_root_sessions_voice_user` ON `root_sessions` (`user_id`) WHERE "root_sessions"."scope" = 'voice' AND "root_sessions"."deleted_at" IS NULL;--> statement-breakpoint
+CREATE INDEX `idx_primary_sessions_user` ON `primary_sessions` (`user_id`);--> statement-breakpoint
+CREATE INDEX `idx_primary_sessions_workspace` ON `primary_sessions` (`workspace_id`);--> statement-breakpoint
+CREATE INDEX `idx_primary_sessions_deleted_at` ON `primary_sessions` (`deleted_at`);--> statement-breakpoint
+CREATE UNIQUE INDEX `uniq_primary_sessions_user_workspace` ON `primary_sessions` (`user_id`,`workspace_id`) WHERE "primary_sessions"."deleted_at" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `uniq_primary_sessions_global_user` ON `primary_sessions` (`user_id`) WHERE "primary_sessions"."scope" = 'global' AND "primary_sessions"."deleted_at" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `uniq_primary_sessions_voice_user` ON `primary_sessions` (`user_id`) WHERE "primary_sessions"."scope" = 'voice' AND "primary_sessions"."deleted_at" IS NULL;--> statement-breakpoint
 CREATE TABLE `delegation_jobs` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,

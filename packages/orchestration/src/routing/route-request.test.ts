@@ -1,5 +1,5 @@
 // Unit tests for `routeRequest` — the pure request-down / report-up coordinator.
-// The delegation is faked at the injection boundary (the `bridgeRootSession`
+// The delegation is faked at the injection boundary (the `bridgePrimarySession`
 // test precedent); no DB, no provider.
 
 import { describe, expect, it, vi } from 'vitest'
