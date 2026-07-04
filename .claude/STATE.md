@@ -4,7 +4,7 @@
 memories (`vynel-vision-and-old-project-lesson` = the founding vision + old-project scatter we must NOT
 repeat; `vynel-rebuild-plan`; `worktree-fanout-isolation`). State lives on disk, not chat.
 
-## ⏭ NEXT ACTION: `@vynel/session` Slice 2 — the runners
+## ⏭ NEXT ACTION: `@vynel/session` Slice 2b — the workspace runner + composers
 **Full plan + the reframing + the architecture decision: `docs/module-notes/session.md` (read it first).**
 
 **The keystone is SMALLER than STATE assumed.** The source already did its hard refactor (B0–B2b: SessionSink,
@@ -24,13 +24,18 @@ the `continuity` concern (13-file logic, byte-faithful) + did the **`root → pr
 precedent). Green: drizzle "No schema changes", parity 30, vitest 1162. Journal
 `.claude/journal/2026-07-04-session-slice1.md`.
 
-**NEXT — Slice 2: the runners.** Pull from old `packages/session/runtime/` + the Hono-free `apps/api/src/sessions/`
-helpers: global-root runner + `start-chat-turn` (workspace) + seeded-swap + root-turn-lock + global-root-instructions
-+ resolvers (`resolve-*-conversation`) + composers (`compose-session-{capabilities,mcp-servers}`) +
-continuity-application (`apply-root-turn-continuity`, `bridge-root-session-after-turn`). **+ the web-safe mode
-barrel + the `./runtime` subpath split** (migration-plan hard constraint #1 — the barrel must stay web-safe once
-the mode model lands). Assess: may `@vynel/session` dep the MCP producers (`@vynel/mcp`+`@vynel/desktop-control`),
-or does MCP composition stay at the app edge? (`api-side-turn-execution-with-mcp`).
+**Slice 2a is DONE — committed `8118d24` (local): the global-root runner CORE** (`run-global-root-turn-core`
++ `SessionSink` + `root-turn-lock` + `global-root-instructions`) + `session-mode` + the **web-safe 3-surface
+barrel** (`.`=mode · `./runtime` · `./continuity` — constraint #1 satisfied). Exposed `markDelegationsSurfacedToRoot`
+from the `@vynel/orchestration` barrel (catch-up write-back). Primary rename applied to the runner. Green (vitest
+1170), reviewer CLEAN, diff-proven faithful.
+
+**NEXT — Slice 2b: the workspace runner + resolvers/composers.** `start-chat-turn` (workspace) + seeded-swap +
+Hono-free resolvers (`resolve-*-conversation`) + composers (`compose-session-{capabilities,mcp-servers}`) +
+continuity-application (`apply-root-turn-continuity`, `bridge-root-session-after-turn`, `run-seeded-swap-session`).
+Deps expand to capabilities, memory. **Decision at 2b:** may `@vynel/session` dep the MCP producers
+(`@vynel/mcp`+`@vynel/desktop-control`) for `compose-session-mcp-servers`, or does MCP composition stay at the app
+edge? (`api-side-turn-execution-with-mcp`).
 
 **Then — Slice 3 (app wiring, when `apps/api` lands):** the SSE sinks (`streams/{chat-turn,global-root-turn}`),
 the `delegate-to-*` compositions, `run-delegation-claim-and-run-tick`, origin-wrap. **The ③ agent-turn MCP
@@ -41,6 +46,11 @@ working `McpFeatureDescriptor` reference; knowledge/memory/chat each still owe o
 (`surface-up`). Deferred Layer-B vocab: `globalRootSessionId`/`rootSessionId` fields rename when these land.
 
 ## ✅ Recently done (most recent first)
+- **`@vynel/session` Slice 2a — global-root runner core + web-safe barrel `8118d24` (local)** — pulled
+  `run-global-root-turn-core` + `SessionSink` + `root-turn-lock` + `global-root-instructions` + `session-mode`;
+  split the package into `.`(web-safe mode) · `./runtime` · `./continuity`; exposed `markDelegationsSurfacedToRoot`
+  from `@vynel/orchestration`. Green (vitest 1170), reviewer CLEAN, faithful. Improve tracked: fold collect+mark
+  into one `surfaceDelegationReportsForRoot` op. `docs/module-notes/session.md`.
 - **`@vynel/session` Slice 1 — continuity foundation + `root→primary` rename `4e12297` (local)** —
   created the keystone package; folded the 13-file continuity logic + git-mv'd its schema/repos from kernel
   (`primary_sessions`); renamed the durable-session-identity concept `root→primary` (filesystem `rootDir`

@@ -64,9 +64,9 @@ stream (SSE sink) or a response (drain sink)*. The layering:
   identity). **Migration folded into the baseline** (owner's call: pre-release, zero data → edit
   `0000_baseline.sql` + `meta/0000_snapshot.json` to define `primary_sessions` directly, no rename migration).
   Verified by "No schema changes".
-- **Barrel:** `src/index.ts` re-exports continuity (Slice 1). NOT web-safe yet — the web-safe mode barrel +
-  the `./runtime` subpath split land in Slice 2 (the migration plan's hard constraint #1). Deferred because
-  the owner skips web + no mode model exists yet.
+- **Barrel (3-surface split done in Slice 2a):** `.` = the WEB-SAFE `session-mode` model; `./runtime` = the
+  runners + `SessionSink` (pulls db/providers); `./continuity` = the identity/swap machinery. Constraint #1
+  satisfied — `apps/web` can import the barrel without dragging db/providers into its bundle.
 
 ## Deferred / tracked
 
@@ -77,18 +77,28 @@ stream (SSE sink) or a response (drain sink)*. The layering:
 - **Doc vocab drift (later sweep):** `docs/architecture.md §5` ("a stable `rootSessionId`") + `docs/scaffold.md`
   (the `session-continuity/root-sessions.ts` tree entry) still use the old vocab. A coherent docs vocab sweep
   lands with the Slice-2/3 surfaces — not piecemeal in the code-move commits.
+- **Improve (Slice-2a reviewer) — fold `collect`+`mark` into one orchestration op.** The global-root catch-up
+  currently calls two barrel exports (`collectDelegationReportsForRoot` read + `markDelegationsSurfacedToRoot`
+  write). A later `surfaceDelegationReportsForRoot` op inside `@vynel/orchestration` would keep the raw repo
+  write private + expose one intention-revealing operation, preserving the deliberate mark-before-turn
+  exactly-once semantics. NOT inject-as-dep (wrong direction for a compose-layer module that legitimately
+  imports the leaf for the read-half).
 - **Invariant #8 — non-emitting continuity writes are intentional (reviewer-confirmed).**
   `linkPrimarySessionToSdkSession` + the insert in `getOrCreateContinuingSession` mutate `primary_sessions`
   WITHOUT an outbox event — faithful + deliberate: only compaction/swap are cross-domain events
   (`session.compacted`/`session.swapped`); initial-link + identity-create are not consumed elsewhere, so no
   event is owed.
-- **Slice 2 — the runners:** global-root runner + `start-chat-turn` (workspace) + seeded-swap + root-turn-lock
-  + global-root-instructions + the Hono-free resolvers/composers (`resolve-*-conversation`,
-  `compose-session-{capabilities,mcp-servers}`, `apply-root-turn-continuity`, `bridge-root-session-after-turn`,
-  `run-seeded-swap-session`) + the web-safe mode barrel + `./runtime` subpath. Session deps expand to chat,
-  orchestration, capabilities, memory, providers, + the MCP producers (the `api-side-turn-execution-with-mcp`
-  layering — assess whether session may depend on `@vynel/mcp`+`@vynel/desktop-control`, or MCP composition
-  stays at the app edge).
+- **Slice 2a — DONE (COMMIT PENDING):** the global-root runner CORE (`run-global-root-turn-core` + `SessionSink`
+  in `session-types` + `root-turn-lock` + `global-root-instructions`) + `session-mode` + the 3-surface barrel
+  split. Exposed `markDelegationsSurfacedToRoot` from the `@vynel/orchestration` barrel (the write-back half of
+  the Ch3.5 catch-up, paired with the already-public `collectDelegationReportsForRoot`). Applied the Slice-1
+  primary rename to the runner (`primarySessionId`, `linkPrimarySessionToSdkSession`). Deps +chat/orchestration/providers.
+- **Slice 2b — NEXT: the workspace runner + resolvers/composers.** `start-chat-turn` (workspace) + seeded-swap +
+  Hono-free resolvers (`resolve-*-conversation`) + composers (`compose-session-{capabilities,mcp-servers}`) +
+  continuity-application (`apply-root-turn-continuity`, `bridge-root-session-after-turn`, `run-seeded-swap-session`).
+  Deps expand to capabilities, memory. **Decision at 2b:** may `@vynel/session` dep the MCP producers
+  (`@vynel/mcp`+`@vynel/desktop-control`) for `compose-session-mcp-servers`, or does MCP composition stay at the
+  app edge? (`api-side-turn-execution-with-mcp`).
 - **Slice 3 — app wiring + the SSE sinks** (when `apps/api` lands): `streams/{chat-turn,global-root-turn}`
   (Hono glue), the `delegate-to-*` compositions, `run-delegation-claim-and-run-tick`, `wrapAppRequestWithOrigin`.
 - **The b-lead owner-forks (later, not blockers):** event-vocabulary unification (workspace `ChatTurnEvent`
