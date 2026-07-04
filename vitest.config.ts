@@ -10,9 +10,15 @@ export default defineConfig({
   test: {
     name: 'node',
     include: ['apps/**/*.test.ts', 'packages/**/*.test.ts'],
-    // `apps/web/**` is owned by the `web` project — exclude it here so
-    // tests aren't run twice (once in node env, once in DOM env).
-    exclude: ['**/node_modules/**', '**/dist/**', '**/.turbo/**', 'apps/web/**'],
+    // `apps/local-web/**` + `packages/ui/**` are owned by their DOM-env
+    // projects — exclude them here so tests aren't run twice.
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.turbo/**',
+      'apps/local-web/**',
+      'packages/ui/**',
+    ],
     environment: 'node',
     passWithNoTests: true,
     coverage: {

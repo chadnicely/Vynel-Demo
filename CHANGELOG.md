@@ -9,6 +9,21 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **`@vynel/ui` — the shared component library** (design tokens + components for every Vynel surface).
+  Cool-slate dark/light token system with ONE reserved accent — gold means "the assistant is running or
+  needs you" (presence dot, live pulses, approval cards, stream cursor). Components: SegmentedTabs,
+  IconButton, EmptyState, PresenceDot, MarkdownText (sanitized), MessageRow, ThinkingBlock, ApprovalCard,
+  CodeBlock (lazy shiki highlighting + line numbers), ToolCallCard (tool-aware: Read → highlighted file
+  content, Edit → before/after diff, Bash → terminal, unknown → payload panes), ToolCallList ("Read 2 files"
+  grouping).
+- **`apps/local-web` — the desktop web UI** (Vue 3 + Vite + Pinia + vue-query over the typed SDK).
+  Custom titlebar with the Home | Chat | Workspace tabs and the brand presence dot; the Global Chat view
+  (sessions panel, streaming activity thread, composer with stop, Application drawer); the approval
+  notifier — pending approvals surface as decidable toast cards on ANY view (polls the live approvals API).
+  Runs on a **contracts-typed demo seam** until the chat/workspaces routes land: hand-written demo
+  namespaces on the SDK client + a scripted `ChatTurnEvent` player (thinking, text, tool calls, a real
+  approval pause, interrupt) — swap = regenerate SDK + delete `src/demo/`.
+
 - **`@vynel/session` — the workspace turn machinery** (Slice 2b). The workspace chat runner (`startChatTurn`),
   the seed-fresh swap primitive (`runSeededSwapSession`), the primary-conversation resolver, post-turn
   continuity-application (link the durable "primary" session + pressure-bridge swap when context fills), and the

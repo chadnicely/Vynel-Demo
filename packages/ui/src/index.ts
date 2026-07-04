@@ -1,0 +1,14 @@
+// @vynel/ui — shared Vynel components + design tokens (public API re-exports only).
+// Consumed by apps/local-web today and the cloud web view later.
+export { default as ApprovalCard } from "./components/ApprovalCard.vue";
+export { default as CodeBlock } from "./components/CodeBlock.vue";
+export { default as EmptyState } from "./components/EmptyState.vue";
+export { default as IconButton } from "./components/IconButton.vue";
+export { default as MarkdownText } from "./components/MarkdownText.vue";
+export { default as MessageRow } from "./components/MessageRow.vue";
+export { default as PresenceDot } from "./components/PresenceDot.vue";
+export { default as SegmentedTabs } from "./components/SegmentedTabs.vue";
+export { default as ThinkingBlock } from "./components/ThinkingBlock.vue";
+export { default as ToolCallCard } from "./components/ToolCallCard.vue";
+export { default as ToolCallList } from "./components/ToolCallList.vue";
+export type { SegmentedTab } from "./components/SegmentedTabs.vue";

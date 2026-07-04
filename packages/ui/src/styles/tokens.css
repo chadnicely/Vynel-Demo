@@ -1,0 +1,94 @@
+/*
+ * Vynel design tokens — the one visual contract for every Vynel surface
+ * (apps/local-web today, the cloud web view later).
+ *
+ * The system: cool slate depths, quiet hairlines, native type — and ONE warm
+ * accent. Gold is reserved for assistant presence: something is running,
+ * streaming, or waiting on the user (approvals). If it glows gold, the
+ * assistant is alive there. Nothing else may use it.
+ *
+ * Dark is the default theme; `[data-theme='light']` overrides.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces — shell < panel < raised, each one step lighter */
+  --bg-shell: #0f1115;
+  --bg-panel: #14171c;
+  --bg-raised: #1a1e24;
+  --bg-overlay: rgba(15, 17, 21, 0.72);
+
+  /* Ink ladder */
+  --ink-1: #eceef1;
+  --ink-2: #a7adb8;
+  --ink-3: #6b7280;
+
+  /* Hairlines + row states */
+  --hair: rgba(231, 235, 240, 0.07);
+  --hair-strong: rgba(231, 235, 240, 0.13);
+  --row-hover: rgba(231, 235, 240, 0.045);
+  --row-active: rgba(231, 235, 240, 0.08);
+
+  /* Presence — the signature. Assistant activity + attention only. */
+  --gold: #d9a03f;
+  --gold-bright: #e8b45c;
+  --gold-soft: rgba(217, 160, 63, 0.14);
+
+  /* Status */
+  --ok: #4fb984;
+  --danger: #e5484d;
+  --info: #5c9dd9;
+
+  /* Shape */
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 14px;
+
+  /* Type */
+  --font-ui:
+    "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+
+  /* Elevation */
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-overlay:
+    0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 48px rgba(0, 0, 0, 0.35);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: 120ms;
+  --t-slow: 240ms;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-shell: #eef0f3;
+  --bg-panel: #f7f8fa;
+  --bg-raised: #ffffff;
+  --bg-overlay: rgba(238, 240, 243, 0.78);
+
+  --ink-1: #1b1e24;
+  --ink-2: #565c66;
+  --ink-3: #8b919b;
+
+  --hair: rgba(18, 22, 30, 0.09);
+  --hair-strong: rgba(18, 22, 30, 0.16);
+  --row-hover: rgba(18, 22, 30, 0.04);
+  --row-active: rgba(18, 22, 30, 0.07);
+
+  /* Darker gold for contrast on light surfaces — same meaning, same rule */
+  --gold: #b47f24;
+  --gold-bright: #96691c;
+  --gold-soft: rgba(180, 127, 36, 0.12);
+
+  --ok: #1f9d67;
+  --danger: #d33f44;
+  --info: #3b82c4;
+
+  --shadow-raised:
+    0 1px 2px rgba(24, 30, 40, 0.08), 0 4px 16px rgba(24, 30, 40, 0.07);
+  --shadow-overlay:
+    0 4px 12px rgba(24, 30, 40, 0.12), 0 16px 48px rgba(24, 30, 40, 0.14);
+}

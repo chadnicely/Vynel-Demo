@@ -1,14 +1,16 @@
 import { defineWorkspace } from 'vitest/config'
 
-// Two projects:
-// - `node` (./vitest.config.ts)        — apps/local-api, apps/worker, packages/**
-//                                        all the server-side TS tests
-// - `web`  (./apps/web/vitest.config.ts) — apps/web with `happy-dom` +
-//                                          the Vue plugin + the `@/`
-//                                          alias for component tests
+// Three projects:
+// - `node`      (./vitest.config.ts)              — apps/local-api, apps/worker, packages/**
+//                                                   all the server-side TS tests
+// - `local-web` (./apps/local-web/vitest.config.ts) — the desktop web app: happy-dom +
+//                                                   Vue plugin + `@/` alias
+// - `ui`        (./packages/ui/vitest.config.ts)  — the shared component library (happy-dom)
 //
 // `pnpm test` (= `turbo run typecheck && pnpm test:parity && vitest run`)
-// uses this file at the root to run BOTH projects. Per
-// `.claude/memory/decisions/apps-web-foundation-design.md`.
-// The `web` project (apps/web/vitest.config.ts) is re-added when apps/web is pulled.
-export default defineWorkspace(['./vitest.config.ts'])
+// uses this file at the root to run ALL projects.
+export default defineWorkspace([
+  './vitest.config.ts',
+  './apps/local-web/vitest.config.ts',
+  './packages/ui/vitest.config.ts',
+])

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Node-context config files (vite/vitest boot through esbuild → bundler semantics).
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["env.ts", "env.test.ts", "vite.config.ts", "vitest.config.ts"]
+}

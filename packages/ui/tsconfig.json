@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Browser/bundler package — vue-tsc needs Bundler semantics for .vue modules.
+    // Imports still follow the house `.js` rule (TS/Vite substitute .js → .ts);
+    // see docs/module-notes/desktop-ui.md "deviations".
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.vue"]
+}

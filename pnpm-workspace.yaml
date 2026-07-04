@@ -11,7 +11,8 @@ packages:
 allowBuilds:
   better-sqlite3: true # SQLite bindings — @vynel/db
   esbuild: true # bundler used by vitest
-  protobufjs: true # transitive via @huggingface/transformers
   onnxruntime-node: true # native ONNX runtime (real embeddings backend) — prebuilt binaries
+  protobufjs: true # transitive via @huggingface/transformers
   sharp: true # image processing — prebuilt
   unrs-resolver: true # eslint resolver speedup — prebuilt
+  vue-demi: true # vue2/3 compat shim — postinstall picks the vue-3 build (@tanstack/vue-query)

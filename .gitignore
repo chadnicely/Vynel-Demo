@@ -36,3 +36,6 @@ target/
 # parallel-pull agent worktrees (fan-out scratch; branches merge back, trees don't)
 .claude/worktree/
 .claude/worktrees/
+
+# playwright-cli browser-smoke artifacts (screenshots/snapshots)
+.playwright-cli/

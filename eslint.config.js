@@ -65,9 +65,9 @@ export default tseslint.config(
     },
   },
 
-  // apps/web — Vue SFC support
+  // Web surfaces (apps/local-web + packages/ui) — Vue SFC support
   {
-    files: ['apps/web/**/*.vue'],
+    files: ['apps/local-web/**/*.vue', 'packages/ui/**/*.vue'],
     languageOptions: {
       parser: vueParser,
       parserOptions: {
@@ -82,6 +82,9 @@ export default tseslint.config(
     processor: vuePlugin.processors['.vue'],
     rules: {
       ...vuePlugin.configs['flat/recommended'].at(-1)?.rules,
+      // Honors <!-- eslint-disable-* --> directives inside templates (the
+      // processor emits them; without this rule they are silently ignored).
+      'vue/comment-directive': 'error',
       // .claude/rules/coding-standard.md "Frontend"
       'vue/multi-word-component-names': 'off',
       'vue/component-name-in-template-casing': ['error', 'PascalCase'],
@@ -89,9 +92,9 @@ export default tseslint.config(
     },
   },
 
-  // apps/web — browser env for non-Vue files too
+  // Web surfaces — browser env for non-Vue files too
   {
-    files: ['apps/web/**/*.{ts,js}'],
+    files: ['apps/local-web/src/**/*.{ts,js}', 'packages/ui/src/**/*.{ts,js}'],
     languageOptions: {
       globals: { ...globals.browser },
     },
