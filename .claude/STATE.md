@@ -66,9 +66,13 @@ Clearing every deferred item. Progress (TaskList #7-13):
   `startChatTurn`/`composeSessionCapabilities`; `startSchedulesService` (60s poll, boot); `POST /:id/fire-now`
   (workspace + user, no x-mcp, tenant-guarded). Boot smoke: "schedules service started" → "api listening".
   Gate **1548**; reviewer CLEAN. `.claude/journal/2026-07-05-schedule-firing-wired.md`.
-- ⏳ next: **channel ticks** (#11 — needs the global-root turn wrapper `run-global-root-turn.ts` = runGlobalRootTurnCore
-  + composeSessionMcpServers([vynelRoutingDescriptor,desktop]) + wrapAppRequestWithOrigin; a further Slice-3 piece) ·
-  CLI · cleanups.
+- ✅ **Channel poll + delivery ticks (11a)** — ported `run-channel-polling-tick` + `run-channel-delivery-tick`
+  to `@vynel/channels` (were deferred); `startChannelsService` boot service runs poll(5s)+deliver(2s), errors
+  scrubbed via `extractErrorMessage` (+ token-scrub regression tests). Leaf pure. Gate **1561**; reviewer CLEAN.
+- ⏳ next: **channel inbound-PROCESSING (11b)** — the deep piece: `run-global-root-turn.ts` (runGlobalRootTurnCore
+  + composeSessionMcpServers([vynelRoutingDescriptor]) + wrapAppRequestWithOrigin + drain sink) + resolve-global-
+  root-conversation + global-root-workspace + delegation-origin-header (Slice-3 edge, several files) + the
+  processing setInterval. Then CLI · cleanups.
 
 ## ⚠ PARALLEL UI WORK IN TREE (2026-07-05) — coordinate
 Chad has an UNCOMMITTED desktop-UI milestone in the working tree: `apps/local-web/`, `packages/ui/`

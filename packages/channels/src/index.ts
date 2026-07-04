@@ -59,9 +59,15 @@ export {
   type ListChannelHistoryForUserInput,
 } from './queries/list-channel-history-for-user.js'
 
-// The processing entry point (the api-side service claims + fires it per pending row). The
-// polling / delivery TICK runners are the worker-cron composition bodies — deferred to app-wiring.
+// The processing entry point (the api-side service claims + fires it per pending row).
 export { processInboundMessage } from './inbound/process-inbound-message.js'
+
+// The two channel ticks that do NOT run a turn — the api-side channels service drives them on
+// its poll(5s) / deliver(2s) timers. Polling fetches inbound messages from the channel adapter
+// and persists them; delivery drains ready outbound rows via the adapter. Both self-contained
+// (poll/send the adapter, persist) — no injected turn deps.
+export { runChannelPollingTick } from './inbound/run-channel-polling-tick.js'
+export { runChannelDeliveryTick } from './delivery/run-channel-delivery-tick.js'
 export {
   purgeTerminalChannelRows,
   type PurgeTerminalChannelRowsInput,

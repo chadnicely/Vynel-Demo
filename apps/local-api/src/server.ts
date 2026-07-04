@@ -14,6 +14,7 @@ import { FileWatcherService } from '@vynel/knowledge'
 import { loadEnv } from './env.js'
 import { createApp } from './app.js'
 import { startSchedulesService } from './services/schedules-service.js'
+import { startChannelsService } from './services/channels-service.js'
 
 export async function boot(): Promise<void> {
   const env = loadEnv()
@@ -46,6 +47,11 @@ export async function boot(): Promise<void> {
   // headless workspace turn. MCP-intrinsic, so it lives in the api process (not
   // the worker). Stopped on shutdown, like the file watcher.
   const schedulesService = await startSchedulesService({ db, logger, appRequest })
+  // The channel poll(5s) / deliver(2s) loops — fetch inbound messages from each
+  // enabled channel's adapter and persist them; send queued outbound messages.
+  // Sub-minute cadence, so it lives in the api process (not the worker). The
+  // inbound-PROCESSING loop (a global-root turn) is a separate follow-on.
+  const channelsService = startChannelsService({ db, logger })
 
   // Bind to loopback only in Phase 1 — the local API is unauthenticated.
   const server = serve({ fetch: app.fetch, hostname: '127.0.0.1', port: env.PORT }, (info) => {
@@ -56,6 +62,7 @@ export async function boot(): Promise<void> {
     logger.info({ signal }, 'api shutdown initiated')
     server.close(() => {
       schedulesService.stop()
+      channelsService.stop()
       void fileWatcher.stopAll()
       closeDatabase(db)
       logger.info({}, 'api shutdown complete')
