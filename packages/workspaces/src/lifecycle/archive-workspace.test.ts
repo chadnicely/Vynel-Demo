@@ -8,7 +8,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace, findWorkspaceById } from '@vynel/db/repositories/workspaces'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { archiveWorkspace, unarchiveWorkspace } from './archive-workspace.js'
-import { WORKSPACE_ARCHIVED_EVENT } from './workspaces-events.js'
+import { WORKSPACE_ARCHIVED_EVENT } from '../workspaces-events.js'
 
 function makeUser(id: string = randomUUID()) {
   return {

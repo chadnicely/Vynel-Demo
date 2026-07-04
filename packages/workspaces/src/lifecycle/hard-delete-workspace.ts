@@ -12,7 +12,7 @@ import * as workspacesRepository from '@vynel/db/repositories/workspaces'
 import * as outboxRepository from '@vynel/db/repositories/_shared'
 import { NotFoundError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
-import { WORKSPACE_DELETED_EVENT } from './workspaces-events.js'
+import { WORKSPACE_DELETED_EVENT } from '../workspaces-events.js'
 
 export type HardDeleteWorkspaceInput = {
   workspaceId: string

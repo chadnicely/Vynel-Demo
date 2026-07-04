@@ -17,8 +17,8 @@ import * as outboxRepository from '@vynel/db/repositories/_shared'
 import { ConflictError, ValidationError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
 import type { Workspace, WorkspaceKind } from '@vynel/db/repositories/workspaces'
-import { WORKSPACE_CREATED_EVENT } from './workspaces-events.js'
-import { deriveDefaultManagerName } from './manager-name.js'
+import { WORKSPACE_CREATED_EVENT } from '../workspaces-events.js'
+import { deriveDefaultManagerName } from '../manager-name.js'
 
 export type CreateWorkspaceInput = {
   userId: string

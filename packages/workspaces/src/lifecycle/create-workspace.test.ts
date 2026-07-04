@@ -9,7 +9,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import * as workspacesRepository from '@vynel/db/repositories/workspaces'
 import * as outboxRepository from '@vynel/db/repositories/_shared'
 import { createWorkspace } from './create-workspace.js'
-import { WORKSPACE_CREATED_EVENT } from './workspaces-events.js'
+import { WORKSPACE_CREATED_EVENT } from '../workspaces-events.js'
 
 function makeUser(id: string = randomUUID()) {
   return {

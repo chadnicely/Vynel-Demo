@@ -12,7 +12,7 @@ import * as outboxRepository from '@vynel/db/repositories/_shared'
 import { NotFoundError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
 import type { Workspace } from '@vynel/db/repositories/workspaces'
-import { WORKSPACE_ARCHIVED_EVENT } from './workspaces-events.js'
+import { WORKSPACE_ARCHIVED_EVENT } from '../workspaces-events.js'
 
 export async function archiveWorkspace(db: Database, workspaceId: string): Promise<Workspace> {
   return withTransaction(db, (tx) => {

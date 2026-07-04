@@ -11,7 +11,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace, findWorkspaceById } from '@vynel/db/repositories/workspaces'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { hardDeleteWorkspace } from './hard-delete-workspace.js'
-import { WORKSPACE_DELETED_EVENT } from './workspaces-events.js'
+import { WORKSPACE_DELETED_EVENT } from '../workspaces-events.js'
 
 function makeUser(id: string = randomUUID()) {
   return {
