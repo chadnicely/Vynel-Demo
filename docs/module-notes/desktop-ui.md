@@ -122,10 +122,14 @@
   ON THE CANVAS (`ChatMainView` gained `{kind:'file', filePath}`) in **direct edit mode** (VS
   Code semantics — Chad's call); **markdown gets a Code | Preview toggle**; dirty dot + Save/
   Discard appear on change. In-memory demo file store (`demo-file-store.ts`); the files API's
-  read/write routes swap in behind the same two calls; **CodeMirror is the recorded upgrade
-  path** for highlighted editing once real file I/O lands. Tree + editor icons are type-colored
+  read/write routes swap in behind the same two calls. Tree + editor icons are type-colored
   via `--file-*` tokens + `file-colors.ts` (folder tan is muted — vivid gold stays
-  presence-only).
+  presence-only). **CodeMirror 6 landed** (lazy-loaded `CodeEditor.vue`, token-driven theme +
+  lezer highlight map — the buffer itself is syntax-colored); the markdown **preview is
+  colorful** via the shared `MarkdownText`: colored headings/links/inline-code, GitHub-style
+  task checkboxes (gold when done), and shiki-highlighted fences through the extracted
+  `ui/src/lib/shiki-highlighter.ts` (one highlighter for CodeBlock + markdown — chat messages
+  get all of this too).
 - M6 Desktop shell (Tauri window + overlay window hosting `VoiceOrb`) — pending; needs a
   Rust-toolchain session (first `cargo build` is long).
 

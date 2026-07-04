@@ -43,4 +43,27 @@ describe("MarkdownText", () => {
       : undefined;
     expect(href ?? "").not.toContain("javascript:");
   });
+
+  it("renders task-list markers as checkboxes", () => {
+    const wrapper = mount(MarkdownText, {
+      props: { source: "- [x] Export ledger\n- [ ] Call the accountant" },
+    });
+
+    const boxes = wrapper.findAll(".task-checkbox");
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0]!.classes()).toContain("is-done");
+    expect(boxes[1]!.classes()).not.toContain("is-done");
+    expect(wrapper.text()).not.toContain("[x]");
+  });
+
+  it("renders fenced code blocks as code even before the highlighter loads", () => {
+    const wrapper = mount(MarkdownText, {
+      props: { source: "```js\nconst price = 49;\n```" },
+    });
+
+    // happy-dom's parser drops the <pre> wrapper inside sanitized v-html
+    // (browsers keep it — covered by the live sweep); assert the code element.
+    expect(wrapper.find("code.language-js").exists()).toBe(true);
+    expect(wrapper.text()).toContain("const price = 49;");
+  });
 });

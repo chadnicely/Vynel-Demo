@@ -7,6 +7,7 @@ import {
   saveDemoFileContent,
 } from "../../demo/demo-file-store.js";
 import { fileColorFamily } from "./file-colors.js";
+import CodeEditor from "./CodeEditor.vue";
 
 // The canvas file editor, VS Code semantics: a file opens straight into an
 // editable buffer; markdown additionally gets a Code | Preview toggle.
@@ -36,6 +37,9 @@ const fileName = computed(
   () => props.filePath.split("/").pop() ?? props.filePath,
 );
 const colorFamily = computed(() => fileColorFamily(fileName.value));
+const fileExtension = computed(
+  () => fileName.value.split(".").pop()?.toLowerCase() ?? "",
+);
 const isPreviewable = computed(() => /\.(md|markdown)$/i.test(fileName.value));
 const isDirty = computed(() => draft.value !== savedContent.value);
 
@@ -112,11 +116,11 @@ function discard() {
       <div v-if="isPreviewable && mode === 'preview'" class="preview">
         <MarkdownText :source="draft" />
       </div>
-      <textarea
+      <CodeEditor
         v-else
+        :key="props.filePath"
         v-model="draft"
-        class="edit-area"
-        spellcheck="false"
+        :language="fileExtension"
         placeholder="Start writing…"
       />
     </div>
@@ -241,27 +245,5 @@ function discard() {
   max-width: 760px;
   margin: 0 auto;
   padding: 8px 4px;
-}
-
-.edit-area {
-  width: 100%;
-  height: 100%;
-  min-height: 360px;
-  resize: none;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-1);
-  font: 400 12.5px/1.7 var(--font-mono);
-  padding: 12px 14px;
-  outline: none;
-}
-
-.edit-area:focus {
-  border-color: var(--ink-3);
-}
-
-.edit-area::placeholder {
-  color: var(--ink-3);
 }
 </style>

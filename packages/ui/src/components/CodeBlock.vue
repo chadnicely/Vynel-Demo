@@ -1,41 +1,10 @@
-<script lang="ts">
-import type { HighlighterGeneric } from "shiki";
-
-// One shared highlighter for every code block in the app, created on first
-// use. Dynamic import so the grammar payload code-splits out of the shell
-// bundle; until it resolves the block renders as plain text — content first,
-// colors when ready.
-const HIGHLIGHT_LANGUAGES = [
-  "typescript",
-  "javascript",
-  "json",
-  "markdown",
-  "bash",
-  "html",
-  "css",
-  "vue",
-  "yaml",
-];
-
-type AnyHighlighter = HighlighterGeneric<never, never>;
-
-let highlighterPromise: Promise<AnyHighlighter> | null = null;
-
-function loadHighlighter(): Promise<AnyHighlighter> {
-  if (!highlighterPromise) {
-    highlighterPromise = import("shiki").then((shiki) =>
-      shiki.createHighlighter({
-        themes: ["github-dark-default", "github-light"],
-        langs: HIGHLIGHT_LANGUAGES,
-      }),
-    ) as Promise<AnyHighlighter>;
-  }
-  return highlighterPromise;
-}
-</script>
-
 <script setup lang="ts">
 import { computed, ref, watchEffect } from "vue";
+import {
+  SHIKI_THEMES,
+  isHighlightableLanguage,
+  loadHighlighter,
+} from "../lib/shiki-highlighter.js";
 
 // `| undefined` on the optionals: consumers forward values that are themselves
 // optional (exactOptionalPropertyTypes).
@@ -50,9 +19,7 @@ const props = defineProps<{
 const highlightedHtml = ref<string | null>(null);
 
 const canHighlight = computed(
-  () =>
-    props.language !== undefined &&
-    HIGHLIGHT_LANGUAGES.includes(props.language),
+  () => props.language !== undefined && isHighlightableLanguage(props.language),
 );
 
 const fallbackLines = computed(() => props.code.split("\n"));
@@ -65,10 +32,9 @@ watchEffect(async () => {
   const code = props.code;
   const language = props.language!;
   const highlighter = await loadHighlighter();
-  // Both theme palettes ship as CSS vars; [data-theme] picks the active one.
   highlightedHtml.value = highlighter.codeToHtml(code, {
     lang: language,
-    themes: { dark: "github-dark-default", light: "github-light" },
+    themes: SHIKI_THEMES,
     defaultColor: false,
   });
 });
