@@ -111,6 +111,9 @@ importers:
       '@vynel/mcp-contract':
         specifier: workspace:*
         version: link:../../packages/mcp-contract
+      '@vynel/orchestration':
+        specifier: workspace:*
+        version: link:../../packages/orchestration
       '@vynel/providers':
         specifier: workspace:*
         version: link:../../packages/providers
