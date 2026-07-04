@@ -78,6 +78,12 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.4.3
         version: 0.4.3(hono@4.12.27)(zod@3.25.76)
+      '@vynel/approvals':
+        specifier: workspace:*
+        version: link:../../packages/approvals
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@vynel/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -90,6 +96,9 @@ importers:
       '@vynel/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
+      '@vynel/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
       '@vynel/workspaces':
         specifier: workspace:*
         version: link:../../packages/workspaces

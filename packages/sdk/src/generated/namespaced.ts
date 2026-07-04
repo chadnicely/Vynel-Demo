@@ -20,6 +20,21 @@ import type { paths } from './api.js'
 
 export function makeNamespaced(client: Client<paths>) {
   return {
+  approvals: {
+  decide: async (providerApprovalId: string, input: NonNullable<paths["/approvals/{providerApprovalId}/decide"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/approvals/{providerApprovalId}/decide", {
+      params: { path: { providerApprovalId: providerApprovalId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listPending: async () => {
+    const { data, error, response } = await client["GET"]("/approvals/pending")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   knowledge: {
   addDirectory: async (workspaceId: string, input: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/knowledge/sources", {

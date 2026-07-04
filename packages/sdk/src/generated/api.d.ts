@@ -119,6 +119,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/approvals/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every pending approval for the user — the global queue, across all sessions/workspaces + the brain. */
+        get: operations["getApprovalsPending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/approvals/{providerApprovalId}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve an approval — approve (optionally with edited input / a remembered rule) or deny with a reason. */
+        post: operations["postApprovalsByProviderApprovalIdDecide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -488,6 +522,77 @@ export interface operations {
             };
             /** @description Workspace not found. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getApprovalsPending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending approval requests, newest first (ApprovalRequestResponse[]). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postApprovalsByProviderApprovalIdDecide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerApprovalId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    kind: "approved";
+                    updatedInput?: unknown;
+                    rememberRule?: {
+                        /** @constant */
+                        kind: "auto-approve-action-kind";
+                    } | {
+                        /** @constant */
+                        kind: "auto-approve-tool-name";
+                    };
+                } | {
+                    /** @constant */
+                    kind: "denied";
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Resolved; the paused agent is unblocked (ApprovalRequestResponse). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No pending approval with that id for this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The approval was already resolved. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

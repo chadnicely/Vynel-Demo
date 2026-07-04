@@ -975,6 +975,123 @@
           "description": "Remove a registered knowledge source by id. Stops watching its directory and purges its indexed documents + chunks (cascade). Idempotent — removing an unknown id is a no-op. Mutating."
         }
       }
+    },
+    "/approvals/pending": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Pending approval requests, newest first (ApprovalRequestResponse[])."
+          }
+        },
+        "operationId": "getApprovalsPending",
+        "tags": [
+          "approvals"
+        ],
+        "parameters": [],
+        "summary": "List every pending approval for the user — the global queue, across all sessions/workspaces + the brain.",
+        "x-sdk-name": "approvals.listPending"
+      }
+    },
+    "/approvals/{providerApprovalId}/decide": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Resolved; the paused agent is unblocked (ApprovalRequestResponse)."
+          },
+          "404": {
+            "description": "No pending approval with that id for this user."
+          },
+          "409": {
+            "description": "The approval was already resolved."
+          }
+        },
+        "operationId": "postApprovalsByProviderApprovalIdDecide",
+        "tags": [
+          "approvals"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerApprovalId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Resolve an approval — approve (optionally with edited input / a remembered rule) or deny with a reason.",
+        "x-sdk-name": "approvals.decide",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "approved"
+                      },
+                      "updatedInput": {},
+                      "rememberRule": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "auto-approve-action-kind"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "auto-approve-tool-name"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "denied"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "reason"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

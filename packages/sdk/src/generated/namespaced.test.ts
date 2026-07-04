@@ -29,6 +29,9 @@ const EXPECTED_KNOWLEDGE_METHODS = [
   'search',
 ] as const
 
+// The approvals namespace's methods (the global-queue surface), sorted.
+const EXPECTED_APPROVALS_METHODS = ['decide', 'listPending'] as const
+
 // Build a client stub whose every verb resolves to one canned
 // openapi-fetch result — drives the generated dispatch's success + error branches.
 function clientReturning(result: {
@@ -62,15 +65,16 @@ function capturingClient(): { client: Client<paths>; calls: CapturedCall[] } {
 }
 
 describe('makeNamespaced — shape', () => {
-  it('exposes the knowledge namespace with the eight annotated methods', () => {
+  it('exposes the knowledge + approvals namespaces with their annotated methods', () => {
     const sdk = makeNamespaced(stubClient)
-    expect(Object.keys(sdk)).toEqual(['knowledge'])
+    expect(Object.keys(sdk).sort()).toEqual(['approvals', 'knowledge'])
     expect(Object.keys(sdk.knowledge).sort()).toEqual([...EXPECTED_KNOWLEDGE_METHODS])
+    expect(Object.keys(sdk.approvals).sort()).toEqual([...EXPECTED_APPROVALS_METHODS])
   })
 
   it('every method is a function', () => {
     const sdk = makeNamespaced(stubClient)
-    for (const method of Object.values(sdk.knowledge)) {
+    for (const method of [...Object.values(sdk.knowledge), ...Object.values(sdk.approvals)]) {
       expect(typeof method).toBe('function')
     }
   })

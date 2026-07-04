@@ -33,6 +33,9 @@ export type ApprovalRuleMatcher =
 export interface ApprovalRequestResponse {
   id: string
   providerApprovalId: string
+  /** The workspace the card belongs to; NULL for a global-root (brain) card.
+   *  The global queue shows cards across all workspaces + the brain. */
+  workspaceId: string | null
   sessionId: string
   parentMessageId: string
   toolUseId: string
