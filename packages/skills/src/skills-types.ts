@@ -1,9 +1,9 @@
-// Domain-only types for the `skills` core layer. See
+// Domain-only types for the `skills` leaf. See
 // `docs/blueprints/skills/coding.md §3` + blueprint §3.
 //
 // `StructuralLogger` is owned by `@vynel/logger` (type-only — pino's
-// runtime never reaches the core layer). Row types re-export from
-// `@vynel/db` for consumer convenience. `ResolvedSkillSettings` is
+// runtime never reaches the leaf). Row types re-export from the package's
+// repositories for consumer convenience. `ResolvedSkillSettings` is
 // the merged-defaults-and-overrides type the installer + template
 // renderer consume.
 

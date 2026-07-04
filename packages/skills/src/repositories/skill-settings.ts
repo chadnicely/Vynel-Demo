@@ -34,7 +34,7 @@ export type UpsertSkillSettingInput = {
   installedSkillId: string
   settingKey: string
   // JSON-encoded scalar/object. Encoding is the caller's
-  // responsibility (the core layer JSON-encodes; the repo stores
+  // responsibility (the leaf JSON-encodes; the repo stores
   // text verbatim).
   settingValue: string
 }

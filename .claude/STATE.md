@@ -79,7 +79,16 @@ Clearing every deferred item. Progress (TaskList #7-13):
 - ⚠ **FULL `pnpm test` is RED at typecheck — ONLY on Chad's `@vynel/local-web`/`@vynel/ui` UI WIP** (uncommitted;
   broken component types, e.g. MenuListView.vue missing). NOT my code (backend 59/59 green). Chad must fix his UI
   types for the combined gate to go green. Backend commits verified via `--filter=!local-web --filter=!ui`.
-- ⏳ next: CLI · cleanups (.data mkdir + stale comments + integration-test relocation).
+- ✅ **CLI commands** — `vynel {skills,channels,schedules,marketplace} <...>` over the namespaced SDK
+  (mirror knowledge-commands); 26 new tests. Reviewer CLEAN (arg-order verified, token-safe — connect not exposed).
+- ✅ **Cleanups** — `.data/` boot fix (`createSqliteDatabase` mkdirs the DB dir; test added) + 14 stale
+  kernel-location doc-comments swept in channels/schedules/skills (comment-only). Integration-test relocation
+  STOPPED (needs an unbuilt seam — exported outbound-queue reader / app-mockable adapter / outbox relay; delivery
+  mechanics are unit-covered in-leaf; a deliberate call for Chad, not stubbed).
+- 🏁 **FINISH-EVERYTHING PASS COMPLETE** (7 backend commits: scheduleKind · global-routes · ③ keystone ·
+  schedule-firing · channel-poll/deliver · channel-processing · CLI+cleanups). Everything Chad listed is done
+  except the two honest stops above (integration-test seam · failed-channel-turn sender UX) + the one BLOCKER:
+  Chad's UI typecheck must go green.
 
 ## ⚠ PARALLEL UI WORK IN TREE (2026-07-05) — coordinate
 Chad has an UNCOMMITTED desktop-UI milestone in the working tree: `apps/local-web/`, `packages/ui/`

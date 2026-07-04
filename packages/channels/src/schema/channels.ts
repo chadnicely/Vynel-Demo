@@ -11,7 +11,7 @@
 // `channelId -> channels.userId`). Phase 1 SYNC repo discipline applies.
 //
 // `botCredentials` / `botMetadata` are opaque JSON-encoded strings read
-// whole at the core layer (never filtered) — plain `text()`, not
+// whole at the leaf (never filtered) — plain `text()`, not
 // `json()`. `botCredentials` is sensitive: never returned in a response
 // (the serializer strips it), never logged (coding.md §1.1).
 // `lastPolledCursor` is the opaque per-channel poll cursor (OQ-2).

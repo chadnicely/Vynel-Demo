@@ -47,6 +47,16 @@ describe('createSqliteDatabase', () => {
   it('requires a path', () => {
     expect(() => createSqliteDatabase({ dialect: 'sqlite' })).toThrow(/path is required/)
   })
+
+  it('creates the parent directory when it does not exist yet (fresh boot)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vynel-db-test-'))
+    // Point at a nested path whose parent dirs do NOT exist yet — the api boots
+    // against `.data/vynel.db` before anything has created `.data/`.
+    const db = createSqliteDatabase({ dialect: 'sqlite', path: join(dir, 'nested', 'deeper', 'boot.db') })
+    openDbs.push({ db, dir })
+    const row = db.get<{ n: number }>(sql`SELECT 1 AS n`)
+    expect(row?.n).toBe(1)
+  })
 })
 
 describe('sqlite-vec extension (loaded on every connection — memory + knowledge)', () => {

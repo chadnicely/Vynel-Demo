@@ -1,5 +1,5 @@
-// Domain-only types for the `channels` core layer. Per
-// `.claude/rules/structure-standard.md` "packages/core/src/".
+// Domain-only types for the `channels` leaf. Per
+// `.claude/rules/structure-standard.md` "packages/channels/src/".
 //
 // Spec: `docs/blueprints/channels/coding.md §3`.
 

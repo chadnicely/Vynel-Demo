@@ -13,8 +13,8 @@ import {
   type NewSchedule,
 } from '../schema/schedules.js'
 
-// Re-export row + union types so `@vynel/core/schedules` imports them via
-// `@vynel/db/repositories/schedules` (the channels/chat repo precedent).
+// Re-export row + union types so `@vynel/schedules` surfaces them via the
+// package barrel (the channels/chat repo precedent).
 export type {
   Schedule,
   NewSchedule,

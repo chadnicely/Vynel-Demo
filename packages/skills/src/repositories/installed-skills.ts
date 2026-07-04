@@ -117,7 +117,7 @@ export type InstalledSkillPatch = Partial<
 // WHERE clause per `data-standard.md` "Tenant isolation by repo-layer
 // convention" — a missing filter is review-blocking. Callers pass the
 // caller's `userId`; cross-tenant rows match nothing → return null /
-// false, which the core layer translates to `NotFoundError` (no
+// false, which the leaf translates to `NotFoundError` (no
 // enumeration leak per error-handling.md). Code-reviewer C3
 // (2026-05-25).
 

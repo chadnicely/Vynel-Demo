@@ -11,6 +11,8 @@
 // (sqlite-vec-windows-x64, sqlite-vec-darwin-arm64, etc.). Memory is the
 // first consumer; `knowledge` will reuse for document-chunk embeddings.
 
+import { mkdirSync } from 'node:fs'
+import { dirname } from 'node:path'
 import BetterSqlite3 from 'better-sqlite3'
 import type { Database as BetterSqlite3Instance } from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -39,6 +41,12 @@ export function createSqliteDatabase(options: CreateDatabaseOptions): Database {
   }
   if (!options.path) {
     throw new Error('createSqliteDatabase: path is required for SQLite databases.')
+  }
+  // Create the parent dir on a fresh boot — the api points at `.data/vynel.db`
+  // before anything has created `.data/`, and better-sqlite3 throws "unable to
+  // open database file" when the directory is missing. `:memory:` has no parent.
+  if (options.path !== ':memory:') {
+    mkdirSync(dirname(options.path), { recursive: true })
   }
   const sqlite = new BetterSqlite3(options.path)
   sqlite.pragma('journal_mode = WAL')

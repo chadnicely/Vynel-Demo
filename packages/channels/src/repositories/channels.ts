@@ -14,8 +14,8 @@ import {
   type ChannelConnectionStatus,
 } from '../schema/channels.js'
 
-// Re-export row + union types so `@vynel/core/channels` imports them via
-// `@vynel/db/repositories/channels` (the workspaces/chat repo precedent).
+// Re-export row + union types so `@vynel/channels` surfaces them via the
+// package barrel (the workspaces/chat repo precedent).
 export type {
   Channel,
   NewChannel,
@@ -76,7 +76,7 @@ export function insertChannel(db: Database, row: NewChannel): Channel {
   return inserted
 }
 
-// Auto-sets `updatedAt`. The core layer null-checks via findChannelById
+// Auto-sets `updatedAt`. The leaf null-checks via findChannelById
 // first; a missing row here is an internal invariant violation → plain
 // Error (error-handling.md repo layer).
 export function updateChannel(

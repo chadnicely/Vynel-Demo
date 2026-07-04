@@ -1,5 +1,5 @@
-// Domain-only types for the `schedules` core layer. Per
-// `.claude/rules/structure-standard.md` "packages/core/src/".
+// Domain-only types for the `schedules` leaf. Per
+// `.claude/rules/structure-standard.md` "packages/schedules/src/".
 //
 // Spec: `docs/blueprints/schedules/coding.md §3`.
 
