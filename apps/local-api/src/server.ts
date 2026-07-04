@@ -13,6 +13,7 @@ import { getOrCreateLocalUser } from '@vynel/core/users'
 import { FileWatcherService } from '@vynel/knowledge'
 import { loadEnv } from './env.js'
 import { createApp } from './app.js'
+import { startSchedulesService } from './services/schedules-service.js'
 
 export async function boot(): Promise<void> {
   const env = loadEnv()
@@ -37,6 +38,15 @@ export async function boot(): Promise<void> {
 
   const app = createApp({ db, logger, fileWatcher })
 
+  // The in-process Hono dispatcher for headless turns (the schedule fire path's
+  // MCP server re-enters the api through this). Bound AFTER createApp, like the
+  // route-side `c.var.appRequest`.
+  const appRequest = app.request.bind(app)
+  // The per-minute schedule poll — claims due schedules + fires each via a
+  // headless workspace turn. MCP-intrinsic, so it lives in the api process (not
+  // the worker). Stopped on shutdown, like the file watcher.
+  const schedulesService = await startSchedulesService({ db, logger, appRequest })
+
   // Bind to loopback only in Phase 1 — the local API is unauthenticated.
   const server = serve({ fetch: app.fetch, hostname: '127.0.0.1', port: env.PORT }, (info) => {
     logger.info({ port: info.port }, 'api listening')
@@ -45,6 +55,7 @@ export async function boot(): Promise<void> {
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'api shutdown initiated')
     server.close(() => {
+      schedulesService.stop()
       void fileWatcher.stopAll()
       closeDatabase(db)
       logger.info({}, 'api shutdown complete')

@@ -7,6 +7,7 @@
 //   PATCH  /:scheduleId            -> updateSchedule
 //   POST   /:scheduleId/enable     -> setScheduleEnabled(true)
 //   POST   /:scheduleId/disable    -> setScheduleEnabled(false)
+//   POST   /:scheduleId/fire-now   -> manualFireSchedule (drives a headless turn)
 //   DELETE /:scheduleId            -> deleteSchedule (hard-delete, cascades)
 //   GET    /:scheduleId/runs       -> listScheduleRuns         [x-mcp]
 //
@@ -18,14 +19,14 @@
 //
 // MCP exposure (D14): the three safe-read GETs carry x-mcp pre-annotations
 // (list_schedules / list_schedule_templates / list_schedule_runs). No mutating
-// route is exposed.
+// route is exposed — ESPECIALLY not fire-now (it DRIVES a turn, never an agent
+// tool).
 //
-// DEFERRED — the source `POST /:scheduleId/fire-now` (manual run) is NOT ported
-// here: it drives a headless chat turn via `composeSessionMcpServers(
-// [vynelWorkspaceDescriptor], …)` + `composeSessionCapabilities`, the ③
-// agent-turn MCP binding that lives at the apps/api edge and is deferred to the
-// session Slice-3 app-wiring. It lands as one route + a `FireScheduleDeps`
-// binding once that machinery is in KLONE.
+// `fire-now` builds the fire path's `FireScheduleDeps` from `c.var.appRequest`
+// via `buildScheduleFireDeps` (the ③ agent-turn MCP binding) and calls
+// `manualFireSchedule`. To stay testable WITHOUT a live AI turn, an injected
+// `c.var.scheduleFireDeps` (set via `createApp` options) overrides the real
+// build — a route test fires with a FAKE `startChatTurn`.
 //
 // Spec: `docs/blueprints/schedules/blueprint.md §6` + coding.md §6.
 
@@ -33,6 +34,7 @@ import { validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
+import { buildScheduleFireDeps } from '../../sessions/build-schedule-fire-deps.js'
 import {
   createSchedule,
   listSchedules,
@@ -41,6 +43,7 @@ import {
   deleteSchedule,
   listScheduleTemplates,
   listScheduleRuns,
+  manualFireSchedule,
 } from '@vynel/schedules'
 import { serializeScheduleForResponse, serializeScheduleRunForResponse } from './serializers.js'
 import {
@@ -221,6 +224,38 @@ export const schedulesApp = factory
         isEnabled: false,
       })
       return c.json(serializeScheduleForResponse(schedule))
+    },
+  )
+  // POST /:scheduleId/fire-now — a manual run (does NOT affect the next fire).
+  // Drives a headless workspace turn via the injected fire deps; NEVER an MCP
+  // tool (no x-mcp — it IS a turn).
+  .post(
+    '/:scheduleId/fire-now',
+    describeRoute({
+      tags: ['schedules'],
+      summary: 'Fire a schedule immediately (a manual run; does not affect the next scheduled fire).',
+      'x-sdk-name': 'schedules.fireNow',
+      responses: {
+        202: { description: 'Run started.' },
+        404: { description: 'No such schedule in this workspace.' },
+        409: { description: 'The schedule is paused.' },
+      },
+    }),
+    validator('param', ScheduleParamSchema),
+    ...workspaceScoped,
+    async (c) => {
+      // The injected deps (test) fire with a fake turn; otherwise build the real
+      // deps once, closing over the in-process appRequest (the fileWatcher-style
+      // boot seam). No logic in the route — build deps + call core + serialize.
+      const fireDeps =
+        c.var.scheduleFireDeps ??
+        (await buildScheduleFireDeps(c.var.db, c.var.appRequest, c.var.logger))
+      const run = await manualFireSchedule(
+        c.var.db,
+        { scheduleId: c.req.valid('param').scheduleId, userId: c.var.user.id },
+        fireDeps,
+      )
+      return c.json(serializeScheduleRunForResponse(run), 202)
     },
   )
   // DELETE /:scheduleId — hard-delete (cascades to runs). No soft-delete (D11).

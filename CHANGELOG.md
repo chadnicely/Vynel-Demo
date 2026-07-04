@@ -53,7 +53,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 - **`@vynel/schedules` + schedules HTTP API** — the schedules leaf (create / update / enable / disable / delete /
   list / runs / templates) with 8 CRUD routes, `client.schedules.*` (8 methods) and 3 read MCP tools. A schedule
   is **recurring** (a cron expression) or **one-time** (a `fireAt` timestamp — "remind me in 20 minutes" — fires
-  once then disarms); create exposes both. Fire-now (drives a headless turn) is deferred to the session app-wiring.
+  once then disarms); create exposes both. An explicit `scheduleKind` column now names the two kinds.
+- **Schedules FIRE end-to-end** — the ③ agent-turn MCP binding (`composeSessionMcpServers` + the in-process
+  `vynel` server built from the api's own `app.request`) plus a per-minute boot poll service and a
+  `POST /schedules/:id/fire-now` route. A due (or manually-fired) schedule now runs a real headless workspace
+  turn with the route-derived Vynel tools attached. Fire-now is SDK-only — a turn is never itself an agent tool.
+- **Global-or-workspace is API-reachable** — user-scoped `/channels` + `/schedules` route groups (create with a
+  `scope` field, list-all, full id-ops) sit alongside the workspace-scoped routes, so a *global* channel or
+  schedule can be created, listed, and managed. Every id-op authorizes by `userId` (tenant-safe).
 - **`@vynel/marketplace` + marketplace HTTP API** — the table-less marketplace leaf (browse + get catalog items,
   annotated with per-user install-status) and `client.marketplace.*` (2 methods). Install-status is composed at the
   route from `@vynel/skills` (kept off MCP — its reads are the join of already-exposed skills tools).

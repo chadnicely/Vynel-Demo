@@ -13,6 +13,7 @@
 //   PATCH  /:scheduleId         -> updateSchedule
 //   POST   /:scheduleId/enable  -> setScheduleEnabled(true)
 //   POST   /:scheduleId/disable -> setScheduleEnabled(false)
+//   POST   /:scheduleId/fire-now -> manualFireSchedule (drives a headless turn)
 //   DELETE /:scheduleId         -> deleteSchedule (hard-delete, cascades)
 //   GET    /:scheduleId/runs    -> listScheduleRuns
 //
@@ -22,13 +23,17 @@
 // Locked Hono protocol: describeRoute -> validator -> `...userScoped` -> handler
 // on `factory.createApp()`; handlers THROW typed VynelError subclasses (the
 // app.ts onError maps them). Only the safe-read `GET /` is x-mcp exposed
-// (list_my_schedules) — no mutating route is exposed. Serializers + the
-// param/update/runs schemas are REUSED from the workspace-scoped surface.
+// (list_my_schedules) — no mutating route is exposed (fire-now DRIVES a turn, so
+// it is never an agent tool). `fire-now` authorizes by userId (the tenant
+// boundary) via `manualFireSchedule` — a global (null-workspace) schedule is
+// authorized the same way. Serializers + the param/update/runs schemas are
+// REUSED from the workspace-scoped surface.
 
 import { validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
+import { buildScheduleFireDeps } from '../../sessions/build-schedule-fire-deps.js'
 import {
   createSchedule,
   listSchedulesForUser,
@@ -36,6 +41,7 @@ import {
   setScheduleEnabled,
   deleteSchedule,
   listScheduleRuns,
+  manualFireSchedule,
 } from '@vynel/schedules'
 import { serializeScheduleForResponse, serializeScheduleRunForResponse } from './serializers.js'
 import {
@@ -191,6 +197,34 @@ export const schedulesUserApp = factory
         isEnabled: false,
       })
       return c.json(serializeScheduleForResponse(schedule))
+    },
+  )
+  // POST /:scheduleId/fire-now — a manual run (does NOT affect the next fire).
+  // Authorized by userId (manualFireSchedule) so it serves a global schedule too.
+  .post(
+    '/:scheduleId/fire-now',
+    describeRoute({
+      tags: ['schedules'],
+      summary: 'Fire a schedule the user owns immediately (a manual run; does not affect the next scheduled fire).',
+      'x-sdk-name': 'schedulesUser.fireNow',
+      responses: {
+        202: { description: 'Run started.' },
+        404: { description: 'No such schedule owned by this user.' },
+        409: { description: 'The schedule is paused.' },
+      },
+    }),
+    validator('param', ScheduleParamSchema),
+    ...userScoped,
+    async (c) => {
+      const fireDeps =
+        c.var.scheduleFireDeps ??
+        (await buildScheduleFireDeps(c.var.db, c.var.appRequest, c.var.logger))
+      const run = await manualFireSchedule(
+        c.var.db,
+        { scheduleId: c.req.valid('param').scheduleId, userId: c.var.user.id },
+        fireDeps,
+      )
+      return c.json(serializeScheduleRunForResponse(run), 202)
     },
   )
   // DELETE /:scheduleId — hard-delete (cascades to runs). No soft-delete (D11).

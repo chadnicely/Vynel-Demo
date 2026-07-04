@@ -1,7 +1,9 @@
 // Public surface of `@vynel/schedules` — the schedules leaf. Consumers reach the
 // package only through this barrel; schema, repositories and the concern folders
 // are internal (imported relatively). The per-minute claim-and-fire TICK runner
-// is the worker-cron composition body — deferred to app-wiring.
+// is the poll-service body — the api-side schedules service binds its
+// `FireScheduleDeps` (startChatTurn + MCP/capability composition) and drives it
+// on the per-minute interval.
 
 export type { StructuralLogger, FireScheduleDeps } from './schedules-types.js'
 
@@ -29,3 +31,4 @@ export { renderScheduleChannelMessage } from './rendering/render-schedule-channe
 // Fire path (async — drives the provider stream).
 export { fireSchedule, type FireScheduleInput } from './firing/fire-schedule.js'
 export { manualFireSchedule } from './firing/manual-fire-schedule.js'
+export { runScheduleClaimAndFireTick } from './firing/run-schedule-claim-and-fire-tick.js'

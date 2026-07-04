@@ -86,15 +86,15 @@ const EXPECTED_SKILLS_METHODS = [
 const EXPECTED_MARKETPLACE_METHODS = ['getItem', 'listItems'] as const
 
 // The schedules namespace's methods, sorted. The 3 read GETs (list /
-// listTemplates / listRuns) + the 5 mutating lifecycle routes all carry
+// listTemplates / listRuns) + the 6 mutating lifecycle routes all carry
 // `x-sdk-name`; x-mcp is the narrower opt-in (only the 3 GETs are exposed).
-// The source `fire-now` route is deferred (its MCP-turn composition lands with
-// the session Slice-3 app-wiring), so there is no `fireNow` method here.
+// `fireNow` drives a headless turn (never an MCP tool — no x-mcp).
 const EXPECTED_SCHEDULES_METHODS = [
   'create',
   'delete',
   'disable',
   'enable',
+  'fireNow',
   'list',
   'listRuns',
   'listTemplates',
@@ -104,12 +104,14 @@ const EXPECTED_SCHEDULES_METHODS = [
 // The schedulesUser namespace's methods, sorted — the USER-scoped `/schedules`
 // surface (a user's global + workspace schedules alike). Distinct top namespace
 // from the workspace-scoped `schedules.*`. `/templates` is omitted (already
-// global via the workspace route). Only `list` (list_my_schedules) is x-mcp.
+// global via the workspace route). Only `list` (list_my_schedules) is x-mcp;
+// `fireNow` drives a headless turn (never an MCP tool).
 const EXPECTED_SCHEDULES_USER_METHODS = [
   'create',
   'delete',
   'disable',
   'enable',
+  'fireNow',
   'list',
   'listRuns',
   'update',

@@ -9,9 +9,11 @@
 //     the committed OpenAPI spec and dispatches each tool call to the api
 //     over HTTP.
 //
-// The in-process server builders + `McpFeatureDescriptor` wrappers that
-// consume the generated registry (direction ③) land with their consumer —
-// the apps/local-api turn composer + `packages/providers`.
+// The in-process server builders (direction ③) stay a private detail; the
+// `McpFeatureDescriptor` wrappers that consume the generated registry are
+// re-exported so the apps/local-api turn composer can DYNAMICALLY import them
+// (`await import('@vynel/mcp')` → `vynelWorkspaceDescriptor`) — deferring the
+// heavy SDK builder + generated registry until a turn actually needs it.
 
 export * from './mcp-types.js'
 export {
@@ -22,3 +24,4 @@ export {
   type ExternalTool,
   type ToolResult,
 } from './external-mcp-server.js'
+export { vynelWorkspaceDescriptor, vynelRoutingDescriptor } from './vynel-mcp-feature-descriptor.js'

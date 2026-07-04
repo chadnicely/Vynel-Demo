@@ -8,9 +8,9 @@
 // `insertSchedule` / `insertScheduleRun` come from `@vynel/schedules/test-support`
 // (the leaf keeps its repositories internal to the production barrel).
 //
-// The source `POST /:scheduleId/fire-now` route is NOT ported yet (its MCP-turn
-// composition — composeSessionMcpServers / vynelWorkspaceDescriptor — is
-// deferred to the session Slice-3 app-wiring), so it has no test here.
+// `POST /:scheduleId/fire-now` DRIVES a headless turn. The test injects a FAKE
+// fire path (`stubFireDeps`, a no-op `startChatTurn`) via `createApp`'s
+// `scheduleFireDeps` seam, so it asserts a run is RECORDED without a live AI turn.
 
 import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -21,6 +21,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   insertSchedule,
   insertScheduleRun,
+  stubFireDeps,
   type NewSchedule,
 } from '@vynel/schedules/test-support'
 import { createApp } from '../../app.js'
@@ -288,6 +289,55 @@ describe('schedules routes', () => {
       expect(new Date(runs[0]!.startedAt).getTime()).toBeGreaterThan(
         new Date(runs[2]!.startedAt).getTime(),
       )
+    })
+  })
+
+  it('POST /:scheduleId/fire-now records a run (202) with a FAKE turn', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      const schedule = seedSchedule(db, user.id, workspace.id) // chat-only
+      // Inject a fake fire path — the no-op startChatTurn means no live AI.
+      const app = createApp({ db, logger: silentLogger, scheduleFireDeps: stubFireDeps() })
+
+      const res = await app.request(
+        `/workspaces/${workspace.id}/schedules/${schedule.id}/fire-now`,
+        { method: 'POST' },
+      )
+      expect(res.status).toBe(202)
+      const run = (await res.json()) as { status: string; triggerKind: string }
+      expect(run.status).toBe('completed')
+      expect(run.triggerKind).toBe('manual')
+
+      // The run is persisted (visible in the run history).
+      const runs = (await (
+        await app.request(`/workspaces/${workspace.id}/schedules/${schedule.id}/runs`)
+      ).json()) as unknown[]
+      expect(runs).toHaveLength(1)
+    })
+  })
+
+  it('POST /:scheduleId/fire-now returns 404 for a missing schedule', async () => {
+    await withTestDatabase(async (db) => {
+      const { workspace } = seedWorld(db)
+      const app = createApp({ db, logger: silentLogger, scheduleFireDeps: stubFireDeps() })
+      const res = await app.request(
+        `/workspaces/${workspace.id}/schedules/${randomUUID()}/fire-now`,
+        { method: 'POST' },
+      )
+      expect(res.status).toBe(404)
+    })
+  })
+
+  it('POST /:scheduleId/fire-now returns 409 for a paused schedule', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      const schedule = seedSchedule(db, user.id, workspace.id, { isEnabled: false })
+      const app = createApp({ db, logger: silentLogger, scheduleFireDeps: stubFireDeps() })
+      const res = await app.request(
+        `/workspaces/${workspace.id}/schedules/${schedule.id}/fire-now`,
+        { method: 'POST' },
+      )
+      expect(res.status).toBe(409)
     })
   })
 })

@@ -513,6 +513,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/schedules/{scheduleId}/fire-now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fire a schedule immediately (a manual run; does not affect the next scheduled fire). */
+        post: operations["postWorkspacesByWorkspaceIdSchedulesByScheduleIdFire-now"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/schedules/{scheduleId}/runs": {
         parameters: {
             query?: never;
@@ -716,6 +733,23 @@ export interface paths {
         put?: never;
         /** Disable a schedule the user owns. */
         post: operations["postSchedulesByScheduleIdDisable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedules/{scheduleId}/fire-now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fire a schedule the user owns immediately (a manual run; does not affect the next scheduled fire). */
+        post: operations["postSchedulesByScheduleIdFire-now"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1972,6 +2006,41 @@ export interface operations {
             };
         };
     };
+    "postWorkspacesByWorkspaceIdSchedulesByScheduleIdFire-now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Run started. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The schedule is paused. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getWorkspacesByWorkspaceIdSchedulesByScheduleIdRuns: {
         parameters: {
             query?: {
@@ -2505,6 +2574,40 @@ export interface operations {
             };
             /** @description No such schedule owned by this user. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postSchedulesByScheduleIdFire-now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Run started. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such schedule owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The schedule is paused. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

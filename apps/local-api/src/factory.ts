@@ -18,6 +18,7 @@ import type { Logger } from 'pino'
 import type { User } from '@vynel/core/users'
 import type { Workspace } from '@vynel/workspaces'
 import type { FileWatcherService } from '@vynel/knowledge'
+import type { FireScheduleDeps } from '@vynel/schedules'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
 // stashed on `c.var.appRequest` so handlers can re-enter the app (the mcp
@@ -37,6 +38,12 @@ export interface AppEnv {
     // The boot singleton holding one chokidar watcher per registered knowledge
     // source. Created once at construction (`app.ts`), like `appRequest`.
     fileWatcher: FileWatcherService
+    // The schedule fire path's injected deps (startChatTurn + MCP/capability
+    // composition). Set ONLY when `createApp` is given an override — the
+    // `fire-now` routes then use it instead of building the real deps, so a
+    // route test can fire with a FAKE turn (no live AI). Absent in production;
+    // the routes lazily build the real deps via `buildScheduleFireDeps`.
+    scheduleFireDeps?: FireScheduleDeps
   }
 }
 

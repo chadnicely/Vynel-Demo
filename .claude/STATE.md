@@ -61,7 +61,14 @@ Clearing every deferred item. Progress (TaskList #7-13):
   in `createSdkMcpServer` (SDK builder, single-site, MCP-layer-allowed); tool-gating aligned to KLONE's real
   registry (7 knowledge tools gated; mutatingToolNames [] = auto-approved). NOT yet wired to a live turn.
   Gate **1517**; reviewer CLEAN. `.claude/journal/2026-07-05-mcp-binding-keystone.md`.
-- ⏳ next: channel ticks · schedule fire-tick + fire-now (wire the keystone into FireScheduleDeps) · CLI · cleanups.
+- ✅ **Schedule firing WIRED** (reordered ahead of channels — the schedule fire uses the built workspace-turn
+  path). Ported `run-schedule-claim-and-fire-tick`; `buildScheduleFireDeps` binds the ③ keystone +
+  `startChatTurn`/`composeSessionCapabilities`; `startSchedulesService` (60s poll, boot); `POST /:id/fire-now`
+  (workspace + user, no x-mcp, tenant-guarded). Boot smoke: "schedules service started" → "api listening".
+  Gate **1548**; reviewer CLEAN. `.claude/journal/2026-07-05-schedule-firing-wired.md`.
+- ⏳ next: **channel ticks** (#11 — needs the global-root turn wrapper `run-global-root-turn.ts` = runGlobalRootTurnCore
+  + composeSessionMcpServers([vynelRoutingDescriptor,desktop]) + wrapAppRequestWithOrigin; a further Slice-3 piece) ·
+  CLI · cleanups.
 
 ## ⚠ PARALLEL UI WORK IN TREE (2026-07-05) — coordinate
 Chad has an UNCOMMITTED desktop-UI milestone in the working tree: `apps/local-web/`, `packages/ui/`

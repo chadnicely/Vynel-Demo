@@ -11,6 +11,7 @@ import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import { VynelError } from '@vynel/errors'
 import { FileWatcherService } from '@vynel/knowledge'
+import type { FireScheduleDeps } from '@vynel/schedules'
 import type { AppEnv } from './factory.js'
 import { openApiInfo } from './openapi.js'
 import { knowledgeApp } from './routes/knowledge/index.js'
@@ -29,6 +30,11 @@ export interface CreateAppOptions {
   // on shutdown; omitted by the SDK/MCP generators (which only mount the app to
   // read route shapes) — createApp then makes an inert default (never started).
   readonly fileWatcher?: FileWatcherService
+  // Test-only override for the schedule fire path. When set, the `fire-now`
+  // routes fire with THESE deps (a fake `startChatTurn`) instead of building
+  // the real turn machinery — so a route test records a run with no live AI.
+  // Production omits it; the routes lazily build the real deps.
+  readonly scheduleFireDeps?: FireScheduleDeps
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -44,6 +50,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('logger', options.logger)
     c.set('appRequest', appRequest)
     c.set('fileWatcher', fileWatcher)
+    if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
     await next()
   })
 

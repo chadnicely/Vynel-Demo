@@ -278,6 +278,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  fireNow: async (workspaceId: string, scheduleId: string) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/schedules/{scheduleId}/fire-now", {
+      params: { path: { workspaceId: workspaceId, scheduleId: scheduleId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   list: async (workspaceId: string) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/schedules", {
       params: { path: { workspaceId: workspaceId } },
@@ -332,6 +339,13 @@ export function makeNamespaced(client: Client<paths>) {
   },
   enable: async (scheduleId: string) => {
     const { data, error, response } = await client["POST"]("/schedules/{scheduleId}/enable", {
+      params: { path: { scheduleId: scheduleId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  fireNow: async (scheduleId: string) => {
+    const { data, error, response } = await client["POST"]("/schedules/{scheduleId}/fire-now", {
       params: { path: { scheduleId: scheduleId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

@@ -2236,6 +2236,46 @@
         "x-sdk-name": "schedules.disable"
       }
     },
+    "/workspaces/{workspaceId}/schedules/{scheduleId}/fire-now": {
+      "post": {
+        "responses": {
+          "202": {
+            "description": "Run started."
+          },
+          "404": {
+            "description": "No such schedule in this workspace."
+          },
+          "409": {
+            "description": "The schedule is paused."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdSchedulesByScheduleIdFire-now",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Fire a schedule immediately (a manual run; does not affect the next scheduled fire).",
+        "x-sdk-name": "schedules.fireNow"
+      }
+    },
     "/workspaces/{workspaceId}/schedules/{scheduleId}/runs": {
       "get": {
         "responses": {
@@ -3071,6 +3111,38 @@
         ],
         "summary": "Disable a schedule the user owns.",
         "x-sdk-name": "schedulesUser.disable"
+      }
+    },
+    "/schedules/{scheduleId}/fire-now": {
+      "post": {
+        "responses": {
+          "202": {
+            "description": "Run started."
+          },
+          "404": {
+            "description": "No such schedule owned by this user."
+          },
+          "409": {
+            "description": "The schedule is paused."
+          }
+        },
+        "operationId": "postSchedulesByScheduleIdFire-now",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Fire a schedule the user owns immediately (a manual run; does not affect the next scheduled fire).",
+        "x-sdk-name": "schedulesUser.fireNow"
       }
     },
     "/schedules/{scheduleId}/runs": {

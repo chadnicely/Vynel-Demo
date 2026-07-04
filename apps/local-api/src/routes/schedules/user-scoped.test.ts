@@ -14,7 +14,7 @@ import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { insertSchedule, type NewSchedule } from '@vynel/schedules/test-support'
+import { insertSchedule, stubFireDeps, type NewSchedule } from '@vynel/schedules/test-support'
 import { createApp } from '../../app.js'
 import type { Database } from '@vynel/db'
 
@@ -208,6 +208,23 @@ describe('user-scoped schedules routes', () => {
     })
   })
 
+  it('POST /:scheduleId/fire-now records a run for a GLOBAL schedule (202, FAKE turn)', async () => {
+    await withTestDatabase(async (db) => {
+      const localUser = insertUser(db, makeUser())
+      const schedule = seedScheduleRow(db, localUser.id, null) // global (null workspace)
+      // Inject a fake fire path — no live AI turn.
+      const app = createApp({ db, logger: silentLogger, scheduleFireDeps: stubFireDeps() })
+
+      const res = await app.request(`/schedules/${schedule.id}/fire-now`, { method: 'POST' })
+      expect(res.status).toBe(202)
+      const run = (await res.json()) as { triggerKind: string }
+      expect(run.triggerKind).toBe('manual')
+
+      const runs = (await (await app.request(`/schedules/${schedule.id}/runs`)).json()) as unknown[]
+      expect(runs).toHaveLength(1)
+    })
+  })
+
   it('TENANT ISOLATION: a user cannot see or act on another user’s schedule (404)', async () => {
     await withTestDatabase(async (db) => {
       // Attacker = the resolved local user; inserted FIRST (findSingleLocalUser = first row).
@@ -215,17 +232,19 @@ describe('user-scoped schedules routes', () => {
       // Victim = a different (second) user + their schedule.
       const victimUser = insertUser(db, makeUser())
       const victim = seedScheduleRow(db, victimUser.id, null)
-      const app = createApp({ db, logger: silentLogger })
+      const app = createApp({ db, logger: silentLogger, scheduleFireDeps: stubFireDeps() })
 
       // The attacker's list never shows the victim's schedule.
       expect(((await (await app.request('/schedules')).json()) as unknown[])).toHaveLength(0)
 
-      // Every id-op on the victim's schedule is an identical 404.
+      // Every id-op on the victim's schedule is an identical 404 — fire-now
+      // included (manualFireSchedule authorizes by userId before any turn).
       expect((await app.request(`/schedules/${victim.id}`, jsonBody('PATCH', { displayName: 'x' }))).status).toBe(404)
       expect((await app.request(`/schedules/${victim.id}`, { method: 'DELETE' })).status).toBe(404)
       expect((await app.request(`/schedules/${victim.id}/enable`, { method: 'POST' })).status).toBe(404)
       expect((await app.request(`/schedules/${victim.id}/disable`, { method: 'POST' })).status).toBe(404)
       expect((await app.request(`/schedules/${victim.id}/runs`)).status).toBe(404)
+      expect((await app.request(`/schedules/${victim.id}/fire-now`, { method: 'POST' })).status).toBe(404)
     })
   })
 })
