@@ -7,7 +7,7 @@
 // preserves the description even if the labels-map below evolves
 // (mirrors the actionKind-stored-at-insert precedent — D8).
 
-import type { ApprovalRuleMatcher } from './approvals-types.js'
+import type { ApprovalRuleMatcher } from '../approvals-types.js'
 
 const ACTION_KIND_LABELS: Record<string, string> = {
   'email-send': 'send emails',

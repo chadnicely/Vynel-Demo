@@ -7,7 +7,7 @@ import {
   insertApprovalRequest,
   findApprovalRequestById,
   type NewApprovalRequest,
-} from './repositories/index.js'
+} from '../repositories/index.js'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { recoverStalePendingApprovals } from './recover-stale-pending-approvals.js'
 

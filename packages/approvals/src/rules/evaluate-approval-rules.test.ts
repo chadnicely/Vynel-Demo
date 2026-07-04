@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { evaluateApprovalRules } from './evaluate-approval-rules.js'
-import type { ApprovalRule, ApprovalRuleMatcher } from './approvals-types.js'
+import type { ApprovalRule, ApprovalRuleMatcher } from '../approvals-types.js'
 
 function makeRule(overrides: {
   isEnabled?: boolean

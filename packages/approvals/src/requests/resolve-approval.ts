@@ -13,19 +13,19 @@
 
 import { randomUUID } from 'node:crypto'
 import { resolveAiAgentProvider } from '@vynel/providers'
-import * as approvalRequestsRepository from './repositories/index.js'
+import * as approvalRequestsRepository from '../repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { ConflictError, NotFoundError } from '@vynel/errors'
-import { APPROVAL_USER_RESOLVED, type ApprovalResolvedPayload } from './approvals-events.js'
+import { APPROVAL_USER_RESOLVED, type ApprovalResolvedPayload } from '../approvals-events.js'
 import {
   saveApprovalRuleFromDecision,
   type RememberRuleInput,
-} from './save-approval-rule-from-decision.js'
-import type { ApprovalRequest, StructuralLogger } from './approvals-types.js'
+} from '../rules/save-approval-rule-from-decision.js'
+import type { ApprovalRequest, StructuralLogger } from '../approvals-types.js'
 import { withTransaction, type Database } from '@vynel/db'
 import type { AiAgentProviderId, ApprovalDecision } from '@vynel/providers'
 
-export type { RememberRuleInput } from './save-approval-rule-from-decision.js'
+export type { RememberRuleInput } from '../rules/save-approval-rule-from-decision.js'
 
 export type ResolveApprovalInput = {
   providerApprovalId: string

@@ -7,7 +7,7 @@ import {
   insertApprovalRequest,
   listApprovalRequestsForWorkspace,
   type NewApprovalRequest,
-} from './repositories/index.js'
+} from '../repositories/index.js'
 import { purgeOldApprovalRequests } from './purge-old-approval-requests.js'
 
 function makeUser() {

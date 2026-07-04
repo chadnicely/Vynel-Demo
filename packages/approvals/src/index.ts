@@ -29,36 +29,36 @@ export type {
 export { deriveActionKind, ACTION_KIND_MAPPINGS } from './derive-action-kind.js'
 export type { ActionKindMapping } from './derive-action-kind.js'
 
-export { evaluateApprovalRules } from './evaluate-approval-rules.js'
-export type { EvaluateApprovalRulesInput, RuleMatch } from './evaluate-approval-rules.js'
+export { evaluateApprovalRules } from './rules/evaluate-approval-rules.js'
+export type { EvaluateApprovalRulesInput, RuleMatch } from './rules/evaluate-approval-rules.js'
 
-export { describeApprovalRule } from './describe-approval-rule.js'
+export { describeApprovalRule } from './rules/describe-approval-rule.js'
 
-export { recordApprovalRequest } from './record-approval-request.js'
+export { recordApprovalRequest } from './requests/record-approval-request.js'
 export type {
   RecordApprovalRequestInput,
   RecordApprovalRequestOutput,
-} from './record-approval-request.js'
+} from './requests/record-approval-request.js'
 
-export { resolveApproval } from './resolve-approval.js'
-export type { ResolveApprovalInput, RememberRuleInput } from './resolve-approval.js'
+export { resolveApproval } from './requests/resolve-approval.js'
+export type { ResolveApprovalInput, RememberRuleInput } from './requests/resolve-approval.js'
 
 // The global approval-queue read — every pending card for a user across all
 // sessions/workspaces + the brain (the "answer from any screen" surface; its HTTP
 // route lands with apps/api).
 export { listPendingApprovalsForUser } from './repositories/index.js'
 
-export { saveApprovalRuleFromDecision } from './save-approval-rule-from-decision.js'
-export type { SaveApprovalRuleFromDecisionInput } from './save-approval-rule-from-decision.js'
+export { saveApprovalRuleFromDecision } from './rules/save-approval-rule-from-decision.js'
+export type { SaveApprovalRuleFromDecisionInput } from './rules/save-approval-rule-from-decision.js'
 
-export { softDeleteApprovalRule } from './soft-delete-approval-rule.js'
-export type { SoftDeleteApprovalRuleInput } from './soft-delete-approval-rule.js'
+export { softDeleteApprovalRule } from './rules/soft-delete-approval-rule.js'
+export type { SoftDeleteApprovalRuleInput } from './rules/soft-delete-approval-rule.js'
 
-export { recoverStalePendingApprovals } from './recover-stale-pending-approvals.js'
-export type { RecoverStalePendingApprovalsResult } from './recover-stale-pending-approvals.js'
+export { recoverStalePendingApprovals } from './requests/recover-stale-pending-approvals.js'
+export type { RecoverStalePendingApprovalsResult } from './requests/recover-stale-pending-approvals.js'
 
-export { purgeOldApprovalRequests } from './purge-old-approval-requests.js'
-export type { PurgeOldApprovalRequestsResult } from './purge-old-approval-requests.js'
+export { purgeOldApprovalRequests } from './requests/purge-old-approval-requests.js'
+export type { PurgeOldApprovalRequestsResult } from './requests/purge-old-approval-requests.js'
 
-export { purgeDeletedApprovalRules } from './purge-deleted-approval-rules.js'
-export type { PurgeDeletedApprovalRulesResult } from './purge-deleted-approval-rules.js'
+export { purgeDeletedApprovalRules } from './rules/purge-deleted-approval-rules.js'
+export type { PurgeDeletedApprovalRulesResult } from './rules/purge-deleted-approval-rules.js'

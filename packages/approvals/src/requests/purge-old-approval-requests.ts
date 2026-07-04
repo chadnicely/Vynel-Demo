@@ -5,9 +5,9 @@
 // No outbox event on purge (consumers don't need to know audit was
 // reaped). Same shape as chat's purgeDeletedChatSessions.
 
-import * as approvalRequestsRepository from './repositories/index.js'
+import * as approvalRequestsRepository from '../repositories/index.js'
 import type { Database } from '@vynel/db'
-import type { StructuralLogger } from './approvals-types.js'
+import type { StructuralLogger } from '../approvals-types.js'
 
 const RETENTION_DAYS = 90
 const MS_PER_DAY = 24 * 60 * 60 * 1000

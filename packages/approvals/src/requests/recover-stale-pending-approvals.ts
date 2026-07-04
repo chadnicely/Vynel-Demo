@@ -14,10 +14,10 @@
 // approvals the user might still be actively deciding.
 
 import { randomUUID } from 'node:crypto'
-import * as approvalRequestsRepository from './repositories/index.js'
+import * as approvalRequestsRepository from '../repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
-import { APPROVAL_TIMED_OUT, type ApprovalResolvedPayload } from './approvals-events.js'
-import type { StructuralLogger } from './approvals-types.js'
+import { APPROVAL_TIMED_OUT, type ApprovalResolvedPayload } from '../approvals-events.js'
+import type { StructuralLogger } from '../approvals-types.js'
 import { withTransaction, type Database } from '@vynel/db'
 
 const SAFETY_LOOKBACK_MS = 60_000 // 1 minute — anything younger can't be stale yet at the 5-min default

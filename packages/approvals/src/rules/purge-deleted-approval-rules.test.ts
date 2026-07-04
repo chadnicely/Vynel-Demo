@@ -8,7 +8,7 @@ import {
   updateApprovalRule,
   listApprovalRulesForWorkspace,
   type NewApprovalRule,
-} from './repositories/index.js'
+} from '../repositories/index.js'
 import { purgeDeletedApprovalRules } from './purge-deleted-approval-rules.js'
 
 function makeUser() {

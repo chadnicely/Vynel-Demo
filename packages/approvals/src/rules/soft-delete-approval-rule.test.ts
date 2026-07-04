@@ -17,7 +17,7 @@ import {
   insertApprovalRule,
   findApprovalRuleById,
   type NewApprovalRule,
-} from './repositories/index.js'
+} from '../repositories/index.js'
 import { softDeleteApprovalRule } from './soft-delete-approval-rule.js'
 
 function makeUser() {

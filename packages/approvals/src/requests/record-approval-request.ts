@@ -13,20 +13,20 @@
 
 import { randomUUID } from 'node:crypto'
 import { resolveAiAgentProvider } from '@vynel/providers'
-import * as approvalRequestsRepository from './repositories/index.js'
-import * as approvalRulesRepository from './repositories/index.js'
+import * as approvalRequestsRepository from '../repositories/index.js'
+import * as approvalRulesRepository from '../repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { withTransaction, type Database } from '@vynel/db'
 import type { AiAgentProviderId } from '@vynel/providers'
-import { deriveActionKind } from './derive-action-kind.js'
-import { evaluateApprovalRules } from './evaluate-approval-rules.js'
+import { deriveActionKind } from '../derive-action-kind.js'
+import { evaluateApprovalRules } from '../rules/evaluate-approval-rules.js'
 import {
   APPROVAL_REQUESTED,
   APPROVAL_AUTO_RESOLVED,
   type ApprovalRequestedPayload,
   type ApprovalResolvedPayload,
-} from './approvals-events.js'
-import type { ApprovalRequest, StructuralLogger } from './approvals-types.js'
+} from '../approvals-events.js'
+import type { ApprovalRequest, StructuralLogger } from '../approvals-types.js'
 
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000
 

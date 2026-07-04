@@ -7,7 +7,7 @@
 // `auto-approve-tool-name-with-args` variant + its field-picker UI land
 // in Phase 1.5 together.
 
-import type { ActionKind, ApprovalRule, ApprovalRuleMatcher } from './approvals-types.js'
+import type { ActionKind, ApprovalRule, ApprovalRuleMatcher } from '../approvals-types.js'
 
 export type EvaluateApprovalRulesInput = {
   toolName: string

@@ -7,9 +7,9 @@
 // (the WHERE clause filters active rows); this wrapper translates that
 // to NotFoundError per error-handling.md layering.
 
-import * as approvalRulesRepository from './repositories/index.js'
+import * as approvalRulesRepository from '../repositories/index.js'
 import { NotFoundError } from '@vynel/errors'
-import type { ApprovalRule, StructuralLogger } from './approvals-types.js'
+import type { ApprovalRule, StructuralLogger } from '../approvals-types.js'
 import { withTransaction, type Database } from '@vynel/db'
 
 export type SoftDeleteApprovalRuleInput = {
