@@ -4,46 +4,49 @@
 memories (`vynel-vision-and-old-project-lesson` = the founding vision + old-project scatter we must NOT
 repeat; `vynel-rebuild-plan`; `worktree-fanout-isolation`). State lives on disk, not chat.
 
-## ⏭ NEXT ACTION: the `@vynel/session` keystone (the substrate is IN)
-**Reframe (2026-07-04):** `@vynel/session` is the APEX of a stack whose walls weren't in KLONE. The old
-`refactor/session-library` is mid-migration — it extracted only the global-root turn *core* + the `SessionSink`
-contract into `packages/session`; the bulk (delegation, composers, seeded-swap, resolvers, sinks) still lives
-across a 28-file `apps/api/src/sessions/`. Session hard-imports **`chat` · `orchestration` ·
-`session-continuity`** — the substrate. **Both `chat` (`1568e91`) and `orchestration` (`c5e0622`) are now
-DONE**; `session-continuity` folds INTO session (Chad: continuity is a *feature of session*).
-Journals: `.claude/journal/2026-07-04-{chat,orchestration}-pull.md` + `docs/module-notes/{chat,orchestration}.md`.
+## ⏭ NEXT ACTION: `@vynel/session` Slice 2 — the runners
+**Full plan + the reframing + the architecture decision: `docs/module-notes/session.md` (read it first).**
 
-**`orchestration` is DONE — landed green + faithfulness-proven, committed `c5e0622` + pushed.** New
-`@vynel/orchestration` (the delegation engine, "the VERB over the `agents` noun") — schema+repos git-mv'd from
-kernel, logic foldered (`leaf`/`agents`/`records`/`queries`/`routing`; `leaf/` groups the delegation-runtime
-cluster whose hub is `drain-leaf-turn`). EXCLUDED `resolve-delegation-trace` (the one chat-reader → session/monitor
-tier) so its only cross-dep is `agents` (by-design). Behavior-neutral (drizzle "No schema changes"), gate green
-(typecheck 43 · parity 30 · vitest 1133). Every pulled body diff-proven byte-identical modulo import rewires.
-Full record: `docs/module-notes/orchestration.md`.
+**The keystone is SMALLER than STATE assumed.** The source already did its hard refactor (B0–B2b: SessionSink,
+global-root twin collapsed, global-root runner relocated) and **dropped the "one generic runner" goal** as
+wrong-shaped. So the pull is a faithful move of already-refactored, scope-specific code — NOT a grand unifier.
 
-**NEXT — `@vynel/session`** — the composition tier, built LAST (Chad: ONE focused session, NOT fanned out;
-continuity is a *feature of session*, not a package). It **houses**: continuity (old 20-file
-`session-continuity/` — renew-before-compaction, `root`→**`primary`** renamed here where `primary_sessions`
-lands) + ALL runners (`start-chat-turn` (workspace) + global-root + seeded-swap + delegation) + composers +
-resolvers + SSE sinks. Old source: `packages/session` + `apps/api/src/sessions/` (the 28-file spread to UNIFY)
-+ `apps/api/src/streams/`. **§5 primitive:** `Session({ scope: global|workspace|agent, toolSet:
-McpFeatureDescriptor[], sink, realtime, background, tracking })` — stable `primarySessionId` → swappable SDK
-session. Read `docs/architecture.md` §5 first.
+**Architecture (owner-confirmed): `@vynel/session` = parent of chat; the turn service returning stream|response.**
+`session → chat`/`orchestration`/continuity, all down; chat + orchestration are continuity-FREE (verified) →
+**continuity ∈ session is cycle-free**. Monitor was CUT by Chad (removed the one entanglement). The migration
+plan's "continuity in core" was a monolith-only cycle artifact decomposition removes. Features (schedules/channels)
+decouple turn-firing (outbox / injected dep), never import the runner up (invariant #2).
 
-**The ③ agent-turn MCP binding rides on session** (unblocks running memory+knowledge+chat-context WITH Claude):
-- The seam ALREADY forwards `mcpServers` into the SDK `query` (`providers/src/claude/base/build-claude-sdk-options.ts`).
-- **`desktop-control` is the WORKING REFERENCE** — an `McpFeatureDescriptor` + in-process `createSdkMcpServer`.
-  Build `composeSessionMcpServers()`: gather ENABLED (capability-gated) descriptors → in-process servers →
-  `startChatSession({ mcpServers })`; inject `build-memory-session-contribution` when memory is enabled.
-- **knowledge + memory + chat each owe an `McpFeatureDescriptor`** — chat's = the MCP-readable *context* surface
-  (seeded by `context/get-session-context-report`) so a post-swap session recalls context on demand.
-  desktop-control is the only feature with a descriptor today.
+**`@vynel/session` Slice 1 is DONE — committed `4e12297` (local, unpushed).** Created the package + folded in
+the `continuity` concern (13-file logic, byte-faithful) + did the **`root → primary` rename** (table
+`primary_sessions`, all identity types/fns/files; filesystem `rootDir` untouched). **Migration folded into the
+`0000` baseline** (Chad's call — pre-release/zero-data → edit baseline+snapshot, no rename migration; sets that
+precedent). Green: drizzle "No schema changes", parity 30, vitest 1162. Journal
+`.claude/journal/2026-07-04-session-slice1.md`.
 
-**Paired with the session pull (Chad's directive): complete `approvals`** — fold it into concern-folders
-(the improve queue) AND decouple the deferred **`chat → approvals`** lazy-import seam (injected dep or outbox)
-in the same push.
+**NEXT — Slice 2: the runners.** Pull from old `packages/session/runtime/` + the Hono-free `apps/api/src/sessions/`
+helpers: global-root runner + `start-chat-turn` (workspace) + seeded-swap + root-turn-lock + global-root-instructions
++ resolvers (`resolve-*-conversation`) + composers (`compose-session-{capabilities,mcp-servers}`) +
+continuity-application (`apply-root-turn-continuity`, `bridge-root-session-after-turn`). **+ the web-safe mode
+barrel + the `./runtime` subpath split** (migration-plan hard constraint #1 — the barrel must stay web-safe once
+the mode model lands). Assess: may `@vynel/session` dep the MCP producers (`@vynel/mcp`+`@vynel/desktop-control`),
+or does MCP composition stay at the app edge? (`api-side-turn-execution-with-mcp`).
+
+**Then — Slice 3 (app wiring, when `apps/api` lands):** the SSE sinks (`streams/{chat-turn,global-root-turn}`),
+the `delegate-to-*` compositions, `run-delegation-claim-and-run-tick`, origin-wrap. **The ③ agent-turn MCP
+binding** rides here (`composeSessionMcpServers` → `startChatSession({ mcpServers })`; desktop-control is the
+working `McpFeatureDescriptor` reference; knowledge/memory/chat each still owe one). **`approvals` completion**
+(fold + decouple the `chat → approvals` lazy-import seam) pairs with the runners — the injection point
+(`start-chat-turn`) arrives in Slice 2. **b-lead owner-forks (later):** event-vocab unification; approval Fork 2
+(`surface-up`). Deferred Layer-B vocab: `globalRootSessionId`/`rootSessionId` fields rename when these land.
 
 ## ✅ Recently done (most recent first)
+- **`@vynel/session` Slice 1 — continuity foundation + `root→primary` rename `4e12297` (local)** —
+  created the keystone package; folded the 13-file continuity logic + git-mv'd its schema/repos from kernel
+  (`primary_sessions`); renamed the durable-session-identity concept `root→primary` (filesystem `rootDir`
+  untouched). Migration FOLDED INTO the `0000` baseline (Chad's call — pre-release/zero-data). Green: drizzle
+  "No schema changes", parity 30, vitest 1162. Architecture: continuity ∈ session, cycle-free (chat+orchestration
+  continuity-free); monitor CUT. Journal `.claude/journal/2026-07-04-session-slice1.md` + `docs/module-notes/session.md`.
 - **orchestration vertical-slice + fold `c5e0622` (pushed)** — new `@vynel/orchestration`
   (delegation engine); schema+repos git-mv'd from kernel, logic foldered (`leaf`/`agents`/`records`/`queries`/`routing`),
   `resolve-delegation-trace` EXCLUDED (→ session/monitor tier → keeps orchestration chat-free; only cross-dep = `agents`,
