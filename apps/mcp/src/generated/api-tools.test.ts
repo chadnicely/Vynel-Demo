@@ -70,12 +70,16 @@ const EXPECTED_TOOL_NAMES = [
   'search_memory',
 ] as const
 
-// The ROUTING tools live in a SEPARATE array (path-prefix /routing/) — only the
-// global-root turn's in-process server gets them, so the normal chat turn stays
-// byte-for-byte. Landed with the routing vertical (2026-07-05).
+// The ROUTING (brain) tools live in a SEPARATE array — only the global-root
+// turn's in-process server gets them, so the normal chat turn stays byte-for-
+// byte. Membership is path-prefix `/routing/` OR `x-mcp.rootSurface: true`.
+// Landed with the routing vertical (2026-07-05); `register_workspace` (the
+// user sets up a workspace from the global conversation — rootSurface, mutating
+// → cards) joined 2026-07-05.
 const EXPECTED_ROUTING_TOOL_NAMES = [
   'list_routing_channels',
   'list_routing_workspaces',
+  'register_workspace',
   'route_to_workspace',
   'send_to_channel',
 ] as const

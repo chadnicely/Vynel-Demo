@@ -9,6 +9,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The assistant can create workspaces (MCP tool).** `register_workspace` — a brain-surface, mutating
+  MCP tool bound to the global-root turn — lets the user set up a new workspace straight from the global
+  conversation ("set up a bookkeeping workspace in C:\Users\me\Bookkeeping"); it fires an approval card
+  before creating. Introduces an `x-mcp.rootSurface` flag so a user-scoped route can be routed to the
+  brain's toolset without living under `/routing/`.
+
 - **The complete HTTP API surface — every remaining vertical landed** (109 paths → 131 typed SDK
   methods across 22 namespaces, 33 MCP tools): workspaces, memory, agents, capabilities, users,
   files, **chat (12 routes + the `chat-turn` SSE stream)**, **root (global chat reads + the

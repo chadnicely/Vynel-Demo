@@ -46,6 +46,11 @@ type XMcp = {
   // Spelling deferred to first-mutating-tool per Q8; the generator
   // currently rejects ANY non-GET method, which is the safest gate.
   mutatingApproved?: boolean
+  // Route this tool to the GLOBAL-ROOT ("brain") surface instead of the
+  // workspace surface. The default split is path-based (`/routing/*`); a
+  // user-scoped brain tool that doesn't live under `/routing/` (e.g. creating a
+  // workspace) opts in here so it lands in `generatedRoutingMcpTools`.
+  rootSurface?: boolean
 }
 
 type OpenApiObjectSchema = {
@@ -149,7 +154,7 @@ for (const [pathKey, methods] of Object.entries(paths)) {
       queryParams: allParams.filter((p) => p.in === 'query'),
       bodyFields,
       isMutating,
-      isRouting: pathKey.startsWith('/routing/'),
+      isRouting: pathKey.startsWith('/routing/') || mcp.rootSurface === true,
     })
   }
 }

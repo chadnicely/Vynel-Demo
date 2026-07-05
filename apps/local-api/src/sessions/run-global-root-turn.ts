@@ -12,13 +12,11 @@
 // (`@vynel/session/runtime`), not here — it is the sole lock acquirer (a nested
 // same-user acquire on the non-reentrant lock would deadlock).
 //
-// PHASE-NOW: the routing MCP is the only descriptor composed, and KLONE's
-// `vynelRoutingDescriptor.build` returns null today (the routing tools are empty
-// until the delegate route lands) — so the composer yields an EMPTY MCP set and the
-// global root answers DIRECTLY (no delegation). That is the expected behavior for
-// this phase; delegation attaches when the routing tools + delegate route land.
-// (Desktop observation, present on the source's channel root, is intentionally out
-// of scope here — no desktop-notification reader is wired at boot in KLONE.)
+// The routing descriptor is the only one composed here — it carries the brain's
+// tools: delegate a task to a workspace, send to a channel, list workspaces /
+// channels, and register a new workspace (the mutating one — it cards). Desktop
+// observation, present on the source's channel root, is intentionally out of
+// scope — no desktop-notification reader is wired at boot in KLONE.
 
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'

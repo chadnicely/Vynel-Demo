@@ -24,10 +24,14 @@ tests, −demo tests). The demo data layer no longer exists.
 - **Stale demo `activeWorkspaceId` in localStorage — FIXED (`4d3222f`).** WorkspaceView only auto-picked a
   workspace when the stored id was null; a leftover `demo-ws-bookkeeping` slipped through → 404s. Now
   reconciles any persisted-but-missing id to the first real workspace (or null) once the list loads.
-- **No create-workspace UI (real gap, NOT M7 scope).** The switcher only SELECTS; fresh DB = 0 workspaces
-  and no way to make one in-app. So: smoke GLOBAL chat first (needs no workspace); seed a workspace via
-  `POST /workspaces {name, directory}` (gate off) for workspace features. Offered to build the "+"→register
-  flow — Chad's call.
+- **Create-workspace — SOLVED via MCP (Chad's pick over a UI form).** No UI switcher-"+" create yet, BUT
+  the assistant can now create workspaces conversationally: `register_workspace` is a **brain-surface**
+  (`x-mcp.rootSurface: true` — a new generator flag routing a user-scoped tool to `generatedRoutingMcpTools`
+  without a `/routing/` path), **mutating → CARDS** (in `vynelRoutingDescriptor.mutatingToolNames`; card
+  fires on both global-root surfaces — reviewer-traced). Regen: 34 MCP tools. Gate green, reviewer CLEAN.
+  So on a fresh DB, tell the global chat "set up a workspace for X at C:\path" → it cards → creates.
+  (A UI "+"→register form is still a nice-to-have; not built.) Files: route x-mcp on `POST /workspaces`,
+  `McpExtension.rootSurface`, generator `isRouting || rootSurface`, descriptor mutatingToolNames.
 
 **⚠ TWO LIVE-BOOT PREREQS (checked the files; #2 is a real blocker on a fresh DB):**
 1. **Vite `/api` proxy — FINE.** `apps/local-web/vite.config.ts` forwards `/api/*` (wildcard, rewrite

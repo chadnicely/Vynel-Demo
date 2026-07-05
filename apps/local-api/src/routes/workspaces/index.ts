@@ -99,6 +99,22 @@ export const workspacesApp = factory
       tags: ['workspaces'],
       summary: 'Register an existing directory as a workspace.',
       'x-sdk-name': 'workspaces.register',
+      // A brain-surface tool (rootSurface) — the user sets up workspaces from the
+      // global conversation, not from inside a workspace. Mutating → cards.
+      'x-mcp': {
+        exposed: true,
+        name: 'register_workspace',
+        mutatingApproved: true,
+        rootSurface: true,
+        description:
+          "Create a new workspace for the user — a project or business area (e.g. 'Bookkeeping', " +
+          "'Marketing site') the assistant works in, with its own files, chat, and tools. `name` is " +
+          'the display name. `directory` is an EXISTING absolute folder path on disk that becomes the ' +
+          "workspace root — confirm the exact path with the user first; the call fails if the folder " +
+          "doesn't exist, isn't a directory, isn't writable, or is already a workspace. `kind` is " +
+          'optional (personal / small-business / project / custom). Creating a workspace is a setup ' +
+          'action the user approves. Returns the created workspace.',
+      },
       responses: {
         201: {
           description: 'Workspace created.',

@@ -973,6 +973,44 @@ export const listWorkspaces: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const registerWorkspace: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'register_workspace',
+    "Create a new workspace for the user — a project or business area (e.g. 'Bookkeeping', 'Marketing site') the assistant works in, with its own files, chat, and tools. `name` is the display name. `directory` is an EXISTING absolute folder path on disk that becomes the workspace root — confirm the exact path with the user first; the call fails if the folder doesn't exist, isn't a directory, isn't writable, or is already a workspace. `kind` is optional (personal / small-business / project / custom). Creating a workspace is a setup action the user approves. Returns the created workspace.",
+    {
+    name: z.string(),
+    kind: z.enum(['small-business', 'personal', 'project', 'custom']).optional(),
+    directory: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/workspaces'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['name', 'kind', 'directory']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const removeKnowledgeSource: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'remove_knowledge_source',
@@ -1243,6 +1281,7 @@ export const generatedMcpTools: McpToolFactory[] = [
 export const generatedRoutingMcpTools: McpToolFactory[] = [
   listRoutingChannels,
   listRoutingWorkspaces,
+  registerWorkspace,
   routeToWorkspace,
   sendToChannel,
 ]

@@ -27,6 +27,13 @@ export interface McpExtension {
    * to the per-route scope review `sdk-mcp.md` requires.
    */
   mutatingApproved?: boolean
+  /**
+   * Route this tool to the GLOBAL-ROOT ("brain") surface instead of the
+   * workspace surface. The generator's default split is path-based
+   * (`/routing/*` → the root's toolset); a user-scoped brain tool that doesn't
+   * live under `/routing/` (e.g. registering a workspace) sets this to `true`.
+   */
+  rootSurface?: boolean
 }
 
 // The `hono-openapi` describeRoute accepts a wide options object plus

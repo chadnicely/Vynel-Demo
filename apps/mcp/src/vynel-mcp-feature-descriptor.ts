@@ -56,11 +56,13 @@ export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
   capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
 }
 
-// The routing-only tools for a GLOBAL-ROOT turn (the root SEES workspaces +
-// DELEGATES, never reads them). No capability gate + no mutating tool in the
-// routing set. Lands ready for the global-root routing surface.
+// The brain's tools for a GLOBAL-ROOT turn: the routing tools (SEE workspaces +
+// DELEGATE, never read them) plus `register_workspace` — a rootSurface tool that
+// lets the user set up a new workspace from the global conversation. No
+// capability gate. `register_workspace` is mutating, so it's declared here and
+// the composer unions it into the approval backstop → it cards on use.
 export const vynelRoutingDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
   build: (context) => buildGlobalRootMcpServer(toMcpScope(context), context.appRequest),
-  mutatingToolNames: [],
+  mutatingToolNames: ['mcp__vynel__register_workspace'],
 }
