@@ -15,6 +15,7 @@ import {
 import type { ActiveTurnView } from "./active-turn-view.js";
 import { sessionKeys } from "./session-keys.js";
 import type { SessionScope } from "./session-scope.js";
+import { workspaceKeys } from "../workspaces/workspace-keys.js";
 
 // Drives one live turn against the real SSE stream. Each ChatTurnEvent folds
 // into the active-turn view (transport-blind — the same pure fold the parser
@@ -94,6 +95,11 @@ export function useChatTurn(options: {
 
     // The server persisted the turn — reconcile every session view by refetch.
     await queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+    // A global (brain) turn can create a workspace via register_workspace —
+    // refresh the list so a newly created one appears without a manual refetch.
+    if (scope.kind === "global") {
+      void queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
+    }
     view.value = null;
     activeSessionId.value = null;
   }
