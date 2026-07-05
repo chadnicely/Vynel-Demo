@@ -1,10 +1,40 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-04.** After a compaction read this first, then `CLAUDE.md` → `docs/architecture.md` + the
-memories (`vynel-vision-and-old-project-lesson` = the founding vision + old-project scatter we must NOT
-repeat; `vynel-rebuild-plan`; `worktree-fanout-isolation`). State lives on disk, not chat.
+**Updated 2026-07-05 (evening).** After a compaction read this first, then `CLAUDE.md` →
+`docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (for Chad's return, 2026-07-04): the AUTOPILOT MISSION IS COMPLETE — pick up the deferred app-wiring
+## ⏭ NEXT ACTION: THE API IS COMPLETE — swap the UI demo seam to real data (M7)
+
+**🏁 API-COMPLETION MISSION DONE (2026-07-05, agent-driven waves; journal
+`.claude/journal/2026-07-05-api-completion.md`).** Every remaining source route group is ported,
+mounted, typed, gated, reviewed (CLEAN after 1 must-fix closed), and committed — 7 commits
+`512de7a..4a5c31a` (local, unpushed). **Surface: 109 paths · 131 SDK methods · 22 namespaces ·
+33 MCP tools** (29 main + 4 routing in the global-root-only array). Full unfiltered `pnpm test`
+green: typecheck 64/64 · parity · **1835 passed / 4 skip**. Boot smoke: 109 live paths; schedules +
+channels + **delegation** services all start.
+
+**What landed on top of the previous state:** chat (12 + `chat-turn` SSE) · root (6 +
+`global-root-turn` SSE + trace) · routing (4 + claim-and-run tick + `services/delegation-service`)
+· workspaces/memory/agents/capabilities/users/files · providers (+`packages/providers/src/status/`)
+· `@vynel/onboarding` (decoupled leaf, `OnboardingDeps` injection, first-launch gate behind
+`enableFirstLaunchGate` — server-only) · approvals workspace+rules (user queue → `user-scoped.ts`)
+· `GET /dashboard/overview` (net-new, models the UI demo aggregate). **Plus the class fix: response
+schemas on every JSON 200/201** (description-only responses made the whole SDK return
+`Promise<never>` — only knowledge was typed) + the generator path-param typing fix.
+
+**⏭ For Chad (the M7 swap, per `docs/module-notes/desktop-ui.md`):** delete `src/demo/`, regen, adapt
+per-namespace. Already discovered at the seam (fixed in-tree): workspaces list = **bare array** on the
+real wire; dashboard `recentSessions[].workspaceId` is **nullable** (null = global-root). `GET
+/sessions` returns `ChatSessionListItem` (adds `lastMessagePreview`). Still owed to the UI:
+**`ChatTurnEvent` `approval-requested` lacks `actionKind`** (contracts change — do deliberately).
+
+**Deferred (non-blocking):** CLI mirrors for the 14 new namespaces (mission was "api only") ·
+route files >300-line sweep (chat/index.ts 397 worst; `files/` shows the sub-router split) ·
+onboarding outbox events (faithful-absent) · desktop observation on the web root turn (no
+desktop-control in local-api) · the pre-existing integration-test seam. **Autopilot learnings**
+(network-drop agent casualties, workflow-resume cache miss vs live rewriters) are in the journal.
+
+## (previous) 2026-07-04 autopilot — the remaining-leaves mission
 **🏁 The "remaining leaves" autopilot finished GREEN.** All 5 leaves landed as per-feature verticals
 (voice · skills · channels · schedules · marketplace), each pull → decouple → scope-improve → HTTP API →
 full-gate → code-reviewer → commit. Suite **1462 passed / 4 skip**; **10 commits `0194ec3..3a92ed5`**

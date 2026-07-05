@@ -9,6 +9,26 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The complete HTTP API surface — every remaining vertical landed** (109 paths → 131 typed SDK
+  methods across 22 namespaces, 33 MCP tools): workspaces, memory, agents, capabilities, users,
+  files, **chat (12 routes + the `chat-turn` SSE stream)**, **root (global chat reads + the
+  `global-root-turn` SSE stream + delegation trace drill-down)**, **routing (task dispatch to
+  workspaces + proactive channel sends, executed by a new boot-time delegation service)**,
+  providers (install/auth status), **onboarding** (new decoupled `@vynel/onboarding` leaf, 5 wizard
+  routes, first-launch gate — production 412s non-onboarding routes until setup completes),
+  approvals workspace pending/audit + approval-rules, and the net-new `GET /dashboard/overview`
+  aggregate for the Home screen.
+- **Typed responses everywhere:** every JSON 200/201 now declares its real wire shape (previously
+  75 of 83 operations were description-only, so the generated SDK returned `Promise<never>` for
+  everything except knowledge — the UI's typed data layer now actually holds repo-wide).
+
+### Fixed
+
+- Namespaced-SDK generator: path params are typed from the OpenAPI spec (a literal-enum path param
+  like capabilities' `capabilityId` previously broke the generated client's typecheck).
+- Home dashboard: global-root conversation rows carry `workspaceId: null` on the real wire; the
+  view now routes them to the global chat (the demo had used a sentinel id).
+
 - **`@vynel/ui` — the shared component library** (design tokens + components for every Vynel surface).
   Cool-slate dark/light token system with ONE reserved accent — gold means "the assistant is running or
   needs you" (presence dot, live pulses, approval cards, stream cursor). Components: SegmentedTabs,
