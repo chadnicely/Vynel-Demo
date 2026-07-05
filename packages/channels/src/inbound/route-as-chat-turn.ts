@@ -13,6 +13,7 @@
 // Spec: `.claude/ceo/agent-base/chapter4-channel-aware-io.md`.
 
 import { enqueueChannelReply } from '../delivery/enqueue-channel-reply.js'
+import { enqueueChannelStatus } from '../delivery/enqueue-channel-status.js'
 import { resolveChannelAdapter } from '../adapters/channel-adapter-registry.js'
 import { extractErrorMessage } from '../adapters/extract-error-message.js'
 import type { Database } from '@vynel/db'
@@ -70,6 +71,17 @@ export async function routeAsChatTurn(
         body: rootTurnResult.resultText,
       })
     }
+  } catch (err) {
+    // The turn failed. Without a reply the sender just watches "typing…" stop and
+    // sees silence — so enqueue a brief user-facing apology for the delivery tick
+    // to ship, THEN re-throw so processInboundMessage still marks the inbound row
+    // failed + logs the scrubbed error (report-up unchanged).
+    enqueueChannelStatus(
+      db,
+      { channel: input.channel, message: input.message },
+      'Sorry — I hit an error handling that. Please try again.',
+    )
+    throw err
   } finally {
     if (typingTimer !== undefined) clearInterval(typingTimer)
   }

@@ -9,16 +9,12 @@
 //
 // Spec: `docs/blueprints/channels/blueprint.md §5.7`.
 
-import { randomUUID } from 'node:crypto'
 import { ConflictError, NotFoundError } from '@vynel/errors'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import * as channelsRepository from '../repositories/index.js'
+import { enqueueChannelStatus } from '../delivery/enqueue-channel-status.js'
 import type { Database } from '@vynel/db'
-import type {
-  Channel,
-  ChannelInboundMessage,
-  OutboundPayloadKind,
-} from '../repositories/index.js'
+import type { Channel, ChannelInboundMessage } from '../repositories/index.js'
 import type { ProcessInboundDeps } from '../channels-types.js'
 
 type ApprovalDecision = { kind: 'approved' } | { kind: 'denied'; reason: string }
@@ -59,32 +55,6 @@ function parseApprovalReply(messageBody: string): ParsedReply | null {
   return null
 }
 
-function enqueueStatus(
-  db: Database,
-  context: { channel: Channel; message: ChannelInboundMessage },
-  body: string,
-  payloadKind: OutboundPayloadKind = 'status-update',
-): void {
-  const now = new Date()
-  channelsRepository.insertOutboundMessage(db, {
-    id: randomUUID(),
-    channelId: context.channel.id,
-    externalRecipientId: context.message.externalSenderId,
-    externalChatContextId: context.message.externalChatContextId,
-    messageBody: body,
-    messageStructure: JSON.stringify({ parseMode: 'plain' }),
-    payloadKind,
-    status: 'pending',
-    statusMessage: null,
-    attemptCount: 0,
-    lastAttemptedAt: null,
-    nextAttemptAt: now,
-    externalSentMessageId: null,
-    enqueuedAt: now,
-    sentAt: null,
-  })
-}
-
 export async function routeAsApprovalReply(
   db: Database,
   input: { channel: Channel; message: ChannelInboundMessage },
@@ -92,7 +62,7 @@ export async function routeAsApprovalReply(
 ): Promise<void> {
   const parsed = parseApprovalReply(input.message.messageBody)
   if (!parsed) {
-    enqueueStatus(
+    enqueueChannelStatus(
       db,
       input,
       'I couldn’t read that approval reply. Tap Approve/Deny on the request, or reply “approve” or “deny <reason>”.',
@@ -111,7 +81,7 @@ export async function routeAsApprovalReply(
     approvalRequestId = pending?.routedToApprovalRequestId ?? null
   }
   if (approvalRequestId === null) {
-    enqueueStatus(db, input, 'There’s no pending approval to act on.')
+    enqueueChannelStatus(db, input, 'There’s no pending approval to act on.')
     return
   }
 
@@ -127,7 +97,7 @@ export async function routeAsApprovalReply(
       },
       deps.logger !== undefined ? { logger: deps.logger } : {},
     )
-    enqueueStatus(
+    enqueueChannelStatus(
       db,
       input,
       parsed.decision.kind === 'approved' ? '✅ Approved — continuing now.' : '❌ Denied.',
@@ -135,11 +105,11 @@ export async function routeAsApprovalReply(
     )
   } catch (err) {
     if (err instanceof NotFoundError) {
-      enqueueStatus(db, input, 'That approval is no longer available.')
+      enqueueChannelStatus(db, input, 'That approval is no longer available.')
       return
     }
     if (err instanceof ConflictError) {
-      enqueueStatus(db, input, 'That approval was already handled.')
+      enqueueChannelStatus(db, input, 'That approval was already handled.')
       return
     }
     throw err

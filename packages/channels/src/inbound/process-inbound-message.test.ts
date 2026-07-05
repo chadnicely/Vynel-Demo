@@ -77,15 +77,23 @@ describe('processInboundMessage — chat-turn routes to the global root (Ch4)', 
     })
   })
 
-  it('marks the row failed when the root turn throws (no reply queued)', async () => {
+  it('marks the row failed AND enqueues an error status back to the sender when the root turn throws', async () => {
     await withTestDatabase(async (db) => {
       const { channel } = seedChannelWithAllowedSender(db)
       const inbound = insertPendingChatTurnMessage(db, channel.id)
 
       await processInboundMessage(db, { inboundMessageId: inbound.id }, stubTurnDeps({ rootTurnThrows: true }))
 
+      // Report-up unchanged: the inbound row is still marked failed + logged.
       expect(findInboundMessageById(db, inbound.id)?.status).toBe('failed')
-      expect(listReadyOutboundMessages(db, {})).toHaveLength(0)
+
+      // The sender no longer sees silence — a brief error status is enqueued for
+      // the delivery tick to ship (payloadKind 'status-update', not a chat reply).
+      const queued = listReadyOutboundMessages(db, {})
+      expect(queued).toHaveLength(1)
+      expect(queued[0]?.payloadKind).toBe('status-update')
+      expect(queued[0]?.externalRecipientId).toBe('123456')
+      expect(queued[0]?.messageBody).toContain('error')
     })
   })
 })

@@ -21,6 +21,12 @@ import type { ProcessInboundDeps } from './channels-types.js'
 export { insertChannel } from './repositories/index.js'
 export type { NewChannel } from './repositories/index.js'
 
+// The outbound-queue reader — lets a cross-domain integration test (e.g.
+// schedules → channels delivery) assert the row a channel enqueued, without
+// widening the production barrel. Reads ALL statuses for the channel.
+export { listOutboundMessagesForChannel } from './repositories/index.js'
+export type { ChannelMessageQueueEntry } from './repositories/index.js'
+
 export function makeUser() {
   const now = new Date()
   return {

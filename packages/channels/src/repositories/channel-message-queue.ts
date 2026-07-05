@@ -43,6 +43,22 @@ export function listReadyOutboundMessages(
     .all()
 }
 
+// All outbound rows for a channel, oldest-enqueued first, REGARDLESS of status.
+// Not part of the delivery loop (which uses `listReadyOutboundMessages`) — it
+// backs the `@vynel/channels/test-support` outbound-queue reader so cross-domain
+// integration tests can assert what a channel enqueued.
+export function listOutboundMessagesForChannel(
+  db: Database,
+  channelId: string,
+): ChannelMessageQueueEntry[] {
+  return db
+    .select()
+    .from(channelMessageQueue)
+    .where(eq(channelMessageQueue.channelId, channelId))
+    .orderBy(asc(channelMessageQueue.enqueuedAt))
+    .all()
+}
+
 export function findOutboundMessageById(
   db: Database,
   id: string,
