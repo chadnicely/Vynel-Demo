@@ -1,0 +1,23 @@
+{
+  "name": "@vynel/onboarding",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vynel/contracts": "workspace:*",
+    "@vynel/db": "workspace:*",
+    "@vynel/errors": "workspace:*"
+  },
+  "devDependencies": {
+    "@vynel/testing": "workspace:*",
+    "typescript": "^5.6.0"
+  }
+}

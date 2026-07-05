@@ -1,0 +1,218 @@
+// Integration test for the net-new `dashboard` surface — full HTTP stack
+// against a local harness that mounts `dashboardApp` at `/dashboard` with the
+// same DI middleware + VynelError `onError` `createApp` wires (`dashboardApp`
+// is not mounted in app.ts yet — switch this harness to `createApp` from
+// ../../app.js once the integrator mounts it; the `root/index.test.ts`
+// precedent). Real SQLite via `@vynel/testing` — no mocks, since the route
+// only composes existing sync/async reads (no AI runtime involved).
+
+import { describe, it, expect } from 'vitest'
+import { randomUUID } from 'node:crypto'
+import pino from 'pino'
+import { Hono } from 'hono'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import { withTestDatabase } from '@vynel/testing'
+import { VynelError } from '@vynel/errors'
+import { insertUser } from '@vynel/db/repositories/users'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
+import { insertChatSession, type NewChatSession } from '@vynel/chat/repositories'
+import { insertSchedule, type NewSchedule } from '@vynel/schedules/test-support'
+import type { Database } from '@vynel/db'
+import type { AppEnv } from '../../factory.js'
+import { dashboardApp } from './index.js'
+
+const silentLogger = pino({ level: 'silent' })
+
+// Mirrors createApp's DI middleware + onError for the not-yet-mounted sub-app
+// (the `root/index.test.ts` harness precedent).
+function makeHarness(db: Database) {
+  const app = new Hono<AppEnv>()
+  app.use('*', async (c, next) => {
+    c.set('db', db)
+    c.set('logger', silentLogger)
+    c.set('appRequest', app.request.bind(app))
+    await next()
+  })
+  app.onError((err, c) => {
+    if (err instanceof VynelError) {
+      return c.json({ code: err.code, message: err.message }, err.httpStatus as ContentfulStatusCode)
+    }
+    c.var.logger.error({ err }, 'unhandled error')
+    return c.json({ code: 'internal_error', message: 'Internal server error.' }, 500)
+  })
+  app.route('/dashboard', dashboardApp)
+  return app
+}
+
+function seedUser(db: Database) {
+  const now = new Date()
+  return insertUser(db, {
+    id: randomUUID(),
+    displayName: 'Dana',
+    emailAddress: null,
+    locale: 'en-US',
+    timezone: 'UTC',
+    hasCompletedOnboarding: false,
+    createdAt: now,
+    updatedAt: now,
+  })
+}
+
+function seedWorkspace(db: Database, userId: string, overrides: { isArchived?: boolean } = {}) {
+  const now = new Date()
+  return insertWorkspace(db, {
+    id: randomUUID(),
+    userId,
+    name: 'Acme',
+    kind: 'small-business',
+    path: `/tmp/vynel/${randomUUID()}`,
+    isArchived: overrides.isArchived ?? false,
+    createdAt: now,
+    updatedAt: now,
+    lastAccessedAt: now,
+  })
+}
+
+function seedChatSession(
+  db: Database,
+  userId: string,
+  workspaceId: string | null,
+  overrides: Partial<NewChatSession> = {},
+) {
+  const now = new Date()
+  return insertChatSession(db, {
+    id: `session-${randomUUID()}`,
+    userId,
+    workspaceId,
+    providerId: 'claude',
+    title: 'Session',
+    isArchived: false,
+    deletedAt: null,
+    totalMessageCount: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    startedAt: now,
+    lastMessageAt: now,
+    updatedAt: now,
+    ...overrides,
+  })
+}
+
+function seedSchedule(
+  db: Database,
+  userId: string,
+  workspaceId: string | null,
+  overrides: Partial<NewSchedule> = {},
+) {
+  const now = new Date()
+  return insertSchedule(db, {
+    id: randomUUID(),
+    userId,
+    workspaceId,
+    templateKind: 'custom',
+    scheduleKind: 'recurring',
+    displayName: 'Custom',
+    cronExpression: '0 9 * * *',
+    timezone: 'UTC',
+    promptTemplate: 'Do the thing',
+    destinationKind: 'chat-only',
+    channelId: null,
+    catchUpOnMiss: false,
+    isEnabled: true,
+    approvalTimeoutMsOverride: null,
+    lastFiredAt: null,
+    nextScheduledFireAt: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  })
+}
+
+describe('GET /dashboard/overview', () => {
+  it('assembles workspaces (excl. archived) + the cross-scope recent-activity feed + upcoming schedules', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspaceA = seedWorkspace(db, user.id)
+      const workspaceB = seedWorkspace(db, user.id)
+      seedWorkspace(db, user.id, { isArchived: true }) // excluded from the feed
+
+      const t0 = new Date('2026-06-01T00:00:00Z')
+      const t1 = new Date('2026-06-02T00:00:00Z')
+      const t2 = new Date('2026-06-03T00:00:00Z')
+      const t3 = new Date('2026-06-04T00:00:00Z')
+      const t4 = new Date('2026-06-05T00:00:00Z')
+      const t5 = new Date('2026-06-06T00:00:00Z')
+      // Six visible sessions across both workspaces + the global root — only
+      // the newest 5 should come back, newest first.
+      seedChatSession(db, user.id, workspaceA.id, { id: 'session-1', lastMessageAt: t0 })
+      seedChatSession(db, user.id, workspaceB.id, { id: 'session-2', lastMessageAt: t1 })
+      seedChatSession(db, user.id, null, { id: 'session-3', lastMessageAt: t2 })
+      seedChatSession(db, user.id, workspaceA.id, { id: 'session-4', lastMessageAt: t3 })
+      seedChatSession(db, user.id, workspaceB.id, { id: 'session-5', lastMessageAt: t4 })
+      seedChatSession(db, user.id, workspaceA.id, { id: 'session-6', lastMessageAt: t5 })
+      // Excluded from the feed regardless of recency.
+      seedChatSession(db, user.id, workspaceA.id, {
+        id: 'session-archived',
+        lastMessageAt: t5,
+        isArchived: true,
+      })
+      seedChatSession(db, user.id, workspaceA.id, {
+        id: 'session-deleted',
+        lastMessageAt: t5,
+        deletedAt: t5,
+      })
+      seedChatSession(db, user.id, workspaceA.id, {
+        id: 'session-hidden',
+        lastMessageAt: t5,
+        visibility: 'hidden',
+      })
+
+      const soon = new Date(Date.now() + 60_000)
+      const later = new Date(Date.now() + 3_600_000)
+      seedSchedule(db, user.id, workspaceA.id, {
+        id: 'schedule-later',
+        displayName: 'Later',
+        nextScheduledFireAt: later,
+      })
+      seedSchedule(db, user.id, workspaceA.id, {
+        id: 'schedule-soon',
+        displayName: 'Soon',
+        nextScheduledFireAt: soon,
+      })
+      // Excluded: disabled despite having a next-fire time.
+      seedSchedule(db, user.id, workspaceA.id, {
+        id: 'schedule-disabled',
+        displayName: 'Disabled',
+        isEnabled: false,
+        nextScheduledFireAt: soon,
+      })
+      // Excluded: enabled but no next-fire time yet.
+      seedSchedule(db, user.id, workspaceA.id, {
+        id: 'schedule-undated',
+        displayName: 'Undated',
+        nextScheduledFireAt: null,
+      })
+
+      const app = makeHarness(db)
+      const res = await app.request('/dashboard/overview')
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        workspaces: { id: string }[]
+        recentSessions: { id: string }[]
+        upcomingSchedules: { id: string }[]
+      }
+
+      expect(body.workspaces.map((w) => w.id).sort()).toEqual([workspaceA.id, workspaceB.id].sort())
+
+      expect(body.recentSessions.map((s) => s.id)).toEqual([
+        'session-6',
+        'session-5',
+        'session-4',
+        'session-3',
+        'session-2',
+      ])
+
+      expect(body.upcomingSchedules.map((s) => s.id)).toEqual(['schedule-soon', 'schedule-later'])
+    })
+  })
+})

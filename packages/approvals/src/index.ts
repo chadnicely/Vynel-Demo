@@ -48,6 +48,16 @@ export type { ResolveApprovalInput, RememberRuleInput } from './requests/resolve
 // route lands with apps/api).
 export { listPendingApprovalsForUser } from './repositories/index.js'
 
+// Workspace-scoped reads for the HTTP surface (apps/local-api): the pending /
+// recent audit views, the rules panel list, and the decide route's workspace
+// ownership pre-check.
+export {
+  findApprovalRequestByProviderApprovalId,
+  listApprovalRequestsForWorkspace,
+  listApprovalRulesForWorkspace,
+} from './repositories/index.js'
+export type { ListApprovalRequestsForWorkspaceOptions } from './repositories/index.js'
+
 export { saveApprovalRuleFromDecision } from './rules/save-approval-rule-from-decision.js'
 export type { SaveApprovalRuleFromDecisionInput } from './rules/save-approval-rule-from-decision.js'
 
