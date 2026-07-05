@@ -1,7 +1,50 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-05 (evening).** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-06.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ⏭ NEXT ACTION (post-compaction): BUILD surface-up approval — APPROVED shape = WEB-ONLY
+
+**Full plan: `docs/module-notes/surface-up-approval.md` (READ IT FIRST). Chad approved 2026-07-06:
+surface-up, web-only.** Investigated both repos (KLONE internals + old-repo deferred design) — findings
+in the plan doc.
+
+**Goal:** routed tasks (brain → workspace) can DO work with Chad's approval, instead of read-safe
+auto-deny. Chad's complaint: "route to workspace: it said routed but the task couldn't perform actions,
+and the Ask/Auto/Bypass mode isn't bound."
+
+**Why it's CHEAP in KLONE (the old repo feared a big re-architecture; the hard parts already exist here):**
+the provider PARKS a background turn on approval (`build-claude-can-use-tool-callback.ts` awaits a Promise
+via `PendingApprovalRegistry`) and resumes on `respondToApprovalRequest`; `resolveApproval` already calls
+that; the approval NOTIFIER already polls user-scoped `listPendingApprovalsForUser` (5s) + decides. So a
+routed task's RECORDED approval surfaces in the existing notifier automatically.
+
+**The build (green + commit each; drain change → code-reviewer, AI seam):**
+1. **Mode threading (no behavior change yet).** Add nullable `permissionMode` column to `delegation_jobs`
+   (baseline-fold, pre-release). Thread: `StartGlobalRootTurnRequest.mode` → `run-global-root-turn(-core)`
+   holds it → stamp on the in-process delegate app-request (a header mirroring `DELEGATION_ORIGIN_HEADER`
+   in `sessions/delegation-origin-header.ts`) → `POST /routing/delegate` reads it → `enqueueWorkspaceDelegation`
+   stores it → delegation-service → `runRootDelegationTurn` → `provider.startChatSession({ permissionMode })`.
+   Web: `use-chat-turn` sends `mode` for GLOBAL turns too (currently workspace-only). Bind mode to the
+   brain's own turn: `run-global-root-turn-core.ts:112` uses `input.mode` not hardcoded `'bypass-with-behavior-gate'`.
+2. **Surface-up in the routed turn.** `packages/orchestration/src/leaf/drain-leaf-turn.ts` — replace the
+   `onApprovalRequested` auto-deny (`buildRoutedLeafApprovalDenier` → `respondToApprovalRequest(denied)`)
+   with **record-and-park**: `recordApprovalRequest(db, {providerApprovalId, userId, workspaceId, sessionId,
+   toolName, toolInput, ...})` and RETURN WITHOUT RESPONDING (provider stays parked). **GATE it: surface-up
+   only when web-origin + a carding mode; keep the auto-deny + circuit-breaker FALLBACK for channel-origin /
+   no-mode** (backward-compat). Suspend `routeRequest`'s 600s WAIT budget while an approval is pending (so a
+   late human approval still completes). The notifier shows it → approve → `resolveApproval` →
+   `respondToApprovalRequest` → parked routed turn resumes + reports.
+3. **Polish.** Notifier approval-card context for a routed action (workspace + tool + task text). Dedupe the
+   duplicate delegation-trace entry (workspace reply + pushed report have the same body). Steer the routed
+   agent to read-safe tools (Glob/LS/Read) for read tasks (Noah reached for Bash → denied on "list files").
+
+**Decisions locked (plan doc §"real decisions"):** A=surface-up · B=WEB-ONLY (channel-origin stays
+read-safe — no async web watcher) · C=accept parked-holds-serial-slot for v1 + suspend the wait-timeout
+while parked. **Serial delegation caveat:** a parked routed task holds the single serial slot until decided
+— fine for single-user v1.
+
+
 
 ## 🏁 DELEGATION works end-to-end (Chad-verified live) + tracking layer built (2026-07-06)
 
