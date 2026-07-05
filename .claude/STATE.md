@@ -3,14 +3,21 @@
 **Updated 2026-07-05 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION: M7 demo→real swap IN PROGRESS — slices A+B DONE (uncommitted), C/D/E/F next
+## ⏭ NEXT ACTION: M7 demo→real swap IN PROGRESS — A+B committed (78bbe2c), C done, D/E/F next
 
 **M7 is sliced (advisor-blessed): A workspaces+dashboard · B chat keystone · C feature-sections ·
 D files · E model-picker · F residual cleanup. Green + commit each.**
 
-**🏁 SLICES A+B DONE — reviewer SHIP-clean, full gate 1842/4-skip (was 1835), UNCOMMITTED (one
-commit pending Chad).** The demo namespaces are gone; `workspaces.list`, `dashboard.getOverview`,
-and the whole **chat vertical** (reads + live SSE turn + approvals + interrupt) hit the real API.
+**🏁 A+B COMMITTED+PUSHED (`78bbe2c`, reviewer SHIP-clean) · C DONE (commit pending).** Full gate
+1842/4-skip. The demo namespaces are gone; `workspaces.list`, `dashboard.getOverview`, and the whole
+**chat vertical** (reads + live SSE turn + approvals + interrupt) hit the real API. **Slice C:**
+workspace drawer feature sections (skills/channels/schedules/knowledge/marketplace) read real
+per-domain lists — 5 thin `enabled`-gated composables in `composables/{skills,channels,schedules,
+knowledge,marketplace}/`; `WorkspaceSectionPanel` rewired; `fixtures/feature-sections.ts` deleted.
+**C field notes:** knowledge `listSources`→`{sources:[...]}` (unwrapped via `select`) exposes
+`absolutePath`+`updatedAt` only (NO displayName/documentCount/lastIndexedAt → panel shows folder
+basename + path + "updated"); skills installed-row nests catalog under nullable `definition`. C was
+self-reviewed (trivial display reads), not a full reviewer pass.
 - **Streamer (the one net-new piece):** generated `startTurn` BUFFERS (openapi-fetch resolves the
   whole body) → can't stream. So `composables/chat/chat-turn-stream.ts` calls the typed path-keyed
   `client.POST(path, { parseAs:'stream', signal })` → `ReadableStream` → pure `sse-frames.ts` parser

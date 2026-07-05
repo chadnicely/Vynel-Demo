@@ -11,21 +11,16 @@ import {
 } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
+import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
+import { useChannels } from "../../composables/channels/use-channels.js";
+import { useSchedules } from "../../composables/schedules/use-schedules.js";
+import { useKnowledgeSources } from "../../composables/knowledge/use-knowledge-sources.js";
+import { useMarketplaceItems } from "../../composables/marketplace/use-marketplace-items.js";
 import { WORKSPACE_SECTIONS } from "./workspace-sections.js";
 import type {
   WorkspaceSectionId,
   WorkspaceSectionMeta,
 } from "./workspace-sections.js";
-// Demo-phase (Chad: UI-complete on demo, real engagement later): section rows
-// read the contracts-typed fixtures directly. Each section swaps to its real
-// SDK namespace (client.skills.* etc.) when live wiring begins.
-import {
-  demoChannels,
-  demoKnowledgeSources,
-  demoMarketplaceItems,
-  demoSchedules,
-  demoSkills,
-} from "../../demo/fixtures/feature-sections.js";
 
 const props = defineProps<{
   section: WorkspaceSectionId;
@@ -53,14 +48,41 @@ const sectionMeta = computed(
     WORKSPACE_SECTIONS.find((row) => row.id === props.section) ?? FALLBACK_META,
 );
 
+// Each section fetches only while it's the active drawer panel — the composable
+// passes `enabled` through to vue-query, so the four inactive reads stay idle.
+const workspaceId = () => props.workspaceId;
+
+const skillsQuery = useInstalledSkills(
+  workspaceId,
+  computed(() => props.section === "skills"),
+);
+const channelsQuery = useChannels(
+  computed(() => props.section === "channels"),
+);
+const schedulesQuery = useSchedules(
+  computed(() => props.section === "schedules"),
+);
+const knowledgeQuery = useKnowledgeSources(
+  workspaceId,
+  computed(() => props.section === "knowledge"),
+);
+const marketplaceQuery = useMarketplaceItems(
+  workspaceId,
+  computed(() => props.section === "marketplace"),
+);
+
+const skills = computed(() => skillsQuery.data.value ?? []);
+const knowledgeSources = computed(() => knowledgeQuery.data.value ?? []);
+const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
+
 const channels = computed(() =>
-  demoChannels.filter(
+  (channelsQuery.data.value ?? []).filter(
     (row) => row.workspaceId === null || row.workspaceId === props.workspaceId,
   ),
 );
 
 const schedules = computed(() =>
-  demoSchedules.filter(
+  (schedulesQuery.data.value ?? []).filter(
     (row) => row.workspaceId === null || row.workspaceId === props.workspaceId,
   ),
 );
@@ -72,6 +94,13 @@ function scheduleTiming(nextFireAt: string | null): string {
     hour: "numeric",
     minute: "2-digit",
   })}`;
+}
+
+// Knowledge sources carry only an absolute path — the folder's last segment is
+// the friendliest label the real wire can offer.
+function folderName(absolutePath: string): string {
+  const segments = absolutePath.split(/[\\/]/).filter(Boolean);
+  return segments.at(-1) ?? absolutePath;
 }
 </script>
 
@@ -91,10 +120,12 @@ function scheduleTiming(nextFireAt: string | null): string {
 
     <!-- Skills -->
     <div v-if="props.section === 'skills'" class="rows">
-      <div v-for="skill in demoSkills" :key="skill.skillId" class="row">
+      <div v-for="skill in skills" :key="skill.id" class="row">
         <div class="row-main">
-          <p class="row-title">{{ skill.displayName }}</p>
-          <p class="row-sub">{{ skill.oneLineDescription }}</p>
+          <p class="row-title">
+            {{ skill.definition?.displayName ?? skill.skillId }}
+          </p>
+          <p class="row-sub">{{ skill.definition?.oneLineDescription ?? "" }}</p>
         </div>
         <span class="pill" :class="skill.isEnabled ? 'is-on' : 'is-off'">
           {{ skill.isEnabled ? "On" : "Off" }}
@@ -153,17 +184,17 @@ function scheduleTiming(nextFireAt: string | null): string {
 
     <!-- Knowledge -->
     <div v-else-if="props.section === 'knowledge'" class="rows">
-      <div v-for="source in demoKnowledgeSources" :key="source.id" class="row">
+      <div v-for="source in knowledgeSources" :key="source.id" class="row">
         <div class="row-main">
           <p class="row-title">
-            {{ source.displayName }}
+            {{ folderName(source.absolutePath) }}
             <span v-if="source.scope === 'global'" class="scope-chip"
               >Global</span
             >
           </p>
           <p class="row-sub">
-            {{ source.documentCount }} documents · indexed
-            {{ formatRelativeTime(source.lastIndexedAt) }}
+            {{ source.absolutePath }} · updated
+            {{ formatRelativeTime(source.updatedAt) }}
           </p>
         </div>
       </div>
@@ -171,7 +202,7 @@ function scheduleTiming(nextFireAt: string | null): string {
 
     <!-- Marketplace -->
     <div v-else-if="props.section === 'marketplace'" class="rows">
-      <div v-for="item in demoMarketplaceItems" :key="item.itemId" class="row">
+      <div v-for="item in marketplaceItems" :key="item.itemId" class="row">
         <div class="row-main">
           <p class="row-title">
             {{ item.displayName }}

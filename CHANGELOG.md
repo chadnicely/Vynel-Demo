@@ -24,14 +24,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
-- **Desktop UI now runs on the real API, not demo data (M7, slices A+B).** Deleted the hand-written
-  demo namespaces and the scripted turn player; `workspaces`, `dashboard`, and the whole chat
-  vertical (session reads + live turns + approvals + interrupt) now hit the generated SDK. Live
-  turns stream over the real `chat-turn` / `global-root-turn` SSE via a typed `parseAs:'stream'`
-  POST fed through a pure frame parser; approvals decide through the real API and the stream
-  reflects the resolution. Global chat is one continuous conversation (`root.*`, no history list);
-  workspace chat is `chat.*`. Contracts `ChatSessionResponse.workspaceId` is now nullable and
-  `ChatToolCallResponse.toolInput`/`toolOutput` optional, matching the wire.
+- **Desktop UI now runs on the real API, not demo data (M7).** Deleted the hand-written demo
+  namespaces and the scripted turn player; `workspaces`, `dashboard`, and the whole chat vertical
+  (session reads + live turns + approvals + interrupt) now hit the generated SDK. Live turns stream
+  over the real `chat-turn` / `global-root-turn` SSE via a typed `parseAs:'stream'` POST fed through
+  a pure frame parser; approvals decide through the real API and the stream reflects the resolution.
+  Global chat is one continuous conversation (`root.*`, no history list); workspace chat is `chat.*`.
+  The workspace drawer's feature sections (skills, channels, schedules, knowledge, marketplace) read
+  their real per-domain lists, each fetched only while its section is open. Contracts
+  `ChatSessionResponse.workspaceId` is now nullable and `ChatToolCallResponse.toolInput`/`toolOutput`
+  optional, matching the wire.
 
 ### Fixed
 
