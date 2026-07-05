@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Settings2, Sparkles } from "lucide-vue-next";
-import { EmptyState } from "@vynel/ui";
+import { EmptyState, PresenceDot } from "@vynel/ui";
 import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
@@ -11,6 +11,7 @@ import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
+import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { useSessionViewerStore } from "../stores/session-viewer-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
@@ -47,9 +48,25 @@ const sessionsErrorText = computed(() =>
     : null,
 );
 
+// A routed task runs in the background and pushes its report into this thread
+// on completion — there is no server push, so poll while any delegation is
+// in flight (and keep the thread live) so the report surfaces within seconds.
+const inFlightQuery = useInFlightDelegations();
+const inFlightDelegations = computed(() => inFlightQuery.data.value ?? []);
+const isProcessing = computed(() => inFlightDelegations.value.length > 0);
+const processingLabel = computed(() => {
+  const names = [
+    ...new Set(inFlightDelegations.value.map((row) => row.workspaceName)),
+  ];
+  if (names.length === 0) return "";
+  if (names.length === 1) return `Working in ${names[0]}…`;
+  return `Working in ${names.length} workspaces…`;
+});
+
 const detailQuery = useSessionDetail(
   () => GLOBAL_SCOPE,
   () => activeSessionId.value,
+  () => (isProcessing.value ? 4000 : false),
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const toolCallsByMessageId = computed(
@@ -171,6 +188,11 @@ function openContinuous() {
         @open-session="sessionViewer.open"
       />
 
+      <div v-if="isProcessing" class="processing-banner">
+        <PresenceDot state="live" />
+        <span>{{ processingLabel }}</span>
+      </div>
+
       <footer class="composer-dock">
         <AppComposer
           :streaming="chatTurn.isStreaming.value"
@@ -217,6 +239,18 @@ function openContinuous() {
   place-items: center;
   overflow-y: auto;
   background: var(--bg-shell);
+}
+
+.processing-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 808px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 4px 24px 8px;
+  color: var(--ink-2);
+  font: 500 12.5px/1.5 var(--font-ui);
 }
 
 .composer-dock {

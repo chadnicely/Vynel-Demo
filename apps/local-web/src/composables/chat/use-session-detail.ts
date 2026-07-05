@@ -12,6 +12,10 @@ import type { SessionScope } from "./session-scope.js";
 export function useSessionDetail(
   scope: MaybeRefOrGetter<SessionScope>,
   sessionId: MaybeRefOrGetter<string | null>,
+  // Poll interval (ms) or `false` to poll off. Used to keep the global thread
+  // live while a background delegation is running so its pushed report surfaces
+  // promptly (there is no server push).
+  refetchInterval?: MaybeRefOrGetter<number | false>,
 ) {
   const vynel = useVynel();
   const resolvedScope = computed(() => toValue(scope));
@@ -28,5 +32,6 @@ export function useSessionDetail(
         : vynel.chat.getSession(s.workspaceId, currentId);
     },
     enabled: computed(() => id.value !== null),
+    refetchInterval: () => toValue(refetchInterval ?? false),
   });
 }

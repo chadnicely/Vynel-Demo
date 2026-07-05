@@ -29,6 +29,7 @@ function makeFakeVynelClient(): VynelClient {
       getSession: async () => {
         throw new Error("not in this test");
       },
+      listDelegations: async () => ({ delegations: [] }),
     },
     dashboard: {
       getOverview: async () => ({
