@@ -3,10 +3,36 @@
 **Updated 2026-07-05 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🏁 M7 COMPLETE — desktop UI runs entirely on the real API. `apps/local-web/src/demo/` is GONE.
+## 🏁 M7 done — desktop UI WIRED to the real API + unit-green. `src/demo/` GONE. ⚠ NOT yet live-smoked.
 
-**All 5 slices done + pushed** (A `78bbe2c` · C `ddc275c` · E `8ff3bbd` · D commit pending). Full gate
-**1839/4-skip** (was 1835; +streamer/parser tests, −demo tests). The demo data layer no longer exists.
+**Honest status: the code is wired to the real API and unit/typecheck-green, but the integration seam
+has NEVER run against a live `local-api` this session** (app-shell test mocks the client; parser/fold are
+isolated unit tests; reviewers read, didn't execute). So it's *wired + green*, NOT *verified working* —
+Chad's live smoke is the real gate. **All 5 slices done + pushed** (A+B `78bbe2c` · C `ddc275c` · E
+`8ff3bbd` · D `6e20489` · journal `5609604`). Full gate **1839/4-skip** (was 1835; +streamer/parser
+tests, −demo tests). The demo data layer no longer exists.
+
+**⚠ TWO LIVE-BOOT PREREQS (checked the files; #2 is a real blocker on a fresh DB):**
+1. **Vite `/api` proxy — FINE.** `apps/local-web/vite.config.ts` forwards `/api/*` (wildcard, rewrite
+   `/api`→``) to `LOCAL_API_URL` — so `/root`, `/dashboard`, and the SSE turn paths all forward. (The
+   `vynel-client.ts` comment listing "/workspaces, /users" is illustrative prose, not an allowlist.)
+2. **First-launch gate — BLOCKS a fresh-DB smoke.** `apps/local-api/src/server.ts:42` boots with
+   `enableFirstLaunchGate: true`. The gate (`middleware/first-launch-gate.ts`) 412s EVERY non-onboarding
+   route until the single local user completes onboarding — and it expects the WEB CLIENT to catch the
+   412 and show an onboarding wizard, which **local-web does NOT have** (never built — home/chat/workspace
+   only). So on a fresh `.data/vynel.dev.db` the UI is dead (412 everywhere). To smoke M7: either flip
+   `server.ts` to `enableFirstLaunchGate: false` for dev (quickest — consider making it env-driven), OR
+   complete onboarding by hitting `/onboarding/*` manually, OR build the onboarding wizard (separate
+   surface, not M7). NOT an M7 regression — pre-existing.
+3. **SSE-buffering-through-the-proxy is the #1 live risk** (only a boot reveals it): dev proxies routinely
+   BUFFER `text/event-stream`, which makes a turn hang then dump the whole response at once — looks like
+   "streaming is broken" though every frame-parser test passes. Chad must watch for INCREMENTAL token
+   rendering, not just "the turn completes."
+
+**Minor (STATE note for whoever touches the composer):** `composerModelId` is NOT persisted to
+localStorage (only `theme` + `activeWorkspaceId` are) — good, because a stale demo `claude-sonnet-5`
+would 400 every turn against the real `CHAT_MODEL_IDS` allowlist. Don't add persistence there without a
+validity guard against the current allowlist.
 - **A** workspaces + dashboard · **B** chat vertical (reads + live SSE turn + approvals + interrupt) —
   reviewer SHIP-clean. **C** feature sections (5 `enabled`-gated per-domain reads). **E** model picker =
   real `CHAT_MODELS`, model on every turn. **D** files area — LAZY per-directory tree
