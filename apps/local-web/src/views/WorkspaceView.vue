@@ -40,13 +40,17 @@ const WORKSPACE_MENU_ITEMS = [
 const workspacesQuery = useWorkspaceList();
 const workspaces = computed(() => workspacesQuery.data.value ?? []);
 
-// Land on the last-used workspace so the tab never opens dead.
+// Land on a real workspace so the tab never opens dead. Reconciles once the
+// list has loaded: a persisted id that no longer exists (a prior run, or a
+// leftover demo id) falls back to the first workspace, or null when there are
+// none — otherwise the stale id 404s every workspace-scoped request.
 watch(
-  workspaces,
-  (rows) => {
-    if (ui.activeWorkspaceId === null && rows.length > 0) {
-      ui.activeWorkspaceId = rows[0]!.id;
-    }
+  [workspaces, () => workspacesQuery.isSuccess.value] as const,
+  ([rows, loaded]) => {
+    if (!loaded) return;
+    const stored = ui.activeWorkspaceId;
+    if (stored !== null && rows.some((row) => row.id === stored)) return;
+    ui.activeWorkspaceId = rows[0]?.id ?? null;
   },
   { immediate: true },
 );
