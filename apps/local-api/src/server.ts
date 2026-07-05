@@ -39,7 +39,12 @@ export async function boot(): Promise<void> {
   // for already-registered sources on restart is a separate follow-on.)
   const fileWatcher = new FileWatcherService(db, logger)
 
-  const app = createApp({ db, logger, fileWatcher, enableFirstLaunchGate: true })
+  const app = createApp({
+    db,
+    logger,
+    fileWatcher,
+    enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
+  })
 
   // The in-process Hono dispatcher for headless turns (the schedule fire path's
   // MCP server re-enters the api through this). Bound AFTER createApp, like the

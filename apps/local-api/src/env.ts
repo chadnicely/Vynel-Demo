@@ -56,6 +56,15 @@ export const EnvSchema = z.object({
     .string()
     .default('0')
     .transform((raw) => raw === '1' || raw.toLowerCase() === 'true'),
+  // The first-launch onboarding gate (412s every non-onboarding route until the
+  // single local user finishes setup). Default ON — production-safe; the web
+  // client is meant to catch the 412 and show a wizard. Set `=0`/`=false` in a
+  // dev `.env` to run the UI against a fresh DB before the onboarding wizard
+  // exists. Consumed by `server.ts` → `createApp({ enableFirstLaunchGate })`.
+  VYNEL_FIRST_LAUNCH_GATE_ENABLED: z
+    .string()
+    .default('1')
+    .transform((raw) => raw === '1' || raw.toLowerCase() === 'true'),
 })
 
 export type Env = z.infer<typeof EnvSchema>
