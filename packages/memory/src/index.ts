@@ -54,6 +54,13 @@ export {
   type RecordMemoryEntryMentionInput,
 } from './lifecycle/record-memory-entry-mention.js'
 
+// Repo reads the HTTP layer calls directly for the workspace-ownership
+// guard on single-entry routes (findEntryById) and the mentions list
+// (listRecentMentionsForEntry) — no package.json subpath export exists
+// for `./repositories`, so these are widened onto the main barrel
+// instead of a new export map entry.
+export { findEntryById, listRecentMentionsForEntry } from './repositories/index.js'
+
 // Outbox consumers
 export {
   cleanupMemoryForChatSessionHardDeleted,
