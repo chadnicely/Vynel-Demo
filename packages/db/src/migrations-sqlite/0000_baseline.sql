@@ -537,6 +537,7 @@ CREATE TABLE `delegation_jobs` (
 	`origin_channel_id` text,
 	`origin_external_sender_id` text,
 	`origin_external_chat_context_id` text,
+	`permission_mode` text,
 	`created_at` integer NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON UPDATE no action ON DELETE cascade

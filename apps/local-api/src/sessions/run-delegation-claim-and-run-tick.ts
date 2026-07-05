@@ -85,6 +85,9 @@ export async function runDelegationClaimAndRunTick(
         ...(managerName !== undefined ? { managerName } : {}),
         providerId: DEFAULT_PROVIDER_ID,
         ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+        // The delegating turn's mode, stamped on the job at enqueue (surface-up step 1).
+        // Null (pre-mode job / channel origin) → the runner's bypass default.
+        ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
       })
 
     const outcome = await routeRequest(

@@ -70,19 +70,18 @@ export function useChatTurn(options: {
         scope,
         userMessageText: input.userText,
         model: ui.composerModelId,
+        // Both scopes carry the composer's session mode — a global turn's mode also
+        // governs any delegation the brain enqueues (surface-up step 1).
+        mode: ui.composerMode,
         signal: abortController.signal,
-        // Global root manages its own thread — text (+ model) only. A workspace
-        // turn continues its primary, resumes a picked session, or starts fresh,
-        // and carries the composer's session mode.
+        // Global root manages its own thread. A workspace turn continues its
+        // primary, resumes a picked session, or starts fresh.
         ...(scope.kind === "workspace"
-          ? {
-              mode: ui.composerMode,
-              ...(input.isContinuous
-                ? { continueRoot: true }
-                : input.sessionId !== null
-                  ? { resumeSessionId: input.sessionId }
-                  : {}),
-            }
+          ? input.isContinuous
+            ? { continueRoot: true }
+            : input.sessionId !== null
+              ? { resumeSessionId: input.sessionId }
+              : {}
           : {}),
       });
       for await (const event of stream) ingest(event);

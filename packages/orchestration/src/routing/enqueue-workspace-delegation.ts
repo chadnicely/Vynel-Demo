@@ -14,6 +14,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
 import { insertDelegationJob } from '../repositories/index.js'
+import type { DelegationPermissionMode } from '../orchestration-types.js'
 
 /** The channel a delegation was requested from (brain-tree Ch4) — carried so the report is
  *  delivered back to where the user asked. All fields are LOOSE refs (channels is another
@@ -35,6 +36,9 @@ export interface EnqueueWorkspaceDelegationInput {
   /** Set when a CHANNEL message drove this delegation (Ch4) — the report is delivered back to
    *  this channel + recipient. Omit for a web/voice-text origin (no channel delivery). */
   origin?: DelegationOrigin
+  /** The permission mode the routed turn runs under (surface-up step 1) — the delegating
+   *  turn's mode. Omit for the pre-mode default (`bypass-with-behavior-gate`). */
+  permissionMode?: DelegationPermissionMode
 }
 
 /** Enqueue a workspace delegation as a pending job and return its id. Callable
@@ -69,6 +73,7 @@ export function enqueueWorkspaceDelegation(
     originChannelId: input.origin?.channelId ?? null,
     originExternalSenderId: input.origin?.externalSenderId ?? null,
     originExternalChatContextId: input.origin?.externalChatContextId ?? null,
+    permissionMode: input.permissionMode ?? null,
     createdAt: new Date(),
   })
   return id

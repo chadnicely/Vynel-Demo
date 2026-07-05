@@ -88,6 +88,28 @@ describe('enqueueWorkspaceDelegation', () => {
       expect(job!.originChannelId).toBeNull()
       expect(job!.originExternalSenderId).toBeNull()
       expect(job!.originExternalChatContextId).toBeNull()
+
+      // Surface-up step 1: no mode passed → null (the runner's bypass default applies).
+      expect(job!.permissionMode).toBeNull()
+    })
+  })
+
+  it('stores the delegating turn’s permission mode when given (surface-up step 1)', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const jobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'global-root-1',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'tidy the notes',
+        permissionMode: 'ask',
+      })
+
+      expect(findDelegationJobById(db, jobId)!.permissionMode).toBe('ask')
     })
   })
 

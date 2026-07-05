@@ -23,7 +23,8 @@ export interface StartTurnInput {
   resumeSessionId?: string;
   /** Run on the workspace's continuing primary conversation. Workspace scope only. */
   continueRoot?: boolean;
-  /** The user-facing session mode (approval behavior). Workspace scope only. */
+  /** The user-facing session mode (approval behavior). Both scopes — a global turn's
+   *  mode also governs any delegation the brain enqueues (surface-up step 1). */
   mode?: SessionMode;
   signal: AbortSignal;
 }
@@ -39,6 +40,7 @@ export async function* streamChatTurnEvents(
           body: {
             userMessageText: input.userMessageText,
             ...(input.model ? { model: input.model } : {}),
+            ...(input.mode ? { mode: input.mode } : {}),
           },
           parseAs: "stream",
           signal: input.signal,

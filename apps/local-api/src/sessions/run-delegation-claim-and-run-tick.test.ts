@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
+import type { StartChatSessionInput } from '@vynel/providers'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
@@ -93,6 +94,53 @@ class ThrowingTurnProvider extends FakeAiAgentProvider {
 }
 
 describe('runDelegationClaimAndRunTick', () => {
+  it('runs the routed turn under the job’s permission mode (surface-up step 1), defaulting to bypass', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'tidy the notes',
+        permissionMode: 'ask',
+      })
+      const askInputs: StartChatSessionInput[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: 'ws-root-ask',
+          resultText: 'ok',
+          startChatSessionInputs: askInputs,
+        }),
+        logger: silentLogger,
+      })
+      expect(askInputs[0]!.permissionMode).toBe('ask')
+
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'read the docs',
+      })
+      const defaultInputs: StartChatSessionInput[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: 'ws-root-default',
+          resultText: 'ok',
+          startChatSessionInputs: defaultInputs,
+        }),
+        logger: silentLogger,
+      })
+      expect(defaultInputs[0]!.permissionMode).toBe('bypass-with-behavior-gate')
+    })
+  })
+
   it('claims a pending job, runs it, completes it, and pushes the report up to the global root', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

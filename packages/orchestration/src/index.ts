@@ -7,7 +7,11 @@
 // approval gate) lives in `packages/providers` — NOT here — per the
 // locked seam (`docs/agent-base/orchestration.md` "Key choices").
 
-export type { StructuralLogger, AgentMention } from './orchestration-types.js'
+export type {
+  StructuralLogger,
+  AgentMention,
+  DelegationPermissionMode,
+} from './orchestration-types.js'
 
 export {
   composeSessionAgents,

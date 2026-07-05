@@ -17,6 +17,7 @@
 // Interactive approval surfaced UP to the user is a deferred slice (brain-tree fork 3).
 
 import type { AiAgentProvider } from '@vynel/providers'
+import type { DelegationPermissionMode } from '../orchestration-types.js'
 import {
   drainLeafTurn,
   buildRoutedLeafApprovalDenier,
@@ -33,6 +34,9 @@ export type RunRootDelegationTurnInput = {
   taskText: string
   /** Optional model override for the delegated turn. */
   model?: string
+  /** The permission mode the routed turn runs under — the delegating turn's mode
+   *  (surface-up step 1). Omit for the pre-mode default (`bypass-with-behavior-gate`). */
+  permissionMode?: DelegationPermissionMode
 }
 
 export type RunRootDelegationTurnResult = {
@@ -51,7 +55,7 @@ export async function runRootDelegationTurn(
       workspacePath: input.workspacePath,
       ...(input.resumeSessionId !== undefined ? { resumeSessionId: input.resumeSessionId } : {}),
       userMessageText: input.taskText,
-      permissionMode: 'bypass-with-behavior-gate',
+      permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
       // Empty grants: a resumed root keeps the workspace's existing tool grants; a
       // fresh root gets the SDK defaults. Either way the behavior gate fires and the
       // routed turn fails closed on a carded tool (read-safe).

@@ -51,6 +51,10 @@ import {
   DELEGATION_ORIGIN_HEADER,
 } from '../../sessions/delegation-origin-header.js'
 import {
+  parseDelegationModeHeader,
+  DELEGATION_MODE_HEADER,
+} from '../../sessions/delegation-mode-header.js'
+import {
   RouteToWorkspaceRequestSchema,
   SendToChannelRequestSchema,
   ListRoutingWorkspacesResponseSchema,
@@ -148,6 +152,10 @@ export const routingApp = factory
       // so the report is delivered back to where the user asked (read at the boundary, defensive).
       const origin = parseDelegationOriginHeader(c.req.header(DELEGATION_ORIGIN_HEADER))
 
+      // The delegating turn's PERMISSION MODE (surface-up step 1) — set by the global-root
+      // runner beside the origin; absent for a pre-mode caller (→ the runner's bypass default).
+      const permissionMode = parseDelegationModeHeader(c.req.header(DELEGATION_MODE_HEADER))
+
       // ENQUEUE + return immediately (brain-tree Chapter 1, async core): hand the task to the
       // durable queue and free the global root. The delegation-service claims the job, runs
       // the workspace turn in the background, and pushes the report back up as a message — the
@@ -160,6 +168,7 @@ export const routingApp = factory
         workspaceName: workspace.name,
         taskText: task,
         ...(origin ? { origin } : {}),
+        ...(permissionMode !== undefined ? { permissionMode } : {}),
       })
 
       return c.json({ status: 'enqueued' as const, jobId, workspaceName: workspace.name })

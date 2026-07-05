@@ -42,6 +42,22 @@ describe('runRootDelegationTurn', () => {
     expect(captured[0]!.resumeSessionId).toBeUndefined()
   })
 
+  it('runs under the bypass default when no mode is threaded, and under the given mode otherwise (surface-up step 1)', async () => {
+    const capturedDefault: StartChatSessionInput[] = []
+    await runRootDelegationTurn(
+      makeFakeLeafProvider({ sessionId: 'ws-root-3', resultText: 'ok' }, capturedDefault),
+      { workspacePath: '/tmp/acme', taskText: 'read the docs' },
+    )
+    expect(capturedDefault[0]!.permissionMode).toBe('bypass-with-behavior-gate')
+
+    const capturedAsk: StartChatSessionInput[] = []
+    await runRootDelegationTurn(
+      makeFakeLeafProvider({ sessionId: 'ws-root-4', resultText: 'ok' }, capturedAsk),
+      { workspacePath: '/tmp/acme', taskText: 'read the docs', permissionMode: 'ask' },
+    )
+    expect(capturedAsk[0]!.permissionMode).toBe('ask')
+  })
+
   it('fails closed on a carded tool (read-safe) and still completes — no deadlock', async () => {
     const approvalResponses: CapturedApprovalResponse[] = []
     const provider = makeFakeLeafProvider(

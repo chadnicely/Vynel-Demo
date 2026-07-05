@@ -32,6 +32,7 @@ import {
   serializeDelegationOrigin,
   DELEGATION_ORIGIN_HEADER,
 } from '../../sessions/delegation-origin-header.js'
+import { DELEGATION_MODE_HEADER } from '../../sessions/delegation-mode-header.js'
 import { routingApp } from './index.js'
 
 const silentLogger = pino({ level: 'silent' })
@@ -175,6 +176,44 @@ describe('POST /routing/delegate', () => {
       expect(job?.originChannelId).toBe('chan-1')
       expect(job?.originExternalSenderId).toBe('tg-42')
       expect(job?.originExternalChatContextId).toBe('chat-7')
+    })
+  })
+
+  it('stamps the permission mode from the internal header onto the job (surface-up step 1)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      const app = makeHarness(db)
+
+      const res = await postJson(
+        app,
+        '/routing/delegate',
+        { targetWorkspaceId: workspace.id, task: 'summarize' },
+        { [DELEGATION_MODE_HEADER]: 'ask' },
+      )
+      expect(res.status).toBe(200)
+      const { jobId } = (await res.json()) as { jobId: string }
+      expect(findDelegationJobById(db, jobId)?.permissionMode).toBe('ask')
+    })
+  })
+
+  it('ignores an unknown permission-mode header value (defensive boundary read)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      const app = makeHarness(db)
+
+      const res = await postJson(
+        app,
+        '/routing/delegate',
+        { targetWorkspaceId: workspace.id, task: 'summarize' },
+        { [DELEGATION_MODE_HEADER]: 'yolo' },
+      )
+      expect(res.status).toBe(200)
+      const { jobId } = (await res.json()) as { jobId: string }
+      expect(findDelegationJobById(db, jobId)?.permissionMode).toBeNull()
     })
   })
 

@@ -12,12 +12,17 @@
 
 import { z } from 'zod'
 import { CHAT_MODEL_IDS } from '@vynel/contracts/chat/chat-models'
+import { SESSION_MODES, type SessionMode } from '@vynel/session'
 import { ChatToolCallSchema } from '../chat/schemas.js'
 
 export {
   ContinuingConversationResponseSchema,
   ChatSessionDetailResponseSchema,
 } from '../chat/schemas.js'
+
+// Derived from @vynel/session's canonical SESSION_MODES so the route enum can't
+// drift from the SessionMode union (the chat-schemas precedent).
+const SESSION_MODE_VALUES = SESSION_MODES.map((entry) => entry.mode) as [SessionMode, ...SessionMode[]]
 
 export const StartGlobalRootTurnRequestSchema = z.object({
   /** The user's message to the global brain (a routing request). */
@@ -27,6 +32,10 @@ export const StartGlobalRootTurnRequestSchema = z.object({
     .string()
     .refine((value) => CHAT_MODEL_IDS.includes(value), 'Unsupported model.')
     .optional(),
+  // The user-facing session mode (surface-up step 1). Governs the brain's own tools
+  // this turn AND is threaded onto any delegation it enqueues (the mode header →
+  // `delegation_jobs.permissionMode`). Omitted → the brain's bypass default.
+  mode: z.enum(SESSION_MODE_VALUES).optional(),
 })
 
 /** Path param for the tier-1 delegation-trace read (brain-tree Ch3). */

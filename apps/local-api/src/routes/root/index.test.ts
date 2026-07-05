@@ -311,4 +311,46 @@ describe('POST /root/turn (SSE)', () => {
       expect(startChatSessionInputs).toHaveLength(0)
     })
   })
+
+  it('runs the brain turn under the requested mode; absent → the bypass default (surface-up step 1)', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-root-'))
+
+      await withVynelUserDataDir(dataDir, async () => {
+        const asked = await app.request('/root/turn', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userMessageText: 'hello brain', mode: 'ask' }),
+        })
+        expect(asked.status).toBe(200)
+        await asked.text() // drain the SSE body so the turn completes
+        expect(startChatSessionInputs[0]!.permissionMode).toBe('ask')
+
+        const defaulted = await app.request('/root/turn', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userMessageText: 'hello again' }),
+        })
+        expect(defaulted.status).toBe(200)
+        await defaulted.text()
+        expect(startChatSessionInputs[1]!.permissionMode).toBe('bypass-with-behavior-gate')
+      })
+    })
+  })
+
+  it('400s on a mode outside the session-mode catalog', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      const res = await app.request('/root/turn', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ userMessageText: 'hi', mode: 'yolo' }),
+      })
+      expect(res.status).toBe(400)
+      expect(startChatSessionInputs).toHaveLength(0)
+    })
+  })
 })

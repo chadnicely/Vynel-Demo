@@ -26,6 +26,7 @@ import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import { consumeSessionEventStream, type StructuralLogger } from '@vynel/chat'
 import { collectDelegationReportsForRoot, markDelegationsSurfacedToRoot } from '@vynel/orchestration'
 import { linkPrimarySessionToSdkSession } from '../continuity/index.js'
+import type { SessionPermissionMode } from '../session-mode.js'
 import type { SessionSink } from './session-types.js'
 import { GLOBAL_ROOT_INSTRUCTIONS } from './global-root-instructions.js'
 import { runUnderRootTurnLock } from './root-turn-lock.js'
@@ -60,6 +61,11 @@ export interface RunGlobalRootTurnCoreInput {
   userId: string
   userMessageText: string
   model?: string
+  /** The provider permission mode for the brain's OWN tools this turn (the caller maps
+   *  the user-facing `SessionMode` via `toPermissionMode`). Omit for the pre-mode
+   *  default, `bypass-with-behavior-gate` — the brain's routing tools run silently and
+   *  only the irreversible floor + declared mutating tools card. */
+  permissionMode?: SessionPermissionMode
   /** Pre-composed MCP servers (composed by the apps/api caller — composition stays
    *  at the api edge per `api-side-turn-execution-with-mcp`). Opaque to the core. */
   mcpServers: Record<string, unknown>
@@ -109,7 +115,7 @@ export async function runGlobalRootTurnCore(
         ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
         userMessageText: providerUserMessageText,
         ...(input.model !== undefined ? { model: input.model } : {}),
-        permissionMode: 'bypass-with-behavior-gate',
+        permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
         // Empty native allowlist + the MCP wildcards => the routing tools (+ the
         // read-only desktop tools when present). The manager has no native tools.
         allowedToolNames: [],

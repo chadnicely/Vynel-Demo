@@ -7568,6 +7568,8 @@ export interface operations {
                 "application/json": {
                     userMessageText: string;
                     model?: string;
+                    /** @enum {string} */
+                    mode?: "ask" | "auto" | "bypass";
                 };
             };
         };

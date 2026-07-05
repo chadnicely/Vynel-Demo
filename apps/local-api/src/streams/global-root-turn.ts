@@ -21,11 +21,13 @@ import type { Context } from 'hono'
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import type { Logger } from 'pino'
 import type { ChatTurnEvent } from '@vynel/chat'
+import { toPermissionMode, type SessionPermissionMode } from '@vynel/session'
 import { runGlobalRootTurnCore, type SessionSink } from '@vynel/session/runtime'
-import type { AppEnv } from '../factory.js'
+import type { AppEnv, HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
 import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from '../sessions/global-root-workspace.js'
+import { DELEGATION_MODE_HEADER } from '../sessions/delegation-mode-header.js'
 import type { z } from 'zod'
 import type { StartGlobalRootTurnRequestSchema } from '../routes/root/schemas.js'
 
@@ -61,10 +63,33 @@ class GlobalRootSseSink implements SessionSink {
   }
 }
 
+/** Wrap the dispatcher so every routing request carries the turn's permission mode —
+ *  the delegate route stamps it onto the enqueued job (surface-up step 1), the way
+ *  `wrapAppRequestWithOrigin` carries a channel origin. */
+function wrapAppRequestWithMode(
+  appRequest: HonoAppRequestFn,
+  permissionMode: SessionPermissionMode,
+): HonoAppRequestFn {
+  return (input, init) => {
+    const headers = new Headers(init?.headers)
+    headers.set(DELEGATION_MODE_HEADER, permissionMode)
+    return appRequest(input, { ...init, headers })
+  }
+}
+
 export async function streamGlobalRootTurn(
   c: Context<AppEnv>,
   input: StartGlobalRootTurnInput,
 ): Promise<Response> {
+  // The turn's permission mode (surface-up step 1): governs the brain's own tools AND
+  // rides the mode header so a delegation this turn enqueues inherits it. Absent →
+  // undefined → the core's bypass default + no header (pre-mode behavior).
+  const permissionMode = input.mode !== undefined ? toPermissionMode(input.mode) : undefined
+  const appRequest =
+    permissionMode !== undefined
+      ? wrapAppRequestWithMode(c.var.appRequest, permissionMode)
+      : c.var.appRequest
+
   // Compose the global root's MCP attachment: the routing tools (the root is a
   // MANAGER — list + delegate + channel-send). No workspaceId — the global root
   // has none. Dynamic import keeps the heavy SDK out of module load (the
@@ -73,7 +98,7 @@ export async function streamGlobalRootTurn(
   const composedMcp = composeSessionMcpServers([vynelRoutingDescriptor], {
     db: c.var.db,
     userId: c.var.user.id,
-    appRequest: c.var.appRequest,
+    appRequest,
   })
 
   return streamSSE(c, async (stream) => {
@@ -95,6 +120,7 @@ export async function streamGlobalRootTurn(
         userId: c.var.user.id,
         userMessageText: input.userMessageText,
         ...(input.model !== undefined ? { model: input.model } : {}),
+        ...(permissionMode !== undefined ? { permissionMode } : {}),
         mcpServers: composedMcp.mcpServers,
         allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
         mutatingToolNames: composedMcp.mutatingToolNames,

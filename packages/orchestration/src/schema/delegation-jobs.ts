@@ -17,6 +17,7 @@
 import { table, id, text, timestamp, index } from '@vynel/db/dialect'
 import { users } from '@vynel/db/schema/users'
 import { workspaces } from '@vynel/db/schema/workspaces'
+import type { DelegationPermissionMode } from '../orchestration-types.js'
 
 export type DelegationJobStatus = 'pending' | 'claimed' | 'completed' | 'failed'
 
@@ -55,6 +56,10 @@ export const delegationJobs = table(
     originChannelId: text(),
     originExternalSenderId: text(),
     originExternalChatContextId: text(),
+    // The permission mode the routed turn runs under (surface-up approval, step 1) —
+    // threaded from the delegating turn's user-facing mode. Null = the pre-mode
+    // default (`bypass-with-behavior-gate`: only the irreversible floor cards).
+    permissionMode: text().$type<DelegationPermissionMode>(),
     createdAt: timestamp().notNull(),
   },
   (t) => ({

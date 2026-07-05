@@ -21,7 +21,11 @@
 
 import type { Database } from '@vynel/db'
 import type { AiAgentProvider, AiAgentProviderId } from '@vynel/providers'
-import { runRootDelegationTurn, recordDelegation } from '@vynel/orchestration'
+import {
+  runRootDelegationTurn,
+  recordDelegation,
+  type DelegationPermissionMode,
+} from '@vynel/orchestration'
 import { recordSwapSegmentSession, recordDelegatedRootMessages } from '@vynel/chat'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
@@ -46,6 +50,9 @@ export type DelegateToWorkspaceRootInput = {
   providerId: AiAgentProviderId
   /** Optional model override for the delegated turn. */
   model?: string
+  /** The permission mode the routed turn runs under (surface-up step 1) — from the
+   *  job row. Omit for the pre-mode default (`bypass-with-behavior-gate`). */
+  permissionMode?: DelegationPermissionMode
   /** The delegation request's correlation key (brain-tree Chapter 2) — stamped on the
    *  workspace-side task + reply so the chain is queryable as one trace. */
   partialSessionId?: string
@@ -75,6 +82,7 @@ export async function delegateToWorkspaceRoot(
     ...(target.resumeSdkSessionId !== null ? { resumeSessionId: target.resumeSdkSessionId } : {}),
     taskText: input.taskText,
     ...(input.model !== undefined ? { model: input.model } : {}),
+    ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
   })
 
   // 3. Record + link the segment if the turn ran on a NEW sdk session (fresh root OR
