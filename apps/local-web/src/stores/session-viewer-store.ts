@@ -1,46 +1,21 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 
-// The right-side session viewer's navigation: a stack of session ids.
-// Opening from a chat link starts a fresh stack; opening from INSIDE the
-// viewer drills down (Back pops). Close clears everything.
+// The right-side delegation-trace viewer: holds the partialSessionId of the
+// delegation being watched (opened from a report message's "Watch X" chip), or
+// null when closed. A delegation trace is flat (task → reply → report), so there
+// is no drill-down — just open one and close.
 export const useSessionViewerStore = defineStore("session-viewer", () => {
-  const stack = ref<string[]>([]);
+  const currentSessionId = ref<string | null>(null);
+  const isOpen = computed(() => currentSessionId.value !== null);
 
-  const isOpen = computed(() => stack.value.length > 0);
-  const currentSessionId = computed(
-    () => stack.value[stack.value.length - 1] ?? null,
-  );
-  const canGoBack = computed(() => stack.value.length > 1);
-
-  /** Open from a chat surface: fresh stack. No-op if already showing it. */
-  function open(sessionId: string) {
-    if (currentSessionId.value === sessionId) return;
-    stack.value = [sessionId];
-  }
-
-  /** Drill down from inside the viewer: push, Back returns. */
-  function drillDown(sessionId: string) {
-    if (currentSessionId.value === sessionId) return;
-    stack.value = [...stack.value, sessionId];
-  }
-
-  function back() {
-    stack.value = stack.value.slice(0, -1);
+  function open(partialSessionId: string) {
+    currentSessionId.value = partialSessionId;
   }
 
   function close() {
-    stack.value = [];
+    currentSessionId.value = null;
   }
 
-  return {
-    stack,
-    isOpen,
-    currentSessionId,
-    canGoBack,
-    open,
-    drillDown,
-    back,
-    close,
-  };
+  return { currentSessionId, isOpen, open, close };
 });

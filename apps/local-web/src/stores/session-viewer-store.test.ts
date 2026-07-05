@@ -6,36 +6,21 @@ import { useLiveSessionsStore } from "./live-sessions-store.js";
 describe("session-viewer store", () => {
   beforeEach(() => setActivePinia(createPinia()));
 
-  it("open starts a fresh stack; drillDown pushes; back pops; close clears", () => {
+  it("open sets the watched delegation; open replaces it; close clears", () => {
     const viewer = useSessionViewerStore();
 
-    viewer.open("workspace-session");
+    expect(viewer.isOpen).toBe(false);
+
+    viewer.open("partial-1");
     expect(viewer.isOpen).toBe(true);
-    expect(viewer.currentSessionId).toBe("workspace-session");
-    expect(viewer.canGoBack).toBe(false);
+    expect(viewer.currentSessionId).toBe("partial-1");
 
-    viewer.drillDown("agent-session");
-    expect(viewer.currentSessionId).toBe("agent-session");
-    expect(viewer.canGoBack).toBe(true);
-
-    viewer.back();
-    expect(viewer.currentSessionId).toBe("workspace-session");
-
-    viewer.open("other-session");
-    expect(viewer.stack).toEqual(["other-session"]);
+    viewer.open("partial-2");
+    expect(viewer.currentSessionId).toBe("partial-2");
 
     viewer.close();
     expect(viewer.isOpen).toBe(false);
-  });
-
-  it("ignores re-opening the session already on top", () => {
-    const viewer = useSessionViewerStore();
-
-    viewer.open("s1");
-    viewer.drillDown("s2");
-    viewer.drillDown("s2");
-
-    expect(viewer.stack).toEqual(["s1", "s2"]);
+    expect(viewer.currentSessionId).toBeNull();
   });
 });
 

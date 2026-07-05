@@ -1,49 +1,56 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ArrowLeft, X } from "lucide-vue-next";
-import { IconButton, PresenceDot } from "@vynel/ui";
-import ThreadStream from "../chat/ThreadStream.vue";
-import { useSessionDetail } from "../../composables/chat/use-session-detail.js";
-import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
+import { X } from "lucide-vue-next";
+import { IconButton, MarkdownText, PresenceDot } from "@vynel/ui";
+import { useDelegationTrace } from "../../composables/delegations/use-delegation-trace.js";
 import { useSessionViewerStore } from "../../stores/session-viewer-store.js";
-import { useLiveSessionsStore } from "../../stores/live-sessions-store.js";
+import { formatSdkError } from "../../utils/format-sdk-error.js";
 
-// The right-side session viewer: follow ANY session's realtime activity —
-// a workspace run the global brain delegated, an agent run the workspace
-// delegated — and drill deeper through each "watch live" link (Back returns).
+// The right-side "watch a delegation" panel. A report message's "Watch X" chip
+// carries the delegation's partialSessionId (a correlation key, NOT a session
+// id); this polls its condensed trace (task → workspace reply → report) and
+// fills in live while the routed task is still running.
 const viewer = useSessionViewerStore();
-const liveSessions = useLiveSessionsStore();
-const workspacesQuery = useWorkspaceList();
 
-// Any session opened here is read by id through the root ("view X"). Live
-// drill-down waits on a per-session subscribe endpoint (deferred) — on real
-// data no delegation links surface yet, so this stays dormant until then.
-const VIEWER_SCOPE = { kind: "global" } as const;
-const detailQuery = useSessionDetail(
-  () => VIEWER_SCOPE,
-  () => viewer.currentSessionId,
-);
-const messages = computed(() => detailQuery.data.value?.messages ?? []);
-const toolCallsByMessageId = computed(
-  () => detailQuery.data.value?.toolCallsByMessageId ?? {},
+const traceQuery = useDelegationTrace(() => viewer.currentSessionId);
+const entries = computed(() => traceQuery.data.value?.entries ?? []);
+const status = computed(() => traceQuery.data.value?.status ?? null);
+const isWorking = computed(
+  () => status.value === "pending" || status.value === "claimed",
 );
 
-const liveTurn = computed(() =>
-  viewer.currentSessionId
-    ? liveSessions.liveFor(viewer.currentSessionId)
-    : null,
+const errorText = computed(() =>
+  traceQuery.isError.value ? formatSdkError(traceQuery.error.value) : null,
 );
 
-const session = computed(() => detailQuery.data.value?.session ?? null);
+// The first labelled entry names the delegated workspace/manager (e.g. "Noah · vynel").
+const title = computed(
+  () => entries.value.find((entry) => entry.sourceLabel)?.sourceLabel ?? "Delegation",
+);
 
-const contextLabel = computed(() => {
-  const workspaceId = session.value?.workspaceId;
-  if (!workspaceId) return "";
-  return (
-    workspacesQuery.data.value?.find((row) => row.id === workspaceId)?.name ??
-    "Global"
-  );
+const statusLabel = computed(() => {
+  switch (status.value) {
+    case "pending":
+      return "Queued…";
+    case "claimed":
+      return "Working…";
+    case "completed":
+      return "Done";
+    case "failed":
+      return "Failed";
+    default:
+      return "";
+  }
 });
+
+type TraceEntry = (typeof entries.value)[number];
+
+function authorLabel(entry: TraceEntry): string {
+  if (entry.role === "user")
+    return entry.sourceKind === "global-root" ? "From Global" : "You";
+  if (entry.sourceLabel) return `Assistant · ${entry.sourceLabel}`;
+  return "Assistant";
+}
 </script>
 
 <template>
@@ -51,43 +58,42 @@ const contextLabel = computed(() => {
     <Transition name="viewer">
       <div v-if="viewer.isOpen" class="viewer-layer">
         <div class="scrim" @click="viewer.close()" />
-        <aside class="session-viewer" aria-label="Session activity">
+        <aside class="session-viewer" aria-label="Delegation activity">
           <header class="viewer-header">
-            <IconButton
-              v-if="viewer.canGoBack"
-              label="Back"
-              @click="viewer.back()"
-            >
-              <ArrowLeft :size="15" />
-            </IconButton>
             <div class="titles">
               <p class="viewer-title">
-                <PresenceDot
-                  :state="
-                    liveTurn && liveTurn.status === 'streaming'
-                      ? 'live'
-                      : 'idle'
-                  "
-                />
-                {{ session?.title ?? "Session" }}
+                <PresenceDot :state="isWorking ? 'live' : 'idle'" />
+                {{ title }}
               </p>
-              <p v-if="contextLabel" class="viewer-context">
-                {{ contextLabel }}
-              </p>
+              <p v-if="statusLabel" class="viewer-context">{{ statusLabel }}</p>
             </div>
-            <IconButton label="Close session view" @click="viewer.close()">
+            <IconButton label="Close" @click="viewer.close()">
               <X :size="15" />
             </IconButton>
           </header>
 
-          <ThreadStream
-            class="viewer-thread"
-            :messages="messages"
-            :tool-calls-by-message-id="toolCallsByMessageId"
-            :active-turn="liveTurn"
-            @open-session="viewer.drillDown"
-            @decide-approval="() => {}"
-          />
+          <div class="viewer-body">
+            <p v-if="errorText" class="state-note is-error">{{ errorText }}</p>
+            <p v-else-if="traceQuery.isPending.value" class="state-note">
+              Loading…
+            </p>
+            <p v-else-if="entries.length === 0" class="state-note">
+              {{
+                isWorking
+                  ? "Waiting for the workspace to start…"
+                  : "No activity recorded for this task."
+              }}
+            </p>
+            <div v-else class="trace">
+              <div v-for="entry in entries" :key="entry.id" class="entry">
+                <p class="entry-author">{{ authorLabel(entry) }}</p>
+                <MarkdownText :source="entry.body" />
+              </div>
+              <p v-if="isWorking" class="working-note">
+                <PresenceDot state="live" /> Still working…
+              </p>
+            </div>
+          </div>
         </aside>
       </div>
     </Transition>
@@ -156,9 +162,51 @@ const contextLabel = computed(() => {
   font: 400 10.5px/1.5 var(--font-ui);
 }
 
-.viewer-thread {
+.viewer-body {
   min-height: 0;
+  overflow-y: auto;
   background: var(--bg-shell);
+  padding: 16px 18px;
+}
+
+.trace {
+  max-width: 760px;
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.entry {
+  display: grid;
+  gap: 6px;
+}
+
+.entry-author {
+  margin: 0;
+  color: var(--ink-3);
+  font: 600 10.5px/1.5 var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.state-note {
+  margin: 16px 0 0;
+  text-align: center;
+  color: var(--ink-3);
+  font: 400 12.5px/1.6 var(--font-ui);
+}
+
+.state-note.is-error {
+  color: var(--danger);
+}
+
+.working-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 0;
+  color: var(--ink-2);
+  font: 500 12px/1.5 var(--font-ui);
 }
 
 .viewer-enter-active,
