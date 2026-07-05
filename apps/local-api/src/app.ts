@@ -23,7 +23,21 @@ import { channelsApp } from './routes/channels/index.js'
 import { channelsUserApp } from './routes/channels/user-scoped.js'
 import { schedulesApp } from './routes/schedules/index.js'
 import { schedulesUserApp } from './routes/schedules/user-scoped.js'
-import { approvalsApp } from './routes/approvals/index.js'
+import { approvalsApp, approvalRulesApp } from './routes/approvals/index.js'
+import { approvalsUserApp } from './routes/approvals/user-scoped.js'
+import { chatApp } from './routes/chat/index.js'
+import { filesApp } from './routes/files/index.js'
+import { memoryApp } from './routes/memory/index.js'
+import { capabilitiesApp } from './routes/capabilities/index.js'
+import { usersApp } from './routes/users/index.js'
+import { agentsApp } from './routes/agents/index.js'
+import { providersApp } from './routes/providers/index.js'
+import { onboardingApp } from './routes/onboarding/index.js'
+import { firstLaunchGateMiddleware } from './middleware/first-launch-gate.js'
+import { workspacesApp } from './routes/workspaces/index.js'
+import { rootApp } from './routes/root/index.js'
+import { routingApp } from './routes/routing/index.js'
+import { dashboardApp } from './routes/dashboard/index.js'
 
 export interface CreateAppOptions {
   readonly db: Database
@@ -42,6 +56,11 @@ export interface CreateAppOptions {
   // routes (skills `/synchronize`) run through the HTTP stack without the live
   // Claude runtime reading the dev's real `~/.claude/skills`.
   readonly aiProvider?: AiAgentProvider
+  // Mount the first-launch gate (412s non-onboarding routes until onboarding
+  // completes). The middleware skips `/openapi.json` BEFORE touching `c.var.db`,
+  // so the SDK generator's stub-deps spec request is safe. Off by default
+  // (domain route tests aren't gated); `server.ts` enables it for production.
+  readonly enableFirstLaunchGate?: boolean
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -66,6 +85,10 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     await next()
   })
 
+  if (options.enableFirstLaunchGate) {
+    app.use('*', firstLaunchGateMiddleware)
+  }
+
   app.onError((err, c) => {
     if (err instanceof VynelError) {
       return c.json(
@@ -86,6 +109,12 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/workspaces/:workspaceId/marketplace', marketplaceApp)
   app.route('/workspaces/:workspaceId/channels', channelsApp)
   app.route('/workspaces/:workspaceId/schedules', schedulesApp)
+  app.route('/workspaces/:workspaceId/chat', chatApp)
+  app.route('/workspaces/:workspaceId/files', filesApp)
+  app.route('/workspaces/:workspaceId/memory', memoryApp)
+  app.route('/workspaces/:workspaceId/capabilities', capabilitiesApp)
+  app.route('/workspaces/:workspaceId/approvals', approvalsApp)
+  app.route('/workspaces/:workspaceId/approval-rules', approvalRulesApp)
   // User-scoped (no workspace prefix) — GLOBAL (null-workspace) + cross-workspace
   // resources. `/channels` + `/schedules` span a user's whole set (both scopes)
   // so global channels/schedules are creatable, listable, and manageable; the
@@ -93,7 +122,17 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // surface. These sit alongside the untouched workspace-scoped mounts above.
   app.route('/channels', channelsUserApp)
   app.route('/schedules', schedulesUserApp)
-  app.route('/approvals', approvalsApp)
+  app.route('/approvals', approvalsUserApp)
+  app.route('/users', usersApp)
+  app.route('/onboarding', onboardingApp)
+  app.route('/providers', providersApp)
+  app.route('/agents', agentsApp)
+  app.route('/root', rootApp)
+  app.route('/routing', routingApp)
+  app.route('/dashboard', dashboardApp)
+  // Bare `/workspaces` mounts AFTER every `/workspaces/:workspaceId/*` sub-app
+  // (source order) so the param-scoped feature routes keep precedence.
+  app.route('/workspaces', workspacesApp)
 
   return app
 }

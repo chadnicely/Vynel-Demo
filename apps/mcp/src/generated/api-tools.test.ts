@@ -33,34 +33,57 @@ import { generatedMcpTools, generatedRoutingMcpTools } from './api-tools.js'
 //   - schedules USER-scoped (`.../routes/schedules/user-scoped.ts`): 1 read-only
 //     GET (list_my_schedules — a user's global + workspace schedules); the
 //     mutating create/update/enable/disable/delete routes carry NO x-mcp.
+//   - the 2026-07-05 API-completion waves: memory (2 reads + create_memory_entry
+//     mutatingApproved), chat (3 reads), workspaces (2 reads), users (2 reads),
+//     providers (3 reads). Approvals routes carry NO x-mcp at all (the agent
+//     never sees the approval surface); files/agents/capabilities/onboarding/
+//     dashboard/root likewise expose nothing.
 const EXPECTED_TOOL_NAMES = [
   'add_to_knowledge',
+  'create_memory_entry',
+  'discover_installed_skills_for_provider',
+  'get_ai_agent_provider_auth_status',
+  'get_chat_session',
+  'get_current_user',
   'get_indexer_status',
   'get_knowledge_document',
+  'get_user_preferences',
+  'get_workspace',
+  'list_ai_agent_providers',
   'list_allowed_senders',
   'list_available_skills',
   'list_channels',
+  'list_chat_sessions',
   'list_installed_skills',
   'list_knowledge_documents',
   'list_knowledge_sources',
+  'list_memory_entries',
   'list_my_channels',
   'list_my_schedules',
   'list_schedule_runs',
   'list_schedule_templates',
   'list_schedules',
+  'list_workspaces',
   'remove_knowledge_source',
+  'search_chat_messages',
   'search_knowledge',
+  'search_memory',
 ] as const
 
 // The ROUTING tools live in a SEPARATE array (path-prefix /routing/) — only the
 // global-root turn's in-process server gets them, so the normal chat turn stays
-// byte-for-byte. Empty until the agent-base routing routes land.
-const EXPECTED_ROUTING_TOOL_NAMES = [] as const
+// byte-for-byte. Landed with the routing vertical (2026-07-05).
+const EXPECTED_ROUTING_TOOL_NAMES = [
+  'list_routing_channels',
+  'list_routing_workspaces',
+  'route_to_workspace',
+  'send_to_channel',
+] as const
 
 const snakeToCamel = (s: string): string => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
 
 describe('generatedMcpTools', () => {
-  it('exposes exactly the annotated knowledge tools (by name)', () => {
+  it('exposes exactly the annotated tools (by name)', () => {
     expect(generatedMcpTools).toHaveLength(EXPECTED_TOOL_NAMES.length)
     // The generator names each factory export after its camelCased tool name,
     // so `.name` is the assertion surface (stronger than a bare count).
@@ -78,8 +101,10 @@ describe('generatedMcpTools', () => {
 })
 
 describe('generatedRoutingMcpTools', () => {
-  it('is empty until the routing routes land', () => {
+  it('exposes exactly the annotated routing tools (by name)', () => {
     expect(generatedRoutingMcpTools).toHaveLength(EXPECTED_ROUTING_TOOL_NAMES.length)
-    expect(generatedRoutingMcpTools).toHaveLength(0)
+    expect(generatedRoutingMcpTools.map((f) => f.name).sort()).toEqual(
+      EXPECTED_ROUTING_TOOL_NAMES.map(snakeToCamel).sort(),
+    )
   })
 })

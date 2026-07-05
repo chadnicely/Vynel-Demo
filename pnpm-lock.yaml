@@ -123,6 +123,9 @@ importers:
       '@vynel/memory':
         specifier: workspace:*
         version: link:../../packages/memory
+      '@vynel/onboarding':
+        specifier: workspace:*
+        version: link:../../packages/onboarding
       '@vynel/orchestration':
         specifier: workspace:*
         version: link:../../packages/orchestration
@@ -653,6 +656,25 @@ importers:
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)
+    devDependencies:
+      '@vynel/testing':
+        specifier: workspace:*
+        version: link:../testing
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/onboarding:
+    dependencies:
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@vynel/db':
+        specifier: workspace:*
+        version: link:../db
+      '@vynel/errors':
+        specifier: workspace:*
+        version: link:../errors
     devDependencies:
       '@vynel/testing':
         specifier: workspace:*

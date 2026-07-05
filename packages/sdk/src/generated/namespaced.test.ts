@@ -150,17 +150,34 @@ function capturingClient(): { client: Client<paths>; calls: CapturedCall[] } {
 }
 
 describe('makeNamespaced — shape', () => {
-  it('exposes the knowledge + approvals + skills + channels(+User) + marketplace + schedules(+User) namespaces with their annotated methods', () => {
+  it('exposes every landed namespace with the original groups\' annotated methods', () => {
     const sdk = makeNamespaced(stubClient)
+    // The full namespace list as of the 2026-07-05 API-completion waves. A
+    // namespace appearing/disappearing here means a route group (or its
+    // x-sdk-name prefix) changed — deliberate changes update this list.
     expect(Object.keys(sdk).sort()).toEqual([
+      'agents',
+      'approvalRules',
       'approvals',
+      'approvalsWorkspace',
+      'capabilities',
       'channels',
       'channelsUser',
+      'chat',
+      'dashboard',
+      'files',
       'knowledge',
       'marketplace',
+      'memory',
+      'onboarding',
+      'providers',
+      'root',
+      'routing',
       'schedules',
       'schedulesUser',
       'skills',
+      'users',
+      'workspaces',
     ])
     expect(Object.keys(sdk.knowledge).sort()).toEqual([...EXPECTED_KNOWLEDGE_METHODS])
     expect(Object.keys(sdk.approvals).sort()).toEqual([...EXPECTED_APPROVALS_METHODS])
@@ -172,19 +189,12 @@ describe('makeNamespaced — shape', () => {
     expect(Object.keys(sdk.schedulesUser).sort()).toEqual([...EXPECTED_SCHEDULES_USER_METHODS])
   })
 
-  it('every method is a function', () => {
+  it('every method in every namespace is a function', () => {
     const sdk = makeNamespaced(stubClient)
-    for (const method of [
-      ...Object.values(sdk.knowledge),
-      ...Object.values(sdk.approvals),
-      ...Object.values(sdk.skills),
-      ...Object.values(sdk.channels),
-      ...Object.values(sdk.channelsUser),
-      ...Object.values(sdk.marketplace),
-      ...Object.values(sdk.schedules),
-      ...Object.values(sdk.schedulesUser),
-    ]) {
-      expect(typeof method).toBe('function')
+    for (const namespace of Object.values(sdk)) {
+      for (const method of Object.values(namespace)) {
+        expect(typeof method).toBe('function')
+      }
     }
   })
 })
@@ -244,6 +254,7 @@ describe('makeNamespaced — request shaping', () => {
 // return reverts to `undefined` and `toHaveProperty` fails to compile.
 describe('makeNamespaced — return types', () => {
   type KnowledgeSdk = ReturnType<typeof makeNamespaced>['knowledge']
+  type ApprovalsSdk = ReturnType<typeof makeNamespaced>['approvals']
 
   it('types search() as the results envelope, not undefined', () => {
     expectTypeOf<Awaited<ReturnType<KnowledgeSdk['search']>>>().toHaveProperty('results')
@@ -264,5 +275,15 @@ describe('makeNamespaced — return types', () => {
 
   it('types reindex() as the count envelope', () => {
     expectTypeOf<Awaited<ReturnType<KnowledgeSdk['reindex']>>>().toHaveProperty('indexedCount')
+  })
+
+  it('types listPending() as an array of approval requests, not undefined', () => {
+    expectTypeOf<Awaited<ReturnType<ApprovalsSdk['listPending']>>[number]>().toHaveProperty(
+      'providerApprovalId',
+    )
+  })
+
+  it('types decide() as the resolved approval request, not undefined', () => {
+    expectTypeOf<Awaited<ReturnType<ApprovalsSdk['decide']>>>().toHaveProperty('providerApprovalId')
   })
 })

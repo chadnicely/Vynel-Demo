@@ -20,8 +20,82 @@ import type { paths } from './api.js'
 
 export function makeNamespaced(client: Client<paths>) {
   return {
+  agents: {
+  create: async (input: NonNullable<paths["/agents"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/agents", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  delete: async (agentId: NonNullable<paths["/agents/{agentId}"]["delete"]['parameters']>['path']["agentId"]) => {
+    const { error, response } = await client["DELETE"]("/agents/{agentId}", {
+      params: { path: { agentId: agentId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  getBySlug: async (slug: NonNullable<paths["/agents/{slug}"]["get"]['parameters']>['path']["slug"], options?: NonNullable<paths["/agents/{slug}"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/agents/{slug}", {
+      params: { path: { slug: slug }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  installCurated: async (input: NonNullable<paths["/agents/curated/install"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/agents/curated/install", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async (options: NonNullable<paths["/agents"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/agents", {
+      params: { query: options },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listCurated: async () => {
+    const { data, error, response } = await client["GET"]("/agents/curated")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  setEnabled: async (agentId: NonNullable<paths["/agents/{agentId}/enable"]["post"]['parameters']>['path']["agentId"], input: NonNullable<paths["/agents/{agentId}/enable"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/agents/{agentId}/enable", {
+      params: { path: { agentId: agentId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  update: async (agentId: NonNullable<paths["/agents/{agentId}"]["patch"]['parameters']>['path']["agentId"], input: NonNullable<paths["/agents/{agentId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/agents/{agentId}", {
+      params: { path: { agentId: agentId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  approvalRules: {
+  delete: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/approval-rules/{ruleId}"]["delete"]['parameters']>['path']["workspaceId"], ruleId: NonNullable<paths["/workspaces/{workspaceId}/approval-rules/{ruleId}"]["delete"]['parameters']>['path']["ruleId"]) => {
+    const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/approval-rules/{ruleId}", {
+      params: { path: { workspaceId: workspaceId, ruleId: ruleId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/approval-rules"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/approval-rules", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   approvals: {
-  decide: async (providerApprovalId: string, input: NonNullable<paths["/approvals/{providerApprovalId}/decide"]["post"]['requestBody']>['content']['application/json']) => {
+  decide: async (providerApprovalId: NonNullable<paths["/approvals/{providerApprovalId}/decide"]["post"]['parameters']>['path']["providerApprovalId"], input: NonNullable<paths["/approvals/{providerApprovalId}/decide"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/approvals/{providerApprovalId}/decide", {
       params: { path: { providerApprovalId: providerApprovalId } },
       body: input,
@@ -35,8 +109,49 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  approvalsWorkspace: {
+  decide: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/approvals/{providerApprovalId}/decide"]["post"]['parameters']>['path']["workspaceId"], providerApprovalId: NonNullable<paths["/workspaces/{workspaceId}/approvals/{providerApprovalId}/decide"]["post"]['parameters']>['path']["providerApprovalId"], input: NonNullable<paths["/workspaces/{workspaceId}/approvals/{providerApprovalId}/decide"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/approvals/{providerApprovalId}/decide", {
+      params: { path: { workspaceId: workspaceId, providerApprovalId: providerApprovalId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listPending: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/approvals/pending"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/approvals/pending", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listRecent: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/approvals/recent"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/approvals/recent"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/approvals/recent", {
+      params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  capabilities: {
+  list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/capabilities"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/capabilities", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  setEnabled: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/capabilities/{capabilityId}"]["put"]['parameters']>['path']["workspaceId"], capabilityId: NonNullable<paths["/workspaces/{workspaceId}/capabilities/{capabilityId}"]["put"]['parameters']>['path']["capabilityId"], input: NonNullable<paths["/workspaces/{workspaceId}/capabilities/{capabilityId}"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/workspaces/{workspaceId}/capabilities/{capabilityId}", {
+      params: { path: { workspaceId: workspaceId, capabilityId: capabilityId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   channels: {
-  addAllowedSender: async (workspaceId: string, channelId: string, input: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/allowed-senders"]["post"]['requestBody']>['content']['application/json']) => {
+  addAllowedSender: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/allowed-senders"]["post"]['parameters']>['path']["workspaceId"], channelId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/allowed-senders"]["post"]['parameters']>['path']["channelId"], input: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/allowed-senders"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/channels/{channelId}/allowed-senders", {
       params: { path: { workspaceId: workspaceId, channelId: channelId } },
       body: input,
@@ -44,7 +159,7 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  connect: async (workspaceId: string, input: NonNullable<paths["/workspaces/{workspaceId}/channels/connect"]["post"]['requestBody']>['content']['application/json']) => {
+  connect: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/channels/connect"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/channels/connect"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/channels/connect", {
       params: { path: { workspaceId: workspaceId } },
       body: input,
@@ -52,49 +167,49 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  disable: async (workspaceId: string, channelId: string) => {
+  disable: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/disable"]["post"]['parameters']>['path']["workspaceId"], channelId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/disable"]["post"]['parameters']>['path']["channelId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/channels/{channelId}/disable", {
       params: { path: { workspaceId: workspaceId, channelId: channelId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  disconnect: async (workspaceId: string, channelId: string) => {
+  disconnect: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}"]["delete"]['parameters']>['path']["workspaceId"], channelId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}"]["delete"]['parameters']>['path']["channelId"]) => {
     const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/channels/{channelId}", {
       params: { path: { workspaceId: workspaceId, channelId: channelId } },
     })
     if (error) throw new SdkError(response, error)
 
   },
-  enable: async (workspaceId: string, channelId: string) => {
+  enable: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/enable"]["post"]['parameters']>['path']["workspaceId"], channelId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/enable"]["post"]['parameters']>['path']["channelId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/channels/{channelId}/enable", {
       params: { path: { workspaceId: workspaceId, channelId: channelId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  history: async (workspaceId: string, channelId: string, options?: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/history"]["get"]['parameters']>['query']) => {
+  history: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/history"]["get"]['parameters']>['path']["workspaceId"], channelId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/history"]["get"]['parameters']>['path']["channelId"], options?: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/history"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/channels/{channelId}/history", {
       params: { path: { workspaceId: workspaceId, channelId: channelId }, ...(options && { query: options }) },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  list: async (workspaceId: string) => {
+  list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/channels"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/channels", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listAllowedSenders: async (workspaceId: string, channelId: string) => {
+  listAllowedSenders: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/allowed-senders"]["get"]['parameters']>['path']["workspaceId"], channelId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/allowed-senders"]["get"]['parameters']>['path']["channelId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/channels/{channelId}/allowed-senders", {
       params: { path: { workspaceId: workspaceId, channelId: channelId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  removeAllowedSender: async (workspaceId: string, channelId: string, senderLinkId: string) => {
+  removeAllowedSender: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/allowed-senders/{senderLinkId}"]["delete"]['parameters']>['path']["workspaceId"], channelId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/allowed-senders/{senderLinkId}"]["delete"]['parameters']>['path']["channelId"], senderLinkId: NonNullable<paths["/workspaces/{workspaceId}/channels/{channelId}/allowed-senders/{senderLinkId}"]["delete"]['parameters']>['path']["senderLinkId"]) => {
     const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/channels/{channelId}/allowed-senders/{senderLinkId}", {
       params: { path: { workspaceId: workspaceId, channelId: channelId, senderLinkId: senderLinkId } },
     })
@@ -103,7 +218,7 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   channelsUser: {
-  addAllowedSender: async (channelId: string, input: NonNullable<paths["/channels/{channelId}/allowed-senders"]["post"]['requestBody']>['content']['application/json']) => {
+  addAllowedSender: async (channelId: NonNullable<paths["/channels/{channelId}/allowed-senders"]["post"]['parameters']>['path']["channelId"], input: NonNullable<paths["/channels/{channelId}/allowed-senders"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/channels/{channelId}/allowed-senders", {
       params: { path: { channelId: channelId } },
       body: input,
@@ -118,35 +233,35 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  disable: async (channelId: string) => {
+  disable: async (channelId: NonNullable<paths["/channels/{channelId}/disable"]["post"]['parameters']>['path']["channelId"]) => {
     const { data, error, response } = await client["POST"]("/channels/{channelId}/disable", {
       params: { path: { channelId: channelId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  disconnect: async (channelId: string) => {
+  disconnect: async (channelId: NonNullable<paths["/channels/{channelId}"]["delete"]['parameters']>['path']["channelId"]) => {
     const { error, response } = await client["DELETE"]("/channels/{channelId}", {
       params: { path: { channelId: channelId } },
     })
     if (error) throw new SdkError(response, error)
 
   },
-  enable: async (channelId: string) => {
+  enable: async (channelId: NonNullable<paths["/channels/{channelId}/enable"]["post"]['parameters']>['path']["channelId"]) => {
     const { data, error, response } = await client["POST"]("/channels/{channelId}/enable", {
       params: { path: { channelId: channelId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  get: async (channelId: string) => {
+  get: async (channelId: NonNullable<paths["/channels/{channelId}"]["get"]['parameters']>['path']["channelId"]) => {
     const { data, error, response } = await client["GET"]("/channels/{channelId}", {
       params: { path: { channelId: channelId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  history: async (channelId: string, options?: NonNullable<paths["/channels/{channelId}/history"]["get"]['parameters']>['query']) => {
+  history: async (channelId: NonNullable<paths["/channels/{channelId}/history"]["get"]['parameters']>['path']["channelId"], options?: NonNullable<paths["/channels/{channelId}/history"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/channels/{channelId}/history", {
       params: { path: { channelId: channelId }, ...(options && { query: options }) },
     })
@@ -158,14 +273,14 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listAllowedSenders: async (channelId: string) => {
+  listAllowedSenders: async (channelId: NonNullable<paths["/channels/{channelId}/allowed-senders"]["get"]['parameters']>['path']["channelId"]) => {
     const { data, error, response } = await client["GET"]("/channels/{channelId}/allowed-senders", {
       params: { path: { channelId: channelId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  removeAllowedSender: async (channelId: string, senderLinkId: string) => {
+  removeAllowedSender: async (channelId: NonNullable<paths["/channels/{channelId}/allowed-senders/{senderLinkId}"]["delete"]['parameters']>['path']["channelId"], senderLinkId: NonNullable<paths["/channels/{channelId}/allowed-senders/{senderLinkId}"]["delete"]['parameters']>['path']["senderLinkId"]) => {
     const { error, response } = await client["DELETE"]("/channels/{channelId}/allowed-senders/{senderLinkId}", {
       params: { path: { channelId: channelId, senderLinkId: senderLinkId } },
     })
@@ -173,8 +288,180 @@ export function makeNamespaced(client: Client<paths>) {
 
   },
   },
+  chat: {
+  archiveSession: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/archive"]["post"]['parameters']>['path']["workspaceId"], sessionId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/archive"]["post"]['parameters']>['path']["sessionId"]) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/chat/sessions/{sessionId}/archive", {
+      params: { path: { workspaceId: workspaceId, sessionId: sessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  deleteSession: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}"]["delete"]['parameters']>['path']["workspaceId"], sessionId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}"]["delete"]['parameters']>['path']["sessionId"]) => {
+    const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/chat/sessions/{sessionId}", {
+      params: { path: { workspaceId: workspaceId, sessionId: sessionId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  getContinuing: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/continuing"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/chat/continuing", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getSession: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}"]["get"]['parameters']>['path']["workspaceId"], sessionId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}"]["get"]['parameters']>['path']["sessionId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/chat/sessions/{sessionId}", {
+      params: { path: { workspaceId: workspaceId, sessionId: sessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getSessionContext: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/context"]["get"]['parameters']>['path']["workspaceId"], sessionId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/context"]["get"]['parameters']>['path']["sessionId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/chat/sessions/{sessionId}/context", {
+      params: { path: { workspaceId: workspaceId, sessionId: sessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getSessionImage: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/images/{filename}"]["get"]['parameters']>['path']["workspaceId"], sessionId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/images/{filename}"]["get"]['parameters']>['path']["sessionId"], filename: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/images/{filename}"]["get"]['parameters']>['path']["filename"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/chat/sessions/{sessionId}/images/{filename}", {
+      params: { path: { workspaceId: workspaceId, sessionId: sessionId, filename: filename } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  interruptSession: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/interrupt"]["post"]['parameters']>['path']["workspaceId"], sessionId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/interrupt"]["post"]['parameters']>['path']["sessionId"]) => {
+    const { error, response } = await client["POST"]("/workspaces/{workspaceId}/chat/sessions/{sessionId}/interrupt", {
+      params: { path: { workspaceId: workspaceId, sessionId: sessionId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  listSessions: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/chat/sessions", {
+      params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  renameSession: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}"]["patch"]['parameters']>['path']["workspaceId"], sessionId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}"]["patch"]['parameters']>['path']["sessionId"], input: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/workspaces/{workspaceId}/chat/sessions/{sessionId}", {
+      params: { path: { workspaceId: workspaceId, sessionId: sessionId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  searchSessions: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/search"]["get"]['parameters']>['path']["workspaceId"], options: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/search"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/chat/sessions/search", {
+      params: { path: { workspaceId: workspaceId }, query: options },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  startTurn: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/turn"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/turn"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/chat/sessions/turn", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  unarchiveSession: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/unarchive"]["post"]['parameters']>['path']["workspaceId"], sessionId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/unarchive"]["post"]['parameters']>['path']["sessionId"]) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/chat/sessions/{sessionId}/unarchive", {
+      params: { path: { workspaceId: workspaceId, sessionId: sessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  dashboard: {
+  getOverview: async () => {
+    const { data, error, response } = await client["GET"]("/dashboard/overview")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  files: {
+  createDirectory: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/directory"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/files/directory"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/files/directory", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  createFile: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/file"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/files/file"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/files/file", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  delete: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/delete"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/files/delete"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/files/delete", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listActivity: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/activity"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/files/activity"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/files/activity", {
+      params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listFileHistory: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/activity/file"]["get"]['parameters']>['path']["workspaceId"], options: NonNullable<paths["/workspaces/{workspaceId}/files/activity/file"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/files/activity/file", {
+      params: { path: { workspaceId: workspaceId }, query: options },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  move: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/move"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/files/move"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/files/move", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  raw: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/raw"]["get"]['parameters']>['path']["workspaceId"], options: NonNullable<paths["/workspaces/{workspaceId}/files/raw"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/files/raw", {
+      params: { path: { workspaceId: workspaceId }, query: options },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  readContent: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/content"]["get"]['parameters']>['path']["workspaceId"], options: NonNullable<paths["/workspaces/{workspaceId}/files/content"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/files/content", {
+      params: { path: { workspaceId: workspaceId }, query: options },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  saveContent: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/content"]["put"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/files/content"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/workspaces/{workspaceId}/files/content", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  tree: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/tree"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/files/tree"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/files/tree", {
+      params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   knowledge: {
-  addDirectory: async (workspaceId: string, input: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['requestBody']>['content']['application/json']) => {
+  addDirectory: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/knowledge/sources", {
       params: { path: { workspaceId: workspaceId } },
       body: input,
@@ -182,49 +469,49 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  getDocument: async (workspaceId: string, documentId: string) => {
+  getDocument: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/documents/{documentId}"]["get"]['parameters']>['path']["workspaceId"], documentId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/documents/{documentId}"]["get"]['parameters']>['path']["documentId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/knowledge/documents/{documentId}", {
       params: { path: { workspaceId: workspaceId, documentId: documentId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  getStatus: async (workspaceId: string) => {
+  getStatus: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/status"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/knowledge/status", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listDocuments: async (workspaceId: string, options?: NonNullable<paths["/workspaces/{workspaceId}/knowledge/documents"]["get"]['parameters']>['query']) => {
+  listDocuments: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/documents"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/knowledge/documents"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/knowledge/documents", {
       params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listSources: async (workspaceId: string) => {
+  listSources: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/knowledge/sources", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  reindex: async (workspaceId: string) => {
+  reindex: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/reindex"]["post"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/knowledge/reindex", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  removeSource: async (workspaceId: string, sourceId: string) => {
+  removeSource: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources/{sourceId}"]["delete"]['parameters']>['path']["workspaceId"], sourceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources/{sourceId}"]["delete"]['parameters']>['path']["sourceId"]) => {
     const { data, error, response } = await client["DELETE"]("/workspaces/{workspaceId}/knowledge/sources/{sourceId}", {
       params: { path: { workspaceId: workspaceId, sourceId: sourceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  search: async (workspaceId: string, options: NonNullable<paths["/workspaces/{workspaceId}/knowledge/search"]["get"]['parameters']>['query']) => {
+  search: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/search"]["get"]['parameters']>['path']["workspaceId"], options: NonNullable<paths["/workspaces/{workspaceId}/knowledge/search"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/knowledge/search", {
       params: { path: { workspaceId: workspaceId }, query: options },
     })
@@ -233,14 +520,14 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   marketplace: {
-  getItem: async (workspaceId: string, itemId: string) => {
+  getItem: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items/{itemId}"]["get"]['parameters']>['path']["workspaceId"], itemId: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items/{itemId}"]["get"]['parameters']>['path']["itemId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/marketplace/items/{itemId}", {
       params: { path: { workspaceId: workspaceId, itemId: itemId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listItems: async (workspaceId: string, options?: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items"]["get"]['parameters']>['query']) => {
+  listItems: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/marketplace/items", {
       params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
     })
@@ -248,8 +535,178 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  memory: {
+  create: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/memory/entries"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/memory/entries", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  delete: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/{entryId}"]["delete"]['parameters']>['path']["workspaceId"], entryId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/{entryId}"]["delete"]['parameters']>['path']["entryId"]) => {
+    const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/memory/entries/{entryId}", {
+      params: { path: { workspaceId: workspaceId, entryId: entryId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  get: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/{entryId}"]["get"]['parameters']>['path']["workspaceId"], entryId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/{entryId}"]["get"]['parameters']>['path']["entryId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/memory/entries/{entryId}", {
+      params: { path: { workspaceId: workspaceId, entryId: entryId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/memory/entries"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/memory/entries", {
+      params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listMentions: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/{entryId}/mentions"]["get"]['parameters']>['path']["workspaceId"], entryId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/{entryId}/mentions"]["get"]['parameters']>['path']["entryId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/memory/entries/{entryId}/mentions", {
+      params: { path: { workspaceId: workspaceId, entryId: entryId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  search: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/search"]["get"]['parameters']>['path']["workspaceId"], options: NonNullable<paths["/workspaces/{workspaceId}/memory/search"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/memory/search", {
+      params: { path: { workspaceId: workspaceId }, query: options },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  update: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/{entryId}"]["patch"]['parameters']>['path']["workspaceId"], entryId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/{entryId}"]["patch"]['parameters']>['path']["entryId"], input: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/{entryId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/workspaces/{workspaceId}/memory/entries/{entryId}", {
+      params: { path: { workspaceId: workspaceId, entryId: entryId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  onboarding: {
+  getNeedsOnboarding: async () => {
+    const { data, error, response } = await client["GET"]("/onboarding/status/needs-onboarding")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getRunStatus: async (runId: NonNullable<paths["/onboarding/{runId}"]["get"]['parameters']>['path']["runId"]) => {
+    const { data, error, response } = await client["GET"]("/onboarding/{runId}", {
+      params: { path: { runId: runId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  restart: async () => {
+    const { data, error, response } = await client["POST"]("/onboarding/restart")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  start: async () => {
+    const { data, error, response } = await client["POST"]("/onboarding/start")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  submitStep: async (runId: NonNullable<paths["/onboarding/{runId}/submit"]["post"]['parameters']>['path']["runId"], input: NonNullable<paths["/onboarding/{runId}/submit"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/onboarding/{runId}/submit", {
+      params: { path: { runId: runId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  providers: {
+  discoverInstalledSkills: async (providerId: NonNullable<paths["/providers/{providerId}/skills"]["get"]['parameters']>['path']["providerId"], options?: NonNullable<paths["/providers/{providerId}/skills"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/providers/{providerId}/skills", {
+      params: { path: { providerId: providerId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getAuthStatus: async (providerId: NonNullable<paths["/providers/{providerId}/auth"]["get"]['parameters']>['path']["providerId"]) => {
+    const { data, error, response } = await client["GET"]("/providers/{providerId}/auth", {
+      params: { path: { providerId: providerId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/providers")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  root: {
+  getContinuing: async () => {
+    const { data, error, response } = await client["GET"]("/root/continuing")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getSession: async (sessionId: NonNullable<paths["/root/sessions/{sessionId}"]["get"]['parameters']>['path']["sessionId"]) => {
+    const { data, error, response } = await client["GET"]("/root/sessions/{sessionId}", {
+      params: { path: { sessionId: sessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getTrace: async (partialSessionId: NonNullable<paths["/root/trace/{partialSessionId}"]["get"]['parameters']>['path']["partialSessionId"]) => {
+    const { data, error, response } = await client["GET"]("/root/trace/{partialSessionId}", {
+      params: { path: { partialSessionId: partialSessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getTranscript: async () => {
+    const { data, error, response } = await client["GET"]("/root/transcript")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listDelegations: async () => {
+    const { data, error, response } = await client["GET"]("/root/delegations")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  startTurn: async (input: NonNullable<paths["/root/turn"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/root/turn", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  routing: {
+  delegate: async (input: NonNullable<paths["/routing/delegate"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/routing/delegate", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listChannels: async () => {
+    const { data, error, response } = await client["GET"]("/routing/channels")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listWorkspaces: async () => {
+    const { data, error, response } = await client["GET"]("/routing/workspaces")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  sendToChannel: async (input: NonNullable<paths["/routing/send-to-channel"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/routing/send-to-channel", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   schedules: {
-  create: async (workspaceId: string, input: NonNullable<paths["/workspaces/{workspaceId}/schedules"]["post"]['requestBody']>['content']['application/json']) => {
+  create: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/schedules"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/schedules"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/schedules", {
       params: { path: { workspaceId: workspaceId } },
       body: input,
@@ -257,56 +714,56 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  delete: async (workspaceId: string, scheduleId: string) => {
+  delete: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}"]["delete"]['parameters']>['path']["workspaceId"], scheduleId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}"]["delete"]['parameters']>['path']["scheduleId"]) => {
     const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/schedules/{scheduleId}", {
       params: { path: { workspaceId: workspaceId, scheduleId: scheduleId } },
     })
     if (error) throw new SdkError(response, error)
 
   },
-  disable: async (workspaceId: string, scheduleId: string) => {
+  disable: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}/disable"]["post"]['parameters']>['path']["workspaceId"], scheduleId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}/disable"]["post"]['parameters']>['path']["scheduleId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/schedules/{scheduleId}/disable", {
       params: { path: { workspaceId: workspaceId, scheduleId: scheduleId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  enable: async (workspaceId: string, scheduleId: string) => {
+  enable: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}/enable"]["post"]['parameters']>['path']["workspaceId"], scheduleId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}/enable"]["post"]['parameters']>['path']["scheduleId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/schedules/{scheduleId}/enable", {
       params: { path: { workspaceId: workspaceId, scheduleId: scheduleId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  fireNow: async (workspaceId: string, scheduleId: string) => {
+  fireNow: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}/fire-now"]["post"]['parameters']>['path']["workspaceId"], scheduleId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}/fire-now"]["post"]['parameters']>['path']["scheduleId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/schedules/{scheduleId}/fire-now", {
       params: { path: { workspaceId: workspaceId, scheduleId: scheduleId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  list: async (workspaceId: string) => {
+  list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/schedules"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/schedules", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listRuns: async (workspaceId: string, scheduleId: string, options?: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}/runs"]["get"]['parameters']>['query']) => {
+  listRuns: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}/runs"]["get"]['parameters']>['path']["workspaceId"], scheduleId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}/runs"]["get"]['parameters']>['path']["scheduleId"], options?: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}/runs"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/schedules/{scheduleId}/runs", {
       params: { path: { workspaceId: workspaceId, scheduleId: scheduleId }, ...(options && { query: options }) },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listTemplates: async (workspaceId: string) => {
+  listTemplates: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/schedules/templates"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/schedules/templates", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  update: async (workspaceId: string, scheduleId: string, input: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}"]["patch"]['requestBody']>['content']['application/json']) => {
+  update: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}"]["patch"]['parameters']>['path']["workspaceId"], scheduleId: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}"]["patch"]['parameters']>['path']["scheduleId"], input: NonNullable<paths["/workspaces/{workspaceId}/schedules/{scheduleId}"]["patch"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PATCH"]("/workspaces/{workspaceId}/schedules/{scheduleId}", {
       params: { path: { workspaceId: workspaceId, scheduleId: scheduleId } },
       body: input,
@@ -323,28 +780,28 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  delete: async (scheduleId: string) => {
+  delete: async (scheduleId: NonNullable<paths["/schedules/{scheduleId}"]["delete"]['parameters']>['path']["scheduleId"]) => {
     const { error, response } = await client["DELETE"]("/schedules/{scheduleId}", {
       params: { path: { scheduleId: scheduleId } },
     })
     if (error) throw new SdkError(response, error)
 
   },
-  disable: async (scheduleId: string) => {
+  disable: async (scheduleId: NonNullable<paths["/schedules/{scheduleId}/disable"]["post"]['parameters']>['path']["scheduleId"]) => {
     const { data, error, response } = await client["POST"]("/schedules/{scheduleId}/disable", {
       params: { path: { scheduleId: scheduleId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  enable: async (scheduleId: string) => {
+  enable: async (scheduleId: NonNullable<paths["/schedules/{scheduleId}/enable"]["post"]['parameters']>['path']["scheduleId"]) => {
     const { data, error, response } = await client["POST"]("/schedules/{scheduleId}/enable", {
       params: { path: { scheduleId: scheduleId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  fireNow: async (scheduleId: string) => {
+  fireNow: async (scheduleId: NonNullable<paths["/schedules/{scheduleId}/fire-now"]["post"]['parameters']>['path']["scheduleId"]) => {
     const { data, error, response } = await client["POST"]("/schedules/{scheduleId}/fire-now", {
       params: { path: { scheduleId: scheduleId } },
     })
@@ -356,14 +813,14 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listRuns: async (scheduleId: string, options?: NonNullable<paths["/schedules/{scheduleId}/runs"]["get"]['parameters']>['query']) => {
+  listRuns: async (scheduleId: NonNullable<paths["/schedules/{scheduleId}/runs"]["get"]['parameters']>['path']["scheduleId"], options?: NonNullable<paths["/schedules/{scheduleId}/runs"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/schedules/{scheduleId}/runs", {
       params: { path: { scheduleId: scheduleId }, ...(options && { query: options }) },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  update: async (scheduleId: string, input: NonNullable<paths["/schedules/{scheduleId}"]["patch"]['requestBody']>['content']['application/json']) => {
+  update: async (scheduleId: NonNullable<paths["/schedules/{scheduleId}"]["patch"]['parameters']>['path']["scheduleId"], input: NonNullable<paths["/schedules/{scheduleId}"]["patch"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PATCH"]("/schedules/{scheduleId}", {
       params: { path: { scheduleId: scheduleId } },
       body: input,
@@ -373,21 +830,21 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   skills: {
-  disable: async (workspaceId: string, installedSkillId: string) => {
+  disable: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable"]["post"]['parameters']>['path']["workspaceId"], installedSkillId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable"]["post"]['parameters']>['path']["installedSkillId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable", {
       params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  enable: async (workspaceId: string, installedSkillId: string) => {
+  enable: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/enable"]["post"]['parameters']>['path']["workspaceId"], installedSkillId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/enable"]["post"]['parameters']>['path']["installedSkillId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}/enable", {
       params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  install: async (workspaceId: string, input: NonNullable<paths["/workspaces/{workspaceId}/skills/install"]["post"]['requestBody']>['content']['application/json']) => {
+  install: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/install"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/skills/install"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/install", {
       params: { path: { workspaceId: workspaceId } },
       body: input,
@@ -395,37 +852,123 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listAvailable: async (workspaceId: string) => {
+  listAvailable: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/available"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/skills/available", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listInstalled: async (workspaceId: string) => {
+  listInstalled: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/skills/installed", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  synchronize: async (workspaceId: string) => {
+  synchronize: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/synchronize"]["post"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/synchronize", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  uninstall: async (workspaceId: string, installedSkillId: string) => {
+  uninstall: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}"]["delete"]['parameters']>['path']["workspaceId"], installedSkillId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}"]["delete"]['parameters']>['path']["installedSkillId"]) => {
     const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}", {
       params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
     })
     if (error) throw new SdkError(response, error)
 
   },
-  updateSettings: async (workspaceId: string, installedSkillId: string, input: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings"]["patch"]['requestBody']>['content']['application/json']) => {
+  updateSettings: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings"]["patch"]['parameters']>['path']["workspaceId"], installedSkillId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings"]["patch"]['parameters']>['path']["installedSkillId"], input: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings"]["patch"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PATCH"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings", {
       params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  users: {
+  getMe: async () => {
+    const { data, error, response } = await client["GET"]("/users/me")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getPreferences: async () => {
+    const { data, error, response } = await client["GET"]("/users/me/preferences")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  updateMe: async (input: NonNullable<paths["/users/me"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/users/me", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  updatePreferences: async (input: NonNullable<paths["/users/me/preferences"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/users/me/preferences", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  workspaces: {
+  archive: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/archive"]["post"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/archive", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  delete: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}"]["delete"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}"]["delete"]['requestBody']>['content']['application/json']) => {
+    const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  get: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async (options?: NonNullable<paths["/workspaces"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listDirectories: async (options?: NonNullable<paths["/workspaces/directories"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/directories", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  register: async (input: NonNullable<paths["/workspaces"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  unarchive: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/unarchive"]["post"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/unarchive", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  update: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}"]["patch"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/workspaces/{workspaceId}", {
+      params: { path: { workspaceId: workspaceId } },
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

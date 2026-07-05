@@ -19,6 +19,7 @@ import type { User } from '@vynel/core/users'
 import type { Workspace } from '@vynel/workspaces'
 import type { FileWatcherService } from '@vynel/knowledge'
 import type { FireScheduleDeps } from '@vynel/schedules'
+import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
@@ -52,6 +53,10 @@ export interface AppEnv {
     // route test can fire with a FAKE turn (no live AI). Absent in production;
     // the routes lazily build the real deps via `buildScheduleFireDeps`.
     scheduleFireDeps?: FireScheduleDeps
+    // Set by the chat-session-resolver middleware (the session-scoped handler
+    // bundle's triple-check) — present only inside `/chat/sessions/:sessionId`
+    // routes, absent everywhere else.
+    chatSession?: ChatSession
   }
 }
 
