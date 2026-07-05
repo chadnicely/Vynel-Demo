@@ -61,24 +61,29 @@ actually govern that.
   cheap here), OR keep the old repo's "route = read-safe; do real work in the direct workspace chat" model
   and just smooth that path (a "Continue in workspace →" button on the read-safe report). Surface-up is
   net-new (beyond the faithful move); the direct-chat path already works with inline approvals.
-- **B — WEB vs CHANNEL.** A CHANNEL-originated delegation (Telegram) has no one at the web notifier to
-  approve async, and would park for up to the budget. Recommend: **surface-up only for WEB-origin turns in
-  a carding mode; channel-origin + no-mode default stays READ-SAFE auto-deny** (unchanged). The job's
-  origin columns already distinguish them.
+- **B — WEB vs CHANNEL. REVISED by Chad 2026-07-06:** approvals surface **on web ALWAYS** (every recorded
+  approval reaches the user-scoped notifier queue), **plus the ORIGIN CHANNEL when the flow came from one**
+  — a Telegram-driven turn or delegation pushes the approval request back to Telegram (✅/❌ inline
+  buttons), and the user decides from either surface (both go through `resolveApproval`; the second decider
+  gets a clean "already handled"). The previous web-only recommendation is dead. This is CHEAP because the
+  channels leaf already ships the whole loop, orphaned since the Ch4 rewrite: `enqueue-approval-request.ts`
+  (outbound card + buttons), `summarize-approval-for-channel.ts`, `derive-intent-kind` (classifies
+  "approve"/"deny"/button payloads), and `route-as-approval-reply.ts` (→ `resolveApproval`). Only the
+  producer side is unwired.
 - **C — THE PARKED SLOT + TIMEOUT.** The delegation service is **serial (1 job at a time)**, so a routed
-  task parked on your approval **holds the slot** until you decide. And `routeRequest`'s 600s WAIT budget
-  would time the job out if you don't answer in 10 min (the parked turn then recovers via the
-  approval-timeout worker → denied → resumes). For v1 (single user) this is acceptable — you're the
-  bottleneck anyway — but we should decide: keep the 600s cap, or extend/suspend it while parked on a
-  human approval. Recommend: **accept the parked-holds-slot for v1**, and **suspend the wait-timeout while
-  an approval is pending** (so a task you approve after 15 min still completes).
+  task parked on your approval **holds the slot** until you decide. Decided: **accept the parked-holds-slot
+  for v1**, and **suspend `routeRequest`'s wait budget while an approval is parked** (so a task you approve
+  after 15 min still completes). The unanswered-card bound is the approvals reaper
+  (`recoverStalePendingApprovals`, reaps at `timeoutMs*2` ≈ 10 min → denied → the parked turn resumes and
+  reports) — **currently exported but wired NOWHERE; wiring it is part of this build.**
 
-## Recommendation
+## Recommendation (revised)
 
-Build **surface-up, scoped to web-origin carding-mode delegations** (Decision A = surface-up, B = web-only,
-C = accept slot + suspend timeout-while-parked). Channel delegations and no-mode stay read-safe. The direct
-workspace chat remains the fully-interactive path. This gives Chad exactly what he asked — "route a task
-that DOES work, I approve it" — reusing the notifier that already exists.
+Build **surface-up for ALL origins**: routed approvals record-and-park (replacing the auto-deny), the web
+notifier always shows them, and a channel origin additionally gets the card pushed to the channel. The
+routed default mode stays `bypass-with-behavior-gate` (only the irreversible floor + declared mutating
+tools card), so Telegram is only pinged for genuinely irreversible actions; the threaded mode governs
+web-origin delegations.
 
 ## Sequencing (green + commit each)
 
@@ -86,14 +91,23 @@ that DOES work, I approve it" — reusing the notifier that already exists.
    (request → turn → header → route → job → runner → provider). Routed tasks still auto-deny; the mode is
    just carried + applied to which-tools-card. Web sends mode for global. Bind mode to the global-root's
    own turn. Gate green.
-2. **Surface-up.** `drain-leaf-turn` records-and-parks (gated: web-origin + carding mode); keep auto-deny
-   fallback. Suspend the wait-timeout while an approval is pending. Verify a routed action cards in the
-   notifier → approve → the task resumes + reports. Gate green + code-reviewer (AI seam).
-3. **Polish.** Approval-card context for a routed action (workspace + tool + the task text); dedupe the
+2. **Surface-up in routed delegations (all origins).** Replace the auto-deny with record-and-park
+   (`recordApprovalRequest` with the target workspaceId; the provider stays parked); channel-origin jobs
+   also enqueue the approval card to the origin channel; `drainLeafTurn` surfaces `approval-resolved`
+   (breaker now counts user DENIALS); suspend the wait budget while parked; wire the
+   `recoverStalePendingApprovals` reaper service. Gate green + code-reviewer (AI seam).
+3. **Brain-turn channel push.** A Telegram → global-root turn already RECORDS its approvals (chat consumer
+   → global queue → web notifier); thread an `approval-requested` callback from `routeAsChatTurn` through
+   `runGlobalRootTurn`'s drain sink so the card also reaches Telegram (the leaf's `enqueueApprovalRequest`,
+   full inbound context so typed "approve" correlates).
+4. **Polish.** Approval-card context for a routed action (workspace + tool + the task text); dedupe the
    duplicate trace entry; steer the routed agent to read-safe tools for read tasks.
 
 ## Open risks
 
 - Net-new beyond the faithful move (building the deferred fork 3) — but the vision, and the plumbing is
-  already here. · Serial-slot held while parked (v1-acceptable). · The AI approval seam is sacred — the
-  drain change goes through `code-reviewer`. · Channel-origin surface-up deferred (no async web watcher).
+  already here. · Serial-slot held while parked (v1-acceptable; the reaper bounds it). · The AI approval
+  seam is sacred — the drain change goes through `code-reviewer`. · A user denial now steers the routed
+  agent via the deny reason; two denials in one turn still trip the breaker (retry-loop guard). ·
+  Delegation-origin channel cards can't correlate a TYPED "approve" (no inbound row to stamp) — buttons
+  carry the explicit id, so Telegram works; typed-reply correlation for delegation cards is a noted improve.

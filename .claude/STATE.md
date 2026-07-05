@@ -3,11 +3,18 @@
 **Updated 2026-07-06.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (post-compaction): BUILD surface-up approval — APPROVED shape = WEB-ONLY
+## ⏭ NEXT ACTION (post-compaction): BUILD surface-up approval — REVISED shape = ALL ORIGINS, web always + origin channel
 
-**Full plan: `docs/module-notes/surface-up-approval.md` (READ IT FIRST). Chad approved 2026-07-06:
-surface-up, web-only.** Investigated both repos (KLONE internals + old-repo deferred design) — findings
-in the plan doc.
+**Full plan: `docs/module-notes/surface-up-approval.md` (READ IT FIRST — the revised §B + sequencing).
+Chad revised 2026-07-06: approvals surface on WEB ALWAYS, plus the ORIGIN CHANNEL (Telegram) when the
+flow came from one; decidable from either surface (second decider gets "already handled").** Web-only is
+dead; the routed auto-deny is replaced by record-and-park for ALL origins. Key discoveries: the channels
+leaf ALREADY ships the whole channel-approval loop (`enqueue-approval-request` + `summarize-approval-for-
+channel` + `derive-intent-kind` + `route-as-approval-reply` → `resolveApproval`) — orphaned since the Ch4
+rewrite, only the PRODUCER side is unwired; and `recoverStalePendingApprovals` (the unanswered-card
+bound, reaps at timeoutMs*2) is exported but wired NOWHERE — wiring it is part of Move 2. Build order
+(tasks #2–#5): mode threading → routed record-and-park (all origins + reaper + pausable wait budget) →
+brain-turn channel push (thread approval events from `GlobalRootDrainSink` to `routeAsChatTurn`) → polish.
 
 **Goal:** routed tasks (brain → workspace) can DO work with Chad's approval, instead of read-safe
 auto-deny. Chad's complaint: "route to workspace: it said routed but the task couldn't perform actions,
@@ -27,22 +34,31 @@ routed task's RECORDED approval surfaces in the existing notifier automatically.
    stores it → delegation-service → `runRootDelegationTurn` → `provider.startChatSession({ permissionMode })`.
    Web: `use-chat-turn` sends `mode` for GLOBAL turns too (currently workspace-only). Bind mode to the
    brain's own turn: `run-global-root-turn-core.ts:112` uses `input.mode` not hardcoded `'bypass-with-behavior-gate'`.
-2. **Surface-up in the routed turn.** `packages/orchestration/src/leaf/drain-leaf-turn.ts` — replace the
-   `onApprovalRequested` auto-deny (`buildRoutedLeafApprovalDenier` → `respondToApprovalRequest(denied)`)
-   with **record-and-park**: `recordApprovalRequest(db, {providerApprovalId, userId, workspaceId, sessionId,
-   toolName, toolInput, ...})` and RETURN WITHOUT RESPONDING (provider stays parked). **GATE it: surface-up
-   only when web-origin + a carding mode; keep the auto-deny + circuit-breaker FALLBACK for channel-origin /
-   no-mode** (backward-compat). Suspend `routeRequest`'s 600s WAIT budget while an approval is pending (so a
-   late human approval still completes). The notifier shows it → approve → `resolveApproval` →
-   `respondToApprovalRequest` → parked routed turn resumes + reports.
-3. **Polish.** Notifier approval-card context for a routed action (workspace + tool + task text). Dedupe the
+2. **Surface-up in the routed turn (ALL origins).** Replace the auto-deny
+   (`buildRoutedLeafApprovalDenier`) with **record-and-park**: an api-side handler calls
+   `recordApprovalRequest(db, {providerApprovalId: event.approvalRequestId, userId, workspaceId (target),
+   sessionId (SDK id, FK-less), parentMessageId, toolUseId: approvalRequestId (chat's placeholder
+   convention), toolName, toolInput})` and RETURNS WITHOUT RESPONDING (provider stays parked; a rule match
+   inside may auto-approve — that's correct). Web notifier picks it up automatically. If the job carries
+   origin channel columns → ALSO enqueue the approval card to that channel (refactor
+   `enqueueApprovalRequest` to accept a recipient-target without an inbound row; buttons carry the explicit
+   id). `drainLeafTurn` gains `approval-resolved` passthrough; the 2-denial breaker now counts USER
+   denials. Suspend `routeRequest`'s WAIT budget while parked (pausable timeout). Wire the
+   `recoverStalePendingApprovals` reaper interval in local-api (was never wired — the unanswered bound).
+3. **Brain-turn channel push.** Telegram → global-root turn already RECORDS approvals (chat consumer →
+   global queue → web notifier); thread `approval-requested` from the drain sink out to `routeAsChatTurn`
+   (via `RunGlobalRootTurnInput.onApprovalRequested` + `ProcessInboundDeps`) → the leaf's
+   `enqueueApprovalRequest` with full inbound context (typed "approve" correlates). Reply side already
+   works (`derive-intent-kind` → `route-as-approval-reply`).
+4. **Polish.** Notifier approval-card context for a routed action (workspace + tool + task text). Dedupe the
    duplicate delegation-trace entry (workspace reply + pushed report have the same body). Steer the routed
    agent to read-safe tools (Glob/LS/Read) for read tasks (Noah reached for Bash → denied on "list files").
 
-**Decisions locked (plan doc §"real decisions"):** A=surface-up · B=WEB-ONLY (channel-origin stays
-read-safe — no async web watcher) · C=accept parked-holds-serial-slot for v1 + suspend the wait-timeout
-while parked. **Serial delegation caveat:** a parked routed task holds the single serial slot until decided
-— fine for single-user v1.
+**Decisions locked (plan doc §"real decisions"):** A=surface-up · B=**ALL ORIGINS — web always + origin
+channel** (Chad 2026-07-06; web-only dead) · C=accept parked-holds-serial-slot for v1 + suspend the
+wait-timeout while parked; the reaper bounds an unanswered card (~10 min → denied → turn resumes).
+**Serial delegation caveat:** a parked routed task holds the single serial slot until decided — fine for
+single-user v1.
 
 
 
