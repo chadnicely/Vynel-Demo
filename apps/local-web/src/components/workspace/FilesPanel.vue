@@ -1,12 +1,14 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { X } from "lucide-vue-next";
 import { EmptyState, IconButton } from "@vynel/ui";
-import type { DemoFileNode } from "../../demo/fixtures/file-trees.js";
+import { useFileTree } from "../../composables/files/use-file-tree.js";
+import { formatSdkError } from "../../utils/format-sdk-error.js";
 import FileTreeNode from "./FileTreeNode.vue";
 
 const props = defineProps<{
   workspaceName: string;
-  tree: DemoFileNode[];
+  workspaceId: string;
   activeFilePath: string | null;
 }>();
 
@@ -14,6 +16,17 @@ const emit = defineEmits<{
   close: [];
   openFile: [filePath: string];
 }>();
+
+const rootQuery = useFileTree(
+  () => props.workspaceId,
+  () => undefined,
+  () => true,
+);
+
+const entries = computed(() => rootQuery.data.value ?? []);
+const errorText = computed(() =>
+  rootQuery.isError.value ? formatSdkError(rootQuery.error.value) : null,
+);
 </script>
 
 <template>
@@ -26,17 +39,19 @@ const emit = defineEmits<{
     </header>
 
     <div class="tree">
+      <p v-if="errorText" class="note is-error">{{ errorText }}</p>
+      <p v-else-if="rootQuery.isPending.value" class="note">Loading files…</p>
       <EmptyState
-        v-if="props.tree.length === 0"
+        v-else-if="entries.length === 0"
         title="No files yet"
         hint="Files your assistant creates in this workspace show up here."
       />
       <FileTreeNode
-        v-for="node in props.tree"
-        :key="node.name"
-        :node="node"
+        v-for="entry in entries"
+        :key="entry.relativePath"
+        :workspace-id="props.workspaceId"
+        :entry="entry"
         :depth="0"
-        parent-path=""
         :active-file-path="props.activeFilePath"
         @open-file="(path) => emit('openFile', path)"
       />
@@ -74,5 +89,16 @@ const emit = defineEmits<{
 .tree {
   overflow-y: auto;
   padding: 6px;
+}
+
+.note {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--ink-3);
+  font: 400 12px/1.6 var(--font-ui);
+}
+
+.note.is-error {
+  color: var(--danger);
 }
 </style>

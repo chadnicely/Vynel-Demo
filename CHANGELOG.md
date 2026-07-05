@@ -32,9 +32,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   Global chat is one continuous conversation (`root.*`, no history list); workspace chat is `chat.*`.
   The workspace drawer's feature sections (skills, channels, schedules, knowledge, marketplace) read
   their real per-domain lists, each fetched only while its section is open. The composer's model
-  picker is the real curated `CHAT_MODELS` allowlist, and the chosen model rides on every turn.
-  Contracts `ChatSessionResponse.workspaceId` is now nullable and
-  `ChatToolCallResponse.toolInput`/`toolOutput` optional, matching the wire.
+  picker is the real curated `CHAT_MODELS` allowlist, and the chosen model rides on every turn. The
+  workspace files area browses real files lazily (one directory listing per folder, fetched on
+  expand), and the editor reads and saves to real disk — truncated and binary files open read-only
+  so a partial buffer can never overwrite the file. Contracts `ChatSessionResponse.workspaceId` is
+  now nullable and `ChatToolCallResponse.toolInput`/`toolOutput` optional, matching the wire.
+- **The demo data layer is fully removed** — `apps/local-web/src/demo/` no longer exists; the desktop
+  UI runs entirely on the real API. (The Jarvis voice overlay stays a scripted animation until the
+  voice engine lands — that is UI, not data.)
 
 ### Fixed
 

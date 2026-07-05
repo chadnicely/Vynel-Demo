@@ -10,16 +10,18 @@ import {
   FolderOpen,
   Image,
 } from "lucide-vue-next";
-import type { DemoFileNode } from "../../demo/fixtures/file-trees.js";
+import {
+  useFileTree,
+  type DirectoryEntry,
+} from "../../composables/files/use-file-tree.js";
 import { fileColorFamily } from "./file-colors.js";
 
-// Recursive tree row (self-referencing component). Demo-phase: reads the
-// fixture tree; the files API swaps in a lazy directory listing later.
+// Recursive tree row (self-referencing component). A directory expands lazily:
+// its children are fetched from the files API only once it's opened.
 const props = defineProps<{
-  node: DemoFileNode;
+  workspaceId: string;
+  entry: DirectoryEntry;
   depth: number;
-  /** "/"-joined path of the parent directory ("" at the root). */
-  parentPath: string;
   activeFilePath: string | null;
 }>();
 
@@ -27,16 +29,20 @@ const emit = defineEmits<{
   openFile: [filePath: string];
 }>();
 
-const isOpen = ref(props.depth === 0);
+// Closed by default — a directory fetches its children only on open, and a
+// file must never enable the child query (its path isn't a directory).
+const isOpen = ref(false);
 
-const nodePath = computed(() =>
-  props.parentPath === ""
-    ? props.node.name
-    : `${props.parentPath}/${props.node.name}`,
+const childrenQuery = useFileTree(
+  () => props.workspaceId,
+  () => props.entry.relativePath,
+  () => isOpen.value,
 );
 
 const colorFamily = computed(() =>
-  props.node.kind === "directory" ? "folder" : fileColorFamily(props.node.name),
+  props.entry.kind === "directory"
+    ? "folder"
+    : fileColorFamily(props.entry.name),
 );
 
 const FILE_ICONS = {
@@ -52,7 +58,7 @@ const FILE_ICONS = {
 <template>
   <div class="file-node">
     <button
-      v-if="props.node.kind === 'directory'"
+      v-if="props.entry.kind === 'directory'"
       type="button"
       class="row"
       :style="{ paddingLeft: `${8 + props.depth * 14}px` }"
@@ -62,16 +68,16 @@ const FILE_ICONS = {
       <ChevronRight :size="12" class="caret" :class="{ 'is-open': isOpen }" />
       <FolderOpen v-if="isOpen" :size="13" class="icon tone-folder" />
       <Folder v-else :size="13" class="icon tone-folder" />
-      <span class="name">{{ props.node.name }}</span>
+      <span class="name">{{ props.entry.name }}</span>
     </button>
 
     <button
       v-else
       type="button"
       class="row is-file"
-      :class="{ 'is-active': nodePath === props.activeFilePath }"
+      :class="{ 'is-active': props.entry.relativePath === props.activeFilePath }"
       :style="{ paddingLeft: `${24 + props.depth * 14}px` }"
-      @click="emit('openFile', nodePath)"
+      @click="emit('openFile', props.entry.relativePath)"
     >
       <component
         :is="FILE_ICONS[colorFamily]"
@@ -79,16 +85,23 @@ const FILE_ICONS = {
         class="icon"
         :class="`tone-${colorFamily}`"
       />
-      <span class="name">{{ props.node.name }}</span>
+      <span class="name">{{ props.entry.name }}</span>
     </button>
 
-    <template v-if="props.node.kind === 'directory' && isOpen">
+    <template v-if="props.entry.kind === 'directory' && isOpen">
+      <p
+        v-if="childrenQuery.isPending.value"
+        class="loading-row"
+        :style="{ paddingLeft: `${24 + props.depth * 14}px` }"
+      >
+        Loading…
+      </p>
       <FileTreeNode
-        v-for="child in props.node.children ?? []"
-        :key="child.name"
-        :node="child"
+        v-for="child in childrenQuery.data.value ?? []"
+        :key="child.relativePath"
+        :workspace-id="props.workspaceId"
+        :entry="child"
         :depth="props.depth + 1"
-        :parent-path="nodePath"
         :active-file-path="props.activeFilePath"
         @open-file="(path) => emit('openFile', path)"
       />
@@ -177,6 +190,14 @@ const FILE_ICONS = {
 
 .row.is-active .name {
   color: var(--ink-1);
+}
+
+.loading-row {
+  margin: 0;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  color: var(--ink-3);
+  font: 400 12px/1.6 var(--font-ui);
 }
 
 @media (prefers-reduced-motion: reduce) {

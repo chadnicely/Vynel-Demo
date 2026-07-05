@@ -3,24 +3,35 @@
 **Updated 2026-07-05 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION: M7 — A+B+C+E DONE (pushed), ONLY SLICE D (files) LEFT — it's a REWORK, not a repoint
+## 🏁 M7 COMPLETE — desktop UI runs entirely on the real API. `apps/local-web/src/demo/` is GONE.
 
-**Slice E (model picker) DONE:** composer models = real `CHAT_MODELS` contract (`@vynel/contracts/chat/
-chat-models`, was demo fixture — note demo's `sonnet-5`→real `sonnet-4-6`); `DEFAULT_CHAT_MODEL` is the
-ui-store default; `model` now rides on EVERY turn (added to `StartTurnInput` + both request bodies +
-`use-chat-turn` passes `ui.composerModelId`). `fixtures/models.ts` deleted. Gate 1842, green.
+**All 5 slices done + pushed** (A `78bbe2c` · C `ddc275c` · E `8ff3bbd` · D commit pending). Full gate
+**1839/4-skip** (was 1835; +streamer/parser tests, −demo tests). The demo data layer no longer exists.
+- **A** workspaces + dashboard · **B** chat vertical (reads + live SSE turn + approvals + interrupt) —
+  reviewer SHIP-clean. **C** feature sections (5 `enabled`-gated per-domain reads). **E** model picker =
+  real `CHAT_MODELS`, model on every turn. **D** files area — LAZY per-directory tree
+  (`FileTreeNode` fetches children on expand), ASYNC editor read + real-disk save mutation, truncated/
+  binary → READ-ONLY (a partial buffer can't overwrite the file). Reviewer caught + I fixed a HIGH
+  data-loss bug (dirty draft A leaked onto file B's disk path via a vue-query undefined-tick →
+  `:key="filePath"` fresh-instance-per-file fix) + 2 should-fixes (save-error surface; FileTreeNode
+  `workspaceId` getter).
+- **Only "demo" left = `VoiceOverlayDemo`** (Jarvis voice ANIMATION — parked pending the voice engine;
+  it's UI, not data). `createLocalVynelClient` is just the app's real-client factory name.
 
-**⏭ SLICE D (files area) is the ONLY thing left — and it's a genuine rework (Chad's call how to sequence).**
-The real files API is NOT shaped like the demo: `files.tree(workspaceId,{path?})` → FLAT `{entries:
-DirectoryEntry[]}` for ONE directory (lazy per-folder browse), NOT the demo's full nested `DemoFileNode`
-tree. Content read is ASYNC: `files.readContent(workspaceId,{path})` → `{content:string|null, isText,
-kind, ...}` (null/binary for images). Save: `files.saveContent(workspaceId,{path,content})` (a real disk
-WRITE mutation). So slice D needs: (1) `FilesPanel`/`FileTreeNode` → LAZY tree (fetch each folder's
-entries on expand), (2) `FileEditorView` → async vue-query read + save mutation + binary/`!isText`
-handling (the editor currently reads SYNC via `getDemoFileContent`), (3) delete `demo-file-store`(+test)
-+ `fixtures/file-trees`. Files methods: tree·readContent·saveContent·createFile·createDirectory·move·
-delete·listActivity·listFileHistory·raw (all `/workspaces/{id}/files/*`). Remaining demo/ after D:
-NONE → F = delete empty `src/demo/` + final gate/reviewer.
+**⏭ CHAD TO SMOKE-TEST LIVE (can't be unit-tested):** boot `local-api` + `local-web`, register a
+workspace, send a chat message (stream renders? approval card decides?), open+edit+save a file
+(persists to disk? alt-tab mid-edit keeps the draft? truncated/binary read-only?), expand a folder
+(lazy-loads?). Real data = EMPTY until seeded — an empty first boot is correct, not a bug.
+
+**Deferred-improves logged (non-blocking, Chad's call when):** ① `use-chat-turn.interrupt()` best-effort
+catch is silent (app has NO logger layer by design — documented); ② `settleFailedTurn` on a PURE
+client-side network drop flashes errored then clears (server errors persist+refetch fine — rare edge);
+③ `saveContent` has no ETag/version guard (lost-update if disk changed under a dirty draft — inherent to
+the files API contract, not a slice bug); ④ approval `actionKind` absent (contract gap — generic card);
+⑤ live delegation drill-down dormant (no per-session-subscribe endpoint — session-viewer reads by-id).
+
+**Next surfaces (parked, not M7):** M6 Tauri shell (own session — long first cargo build) · voice-engine
+module (`@vynel/voice-engine`) + sidecar · attachedImages into the turn (composer accepts, not yet sent).
 
 ### (superseded below) M7 progress detail
 

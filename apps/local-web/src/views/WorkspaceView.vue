@@ -21,7 +21,6 @@ import type { SessionScope } from "../composables/chat/session-scope.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { useSessionViewerStore } from "../stores/session-viewer-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
-import { demoFileTreesByWorkspaceId } from "../demo/fixtures/file-trees.js";
 
 // The workspace room — same continuous-first chat as global, scoped to one
 // workspace. Panels beside the canvas: menu (persistent) · history · files.
@@ -134,12 +133,6 @@ const showsWelcome = computed(
   () => messages.value.length === 0 && activeTurn.value === null,
 );
 
-const fileTree = computed(() =>
-  ui.activeWorkspaceId === null
-    ? []
-    : (demoFileTreesByWorkspaceId[ui.activeWorkspaceId] ?? []),
-);
-
 const activeSection = computed<WorkspaceSectionId | null>(() =>
   typeof shell.mainView === "string" &&
   shell.mainView !== "chat" &&
@@ -213,6 +206,7 @@ function openContinuous() {
 
     <FileEditorView
       v-else-if="openFile"
+      :key="openFile.filePath"
       class="canvas"
       :workspace-id="ui.activeWorkspaceId ?? ''"
       :file-path="openFile.filePath"
@@ -266,7 +260,7 @@ function openContinuous() {
     <FilesPanel
       v-if="isFilesPanelOpen && !activeSection"
       :workspace-name="activeWorkspace?.name ?? 'Workspace'"
-      :tree="fileTree"
+      :workspace-id="ui.activeWorkspaceId ?? ''"
       :active-file-path="openFile?.filePath ?? null"
       @close="isFilesPanelOpen = false"
       @open-file="openFileOnCanvas"
