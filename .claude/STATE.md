@@ -3,6 +3,40 @@
 **Updated 2026-07-05 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## 🏁 DELEGATION works end-to-end (Chad-verified live) + tracking layer built (2026-07-06)
+
+**"Route task to workspace didn't work" was TWO things, both now fixed:**
+1. **STALE DEV DB (the real blocker).** Chad's `.data/vynel.dev.db` was created 2026-07-04, before several
+   schema changes were **baseline-folded** (edited into `0000_baseline.sql` rather than added as
+   migrations): `schedule_kind` + nullable cronExpression, nullable `workspaceId`, `primary_sessions`
+   rename, etc. Migrations don't re-add baseline-folded columns → the DB was permanently missing them →
+   `GET /dashboard/overview` crashed on `no such column: "schedule_kind"`, and the delegation path
+   errored server-side. **Fix: deleted `.data/vynel.dev.db{,-wal,-shm}` + restarted → fresh DB from the
+   current baseline.** ⚠ **RECURRING PAPERCUT** — baseline-folding wipes Chad's dev DB on every schema
+   change now that he RUNS the app. Consider switching to incremental migrations once closer to real use.
+   See memory [[stale-dev-db-baseline-folding]].
+2. **NO frontend observability (the "didn't see it hit").** The delegation MECHANISM is a byte-for-byte
+   faithful match to the old repo (read-safe async queue → `recordPushedReportMessage` push) — NOT a
+   regression. But KLONE's fresh UI never ported the old repo's live-tracking. Built it fresh:
+   - **Slice 1 (`205c87a`):** `use-in-flight-delegations` polls `root.listDelegations()` (4s) while global
+     chat is open → "⚡ Working in {workspace}…" banner + keeps the global thread live (`useSessionDetail`
+     gained an optional `refetchInterval`) so the pushed report surfaces within seconds.
+   - **Slice 2 (`c7aff25`):** the "Watch X" chip was MISROUTED (passed the delegation `partialSessionId`
+     to `root.getSession` → 404). Fixed: `use-delegation-trace` polls `root.getTrace(partialSessionId)`
+     (2.5s while pending/claimed) and `SessionViewerPanel` renders the condensed trace (task → reply →
+     report) filling in live. Simplified the viewer store to a single key (traces are flat, no drill-down).
+
+**✅ Chad-verified live (screenshot):** created workspace "vynel" (Noah) via `register_workspace` →
+"send task to vynel: list all files" → `route_to_workspace` → the delegation RAN → Noah's report bubbled
+back into the global thread ("ASSISTANT · NOAH · VYNEL") → the "Watch Noah · vynel" chip appeared.
+
+**READ-SAFE is by design (matches old repo, deferred fork 3).** Noah's report said "I couldn't finish —
+a routed task can't perform writes/edits/irreversible actions yet" — because it reached for Bash (carded
+→ auto-denied; 2 denials → circuit breaker). Routed tasks are read/analysis-only; the report correctly
+tells the user to open the workspace chat to do actions there. **Write-capable delegation = surface-up
+approval (brain-tree fork 3), deferred in BOTH repos — a real product decision for Chad.** Minor rough
+edge: for read tasks the routed agent reaches for Bash instead of read-safe tools (Glob/LS/Read).
+
 ## 🏁 M7 done — desktop UI WIRED to the real API + unit-green. `src/demo/` GONE. ⚠ NOT yet live-smoked.
 
 **Honest status: the code is wired to the real API and unit/typecheck-green, but the integration seam

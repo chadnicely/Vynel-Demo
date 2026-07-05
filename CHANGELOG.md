@@ -9,6 +9,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **See delegated work happen.** When the brain routes a task to a workspace, the global chat now shows
+  a live "⚡ Working in *{workspace}*…" indicator (polling the in-flight delegations) and keeps the thread
+  live so the workspace's report appears within seconds of completing. A report's "Watch *X*" chip opens
+  a right-side panel that fills in the delegation's condensed trace (task → workspace reply → report) as
+  it runs. (Previously the report only surfaced on window-focus and the chip 404'd.)
 - **The assistant can create workspaces (MCP tool).** `register_workspace` — a brain-surface, mutating
   MCP tool bound to the global-root turn — lets the user set up a new workspace straight from the global
   conversation ("set up a bookkeeping workspace in C:\Users\me\Bookkeeping"); it fires an approval card
