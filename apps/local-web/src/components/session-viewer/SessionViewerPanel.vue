@@ -107,7 +107,8 @@ const contextLabel = computed(() => {
   top: 12px;
   right: 14px;
   bottom: 14px;
-  width: min(460px, 92vw);
+  /* Just under half the window, with sane floors/ceilings. */
+  width: clamp(460px, 48vw, 92vw);
   display: grid;
   grid-template-rows: auto 1fr;
   background: var(--bg-panel);
