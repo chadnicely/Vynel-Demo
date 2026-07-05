@@ -5,12 +5,13 @@
 // dir (user-scope installs), so a test run never touches the dev's
 // real `~/.claude/skills/`. See `withIsolatedFs`.
 //
-// `/synchronize` is deliberately NOT tested here — the route calls
-// `resolveAiAgentProvider('claude')` which would read the dev's
-// real `~/.claude/skills/` directory at test time
-// (non-deterministic). The core-op level
-// (`synchronize-skills-with-provider.test.ts`) covers the
-// behavior with an injected fake provider.
+// `/synchronize` IS tested here now — the route reads `c.var.aiProvider`
+// (injected via `createApp({ aiProvider })`), so a test threads a FAKE
+// provider through the whole HTTP stack instead of the route hardcoding
+// `resolveAiAgentProvider('claude')` (which would read the dev's real
+// `~/.claude/skills/` at test time). The core-op level
+// (`synchronize-skills-with-provider.test.ts`) covers the reconciliation
+// branches; this asserts the route wires the injected provider through.
 
 import { describe, it, expect } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -24,7 +25,40 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { SKILL_INSTALLED } from '@vynel/skills'
 import { withHomeDir } from '@vynel/skills/test-support'
+import type { AiAgentProvider } from '@vynel/providers'
 import { createApp } from '../../app.js'
+
+// A fake provider — only `discoverInstalledSkills` is exercised by the
+// synchronize op; the rest throw to signal misuse (mirrors the core-op test's
+// `makeFakeProvider`). Returning a fixed external skill proves the FAKE was
+// threaded: a real provider under `withHomeDir` isolation would see nothing.
+function makeFakeProvider(
+  skills: Awaited<ReturnType<AiAgentProvider['discoverInstalledSkills']>>,
+): AiAgentProvider {
+  return {
+    providerId: 'claude' as const,
+    discoverInstalledSkills: async () => skills,
+    getAuthenticationStatus: async () => {
+      throw new Error('not used in synchronize route test')
+    },
+    listConfiguredMcpServers: async () => [],
+    startChatSession: () => {
+      throw new Error('not used')
+    },
+    respondToApprovalRequest: async () => {
+      throw new Error('not used')
+    },
+    interruptChatSession: async () => {
+      throw new Error('not used')
+    },
+    fetchPersistedSessionTranscript: async () => {
+      throw new Error('not used')
+    },
+    synchronizePersistedSessions: async () => [],
+    getContextReport: async () => null,
+    summarizeSession: async () => null,
+  } as AiAgentProvider
+}
 
 const silentLogger = pino({ level: 'silent' })
 
@@ -221,6 +255,48 @@ describe('skills routes', () => {
             }),
           })
           expect(res.status).toBe(400)
+        })
+      })
+    })
+  })
+
+  describe('POST /skills/synchronize', () => {
+    it('reconciles against the INJECTED fake provider (not the real claude runtime)', async () => {
+      await withIsolatedFs(async (workspacePath) => {
+        await withTestDatabase(async (db) => {
+          const { workspace } = seedWorld(db, workspacePath)
+          // The fake sees ONE external skill not in our DB. A real provider under
+          // `withHomeDir` isolation would see nothing → externalDiscoveredCount 0,
+          // so a count of 1 proves the injected fake was threaded through the route.
+          const app = createApp({
+            db,
+            logger: silentLogger,
+            aiProvider: makeFakeProvider([
+              {
+                providerId: 'claude',
+                scope: 'user',
+                skillName: 'random-cli-skill',
+                displayDescription: 'installed via raw Claude Code',
+                installLocation: '/external/path/random-cli-skill/SKILL.md',
+                invocationSyntax: '/random-cli-skill',
+              },
+            ]),
+          })
+
+          const res = await app.request(`/workspaces/${workspace.id}/skills/synchronize`, {
+            method: 'POST',
+          })
+          expect(res.status).toBe(200)
+          const stats = (await res.json()) as {
+            healthyCount: number
+            missingOnDiskCount: number
+            externalDiscoveredCount: number
+          }
+          expect(stats).toEqual({
+            healthyCount: 0,
+            missingOnDiskCount: 0,
+            externalDiscoveredCount: 1,
+          })
         })
       })
     })
