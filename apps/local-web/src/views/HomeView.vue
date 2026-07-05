@@ -13,7 +13,6 @@ import { usePendingApprovals } from "../composables/approvals/use-pending-approv
 import { useActivityStore } from "../stores/activity-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { formatRelativeTime } from "../utils/format-relative-time.js";
-import { DEMO_GLOBAL_ROOT_WORKSPACE_ID } from "../demo/demo-store.js";
 
 // The dashboard: everything the assistant is doing and holding, one glance.
 const router = useRouter();
@@ -44,9 +43,8 @@ const statusLine = computed(() => {
 });
 
 function workspaceNameFor(workspaceId: string | null): string {
-  // null = a global-root segment on the REAL wire (the demo uses a sentinel id).
-  if (workspaceId === null || workspaceId === DEMO_GLOBAL_ROOT_WORKSPACE_ID)
-    return "Global chat";
+  // null = a global-root session on the real wire (no owning workspace).
+  if (workspaceId === null) return "Global chat";
   return (
     overview.value?.workspaces.find((row) => row.id === workspaceId)?.name ??
     "Workspace"
@@ -54,7 +52,7 @@ function workspaceNameFor(workspaceId: string | null): string {
 }
 
 function openSession(workspaceId: string | null) {
-  if (workspaceId === null || workspaceId === DEMO_GLOBAL_ROOT_WORKSPACE_ID) {
+  if (workspaceId === null) {
     void router.push({ name: "chat" });
     return;
   }

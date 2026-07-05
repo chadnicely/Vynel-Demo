@@ -5,23 +5,30 @@ import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import App from "./App.vue";
 import { createAppRouter } from "./router.js";
 import { vynelClientKey } from "./plugins/vynel-client.js";
-import type { LocalVynelClient } from "./demo/demo-namespaces.js";
+import type { VynelClient } from "@vynel/sdk";
 
 // The shell touches the approvals + workspaces surfaces at mount (notifier,
 // titlebar presence) — give it a quiet fake client instead of the network.
-function makeFakeVynelClient(): LocalVynelClient {
+function makeFakeVynelClient(): VynelClient {
+  const noConversation = async () => ({
+    rootSessionId: null,
+    currentSdkSessionId: null,
+  });
   return {
     approvals: { listPending: async () => [] },
     workspaces: { list: async () => [] },
     chat: {
-      listSessions: async () => ({ sessions: [] }),
-      getSessionDetail: async () => {
+      listSessions: async () => [],
+      getContinuing: noConversation,
+      getSession: async () => {
         throw new Error("not in this test");
       },
-      getContinuingConversation: async () => ({
-        rootSessionId: null,
-        currentSdkSessionId: null,
-      }),
+    },
+    root: {
+      getContinuing: noConversation,
+      getSession: async () => {
+        throw new Error("not in this test");
+      },
     },
     dashboard: {
       getOverview: async () => ({
@@ -30,7 +37,7 @@ function makeFakeVynelClient(): LocalVynelClient {
         upcomingSchedules: [],
       }),
     },
-  } as unknown as LocalVynelClient;
+  } as unknown as VynelClient;
 }
 
 async function mountShell(initialPath = "/") {

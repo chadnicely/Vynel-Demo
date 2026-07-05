@@ -16,6 +16,7 @@ import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
+import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import type { SessionScope } from "../composables/chat/session-scope.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { useSessionViewerStore } from "../stores/session-viewer-store.js";
@@ -82,14 +83,17 @@ const activeSessionId = computed<string | null>(() => {
 });
 
 const sessionsQuery = useSessionList(() => scope.value);
-const sessions = computed(() => sessionsQuery.data.value?.sessions ?? []);
+const sessions = computed(() => sessionsQuery.data.value ?? []);
 const sessionsErrorText = computed(() =>
   sessionsQuery.isError.value
     ? formatSdkError(sessionsQuery.error.value)
     : null,
 );
 
-const detailQuery = useSessionDetail(() => activeSessionId.value);
+const detailQuery = useSessionDetail(
+  () => scope.value,
+  () => activeSessionId.value,
+);
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
@@ -101,6 +105,23 @@ const chatTurn = useChatTurn({
     shell.target = { sessionId: session.id };
   },
 });
+
+const decideApproval = useDecideApproval();
+
+function onDecideApproval(
+  approvalRequestId: string,
+  decision: "approved" | "denied",
+) {
+  decideApproval.mutate(
+    decision === "approved"
+      ? { providerApprovalId: approvalRequestId, kind: "approved" }
+      : {
+          providerApprovalId: approvalRequestId,
+          kind: "denied",
+          reason: "Denied from chat.",
+        },
+  );
+}
 
 const activeTurn = computed(() =>
   chatTurn.activeSessionId.value !== null &&
@@ -136,17 +157,13 @@ function openFileOnCanvas(filePath: string) {
 }
 
 function sendMessage(text: string) {
-  const turn = chatTurn.startTurn({
+  // A fresh conversation's session id arrives via `session-created` — the turn's
+  // onSessionCreated binds the shell to it; no synchronous binding here.
+  void chatTurn.startTurn({
     sessionId: activeSessionId.value,
+    isContinuous: shell.target === "continuous",
     userText: text,
   });
-  if (
-    activeSessionId.value === null &&
-    chatTurn.activeSessionId.value !== null
-  ) {
-    shell.target = { sessionId: chatTurn.activeSessionId.value };
-  }
-  void turn;
 }
 
 function onMenuSelect(itemId: string) {
@@ -232,7 +249,7 @@ function openContinuous() {
         :messages="messages"
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
-        @decide-approval="chatTurn.decideApproval"
+        @decide-approval="onDecideApproval"
         @open-session="sessionViewer.open"
       />
 

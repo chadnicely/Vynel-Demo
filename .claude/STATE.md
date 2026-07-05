@@ -3,7 +3,45 @@
 **Updated 2026-07-05 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION: THE API IS COMPLETE — swap the UI demo seam to real data (M7)
+## ⏭ NEXT ACTION: M7 demo→real swap IN PROGRESS — slices A+B DONE (uncommitted), C/D/E/F next
+
+**M7 is sliced (advisor-blessed): A workspaces+dashboard · B chat keystone · C feature-sections ·
+D files · E model-picker · F residual cleanup. Green + commit each.**
+
+**🏁 SLICES A+B DONE — reviewer SHIP-clean, full gate 1842/4-skip (was 1835), UNCOMMITTED (one
+commit pending Chad).** The demo namespaces are gone; `workspaces.list`, `dashboard.getOverview`,
+and the whole **chat vertical** (reads + live SSE turn + approvals + interrupt) hit the real API.
+- **Streamer (the one net-new piece):** generated `startTurn` BUFFERS (openapi-fetch resolves the
+  whole body) → can't stream. So `composables/chat/chat-turn-stream.ts` calls the typed path-keyed
+  `client.POST(path, { parseAs:'stream', signal })` → `ReadableStream` → pure `sse-frames.ts` parser
+  (unit-tested: byte-split, terminal `{}`→`turn-stream-ended`) → `AsyncGenerator<ChatTurnEvent>`. The
+  `applyChatTurnEvent` fold was UNCHANGED (already typed to the full real 15-member union).
+- **Scope split:** workspace=`chat.*(workspaceId)`, global=`root.*()` (user-scoped, NO session list,
+  NO workspaceId, NO interrupt endpoint). `use-session-list` global→`[]` (product-correct: one brain).
+  `use-session-detail` global→`root.getSession`, workspace→`chat.getSession`. Global thread reads
+  `root.getSession(currentSdkSessionId)` NOT `getTranscript` (transcript's lean message type ≠
+  `ChatMessageResponse`; getSession is rich + swap-history is a later improve).
+- **Approvals:** inline cards route through the EXISTING `useDecideApproval` mutation
+  (`approvals.decide(providerApprovalId)` — user-scoped, resolves any of the user's approvals; the
+  SSE `approvalRequestId` IS the `providerApprovalId`); stream reflects via `approval-resolved`.
+  `use-chat-turn` sheds `decideApproval` entirely. `denied` needs a `reason`.
+- **Contracts root-fix (contained — only `@vynel/ui`+web import these):** `ChatSessionResponse.workspaceId`
+  → nullable, `ChatToolCallResponse.toolInput/toolOutput` → optional, to match the wire (the API's own
+  `ChatSessionSchema` is already nullable; `z.unknown()`→optional key). Zero backend ripple.
+- **Deferrals (real API gaps, NOT laziness):** live delegation drill-down (no per-session subscribe
+  endpoint — session-viewer dormant on real data, reads by-id via `root.getSession`); approval
+  `actionKind` (contract lacks it — generic card); `model` not sent on turns (picker still demo → slice E).
+- **Reviewer's 2 deferred-improves (non-blocking):** `interrupt()` best-effort catch swallows (app has
+  NO logger by design — documented catch, left); `settleFailedTurn` on a PURE client-side network drop
+  flashes errored then clears (server errors persist+refetch fine; genuine rare edge — deferred).
+- **Commit msg (pending):** `feat(web): swap workspaces, dashboard, and chat to the real API`.
+- **⏭ NEXT after commit:** slice C (feature sections → `client.{skills,channels,schedules,knowledge,
+  marketplace}.*` per-section composables; `WorkspaceSectionPanel` fixtures are already contracts-typed).
+  Then D (files `client.files.*`), E (model picker → real provider/models or defer), F (delete residual
+  `src/demo/` + gate + reviewer). Remaining demo files: `demo-file-store`, `fixtures/{file-trees,
+  feature-sections,models}`.
+
+### (original) THE API IS COMPLETE — swap the UI demo seam to real data (M7)
 
 **🏁 API-COMPLETION MISSION DONE (2026-07-05, agent-driven waves; journal
 `.claude/journal/2026-07-05-api-completion.md`).** Every remaining source route group is ported,

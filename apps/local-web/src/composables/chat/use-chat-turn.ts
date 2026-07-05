@@ -4,18 +4,10 @@ import type {
   ChatSessionResponse,
   ChatTurnEvent,
 } from "@vynel/contracts/chat/chat-http";
-import type { DemoTurnHandle } from "../../demo/chat-turn-player.js";
-import { playDemoTurn } from "../../demo/chat-turn-player.js";
-import { buildDemoTurnScript } from "../../demo/turn-script.js";
-import { buildGlobalDelegationTurn } from "../../demo/delegation-scenario.js";
-import type { DemoTurnPlan } from "../../demo/delegation-scenario.js";
-import { buildTurnResultFromView } from "../../demo/persist-turn.js";
-import {
-  DEMO_GLOBAL_ROOT_WORKSPACE_ID,
-  demoStore,
-} from "../../demo/demo-store.js";
-import { makeDemoId } from "../../demo/demo-ids.js";
+import { useVynel } from "../use-vynel.js";
+import { useUiStore } from "../../stores/ui-store.js";
 import { useActivityStore } from "../../stores/activity-store.js";
+import { streamChatTurnEvents } from "./chat-turn-stream.js";
 import {
   applyChatTurnEvent,
   createActiveTurnView,
@@ -24,23 +16,26 @@ import type { ActiveTurnView } from "./active-turn-view.js";
 import { sessionKeys } from "./session-keys.js";
 import type { SessionScope } from "./session-scope.js";
 
-// Drives one live turn for a chat surface. DEMO TRANSPORT today (scripted
-// player); when `POST /sessions/turn` lands, startTurn swaps its body for the
-// SSE reader and everything else — folding, rendering, interrupts, approvals —
-// stays as is. Global turns play the delegation scenario (the brain routes
-// work to a workspace); workspace turns run tools directly.
+// Drives one live turn against the real SSE stream. Each ChatTurnEvent folds
+// into the active-turn view (transport-blind — the same pure fold the parser
+// tests cover); once the server-persisted turn ends, history reconciles by
+// invalidation (letterman rule). Approvals are decided out-of-band through the
+// approvals API and the stream reflects the resolution, so this engine only
+// streams and interrupts.
 export function useChatTurn(options: {
   scope: () => SessionScope;
   onSessionCreated?: (session: ChatSessionResponse) => void;
 }) {
+  const vynel = useVynel();
+  const ui = useUiStore();
   const queryClient = useQueryClient();
   const activity = useActivityStore();
 
   const view = shallowRef<ActiveTurnView | null>(null);
-  /** The session the in-flight turn belongs to — set synchronously by startTurn
-   *  so the view can bind the live turn to the right thread immediately. */
+  /** The session the in-flight turn renders into — known up front for a resume/
+   *  continue, or learned from `session-created` for a fresh conversation. */
   const activeSessionId = shallowRef<string | null>(null);
-  let handle: DemoTurnHandle | null = null;
+  let abortController: AbortController | null = null;
 
   const isStreaming = computed(
     () => view.value !== null && view.value.status === "streaming",
@@ -50,6 +45,7 @@ export function useChatTurn(options: {
     if (!view.value) return;
     view.value = applyChatTurnEvent(view.value, event);
     if (event.kind === "session-created") {
+      activeSessionId.value = event.session.id;
       options.onSessionCreated?.(event.session);
       void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     }
@@ -57,102 +53,87 @@ export function useChatTurn(options: {
 
   async function startTurn(input: {
     sessionId: string | null;
+    isContinuous: boolean;
     userText: string;
   }) {
     if (isStreaming.value) return;
 
     const scope = options.scope();
-    const workspaceId =
-      scope.kind === "global"
-        ? DEMO_GLOBAL_ROOT_WORKSPACE_ID
-        : scope.workspaceId;
-
-    const existingSessionId = input.sessionId;
-    const isNewSession = existingSessionId === null;
-    const session =
-      existingSessionId === null
-        ? demoStore.createSession(
-            workspaceId,
-            deriveSessionTitle(input.userText),
-          )
-        : demoStore.getSessionDetail(existingSessionId)?.session;
-    if (!session) return;
-
-    const plan: DemoTurnPlan =
-      scope.kind === "global"
-        ? buildGlobalDelegationTurn({
-            session,
-            userText: input.userText,
-            isNewSession,
-          })
-        : buildDemoTurnScript({
-            session,
-            userText: input.userText,
-            isNewSession,
-          });
-
     view.value = createActiveTurnView();
-    activeSessionId.value = session.id;
+    activeSessionId.value = input.sessionId;
     activity.turnStarted();
-    handle = playDemoTurn(session.id, plan.steps, ingest);
-    plan.startChildren?.(queryClient);
+    abortController = new AbortController();
+
     try {
-      await handle.done;
+      const stream = streamChatTurnEvents(vynel, {
+        scope,
+        userMessageText: input.userText,
+        signal: abortController.signal,
+        // Global root manages its own thread — text only. A workspace turn
+        // continues its primary, resumes a picked session, or starts fresh, and
+        // carries the composer's session mode.
+        ...(scope.kind === "workspace"
+          ? {
+              mode: ui.composerMode,
+              ...(input.isContinuous
+                ? { continueRoot: true }
+                : input.sessionId !== null
+                  ? { resumeSessionId: input.sessionId }
+                  : {}),
+            }
+          : {}),
+      });
+      for await (const event of stream) ingest(event);
+    } catch (error) {
+      settleFailedTurn(error);
     } finally {
       activity.turnEnded();
-      handle = null;
+      abortController = null;
     }
 
-    persistFinishedTurn(session.id, plan);
+    // The server persisted the turn — reconcile every session view by refetch.
     await queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     view.value = null;
     activeSessionId.value = null;
   }
 
-  // Mirrors what the real backend does server-side: the turn's outcome becomes
-  // chat history, and the UI reconciles by invalidation (letterman rule).
-  function persistFinishedTurn(sessionId: string, plan: DemoTurnPlan) {
-    const finished = view.value;
-    if (!finished) return;
-
-    const result = buildTurnResultFromView({
-      sessionId,
-      userMessage: plan.userMessage,
-      assistantMessageId: plan.assistantMessageId,
-      view: finished,
-      ...(plan.assistantExtras !== undefined && {
-        extras: plan.assistantExtras,
-      }),
-    });
-    if (result) demoStore.appendTurnResult(sessionId, result);
+  // A dropped or aborted stream still has to settle the view. An abort is the
+  // user's interrupt; anything else surfaces as a turn error.
+  function settleFailedTurn(error: unknown) {
+    const sessionId = activeSessionId.value ?? "";
+    if (isAbortError(error)) {
+      ingest({ kind: "session-interrupted", sessionId });
+    } else {
+      ingest({
+        kind: "session-errored",
+        sessionId,
+        errorCode: "stream-failed",
+        errorMessage:
+          error instanceof Error ? error.message : "The turn stream failed.",
+        isRecoverable: true,
+      });
+    }
+    ingest({ kind: "turn-stream-ended" });
   }
 
   function interrupt() {
-    handle?.interrupt();
+    abortController?.abort();
+    // Actively stop the server-side turn where an endpoint exists (workspace);
+    // the global root has none, so the abort above is the only lever. Best-
+    // effort — the abort already stopped the UI stream, and the server sees the
+    // client disconnect, so a failed interrupt call is safe to ignore here.
+    const scope = options.scope();
+    const sessionId = activeSessionId.value;
+    if (scope.kind === "workspace" && sessionId !== null) {
+      void vynel.chat
+        .interruptSession(scope.workspaceId, sessionId)
+        .catch(() => undefined);
+    }
   }
 
-  // The demo seam for inline approvals: pokes the player today, calls
-  // `client.approvals.decide` when the stream is real.
-  function decideApproval(
-    approvalRequestId: string,
-    decision: "approved" | "denied",
-  ) {
-    handle?.decideApproval(approvalRequestId, decision);
-  }
-
-  return {
-    view,
-    activeSessionId,
-    isStreaming,
-    startTurn,
-    interrupt,
-    decideApproval,
-  };
+  return { view, activeSessionId, isStreaming, startTurn, interrupt };
 }
 
-function deriveSessionTitle(userText: string): string {
-  const firstLine = userText.split("\n", 1)[0] ?? "";
-  return firstLine.length > 48
-    ? `${firstLine.slice(0, 48)}…`
-    : firstLine || makeDemoId("chat");
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }

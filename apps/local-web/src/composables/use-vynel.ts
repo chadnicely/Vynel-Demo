@@ -1,10 +1,10 @@
 import { inject } from "vue";
-import type { LocalVynelClient } from "../demo/demo-namespaces.js";
+import type { VynelClient } from "@vynel/sdk";
 import { vynelClientKey } from "../plugins/vynel-client.js";
 
 // The only sanctioned access point to the SDK client (letterman's
 // useLetterman() boundary) — components never inject the key themselves.
-export function useVynel(): LocalVynelClient {
+export function useVynel(): VynelClient {
   const client = inject(vynelClientKey);
   if (!client) {
     throw new Error(

@@ -5,7 +5,8 @@ import { useVynel } from "../use-vynel.js";
 import { sessionKeys, sessionScopeKey } from "./session-keys.js";
 import type { SessionScope } from "./session-scope.js";
 
-/** Resolves the scope's continuous single conversation (the default chat). */
+/** Resolves the scope's continuous single conversation (the default chat):
+ *  the global root, or one workspace's continuing primary. */
 export function useContinuingConversation(
   scope: MaybeRefOrGetter<SessionScope>,
 ) {
@@ -17,6 +18,11 @@ export function useContinuingConversation(
       "continuing",
       sessionScopeKey(resolvedScope.value),
     ]),
-    queryFn: () => vynel.chat.getContinuingConversation(resolvedScope.value),
+    queryFn: () => {
+      const s = resolvedScope.value;
+      return s.kind === "global"
+        ? vynel.root.getContinuing()
+        : vynel.chat.getContinuing(s.workspaceId);
+    },
   });
 }

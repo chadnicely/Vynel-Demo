@@ -3,17 +3,29 @@ import type { MaybeRefOrGetter } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { useVynel } from "../use-vynel.js";
 import { sessionKeys } from "./session-keys.js";
+import type { SessionScope } from "./session-scope.js";
 
-export function useSessionDetail(sessionId: MaybeRefOrGetter<string | null>) {
+// One session's full detail (session + messages + tool calls). A workspace
+// session reads through `chat.getSession`; a global-root session (the brain's
+// continuing conversation, or any root-owned session opened in the viewer)
+// reads through `root.getSession` — both return the same detail envelope.
+export function useSessionDetail(
+  scope: MaybeRefOrGetter<SessionScope>,
+  sessionId: MaybeRefOrGetter<string | null>,
+) {
   const vynel = useVynel();
+  const resolvedScope = computed(() => toValue(scope));
   const id = computed(() => toValue(sessionId));
   return useQuery({
     queryKey: computed(() => sessionKeys.detail(id.value ?? "none")),
     queryFn: () => {
-      const sessionId = id.value;
-      if (sessionId === null)
+      const currentId = id.value;
+      if (currentId === null)
         throw new Error("Session detail queried without a session id.");
-      return vynel.chat.getSessionDetail(sessionId);
+      const s = resolvedScope.value;
+      return s.kind === "global"
+        ? vynel.root.getSession(currentId)
+        : vynel.chat.getSession(s.workspaceId, currentId);
     },
     enabled: computed(() => id.value !== null),
   });

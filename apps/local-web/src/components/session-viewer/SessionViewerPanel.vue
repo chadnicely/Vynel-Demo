@@ -15,7 +15,14 @@ const viewer = useSessionViewerStore();
 const liveSessions = useLiveSessionsStore();
 const workspacesQuery = useWorkspaceList();
 
-const detailQuery = useSessionDetail(() => viewer.currentSessionId);
+// Any session opened here is read by id through the root ("view X"). Live
+// drill-down waits on a per-session subscribe endpoint (deferred) — on real
+// data no delegation links surface yet, so this stays dormant until then.
+const VIEWER_SCOPE = { kind: "global" } as const;
+const detailQuery = useSessionDetail(
+  () => VIEWER_SCOPE,
+  () => viewer.currentSessionId,
+);
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},

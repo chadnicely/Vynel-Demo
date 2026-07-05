@@ -33,7 +33,10 @@ export interface AttachedImageMetadata {
 export interface ChatSessionResponse {
   id: string
   userId: string
-  workspaceId: string
+  /** The owning workspace, or `null` for a global-root session (the brain's
+   *  continuing conversation has no workspace). Matches the wire — the route's
+   *  `ChatSessionSchema.workspaceId` is nullable. */
+  workspaceId: string | null
   providerId: string
   /** The AI model the session ran with (e.g. 'claude-opus-4-8'), or `null` if
    *  not known yet. Drives the context-window denominator for the usage chip. */
@@ -102,8 +105,10 @@ export interface ChatToolCallResponse {
   parentMessageId: string
   toolUseId: string
   toolName: string
-  toolInput: unknown
-  toolOutput: unknown
+  /** `z.unknown()` on the wire infers an optional key — present with any value
+   *  (including null) in practice; presenters narrow it. */
+  toolInput?: unknown
+  toolOutput?: unknown
   status: ToolCallStatus
   approvalStatus: ApprovalStatus | null
   isErrorResult: boolean
