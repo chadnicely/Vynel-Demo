@@ -40,7 +40,6 @@ import {
   updateSkillSettings,
   synchronizeSkillsWithProvider,
 } from '@vynel/skills'
-import { resolveAiAgentProvider } from '@vynel/providers'
 import {
   InstallSkillRequestSchema,
   UpdateSkillSettingsRequestSchema,
@@ -263,7 +262,7 @@ export const skillsApp = factory
           userId: c.var.user.id,
           workspaceId: c.var.workspace!.id,
           workspacePath: c.var.workspace!.path,
-          provider: resolveAiAgentProvider('claude'),
+          provider: c.var.aiProvider,
         },
         { logger: c.var.logger },
       )

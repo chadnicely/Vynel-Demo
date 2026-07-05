@@ -19,6 +19,7 @@ import type { User } from '@vynel/core/users'
 import type { Workspace } from '@vynel/workspaces'
 import type { FileWatcherService } from '@vynel/knowledge'
 import type { FireScheduleDeps } from '@vynel/schedules'
+import type { AiAgentProvider } from '@vynel/providers'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
 // stashed on `c.var.appRequest` so handlers can re-enter the app (the mcp
@@ -38,6 +39,13 @@ export interface AppEnv {
     // The boot singleton holding one chokidar watcher per registered knowledge
     // source. Created once at construction (`app.ts`), like `appRequest`.
     fileWatcher: FileWatcherService
+    // The AI-agent provider for routes that reach the runtime (e.g. skills
+    // `/synchronize` reconciles against what the provider sees on disk). Set
+    // once at construction (`app.ts`) — the real `claude` provider in
+    // production, or a FAKE injected via `CreateAppOptions` for tests. Like
+    // `fileWatcher`, it always has a value (a real default), so the routes read
+    // `c.var.aiProvider` instead of resolving a hardcoded id inline.
+    aiProvider: AiAgentProvider
     // The schedule fire path's injected deps (startChatTurn + MCP/capability
     // composition). Set ONLY when `createApp` is given an override — the
     // `fire-now` routes then use it instead of building the real deps, so a

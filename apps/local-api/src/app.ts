@@ -11,6 +11,8 @@ import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import { VynelError } from '@vynel/errors'
 import { FileWatcherService } from '@vynel/knowledge'
+import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
+import type { AiAgentProvider } from '@vynel/providers'
 import type { FireScheduleDeps } from '@vynel/schedules'
 import type { AppEnv } from './factory.js'
 import { openApiInfo } from './openapi.js'
@@ -35,6 +37,11 @@ export interface CreateAppOptions {
   // the real turn machinery — so a route test records a run with no live AI.
   // Production omits it; the routes lazily build the real deps.
   readonly scheduleFireDeps?: FireScheduleDeps
+  // Override the AI-agent provider. Omitted in production (createApp resolves
+  // the real `claude` provider); a test injects a FAKE so provider-reaching
+  // routes (skills `/synchronize`) run through the HTTP stack without the live
+  // Claude runtime reading the dev's real `~/.claude/skills`.
+  readonly aiProvider?: AiAgentProvider
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -44,12 +51,17 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   const appRequest = app.request.bind(app)
   // One watcher singleton for the app's lifetime (NOT per-request).
   const fileWatcher = options.fileWatcher ?? new FileWatcherService(options.db, options.logger)
+  // The AI-agent provider — a process-level singleton (`resolveAiAgentProvider`
+  // is a Map lookup of an already-constructed instance, cheap at boot), or a
+  // fake for tests. Set once, like `fileWatcher`.
+  const aiProvider = options.aiProvider ?? resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
 
   app.use('*', async (c, next) => {
     c.set('db', options.db)
     c.set('logger', options.logger)
     c.set('appRequest', appRequest)
     c.set('fileWatcher', fileWatcher)
+    c.set('aiProvider', aiProvider)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
     await next()
   })
