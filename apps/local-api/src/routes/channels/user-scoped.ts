@@ -21,7 +21,7 @@
 // route is (connect carries the bot token). Serializer + the param/sender
 // schemas are REUSED from the workspace-scoped surface (identical shapes).
 
-import { validator } from 'hono-openapi/zod'
+import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -43,6 +43,11 @@ import {
   ConnectChannelForUserRequestSchema,
   AddAllowedSenderRequestSchema,
   InboundHistoryQuerySchema,
+  ChannelSchema,
+  ChannelListResponseSchema,
+  ChannelUserLinkSchema,
+  ChannelUserLinkListResponseSchema,
+  ChannelInboundMessageListResponseSchema,
 } from './schemas.js'
 
 export const channelsUserApp = factory
@@ -54,7 +59,12 @@ export const channelsUserApp = factory
       tags: ['channels'],
       summary: "List every channel the user owns — global + workspace (credentials excluded).",
       'x-sdk-name': 'channelsUser.list',
-      responses: { 200: { description: 'Array of Channel (without bot credentials).' } },
+      responses: {
+        200: {
+          description: 'Array of Channel (without bot credentials).',
+          content: { 'application/json': { schema: resolver(ChannelListResponseSchema) } },
+        },
+      },
       'x-mcp': {
         exposed: true,
         name: 'list_my_channels',
@@ -77,7 +87,10 @@ export const channelsUserApp = factory
       summary: 'Connect a bot as a global or workspace channel (verifies the token before persisting).',
       'x-sdk-name': 'channelsUser.connect',
       responses: {
-        201: { description: 'Channel connected (credentials excluded).' },
+        201: {
+          description: 'Channel connected (credentials excluded).',
+          content: { 'application/json': { schema: resolver(ChannelSchema) } },
+        },
         400: { description: 'Bot token invalid, unsupported kind, or workspaceId missing for a workspace scope.' },
       },
     }),
@@ -111,7 +124,10 @@ export const channelsUserApp = factory
       summary: 'Get one channel the user owns (credentials excluded).',
       'x-sdk-name': 'channelsUser.get',
       responses: {
-        200: { description: 'Channel (without bot credentials).' },
+        200: {
+          description: 'Channel (without bot credentials).',
+          content: { 'application/json': { schema: resolver(ChannelSchema) } },
+        },
         404: { description: 'No such channel owned by this user.' },
       },
     }),
@@ -152,7 +168,10 @@ export const channelsUserApp = factory
       summary: 'Enable a channel (resume polling).',
       'x-sdk-name': 'channelsUser.enable',
       responses: {
-        200: { description: 'Updated Channel.' },
+        200: {
+          description: 'Updated Channel.',
+          content: { 'application/json': { schema: resolver(ChannelSchema) } },
+        },
         404: { description: 'No such channel owned by this user.' },
       },
     }),
@@ -175,7 +194,10 @@ export const channelsUserApp = factory
       summary: 'Disable a channel (pause polling).',
       'x-sdk-name': 'channelsUser.disable',
       responses: {
-        200: { description: 'Updated Channel.' },
+        200: {
+          description: 'Updated Channel.',
+          content: { 'application/json': { schema: resolver(ChannelSchema) } },
+        },
         404: { description: 'No such channel owned by this user.' },
       },
     }),
@@ -198,7 +220,10 @@ export const channelsUserApp = factory
       summary: 'List the allowed senders (allowlist) for a channel the user owns.',
       'x-sdk-name': 'channelsUser.listAllowedSenders',
       responses: {
-        200: { description: 'Array of ChannelUserLink.' },
+        200: {
+          description: 'Array of ChannelUserLink.',
+          content: { 'application/json': { schema: resolver(ChannelUserLinkListResponseSchema) } },
+        },
         404: { description: 'No such channel owned by this user.' },
       },
     }),
@@ -220,7 +245,10 @@ export const channelsUserApp = factory
       summary: 'Add an allowed sender to a channel the user owns.',
       'x-sdk-name': 'channelsUser.addAllowedSender',
       responses: {
-        201: { description: 'ChannelUserLink.' },
+        201: {
+          description: 'ChannelUserLink.',
+          content: { 'application/json': { schema: resolver(ChannelUserLinkSchema) } },
+        },
         404: { description: 'No such channel owned by this user.' },
       },
     }),
@@ -276,7 +304,10 @@ export const channelsUserApp = factory
       summary: "List a channel's inbound message history (keyset cursor-paginated).",
       'x-sdk-name': 'channelsUser.history',
       responses: {
-        200: { description: 'Array of ChannelInboundMessage (newest first).' },
+        200: {
+          description: 'Array of ChannelInboundMessage (newest first).',
+          content: { 'application/json': { schema: resolver(ChannelInboundMessageListResponseSchema) } },
+        },
         404: { description: 'No such channel owned by this user.' },
       },
     }),

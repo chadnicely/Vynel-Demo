@@ -29,7 +29,7 @@
 // authorized the same way. Serializers + the param/update/runs schemas are
 // REUSED from the workspace-scoped surface.
 
-import { validator } from 'hono-openapi/zod'
+import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -49,6 +49,10 @@ import {
   CreateScheduleForUserRequestSchema,
   UpdateScheduleRequestSchema,
   ListScheduleRunsQuerySchema,
+  ScheduleResponseSchema,
+  ListSchedulesResponseSchema,
+  ScheduleRunResponseSchema,
+  ListScheduleRunsResponseSchema,
 } from './schemas.js'
 
 export const schedulesUserApp = factory
@@ -60,7 +64,12 @@ export const schedulesUserApp = factory
       tags: ['schedules'],
       summary: 'List every schedule the user owns — global + workspace.',
       'x-sdk-name': 'schedulesUser.list',
-      responses: { 200: { description: 'Array of Schedule.' } },
+      responses: {
+        200: {
+          description: 'Array of Schedule.',
+          content: { 'application/json': { schema: resolver(ListSchedulesResponseSchema) } },
+        },
+      },
       'x-mcp': {
         exposed: true,
         name: 'list_my_schedules',
@@ -84,7 +93,10 @@ export const schedulesUserApp = factory
       summary: 'Create a global or workspace schedule (recurring cron OR one-time fireAt).',
       'x-sdk-name': 'schedulesUser.create',
       responses: {
-        201: { description: 'Schedule created.' },
+        201: {
+          description: 'Schedule created.',
+          content: { 'application/json': { schema: resolver(ScheduleResponseSchema) } },
+        },
         400: { description: 'Invalid cron, missing channel, past fireAt, or workspaceId missing for a workspace scope.' },
       },
     }),
@@ -124,7 +136,10 @@ export const schedulesUserApp = factory
       summary: 'Update a schedule the user owns.',
       'x-sdk-name': 'schedulesUser.update',
       responses: {
-        200: { description: 'Schedule updated.' },
+        200: {
+          description: 'Schedule updated.',
+          content: { 'application/json': { schema: resolver(ScheduleResponseSchema) } },
+        },
         400: { description: 'Invalid cron or missing channel.' },
         404: { description: 'No such schedule owned by this user.' },
       },
@@ -161,7 +176,10 @@ export const schedulesUserApp = factory
       summary: 'Enable a schedule the user owns.',
       'x-sdk-name': 'schedulesUser.enable',
       responses: {
-        200: { description: 'Schedule enabled.' },
+        200: {
+          description: 'Schedule enabled.',
+          content: { 'application/json': { schema: resolver(ScheduleResponseSchema) } },
+        },
         404: { description: 'No such schedule owned by this user.' },
       },
     }),
@@ -184,7 +202,10 @@ export const schedulesUserApp = factory
       summary: 'Disable a schedule the user owns.',
       'x-sdk-name': 'schedulesUser.disable',
       responses: {
-        200: { description: 'Schedule disabled.' },
+        200: {
+          description: 'Schedule disabled.',
+          content: { 'application/json': { schema: resolver(ScheduleResponseSchema) } },
+        },
         404: { description: 'No such schedule owned by this user.' },
       },
     }),
@@ -208,7 +229,10 @@ export const schedulesUserApp = factory
       summary: 'Fire a schedule the user owns immediately (a manual run; does not affect the next scheduled fire).',
       'x-sdk-name': 'schedulesUser.fireNow',
       responses: {
-        202: { description: 'Run started.' },
+        202: {
+          description: 'Run started.',
+          content: { 'application/json': { schema: resolver(ScheduleRunResponseSchema) } },
+        },
         404: { description: 'No such schedule owned by this user.' },
         409: { description: 'The schedule is paused.' },
       },
@@ -257,7 +281,10 @@ export const schedulesUserApp = factory
       summary: "List a schedule's run history (owner-scoped, newest first, keyset-paginated).",
       'x-sdk-name': 'schedulesUser.listRuns',
       responses: {
-        200: { description: 'Array of ScheduleRun (newest first).' },
+        200: {
+          description: 'Array of ScheduleRun (newest first).',
+          content: { 'application/json': { schema: resolver(ListScheduleRunsResponseSchema) } },
+        },
         404: { description: 'No such schedule owned by this user.' },
       },
     }),

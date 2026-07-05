@@ -69,3 +69,92 @@ export const ListScheduleRunsQuerySchema = z.object({
   cursorStartedAt: z.string().optional(), // ISO-8601
   cursorId: z.string().optional(),
 })
+
+// ── Response schemas ────────────────────────────────────────────────
+// Structurally mirror `ScheduleResponse` / `ScheduleRunResponse` from
+// `@vynel/contracts/schedules/schedule-http` (the type
+// `serializeScheduleForResponse` / `serializeScheduleRunForResponse` are cast
+// to). Declared here — not inverted to `z.infer` — because the canonical
+// type lives in the shared contracts package, not in this route's
+// serializer; the schema exists so `describeRoute` can attach a real
+// OpenAPI response body via `resolver()` (the workspaces precedent).
+
+const ScheduleTemplateKindResponseSchema = z.enum([
+  'morning-briefing',
+  'weekly-summary',
+  'email-watch',
+  'custom',
+  'reminder',
+])
+
+const ScheduleDestinationKindResponseSchema = z.enum(['chat-only', 'chat-and-channel'])
+
+const ScheduleKindResponseSchema = z.enum(['recurring', 'one-time'])
+
+export const ScheduleResponseSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  // Null = GLOBAL scope — a user-level schedule with no workspace.
+  workspaceId: z.string().nullable(),
+  templateKind: ScheduleTemplateKindResponseSchema,
+  scheduleKind: ScheduleKindResponseSchema,
+  displayName: z.string(),
+  // Null for a one-time schedule (it fires by nextScheduledFireAt, not a cron).
+  cronExpression: z.string().nullable(),
+  timezone: z.string(),
+  promptTemplate: z.string(),
+  destinationKind: ScheduleDestinationKindResponseSchema,
+  channelId: z.string().nullable(),
+  catchUpOnMiss: z.boolean(),
+  isEnabled: z.boolean(),
+  approvalTimeoutMsOverride: z.number().nullable(),
+  lastFiredAt: z.string().nullable(), // ISO-8601 or null
+  nextScheduledFireAt: z.string().nullable(), // ISO-8601 or null
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const ListSchedulesResponseSchema = z.array(ScheduleResponseSchema)
+
+const ScheduleRunStatusResponseSchema = z.enum([
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'missed',
+])
+
+const ScheduleRunTriggerKindResponseSchema = z.enum(['poll', 'catchup', 'manual'])
+
+export const ScheduleRunResponseSchema = z.object({
+  id: z.string(),
+  scheduleId: z.string(),
+  scheduledFireAt: z.string(), // ISO-8601
+  startedAt: z.string(), // ISO-8601
+  completedAt: z.string().nullable(), // ISO-8601 or null
+  chatSessionId: z.string().nullable(),
+  status: ScheduleRunStatusResponseSchema,
+  statusMessage: z.string().nullable(),
+  triggerKind: ScheduleRunTriggerKindResponseSchema,
+})
+
+export const ListScheduleRunsResponseSchema = z.array(ScheduleRunResponseSchema)
+
+// GET /templates catalog — mirrors `ScheduleTemplateDefinition` from
+// `@vynel/contracts/schedules/schedule-template-catalog`.
+export const ScheduleTemplateResponseSchema = z.object({
+  templateKind: ScheduleTemplateKindResponseSchema,
+  displayLabel: z.string(),
+  oneLineDescription: z.string(),
+  iconName: z.string(),
+  defaultCronExpression: z.string(),
+  defaultDestinationKind: ScheduleDestinationKindResponseSchema,
+  defaultCatchUpOnMiss: z.boolean(),
+  defaultApprovalTimeoutMsOverride: z.number().nullable(),
+  promptTemplate: z.string(),
+  recommendedFor: z.string(),
+  // Opt-in — absent/false means the normal MCP-equipped LLM turn runs.
+  deliversVerbatim: z.boolean().optional(),
+})
+
+export const ListScheduleTemplatesResponseSchema = z.array(ScheduleTemplateResponseSchema)

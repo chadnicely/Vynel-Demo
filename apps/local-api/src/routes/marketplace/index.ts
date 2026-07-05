@@ -24,13 +24,18 @@
 // `hono-openapi/zod`) → `...workspaceScoped` → handler. Chained methods
 // on `factory.createApp()` — RPC types depend on the chain.
 
-import { validator } from 'hono-openapi/zod'
+import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
 import { listMarketplaceItems, getMarketplaceItem } from '@vynel/marketplace'
 import { listInstalledSkillsForUserAndWorkspace } from '@vynel/skills'
-import { ListMarketplaceItemsQuerySchema, ItemIdParamSchema } from './schemas.js'
+import {
+  ListMarketplaceItemsQuerySchema,
+  ItemIdParamSchema,
+  ListMarketplaceItemsResponseSchema,
+  MarketplaceItemSchema,
+} from './schemas.js'
 import { serializeMarketplaceItem } from './serializers.js'
 
 const marketplaceDeps = { listInstalledSkills: listInstalledSkillsForUserAndWorkspace }
@@ -44,7 +49,10 @@ export const marketplaceApp = factory
       summary: 'List marketplace items annotated with install status.',
       'x-sdk-name': 'marketplace.listItems',
       responses: {
-        200: { description: 'Annotated marketplace items.' },
+        200: {
+          description: 'Annotated marketplace items.',
+          content: { 'application/json': { schema: resolver(ListMarketplaceItemsResponseSchema) } },
+        },
         404: { description: 'Workspace not found.' },
       },
     }),
@@ -74,7 +82,10 @@ export const marketplaceApp = factory
       summary: 'Get one marketplace item annotated with install status.',
       'x-sdk-name': 'marketplace.getItem',
       responses: {
-        200: { description: 'The annotated marketplace item.' },
+        200: {
+          description: 'The annotated marketplace item.',
+          content: { 'application/json': { schema: resolver(MarketplaceItemSchema) } },
+        },
         404: { description: 'Item not in catalog OR workspace not found.' },
       },
     }),

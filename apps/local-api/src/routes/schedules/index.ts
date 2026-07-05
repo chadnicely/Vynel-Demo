@@ -30,7 +30,7 @@
 //
 // Spec: `docs/blueprints/schedules/blueprint.md §6` + coding.md §6.
 
-import { validator } from 'hono-openapi/zod'
+import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
@@ -51,6 +51,11 @@ import {
   CreateScheduleRequestSchema,
   UpdateScheduleRequestSchema,
   ListScheduleRunsQuerySchema,
+  ScheduleResponseSchema,
+  ListSchedulesResponseSchema,
+  ScheduleRunResponseSchema,
+  ListScheduleRunsResponseSchema,
+  ListScheduleTemplatesResponseSchema,
 } from './schemas.js'
 
 export const schedulesApp = factory
@@ -63,7 +68,10 @@ export const schedulesApp = factory
       summary: 'List schedules for the active workspace (owner-scoped).',
       'x-sdk-name': 'schedules.list',
       responses: {
-        200: { description: 'Array of Schedule.' },
+        200: {
+          description: 'Array of Schedule.',
+          content: { 'application/json': { schema: resolver(ListSchedulesResponseSchema) } },
+        },
         404: { description: 'Workspace not found.' },
       },
       'x-mcp': {
@@ -90,7 +98,14 @@ export const schedulesApp = factory
       tags: ['schedules'],
       summary: 'List the available schedule templates.',
       'x-sdk-name': 'schedules.listTemplates',
-      responses: { 200: { description: 'Array of ScheduleTemplateDefinition.' } },
+      responses: {
+        200: {
+          description: 'Array of ScheduleTemplateDefinition.',
+          content: {
+            'application/json': { schema: resolver(ListScheduleTemplatesResponseSchema) },
+          },
+        },
+      },
       'x-mcp': {
         exposed: true,
         name: 'list_schedule_templates',
@@ -109,7 +124,10 @@ export const schedulesApp = factory
       summary: 'Create a schedule (from a template or custom).',
       'x-sdk-name': 'schedules.create',
       responses: {
-        201: { description: 'Schedule created.' },
+        201: {
+          description: 'Schedule created.',
+          content: { 'application/json': { schema: resolver(ScheduleResponseSchema) } },
+        },
         400: { description: 'Invalid cron or missing channel.' },
       },
     }),
@@ -151,7 +169,10 @@ export const schedulesApp = factory
       summary: 'Update a schedule.',
       'x-sdk-name': 'schedules.update',
       responses: {
-        200: { description: 'Schedule updated.' },
+        200: {
+          description: 'Schedule updated.',
+          content: { 'application/json': { schema: resolver(ScheduleResponseSchema) } },
+        },
         400: { description: 'Invalid cron or missing channel.' },
         404: { description: 'No such schedule in this workspace.' },
       },
@@ -188,7 +209,10 @@ export const schedulesApp = factory
       summary: 'Enable a schedule.',
       'x-sdk-name': 'schedules.enable',
       responses: {
-        200: { description: 'Schedule enabled.' },
+        200: {
+          description: 'Schedule enabled.',
+          content: { 'application/json': { schema: resolver(ScheduleResponseSchema) } },
+        },
         404: { description: 'No such schedule in this workspace.' },
       },
     }),
@@ -211,7 +235,10 @@ export const schedulesApp = factory
       summary: 'Disable a schedule.',
       'x-sdk-name': 'schedules.disable',
       responses: {
-        200: { description: 'Schedule disabled.' },
+        200: {
+          description: 'Schedule disabled.',
+          content: { 'application/json': { schema: resolver(ScheduleResponseSchema) } },
+        },
         404: { description: 'No such schedule in this workspace.' },
       },
     }),
@@ -236,7 +263,10 @@ export const schedulesApp = factory
       summary: 'Fire a schedule immediately (a manual run; does not affect the next scheduled fire).',
       'x-sdk-name': 'schedules.fireNow',
       responses: {
-        202: { description: 'Run started.' },
+        202: {
+          description: 'Run started.',
+          content: { 'application/json': { schema: resolver(ScheduleRunResponseSchema) } },
+        },
         404: { description: 'No such schedule in this workspace.' },
         409: { description: 'The schedule is paused.' },
       },
@@ -288,7 +318,10 @@ export const schedulesApp = factory
       summary: 'List a schedule’s run history (owner-scoped, newest first, keyset-paginated).',
       'x-sdk-name': 'schedules.listRuns',
       responses: {
-        200: { description: 'Array of ScheduleRun (newest first).' },
+        200: {
+          description: 'Array of ScheduleRun (newest first).',
+          content: { 'application/json': { schema: resolver(ListScheduleRunsResponseSchema) } },
+        },
         404: { description: 'No such schedule in this workspace.' },
       },
       'x-mcp': {

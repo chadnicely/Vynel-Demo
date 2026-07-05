@@ -28,7 +28,7 @@
 // The serializer strips botCredentials + lastPolledCursor from every channel
 // response (coding.md §1.1).
 
-import { validator } from 'hono-openapi/zod'
+import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
@@ -49,6 +49,11 @@ import {
   ConnectChannelRequestSchema,
   AddAllowedSenderRequestSchema,
   InboundHistoryQuerySchema,
+  ChannelSchema,
+  ChannelListResponseSchema,
+  ChannelUserLinkSchema,
+  ChannelUserLinkListResponseSchema,
+  ChannelInboundMessageListResponseSchema,
 } from './schemas.js'
 
 export const channelsApp = factory
@@ -61,7 +66,10 @@ export const channelsApp = factory
       summary: 'List connected channels for the workspace (owner-scoped; credentials excluded).',
       'x-sdk-name': 'channels.list',
       responses: {
-        200: { description: 'Array of Channel (without bot credentials).' },
+        200: {
+          description: 'Array of Channel (without bot credentials).',
+          content: { 'application/json': { schema: resolver(ChannelListResponseSchema) } },
+        },
         404: { description: 'Workspace not found.' },
       },
       'x-mcp': {
@@ -86,7 +94,10 @@ export const channelsApp = factory
       summary: 'Connect a bot to the workspace (verifies the token before persisting).',
       'x-sdk-name': 'channels.connect',
       responses: {
-        201: { description: 'Channel connected (credentials excluded).' },
+        201: {
+          description: 'Channel connected (credentials excluded).',
+          content: { 'application/json': { schema: resolver(ChannelSchema) } },
+        },
         400: { description: 'Bot token invalid or unsupported channel kind.' },
         404: { description: 'Workspace not found.' },
       },
@@ -142,7 +153,10 @@ export const channelsApp = factory
       summary: 'Enable a channel (resume polling).',
       'x-sdk-name': 'channels.enable',
       responses: {
-        200: { description: 'Updated Channel.' },
+        200: {
+          description: 'Updated Channel.',
+          content: { 'application/json': { schema: resolver(ChannelSchema) } },
+        },
         404: { description: 'No such channel in this workspace.' },
       },
     }),
@@ -165,7 +179,10 @@ export const channelsApp = factory
       summary: 'Disable a channel (pause polling).',
       'x-sdk-name': 'channels.disable',
       responses: {
-        200: { description: 'Updated Channel.' },
+        200: {
+          description: 'Updated Channel.',
+          content: { 'application/json': { schema: resolver(ChannelSchema) } },
+        },
         404: { description: 'No such channel in this workspace.' },
       },
     }),
@@ -188,7 +205,10 @@ export const channelsApp = factory
       summary: 'List the allowed senders (allowlist) for a channel (owner-scoped).',
       'x-sdk-name': 'channels.listAllowedSenders',
       responses: {
-        200: { description: 'Array of ChannelUserLink.' },
+        200: {
+          description: 'Array of ChannelUserLink.',
+          content: { 'application/json': { schema: resolver(ChannelUserLinkListResponseSchema) } },
+        },
         404: { description: 'No such channel in this workspace.' },
       },
       'x-mcp': {
@@ -217,7 +237,10 @@ export const channelsApp = factory
       summary: 'Add an allowed sender to a channel.',
       'x-sdk-name': 'channels.addAllowedSender',
       responses: {
-        201: { description: 'ChannelUserLink.' },
+        201: {
+          description: 'ChannelUserLink.',
+          content: { 'application/json': { schema: resolver(ChannelUserLinkSchema) } },
+        },
         404: { description: 'No such channel in this workspace.' },
       },
     }),
@@ -273,7 +296,10 @@ export const channelsApp = factory
       summary: 'List a channel’s inbound message history (keyset cursor-paginated).',
       'x-sdk-name': 'channels.history',
       responses: {
-        200: { description: 'Array of ChannelInboundMessage (newest first).' },
+        200: {
+          description: 'Array of ChannelInboundMessage (newest first).',
+          content: { 'application/json': { schema: resolver(ChannelInboundMessageListResponseSchema) } },
+        },
         404: { description: 'No such channel in this workspace.' },
       },
     }),

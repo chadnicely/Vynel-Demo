@@ -31,3 +31,42 @@ export const ListMarketplaceItemsQuerySchema = z.object({
 export const ItemIdParamSchema = z.object({
   itemId: z.string().min(1).max(200),
 })
+
+// ── Response schemas ────────────────────────────────────────────────
+// The exact shape `@vynel/contracts/marketplace/marketplace-item`
+// (`MarketplaceItem`) emits, mirrored here so `describeRoute`'s
+// `resolver()` gives the generated SDK a real return type instead of
+// `never`. `serializeMarketplaceItem` is a pass-through of that
+// contract type, so this schema is a description of it, not a new
+// source of truth (contrast `serializers.ts`'s note).
+
+const SkillScopeSchema = z.enum(['user', 'workspace'])
+
+const MarketplaceItemInstallStatusSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('not-installed') }),
+  z.object({
+    kind: z.literal('installed'),
+    scope: SkillScopeSchema,
+    installedSkillId: z.string(),
+    versionInstalled: z.string(),
+  }),
+])
+
+export const MarketplaceItemSchema = z.object({
+  itemId: z.string(),
+  skillId: z.string(),
+  publisherTier: PublisherTierSchema,
+  publisherName: z.string(),
+  publisherUrl: z.string().nullable(),
+  displayName: z.string(),
+  oneLineDescription: z.string(),
+  category: SkillCategorySchema,
+  iconName: z.string(),
+  version: z.string(),
+  releasedAt: z.string(),
+  recommendedScope: SkillScopeSchema,
+  isOfficial: z.boolean(),
+  installStatus: MarketplaceItemInstallStatusSchema,
+})
+
+export const ListMarketplaceItemsResponseSchema = z.array(MarketplaceItemSchema)

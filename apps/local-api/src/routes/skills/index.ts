@@ -26,7 +26,7 @@
 // single `instanceof VynelError` check per `error-handling.md`
 // "Layering".
 
-import { validator } from 'hono-openapi/zod'
+import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
@@ -44,6 +44,11 @@ import {
   InstallSkillRequestSchema,
   UpdateSkillSettingsRequestSchema,
   InstalledSkillIdParamSchema,
+  ListAvailableSkillsResponseSchema,
+  ListInstalledSkillsResponseSchema,
+  InstalledSkillRowSchema,
+  ResolvedSkillSettingsSchema,
+  SynchronizeSkillsResponseSchema,
 } from './schemas.js'
 import {
   serializeVerifiedSkill,
@@ -60,7 +65,10 @@ export const skillsApp = factory
       summary: 'List the Verified-skill catalog (available to install).',
       'x-sdk-name': 'skills.listAvailable',
       responses: {
-        200: { description: 'Array of catalog entries (definitions only).' },
+        200: {
+          description: 'Array of catalog entries (definitions only).',
+          content: { 'application/json': { schema: resolver(ListAvailableSkillsResponseSchema) } },
+        },
       },
       'x-mcp': {
         exposed: true,
@@ -89,6 +97,7 @@ export const skillsApp = factory
         200: {
           description:
             'Each installed skill joined with its catalog definition (if any) + resolved settings.',
+          content: { 'application/json': { schema: resolver(ListInstalledSkillsResponseSchema) } },
         },
         404: { description: 'Workspace not found.' },
       },
@@ -119,7 +128,10 @@ export const skillsApp = factory
       summary: 'Install a Verified skill at user or workspace scope.',
       'x-sdk-name': 'skills.install',
       responses: {
-        201: { description: 'The installed-skill row.' },
+        201: {
+          description: 'The installed-skill row.',
+          content: { 'application/json': { schema: resolver(InstalledSkillRowSchema) } },
+        },
         400: { description: 'Invalid initial settings.' },
         404: { description: 'Skill or workspace not found.' },
         409: { description: 'Already installed at the requested scope.' },
@@ -176,7 +188,10 @@ export const skillsApp = factory
       summary: 'Enable an installed skill — rewrites files from current settings.',
       'x-sdk-name': 'skills.enable',
       responses: {
-        200: { description: 'The updated installed-skill row.' },
+        200: {
+          description: 'The updated installed-skill row.',
+          content: { 'application/json': { schema: resolver(InstalledSkillRowSchema) } },
+        },
         404: { description: 'Installed-skill row not found OR owned by another user.' },
       },
     }),
@@ -199,7 +214,10 @@ export const skillsApp = factory
       summary: 'Disable an installed skill — removes files from disk; preserves row + settings.',
       'x-sdk-name': 'skills.disable',
       responses: {
-        200: { description: 'The updated installed-skill row.' },
+        200: {
+          description: 'The updated installed-skill row.',
+          content: { 'application/json': { schema: resolver(InstalledSkillRowSchema) } },
+        },
         404: { description: 'Installed-skill row not found OR owned by another user.' },
       },
     }),
@@ -222,7 +240,10 @@ export const skillsApp = factory
       summary: 'Update settings on an installed skill — re-renders SKILL.md if enabled.',
       'x-sdk-name': 'skills.updateSettings',
       responses: {
-        200: { description: 'The resolved settings (defaults merged with overrides).' },
+        200: {
+          description: 'The resolved settings (defaults merged with overrides).',
+          content: { 'application/json': { schema: resolver(ResolvedSkillSettingsSchema) } },
+        },
         400: { description: 'Invalid setting key or value.' },
         404: { description: 'Installed-skill row not found OR owned by another user.' },
       },
@@ -251,6 +272,7 @@ export const skillsApp = factory
       responses: {
         200: {
           description: '{ healthyCount, missingOnDiskCount, externalDiscoveredCount }.',
+          content: { 'application/json': { schema: resolver(SynchronizeSkillsResponseSchema) } },
         },
       },
     }),
