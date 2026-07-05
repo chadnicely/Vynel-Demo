@@ -13,11 +13,11 @@ export interface DemoTurnScript {
   assistantMessageId: string;
 }
 
-function emit(delayMs: number, event: ChatTurnEvent): DemoTurnStep {
+export function emit(delayMs: number, event: ChatTurnEvent): DemoTurnStep {
   return { kind: "emit", delayMs, event };
 }
 
-function textChunks(
+export function textChunks(
   messageId: string,
   text: string,
   delayMs = 90,
@@ -35,7 +35,7 @@ function textChunks(
   return steps;
 }
 
-function makeToolCall(
+export function makeToolCall(
   assistantMessageId: string,
   base: number,
   offsetMs: number,
@@ -59,7 +59,7 @@ function makeToolCall(
   };
 }
 
-function toolSteps(
+export function toolSteps(
   toolCall: ChatToolCallResponse,
   runMs: number,
 ): DemoTurnStep[] {

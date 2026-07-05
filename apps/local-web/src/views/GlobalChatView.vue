@@ -11,6 +11,7 @@ import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import { useUiStore } from "../stores/ui-store.js";
+import { useSessionViewerStore } from "../stores/session-viewer-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 
 // The global chat — ONE continuous conversation by default (the product's
@@ -25,6 +26,7 @@ const GLOBAL_MENU_ITEMS = [
 
 const ui = useUiStore();
 const shell = ui.globalChat;
+const sessionViewer = useSessionViewerStore();
 
 const continuingQuery = useContinuingConversation(() => GLOBAL_SCOPE);
 
@@ -150,6 +152,7 @@ function openContinuous() {
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
         @decide-approval="chatTurn.decideApproval"
+        @open-session="sessionViewer.open"
       />
 
       <footer class="composer-dock">

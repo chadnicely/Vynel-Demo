@@ -3,18 +3,39 @@ import { computed } from "vue";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
 import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
+import PresenceDot from "./PresenceDot.vue";
 
-const props = defineProps<{ message: ChatMessageResponse }>();
+const props = defineProps<{
+  message: ChatMessageResponse;
+  /** True while the linked session is streaming — the chip pulses gold. */
+  linkedSessionLive?: boolean | undefined;
+}>();
 
+const emit = defineEmits<{
+  /** The delegation chip: open the linked session's live view. */
+  openSession: [sessionId: string];
+}>();
+
+// The author line comes from sourceKind (who WROTE this); sourceLabel alone
+// may just name a delegation target for the chip below — never the author.
 const roleLabel = computed(() => {
-  if (props.message.role === "user") return "You";
+  if (props.message.role === "user") {
+    return props.message.sourceKind === "global-root" ? "From Global" : "You";
+  }
   if (props.message.sourceKind === "global-root") return "Assistant · Global";
-  if (props.message.sourceLabel)
+  if (
+    (props.message.sourceKind === "workspace-manager" ||
+      props.message.sourceKind === "agent") &&
+    props.message.sourceLabel
+  ) {
     return `Assistant · ${props.message.sourceLabel}`;
+  }
   return "Assistant";
 });
 
 const isAssistant = computed(() => props.message.role === "assistant");
+
+const linkedSessionId = computed(() => props.message.partialSessionId ?? null);
 </script>
 
 <template>
@@ -29,6 +50,37 @@ const isAssistant = computed(() => props.message.role === "assistant");
 
     <MarkdownText v-if="isAssistant" :source="props.message.body" />
     <p v-else class="plain-body">{{ props.message.body }}</p>
+
+    <button
+      v-if="linkedSessionId"
+      type="button"
+      class="session-link"
+      @click="emit('openSession', linkedSessionId)"
+    >
+      <PresenceDot :state="props.linkedSessionLive ? 'live' : 'idle'" />
+      <span class="session-link-label">
+        {{
+          props.message.sourceLabel
+            ? `Watch ${props.message.sourceLabel}`
+            : "Watch this session"
+        }}
+      </span>
+      <svg
+        width="11"
+        height="11"
+        viewBox="0 0 16 16"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M6 4l4 4-4 4"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </button>
 
     <p v-if="props.message.errorMessage" class="error-note">
       {{ props.message.errorMessage }}
@@ -69,6 +121,36 @@ const isAssistant = computed(() => props.message.role === "assistant");
   border: 1px solid var(--hair);
   border-radius: var(--radius-m);
   padding: 10px 14px;
+}
+
+.session-link {
+  appearance: none;
+  border: 1px solid var(--gold-soft);
+  margin: 0;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  background: var(--gold-soft);
+  color: var(--ink-1);
+  font: 600 11.5px/1.5 var(--font-ui);
+  cursor: default;
+  transition: border-color var(--t-fast) var(--ease-out);
+}
+
+.session-link:hover {
+  border-color: var(--gold);
+}
+
+.session-link:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.session-link svg {
+  color: var(--ink-3);
 }
 
 .error-note {

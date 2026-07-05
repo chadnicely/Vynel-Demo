@@ -1,18 +1,19 @@
 import { computed, shallowRef } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import type {
-  ChatMessageResponse,
   ChatSessionResponse,
   ChatTurnEvent,
 } from "@vynel/contracts/chat/chat-http";
 import type { DemoTurnHandle } from "../../demo/chat-turn-player.js";
 import { playDemoTurn } from "../../demo/chat-turn-player.js";
 import { buildDemoTurnScript } from "../../demo/turn-script.js";
+import { buildGlobalDelegationTurn } from "../../demo/delegation-scenario.js";
+import type { DemoTurnPlan } from "../../demo/delegation-scenario.js";
+import { buildTurnResultFromView } from "../../demo/persist-turn.js";
 import {
   DEMO_GLOBAL_ROOT_WORKSPACE_ID,
   demoStore,
 } from "../../demo/demo-store.js";
-import type { SessionScope } from "./session-scope.js";
 import { makeDemoId } from "../../demo/demo-ids.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import {
@@ -21,11 +22,13 @@ import {
 } from "./active-turn-view.js";
 import type { ActiveTurnView } from "./active-turn-view.js";
 import { sessionKeys } from "./session-keys.js";
+import type { SessionScope } from "./session-scope.js";
 
 // Drives one live turn for a chat surface. DEMO TRANSPORT today (scripted
 // player); when `POST /sessions/turn` lands, startTurn swaps its body for the
 // SSE reader and everything else — folding, rendering, interrupts, approvals —
-// stays as is.
+// stays as is. Global turns play the delegation scenario (the brain routes
+// work to a workspace); workspace turns run tools directly.
 export function useChatTurn(options: {
   scope: () => SessionScope;
   onSessionCreated?: (session: ChatSessionResponse) => void;
@@ -75,16 +78,24 @@ export function useChatTurn(options: {
         : demoStore.getSessionDetail(existingSessionId)?.session;
     if (!session) return;
 
-    const script = buildDemoTurnScript({
-      session,
-      userText: input.userText,
-      isNewSession,
-    });
+    const plan: DemoTurnPlan =
+      scope.kind === "global"
+        ? buildGlobalDelegationTurn({
+            session,
+            userText: input.userText,
+            isNewSession,
+          })
+        : buildDemoTurnScript({
+            session,
+            userText: input.userText,
+            isNewSession,
+          });
 
     view.value = createActiveTurnView();
     activeSessionId.value = session.id;
     activity.turnStarted();
-    handle = playDemoTurn(session.id, script.steps, ingest);
+    handle = playDemoTurn(session.id, plan.steps, ingest);
+    plan.startChildren?.(queryClient);
     try {
       await handle.done;
     } finally {
@@ -92,11 +103,7 @@ export function useChatTurn(options: {
       handle = null;
     }
 
-    persistFinishedTurn(
-      session.id,
-      script.userMessage,
-      script.assistantMessageId,
-    );
+    persistFinishedTurn(session.id, plan);
     await queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     view.value = null;
     activeSessionId.value = null;
@@ -104,35 +111,20 @@ export function useChatTurn(options: {
 
   // Mirrors what the real backend does server-side: the turn's outcome becomes
   // chat history, and the UI reconciles by invalidation (letterman rule).
-  function persistFinishedTurn(
-    sessionId: string,
-    userMessage: ChatMessageResponse,
-    assistantMessageId: string,
-  ) {
+  function persistFinishedTurn(sessionId: string, plan: DemoTurnPlan) {
     const finished = view.value;
-    if (!finished || finished.text.length === 0) return;
+    if (!finished) return;
 
-    const now = new Date().toISOString();
-    const assistantMessage: ChatMessageResponse = {
-      id: assistantMessageId,
+    const result = buildTurnResultFromView({
       sessionId,
-      role: "assistant",
-      body: finished.text,
-      thinkingBody: finished.thinking.length > 0 ? finished.thinking : null,
-      inputTokens: finished.usage?.inputTokens ?? null,
-      outputTokens: finished.usage?.outputTokens ?? null,
-      attachedImagesMetadata: null,
-      errorCode: finished.error?.code ?? null,
-      errorMessage: finished.error?.message ?? null,
-      startedAt: userMessage.createdAt,
-      completedAt: finished.status === "completed" ? now : null,
-      createdAt: now,
-    };
-    demoStore.appendTurnResult(sessionId, {
-      userMessage,
-      assistantMessage,
-      toolCalls: finished.toolCalls,
+      userMessage: plan.userMessage,
+      assistantMessageId: plan.assistantMessageId,
+      view: finished,
+      ...(plan.assistantExtras !== undefined && {
+        extras: plan.assistantExtras,
+      }),
     });
+    if (result) demoStore.appendTurnResult(sessionId, result);
   }
 
   function interrupt() {

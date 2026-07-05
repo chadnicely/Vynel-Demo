@@ -6,6 +6,7 @@ import type {
 } from "@vynel/contracts/chat/chat-http";
 import { MessageRow, ToolCallList } from "@vynel/ui";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
+import { useLiveSessionsStore } from "../../stores/live-sessions-store.js";
 import LiveTurn from "./LiveTurn.vue";
 
 const props = defineProps<{
@@ -16,8 +17,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
+  /** A message's delegation chip: open that session's live view. */
+  openSession: [sessionId: string];
 }>();
 
+const liveSessions = useLiveSessionsStore();
 const scroller = ref<HTMLElement | null>(null);
 
 // Follow the live edge: any growth in history or the streaming turn keeps the
@@ -40,7 +44,14 @@ watch(
   <div ref="scroller" class="thread-stream">
     <div class="thread-column">
       <template v-for="message in props.messages" :key="message.id">
-        <MessageRow :message="message">
+        <MessageRow
+          :message="message"
+          :linked-session-live="
+            message.partialSessionId != null &&
+            liveSessions.liveFor(message.partialSessionId) !== null
+          "
+          @open-session="(id) => emit('openSession', id)"
+        >
           <template
             v-if="props.toolCallsByMessageId[message.id]?.length"
             #tool-calls

@@ -2,6 +2,7 @@
 import TitleBar from "./components/shell/TitleBar.vue";
 import ApprovalNotifier from "./components/shell/ApprovalNotifier.vue";
 import VoiceOverlayDemo from "./components/voice/VoiceOverlayDemo.vue";
+import SessionViewerPanel from "./components/session-viewer/SessionViewerPanel.vue";
 </script>
 
 <template>
@@ -10,6 +11,7 @@ import VoiceOverlayDemo from "./components/voice/VoiceOverlayDemo.vue";
     <main class="app-body">
       <RouterView />
     </main>
+    <SessionViewerPanel />
     <ApprovalNotifier />
     <VoiceOverlayDemo />
   </div>

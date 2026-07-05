@@ -18,6 +18,7 @@ import { useContinuingConversation } from "../composables/chat/use-continuing-co
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import type { SessionScope } from "../composables/chat/session-scope.js";
 import { useUiStore } from "../stores/ui-store.js";
+import { useSessionViewerStore } from "../stores/session-viewer-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 import { demoFileTreesByWorkspaceId } from "../demo/fixtures/file-trees.js";
 
@@ -25,6 +26,7 @@ import { demoFileTreesByWorkspaceId } from "../demo/fixtures/file-trees.js";
 // workspace. Panels beside the canvas: menu (persistent) · history · files.
 const ui = useUiStore();
 const shell = ui.workspaceChat;
+const sessionViewer = useSessionViewerStore();
 
 const WORKSPACE_MENU_ITEMS = [
   { id: "chat", label: "Chat", hint: "The conversation" },
@@ -231,6 +233,7 @@ function openContinuous() {
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
         @decide-approval="chatTurn.decideApproval"
+        @open-session="sessionViewer.open"
       />
 
       <footer class="composer-dock">

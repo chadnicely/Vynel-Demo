@@ -138,6 +138,17 @@
   (`fixtures/models.ts` — provider-preferences API later), the **REAL `SESSION_MODES`
   vocabulary from `@vynel/session`'s web-safe barrel** (Ask/Auto/Bypass, first consumer!),
   selections in ui-store, mic → voice overlay. Old app-side `Composer.vue` deleted.
+- **Session viewer + delegation drill-down (2026-07-05, Chad's last demo ask):** the
+  "one brain, many hands" story made visible. A message carrying `partialSessionId` renders a
+  gold **"Watch X live" chip** (`MessageRow`); clicking opens the **right-side
+  `SessionViewerPanel`** — a navigable STACK (`session-viewer-store`: open/drillDown/back/close)
+  reusing `ThreadStream` wholesale. Realtime for ANY session flows through
+  **`live-sessions-store`** (sessionId → folded `ActiveTurnView`; the future real SSE readers
+  ingest here exactly like the demo players). The demo **delegation scenario**
+  (`demo/delegation-scenario.ts`): a GLOBAL turn hands off to Marketing site (Mara) → Mara
+  delegates copy to a Writer agent → applies + verifies → **report bubbles back to the global
+  thread** with a link. Global-scope turns now play this cascade; workspace turns keep direct
+  tools. Shared persist extracted to `demo/persist-turn.ts`.
 - M6 Desktop shell (Tauri window + overlay window hosting `VoiceOrb`) — pending; needs a
   Rust-toolchain session (first `cargo build` is long).
 
@@ -153,3 +164,9 @@
   a harmless `workspaceId: "none"` sentinel that must not become a real request), and give
   dashboard "recent conversation" rows a session-preselect (needs cross-view selected-session
   state — today they open the right tab only).
+- **Delegation-link vocabulary**: the UI reuses `partialSessionId` + `sourceLabel` on an
+  OUTGOING assistant message to link the child session (contracts document it for bubbled
+  reports only). Ask: an explicit outgoing-delegation field on the message row, and — for links
+  that appear DURING a live stream — a `delegation-started` member in `ChatTurnEvent`. Plus:
+  the session viewer wants per-session subscribe (the live-sessions store is the client-side
+  sink the SSE readers should feed).
