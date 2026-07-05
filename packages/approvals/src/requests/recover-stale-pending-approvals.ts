@@ -1,12 +1,16 @@
-// Worker core op — resolves stale pending approval rows as `timed-out`.
-// Runs every 60 seconds via the apps/worker scheduler (D5 revised; chat
-// worker-thin-delegator precedent).
+// Reaper core op — resolves stale pending approval rows as `timed-out`. Runs on
+// the api-side approvals-recovery interval (60s).
 //
-// Sync — no provider call. Provider's in-memory PendingApprovalRegistry
-// is gone with the process; the SDK's awaiting Promise is gone too. All
-// that remains is the audit row, which we mark `timed-out` so the chat
-// UI shows the correct state on next session open and downstream
-// consumers (chat outbox mirror, channels) see the resolution.
+// TWO staleness cases, one op:
+//   - SAME-PROCESS (surface-up): a recorded card nobody answered while an agent
+//     is PARKED on the provider's canUseTool Promise. `deps.unblockProvider` is
+//     the live escape hatch — deny the provider approval so the parked turn
+//     resumes (with the timeout reason), THEN mark the row. Without it the row
+//     would read timed-out while the agent hangs forever.
+//   - POST-RESTART: the provider's in-memory PendingApprovalRegistry died with
+//     the process; only the audit row remains. `unblockProvider` then throws
+//     NotFoundError (unknown id) — logged and ignored; the row update is all
+//     there is to do.
 //
 // Safety window: row staleness is calculated as
 //   requestedAt + timeoutMs * 2 < now
@@ -14,6 +18,7 @@
 // approvals the user might still be actively deciding.
 
 import { randomUUID } from 'node:crypto'
+import { NotFoundError } from '@vynel/errors'
 import * as approvalRequestsRepository from '../repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { APPROVAL_TIMED_OUT, type ApprovalResolvedPayload } from '../approvals-events.js'
@@ -22,12 +27,25 @@ import { withTransaction, type Database } from '@vynel/db'
 
 const SAFETY_LOOKBACK_MS = 60_000 // 1 minute — anything younger can't be stale yet at the 5-min default
 
+/** The reason a parked agent sees when its approval times out — steers it to report
+ *  as text rather than retry the tool. */
+export const APPROVAL_TIMED_OUT_DENY_REASON =
+  'No decision arrived in time — the approval timed out. Report what you have as text; ' +
+  'do not retry this tool.'
+
 export type RecoverStalePendingApprovalsResult = { resolvedCount: number }
 
-export function recoverStalePendingApprovals(
+export async function recoverStalePendingApprovals(
   db: Database,
-  deps: { logger?: StructuralLogger; now?: () => Date } = {},
-): RecoverStalePendingApprovalsResult {
+  deps: {
+    logger?: StructuralLogger
+    now?: () => Date
+    /** Deny the provider-side approval so a same-process parked agent resumes
+     *  (`provider.respondToApprovalRequest(id, denied)`). Throws NotFoundError for a
+     *  post-restart id the registry no longer knows — caught + logged here. */
+    unblockProvider?: (providerApprovalId: string) => Promise<void>
+  } = {},
+): Promise<RecoverStalePendingApprovalsResult> {
   const now = (deps.now ?? (() => new Date()))()
 
   // Fetch any pending row older than the safety lookback. Per-row check
@@ -42,6 +60,36 @@ export function recoverStalePendingApprovals(
   for (const row of candidates) {
     const staleAt = new Date(row.requestedAt.getTime() + row.timeoutMs * 2)
     if (staleAt >= now) continue
+
+    // Unblock a same-process parked agent BEFORE the row update (the resolveApproval
+    // ordering invariant: provider first — the inverse failure mode leaves the agent
+    // waiting forever). NotFound = a post-restart id the registry no longer knows —
+    // proceed to the row update, which is all that remains to do. ANY OTHER failure
+    // skips the row this tick (it stays pending; the next tick retries) — marking it
+    // timed-out would permanently strip reaper coverage from a possibly-still-parked
+    // agent, the exact forever-park this op exists to kill.
+    //
+    // Kind trade-off, deliberate: the parked agent sees a DENIAL (the breaker counts
+    // it + the model gets the report-as-text steer) while the audit row reads
+    // `timed-out` (the truthful history for the user).
+    if (deps.unblockProvider !== undefined) {
+      try {
+        await deps.unblockProvider(row.providerApprovalId)
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          deps.logger?.info(
+            { providerApprovalId: row.providerApprovalId },
+            'recoverStalePendingApprovals: no parked provider approval to unblock (post-restart row)',
+          )
+        } else {
+          deps.logger?.error(
+            { providerApprovalId: row.providerApprovalId, error: err instanceof Error ? err.message : String(err) },
+            'recoverStalePendingApprovals: provider unblock failed — row kept pending for the next tick',
+          )
+          continue
+        }
+      }
+    }
 
     withTransaction(db, (tx) => {
       const next = approvalRequestsRepository.updateApprovalRequest(tx, row.id, {

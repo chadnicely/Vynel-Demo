@@ -3,9 +3,10 @@
 // run the workspace-root turn → push the report UP to the global root → complete. Real
 // SQLite, no live SDK.
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
+import { listPendingApprovalsForUser } from '@vynel/approvals'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { StartChatSessionInput } from '@vynel/providers'
@@ -317,6 +318,77 @@ describe('runDelegationClaimAndRunTick', () => {
         messageBody: 'Acme has 3 docs.',
         payloadKind: 'chat-stream-final',
       })
+    })
+  })
+
+  it('surface-up: a carded tool PARKS the job, cards the web queue + origin channel, and the decision resumes it to completion', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const now = new Date()
+      const channel = insertChannel(db, {
+        id: randomUUID(),
+        userId: user.id,
+        workspaceId: workspace.id,
+        channelKind: 'telegram',
+        displayName: 'Bot',
+        botCredentials: JSON.stringify({ botToken: 't' }),
+        botMetadata: '{}',
+        connectionStatus: 'healthy',
+        connectionStatusMessage: null,
+        lastPolledCursor: null,
+        lastPolledAt: null,
+        lastInboundAt: null,
+        isEnabled: true,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const jobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'update the notes file',
+        origin: { channelId: channel.id, externalSenderId: 'tg-42', externalChatContextId: 'chat-7' },
+      })
+
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: 'ws-root-park',
+        resultText: 'File updated.',
+        approvalToolName: 'Write',
+      })
+      const running = runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+
+      // Poll until the record-and-park lands (the tick is mid-turn, parked).
+      await vi.waitFor(() => {
+        expect(listPendingApprovalsForUser(db, user.id)).toHaveLength(1)
+      })
+      const card = listPendingApprovalsForUser(db, user.id)[0]!
+      expect(card.workspaceId).toBe(workspace.id)
+      expect(card.toolName).toBe('Write')
+
+      // The card ALSO reached the origin channel (with the explicit-id buttons).
+      const cardOutbound = listOutboundMessagesForChannel(db, channel.id)
+      expect(cardOutbound).toHaveLength(1)
+      expect(cardOutbound[0]!.payloadKind).toBe('approval-request')
+      expect(cardOutbound[0]!.messageStructure).toContain(`approval:approve:${card.providerApprovalId}`)
+      expect(findDelegationJobById(db, jobId)?.status).toBe('claimed') // still parked
+
+      // The user approves (resolveApproval → respondToApprovalRequest) — shortcut
+      // straight to the provider here; resolveApproval's own tests cover the row update.
+      await provider.respondToApprovalRequest(card.providerApprovalId, { kind: 'approved' })
+      await running
+
+      expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
+      const outbound = listOutboundMessagesForChannel(db, channel.id)
+      expect(outbound).toHaveLength(2) // the approval card + the final report
+      expect(outbound.map((m) => m.payloadKind).sort()).toEqual([
+        'approval-request',
+        'chat-stream-final',
+      ])
     })
   })
 })

@@ -76,7 +76,11 @@ export type ApprovalRequestedEvent = {
   requestedAt: Date
 }
 
-/** A tool-approval decision arrived (consumers update the card UI). */
+/** A tool-approval decision arrived (consumers update the card UI).
+ *  CONTRACT: a provider MUST emit exactly one of these for every
+ *  `respondToApprovalRequest` on the session - the routed-leaf drain's denial
+ *  breaker and the surface-up wait-gate resume both count on it (a future
+ *  provider sibling must preserve this). */
 export type ApprovalResolvedEvent = {
   kind: 'approval-resolved'
   sessionId: string

@@ -16,6 +16,7 @@ import { createApp } from './app.js'
 import { startSchedulesService } from './services/schedules-service.js'
 import { startChannelsService } from './services/channels-service.js'
 import { startDelegationService } from './services/delegation-service.js'
+import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 
 export async function boot(): Promise<void> {
@@ -65,6 +66,9 @@ export async function boot(): Promise<void> {
   // the jobs a crash left stuck `claimed`. Same api-process reasoning as above.
   const provider = resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
   const delegationService = startDelegationService({ db, logger, provider })
+  // The stale-approval reaper (surface-up's unanswered bound) — denies the provider
+  // approval so a parked turn resumes, then marks the row timed-out.
+  const approvalsRecoveryService = startApprovalsRecoveryService({ db, logger, provider })
 
   // Bind to loopback only in Phase 1 — the local API is unauthenticated.
   const server = serve({ fetch: app.fetch, hostname: '127.0.0.1', port: env.PORT }, (info) => {
@@ -77,6 +81,7 @@ export async function boot(): Promise<void> {
       schedulesService.stop()
       channelsService.stop()
       delegationService.stop()
+      approvalsRecoveryService.stop()
       void fileWatcher.stopAll()
       closeDatabase(db)
       logger.info({}, 'api shutdown complete')

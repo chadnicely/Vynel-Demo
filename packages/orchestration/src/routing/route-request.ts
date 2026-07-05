@@ -11,16 +11,21 @@
 // workspace's own conversation, with its context — NOT a fresh throwaway agent. The
 // agent ("hand") layer returns UNDER the workspace root in Phase 3 (the locked
 // 3-level hierarchy). The target runs through `startChatSession`, so the safety
-// backstop still cards its tools (read-safe: a routed turn fails closed).
+// backstop still cards its tools (surface-up: a carded tool parks for the user's
+// decision; the fail-closed deny remains the un-injected fallback).
 //
 // The timeout is "stop WAITING", NOT "stop the target": on timeout we return a
-// timed-out envelope, but the routed turn keeps running in its own SDK session. It
-// no longer DEADLOCKS on a carded tool — a routed turn fails-closed-denies
-// irreversible tools (see `drainLeafTurn`), so a timeout means genuinely-long work,
-// not a hang. The result is not surfaced after the timeout (a deferred follow-up);
-// the up-report says only that the workspace is still working.
+// timed-out envelope, but the routed turn keeps running in its own SDK session.
+// The result is not surfaced after the timeout (a deferred follow-up); the
+// up-report says only that the workspace is still working.
+//
+// SURFACE-UP (decision C): while a routed approval is PARKED on a human decision
+// the wait clock SUSPENDS (via the optional `waitGate`) — the budget measures the
+// workspace's working time, not the human's deciding time. The unanswered bound
+// is the approvals reaper, which denies a stale card and resumes the clock.
 
 import type { StructuralLogger } from '../orchestration-types.js'
+import type { ApprovalWaitGate } from './approval-wait-gate.js'
 
 /** Conservative per-sub-session wait budget — bounds a routed leaf's turn. */
 export const DEFAULT_ROUTE_TIMEOUT_MS = 120_000
@@ -57,6 +62,45 @@ export type DelegateForRouting = (input: {
 export type RouteRequestDeps = {
   delegate: DelegateForRouting
   logger?: StructuralLogger
+  /** When given, the wait clock SUSPENDS while the gate reports a parked approval
+   *  (surface-up decision C) and resumes with the remaining budget on resolve. */
+  waitGate?: ApprovalWaitGate
+}
+
+/** A timeout that can pause (keeping its remaining budget) and resume — the
+ *  suspend-while-parked wait clock. Returns the racing promise + a cancel. */
+function startPausableTimeout(
+  timeoutMs: number,
+  waitGate: ApprovalWaitGate | undefined,
+): { promise: Promise<RouteRequestResult>; cancel: () => void } {
+  let handle: ReturnType<typeof setTimeout> | undefined
+  let remainingMs = timeoutMs
+  let armedAt: number | null = null
+  let cancelled = false
+
+  const promise = new Promise<RouteRequestResult>((resolve) => {
+    const arm = (): void => {
+      if (cancelled) return
+      armedAt = Date.now()
+      handle = setTimeout(() => resolve({ status: 'timed-out', timeoutMs }), remainingMs)
+    }
+    const disarm = (): void => {
+      if (handle !== undefined) clearTimeout(handle)
+      handle = undefined
+      if (armedAt !== null) remainingMs = Math.max(0, remainingMs - (Date.now() - armedAt))
+      armedAt = null
+    }
+    waitGate?.onParkedChange((parked) => (parked ? disarm() : arm()))
+    if (!waitGate?.isParked) arm()
+  })
+
+  return {
+    promise,
+    cancel: () => {
+      cancelled = true
+      if (handle !== undefined) clearTimeout(handle)
+    },
+  }
 }
 
 export async function routeRequest(
@@ -65,10 +109,7 @@ export async function routeRequest(
 ): Promise<RouteRequestResult> {
   const timeoutMs = input.timeoutMs ?? DEFAULT_ROUTE_TIMEOUT_MS
 
-  let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-  const timeoutPromise = new Promise<RouteRequestResult>((resolve) => {
-    timeoutHandle = setTimeout(() => resolve({ status: 'timed-out', timeoutMs }), timeoutMs)
-  })
+  const wait = startPausableTimeout(timeoutMs, deps.waitGate)
 
   // The delegation promise NEVER rejects — failures convert to a `failed` envelope
   // here, so a post-timeout rejection can't surface as an unhandled rejection.
@@ -94,8 +135,8 @@ export async function routeRequest(
       }),
     )
 
-  const outcome = await Promise.race([delegationPromise, timeoutPromise])
-  if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
+  const outcome = await Promise.race([delegationPromise, wait.promise])
+  wait.cancel()
 
   if (outcome.status === 'timed-out') {
     deps.logger?.warn(

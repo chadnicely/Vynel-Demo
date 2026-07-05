@@ -8,6 +8,11 @@
 // The yielded stream is a complete leaf turn: `session-started` → `text-chunk`
 // (the clean result the root absorbs) → `session-completed`, so `drainLeafTurn`
 // captures both the reference (SDK session id) and a non-empty result.
+//
+// The approval simulation mirrors the REAL provider's park: after yielding
+// `approval-requested` the stream AWAITS `respondToApprovalRequest`, then emits
+// `approval-resolved` carrying the decision — so both the fail-closed denier and
+// the surface-up record-and-park path are exercised faithfully.
 
 import type {
   AiAgentProvider,
@@ -34,6 +39,13 @@ export function makeFakeLeafProvider(
   captured?: StartChatSessionInput[],
   approvalResponses?: CapturedApprovalResponse[],
 ): AiAgentProvider {
+  // The park: `approval-requested` awaits this promise; `respondToApprovalRequest`
+  // resolves it — exactly the real provider's PendingApprovalRegistry shape.
+  let resolveDecision: ((decision: ApprovalDecision) => void) | undefined
+  const decisionArrived = new Promise<ApprovalDecision>((resolve) => {
+    resolveDecision = resolve
+  })
+
   return {
     startChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
       captured?.push(input)
@@ -54,6 +66,14 @@ export function makeFakeLeafProvider(
             toolInput: {},
             requestedAt: new Date(),
           }
+          const decision = await decisionArrived // parked until someone decides
+          yield {
+            kind: 'approval-resolved',
+            sessionId: turn.sessionId,
+            approvalRequestId: 'appr-1',
+            decision,
+            resolvedAt: new Date(),
+          }
         }
         yield {
           kind: 'text-chunk',
@@ -73,6 +93,7 @@ export function makeFakeLeafProvider(
     },
     respondToApprovalRequest(requestId: string, decision: ApprovalDecision): Promise<void> {
       approvalResponses?.push({ requestId, decision })
+      resolveDecision?.(decision)
       return Promise.resolve()
     },
   } as unknown as AiAgentProvider

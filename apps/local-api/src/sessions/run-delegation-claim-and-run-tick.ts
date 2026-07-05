@@ -20,11 +20,13 @@
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import {
+  ApprovalWaitGate,
   claimNextPendingDelegationJob,
   completeDelegationJob,
   failDelegationJob,
   routeRequest,
   type DelegateForRouting,
+  type DelegationJob,
 } from '@vynel/orchestration'
 import { findPrimaryConversation } from '@vynel/session/continuity'
 import { recordPushedReportMessage } from '@vynel/chat'
@@ -32,6 +34,10 @@ import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
+import {
+  buildRoutedApprovalHandler,
+  type RoutedApprovalOrigin,
+} from './build-routed-approval-handler.js'
 
 // Generous — the bound is on WAITING, not the turn (which keeps running in its own SDK
 // session). 120s was sized for an HTTP request waiting on a result; a background job
@@ -43,6 +49,27 @@ export interface RunDelegationTickDeps {
   logger: Logger
   /** Wait budget for one job's turn (ms). Defaults to DELEGATION_RUN_BUDGET_MS. */
   budgetMs?: number
+}
+
+/** Resolve a job's origin channel to a DELIVERABLE address — the shared guard for the
+ *  approval push (mid-turn) and the report delivery (completion): the origin columns are
+ *  set as a unit; the channel must exist, be enabled, and be owned by the delegation's
+ *  user (tenant defense-in-depth — the origin traces to a header read at the boundary). */
+function resolveDeliverableOrigin(db: Database, claimed: DelegationJob): RoutedApprovalOrigin | null {
+  if (
+    claimed.originChannelId === null ||
+    claimed.originExternalSenderId === null ||
+    claimed.originExternalChatContextId === null
+  ) {
+    return null
+  }
+  const channel = findChannelById(db, claimed.originChannelId)
+  if (channel === null || !channel.isEnabled || channel.userId !== claimed.userId) return null
+  return {
+    channel,
+    externalRecipientId: claimed.originExternalSenderId,
+    externalChatContextId: claimed.originExternalChatContextId,
+  }
 }
 
 /** Claim the next pending delegation job and run it to a terminal state. Returns true if
@@ -62,11 +89,11 @@ export async function runDelegationClaimAndRunTick(
   const partialSessionId = claimed.partialSessionId ?? undefined
 
   // Lifecycle visibility (Ch3.5 diagnostics): a delegation runs a full provider turn that
-  // can take a while; log the claim + the terminal outcome so a slow/stuck job is visible
-  // in the server console (read-safe means a WRITE task is denied + may run long).
+  // can take a while — and may PARK on a human approval (surface-up); log the claim + the
+  // terminal outcome so a slow/parked job is visible in the server console.
   deps.logger.info(
     { jobId: claimed.id, workspace: claimed.workspaceName, task: claimed.taskText.slice(0, 100) },
-    'delegation: claimed — running the workspace turn (read-safe)',
+    'delegation: claimed — running the workspace turn',
   )
 
   try {
@@ -78,6 +105,21 @@ export async function runDelegationClaimAndRunTick(
     const workspaceName = workspace?.name ?? claimed.workspaceName
     const managerName = workspace ? resolveManagerName(workspace) : undefined
 
+    // Surface-up: one gate + handler per job. A carded tool RECORDS its approval (web
+    // notifier always; the origin channel too, when the job came from one) and PARKS;
+    // the gate suspends the wait budget until the decision arrives (decision C).
+    const waitGate = new ApprovalWaitGate()
+    const approvalOrigin = resolveDeliverableOrigin(db, claimed)
+    const approvalHandler = buildRoutedApprovalHandler({
+      db,
+      logger: deps.logger,
+      provider: deps.provider,
+      userId: claimed.userId,
+      workspaceId: claimed.workspaceId,
+      waitGate,
+      ...(approvalOrigin !== null ? { origin: approvalOrigin } : {}),
+    })
+
     const delegate: DelegateForRouting = (delegationInput) =>
       delegateToWorkspaceRoot(db, deps.provider, {
         ...delegationInput,
@@ -88,6 +130,8 @@ export async function runDelegationClaimAndRunTick(
         // The delegating turn's mode, stamped on the job at enqueue (surface-up step 1).
         // Null (pre-mode job / channel origin) → the runner's bypass default.
         ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
+        onApprovalRequested: approvalHandler.onApprovalRequested,
+        onApprovalResolved: approvalHandler.onApprovalResolved,
       })
 
     const outcome = await routeRequest(
@@ -99,7 +143,7 @@ export async function runDelegationClaimAndRunTick(
         taskText: claimed.taskText,
         timeoutMs: deps.budgetMs ?? DELEGATION_RUN_BUDGET_MS,
       },
-      { delegate, logger: deps.logger },
+      { delegate, logger: deps.logger, waitGate },
     )
 
     if (outcome.status === 'completed') {
@@ -133,28 +177,17 @@ export async function runDelegationClaimAndRunTick(
       // Ch4 (channel-aware OUTPUT): if a CHANNEL drove this delegation, also deliver the report
       // back to that channel — closing the loop (channel → root → delegate → report → channel).
       // Best-effort: the job already completed + the transcript push ran, so a delivery failure
-      // (channel gone/disabled, or an insert error) is logged, never re-fails the job. The origin
-      // columns are set as a unit, so all three are present together.
-      if (
-        claimed.originChannelId !== null &&
-        claimed.originExternalSenderId !== null &&
-        claimed.originExternalChatContextId !== null
-      ) {
+      // (channel gone/disabled, or an insert error) is logged, never re-fails the job. Resolved
+      // FRESH here (not the claim-time resolve) — the channel may have changed mid-run.
+      if (claimed.originChannelId !== null) {
         try {
-          const originChannel = findChannelById(db, claimed.originChannelId)
-          // Tenant-isolation guard: the origin traces to a header read at the /routing/delegate
-          // boundary, so verify the channel is owned by the delegation's user before delivering
-          // (defense-in-depth — Phase 1 is single-user, but this closes a Phase-2 cross-tenant gap).
-          if (
-            originChannel !== null &&
-            originChannel.isEnabled &&
-            originChannel.userId === claimed.userId
-          ) {
+          const reportOrigin = resolveDeliverableOrigin(db, claimed)
+          if (reportOrigin !== null) {
             enqueueChannelReply(db, {
-              channel: originChannel,
+              channel: reportOrigin.channel,
               message: {
-                externalSenderId: claimed.originExternalSenderId,
-                externalChatContextId: claimed.originExternalChatContextId,
+                externalSenderId: reportOrigin.externalRecipientId,
+                externalChatContextId: reportOrigin.externalChatContextId,
               },
               body: outcome.result,
             })

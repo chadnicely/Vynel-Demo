@@ -14835,7 +14835,7 @@
           "exposed": true,
           "name": "route_to_workspace",
           "mutatingApproved": true,
-          "description": "Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. The task is READ-SAFE: if it attempts an irreversible action (write or edit a file, delete, run a shell command), that action is automatically DENIED and the workspace reports its findings as text instead. Best for read / analysis / report tasks."
+          "description": "Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. If the task needs an irreversible action (write or edit a file, delete, run a shell command), that action PAUSES for the user to approve — the approval card appears in the app and, for a channel request, in that channel; the task continues once they decide."
         },
         "requestBody": {
           "content": {

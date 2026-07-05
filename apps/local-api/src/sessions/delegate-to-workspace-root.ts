@@ -10,14 +10,15 @@
 // never writes chat's tables).
 //
 // Flow: resolve the workspace primary + the session to resume → run the task on it
-// (resume, or fresh on the first delegation), drained read-safe → record + link the
-// segment if it ran on a NEW sdk session (fresh OR a compaction swap — the P0.1
-// id-based gate) → emit the global→workspace-root tree edge for the monitor →
-// persist the task + result attributed → return the clean result the global root
-// absorbs.
+// (resume, or fresh on the first delegation), drained with the injected surface-up
+// approval handling → record + link the segment if it ran on a NEW sdk session
+// (fresh OR a compaction swap — the P0.1 id-based gate) → emit the
+// global→workspace-root tree edge for the monitor → persist the task + result
+// attributed → return the clean result the global root absorbs.
 //
-// v1 is READ-SAFE: the routed turn fails closed on a carded tool (no user watching).
-// Mutating + approval-surfaced-up is a later slice (brain-tree fork 3).
+// APPROVALS (surface-up, fork 3 BUILT): the tick injects record-and-park handlers —
+// a carded tool pauses for the user's decision (web notifier + origin channel).
+// Without the injection the turn falls back to the fail-closed auto-deny.
 
 import type { Database } from '@vynel/db'
 import type { AiAgentProvider, AiAgentProviderId } from '@vynel/providers'
@@ -25,6 +26,7 @@ import {
   runRootDelegationTurn,
   recordDelegation,
   type DelegationPermissionMode,
+  type DrainLeafTurnOptions,
 } from '@vynel/orchestration'
 import { recordSwapSegmentSession, recordDelegatedRootMessages } from '@vynel/chat'
 import { findChatSessionById } from '@vynel/chat/repositories'
@@ -56,6 +58,11 @@ export type DelegateToWorkspaceRootInput = {
   /** The delegation request's correlation key (brain-tree Chapter 2) — stamped on the
    *  workspace-side task + reply so the chain is queryable as one trace. */
   partialSessionId?: string
+  /** Surface-up record-and-park (the tick's `buildRoutedApprovalHandler`). Omit for
+   *  the fail-closed auto-deny fallback. */
+  onApprovalRequested?: DrainLeafTurnOptions['onApprovalRequested']
+  /** Resumes the suspended wait budget on each decision. */
+  onApprovalResolved?: DrainLeafTurnOptions['onApprovalResolved']
 }
 
 export type DelegateToWorkspaceRootResult = {
@@ -83,6 +90,12 @@ export async function delegateToWorkspaceRoot(
     taskText: input.taskText,
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
+    ...(input.onApprovalRequested !== undefined
+      ? { onApprovalRequested: input.onApprovalRequested }
+      : {}),
+    ...(input.onApprovalResolved !== undefined
+      ? { onApprovalResolved: input.onApprovalResolved }
+      : {}),
   })
 
   // 3. Record + link the segment if the turn ran on a NEW sdk session (fresh root OR

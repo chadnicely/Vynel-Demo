@@ -95,7 +95,7 @@ describe('drainLeafTurn', () => {
     ).rejects.toThrow(/fail-closed/)
   })
 
-  // ── Ch3.5 write-fast-fail: the denial circuit-breaker ──
+  // ── Ch3.5 write-fast-fail: the denial circuit-breaker (counts DENIED resolutions) ──
 
   const carded = (sessionId: string, id: string): NormalizedSessionEvent => ({
     kind: 'approval-requested',
@@ -107,13 +107,31 @@ describe('drainLeafTurn', () => {
     requestedAt: new Date(),
   })
 
-  it('trips the breaker after repeated carded denials — interrupts + returns the write-blocked note', async () => {
+  const denied = (sessionId: string, id: string): NormalizedSessionEvent => ({
+    kind: 'approval-resolved',
+    sessionId,
+    approvalRequestId: id,
+    decision: { kind: 'denied', reason: 'no' },
+    resolvedAt: new Date(),
+  })
+
+  const approved = (sessionId: string, id: string): NormalizedSessionEvent => ({
+    kind: 'approval-resolved',
+    sessionId,
+    approvalRequestId: id,
+    decision: { kind: 'approved' },
+    resolvedAt: new Date(),
+  })
+
+  it('trips the breaker after repeated denials — interrupts + returns the blocked note', async () => {
     const interrupted: string[] = []
     const drained = await drainLeafTurn(
       streamOf(
         { kind: 'session-started', sessionId: 'leaf-5', resumedFromExisting: false, startedAt: new Date() },
         carded('leaf-5', 'a1'),
-        carded('leaf-5', 'a2'), // 2nd denial → trips the breaker
+        denied('leaf-5', 'a1'),
+        carded('leaf-5', 'a2'),
+        denied('leaf-5', 'a2'), // 2nd denial → trips the breaker
         { kind: 'session-interrupted', sessionId: 'leaf-5', interruptedAt: new Date() },
       ),
       {
@@ -125,7 +143,7 @@ describe('drainLeafTurn', () => {
       },
     )
     expect(interrupted).toEqual(['leaf-5']) // interrupted exactly once
-    expect(drained.resultText).toContain("couldn't finish") // the clean write-blocked note
+    expect(drained.resultText).toContain("couldn't finish") // the clean blocked note
   })
 
   it('does NOT trip the breaker on a single denial (a compliant report still flows)', async () => {
@@ -134,6 +152,7 @@ describe('drainLeafTurn', () => {
       streamOf(
         { kind: 'session-started', sessionId: 'leaf-6', resumedFromExisting: false, startedAt: new Date() },
         carded('leaf-6', 'a1'),
+        denied('leaf-6', 'a1'),
         { kind: 'text-chunk', sessionId: 'leaf-6', messageId: 'm1', textDelta: 'Cannot write, but here is the summary.', isFinalChunk: true },
         { kind: 'session-completed', sessionId: 'leaf-6', isNewSession: true, completedAt: new Date() },
       ),
@@ -149,13 +168,54 @@ describe('drainLeafTurn', () => {
     expect(drained.resultText).toBe('Cannot write, but here is the summary.')
   })
 
+  it('APPROVED decisions never count toward the breaker (surface-up: the user said yes)', async () => {
+    const interrupted: string[] = []
+    const drained = await drainLeafTurn(
+      streamOf(
+        { kind: 'session-started', sessionId: 'leaf-8', resumedFromExisting: false, startedAt: new Date() },
+        carded('leaf-8', 'a1'),
+        approved('leaf-8', 'a1'),
+        carded('leaf-8', 'a2'),
+        approved('leaf-8', 'a2'),
+        carded('leaf-8', 'a3'),
+        approved('leaf-8', 'a3'),
+        { kind: 'text-chunk', sessionId: 'leaf-8', messageId: 'm1', textDelta: 'All three writes done.', isFinalChunk: true },
+        { kind: 'session-completed', sessionId: 'leaf-8', isNewSession: true, completedAt: new Date() },
+      ),
+      { onApprovalRequested: () => {}, maxCardedDenials: 2, interruptSession: async () => {} },
+    )
+    expect(interrupted).toEqual([])
+    expect(drained.resultText).toBe('All three writes done.')
+  })
+
+  it('surfaces each approval-resolved to onApprovalResolved (the wait-gate resume hook)', async () => {
+    const resolved: { id: string; kind: string }[] = []
+    await drainLeafTurn(
+      streamOf(
+        { kind: 'session-started', sessionId: 'leaf-9', resumedFromExisting: false, startedAt: new Date() },
+        carded('leaf-9', 'a1'),
+        approved('leaf-9', 'a1'),
+        { kind: 'session-completed', sessionId: 'leaf-9', isNewSession: true, completedAt: new Date() },
+      ),
+      {
+        onApprovalRequested: () => {}, // record-and-park: no response — the stream simply continues
+        onApprovalResolved: (event) => {
+          resolved.push({ id: event.approvalRequestId, kind: event.decision.kind })
+        },
+      },
+    )
+    expect(resolved).toEqual([{ id: 'a1', kind: 'approved' }])
+  })
+
   it('preserves text produced before the breaker trips (appends the note)', async () => {
     const drained = await drainLeafTurn(
       streamOf(
         { kind: 'session-started', sessionId: 'leaf-7', resumedFromExisting: false, startedAt: new Date() },
         { kind: 'text-chunk', sessionId: 'leaf-7', messageId: 'm1', textDelta: 'Here is what I found. ', isFinalChunk: false },
         carded('leaf-7', 'a1'),
+        denied('leaf-7', 'a1'),
         carded('leaf-7', 'a2'),
+        denied('leaf-7', 'a2'),
         { kind: 'session-interrupted', sessionId: 'leaf-7', interruptedAt: new Date() },
       ),
       { onApprovalRequested: () => {}, maxCardedDenials: 2, interruptSession: async () => {} },

@@ -21,11 +21,13 @@
 // UNCHANGED by the service.)
 //
 // `route_to_workspace` is mutating (POST, enqueues a background sub-session), so it carries
-// `mutatingApproved: true`. **The ROUTED WORKSPACE TURN is READ-SAFE-ONLY.** The background
-// workspace turn has no user watching its stream, so a carded (irreversible) tool FAILS CLOSED —
-// the action is auto-DENIED and the agent reports as text instead (see `@vynel/orchestration`
-// `drainLeafTurn`). So routing-to-a-workspace never performs an UNAPPROVED irreversible action.
-// Interactive approval for routed agents is a deferred follow-up.
+// `mutatingApproved: true`. **The ROUTED WORKSPACE TURN SURFACES ITS APPROVALS UP** (fork 3
+// BUILT): a carded (irreversible) tool RECORDS its approval and PARKS — the card reaches the
+// web notifier (always) and the origin channel (when the request came from one); the user's
+// decision resumes the turn (see `buildRoutedApprovalHandler` + `@vynel/orchestration`
+// `drainLeafTurn`). So routing-to-a-workspace still never performs an UNAPPROVED irreversible
+// action — it just asks instead of auto-denying. The job's threaded `permissionMode` picks
+// WHICH tools card; the unanswered bound is the approvals reaper.
 //
 // `send_to_channel` (brain-tree Ch4 §D) is a different shape: a mutating tool the GLOBAL ROOT runs
 // DIRECTLY (not a routed leaf). It carries `mutatingApproved: true` and runs AUTO (uncarded) in
@@ -126,10 +128,10 @@ export const routingApp = factory
           "IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the " +
           'BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do ' +
           'NOT wait for a result here, and do NOT call this again for the same task — just tell the ' +
-          'user you have handed it off. The task is READ-SAFE: if it attempts an irreversible action ' +
-          '(write or edit a file, delete, run a shell command), that action is automatically DENIED ' +
-          'and the workspace reports its findings as text instead. Best for read / analysis / report ' +
-          'tasks.',
+          'user you have handed it off. If the task needs an irreversible action (write or edit a ' +
+          'file, delete, run a shell command), that action PAUSES for the user to approve — the ' +
+          'approval card appears in the app and, for a channel request, in that channel; the task ' +
+          'continues once they decide.',
       },
     }),
     validator('json', RouteToWorkspaceRequestSchema),

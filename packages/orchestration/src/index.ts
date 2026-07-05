@@ -101,6 +101,15 @@ export {
   type RouteRequestDeps,
   type DelegateForRouting,
 } from './routing/route-request.js'
+// Surface-up approval: the parked-approval wait signal (the tick creates one per
+// job and hands it to both the approval handler and routeRequest's wait clock) +
+// the drain option types the api-side handler builder conforms to + the steer
+// reason its fail-closed fallback denies with.
+export { ApprovalWaitGate } from './routing/approval-wait-gate.js'
+export {
+  ROUTED_LEAF_APPROVAL_DENY_REASON,
+  type DrainLeafTurnOptions,
+} from './leaf/drain-leaf-turn.js'
 
 // The trace-read — the condensed, attributed chain of one delegation request
 // keyed by its `partialSessionId` — is NOT exported here. It reads `@vynel/chat`

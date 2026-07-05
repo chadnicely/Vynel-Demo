@@ -58,6 +58,38 @@ describe('runRootDelegationTurn', () => {
     expect(capturedAsk[0]!.permissionMode).toBe('ask')
   })
 
+  it('record-and-park (surface-up): an injected handler parks the approval; the decision resumes the turn', async () => {
+    const provider = makeFakeLeafProvider({
+      sessionId: 'ws-root-5',
+      resultText: 'wrote the file',
+      approvalToolName: 'Write',
+    })
+    const requested: string[] = []
+    const resolvedKinds: string[] = []
+
+    const running = runRootDelegationTurn(provider, {
+      workspacePath: '/tmp/acme',
+      taskText: 'write it',
+      // Record-and-park: observe, do NOT respond — the provider stays parked.
+      onApprovalRequested: (event) => {
+        requested.push(event.approvalRequestId)
+      },
+      onApprovalResolved: (event) => {
+        resolvedKinds.push(event.decision.kind)
+      },
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 0)) // let the drain reach the park
+    expect(requested).toEqual(['appr-1'])
+
+    // The user decides (resolveApproval → respondToApprovalRequest) — the turn resumes.
+    await provider.respondToApprovalRequest('appr-1', { kind: 'approved' })
+    const drained = await running
+
+    expect(drained.resultText).toBe('wrote the file')
+    expect(resolvedKinds).toEqual(['approved'])
+  })
+
   it('fails closed on a carded tool (read-safe) and still completes — no deadlock', async () => {
     const approvalResponses: CapturedApprovalResponse[] = []
     const provider = makeFakeLeafProvider(

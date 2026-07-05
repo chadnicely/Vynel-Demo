@@ -64,7 +64,10 @@ export type { SaveApprovalRuleFromDecisionInput } from './rules/save-approval-ru
 export { softDeleteApprovalRule } from './rules/soft-delete-approval-rule.js'
 export type { SoftDeleteApprovalRuleInput } from './rules/soft-delete-approval-rule.js'
 
-export { recoverStalePendingApprovals } from './requests/recover-stale-pending-approvals.js'
+export {
+  recoverStalePendingApprovals,
+  APPROVAL_TIMED_OUT_DENY_REASON,
+} from './requests/recover-stale-pending-approvals.js'
 export type { RecoverStalePendingApprovalsResult } from './requests/recover-stale-pending-approvals.js'
 
 export { purgeOldApprovalRequests } from './requests/purge-old-approval-requests.js'

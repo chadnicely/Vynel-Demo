@@ -1,8 +1,13 @@
-// Surface a chat-turn approval into the channel: enqueue an outbound
-// `approval-request` message (with inline ✅/❌ buttons whose payloads
-// carry the explicit approvalRequestId) and record the pending approval id
-// on the triggering inbound so a typed "approve"/"deny" reply from the same
-// sender can be correlated (§5.7 text path). sync.
+// Surface an approval into the channel: enqueue an outbound `approval-request`
+// message (with inline ✅/❌ buttons whose payloads carry the explicit
+// approvalRequestId). One home for the outbound-card build, serving BOTH producers:
+//   - a channel-driven CHAT TURN (`enqueueApprovalRequest`): full inbound context —
+//     the card replies to the triggering message, and the pending approval id is
+//     recorded on that inbound so a typed "approve"/"deny" from the same sender
+//     correlates (§5.7 text path);
+//   - a channel-origin DELEGATION (`enqueueApprovalRequestForRecipient`): only the
+//     job's origin address exists (no inbound row) — buttons carry the explicit id,
+//     so a tap always correlates; a typed reply has nothing to stamp (noted improve).
 //
 // Spec: `docs/blueprints/channels/blueprint.md §5.7`.
 
@@ -17,29 +22,44 @@ import type { NormalizedMessageStructure } from '../channels-types.js'
 
 type ApprovalRequestedEvent = Extract<ChatTurnEvent, { kind: 'approval-requested' }>
 
-export function enqueueApprovalRequest(
+/** The card's substance — what both producers share. */
+export interface ChannelApprovalCard {
+  approvalRequestId: string
+  toolName: string
+  toolInput: unknown
+}
+
+function insertApprovalRequestOutbound(
   db: Database,
-  input: { channel: Channel; inboundMessage: ChannelInboundMessage; chatEvent: ApprovalRequestedEvent },
+  input: {
+    channel: Channel
+    externalRecipientId: string
+    externalChatContextId: string
+    replyToExternalMessageId?: string
+    card: ChannelApprovalCard
+  },
 ): void {
   const adapter = resolveChannelAdapter(input.channel.channelKind)
-  const summary = summarizeApprovalForChannel(input.chatEvent)
+  const summary = summarizeApprovalForChannel(input.card)
 
   const structure: NormalizedMessageStructure = {
-    replyToExternalMessageId: input.inboundMessage.externalMessageId,
+    ...(input.replyToExternalMessageId !== undefined
+      ? { replyToExternalMessageId: input.replyToExternalMessageId }
+      : {}),
     parseMode: 'plain',
   }
   if (adapter.supportsInlineButtons()) {
     structure.inlineButtons = [
-      { label: '✅ Approve', payload: `approval:approve:${input.chatEvent.approvalRequestId}` },
-      { label: '❌ Deny', payload: `approval:deny:${input.chatEvent.approvalRequestId}` },
+      { label: '✅ Approve', payload: `approval:approve:${input.card.approvalRequestId}` },
+      { label: '❌ Deny', payload: `approval:deny:${input.card.approvalRequestId}` },
     ]
   }
 
   channelsRepository.insertOutboundMessage(db, {
     id: randomUUID(),
     channelId: input.channel.id,
-    externalRecipientId: input.inboundMessage.externalSenderId,
-    externalChatContextId: input.inboundMessage.externalChatContextId,
+    externalRecipientId: input.externalRecipientId,
+    externalChatContextId: input.externalChatContextId,
     messageBody: summary,
     messageStructure: JSON.stringify(structure),
     payloadKind: 'approval-request',
@@ -52,10 +72,43 @@ export function enqueueApprovalRequest(
     enqueuedAt: new Date(),
     sentAt: null,
   })
+}
+
+/** Chat-turn producer: full inbound context (reply-to + typed-reply correlation). */
+export function enqueueApprovalRequest(
+  db: Database,
+  input: { channel: Channel; inboundMessage: ChannelInboundMessage; chatEvent: ApprovalRequestedEvent },
+): void {
+  insertApprovalRequestOutbound(db, {
+    channel: input.channel,
+    externalRecipientId: input.inboundMessage.externalSenderId,
+    externalChatContextId: input.inboundMessage.externalChatContextId,
+    replyToExternalMessageId: input.inboundMessage.externalMessageId,
+    card: {
+      approvalRequestId: input.chatEvent.approvalRequestId,
+      toolName: input.chatEvent.toolName,
+      toolInput: input.chatEvent.toolInput,
+    },
+  })
 
   // Correlate a future typed reply (§5.7) — record the pending approval id
   // on the inbound that triggered this turn.
   channelsRepository.updateInboundMessage(db, input.inboundMessage.id, {
     routedToApprovalRequestId: input.chatEvent.approvalRequestId,
   })
+}
+
+/** Delegation-origin producer: address the job's origin recipient directly (surface-up).
+ *  No inbound row exists here, so there is no reply-to and no typed-reply stamp —
+ *  the inline buttons carry the explicit approval id. */
+export function enqueueApprovalRequestForRecipient(
+  db: Database,
+  input: {
+    channel: Channel
+    externalRecipientId: string
+    externalChatContextId: string
+    card: ChannelApprovalCard
+  },
+): void {
+  insertApprovalRequestOutbound(db, input)
 }

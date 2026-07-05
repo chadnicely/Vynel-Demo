@@ -12,9 +12,11 @@
 // already known). PURE w.r.t. side-effects beyond the provider (no chat writes) —
 // the api composition (`delegateToWorkspaceRoot`) owns recording + persistence.
 //
-// READ-SAFE: like every routed sub-session, there is no user watching the stream, so
-// a carded (irreversible) tool fails closed (auto-deny via the routed-leaf denier).
-// Interactive approval surfaced UP to the user is a deferred slice (brain-tree fork 3).
+// APPROVALS (surface-up, brain-tree fork 3 — BUILT): the composing tier injects
+// `onApprovalRequested` (record-and-park — the card reaches the web notifier +
+// the origin channel; the provider stays parked until the user decides) and
+// `onApprovalResolved` (resumes the suspended wait budget). Without the
+// injection the turn falls back to the fail-closed auto-deny (read-safe).
 
 import type { AiAgentProvider } from '@vynel/providers'
 import type { DelegationPermissionMode } from '../orchestration-types.js'
@@ -22,6 +24,7 @@ import {
   drainLeafTurn,
   buildRoutedLeafApprovalDenier,
   ROUTED_LEAF_MAX_CARDED_DENIALS,
+  type DrainLeafTurnOptions,
 } from './drain-leaf-turn.js'
 
 export type RunRootDelegationTurnInput = {
@@ -37,6 +40,11 @@ export type RunRootDelegationTurnInput = {
   /** The permission mode the routed turn runs under — the delegating turn's mode
    *  (surface-up step 1). Omit for the pre-mode default (`bypass-with-behavior-gate`). */
   permissionMode?: DelegationPermissionMode
+  /** Surface-up: record-and-park a carded tool so the user decides from the notifier /
+   *  origin channel. Omit for the fail-closed auto-deny fallback. */
+  onApprovalRequested?: DrainLeafTurnOptions['onApprovalRequested']
+  /** Surface-up: observes each decision (resumes the suspended wait budget). */
+  onApprovalResolved?: DrainLeafTurnOptions['onApprovalResolved']
 }
 
 export type RunRootDelegationTurnResult = {
@@ -64,10 +72,13 @@ export async function runRootDelegationTurn(
       ...(input.model !== undefined ? { model: input.model } : {}),
     }),
     {
-      onApprovalRequested: buildRoutedLeafApprovalDenier(provider),
-      // Fail fast on a write task: if the leaf keeps reaching for irreversible tools past the
-      // deny + steer, interrupt it instead of burning the route timeout (owner's "stuck on
-      // permission" fix). A compliant read-safe report never trips it.
+      onApprovalRequested: input.onApprovalRequested ?? buildRoutedLeafApprovalDenier(provider),
+      ...(input.onApprovalResolved !== undefined
+        ? { onApprovalResolved: input.onApprovalResolved }
+        : {}),
+      // Fail fast on repeated DENIALS: if the leaf keeps proposing irreversible actions past
+      // the denials (auto or human), interrupt it instead of burning the route timeout
+      // (owner's "stuck on permission" fix). A compliant report never trips it.
       maxCardedDenials: ROUTED_LEAF_MAX_CARDED_DENIALS,
       interruptSession: (sessionId) => provider.interruptChatSession(sessionId),
     },

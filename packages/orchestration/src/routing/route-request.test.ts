@@ -3,6 +3,7 @@
 // test precedent); no DB, no provider.
 
 import { describe, expect, it, vi } from 'vitest'
+import { ApprovalWaitGate } from './approval-wait-gate.js'
 import { routeRequest, type DelegateForRouting } from './route-request.js'
 
 const baseInput = {
@@ -39,5 +40,42 @@ describe('routeRequest', () => {
     const delegate: DelegateForRouting = () => new Promise(() => {})
     const result = await routeRequest({ ...baseInput, timeoutMs: 20 }, { delegate })
     expect(result).toEqual({ status: 'timed-out', timeoutMs: 20 })
+  })
+
+  // ── Surface-up decision C: the wait clock suspends while an approval is parked ──
+
+  it('suspends the wait budget while the gate is parked — a slow human decision does not time the job out', async () => {
+    const waitGate = new ApprovalWaitGate()
+    // Park immediately, resolve after 60ms — far past the 20ms budget. With the
+    // clock suspended while parked, the delegation still completes.
+    const delegate: DelegateForRouting = () =>
+      new Promise((resolve) => {
+        waitGate.markParked()
+        setTimeout(() => {
+          waitGate.markResolved()
+          resolve({ reference: 'leaf-sdk-2', resultText: 'Approved and done.' })
+        }, 60)
+      })
+
+    const result = await routeRequest({ ...baseInput, timeoutMs: 20 }, { delegate, waitGate })
+    expect(result).toEqual({
+      status: 'completed',
+      reference: 'leaf-sdk-2',
+      result: 'Approved and done.',
+    })
+  })
+
+  it('resumes the clock with the REMAINING budget after the parked approval resolves', async () => {
+    const waitGate = new ApprovalWaitGate()
+    // Parked at once; after resolve the leaf keeps "running" forever — the clock
+    // resumes and the remaining budget expires normally.
+    const delegate: DelegateForRouting = () =>
+      new Promise(() => {
+        waitGate.markParked()
+        setTimeout(() => waitGate.markResolved(), 30)
+      })
+
+    const result = await routeRequest({ ...baseInput, timeoutMs: 25 }, { delegate, waitGate })
+    expect(result).toEqual({ status: 'timed-out', timeoutMs: 25 })
   })
 })

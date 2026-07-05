@@ -69,6 +69,13 @@ export { listPendingInboundMessages } from './repositories/index.js'
 // with it (gone/disabled/not-owned → warn + skip, never a thrown turn).
 export { findChannelById } from './repositories/index.js'
 
+// Surface-up: push an approval card to a delegation's origin recipient (buttons
+// carry the explicit approval id; the delivery tick ships it like any outbound).
+export {
+  enqueueApprovalRequestForRecipient,
+  type ChannelApprovalCard,
+} from './delivery/enqueue-approval-request.js'
+
 // The two channel ticks that do NOT run a turn — the api-side channels service drives them on
 // its poll(5s) / deliver(2s) timers. Polling fetches inbound messages from the channel adapter
 // and persists them; delivery drains ready outbound rows via the adapter. Both self-contained

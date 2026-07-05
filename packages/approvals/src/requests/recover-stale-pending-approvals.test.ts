@@ -9,6 +9,7 @@ import {
   type NewApprovalRequest,
 } from '../repositories/index.js'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
+import { NotFoundError } from '@vynel/errors'
 import { recoverStalePendingApprovals } from './recover-stale-pending-approvals.js'
 
 function makeUser() {
@@ -69,7 +70,7 @@ function makeRow(
 
 describe('recoverStalePendingApprovals', () => {
   it('resolves only rows aged past requestedAt + timeoutMs * 2', async () => {
-    await withTestDatabase((db) => {
+    await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
 
@@ -85,7 +86,7 @@ describe('recoverStalePendingApprovals', () => {
         makeRow(user.id, workspace.id, new Date('2026-05-24T11:58:00Z')),
       )
 
-      const result = recoverStalePendingApprovals(db, { now: () => now })
+      const result = await recoverStalePendingApprovals(db, { now: () => now })
 
       expect(result.resolvedCount).toBe(1)
       expect(findApprovalRequestById(db, stale.id)?.status).toBe('resolved')
@@ -98,7 +99,7 @@ describe('recoverStalePendingApprovals', () => {
   })
 
   it('respects per-row timeoutMs (channels may use longer windows)', async () => {
-    await withTestDatabase((db) => {
+    await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
 
@@ -110,7 +111,7 @@ describe('recoverStalePendingApprovals', () => {
         makeRow(user.id, workspace.id, new Date('2026-05-24T11:30:00Z'), 20 * 60 * 1000),
       )
 
-      const result = recoverStalePendingApprovals(db, { now: () => now })
+      const result = await recoverStalePendingApprovals(db, { now: () => now })
 
       expect(result.resolvedCount).toBe(0)
       expect(findApprovalRequestById(db, row.id)?.status).toBe('pending')
@@ -118,7 +119,7 @@ describe('recoverStalePendingApprovals', () => {
   })
 
   it('does not re-process already-resolved rows (status filter at the repo)', async () => {
-    await withTestDatabase((db) => {
+    await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
 
@@ -128,11 +129,84 @@ describe('recoverStalePendingApprovals', () => {
         makeRow(user.id, workspace.id, new Date('2026-05-24T01:00:00Z'), 300_000, 'resolved'),
       )
 
-      const result = recoverStalePendingApprovals(db, { now: () => now })
+      const result = await recoverStalePendingApprovals(db, { now: () => now })
 
       expect(result.resolvedCount).toBe(0)
       // Original resolution preserved.
       expect(findApprovalRequestById(db, resolved.id)?.resolutionKind).toBe('approved')
+    })
+  })
+
+  it('unblocks a same-process parked provider approval BEFORE the row update (surface-up)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const now = new Date('2026-05-24T12:00:00Z')
+      const stale = insertApprovalRequest(
+        db,
+        makeRow(user.id, workspace.id, new Date('2026-05-24T11:45:00Z')),
+      )
+
+      const unblocked: string[] = []
+      const result = await recoverStalePendingApprovals(db, {
+        now: () => now,
+        unblockProvider: async (providerApprovalId) => {
+          unblocked.push(providerApprovalId)
+        },
+      })
+
+      expect(result.resolvedCount).toBe(1)
+      expect(unblocked).toEqual([stale.providerApprovalId])
+      expect(findApprovalRequestById(db, stale.id)?.resolutionKind).toBe('timed-out')
+    })
+  })
+
+  it('still reaps the row when the registry no longer knows the id (post-restart) — the unblock throw is swallowed + logged', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const now = new Date('2026-05-24T12:00:00Z')
+      const stale = insertApprovalRequest(
+        db,
+        makeRow(user.id, workspace.id, new Date('2026-05-24T11:45:00Z')),
+      )
+
+      const result = await recoverStalePendingApprovals(db, {
+        now: () => now,
+        unblockProvider: async () => {
+          throw new NotFoundError('approval_request', 'gone-with-the-process')
+        },
+      })
+
+      expect(result.resolvedCount).toBe(1)
+      expect(findApprovalRequestById(db, stale.id)?.status).toBe('resolved')
+    })
+  })
+
+  it('keeps the row PENDING when the unblock fails for any non-NotFound reason (never strip reaper coverage)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const now = new Date('2026-05-24T12:00:00Z')
+      const stale = insertApprovalRequest(
+        db,
+        makeRow(user.id, workspace.id, new Date('2026-05-24T11:45:00Z')),
+      )
+
+      const result = await recoverStalePendingApprovals(db, {
+        now: () => now,
+        unblockProvider: async () => {
+          throw new Error('provider transport hiccup')
+        },
+      })
+
+      // The row stays pending — the next tick retries the unblock; marking it
+      // timed-out here would leave a possibly-still-parked agent uncovered.
+      expect(result.resolvedCount).toBe(0)
+      expect(findApprovalRequestById(db, stale.id)?.status).toBe('pending')
     })
   })
 })
