@@ -45,6 +45,14 @@ export interface RunGlobalRootTurnInput {
   /** Set when a CHANNEL drove this turn (Ch4) — threaded onto any delegation the root enqueues. */
   origin?: DelegationOrigin
   model?: string
+  /** Surface-up: called for each `approval-requested` the brain's own turn emits (the
+   *  core already RECORDED it — web notifier). The channel path pushes the card back
+   *  to the sender with it. The turn stays parked until the decision arrives. */
+  onApprovalRequested?: (approval: {
+    approvalRequestId: string
+    toolName: string
+    toolInput: unknown
+  }) => void
 }
 
 export interface RunGlobalRootTurnResult {
@@ -76,6 +84,10 @@ class GlobalRootDrainSink implements SessionSink {
   private resultText = ''
   private streamErrorMessage: string | null = null
 
+  constructor(
+    private readonly onApprovalRequested?: RunGlobalRootTurnInput['onApprovalRequested'],
+  ) {}
+
   onEvent(event: SessionEvent): void {
     if (event.kind === 'user-message-persisted') {
       // Capture from user-message-persisted — it fires on BOTH the new AND resumed
@@ -85,6 +97,15 @@ class GlobalRootDrainSink implements SessionSink {
       this.sessionId = event.message.sessionId
     } else if (event.kind === 'text-chunk') {
       this.resultText += event.textDelta
+    } else if (event.kind === 'approval-requested') {
+      // Surface-up: the core already recorded the card (web notifier); this hands it
+      // to the channel path so the sender is asked too. Auto-approved cards arrive as
+      // `approval-auto-resolved` and are deliberately not pushed.
+      this.onApprovalRequested?.({
+        approvalRequestId: event.approvalRequestId,
+        toolName: event.toolName,
+        toolInput: event.toolInput,
+      })
     } else if (event.kind === 'session-errored') {
       this.streamErrorMessage = event.errorMessage
     }
@@ -122,7 +143,7 @@ export async function runGlobalRootTurn(
     appRequest,
   })
 
-  const sink = new GlobalRootDrainSink()
+  const sink = new GlobalRootDrainSink(input.onApprovalRequested)
   await runGlobalRootTurnCore(
     {
       db: deps.db,

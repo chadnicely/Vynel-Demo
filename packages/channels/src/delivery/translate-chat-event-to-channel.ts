@@ -69,7 +69,11 @@ export function createChannelEventTranslator(
         enqueueApprovalRequest(db, {
           channel: context.channel,
           inboundMessage: context.inboundMessage,
-          chatEvent: event,
+          card: {
+            approvalRequestId: event.approvalRequestId,
+            toolName: event.toolName,
+            toolInput: event.toolInput,
+          },
         })
         return
       case 'session-completed': {

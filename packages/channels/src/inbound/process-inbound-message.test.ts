@@ -50,6 +50,33 @@ describe('processInboundMessage — chat-turn routes to the global root (Ch4)', 
     })
   })
 
+  it('pushes a brain-turn approval card back to the sender (surface-up) with typed-reply correlation', async () => {
+    await withTestDatabase(async (db) => {
+      const { channel } = seedChannelWithAllowedSender(db)
+      const inbound = insertPendingChatTurnMessage(db, channel.id, 'set up a workspace for acme')
+      const deps = stubTurnDeps({
+        rootTurnResultText: 'Workspace created.',
+        emitApproval: {
+          approvalRequestId: 'appr-brain-1',
+          toolName: 'register_workspace',
+          toolInput: { name: 'acme' },
+        },
+      })
+
+      await processInboundMessage(db, { inboundMessageId: inbound.id }, deps)
+
+      const queued = listReadyOutboundMessages(db, {})
+      expect(queued).toHaveLength(2) // the approval card + the final reply
+      const card = queued.find((m) => m.payloadKind === 'approval-request')!
+      expect(card.externalRecipientId).toBe('123456')
+      expect(card.messageBody).toContain('register_workspace')
+      expect(card.messageStructure).toContain('approval:approve:appr-brain-1')
+      // Reply-to + the typed-reply stamp — "approve" from this sender correlates (§5.7).
+      expect(card.messageStructure).toContain(inbound.externalMessageId)
+      expect(findInboundMessageById(db, inbound.id)?.routedToApprovalRequestId).toBe('appr-brain-1')
+    })
+  })
+
   it('does not double-dispatch a claimed message (the claim wins once)', async () => {
     await withTestDatabase(async (db) => {
       const { channel } = seedChannelWithAllowedSender(db)

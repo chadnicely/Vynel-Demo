@@ -149,7 +149,13 @@ export interface StubTurnDeps extends ProcessInboundDeps {
 }
 
 export function stubTurnDeps(
-  options: { rootTurnResultText?: string; rootTurnThrows?: boolean } = {},
+  options: {
+    rootTurnResultText?: string
+    rootTurnThrows?: boolean
+    /** Surface-up: the stub turn "cards" this tool mid-turn — it invokes the caller's
+     *  `onApprovalRequested` before resolving, like a brain turn whose own tool parked. */
+    emitApproval?: { approvalRequestId: string; toolName: string; toolInput: unknown }
+  } = {},
 ): StubTurnDeps {
   const state: StubTurnDeps['state'] = { rootTurnCalls: [] }
   return {
@@ -158,6 +164,7 @@ export function stubTurnDeps(
     // return a configurable answer (or throw, for the failure path).
     runRootTurn: (_db, input) => {
       state.rootTurnCalls.push(input)
+      if (options.emitApproval !== undefined) input.onApprovalRequested?.(options.emitApproval)
       if (options.rootTurnThrows) return Promise.reject(new Error('root turn exploded'))
       return Promise.resolve({ resultText: options.rootTurnResultText ?? 'On it.' })
     },

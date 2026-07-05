@@ -35,12 +35,20 @@ export interface ProcessInboundDeps {
   // typed STRUCTURALLY here so core never imports apps/api or the orchestration runner. The origin
   // (channel coordinates) rides onto any delegation the root enqueues, so its report is delivered
   // back to this channel. The result is the root's answer text (delivered as the channel reply).
+  // `onApprovalRequested` (surface-up): the brain's own carded tool RECORDS its approval in the
+  // core (web notifier) and PARKS — this callback lets the channel path ALSO push the card to
+  // the sender, who answers via the existing approval-reply route.
   runRootTurn: (
     db: Database,
     input: {
       userId: string
       userMessageText: string
       origin: { channelId: string; externalSenderId: string; externalChatContextId: string }
+      onApprovalRequested?: (approval: {
+        approvalRequestId: string
+        toolName: string
+        toolInput: unknown
+      }) => void
     },
   ) => Promise<{ resultText: string }>
   // Resolve an approval at the sender's direction (the channel approval-reply path). Injected +

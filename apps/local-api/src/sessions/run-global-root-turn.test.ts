@@ -63,6 +63,36 @@ describe('runGlobalRootTurn', () => {
     expect(coreInput.allowedMcpToolPatterns).toEqual([])
   })
 
+  it('forwards approval-requested to onApprovalRequested (the channel card push, surface-up)', async () => {
+    coreMock.mockImplementation(async (_deps: unknown, _input: unknown, sink: SessionSink) => {
+      await sink.onEvent({
+        kind: 'user-message-persisted',
+        message: { sessionId: 'sess-1' },
+      } as SinkEvent)
+      await sink.onEvent({
+        kind: 'approval-requested',
+        approvalRequestId: 'appr-brain-1',
+        parentMessageId: 'm1',
+        toolName: 'register_workspace',
+        toolInput: { name: 'acme' },
+      } as SinkEvent)
+      await sink.onEvent({ kind: 'text-chunk', messageId: 'm1', textDelta: 'done' })
+      await sink.onEnd?.()
+    })
+
+    const approvals: { approvalRequestId: string; toolName: string; toolInput: unknown }[] = []
+    const result = await runGlobalRootTurn(fakeDeps(), {
+      userId: 'u1',
+      userMessageText: 'set up acme',
+      onApprovalRequested: (approval) => approvals.push(approval),
+    })
+
+    expect(result.resultText).toBe('done')
+    expect(approvals).toEqual([
+      { approvalRequestId: 'appr-brain-1', toolName: 'register_workspace', toolInput: { name: 'acme' } },
+    ])
+  })
+
   it('throws when the turn produced no session id (no user-message-persisted)', async () => {
     coreMock.mockImplementation(async (_deps: unknown, _input: unknown, sink: SessionSink) => {
       await sink.onEvent({ kind: 'text-chunk', messageId: 'm1', textDelta: 'orphan' })

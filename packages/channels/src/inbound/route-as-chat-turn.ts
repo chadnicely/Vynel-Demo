@@ -14,6 +14,7 @@
 
 import { enqueueChannelReply } from '../delivery/enqueue-channel-reply.js'
 import { enqueueChannelStatus } from '../delivery/enqueue-channel-status.js'
+import { enqueueApprovalRequest } from '../delivery/enqueue-approval-request.js'
 import { resolveChannelAdapter } from '../adapters/channel-adapter-registry.js'
 import { extractErrorMessage } from '../adapters/extract-error-message.js'
 import type { Database } from '@vynel/db'
@@ -61,6 +62,24 @@ export async function routeAsChatTurn(
       userId: input.channel.userId,
       userMessageText: input.message.messageBody,
       origin,
+      // Surface-up: the brain's own carded tool (e.g. register_workspace) records its
+      // approval in the core (web notifier) and PARKS the turn — push the card back to
+      // the sender too, with full inbound context (reply-to + typed-reply correlation).
+      // Best-effort: a push failure narrows the surface to web, never fails the turn.
+      onApprovalRequested: (approval) => {
+        try {
+          enqueueApprovalRequest(db, {
+            channel: input.channel,
+            inboundMessage: input.message,
+            card: approval,
+          })
+        } catch (err) {
+          deps.logger?.warn(
+            { error: extractErrorMessage(err), approvalRequestId: approval.approvalRequestId },
+            'channel approval push failed (the web notifier still has the card)',
+          )
+        }
+      },
     })
     // Deliver the root's answer — the direct reply, or its "handed it off" ack if it delegated (the
     // delegation's report follows later via the claim-and-run tick). Skip an empty answer.

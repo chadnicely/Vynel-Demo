@@ -17,10 +17,7 @@ import { resolveChannelAdapter } from '../adapters/channel-adapter-registry.js'
 import { summarizeApprovalForChannel } from './summarize-approval-for-channel.js'
 import type { Database } from '@vynel/db'
 import type { Channel, ChannelInboundMessage } from '../repositories/index.js'
-import type { ChatTurnEvent } from '@vynel/contracts/chat/chat-http'
 import type { NormalizedMessageStructure } from '../channels-types.js'
-
-type ApprovalRequestedEvent = Extract<ChatTurnEvent, { kind: 'approval-requested' }>
 
 /** The card's substance — what both producers share. */
 export interface ChannelApprovalCard {
@@ -74,27 +71,25 @@ function insertApprovalRequestOutbound(
   })
 }
 
-/** Chat-turn producer: full inbound context (reply-to + typed-reply correlation). */
+/** Chat-turn producer: full inbound context (reply-to + typed-reply correlation).
+ *  `card` is the structural substance of an `approval-requested` event — the
+ *  chat-turn translator and the brain-turn callback both satisfy it. */
 export function enqueueApprovalRequest(
   db: Database,
-  input: { channel: Channel; inboundMessage: ChannelInboundMessage; chatEvent: ApprovalRequestedEvent },
+  input: { channel: Channel; inboundMessage: ChannelInboundMessage; card: ChannelApprovalCard },
 ): void {
   insertApprovalRequestOutbound(db, {
     channel: input.channel,
     externalRecipientId: input.inboundMessage.externalSenderId,
     externalChatContextId: input.inboundMessage.externalChatContextId,
     replyToExternalMessageId: input.inboundMessage.externalMessageId,
-    card: {
-      approvalRequestId: input.chatEvent.approvalRequestId,
-      toolName: input.chatEvent.toolName,
-      toolInput: input.chatEvent.toolInput,
-    },
+    card: input.card,
   })
 
   // Correlate a future typed reply (§5.7) — record the pending approval id
   // on the inbound that triggered this turn.
   channelsRepository.updateInboundMessage(db, input.inboundMessage.id, {
-    routedToApprovalRequestId: input.chatEvent.approvalRequestId,
+    routedToApprovalRequestId: input.card.approvalRequestId,
   })
 }
 
