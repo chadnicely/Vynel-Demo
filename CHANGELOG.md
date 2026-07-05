@@ -9,6 +9,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Routed tasks can now DO work — with your approval (surface-up).** A task the brain routes to a
+  workspace no longer auto-denies irreversible actions: the action pauses, an approval card appears in
+  the app (always) *and* in the channel the request came from (Telegram — ✅/❌ buttons, or reply
+  "approve" / "deny <reason>"), and whichever surface decides first resumes the task. Unanswered cards
+  time out (~10 min) via a new reaper service, so a parked task always finishes with a report. The
+  brain's own carded tools (e.g. creating a workspace from Telegram) reach the channel the same way.
+- **The Ask/Auto/Bypass mode now governs the brain and routed tasks.** A global-chat turn carries the
+  composer's mode; the brain's own tools respect it, and any task it routes inherits it (stored on the
+  delegation job) — the mode picks which tools pause for approval.
+- Channel approval cards for routed tasks name the acting workspace ("Write — in vynel"); routed agents
+  are steered to read-only tools for read tasks; the Watch panel no longer shows the same answer twice.
+
 - **See delegated work happen.** When the brain routes a task to a workspace, the global chat now shows
   a live "⚡ Working in *{workspace}*…" indicator (polling the in-flight delegations) and keeps the thread
   live so the workspace's report appears within seconds of completing. A report's "Watch *X*" chip opens

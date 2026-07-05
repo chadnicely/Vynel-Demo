@@ -3,18 +3,38 @@
 **Updated 2026-07-06.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (post-compaction): BUILD surface-up approval — REVISED shape = ALL ORIGINS, web always + origin channel
+## 🏁 SURFACE-UP APPROVAL BUILT (2026-07-06) — all 4 moves committed, gate 1874, reviewer-clean
 
-**Full plan: `docs/module-notes/surface-up-approval.md` (READ IT FIRST — the revised §B + sequencing).
-Chad revised 2026-07-06: approvals surface on WEB ALWAYS, plus the ORIGIN CHANNEL (Telegram) when the
-flow came from one; decidable from either surface (second decider gets "already handled").** Web-only is
-dead; the routed auto-deny is replaced by record-and-park for ALL origins. Key discoveries: the channels
-leaf ALREADY ships the whole channel-approval loop (`enqueue-approval-request` + `summarize-approval-for-
-channel` + `derive-intent-kind` + `route-as-approval-reply` → `resolveApproval`) — orphaned since the Ch4
-rewrite, only the PRODUCER side is unwired; and `recoverStalePendingApprovals` (the unanswered-card
-bound, reaps at timeoutMs*2) is exported but wired NOWHERE — wiring it is part of Move 2. Build order
-(tasks #2–#5): mode threading → routed record-and-park (all origins + reaper + pausable wait budget) →
-brain-turn channel push (thread approval events from `GlobalRootDrainSink` to `routeAsChatTurn`) → polish.
+**Shape shipped (Chad's revision): approvals surface on WEB ALWAYS + the ORIGIN CHANNEL (Telegram) when
+the flow came from one; decidable from either surface (second decider gets "already handled").** The
+routed auto-deny is GONE — replaced by record-and-park for ALL origins. Commits: `2276a4e` (docs) ·
+`23f7fc5` (Move 1 mode threading: `delegation_jobs.permissionMode` baseline-folded, `/root/turn` accepts
+`mode`, brain turn + routed turns run under it, web sends composer mode on global turns) · `b5c4e9f`
+(Move 2 record-and-park: `buildRoutedApprovalHandler` records workspace-scoped + pushes the channel card
++ fail-closed on record-throw; `drainLeafTurn` breaker now counts approval-RESOLVED denials [provider
+contract pinned in normalized-session-event.ts]; `routeRequest` wait budget SUSPENDS while parked via
+`ApprovalWaitGate`; `recoverStalePendingApprovals` now async + unblocks the parked provider FIRST
+[NotFound→post-restart row; other errors keep the row pending] and is WIRED as the 60s
+`approvals-recovery-service` — it was called NOWHERE before) · `a17a282` (Move 3: brain-turn cards
+pushed to the origin channel via `routeAsChatTurn` → `runRootTurn.onApprovalRequested` →
+`GlobalRootDrainSink`; typed-reply correlation stamped) · `949bb05` (polish: cards name the acting
+workspace; Watch-panel echo collapse [display-only — the trace read stays faithful]; routed turns get a
+read-tool steer via systemPromptAppend). Code-reviewer: no must-fix; both should-fixes applied.
+
+**⏭ CHAD TO LIVE-SMOKE (can't be unit-tested):** ① web: route a WRITE task ("in vynel, create notes.md
+with X") in Ask mode → notifier card appears (≤5s poll) → approve → task completes + report bubbles;
+deny → task reports it stopped. ② Telegram: send a write task → card arrives in Telegram with buttons →
+tap Approve → report arrives in Telegram; also try typed "approve". ③ Telegram brain-card:
+"set up a workspace for X at path" from Telegram → register_workspace card in Telegram + web. ④ Let one
+card sit ~10min → reaper denies → task resumes with a "couldn't finish" report. ⚠ Baseline was folded
+again (`permission_mode`) → **delete `.data/vynel.dev.db*` before smoking** (the stale-dev-DB papercut).
+
+**Deferred-improves (reviewer-noted, non-blocking):** stale pending card after a rare fail-closed deny
+(bounded by the reaper; notifier could render better) · timed-out JOB + late park = real card for a
+terminal job (pre-existing "result not surfaced after timeout" limitation, now more visible) · fakes
+support one approval per instance (multi-approval covered by unit tests only) · delegation-origin
+channel cards can't correlate a TYPED "approve" (no inbound row; buttons carry the id — fine on
+Telegram) · web notifier card still generic (actionKind contract gap, tracked since M7).
 
 **Goal:** routed tasks (brain → workspace) can DO work with Chad's approval, instead of read-safe
 auto-deny. Chad's complaint: "route to workspace: it said routed but the task couldn't perform actions,
