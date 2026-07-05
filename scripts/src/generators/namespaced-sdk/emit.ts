@@ -18,6 +18,9 @@ export function emitMethod(name: string, op: ParsedOperation): string {
   //   - hasQuery (required): required `options: <QueryType>` (no `?`)
   // All combinations are handled, including path-param + query.
 
+  const pathLit = JSON.stringify(op.path)
+  const methodKeyLit = JSON.stringify(op.method)
+
   const params: string[] = []
   // `params: { path, query }` is ONE openapi-fetch key — path-param and
   // query sub-objects must merge into a single `params` entry (two separate
@@ -35,13 +38,17 @@ export function emitMethod(name: string, op: ParsedOperation): string {
   )
   if (pathParamNames.length > 0) {
     for (const paramName of pathParamNames) {
-      params.push(`${paramName}: string`)
+      // Indexed access, not `string`: a path param declared as an enum in the
+      // route schema (first hit: capabilities' `capabilityId`) narrows to its
+      // literal union — a hardcoded `string` fails to assign to it.
+      params.push(
+        `${paramName}: NonNullable<paths[${pathLit}][${methodKeyLit}]['parameters']>['path'][${JSON.stringify(paramName)}]`,
+      )
     }
     const pathEntries = pathParamNames.map((n) => `${n}: ${n}`).join(', ')
     paramsSubEntries.push(`path: { ${pathEntries} }`)
   }
 
-  const pathLit = JSON.stringify(op.path)
   const methodLit = JSON.stringify(op.method.toUpperCase())
 
   if (op.hasBody) {
