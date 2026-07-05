@@ -116,6 +116,7 @@ export async function runDelegationClaimAndRunTick(
       provider: deps.provider,
       userId: claimed.userId,
       workspaceId: claimed.workspaceId,
+      workspaceName,
       waitGate,
       ...(approvalOrigin !== null ? { origin: approvalOrigin } : {}),
     })

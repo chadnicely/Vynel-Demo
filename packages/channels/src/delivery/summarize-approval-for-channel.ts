@@ -25,11 +25,13 @@ function previewToolInput(toolInput: unknown): string {
 export function summarizeApprovalForChannel(event: {
   toolName: string
   toolInput: unknown
+  workspaceName?: string
 }): string {
   const preview = previewToolInput(event.toolInput)
   const detail = preview ? `\n${preview}` : ''
+  const actor = event.workspaceName !== undefined ? ` — in ${event.workspaceName}` : ''
   return (
-    `🛡️ Approval needed: ${event.toolName}${detail}\n\n` +
+    `🛡️ Approval needed: ${event.toolName}${actor}${detail}\n\n` +
     `Tap a button below, or reply “approve” or “deny <reason>”.`
   )
 }

@@ -54,6 +54,17 @@ export type RunRootDelegationTurnResult = {
   resultText: string
 }
 
+// How a routed (background) turn should behave — appended to the system prompt, NOT the
+// task text (the task is persisted verbatim to the transcript). Steers the model to
+// read-only tools for read tasks (the owner-reported "reached for Bash on 'list files'"
+// papercut) and sets expectations for the surface-up approval pause.
+export const ROUTED_TASK_INSTRUCTIONS =
+  'This task was routed from the user’s assistant and runs in the background. Prefer ' +
+  'read-only tools (Read, Glob, Grep, LS) for read/analysis tasks. An irreversible action ' +
+  '(write, edit, delete, shell command) PAUSES until the user approves it from their app or ' +
+  'chat — use one only when the task genuinely needs it, and if it is denied or times ' +
+  'out, report your findings as text instead of retrying.'
+
 export async function runRootDelegationTurn(
   provider: AiAgentProvider,
   input: RunRootDelegationTurnInput,
@@ -63,6 +74,7 @@ export async function runRootDelegationTurn(
       workspacePath: input.workspacePath,
       ...(input.resumeSessionId !== undefined ? { resumeSessionId: input.resumeSessionId } : {}),
       userMessageText: input.taskText,
+      systemPromptAppend: ROUTED_TASK_INSTRUCTIONS,
       permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
       // Empty grants: a resumed root keeps the workspace's existing tool grants; a
       // fresh root gets the SDK defaults. Either way the behavior gate fires and the

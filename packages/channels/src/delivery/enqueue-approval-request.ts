@@ -24,6 +24,9 @@ export interface ChannelApprovalCard {
   approvalRequestId: string
   toolName: string
   toolInput: unknown
+  /** The workspace acting — shown on a routed delegation's card ("Write — in vynel").
+   *  Absent for a brain-turn card (no workspace). */
+  workspaceName?: string
 }
 
 function insertApprovalRequestOutbound(

@@ -375,6 +375,7 @@ describe('runDelegationClaimAndRunTick', () => {
       expect(cardOutbound).toHaveLength(1)
       expect(cardOutbound[0]!.payloadKind).toBe('approval-request')
       expect(cardOutbound[0]!.messageStructure).toContain(`approval:approve:${card.providerApprovalId}`)
+      expect(cardOutbound[0]!.messageBody).toContain('in Acme') // the acting workspace, named
       expect(findDelegationJobById(db, jobId)?.status).toBe('claimed') // still parked
 
       // The user approves (resolveApproval → respondToApprovalRequest) — shortcut

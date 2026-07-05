@@ -44,6 +44,8 @@ export interface BuildRoutedApprovalHandlerDeps {
   userId: string
   /** The TARGET workspace — scopes the card (and its approval rules). */
   workspaceId: string
+  /** The acting workspace's display name — context on the channel card. */
+  workspaceName?: string
   /** Shared with `routeRequest` — parked approvals suspend the wait budget. */
   waitGate: ApprovalWaitGate
   /** Present when a channel drove the delegation — the card is pushed there too. */
@@ -98,6 +100,9 @@ export function buildRoutedApprovalHandler(
                 approvalRequestId: event.approvalRequestId,
                 toolName: event.toolName,
                 toolInput: event.toolInput,
+                ...(deps.workspaceName !== undefined
+                  ? { workspaceName: deps.workspaceName }
+                  : {}),
               },
             })
           } catch (err) {

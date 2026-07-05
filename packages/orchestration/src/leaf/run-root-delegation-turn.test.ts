@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import type { StartChatSessionInput } from '@vynel/providers'
 import { makeFakeLeafProvider, type CapturedApprovalResponse } from '../test-support/fake-leaf-provider.js'
-import { runRootDelegationTurn } from './run-root-delegation-turn.js'
+import { runRootDelegationTurn, ROUTED_TASK_INSTRUCTIONS } from './run-root-delegation-turn.js'
 
 describe('runRootDelegationTurn', () => {
   it('resumes the workspace root session and returns the drained result + its session id', async () => {
@@ -27,6 +27,8 @@ describe('runRootDelegationTurn', () => {
     expect(captured[0]!.resumeSessionId).toBe('ws-root-1')
     expect(captured[0]!.userMessageText).toBe('summarize the docs')
     expect(captured[0]!.workspacePath).toBe('/tmp/acme')
+    // The background steer rides the SYSTEM prompt, never the persisted task text.
+    expect(captured[0]!.systemPromptAppend).toBe(ROUTED_TASK_INSTRUCTIONS)
   })
 
   it('starts a FRESH turn when no resumeSessionId is given (the first delegation)', async () => {

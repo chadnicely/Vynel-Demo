@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { X } from "lucide-vue-next";
 import { IconButton, MarkdownText, PresenceDot } from "@vynel/ui";
 import { useDelegationTrace } from "../../composables/delegations/use-delegation-trace.js";
+import { collapseTraceEcho } from "../../composables/delegations/collapse-trace-echo.js";
 import { useSessionViewerStore } from "../../stores/session-viewer-store.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 
@@ -14,6 +15,12 @@ const viewer = useSessionViewerStore();
 
 const traceQuery = useDelegationTrace(() => viewer.currentSessionId);
 const entries = computed(() => traceQuery.data.value?.entries ?? []);
+
+// The workspace reply and the surfaced global report carry the SAME body — the
+// backend trace is deliberately faithful (both copies returned); display
+// collapses the echo (see collapse-trace-echo.ts).
+const displayEntries = computed(() => collapseTraceEcho(entries.value));
+
 const status = computed(() => traceQuery.data.value?.status ?? null);
 const isWorking = computed(
   () => status.value === "pending" || status.value === "claimed",
@@ -85,7 +92,7 @@ function authorLabel(entry: TraceEntry): string {
               }}
             </p>
             <div v-else class="trace">
-              <div v-for="entry in entries" :key="entry.id" class="entry">
+              <div v-for="entry in displayEntries" :key="entry.id" class="entry">
                 <p class="entry-author">{{ authorLabel(entry) }}</p>
                 <MarkdownText :source="entry.body" />
               </div>

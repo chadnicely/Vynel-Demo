@@ -33,4 +33,13 @@ describe('summarizeApprovalForChannel', () => {
     const summary = summarizeApprovalForChannel(ev({ toolInput: null }))
     expect(summary).toContain('Bash')
   })
+
+  it('names the acting workspace when given (a routed delegation card)', () => {
+    const summary = summarizeApprovalForChannel({
+      toolName: 'Write',
+      toolInput: null,
+      workspaceName: 'vynel',
+    })
+    expect(summary).toContain('Approval needed: Write — in vynel')
+  })
 })
