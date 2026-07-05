@@ -40,56 +40,80 @@ const contextLabel = computed(() => {
 </script>
 
 <template>
-  <Transition name="viewer">
-    <aside
-      v-if="viewer.isOpen"
-      class="session-viewer"
-      aria-label="Session activity"
-    >
-      <header class="viewer-header">
-        <IconButton v-if="viewer.canGoBack" label="Back" @click="viewer.back()">
-          <ArrowLeft :size="15" />
-        </IconButton>
-        <div class="titles">
-          <p class="viewer-title">
-            <PresenceDot
-              :state="
-                liveTurn && liveTurn.status === 'streaming' ? 'live' : 'idle'
-              "
-            />
-            {{ session?.title ?? "Session" }}
-          </p>
-          <p v-if="contextLabel" class="viewer-context">{{ contextLabel }}</p>
-        </div>
-        <IconButton label="Close session view" @click="viewer.close()">
-          <X :size="15" />
-        </IconButton>
-      </header>
+  <Teleport to="body">
+    <Transition name="viewer">
+      <div v-if="viewer.isOpen" class="viewer-layer">
+        <div class="scrim" @click="viewer.close()" />
+        <aside class="session-viewer" aria-label="Session activity">
+          <header class="viewer-header">
+            <IconButton
+              v-if="viewer.canGoBack"
+              label="Back"
+              @click="viewer.back()"
+            >
+              <ArrowLeft :size="15" />
+            </IconButton>
+            <div class="titles">
+              <p class="viewer-title">
+                <PresenceDot
+                  :state="
+                    liveTurn && liveTurn.status === 'streaming'
+                      ? 'live'
+                      : 'idle'
+                  "
+                />
+                {{ session?.title ?? "Session" }}
+              </p>
+              <p v-if="contextLabel" class="viewer-context">
+                {{ contextLabel }}
+              </p>
+            </div>
+            <IconButton label="Close session view" @click="viewer.close()">
+              <X :size="15" />
+            </IconButton>
+          </header>
 
-      <ThreadStream
-        class="viewer-thread"
-        :messages="messages"
-        :tool-calls-by-message-id="toolCallsByMessageId"
-        :active-turn="liveTurn"
-        @open-session="viewer.drillDown"
-        @decide-approval="() => {}"
-      />
-    </aside>
-  </Transition>
+          <ThreadStream
+            class="viewer-thread"
+            :messages="messages"
+            :tool-calls-by-message-id="toolCallsByMessageId"
+            :active-turn="liveTurn"
+            @open-session="viewer.drillDown"
+            @decide-approval="() => {}"
+          />
+        </aside>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
-.session-viewer {
+/* A floating overlay window (Chad's call), not a docked rail: detached from
+   the edges, rounded, heavy shadow; the light scrim closes on click. */
+.viewer-layer {
   position: fixed;
-  top: 40px;
-  right: 0;
-  bottom: 0;
+  inset: 40px 0 0 0;
   z-index: 45;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg-shell) 45%, transparent);
+}
+
+.session-viewer {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  bottom: 14px;
   width: min(460px, 92vw);
   display: grid;
   grid-template-rows: auto 1fr;
   background: var(--bg-panel);
-  border-left: 1px solid var(--hair-strong);
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-l);
+  overflow: hidden;
   box-shadow: var(--shadow-overlay);
 }
 
@@ -131,20 +155,29 @@ const contextLabel = computed(() => {
 
 .viewer-enter-active,
 .viewer-leave-active {
-  transition:
-    transform var(--t-slow) var(--ease-out),
-    opacity var(--t-slow) var(--ease-out);
+  transition: opacity var(--t-slow) var(--ease-out);
+}
+
+.viewer-enter-active .session-viewer,
+.viewer-leave-active .session-viewer {
+  transition: transform var(--t-slow) var(--ease-out);
 }
 
 .viewer-enter-from,
 .viewer-leave-to {
-  transform: translateX(24px);
   opacity: 0;
+}
+
+.viewer-enter-from .session-viewer,
+.viewer-leave-to .session-viewer {
+  transform: translateX(24px);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .viewer-enter-active,
-  .viewer-leave-active {
+  .viewer-leave-active,
+  .viewer-enter-active .session-viewer,
+  .viewer-leave-active .session-viewer {
     transition: none;
   }
 }
