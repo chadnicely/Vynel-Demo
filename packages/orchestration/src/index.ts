@@ -62,6 +62,23 @@ export {
 // next collect skips them. The session-tier global-root runner calls it AFTER the turn
 // absorbs the reports — paired with the read above.
 export { markDelegationsSurfacedToRoot } from './repositories/index.js'
+// The trace ANCHOR read — the session-tier trace view (apps' resolve-delegation-trace)
+// starts from the job row keyed by partialSessionId, then composes chat reads itself.
+// Only the anchor is exported; the composed VIEW stays out of this leaf (see below).
+export { findDelegationJobByPartialSessionId } from './repositories/index.js'
+export type { DelegationJobStatus } from './schema/delegation-jobs.js'
+// The queue's CONSUMER half (brain-tree Ch1) — the app-tier delegation service
+// claims one pending job per tick, runs it, and records the terminal state; at
+// startup it fails the jobs a crash left stuck `claimed`. Re-exported (the
+// findDelegationJobByPartialSessionId precedent) — repos stay in this leaf.
+export {
+  claimNextPendingDelegationJob,
+  completeDelegationJob,
+  failDelegationJob,
+  failOrphanedClaimedDelegations,
+  findDelegationJobById,
+  type DelegationJob,
+} from './repositories/index.js'
 
 // The user's in-flight delegations (Ch3.5) — drives the /global "Vynel is processing…" indicator.
 export {

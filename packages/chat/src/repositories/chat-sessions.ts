@@ -52,6 +52,28 @@ export function findChatSessionById(db: Database, sessionId: string): ChatSessio
   return row ?? null
 }
 
+// Correlated subquery — for each session, fetch the most recent message body
+// truncated to PREVIEW_CHARS. The idx_chat_messages_session_started index
+// (session_id, started_at) makes this one indexed lookup per row, not a full
+// scan. Bare identifiers are deliberate: Drizzle's `${chatMessages.x}`
+// template interpolation generates qualified column refs that don't resolve
+// inside a correlated subquery (the inner table ref gets ambiguous with the
+// outer alias); raw `chat_messages.x` reads exactly as the SQL would.
+// Snake-case column names are stable per Drizzle's default casing (verified
+// against `migrations-sqlite/0004_*.sql`). SQLite's `substr(text, 1, n)` is
+// dialect-portable to Postgres — identical semantics. Shared by every list op
+// that needs the derived preview column (listChatSessionsForWorkspace +
+// listRecentChatSessionsForUser) — one definition, no drift.
+function lastMessagePreviewSql() {
+  return sql<string | null>`(
+    SELECT substr(body, 1, ${PREVIEW_CHARS})
+    FROM chat_messages
+    WHERE chat_messages.session_id = chat_sessions.id
+    ORDER BY chat_messages.started_at DESC
+    LIMIT 1
+  )`
+}
+
 export function listChatSessionsForWorkspace(
   db: Database,
   workspaceId: string,
@@ -76,35 +98,45 @@ export function listChatSessionsForWorkspace(
   const cap = Math.min(options.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
   const whereClause = filters.length === 1 ? filters[0] : and(...filters)
 
-  // Correlated subquery — for each session, fetch the most recent
-  // message body truncated to PREVIEW_CHARS. The
-  // idx_chat_messages_session_started index (session_id, started_at)
-  // makes this one indexed lookup per row, not a full scan.
-  // Bare identifiers are deliberate: Drizzle's `${chatMessages.x}`
-  // template interpolation generates qualified column refs that
-  // don't resolve inside a correlated subquery (the inner table ref
-  // gets ambiguous with the outer alias); raw `chat_messages.x`
-  // reads exactly as the SQL would. Snake-case column names are
-  // stable per Drizzle's default casing (verified against
-  // `migrations-sqlite/0004_*.sql`). SQLite's `substr(text, 1, n)`
-  // is dialect-portable to Postgres — identical semantics.
-  const lastMessagePreviewSql = sql<string | null>`(
-    SELECT substr(body, 1, ${PREVIEW_CHARS})
-    FROM chat_messages
-    WHERE chat_messages.session_id = chat_sessions.id
-    ORDER BY chat_messages.started_at DESC
-    LIMIT 1
-  )`
-
   return db
     .select({
       ...getTableColumns(chatSessions),
-      lastMessagePreview: lastMessagePreviewSql,
+      lastMessagePreview: lastMessagePreviewSql(),
     })
     .from(chatSessions)
     .where(whereClause)
     .orderBy(sql`${chatSessions.lastMessageAt} desc`)
     .limit(cap)
+    .all()
+}
+
+/**
+ * Newest-first across EVERY scope (global root + every workspace) for one
+ * user — the dashboard's recent-activity feed (added for the dashboard
+ * aggregate; no prior op spans scopes). Same default filtering as
+ * listChatSessionsForWorkspace (excludes archived, soft-deleted, and hidden
+ * swap segments) but scoped by userId instead of workspaceId.
+ */
+export function listRecentChatSessionsForUser(
+  db: Database,
+  input: { userId: string; limit: number },
+): ChatSessionListItem[] {
+  return db
+    .select({
+      ...getTableColumns(chatSessions),
+      lastMessagePreview: lastMessagePreviewSql(),
+    })
+    .from(chatSessions)
+    .where(
+      and(
+        eq(chatSessions.userId, input.userId),
+        eq(chatSessions.isArchived, false),
+        isNull(chatSessions.deletedAt),
+        eq(chatSessions.visibility, 'listed'),
+      ),
+    )
+    .orderBy(sql`${chatSessions.lastMessageAt} desc`)
+    .limit(input.limit)
     .all()
 }
 

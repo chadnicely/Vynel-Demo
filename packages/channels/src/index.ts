@@ -64,6 +64,11 @@ export {
 export { processInboundMessage } from './inbound/process-inbound-message.js'
 export { listPendingInboundMessages } from './repositories/index.js'
 
+// The null-safe channel read (the listPendingInboundMessages repo re-export
+// precedent) — the delegation claim-and-run tick resolves a job's ORIGIN channel
+// with it (gone/disabled/not-owned → warn + skip, never a thrown turn).
+export { findChannelById } from './repositories/index.js'
+
 // The two channel ticks that do NOT run a turn — the api-side channels service drives them on
 // its poll(5s) / deliver(2s) timers. Polling fetches inbound messages from the channel adapter
 // and persists them; delivery drains ready outbound rows via the adapter. Both self-contained

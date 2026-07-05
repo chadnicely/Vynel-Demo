@@ -9,11 +9,6 @@
 // turn context the model never sees, so it rides beside the request, not inside it. Internal +
 // race-free (the origin is on the job at enqueue time); never part of the OpenAPI contract.
 //
-// CONSUMER DEFERRED: `parseDelegationOriginHeader` is the delegate-route half. That route
-// (`POST /routing/delegate`) has not landed in KLONE yet, so this parser is currently unused and
-// the stamped header is INERT — the wrapping is correct and harmless (a header no one reads).
-// The parser is kept here, beside its serializer, so the route reads it from one home when it lands.
-
 import type { DelegationOrigin } from '@vynel/orchestration'
 
 export const DELEGATION_ORIGIN_HEADER = 'x-vynel-delegation-origin'

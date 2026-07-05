@@ -10,6 +10,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   findChatSessionById,
   listChatSessionsForWorkspace,
+  listRecentChatSessionsForUser,
   insertChatSession,
   updateChatSession,
   incrementChatSessionCounters,
@@ -283,6 +284,87 @@ describe('chatSessions repository', () => {
         insertChatSession(db, makeChatSession(user.id, workspace.id, { id: `session-${i}` }))
       }
       expect(listChatSessionsForWorkspace(db, workspace.id, { limit: 999 })).toHaveLength(5)
+    })
+  })
+
+  it('listRecentChatSessionsForUser spans every workspace + the global scope, newest first', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const workspaceA = makeWorkspace(user.id)
+      const workspaceB = makeWorkspace(user.id)
+      insertWorkspace(db, workspaceA)
+      insertWorkspace(db, workspaceB)
+      const t0 = new Date('2026-05-01T00:00:00Z')
+      const t1 = new Date('2026-05-15T00:00:00Z')
+      const t2 = new Date('2026-05-20T00:00:00Z')
+      insertChatSession(
+        db,
+        makeChatSession(user.id, workspaceA.id, { id: 'session-a', lastMessageAt: t0 }),
+      )
+      insertChatSession(
+        db,
+        makeChatSession(user.id, workspaceB.id, { id: 'session-b', lastMessageAt: t2 }),
+      )
+      // The global root — workspaceId null — sits in the same feed.
+      insertChatSession(db, {
+        ...makeChatSession(user.id, workspaceA.id, { id: 'session-global', lastMessageAt: t1 }),
+        workspaceId: null,
+      })
+      const recent = listRecentChatSessionsForUser(db, { userId: user.id, limit: 10 })
+      expect(recent.map((s) => s.id)).toEqual(['session-b', 'session-global', 'session-a'])
+    })
+  })
+
+  it('listRecentChatSessionsForUser excludes another user’s sessions (tenant isolation)', async () => {
+    await withTestDatabase((db) => {
+      const userA = makeUser()
+      const userB = makeUser()
+      insertUser(db, userA)
+      insertUser(db, userB)
+      const workspace = makeWorkspace(userA.id)
+      insertWorkspace(db, workspace)
+      insertChatSession(db, makeChatSession(userA.id, workspace.id, { id: 'mine' }))
+      insertChatSession(db, makeChatSession(userB.id, workspace.id, { id: 'theirs' }))
+      const recent = listRecentChatSessionsForUser(db, { userId: userA.id, limit: 10 })
+      expect(recent.map((s) => s.id)).toEqual(['mine'])
+    })
+  })
+
+  it('listRecentChatSessionsForUser excludes archived, soft-deleted, and hidden sessions', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const workspace = makeWorkspace(user.id)
+      insertWorkspace(db, workspace)
+      insertChatSession(db, makeChatSession(user.id, workspace.id, { id: 'live' }))
+      insertChatSession(
+        db,
+        makeChatSession(user.id, workspace.id, { id: 'archived', isArchived: true }),
+      )
+      insertChatSession(
+        db,
+        makeChatSession(user.id, workspace.id, { id: 'deleted', deletedAt: new Date() }),
+      )
+      insertChatSession(
+        db,
+        makeChatSession(user.id, workspace.id, { id: 'hidden-seg', visibility: 'hidden' }),
+      )
+      const recent = listRecentChatSessionsForUser(db, { userId: user.id, limit: 10 })
+      expect(recent.map((s) => s.id)).toEqual(['live'])
+    })
+  })
+
+  it('listRecentChatSessionsForUser respects the caller-supplied limit', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const workspace = makeWorkspace(user.id)
+      insertWorkspace(db, workspace)
+      for (let i = 0; i < 5; i++) {
+        insertChatSession(db, makeChatSession(user.id, workspace.id, { id: `s-${i}` }))
+      }
+      expect(listRecentChatSessionsForUser(db, { userId: user.id, limit: 2 })).toHaveLength(2)
     })
   })
 
