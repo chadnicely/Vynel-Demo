@@ -43,16 +43,18 @@ const statusLine = computed(() => {
   return "All quiet — everything your assistant does shows up here.";
 });
 
-function workspaceNameFor(workspaceId: string): string {
-  if (workspaceId === DEMO_GLOBAL_ROOT_WORKSPACE_ID) return "Global chat";
+function workspaceNameFor(workspaceId: string | null): string {
+  // null = a global-root segment on the REAL wire (the demo uses a sentinel id).
+  if (workspaceId === null || workspaceId === DEMO_GLOBAL_ROOT_WORKSPACE_ID)
+    return "Global chat";
   return (
     overview.value?.workspaces.find((row) => row.id === workspaceId)?.name ??
     "Workspace"
   );
 }
 
-function openSession(workspaceId: string) {
-  if (workspaceId === DEMO_GLOBAL_ROOT_WORKSPACE_ID) {
+function openSession(workspaceId: string | null) {
+  if (workspaceId === null || workspaceId === DEMO_GLOBAL_ROOT_WORKSPACE_ID) {
     void router.push({ name: "chat" });
     return;
   }
