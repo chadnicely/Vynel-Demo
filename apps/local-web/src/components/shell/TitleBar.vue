@@ -79,7 +79,7 @@ function startFreshConversation() {
       <template v-if="isWorkspaceTab">
         <WorkspaceSwitcher
           class="switcher"
-          :workspaces="workspacesQuery.data.value?.workspaces ?? []"
+          :workspaces="workspacesQuery.data.value ?? []"
           :active-workspace-id="ui.activeWorkspaceId"
           @select="(id) => (ui.activeWorkspaceId = id)"
         />

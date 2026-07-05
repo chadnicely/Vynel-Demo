@@ -22,7 +22,7 @@ const hiddenCount = computed(() =>
 
 function contextLabelFor(workspaceId: string | null): string {
   if (workspaceId === null) return "your assistant's own workspace";
-  const workspace = workspacesQuery.data.value?.workspaces.find(
+  const workspace = workspacesQuery.data.value?.find(
     (row) => row.id === workspaceId,
   );
   return workspace?.name ?? "a workspace";

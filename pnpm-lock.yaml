@@ -78,6 +78,9 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.4.3
         version: 0.4.3(hono@4.12.27)(zod@3.25.76)
+      '@vynel/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
       '@vynel/approvals':
         specifier: workspace:*
         version: link:../../packages/approvals
@@ -87,6 +90,9 @@ importers:
       '@vynel/channels':
         specifier: workspace:*
         version: link:../../packages/channels
+      '@vynel/chat':
+        specifier: workspace:*
+        version: link:../../packages/chat
       '@vynel/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -99,6 +105,9 @@ importers:
       '@vynel/errors':
         specifier: workspace:*
         version: link:../../packages/errors
+      '@vynel/files':
+        specifier: workspace:*
+        version: link:../../packages/files
       '@vynel/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
@@ -111,6 +120,9 @@ importers:
       '@vynel/mcp-contract':
         specifier: workspace:*
         version: link:../../packages/mcp-contract
+      '@vynel/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@vynel/orchestration':
         specifier: workspace:*
         version: link:../../packages/orchestration
@@ -190,6 +202,9 @@ importers:
       '@vynel/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@vynel/session':
+        specifier: workspace:*
+        version: link:../../packages/session
       '@vynel/ui':
         specifier: workspace:*
         version: link:../../packages/ui

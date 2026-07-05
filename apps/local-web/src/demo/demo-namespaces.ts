@@ -19,7 +19,8 @@ import { demoSchedules } from "./fixtures/feature-sections.js";
 // generated client the same way.)
 
 export interface DemoWorkspacesNamespace {
-  list(): Promise<{ workspaces: WorkspaceResponse[] }>;
+  /** Bare array — the REAL `GET /workspaces` wire shape (no envelope). */
+  list(): Promise<WorkspaceResponse[]>;
 }
 
 export interface DemoChatNamespace {
@@ -64,7 +65,7 @@ function withLatency<T>(value: T): Promise<T> {
 
 export function attachDemoNamespaces(client: VynelClient): LocalVynelClient {
   const workspaces: DemoWorkspacesNamespace = {
-    list: () => withLatency({ workspaces: demoStore.listWorkspaces() }),
+    list: () => withLatency(demoStore.listWorkspaces()),
   };
 
   const chat: DemoChatNamespace = {

@@ -4,7 +4,7 @@ import { FolderTree, Sparkles } from "lucide-vue-next";
 import { EmptyState, IconButton } from "@vynel/ui";
 import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
-import Composer from "../components/chat/Composer.vue";
+import AppComposer from "../components/chat/AppComposer.vue";
 import MenuPanel from "../components/shell/MenuPanel.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
 import FileEditorView from "../components/workspace/FileEditorView.vue";
@@ -36,7 +36,7 @@ const WORKSPACE_MENU_ITEMS = [
 ];
 
 const workspacesQuery = useWorkspaceList();
-const workspaces = computed(() => workspacesQuery.data.value?.workspaces ?? []);
+const workspaces = computed(() => workspacesQuery.data.value ?? []);
 
 // Land on the last-used workspace so the tab never opens dead.
 watch(
@@ -234,7 +234,7 @@ function openContinuous() {
       />
 
       <footer class="composer-dock">
-        <Composer
+        <AppComposer
           :streaming="chatTurn.isStreaming.value"
           :placeholder="`Ask about ${activeWorkspace?.name ?? 'this workspace'}…`"
           @send="sendMessage"

@@ -12,7 +12,7 @@ import type { LocalVynelClient } from "./demo/demo-namespaces.js";
 function makeFakeVynelClient(): LocalVynelClient {
   return {
     approvals: { listPending: async () => [] },
-    workspaces: { list: async () => ({ workspaces: [] }) },
+    workspaces: { list: async () => [] },
     chat: {
       listSessions: async () => ({ sessions: [] }),
       getSessionDetail: async () => {

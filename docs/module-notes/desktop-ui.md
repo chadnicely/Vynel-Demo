@@ -130,6 +130,14 @@
   task checkboxes (gold when done), and shiki-highlighted fences through the extracted
   `ui/src/lib/shiki-highlighter.ts` (one highlighter for CodeBlock + markdown — chat messages
   get all of this too).
+- **Rich composer as a shared component (2026-07-05):** `@vynel/ui` `ChatComposer` — multiline
+  auto-growing draft, **model + mode `SelectChip`s** (new reusable primitive), optional voice
+  mic, **file attachments** (chips + remove; demo drops them at send until the turn input
+  carries attachedImages), send/stop — all data-blind (options in, selections out; inline SVGs
+  keep ui icon-free). `apps/local-web` binds it via `AppComposer`: demo model list
+  (`fixtures/models.ts` — provider-preferences API later), the **REAL `SESSION_MODES`
+  vocabulary from `@vynel/session`'s web-safe barrel** (Ask/Auto/Bypass, first consumer!),
+  selections in ui-store, mic → voice overlay. Old app-side `Composer.vue` deleted.
 - M6 Desktop shell (Tauri window + overlay window hosting `VoiceOrb`) — pending; needs a
   Rust-toolchain session (first `cargo build` is long).
 
