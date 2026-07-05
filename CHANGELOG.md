@@ -31,9 +31,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   a pure frame parser; approvals decide through the real API and the stream reflects the resolution.
   Global chat is one continuous conversation (`root.*`, no history list); workspace chat is `chat.*`.
   The workspace drawer's feature sections (skills, channels, schedules, knowledge, marketplace) read
-  their real per-domain lists, each fetched only while its section is open. Contracts
-  `ChatSessionResponse.workspaceId` is now nullable and `ChatToolCallResponse.toolInput`/`toolOutput`
-  optional, matching the wire.
+  their real per-domain lists, each fetched only while its section is open. The composer's model
+  picker is the real curated `CHAT_MODELS` allowlist, and the chosen model rides on every turn.
+  Contracts `ChatSessionResponse.workspaceId` is now nullable and
+  `ChatToolCallResponse.toolInput`/`toolOutput` optional, matching the wire.
 
 ### Fixed
 

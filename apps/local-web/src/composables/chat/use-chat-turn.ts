@@ -68,10 +68,11 @@ export function useChatTurn(options: {
       const stream = streamChatTurnEvents(vynel, {
         scope,
         userMessageText: input.userText,
+        model: ui.composerModelId,
         signal: abortController.signal,
-        // Global root manages its own thread — text only. A workspace turn
-        // continues its primary, resumes a picked session, or starts fresh, and
-        // carries the composer's session mode.
+        // Global root manages its own thread — text (+ model) only. A workspace
+        // turn continues its primary, resumes a picked session, or starts fresh,
+        // and carries the composer's session mode.
         ...(scope.kind === "workspace"
           ? {
               mode: ui.composerMode,

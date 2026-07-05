@@ -3,7 +3,26 @@
 **Updated 2026-07-05 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION: M7 demo→real swap IN PROGRESS — A+B committed (78bbe2c), C done, D/E/F next
+## ⏭ NEXT ACTION: M7 — A+B+C+E DONE (pushed), ONLY SLICE D (files) LEFT — it's a REWORK, not a repoint
+
+**Slice E (model picker) DONE:** composer models = real `CHAT_MODELS` contract (`@vynel/contracts/chat/
+chat-models`, was demo fixture — note demo's `sonnet-5`→real `sonnet-4-6`); `DEFAULT_CHAT_MODEL` is the
+ui-store default; `model` now rides on EVERY turn (added to `StartTurnInput` + both request bodies +
+`use-chat-turn` passes `ui.composerModelId`). `fixtures/models.ts` deleted. Gate 1842, green.
+
+**⏭ SLICE D (files area) is the ONLY thing left — and it's a genuine rework (Chad's call how to sequence).**
+The real files API is NOT shaped like the demo: `files.tree(workspaceId,{path?})` → FLAT `{entries:
+DirectoryEntry[]}` for ONE directory (lazy per-folder browse), NOT the demo's full nested `DemoFileNode`
+tree. Content read is ASYNC: `files.readContent(workspaceId,{path})` → `{content:string|null, isText,
+kind, ...}` (null/binary for images). Save: `files.saveContent(workspaceId,{path,content})` (a real disk
+WRITE mutation). So slice D needs: (1) `FilesPanel`/`FileTreeNode` → LAZY tree (fetch each folder's
+entries on expand), (2) `FileEditorView` → async vue-query read + save mutation + binary/`!isText`
+handling (the editor currently reads SYNC via `getDemoFileContent`), (3) delete `demo-file-store`(+test)
++ `fixtures/file-trees`. Files methods: tree·readContent·saveContent·createFile·createDirectory·move·
+delete·listActivity·listFileHistory·raw (all `/workspaces/{id}/files/*`). Remaining demo/ after D:
+NONE → F = delete empty `src/demo/` + final gate/reviewer.
+
+### (superseded below) M7 progress detail
 
 **M7 is sliced (advisor-blessed): A workspaces+dashboard · B chat keystone · C feature-sections ·
 D files · E model-picker · F residual cleanup. Green + commit each.**

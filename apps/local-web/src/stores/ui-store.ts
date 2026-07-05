@@ -2,8 +2,8 @@ import { reactive, ref, watch } from "vue";
 import { defineStore } from "pinia";
 import { DEFAULT_SESSION_MODE } from "@vynel/session";
 import type { SessionMode } from "@vynel/session";
+import { DEFAULT_CHAT_MODEL } from "@vynel/contracts/chat/chat-models";
 import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
-import { DEFAULT_DEMO_MODEL_ID } from "../demo/fixtures/models.js";
 
 export type Theme = "dark" | "light";
 
@@ -81,9 +81,9 @@ export const useUiStore = defineStore("ui", () => {
     target: "continuous",
   });
 
-  // Composer selections, shared by every chat surface (model list is
-  // demo-phase; the mode vocabulary is the real @vynel/session one).
-  const composerModelId = ref(DEFAULT_DEMO_MODEL_ID);
+  // Composer selections, shared by every chat surface — both the model
+  // allowlist and the mode vocabulary are the real contract/session ones.
+  const composerModelId = ref<string>(DEFAULT_CHAT_MODEL);
   const composerMode = ref<SessionMode>(DEFAULT_SESSION_MODE);
 
   // The Jarvis voice overlay (demo animation until the voice engine lands).

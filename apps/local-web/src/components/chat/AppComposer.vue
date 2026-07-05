@@ -2,12 +2,12 @@
 import { ChatComposer } from "@vynel/ui";
 import { SESSION_MODES } from "@vynel/session";
 import type { SessionMode } from "@vynel/session";
-import { demoModels } from "../../demo/fixtures/models.js";
+import { CHAT_MODELS } from "@vynel/contracts/chat/chat-models";
 import { useUiStore } from "../../stores/ui-store.js";
 
-// The app-bound composer: binds the shared ChatComposer to Vynel state —
-// demo model list (provider-preferences API later), the REAL session-mode
-// vocabulary, the voice overlay, and the shared composer selections.
+// The app-bound composer: binds the shared ChatComposer to Vynel state — the
+// real curated model allowlist + session-mode vocabulary, the voice overlay,
+// and the shared composer selections.
 const props = defineProps<{
   streaming?: boolean | undefined;
   placeholder?: string | undefined;
@@ -19,6 +19,9 @@ const emit = defineEmits<{
 }>();
 
 const ui = useUiStore();
+
+// The composer prop is mutable; the contract list is readonly — copy once.
+const modelOptions = [...CHAT_MODELS];
 
 const modeOptions = SESSION_MODES.map((mode) => ({
   id: mode.mode,
@@ -37,7 +40,7 @@ function onSend(text: string, attachments: File[]) {
   <ChatComposer
     :placeholder="props.placeholder"
     :streaming="props.streaming"
-    :models="demoModels"
+    :models="modelOptions"
     :model-id="ui.composerModelId"
     :modes="modeOptions"
     :mode-id="ui.composerMode"

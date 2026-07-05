@@ -17,6 +17,8 @@ import {
 export interface StartTurnInput {
   scope: SessionScope;
   userMessageText: string;
+  /** The Claude model to run this turn (a CHAT_MODEL_IDS value). Both scopes. */
+  model?: string;
   /** Resume this specific SDK session (a history pick). Workspace scope only. */
   resumeSessionId?: string;
   /** Run on the workspace's continuing primary conversation. Workspace scope only. */
@@ -34,7 +36,10 @@ export async function* streamChatTurnEvents(
   const { data, response } =
     input.scope.kind === "global"
       ? await client.POST("/root/turn", {
-          body: { userMessageText: input.userMessageText },
+          body: {
+            userMessageText: input.userMessageText,
+            ...(input.model ? { model: input.model } : {}),
+          },
           parseAs: "stream",
           signal: input.signal,
         })
@@ -42,6 +47,7 @@ export async function* streamChatTurnEvents(
           params: { path: { workspaceId: input.scope.workspaceId } },
           body: {
             userMessageText: input.userMessageText,
+            ...(input.model ? { model: input.model } : {}),
             ...(input.continueRoot ? { continueRoot: true } : {}),
             ...(input.resumeSessionId
               ? { resumeSessionId: input.resumeSessionId }

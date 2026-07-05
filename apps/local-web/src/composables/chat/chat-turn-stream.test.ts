@@ -52,6 +52,7 @@ describe("streamChatTurnEvents", () => {
       streamChatTurnEvents(client, {
         scope: { kind: "workspace", workspaceId: "ws1" },
         userMessageText: "hello",
+        model: "claude-opus-4-8",
         continueRoot: true,
         mode: "ask",
         signal: new AbortController().signal,
@@ -63,6 +64,7 @@ describe("streamChatTurnEvents", () => {
     expect(captured[0]?.init.params).toEqual({ path: { workspaceId: "ws1" } });
     expect(captured[0]?.init.body).toEqual({
       userMessageText: "hello",
+      model: "claude-opus-4-8",
       continueRoot: true,
       mode: "ask",
     });
@@ -75,11 +77,15 @@ describe("streamChatTurnEvents", () => {
       streamChatTurnEvents(client, {
         scope: { kind: "global" },
         userMessageText: "hello",
+        model: "claude-opus-4-8",
         signal: new AbortController().signal,
       }),
     );
     expect(captured[0]?.path).toBe("/root/turn");
-    expect(captured[0]?.init.body).toEqual({ userMessageText: "hello" });
+    expect(captured[0]?.init.body).toEqual({
+      userMessageText: "hello",
+      model: "claude-opus-4-8",
+    });
   });
 
   it("decodes events even when frames are split across byte chunks", async () => {
