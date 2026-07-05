@@ -12,6 +12,23 @@ Chad's live smoke is the real gate. **All 5 slices done + pushed** (A+B `78bbe2c
 `8ff3bbd` · D `6e20489` · journal `5609604`). Full gate **1839/4-skip** (was 1835; +streamer/parser
 tests, −demo tests). The demo data layer no longer exists.
 
+**⚙ LIVE-BOOT SESSION (Chad tried to smoke it — three real findings, all fixed/actionable):**
+- **`pnpm dev` couldn't boot the API — FIXED (`5609604`-ish commit).** `apps/local-api`'s dev script was
+  `tsx watch …`; **`tsx watch` spawns a child whose stdio DEADLOCKS under turbo's output multiplexer on
+  Windows** — it never binds 8998 (Vite/web is fine; only the api hung), so the browser got ECONNREFUSED
+  everywhere. It boots in 250ms standalone (`pnpm --filter … dev`, inherited stdio) but hangs under turbo
+  AND pnpm `--parallel` (both multiplex). Fix: dev script → `node --watch --env-file-if-exists=../../.env
+  --import tsx src/server.ts` (Node's watcher runs IN-PROCESS, no child). Verified end-to-end: `pnpm dev`
+  → API 200, Web 200, proxy `8999/api`→`8998` 200. **(Gotcha for the whole repo: prefer `node --watch
+  --import tsx` over `tsx watch` for any turbo-run dev server on Windows.)**
+- **Stale demo `activeWorkspaceId` in localStorage — FIXED (`4d3222f`).** WorkspaceView only auto-picked a
+  workspace when the stored id was null; a leftover `demo-ws-bookkeeping` slipped through → 404s. Now
+  reconciles any persisted-but-missing id to the first real workspace (or null) once the list loads.
+- **No create-workspace UI (real gap, NOT M7 scope).** The switcher only SELECTS; fresh DB = 0 workspaces
+  and no way to make one in-app. So: smoke GLOBAL chat first (needs no workspace); seed a workspace via
+  `POST /workspaces {name, directory}` (gate off) for workspace features. Offered to build the "+"→register
+  flow — Chad's call.
+
 **⚠ TWO LIVE-BOOT PREREQS (checked the files; #2 is a real blocker on a fresh DB):**
 1. **Vite `/api` proxy — FINE.** `apps/local-web/vite.config.ts` forwards `/api/*` (wildcard, rewrite
    `/api`→``) to `LOCAL_API_URL` — so `/root`, `/dashboard`, and the SSE turn paths all forward. (The
