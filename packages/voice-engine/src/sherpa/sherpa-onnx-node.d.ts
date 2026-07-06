@@ -101,6 +101,41 @@ declare module 'sherpa-onnx-node' {
     getResult(stream: OfflineStream): OfflineRecognitionResult
   }
 
+  export interface SileroVadModelConfig {
+    model?: string
+    threshold?: number
+    minSilenceDuration?: number
+    minSpeechDuration?: number
+    maxSpeechDuration?: number
+    windowSize?: number
+  }
+
+  export interface VadConfig {
+    sileroVad?: SileroVadModelConfig
+    sampleRate?: number
+    numThreads?: number
+    provider?: string
+    debug?: boolean | number
+  }
+
+  export interface SpeechSegment {
+    /** Sample index (at the VAD's sample rate) where this segment starts. */
+    start: number
+    samples: Float32Array
+  }
+
+  export class Vad {
+    constructor(config: VadConfig, bufferSizeInSeconds: number)
+    acceptWaveform(samples: Float32Array): void
+    isEmpty(): boolean
+    isSpeechDetected(): boolean
+    front(): SpeechSegment
+    pop(): void
+    clear(): void
+    reset(): void
+    flush(): void
+  }
+
   // The addon is CommonJS: `module.exports` carries every value above and its
   // named exports aren't statically analyzable by Node's ESM loader — so the
   // only runtime-safe import is `import x from 'sherpa-onnx-node'` (default =
@@ -108,6 +143,7 @@ declare module 'sherpa-onnx-node' {
   const nativeModule: {
     OfflineTts: typeof OfflineTts
     OfflineRecognizer: typeof OfflineRecognizer
+    Vad: typeof Vad
     writeWave: typeof writeWave
     readWave: typeof readWave
   }

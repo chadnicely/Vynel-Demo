@@ -32,6 +32,17 @@ export interface SpeechRecognizer {
   transcribe(audio: PcmAudio): Promise<string>
 }
 
+/** Segments a continuous 16 kHz mic stream into complete utterances. Feed audio
+ *  as it arrives; each `push` returns any segments that just closed (speech
+ *  followed by silence). The loop transcribes each segment; a wake match on the
+ *  transcript starts a turn. */
+export interface VoiceActivityDetector {
+  /** Feed mono 16 kHz PCM; returns any complete speech segments that closed. */
+  push(audio: PcmAudio): PcmAudio[]
+  /** Close + return any in-progress segments (call when the stream ends). */
+  flush(): PcmAudio[]
+}
+
 /** Which TTS model family to load, plus its on-disk files. The app resolves the
  *  paths from env (Zod-validated) and hands them in — the engine never reads env
  *  or knows the download layout. Mirrors the sherpa-onnx model kinds; more kinds
@@ -62,4 +73,19 @@ export type SttModelConfig = {
   readonly uncachedDecoder: string
   readonly cachedDecoder: string
   readonly tokens: string
+}
+
+/** The silero-VAD model file + tuning. The app resolves the path; the tuning
+ *  knobs default to sensible speech values in the config mapper. */
+export interface VadModelConfig {
+  /** Path to `silero_vad.onnx`. */
+  readonly model: string
+  /** Speech-probability threshold (0–1). Higher = less sensitive. */
+  readonly threshold?: number
+  /** Silence (seconds) after speech that closes a segment. */
+  readonly minSilenceDuration?: number
+  /** Minimum speech (seconds) for a segment to count (drops blips). */
+  readonly minSpeechDuration?: number
+  /** Hard cap (seconds) that force-closes a runaway segment. */
+  readonly maxSpeechDuration?: number
 }

@@ -1,20 +1,19 @@
 import { join } from 'node:path'
-import type { SttModelConfig, TtsModelConfig } from '@vynel/voice-engine'
+import type { SttModelConfig, TtsModelConfig, VadModelConfig } from '@vynel/voice-engine'
 
-// The registry of downloadable sherpa-onnx models. Each entry knows its release
-// archive and how to turn an extracted folder into a Vynel model config.
-// `fetch-voice-models` downloads by name (kind-agnostic); `synthesize-smoke`
-// loads TTS entries; `benchmark` loads both. Add ZipVoice / Chatterbox (TTS) or
-// other STT models here as we adopt them — the engine contracts already accept
-// them.
+// The registry of downloadable sherpa-onnx models. Each entry knows how to fetch
+// itself (a `.tar.bz2` archive or a single file) and how to turn the extracted
+// folder into a Vynel model config. `fetch-voice-models` downloads by name;
+// `synthesize-smoke` loads TTS; `benchmark` loads TTS + STT. Add ZipVoice /
+// Chatterbox (TTS) or a KWS model here as we adopt them.
 
 interface DownloadableModel {
-  /** Top-level folder the archive extracts to, under `.models/voice/`. */
+  /** Folder under `.models/voice/` holding the model after fetch. */
   readonly folder: string
-  /** The sherpa-onnx release `.tar.bz2` URL. */
-  readonly archiveUrl: string
   /** Approximate download size, shown before a long fetch. */
   readonly approxSize: string
+  /** How to fetch it: an archive to extract, or a single file to drop in `folder`. */
+  readonly download: { readonly format: 'archive' | 'file'; readonly url: string }
 }
 
 export interface TtsModelEntry extends DownloadableModel {
@@ -27,7 +26,12 @@ export interface SttModelEntry extends DownloadableModel {
   toSttConfig(baseDir: string): SttModelConfig
 }
 
-export type VoiceModelEntry = TtsModelEntry | SttModelEntry
+export interface VadModelEntry extends DownloadableModel {
+  readonly kind: 'vad'
+  toVadConfig(baseDir: string): VadModelConfig
+}
+
+export type VoiceModelEntry = TtsModelEntry | SttModelEntry | VadModelEntry
 
 const TTS_RELEASE = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models'
 const ASR_RELEASE = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models'
@@ -37,8 +41,8 @@ export const voiceModels: Readonly<Record<string, VoiceModelEntry>> = {
   kokoro: {
     kind: 'tts',
     folder: 'kokoro-en-v0_19',
-    archiveUrl: `${TTS_RELEASE}/kokoro-en-v0_19.tar.bz2`,
     approxSize: '~340 MB',
+    download: { format: 'archive', url: `${TTS_RELEASE}/kokoro-en-v0_19.tar.bz2` },
     toTtsConfig: (baseDir) => ({
       kind: 'kokoro',
       model: join(baseDir, 'model.onnx'),
@@ -51,8 +55,8 @@ export const voiceModels: Readonly<Record<string, VoiceModelEntry>> = {
   'piper-lessac': {
     kind: 'tts',
     folder: 'vits-piper-en_US-lessac-medium',
-    archiveUrl: `${TTS_RELEASE}/vits-piper-en_US-lessac-medium.tar.bz2`,
     approxSize: '~61 MB',
+    download: { format: 'archive', url: `${TTS_RELEASE}/vits-piper-en_US-lessac-medium.tar.bz2` },
     toTtsConfig: (baseDir) => ({
       kind: 'vits',
       model: join(baseDir, 'en_US-lessac-medium.onnx'),
@@ -64,8 +68,11 @@ export const voiceModels: Readonly<Record<string, VoiceModelEntry>> = {
   moonshine: {
     kind: 'stt',
     folder: 'sherpa-onnx-moonshine-tiny-en-int8',
-    archiveUrl: `${ASR_RELEASE}/sherpa-onnx-moonshine-tiny-en-int8.tar.bz2`,
     approxSize: '~50 MB',
+    download: {
+      format: 'archive',
+      url: `${ASR_RELEASE}/sherpa-onnx-moonshine-tiny-en-int8.tar.bz2`,
+    },
     toSttConfig: (baseDir) => ({
       kind: 'moonshine',
       preprocessor: join(baseDir, 'preprocess.onnx'),
@@ -74,6 +81,14 @@ export const voiceModels: Readonly<Record<string, VoiceModelEntry>> = {
       cachedDecoder: join(baseDir, 'cached_decode.int8.onnx'),
       tokens: join(baseDir, 'tokens.txt'),
     }),
+  },
+  // Voice-activity detection — a single ~630 KB silero model file, 16 kHz.
+  'silero-vad': {
+    kind: 'vad',
+    folder: 'silero-vad',
+    approxSize: '~630 KB',
+    download: { format: 'file', url: `${ASR_RELEASE}/silero_vad.onnx` },
+    toVadConfig: (baseDir) => ({ model: join(baseDir, 'silero_vad.onnx') }),
   },
 }
 

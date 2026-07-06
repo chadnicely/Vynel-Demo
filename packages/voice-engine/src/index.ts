@@ -11,9 +11,13 @@ export type {
   TtsModelConfig,
   SpeechRecognizer,
   SttModelConfig,
+  VoiceActivityDetector,
+  VadModelConfig,
 } from './voice-engine.js'
 export { SherpaVoiceEngine } from './sherpa/sherpa-voice-engine.js'
 export type { SherpaVoiceEngineOptions } from './sherpa/sherpa-voice-engine.js'
 export { SherpaSpeechRecognizer } from './sherpa/sherpa-speech-recognizer.js'
 export type { SherpaSpeechRecognizerOptions } from './sherpa/sherpa-speech-recognizer.js'
+export { SherpaVoiceActivityDetector } from './sherpa/sherpa-voice-activity-detector.js'
+export type { SherpaVoiceActivityDetectorOptions } from './sherpa/sherpa-voice-activity-detector.js'
 export { writeWavFile, readWavFile } from './sherpa/wave-file.js'

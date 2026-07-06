@@ -12,7 +12,16 @@ export type OfflineTts = InstanceType<typeof OfflineTts>
 export const OfflineRecognizer = sherpaOnnxNode.OfflineRecognizer
 export type OfflineRecognizer = InstanceType<typeof OfflineRecognizer>
 
+export const Vad = sherpaOnnxNode.Vad
+export type Vad = InstanceType<typeof Vad>
+
 export const writeWave = sherpaOnnxNode.writeWave
 export const readWave = sherpaOnnxNode.readWave
 
-export type { OfflineTtsConfig, GeneratedAudio, TtsRequest, OfflineRecognizerConfig } from 'sherpa-onnx-node'
+export type {
+  OfflineTtsConfig,
+  GeneratedAudio,
+  TtsRequest,
+  OfflineRecognizerConfig,
+  VadConfig,
+} from 'sherpa-onnx-node'

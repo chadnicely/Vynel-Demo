@@ -7,10 +7,11 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { DEFAULT_VOICE_MODEL, resolveVoiceModel, voiceModelsDir } from './voice-models.js'
 
-// Download + extract a sherpa-onnx TTS model into the gitignored `.models/voice/`.
-// Idempotent (skips if already present). Extraction shells out to `tar`, which on
-// Windows 10+/macOS/Linux is bsdtar and handles `.tar.bz2` natively — no bzip2
-// npm dependency. Usage: `pnpm voice:fetch-models [model]` (default: kokoro).
+// Download a sherpa-onnx model into the gitignored `.models/voice/`. Handles both
+// `.tar.bz2` archives (extracted with `tar`) and single files (e.g. silero_vad.onnx).
+// Idempotent (skips if present). Extraction shells out to `tar`, which on Windows
+// 10+/macOS/Linux is bsdtar and handles `.tar.bz2` natively — no bzip2 npm dep.
+// Usage: `pnpm voice:fetch-models [model]` (default: kokoro).
 
 const execFileAsync = promisify(execFile)
 
@@ -25,29 +26,42 @@ async function main(): Promise<void> {
   }
 
   await mkdir(voiceModelsDir, { recursive: true })
-  const archiveName = `${entry.folder}.tar.bz2`
-  const archivePath = join(voiceModelsDir, archiveName)
+  console.log(`[voice:models] downloading "${name}" (${entry.approxSize}) …`)
 
   try {
-    console.log(`[voice:models] downloading "${name}" (${entry.approxSize}) …`)
-    await downloadTo(entry.archiveUrl, archivePath)
+    if (entry.download.format === 'archive') {
+      await fetchArchive(entry.download.url, entry.folder)
+    } else {
+      await fetchFile(entry.download.url, targetDir)
+    }
+  } catch (error) {
+    // A crash mid-fetch can leave a partial folder that the idempotency check
+    // would later mistake for complete — wipe it so a retry is clean.
+    await rm(targetDir, { recursive: true, force: true })
+    throw error
+  }
 
+  console.log(`[voice:models] ready → ${targetDir}`)
+}
+
+async function fetchArchive(url: string, folder: string): Promise<void> {
+  const archiveName = `${folder}.tar.bz2`
+  const archivePath = join(voiceModelsDir, archiveName)
+  try {
+    await downloadTo(url, archivePath)
     // Extract with `cwd` + the bare filename: bsdtar (Windows/macOS/Linux) reads a
     // drive-letter path like `E:\…` as a remote `host:path`, so absolute args fail.
     console.log('[voice:models] extracting …')
     await execFileAsync('tar', ['-xf', archiveName], { cwd: voiceModelsDir })
-  } catch (error) {
-    // A crash mid-download/extract can leave a partial folder that the idempotency
-    // check above would later mistake for a complete model — wipe it so a retry is
-    // clean. The archive is always removed.
-    await rm(targetDir, { recursive: true, force: true })
-    throw error
   } finally {
     await rm(archivePath, { force: true })
   }
+}
 
-  console.log(`[voice:models] ready → ${targetDir}`)
-  console.log('[voice:models] next: pnpm voice:smoke')
+async function fetchFile(url: string, targetDir: string): Promise<void> {
+  await mkdir(targetDir, { recursive: true })
+  const filename = url.split('/').pop() ?? 'model.onnx'
+  await downloadTo(url, join(targetDir, filename))
 }
 
 async function downloadTo(url: string, destPath: string): Promise<void> {
