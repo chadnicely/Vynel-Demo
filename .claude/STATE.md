@@ -3,14 +3,32 @@
 **Updated 2026-07-07.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (new session, Chad's call 2026-07-07): VOICE
+## ⏭ NEXT ACTION (2026-07-07): VOICE — Increment 2 (the listening side)
 
-**Chad: "new session, we are gonna work on voice."** Per build-discipline, START WITH CHAD'S ADVICE —
-capture it + the old-repo gaps in **`docs/module-notes/voice-engine.md`** before Gate 1. No voice
-module-notes file exists yet; the design forks to put to him first: which STT/TTS engine + where it runs
-(the old repo's plan was a **`@vynel/voice-engine` module + a sidecar process**), whether voice waits on
-the **M6 Tauri shell** (parked — own session, long first cargo build) or drives the web UI first, and
-what v1 scope is (wake-word "hey Jarvis" → talk to the GLOBAL brain? push-to-talk? voice replies?).
+**Voice decisions are LOCKED + Increment 1 (TTS) is DONE.** Full plan + rationale:
+**`docs/module-notes/voice-engine.md`** (read it first). Locked: **web-first** (drive local-web's real
+`VoiceOrb`, Tauri deferred) · listen = **sherpa-onnx-node** (Moonshine STT + silero-VAD + KWS "Hey Vynel"
+wake — native Node, **NO Python**) · speak = sherpa-onnx now (Kokoro/ZipVoice), **LuxTTS/Chatterbox later**
+as an optional Python backend behind the same interface · trigger = **always-on wake-word**. The original
+Python-sidecar plan was replaced by sherpa-onnx (Chad's flag) — native ONNX, no Python on the always-on
+path, and a real KWS wake model (vs the leaf's STT-first text-match).
+
+**🏁 INCREMENT 1 DONE — CPU text-to-speech, green + Chad-heard (commit pending this session).**
+`@vynel/voice-engine`: `VoiceEngine` contract + `SherpaVoiceEngine` (sherpa-onnx-node; the native lib is
+quarantined to `sherpa/native.ts` behind an ambient shim) + pure config mapper + `FakeVoiceEngine`.
+`scripts/src/voice/` = model registry + `pnpm voice:fetch-models` (download+extract → gitignored
+`.models/`) + `pnpm voice:smoke`. Gate green **1890/4-skip** (+9); reviewer CLEAN (should-fix + nits
+applied). **Verified end-to-end on CPU: piper synth RTF ~0.08 (~12× realtime), valid WAV, Chad confirmed
+the voice.** Two live-only bugs caught + fixed running it for real: CJS default-import interop (only
+`import x from 'sherpa-onnx-node'` works); Windows `tar` reads the `E:` drive-colon as a remote host
+(extract with `cwd` + a bare filename).
+
+**⏭ INCREMENT 2 (next): the listening side.** Add Moonshine STT + silero-VAD + KWS "Hey Vynel" wake to
+`@vynel/voice-engine` behind the same contract — extend `VoiceEngine` with `transcribe` + a wake listener
++ a `close()`/dispose lifecycle (reviewer flagged the missing dispose for the Increment-3 long-lived boot
+instance). Fake at the boundary for the gate; real models are a Chad live-smoke. Then Increment 3 (the
+live web loop: `@hono/node-ws` `/voice` route + `useVoiceSession` composable + real `VoiceOrb`, replacing
+`VoiceOverlayDemo`) → Increment 4 (Chatterbox / exact-LuxTTS Python TTS backend).
 
 **What already exists (don't rebuild):**
 - **`@vynel/voice` leaf** (pulled 2026-07-04, journal `.claude/journal/2026-07-04-voice-pull.md`):

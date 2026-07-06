@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **`@vynel/voice-engine` — the voice engine, speaking half first.** Vynel can now synthesize speech
+  **on the CPU with no Python**, via `sherpa-onnx-node` (native ONNX). A model-agnostic `VoiceEngine`
+  contract with a `SherpaVoiceEngine` backend (Kokoro's 11 natural voices, or a small VITS/piper voice),
+  a pure config mapper, and a `FakeVoiceEngine` for tests. `pnpm voice:fetch-models` downloads a model
+  into a gitignored `.models/`; `pnpm voice:smoke` synthesizes a WAV — verified faster-than-realtime on
+  CPU (~12× on piper). This is the voice the assistant speaks with; the listening half (Moonshine STT +
+  silero-VAD + a "Hey Vynel" wake word) and the live in-app loop follow, and the LuxTTS/Chatterbox voices
+  plug in later behind the same contract.
 - **Routed tasks can now DO work — with your approval (surface-up).** A task the brain routes to a
   workspace no longer auto-denies irreversible actions: the action pauses, an approval card appears in
   the app (always) *and* in the channel the request came from (Telegram — ✅/❌ buttons, or reply
