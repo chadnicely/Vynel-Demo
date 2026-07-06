@@ -25,7 +25,9 @@ already lifted into `@vynel/voice`; the imperative shell is rebuilt fresh on a b
 
 | Fork | Decision | Why |
 |------|----------|-----|
-| **Surface** | **Web-first** — drive local-web's real `VoiceOrb`; Tauri deferred | Chad said "the animation we have on local-web". Sidesteps the parked M6 Tauri shell (long first cargo build) entirely for v1. |
+| **Surface** | **Background sidecar** — a separate `apps/voice` (`@vynel/voice-daemon`) process with native mic/speaker; hits the brain over HTTP `/root/turn`. Web/overlay dropped. | **PIVOTED 2026-07-07 (Chad):** priority is a background daemon ("wake it, talk, it responds, silence → it's gone"), not the browser. The engine + loop logic carried over unchanged; only the transport changed (browser/WS → native audio + separate process). |
+| **Audio I/O** | **`node-cpal`** — one prebuilt native lib does mic capture AND speaker playback | Verified loads on Chad's Windows box (prebuilt, ships types). Drops the finicky `speaker` build. |
+| **Session UX** | **Multi-turn** — wake → talk freely (no re-wake) → ~15 s silence → back asleep | Chad's ask. Idle-timeout is the "after a while it's gone". |
 | **Listen (STT + VAD + wake)** | **sherpa-onnx-node**, all native | No Python. Realtime on CPU. Offline. A *real* wake-word model (KWS), not text-matching. Windows-verified (below). |
 | **STT model** | **Moonshine** (`sherpa-onnx-moonshine-tiny-en-quantized`) | ~107ms latency vs ~11s for Whisper-Large-V3; better accuracy at 6× fewer params; streams *while* you talk. This is the fix for "Whisper was slow." Swappable behind the interface (zipformer / whisper.cpp are fallbacks). |
 | **Speak (TTS)** | **sherpa-onnx now** (Kokoro or ZipVoice); **LuxTTS/Chatterbox later** as an optional Python backend | Zero Python in v1 → whole loop green fastest. **LuxTTS is "zipvoice-based" and sherpa-onnx ships ZipVoice** (voice cloning) — so ~90% of Chad's ask with no sidecar. The exact LuxTTS/Chatterbox checkpoints plug in later behind the same TTS interface. |

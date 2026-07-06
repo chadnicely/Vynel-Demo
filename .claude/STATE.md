@@ -3,18 +3,22 @@
 **Updated 2026-07-07.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-07): VOICE — Increment 3 (the live web loop)
+## ⏭ NEXT ACTION (2026-07-07): VOICE — the `apps/voice` background sidecar (audio + brain wiring)
 
-**Voice decisions are LOCKED + Increment 1 (TTS) is DONE.** Full plan + rationale:
-**`docs/module-notes/voice-engine.md`** (read it first). Locked: **web-first** (drive local-web's real
-`VoiceOrb`, Tauri deferred) · listen = **sherpa-onnx-node** (Moonshine STT + silero-VAD, native Node,
-**NO Python**) · speak = sherpa-onnx now (Kokoro/ZipVoice), **LuxTTS/Chatterbox later** as an optional
-Python backend behind the same interface · trigger = **always-on "Hey Vynel"**. The original Python-sidecar
-plan was replaced by sherpa-onnx (Chad's flag) — native ONNX, no Python on the always-on path.
-**Wake method (revised 2026-07-07):** VAD-segment → transcribe → text-match "hey vynel" (the leaf's
-`detectWakeWord`), NOT acoustic KWS. Why: Moonshine at ~70× realtime makes transcribe-everything ~free, so
-KWS's efficiency case evaporated; VAD+transcribe reuses the tested leaf + drops the KWS keyword-file risk.
-**KWS is a deferred later pass** (idle efficiency + fewer false wakes), Chad-aligned.
+**⚠ MAJOR PIVOT (Chad, 2026-07-07): NOT web — a BACKGROUND SIDECAR.** Chad's priority is a background
+voice service on his machine (native mic/speaker daemon), NOT the local-web browser path I'd started.
+"I wake it up, talk, it responds, after a while no voice activity it's gone." **The engine + loop logic
+all carried over unchanged** — only the transport pivoted (browser/WS → native audio + a separate process).
+Full plan: **`docs/module-notes/voice-engine.md`**.
+
+**Locked decisions:** host = **separate `apps/voice` process** (`@vynel/voice-daemon`), a true sidecar that
+hits the brain over **HTTP `/root/turn` (SSE)** · audio I/O = **`node-cpal`** (ONE prebuilt native lib does
+mic capture AND speaker playback — verified loads on Chad's Windows box; `speaker` pkg dropped) · session UX
+= **multi-turn conversation** (wake → talk freely, no re-wake → **idle-timeout ~15 s of silence → back
+asleep**) · listen = sherpa-onnx-node (Moonshine STT + silero-VAD) · speak = sherpa-onnx (Kokoro/piper;
+LuxTTS/Chatterbox later) · wake = VAD-segment → transcribe → text-match "hey vynel" (leaf `detectWakeWord`,
+NOT acoustic KWS — Moonshine's ~70× realtime kills KWS's efficiency case; KWS a deferred later pass).
+**Web/overlay (local-web `VoiceOrb`, `@hono/node-ws`) DROPPED** for now — removed from local-api.
 
 **🏁 INCREMENT 1 DONE — CPU text-to-speech, green + Chad-heard (commit pending this session).**
 `@vynel/voice-engine`: `VoiceEngine` contract + `SherpaVoiceEngine` (sherpa-onnx-node; the native lib is
@@ -44,31 +48,33 @@ archives; fetch handles both. **Verified: fed a 6.63s 16 kHz clip in 512-sample 
 no KWS engine piece (wake is transcribe-based). ⚠ VAD requires **16 kHz** input (it doesn't resample like the
 recognizer — the mic feed must be 16 kHz).
 
-**Increment 3 = the live web loop, sub-sliced (advisor-blessed): 3a core → 3b transport → 3c browser.**
+**The sidecar, sub-sliced: loop-core ✅ → audio I/O → brain client → main+smoke.**
 
-**🏁 INCREMENT 3a DONE — the loop core, green (commit pending).** Leaf wake-gap closed ("vynel" variants +
-mishears vinyl/vinel/… in `WAKE_NAME`, both patterns, tested). `apps/local-api/src/voice/`:
-`VoiceSessionDriver` — a headless state machine (`listening`→`waiting-for-command`→`busy`) composing
+**🏁 LOOP CORE DONE — the multi-turn state machine, green (commit pending).** Leaf wake-gap closed ("vynel"
+variants + mishears vinyl/vinel/… in `WAKE_NAME`, both patterns, tested). `apps/voice/src/loop/`
+(`@vynel/voice-daemon`): `VoiceSessionDriver` — a headless state machine `asleep`→`active`→`busy` composing
 injected VAD/STT(`transcribe`)/synth + `runBrainTurn` + `SpokenSentenceBuffer` + `detectWakeWord`, with a
-`VoiceSessionIo` outbound seam. **Two advisor contracts baked in + tested:** (1) **echo defense** — mic
-stays closed while speaking; reopens ONLY on the client's `notifyPlaybackDrained()` (not server send-done),
-with a pending-flag guard for early signals; (2) **wake-then-pause** — bare "hey vynel" → `waiting-for-command`
-→ next segment is the command (6 s timeout → listening). **v1 cut: no user barge-in** (mic closed while
-speaking — Chad-accepted). 6 driver tests + fakes (PassThroughVad/ScriptedRecognizer/RecordingIo/brain gens);
-`FakeVoiceEngine` for synth. Gate **1903/4-skip** (+7). local-api now deps `@vynel/voice` + `@vynel/voice-engine`.
+`VoiceSessionIo` outbound seam. **Multi-turn conversation:** `asleep` matches "hey vynel" only → `active`
+(every utterance is a command, no re-wake) → `idleTimeoutMs` (15 s) silence → back `asleep`. **Two advisor
+contracts baked in + tested:** (1) **echo defense** — mic reopens ONLY on `notifyPlaybackDrained()` (the shell
+calls it when the speaker truly finished), pending-flag guard for early signals; (2) **v1 cut: no user
+barge-in** (mic closed while speaking — Chad-accepted). 7 driver tests + fakes. Gate **1904/4-skip**. **Moved
+out of local-api** (was 3a's `apps/local-api/src/voice`) — the web pieces (`@hono/node-ws`, `@vynel/voice*`
+deps) were removed from local-api; the driver now lives in the sidecar shell.
 
-**⏭ INCREMENT 3b (next): the transport.** `@hono/node-ws` `/voice` WS route wiring the driver to real audio:
-mic PCM frames up → `driver.pushAudio`; `VoiceSessionIo` → WS out (state JSON + TTS PCM frames + endSpeech);
-`playback-drained` client msg → `driver.notifyPlaybackDrained()`. Build the `VoiceSessionIo`→WS adapter + the
-`runBrainTurn` adapter (a streaming `SessionSink` over `runGlobalRootTurnCore` → map `ChatTurnEvent.text-chunk`
-→ `VoiceBrainEvent`; EXTRACT the SSE route's turn-setup deps into a shared helper, don't copy — advisor). Wire
-`@hono/node-ws` `createNodeWebSocket` + `injectWebSocket` in `server.ts` (verify it composes with `serve()` +
-boot services — wire a no-op WS route FIRST, boot green, then the loop). Boot-owned `startVoiceEngine()` warms
-models + **degrades cleanly if `.models/` absent** (log-and-skip, `/voice` returns "voice unavailable"), behind
-an env flag. Add engine `close()`/dispose (reviewer-flagged). **3c (browser):** `useVoiceSession` (getUserMedia
-→ `new AudioContext({sampleRate:16000})` worklet → WS; playback + drained signal) drives the real `VoiceOrb`,
-replacing `VoiceOverlayDemo`; add `ws:true` to the Vite `/api` proxy. Then Increment 4 (Chatterbox/LuxTTS Python
-TTS). **Kokoro not yet downloaded** — Chad grabs it for the nicer voice (`pnpm voice:fetch-models`).
+**⏭ NEXT — the sidecar shell (`apps/voice`), the parts that need Chad's live mic smoke:**
+- **Audio I/O** (`node-cpal`): mic input stream `createStream(inputDeviceId, true, config, onData)` → 16 kHz
+  mono → `driver.pushAudio`; speaker output stream + `writeToStream` for TTS PCM; the `VoiceSessionIo` impl
+  (emitAudio → play; endSpeech → on speaker-drain call `notifyPlaybackDrained`). ⚠ VAD needs **16 kHz** — if
+  the mic won't open at 16 kHz, resample (sherpa `LinearResampler`, exported). node-cpal ships `index.d.ts`
+  (no shim needed); `createStream(deviceId, isInput, config, onData?)`, `writeToStream`, `closeStream`.
+- **Brain client:** POST `/root/turn` (SSE) to local-api → parse `ChatTurnEvent` frames → map `text-chunk`→
+  `{kind:'text'}`, terminal→`completed`/`failed` → the driver's `runBrainTurn` AsyncIterable (push→pull queue).
+  local-api is loopback + unauthenticated (Phase 1) → plain `http://127.0.0.1:8998`. Needs local-api running.
+- **`main.ts`:** load the 3 engines from model paths (env), open mic, run the loop; degrade if `.models/`
+  absent. Config: api URL, model dir, wake/idle timeouts, voiceId.
+- **Live smoke (Chad):** run local-api + `pnpm --filter @vynel/voice-daemon dev`, say "Hey Vynel …".
+- Then Increment 4 (Chatterbox/LuxTTS Python TTS). **Kokoro not downloaded** — grab for the nicer voice.
 
 **What already exists (don't rebuild):**
 - **`@vynel/voice` leaf** (pulled 2026-07-04, journal `.claude/journal/2026-07-04-voice-pull.md`):
