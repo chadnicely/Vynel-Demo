@@ -19,10 +19,17 @@ export interface SynthesizeOptions {
   readonly speed?: number
 }
 
-/** A voice engine. Increment 1: text-to-speech only. */
+/** A text-to-speech voice engine. */
 export interface VoiceEngine {
   /** Synthesize `text` to mono PCM at the model's native sample rate. */
   synthesize(text: string, options?: SynthesizeOptions): Promise<PcmAudio>
+}
+
+/** A speech-to-text recognizer. The listening half of the loop — mono PCM in,
+ *  text out. sherpa-onnx resamples internally, so any input rate is accepted. */
+export interface SpeechRecognizer {
+  /** Transcribe mono PCM to text (empty string when nothing was said). */
+  transcribe(audio: PcmAudio): Promise<string>
 }
 
 /** Which TTS model family to load, plus its on-disk files. The app resolves the
@@ -45,3 +52,14 @@ export type TtsModelConfig =
       readonly dataDir: string
       readonly lengthScale?: number
     }
+
+/** Which STT model family to load, plus its on-disk files. Moonshine (Useful
+ *  Sensors) is a 4-file model — the app resolves the paths and hands them in. */
+export type SttModelConfig = {
+  readonly kind: 'moonshine'
+  readonly preprocessor: string
+  readonly encoder: string
+  readonly uncachedDecoder: string
+  readonly cachedDecoder: string
+  readonly tokens: string
+}

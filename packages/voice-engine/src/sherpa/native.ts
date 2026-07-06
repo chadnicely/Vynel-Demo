@@ -9,6 +9,10 @@ import sherpaOnnxNode from 'sherpa-onnx-node'
 export const OfflineTts = sherpaOnnxNode.OfflineTts
 export type OfflineTts = InstanceType<typeof OfflineTts>
 
-export const writeWave = sherpaOnnxNode.writeWave
+export const OfflineRecognizer = sherpaOnnxNode.OfflineRecognizer
+export type OfflineRecognizer = InstanceType<typeof OfflineRecognizer>
 
-export type { OfflineTtsConfig, GeneratedAudio, TtsRequest } from 'sherpa-onnx-node'
+export const writeWave = sherpaOnnxNode.writeWave
+export const readWave = sherpaOnnxNode.readWave
+
+export type { OfflineTtsConfig, GeneratedAudio, TtsRequest, OfflineRecognizerConfig } from 'sherpa-onnx-node'

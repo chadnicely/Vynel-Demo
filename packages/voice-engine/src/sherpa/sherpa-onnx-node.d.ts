@@ -64,6 +64,42 @@ declare module 'sherpa-onnx-node' {
   }
 
   export function writeWave(filename: string, audio: WaveObject): void
+  export function readWave(filename: string): WaveObject
+
+  export interface OfflineMoonshineModelConfig {
+    preprocessor?: string
+    encoder?: string
+    uncachedDecoder?: string
+    cachedDecoder?: string
+  }
+
+  export interface OfflineModelConfig {
+    moonshine?: OfflineMoonshineModelConfig
+    tokens?: string
+    numThreads?: number
+    provider?: string
+    debug?: boolean | number
+  }
+
+  export interface OfflineRecognizerConfig {
+    modelConfig?: OfflineModelConfig
+  }
+
+  export interface OfflineRecognitionResult {
+    text: string
+  }
+
+  export class OfflineStream {
+    acceptWaveform(audio: { samples: Float32Array; sampleRate: number }): void
+  }
+
+  export class OfflineRecognizer {
+    constructor(config: OfflineRecognizerConfig)
+    createStream(): OfflineStream
+    decode(stream: OfflineStream): void
+    decodeAsync(stream: OfflineStream): Promise<void>
+    getResult(stream: OfflineStream): OfflineRecognitionResult
+  }
 
   // The addon is CommonJS: `module.exports` carries every value above and its
   // named exports aren't statically analyzable by Node's ESM loader — so the
@@ -71,7 +107,9 @@ declare module 'sherpa-onnx-node' {
   // module.exports). Declared here so that import is typed.
   const nativeModule: {
     OfflineTts: typeof OfflineTts
+    OfflineRecognizer: typeof OfflineRecognizer
     writeWave: typeof writeWave
+    readWave: typeof readWave
   }
   export default nativeModule
 }

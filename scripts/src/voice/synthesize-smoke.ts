@@ -13,6 +13,9 @@ async function main(): Promise<void> {
   const name = process.argv[2] ?? DEFAULT_VOICE_MODEL
   const phrase = process.argv[3] ?? DEFAULT_PHRASE
   const entry = resolveVoiceModel(name)
+  if (entry.kind !== 'tts') {
+    throw new Error(`"${name}" is a ${entry.kind} model — the smoke synthesizes, so pass a TTS model.`)
+  }
   const baseDir = join(voiceModelsDir, entry.folder)
 
   if (!existsSync(baseDir)) {
