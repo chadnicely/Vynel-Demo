@@ -28,6 +28,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   Watch chips only appear where they point at work happening elsewhere — the workspace's own transcript
   no longer shows them on its routed exchanges.
 
+- **Watching is now truly live.** The Watch panel rides a streaming connection: text arrives
+  token-by-token, tool calls appear the instant they start, and a "Waiting for your approval" pill shows
+  while an action is paused on your decision. Polling remains only as an automatic fallback if the
+  stream drops.
 - **See delegated work happen.** When the brain routes a task to a workspace, the global chat now shows
   a live "⚡ Working in *{workspace}*…" indicator (polling the in-flight delegations) and keeps the thread
   live so the workspace's report appears within seconds of completing. A report's "Watch *X*" chip opens

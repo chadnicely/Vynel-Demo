@@ -3,6 +3,24 @@
 **Updated 2026-07-06.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## 🏁 MOVE 6: LIVE DELEGATION WATCHING OVER SSE (2026-07-06) — `b926524`, gate 1882, reviewer-clean
+
+**Chad: "can't we have realtime activity with a stream connection instead of 2.5s/4s?" — built.**
+`TurnEventBroadcaster` (apps/local-api/src/sessions — in-process pub/sub; ONE instance in server.ts shared
+by createApp [`c.var.turnEvents`] + the delegation service; Phase-2 multi-process swap point = the reserved
+`pubsub` package). The tick publishes every ChatTurnEvent on `traceChannelKey(partialSessionId)` via the
+runner's new `observer` seam (contained both edges; `onTurnEnded` in a finally). New SSE observe route
+`GET /root/trace/:id/stream` (root.streamTrace; ownership via the job anchor; terminal job → immediate
+turn-stream-ended; 5s safety poll for the attach race; abort unsubscribes). Web: `fold-trace-stream` pure
+fold + `use-delegation-trace-live` (settled fetch + live tail merge, identity-guarded attach lifecycle,
+approval-waiting pill) in the Watch panel. **Reviewer must-fix applied:** TanStack re-evaluates
+refetchInterval ONLY on query updates → a fully-suspended poll never resumed after a stream drop; fixed
+with a slow KEEP-ALIVE poll under the stream (also un-freezes the mid-turn-attach case where settled rows
+outrun the overlay) + explicit refetches on the settle/drop paths; lifecycle tests cover drop/settle/
+re-target. **Deferred:** stream re-attach after a drop (polling carries the job; reconnect-with-backoff
+follow-on) · route abort/safety-poll tests · workspace-chat session-keyed channel (Slice 2 — the 4s poll
+stays there for now).
+
 ## 🏁 MOVE 5: ROUTED TURNS ON THE SHARED PIPELINE (2026-07-06, Chad's live-smoke feedback) — `8587b04`, gate 1874, reviewer-clean
 
 **Chad's smoke found the real gap: the routed workspace turn was the LAST turn type on the raw drain —
