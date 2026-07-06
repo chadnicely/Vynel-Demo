@@ -109,12 +109,14 @@ a `scripts/fetch-voice-models` download step, sourcing from the sherpa-onnx mode
    `pnpm voice:bench`. **Measured on CPU: Moonshine RTF ~0.014 (~70× realtime), piper ~0.071 (~14×)** —
    the realtime-on-CPU premise is validated with room to spare. (Chose a SEPARATE `SpeechRecognizer`
    contract over "transcribe on `VoiceEngine`" — independent model + lifecycle; the loop composes both.)
-2b. **NEXT: the "Hey Vynel" wake** — **silero-VAD** (segment speech) + **KWS** (spot the phrase) behind
-   small contracts, so we transcribe only the command, not the room. sherpa KWS may need a custom
-   `keywords.txt` (phonemes) for "hey vynel". Add engine `close()`/dispose (reviewer-flagged) + close the
-   leaf's "jarvis"→"vynel" gap. Fake at the boundary for the gate; real models are a Chad live-smoke.
-3. **The live loop:** `@hono/node-ws` `/voice` route + `useVoiceSession` composable + real `VoiceOrb` +
-   the wake → full loop live. Replace `VoiceOverlayDemo`.
+2b. ✅ **DONE.** **silero-VAD** — `VoiceActivityDetector` contract + `SherpaVoiceActivityDetector` + pure
+   `buildVadConfig`; registry generalized for bare-file downloads (silero_vad.onnx). Verified segmenting a
+   16 kHz clip. **Wake method revised: VAD-segment → transcribe → leaf `detectWakeWord`, NOT acoustic KWS**
+   — Moonshine at ~70× realtime makes transcribe-everything ~free, killing KWS's efficiency case and its
+   keyword-file risk; KWS is a deferred later pass (idle efficiency + fewer false wakes). ⚠ VAD needs 16 kHz.
+3. **NEXT — the live loop:** `@hono/node-ws` `/voice` route + `useVoiceSession` composable + real `VoiceOrb`
+   → full loop live (VAD → transcribe → "hey vynel" → brain → speak). Replace `VoiceOverlayDemo`. Close the
+   leaf's "jarvis"→"vynel" gap + add engine `close()`/dispose (reviewer-flagged) here.
 4. **Chatterbox / exact-LuxTTS** as a selectable TTS backend behind the same interface (the optional Python
    TTS sidecar) — Chad's original ask, now a plug-in, not the critical path.
 

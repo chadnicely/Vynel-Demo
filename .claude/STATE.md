@@ -3,15 +3,18 @@
 **Updated 2026-07-07.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-07): VOICE — Increment 2 finish (the "Hey Vynel" wake: VAD + KWS)
+## ⏭ NEXT ACTION (2026-07-07): VOICE — Increment 3 (the live web loop)
 
 **Voice decisions are LOCKED + Increment 1 (TTS) is DONE.** Full plan + rationale:
 **`docs/module-notes/voice-engine.md`** (read it first). Locked: **web-first** (drive local-web's real
-`VoiceOrb`, Tauri deferred) · listen = **sherpa-onnx-node** (Moonshine STT + silero-VAD + KWS "Hey Vynel"
-wake — native Node, **NO Python**) · speak = sherpa-onnx now (Kokoro/ZipVoice), **LuxTTS/Chatterbox later**
-as an optional Python backend behind the same interface · trigger = **always-on wake-word**. The original
-Python-sidecar plan was replaced by sherpa-onnx (Chad's flag) — native ONNX, no Python on the always-on
-path, and a real KWS wake model (vs the leaf's STT-first text-match).
+`VoiceOrb`, Tauri deferred) · listen = **sherpa-onnx-node** (Moonshine STT + silero-VAD, native Node,
+**NO Python**) · speak = sherpa-onnx now (Kokoro/ZipVoice), **LuxTTS/Chatterbox later** as an optional
+Python backend behind the same interface · trigger = **always-on "Hey Vynel"**. The original Python-sidecar
+plan was replaced by sherpa-onnx (Chad's flag) — native ONNX, no Python on the always-on path.
+**Wake method (revised 2026-07-07):** VAD-segment → transcribe → text-match "hey vynel" (the leaf's
+`detectWakeWord`), NOT acoustic KWS. Why: Moonshine at ~70× realtime makes transcribe-everything ~free, so
+KWS's efficiency case evaporated; VAD+transcribe reuses the tested leaf + drops the KWS keyword-file risk.
+**KWS is a deferred later pass** (idle efficiency + fewer false wakes), Chad-aligned.
 
 **🏁 INCREMENT 1 DONE — CPU text-to-speech, green + Chad-heard (commit pending this session).**
 `@vynel/voice-engine`: `VoiceEngine` contract + `SherpaVoiceEngine` (sherpa-onnx-node; the native lib is
@@ -32,14 +35,24 @@ pure `buildOfflineRecognizerConfig` mapper + `readWavFile`; registry now covers 
 Note: STT is a SEPARATE `SpeechRecognizer` contract, not "transcribe on VoiceEngine" (cleaner — independent
 model + lifecycle). Gate green **1893/4-skip** (+3). Single STT kind today → `if`-guard not a `never`-switch.
 
-**⏭ INCREMENT 2b (next): the "Hey Vynel" wake.** Add **silero-VAD** (cut speech segments) + **KWS keyword
-spotting** to `@vynel/voice-engine` behind new small contracts — KWS spots the phrase acoustically so we
-only transcribe the command, not the room. sherpa KWS needs a `keywords.txt` with phonemes; "hey vynel"
-likely isn't stock → may need a custom keyword file. Also add a `close()`/dispose lifecycle to the engine
-classes (reviewer-flagged, for the Increment-3 long-lived boot instance) + close the leaf's "jarvis"→
-"vynel" wake gap. Fake at the boundary for the gate; real models are a Chad live-smoke. Then Increment 3
-(live web loop: `@hono/node-ws` `/voice` route + `useVoiceSession` + real `VoiceOrb`, replacing
-`VoiceOverlayDemo`) → Increment 4 (Chatterbox / exact-LuxTTS Python TTS backend).
+**🏁 INCREMENT 2b DONE — silero-VAD, green + verified (commit pending).** `VoiceActivityDetector` contract
++ `SherpaVoiceActivityDetector` (silero, via `native.ts`) + pure `buildVadConfig` mapper. `push(pcm)`/
+`flush()` drain sherpa's segment queue → complete utterances (mirrors the leaf's `SpeechSegmenter` shape).
+Registry generalized for **bare-file** downloads (silero_vad.onnx, ~630 KB — not a tarball) alongside
+archives; fetch handles both. **Verified: fed a 6.63s 16 kHz clip in 512-sample chunks → 1 segment of 6.27s
+(silence trimmed).** Gate green **1896/4-skip** (+3). The engine's listening side is now COMPLETE (STT + VAD);
+no KWS engine piece (wake is transcribe-based). ⚠ VAD requires **16 kHz** input (it doesn't resample like the
+recognizer — the mic feed must be 16 kHz).
+
+**⏭ INCREMENT 3 (next): the live web loop.** Compose the engine + leaf into the always-on loop:
+`@hono/node-ws` `/voice` WS route (mic frames up, TTS audio down) whose handler runs
+VAD-segment → `transcribe` → leaf `detectWakeWord` (⚠ close the "jarvis"→"vynel" gap first — add tolerant
+"vynel" variants to `WAKE_PATTERN`) → `appRequest('/root/turn')` → `summarizeTurnForVoice` + sentence-buffer
+→ `synthesize` → frames back; `useVoiceSession` composable in local-web (getUserMedia → 16 kHz AudioWorklet
+→ WS; playback) drives the real `VoiceOrb`, replacing `VoiceOverlayDemo`. Boot-owned `startVoiceEngine()`
+warms the models (schedules/channels/delegation service pattern). Add engine `close()`/dispose here
+(reviewer-flagged, for the long-lived boot instance). Then Increment 4 (Chatterbox / exact-LuxTTS Python
+TTS backend). **Kokoro not yet downloaded** — Chad grabs it for the nicer voice (`pnpm voice:fetch-models`).
 
 **What already exists (don't rebuild):**
 - **`@vynel/voice` leaf** (pulled 2026-07-04, journal `.claude/journal/2026-07-04-voice-pull.md`):

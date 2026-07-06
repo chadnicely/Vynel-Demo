@@ -16,9 +16,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   config mappers and a `FakeVoiceEngine` for tests. `pnpm voice:fetch-models` downloads a model into a
   gitignored `.models/`; `pnpm voice:smoke` speaks a WAV; `pnpm voice:bench` reports the real-time factor
   of each model on your machine. **Measured on CPU: Moonshine transcribes ~70× faster than realtime,
-  piper synthesizes ~14×** — ample headroom for the always-on loop. Still to come: a "Hey Vynel" wake
-  word (silero-VAD + keyword spotting) and the live in-app loop; the LuxTTS/Chatterbox voices plug in
-  later behind the same contracts.
+  piper synthesizes ~14×** — ample headroom for the always-on loop. A `VoiceActivityDetector`
+  (silero-VAD) segments a continuous mic stream into complete utterances, so the loop transcribes
+  natural speech rather than fixed windows. Still to come: the live in-app loop that wires
+  VAD → transcribe → "Hey Vynel" wake → the brain → speak; the LuxTTS/Chatterbox voices plug in later
+  behind the same contracts.
 - **Routed tasks can now DO work — with your approval (surface-up).** A task the brain routes to a
   workspace no longer auto-denies irreversible actions: the action pauses, an approval card appears in
   the app (always) *and* in the channel the request came from (Telegram — ✅/❌ buttons, or reply
