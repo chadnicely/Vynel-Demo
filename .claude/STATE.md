@@ -1,7 +1,37 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-06.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-07.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ⏭ NEXT ACTION (new session, Chad's call 2026-07-07): VOICE
+
+**Chad: "new session, we are gonna work on voice."** Per build-discipline, START WITH CHAD'S ADVICE —
+capture it + the old-repo gaps in **`docs/module-notes/voice-engine.md`** before Gate 1. No voice
+module-notes file exists yet; the design forks to put to him first: which STT/TTS engine + where it runs
+(the old repo's plan was a **`@vynel/voice-engine` module + a sidecar process**), whether voice waits on
+the **M6 Tauri shell** (parked — own session, long first cargo build) or drives the web UI first, and
+what v1 scope is (wake-word "hey Jarvis" → talk to the GLOBAL brain? push-to-talk? voice replies?).
+
+**What already exists (don't rebuild):**
+- **`@vynel/voice` leaf** (pulled 2026-07-04, journal `.claude/journal/2026-07-04-voice-pull.md`):
+  the stateless relay core — `relay/` + `turn-taking/` (ack-library, audio-segmenter, barge-in,
+  relay-task-notifier, sentence-buffer, summarize-turn-for-voice, turn-taking-gate, wake-word). Owns no
+  tables, no HTTP surface; sole dep `@vynel/providers` (type-only `NormalizedSessionEvent`). It is the
+  LOGIC between an audio engine and a turn — the engine itself (`@vynel/voice-engine` + sidecar) was
+  never pulled/built.
+- **`VoiceOverlayDemo`** (apps/local-web) — the Jarvis overlay ANIMATION, still scripted; the one
+  remaining "demo" surface, parked pending the engine. `VoiceOrb` component in `@vynel/ui`.
+- **The turn plumbing voice needs is DONE:** channels-style inbound → `runGlobalRootTurn` (a voice
+  utterance is just another origin), surface-up approvals (a voice-driven irreversible action cards to
+  web — a voice approval flow is a design question for Chad), live delegation watching over SSE, and
+  `summarizeTurnForVoice` in the leaf for spoken replies.
+- **Vision:** voice/Jarvis is a CHANNEL in the product model (like Telegram) — see `docs/vision.md` +
+  memory [[vynel-vision-and-old-project-lesson]].
+
+**Where the last session ended (all committed through `aef5f0c`, local/unpushed, gate 1882):** the full
+surface-up approval arc + shared-pipeline unification + SSE live watching — see the 🏁 blocks below.
+Deferred follow-ons queued (non-blocking): workspace-chat session-keyed stream channel · stream
+re-attach with backoff · Phase-3 spawned-agent Watch chips.
 
 ## 🏁 MOVE 6: LIVE DELEGATION WATCHING OVER SSE (2026-07-06) — `b926524`, gate 1882, reviewer-clean
 
