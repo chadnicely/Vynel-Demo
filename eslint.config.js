@@ -108,6 +108,14 @@ export default tseslint.config(
     },
   },
 
+  // scripts/src/voice/ — dev tooling (model fetch + synth smoke) prints progress
+  {
+    files: ['scripts/src/voice/**'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+
   // Tests
   {
     files: ['**/*.test.ts', '**/*.integration.test.ts'],

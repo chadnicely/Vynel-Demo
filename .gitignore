@@ -13,6 +13,8 @@ coverage/
 
 # local data & secrets
 .data/
+# downloaded ONNX voice models (STT/TTS) — fetched via `pnpm voice:fetch-models`
+.models/
 *.db
 *.db-shm
 *.db-wal

@@ -912,6 +912,16 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  packages/voice-engine:
+    dependencies:
+      sherpa-onnx-node:
+        specifier: ^1.13.3
+        version: 1.13.3
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/workspaces:
     dependencies:
       '@vynel/db':
@@ -933,6 +943,9 @@ importers:
       '@vynel/local-api':
         specifier: workspace:*
         version: link:../apps/local-api
+      '@vynel/voice-engine':
+        specifier: workspace:*
+        version: link:../packages/voice-engine
     devDependencies:
       openapi-typescript:
         specifier: ^7.13.0
@@ -4229,6 +4242,39 @@ packages:
   shebang-regex@3.0.0:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
+
+  sherpa-onnx-darwin-arm64@1.13.3:
+    resolution: {integrity: sha512-9x86Cbf+BDFONdtCPM3cnjvtAW0ER8tMaHK5pVfz+SHPt8GeuwRXaiR/BzcByFBUyxCgmceO09/WMZOCi44P/g==}
+    cpu: [arm64]
+    os: [darwin]
+
+  sherpa-onnx-darwin-x64@1.13.3:
+    resolution: {integrity: sha512-TVQ35g7JIpDPB1lUDdcog+JtI0cI45ZzOnvHXm0DtWs/dgxnJXtWMY3uLRtBbLnysV9j5ljffwZ1IX9VDHsCzQ==}
+    cpu: [x64]
+    os: [darwin]
+
+  sherpa-onnx-linux-arm64@1.13.3:
+    resolution: {integrity: sha512-uDtZkkoP6QQ/3DHOscCpEZ2WpaiHUQsDpbyYaHURrJ7DbsjqGnS6G8l+R589Ro5Bf282QElzBy3okwxXbt3Kxw==}
+    cpu: [arm64]
+    os: [linux]
+
+  sherpa-onnx-linux-x64@1.13.3:
+    resolution: {integrity: sha512-OFVK0GYwKwKNsjxbPmfcLQm/dfA0IwAoiIQJ96s+eFYcDqhlapcY06ocdb7SNluGBcM7xgU5jEW2QXBkMIOEvQ==}
+    cpu: [x64]
+    os: [linux]
+
+  sherpa-onnx-node@1.13.3:
+    resolution: {integrity: sha512-3XEiRvfZ73QoKDZqweAkAOb+OA2LPMKcLcRY6zngjhwZ1ymV6xagdahepYzeDRIzVq0nRjhUe8IaRdlRMYoamw==}
+
+  sherpa-onnx-win-ia32@1.13.3:
+    resolution: {integrity: sha512-VDZh1M7Ccx/bkP3WwBCFoJzwAwq+b5nR1KRkYRz5p1w5bfhzfa3ACBGr7vpUt5AGUge4qSLe0MSKXyKtSmy1uA==}
+    cpu: [ia32]
+    os: [win32]
+
+  sherpa-onnx-win-x64@1.13.3:
+    resolution: {integrity: sha512-ZQzcSmFvZK4jzmtWckqxocDUuEjYnBV2MHrDD21HPTeUMfGdE9yfvuSPpesIVfdzKbQzIQY42RAcfZEGWu0FbQ==}
+    cpu: [x64]
+    os: [win32]
 
   shiki@1.29.2:
     resolution: {integrity: sha512-njXuliz/cP+67jU2hukkxCNuH1yUi4QfdZZY+sMr5PPrIyXSu5iTb/qYC4BiWWB0vZ+7TbdvYUCeL23zpwCfbg==}
@@ -7765,6 +7811,33 @@ snapshots:
       shebang-regex: 3.0.0
 
   shebang-regex@3.0.0: {}
+
+  sherpa-onnx-darwin-arm64@1.13.3:
+    optional: true
+
+  sherpa-onnx-darwin-x64@1.13.3:
+    optional: true
+
+  sherpa-onnx-linux-arm64@1.13.3:
+    optional: true
+
+  sherpa-onnx-linux-x64@1.13.3:
+    optional: true
+
+  sherpa-onnx-node@1.13.3:
+    optionalDependencies:
+      sherpa-onnx-darwin-arm64: 1.13.3
+      sherpa-onnx-darwin-x64: 1.13.3
+      sherpa-onnx-linux-arm64: 1.13.3
+      sherpa-onnx-linux-x64: 1.13.3
+      sherpa-onnx-win-ia32: 1.13.3
+      sherpa-onnx-win-x64: 1.13.3
+
+  sherpa-onnx-win-ia32@1.13.3:
+    optional: true
+
+  sherpa-onnx-win-x64@1.13.3:
+    optional: true
 
   shiki@1.29.2:
     dependencies:
