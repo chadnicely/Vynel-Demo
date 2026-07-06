@@ -87,7 +87,7 @@ function authorLabel(entry: TraceEntry): string {
             <p v-else-if="entries.length === 0" class="state-note">
               {{
                 isWorking
-                  ? "Waiting for the workspace to start…"
+                  ? "The workspace is working — its activity appears here as it's recorded."
                   : "No activity recorded for this task."
               }}
             </p>

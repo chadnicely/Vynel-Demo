@@ -51,17 +51,12 @@ const sessionsErrorText = computed(() =>
 // A routed task runs in the background and pushes its report into this thread
 // on completion — there is no server push, so poll while any delegation is
 // in flight (and keep the thread live) so the report surfaces within seconds.
+// Each in-flight row carries its correlation key, so the banner chip opens the
+// SAME live trace panel the report's "Watch X" chip does — while the task runs,
+// not only after it completes (the viewer's own poll fills the trace in live).
 const inFlightQuery = useInFlightDelegations();
 const inFlightDelegations = computed(() => inFlightQuery.data.value ?? []);
 const isProcessing = computed(() => inFlightDelegations.value.length > 0);
-const processingLabel = computed(() => {
-  const names = [
-    ...new Set(inFlightDelegations.value.map((row) => row.workspaceName)),
-  ];
-  if (names.length === 0) return "";
-  if (names.length === 1) return `Working in ${names[0]}…`;
-  return `Working in ${names.length} workspaces…`;
-});
 
 const detailQuery = useSessionDetail(
   () => GLOBAL_SCOPE,
@@ -189,8 +184,25 @@ function openContinuous() {
       />
 
       <div v-if="isProcessing" class="processing-banner">
-        <PresenceDot state="live" />
-        <span>{{ processingLabel }}</span>
+        <template
+          v-for="(delegation, index) in inFlightDelegations"
+          :key="delegation.partialSessionId ?? `in-flight-${index}`"
+        >
+          <button
+            v-if="delegation.partialSessionId"
+            type="button"
+            class="processing-chip"
+            @click="sessionViewer.open(delegation.partialSessionId)"
+          >
+            <PresenceDot state="live" />
+            <span>Working in {{ delegation.workspaceName }}…</span>
+            <span class="processing-chip-cta">Watch</span>
+          </button>
+          <span v-else class="processing-chip is-static">
+            <PresenceDot state="live" />
+            <span>Working in {{ delegation.workspaceName }}…</span>
+          </span>
+        </template>
       </div>
 
       <footer class="composer-dock">
@@ -244,13 +256,49 @@ function openContinuous() {
 .processing-banner {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   max-width: 808px;
   width: 100%;
   margin: 0 auto;
   padding: 4px 24px 8px;
+}
+
+/* One pill per in-flight delegation — the live sibling of the report's
+   "Watch X" chip (MessageRow .session-link): clicking opens the same trace
+   panel while the task is still running. */
+.processing-chip {
+  appearance: none;
+  border: 1px solid var(--gold-soft);
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  background: var(--gold-soft);
+  color: var(--ink-1);
+  font: 600 11.5px/1.5 var(--font-ui);
+  cursor: default;
+  transition: border-color var(--t-fast) var(--ease-out);
+}
+
+.processing-chip:not(.is-static):hover {
+  border-color: var(--gold);
+}
+
+.processing-chip.is-static {
+  background: transparent;
+  border-color: transparent;
   color: var(--ink-2);
-  font: 500 12.5px/1.5 var(--font-ui);
+  font-weight: 500;
+}
+
+.processing-chip-cta {
+  color: var(--ink-3);
+  font: 600 10.5px/1.5 var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
 }
 
 .composer-dock {
