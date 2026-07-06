@@ -4,16 +4,20 @@ import type { VoiceBrainEvent, VoiceSessionIo } from './voice-session-types.js'
 
 // The always-on voice loop, as a headless state machine. Mic PCM (16 kHz mono)
 // flows in via `pushAudio`; the driver segments it (VAD), transcribes each
-// segment, matches the wake phrase, runs the brain, and speaks the answer
-// sentence-by-sentence. Every dependency is injected so the whole flow is
-// unit-tested with fakes — the WebSocket + real models are wired in the shell.
+// segment, and runs a multi-turn conversation:
 //
-// Two designed-in contracts (see voice-relay-design + advisor):
-//  • Echo defense — while the assistant speaks, the mic is closed and only
-//    reopens once the CLIENT reports playback drained (not when the server
-//    finished sending), so Vynel never transcribes its own voice.
-//  • Wake-then-pause — "hey vynel" alone arrives as its own VAD segment; the
-//    driver then treats the NEXT segment as the command (with a timeout).
+//   ASLEEP — every segment is checked for the wake phrase ("hey vynel"); nothing
+//            else is acted on. On wake it becomes ACTIVE (and runs the command if
+//            one followed the phrase in the same breath).
+//   ACTIVE — a conversation window: every utterance is a command, no re-wake
+//            needed. Each answer keeps it active; after `idleTimeoutMs` of no
+//            command it falls back ASLEEP.
+//   BUSY   — a turn is thinking/speaking; incoming audio is dropped (v1 has no
+//            user barge-in), and the mic reopens only once the shell reports
+//            playback drained (the echo defense).
+//
+// Every dependency is injected so the whole flow is unit-tested with fakes; the
+// audio device + models + brain client are wired in the shell.
 
 export interface VoiceSessionDriverDeps {
   readonly vad: VoiceActivityDetector
@@ -25,37 +29,37 @@ export interface VoiceSessionDriverDeps {
 }
 
 export interface VoiceSessionDriverOptions {
-  /** How long to wait for the command after a bare "hey vynel" before giving up. */
-  readonly commandTimeoutMs?: number
+  /** Silence (ms) in an active conversation before falling back asleep. */
+  readonly idleTimeoutMs?: number
   /** Speaker id for multi-voice models (e.g. Kokoro). */
   readonly voiceId?: number
 }
 
-const DEFAULT_COMMAND_TIMEOUT_MS = 6000
+const DEFAULT_IDLE_TIMEOUT_MS = 15_000
 const FAILED_TURN_LINE = 'Sorry, I ran into a problem with that.'
 
-// `listening` + `waiting-for-command` are mic-open; `busy` (thinking/speaking/
-// draining) drops incoming audio — v1 has no user barge-in.
-type DriverState = 'listening' | 'waiting-for-command' | 'busy'
+type DriverState = 'asleep' | 'active' | 'busy'
 
 export class VoiceSessionDriver {
   readonly #deps: VoiceSessionDriverDeps
-  readonly #commandTimeoutMs: number
+  readonly #idleTimeoutMs: number
   readonly #voiceId: number | undefined
 
-  #state: DriverState = 'listening'
+  #state: DriverState = 'asleep'
   #processing = false
-  #commandTimer: ReturnType<typeof setTimeout> | null = null
+  #idleTimer: ReturnType<typeof setTimeout> | null = null
   #resolvePlaybackDrained: (() => void) | null = null
-  // Set when the client reports drained BEFORE the driver started waiting (a
-  // real client can send it the instant its buffer empties) — the next wait
-  // then resolves immediately instead of hanging.
   #playbackDrainedPending = false
 
   constructor(deps: VoiceSessionDriverDeps, options: VoiceSessionDriverOptions = {}) {
     this.#deps = deps
-    this.#commandTimeoutMs = options.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS
+    this.#idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS
     this.#voiceId = options.voiceId
+  }
+
+  /** Whether a conversation is currently active (awake). */
+  get isAwake(): boolean {
+    return this.#state !== 'asleep'
   }
 
   /** Feed a chunk of mic PCM (16 kHz mono). Ignored while a turn is in flight. */
@@ -64,8 +68,6 @@ export class VoiceSessionDriver {
     this.#processing = true
     try {
       for (const segment of this.#deps.vad.push(audio)) {
-        // Once a turn ran, drop the rest of this batch — they're stale utterances
-        // captured before/around it, and the mic was logically closed meanwhile.
         if (await this.#handleSegment(segment)) break
       }
     } finally {
@@ -73,7 +75,7 @@ export class VoiceSessionDriver {
     }
   }
 
-  /** The client finished playing all queued TTS — safe to reopen the mic. */
+  /** The shell finished playing all queued TTS — safe to reopen the mic. */
   notifyPlaybackDrained(): void {
     if (this.#resolvePlaybackDrained !== null) {
       const resolve = this.#resolvePlaybackDrained
@@ -84,33 +86,37 @@ export class VoiceSessionDriver {
     }
   }
 
+  /** Stop the driver — clears timers (call on shutdown). */
+  stop(): void {
+    this.#clearIdleTimer()
+  }
+
   // Returns true if it ran a full turn (so the caller stops draining the batch).
   async #handleSegment(segment: PcmAudio): Promise<boolean> {
     const transcript = (await this.#deps.recognizer.transcribe(segment)).trim()
 
-    if (this.#state === 'waiting-for-command') {
-      this.#clearCommandTimeout()
-      if (transcript) {
-        await this.#runTurn(transcript)
-        return true
-      }
-      this.#toListening()
-      return false
+    if (this.#state === 'active') {
+      // In a conversation, every real utterance is a command; ignore silence/noise.
+      if (!transcript) return false
+      await this.#runTurn(transcript)
+      return true
     }
 
+    // Asleep: only the wake phrase matters.
     const wake = detectWakeWord(transcript)
     if (!wake.detected) return false
+    this.#deps.io.setState('wake')
     if (wake.command) {
       await this.#runTurn(wake.command)
       return true
     }
-    this.#state = 'waiting-for-command'
-    this.#deps.io.setState('wake')
-    this.#startCommandTimeout()
+    // Bare "hey vynel" — wake and listen for the command.
+    this.#goActive()
     return false
   }
 
   async #runTurn(utterance: string): Promise<void> {
+    this.#clearIdleTimer()
     this.#state = 'busy'
     this.#deps.io.setState('thinking')
 
@@ -135,7 +141,8 @@ export class VoiceSessionDriver {
       this.#deps.io.endSpeech()
       await this.#awaitPlaybackDrained()
     }
-    this.#toListening()
+    // Stay in the conversation for follow-ups; silence eventually sleeps it.
+    this.#goActive()
   }
 
   async #speak(text: string): Promise<boolean> {
@@ -158,23 +165,30 @@ export class VoiceSessionDriver {
     })
   }
 
-  #toListening(): void {
-    this.#state = 'listening'
+  #goActive(): void {
+    this.#state = 'active'
     this.#deps.io.setState('listening')
+    this.#startIdleTimer()
   }
 
-  #startCommandTimeout(): void {
-    this.#clearCommandTimeout()
-    this.#commandTimer = setTimeout(() => {
-      this.#commandTimer = null
-      if (this.#state === 'waiting-for-command') this.#toListening()
-    }, this.#commandTimeoutMs)
+  #toAsleep(): void {
+    this.#clearIdleTimer()
+    this.#state = 'asleep'
+    this.#deps.io.setState('idle')
   }
 
-  #clearCommandTimeout(): void {
-    if (this.#commandTimer !== null) {
-      clearTimeout(this.#commandTimer)
-      this.#commandTimer = null
+  #startIdleTimer(): void {
+    this.#clearIdleTimer()
+    this.#idleTimer = setTimeout(() => {
+      this.#idleTimer = null
+      if (this.#state === 'active') this.#toAsleep()
+    }, this.#idleTimeoutMs)
+  }
+
+  #clearIdleTimer(): void {
+    if (this.#idleTimer !== null) {
+      clearTimeout(this.#idleTimer)
+      this.#idleTimer = null
     }
   }
 }

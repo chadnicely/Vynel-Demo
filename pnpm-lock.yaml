@@ -141,12 +141,6 @@ importers:
       '@vynel/skills':
         specifier: workspace:*
         version: link:../../packages/skills
-      '@vynel/voice':
-        specifier: workspace:*
-        version: link:../../packages/voice
-      '@vynel/voice-engine':
-        specifier: workspace:*
-        version: link:../../packages/voice-engine
       '@vynel/workspaces':
         specifier: workspace:*
         version: link:../../packages/workspaces
@@ -281,6 +275,25 @@ importers:
       zod:
         specifier: ^3.23.0
         version: 3.25.76
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.4
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  apps/voice:
+    dependencies:
+      '@vynel/voice':
+        specifier: workspace:*
+        version: link:../../packages/voice
+      '@vynel/voice-engine':
+        specifier: workspace:*
+        version: link:../../packages/voice-engine
+      node-cpal:
+        specifier: ^0.1.1
+        version: 0.1.1
     devDependencies:
       tsx:
         specifier: ^4.19.0
@@ -3864,6 +3877,12 @@ packages:
     resolution: {integrity: sha512-Cu6yUpX5Iavugm8BeX7c0wgU9CvOqfd1yM6A1d2q2ZMjym7GjpASv2GdRcTq3Fx+Sb5OgBkEEpw4VnAbY6Y5RA==}
     engines: {node: '>=10'}
 
+  node-cpal@0.1.1:
+    resolution: {integrity: sha512-ENjac9jLGqp6hb+zn2ioPEhKCN+ctDlP4omP52cNukFrerD2olXUQjfLFoRXeZRVuBrT44chDgcPEpnckQmUVw==}
+    engines: {node: '>=14.0.0'}
+    cpu: [x64, arm64]
+    os: [darwin, linux, win32]
+
   node-cron@3.0.3:
     resolution: {integrity: sha512-dOal67//nohNgYWb+nWmg5dkFdIwDm8EpeGYMekPMrngV3637lqnX0lbUcCtgibHTz6SEz7DAIjKvKDFYCnO1A==}
     engines: {node: '>=6.0.0'}
@@ -7360,6 +7379,8 @@ snapshots:
   node-abi@3.93.0:
     dependencies:
       semver: 7.8.5
+
+  node-cpal@0.1.1: {}
 
   node-cron@3.0.3:
     dependencies:

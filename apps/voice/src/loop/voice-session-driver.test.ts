@@ -4,8 +4,8 @@ import { FakeVoiceEngine } from '@vynel/voice-engine/test-support'
 import { VoiceSessionDriver } from './voice-session-driver.js'
 import type { VoiceBrainEvent, VoiceSessionIo, VoiceSessionState } from './voice-session-types.js'
 
-// Pass-through VAD: each pushed chunk is treated as one complete segment, so a
-// test controls "one utterance per pushAudio".
+// Pass-through VAD: each pushed chunk is one complete segment ("one utterance
+// per pushAudio").
 class PassThroughVad implements VoiceActivityDetector {
   push(audio: PcmAudio): PcmAudio[] {
     return [audio]
@@ -57,17 +57,19 @@ async function* brainFailing(): AsyncIterable<VoiceBrainEvent> {
 const chunk = (): PcmAudio => ({ samples: new Float32Array(160), sampleRate: 16000 })
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
-function buildDriver(transcripts: string[], brain: (u: string) => AsyncIterable<VoiceBrainEvent>) {
+function buildDriver(
+  transcripts: string[],
+  brain: (u: string) => AsyncIterable<VoiceBrainEvent>,
+  options?: { idleTimeoutMs?: number; autoDrain?: boolean },
+) {
   const io = new RecordingIo()
   const recognizer = new ScriptedRecognizer(transcripts)
   const synthesizer = new FakeVoiceEngine()
-  const driver = new VoiceSessionDriver({
-    vad: new PassThroughVad(),
-    recognizer,
-    synthesizer,
-    runBrainTurn: brain,
-    io,
-  })
+  const driver = new VoiceSessionDriver(
+    { vad: new PassThroughVad(), recognizer, synthesizer, runBrainTurn: brain, io },
+    options?.idleTimeoutMs !== undefined ? { idleTimeoutMs: options.idleTimeoutMs } : {},
+  )
+  if (options?.autoDrain !== false) io.onEndSpeech = () => driver.notifyPlaybackDrained()
   return { driver, io, recognizer, synthesizer }
 }
 
@@ -76,84 +78,85 @@ afterEach(() => {
 })
 
 describe('VoiceSessionDriver', () => {
-  it('ignores speech that does not open with the wake word', async () => {
+  it('stays asleep and ignores speech that is not the wake word', async () => {
     const { driver, io, synthesizer } = buildDriver(['what time is it'], () => brainSaying('never'))
     await driver.pushAudio(chunk())
+    expect(driver.isAwake).toBe(false)
     expect(synthesizer.spoken).toEqual([])
     expect(io.states).not.toContain('thinking')
   })
 
-  it('runs a one-segment wake+command turn and speaks the answer sentence-by-sentence', async () => {
+  it('wakes on "hey vynel <command>", answers, and stays in the conversation', async () => {
     const { driver, io, synthesizer } = buildDriver(
       ['hey vynel what is the time'],
       () => brainSaying('It is noon. ', 'Anything else?'),
     )
-    io.onEndSpeech = () => driver.notifyPlaybackDrained()
-
     await driver.pushAudio(chunk())
-
-    // First sentence emits on its boundary; the rest on flush — pipelined.
     expect(synthesizer.spoken).toEqual(['It is noon.', 'Anything else?'])
     expect(io.states).toContain('thinking')
-    expect(io.states).toContain('speaking')
-    expect(io.states.at(-1)).toBe('listening')
-    expect(io.endSpeechCount).toBe(1)
-    expect(io.audio).toHaveLength(2)
+    expect(io.states.at(-1)).toBe('listening') // active conversation, not asleep
+    expect(driver.isAwake).toBe(true)
   })
 
-  it('handles wake-then-pause: a bare "hey vynel" then the command as the next segment', async () => {
+  it('takes follow-up commands with no re-wake while active', async () => {
+    const { driver, synthesizer } = buildDriver(
+      ['hey vynel first question', 'and a follow up'],
+      () => brainSaying('Answer.'),
+    )
+    await driver.pushAudio(chunk()) // wake + first command
+    await driver.pushAudio(chunk()) // follow-up, no wake word
+    expect(synthesizer.spoken).toEqual(['Answer.', 'Answer.'])
+  })
+
+  it('handles a bare "hey vynel" then the command as the next segment', async () => {
     const { driver, io, synthesizer } = buildDriver(['hey vynel', 'what is the time'], () =>
       brainSaying('Noon.'),
     )
-    io.onEndSpeech = () => driver.notifyPlaybackDrained()
-
-    await driver.pushAudio(chunk()) // bare wake
-    expect(io.states.at(-1)).toBe('wake')
+    await driver.pushAudio(chunk())
+    expect(io.states.at(-1)).toBe('listening')
     expect(synthesizer.spoken).toEqual([])
 
-    await driver.pushAudio(chunk()) // the command
+    await driver.pushAudio(chunk())
     expect(synthesizer.spoken).toEqual(['Noon.'])
-    expect(io.states.at(-1)).toBe('listening')
+  })
+
+  it('falls back asleep after the idle timeout, then ignores non-wake speech', async () => {
+    vi.useFakeTimers()
+    const { driver, synthesizer } = buildDriver(['hey vynel', 'what is the time'], () =>
+      brainSaying('unused'), { idleTimeoutMs: 5000 })
+
+    await driver.pushAudio(chunk()) // bare wake → active
+    expect(driver.isAwake).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(5001) // silence
+    expect(driver.isAwake).toBe(false)
+
+    await driver.pushAudio(chunk()) // 'what is the time' — no wake, asleep → ignored
+    expect(synthesizer.spoken).toEqual([])
   })
 
   it('speaks a failure line when the brain turn fails', async () => {
-    const { driver, io, synthesizer } = buildDriver(['hey vynel break something'], () => brainFailing())
-    io.onEndSpeech = () => driver.notifyPlaybackDrained()
+    const { driver, synthesizer } = buildDriver(['hey vynel break it'], () => brainFailing())
     await driver.pushAudio(chunk())
     expect(synthesizer.spoken).toEqual(['Sorry, I ran into a problem with that.'])
-    expect(io.states.at(-1)).toBe('listening')
   })
 
-  it('keeps the mic closed until the client reports playback drained (echo defense)', async () => {
-    const { driver, io, recognizer } = buildDriver(['hey vynel talk to me'], () => brainSaying('Hi.'))
-    // No auto-drain — simulate a client still playing audio.
+  it('keeps the mic closed until the shell reports playback drained (echo defense)', async () => {
+    const { driver, io, recognizer } = buildDriver(['hey vynel talk to me'], () => brainSaying('Hi.'), {
+      autoDrain: false,
+    })
 
     const turn = driver.pushAudio(chunk())
     await flush()
-
-    // The turn has spoken + signalled end-of-speech, but has NOT reopened the mic.
     expect(io.endSpeechCount).toBe(1)
     expect(io.states.at(-1)).toBe('speaking')
 
-    // A mic frame arriving mid-speech is dropped (not transcribed).
     const callsBefore = recognizer.calls
-    await driver.pushAudio(chunk())
+    await driver.pushAudio(chunk()) // mid-speech mic frame — dropped
     expect(recognizer.calls).toBe(callsBefore)
 
-    // Client finishes playback → mic reopens.
     driver.notifyPlaybackDrained()
     await turn
-    expect(io.states.at(-1)).toBe('listening')
-  })
-
-  it('returns to listening if no command follows a bare wake within the timeout', async () => {
-    vi.useFakeTimers()
-    const { driver, io } = buildDriver(['hey vynel'], () => brainSaying('unused'))
-
-    await driver.pushAudio(chunk())
-    expect(io.states.at(-1)).toBe('wake')
-
-    await vi.advanceTimersByTimeAsync(6001)
     expect(io.states.at(-1)).toBe('listening')
   })
 })
