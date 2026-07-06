@@ -7431,6 +7431,21 @@ export interface operations {
                             sessionId: string;
                             /** @enum {string} */
                             scope: "global" | "workspace";
+                            toolCalls: {
+                                id: string;
+                                parentMessageId: string;
+                                toolUseId: string;
+                                toolName: string;
+                                toolInput?: unknown;
+                                toolOutput?: unknown;
+                                /** @enum {string} */
+                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                /** @enum {string|null} */
+                                approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
+                                isErrorResult: boolean;
+                                startedAt: string;
+                                completedAt: string | null;
+                            }[];
                             createdAt: string;
                         }[];
                     };
@@ -7547,6 +7562,7 @@ export interface operations {
                     "application/json": {
                         delegations: {
                             partialSessionId: string | null;
+                            workspaceId: string;
                             workspaceName: string;
                             /** @enum {string} */
                             status: "pending" | "claimed";

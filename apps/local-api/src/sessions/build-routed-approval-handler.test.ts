@@ -1,26 +1,27 @@
-// Tests for `buildRoutedApprovalHandler` — the surface-up record-and-park policy.
-// Real SQLite (never mock the DB); the provider is a capture stub at the injection
-// boundary (the fake-provider precedent).
+// Tests for `buildRoutedApprovalHandler` — the surface-up SURFACING half (channel
+// push + wait-gate edges + abandonParked). RECORDING lives inside the shared
+// pipeline and is covered by chat's consumer tests + the tick's end-to-end park
+// test. Real SQLite for the channel enqueue; the provider is a capture stub.
 
 import { describe, expect, it, vi } from 'vitest'
 import { withTestDatabase } from '@vynel/testing'
 import { NotFoundError } from '@vynel/errors'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
-import type { NormalizedSessionEvent } from '@vynel/providers'
-import { listPendingApprovalsForUser } from '@vynel/approvals'
+import type { ChatTurnEvent } from '@vynel/chat'
 import { seedChannel, listOutboundMessagesForChannel } from '@vynel/channels/test-support'
 import { ApprovalWaitGate } from '@vynel/orchestration'
 import { buildRoutedApprovalHandler } from './build-routed-approval-handler.js'
 
 const silentLogger = { info() {}, warn() {}, error() {}, debug() {} } as unknown as Logger
 
-type ApprovalRequestedEvent = Extract<NormalizedSessionEvent, { kind: 'approval-requested' }>
+type ApprovalRequestedTurnEvent = Extract<ChatTurnEvent, { kind: 'approval-requested' }>
 
-function makeApprovalEvent(overrides: Partial<ApprovalRequestedEvent> = {}): ApprovalRequestedEvent {
+function makeApprovalEvent(
+  overrides: Partial<ApprovalRequestedTurnEvent> = {},
+): ApprovalRequestedTurnEvent {
   return {
     kind: 'approval-requested',
-    sessionId: 'ws-root-sdk-1',
     approvalRequestId: 'appr-1',
     parentMessageId: 'msg-1',
     toolName: 'Write',
@@ -35,45 +36,16 @@ function makeProviderStub() {
 }
 
 describe('buildRoutedApprovalHandler', () => {
-  it('records the approval (workspace-scoped, user queue) and PARKS — no provider response', async () => {
-    await withTestDatabase(async (db) => {
-      const { user, workspace } = seedChannel(db)
-      const provider = makeProviderStub()
+  it('parks the gate on a card and pushes it to the origin channel (workspace named, explicit-id buttons)', async () => {
+    await withTestDatabase((db) => {
+      const { channel } = seedChannel(db)
       const waitGate = new ApprovalWaitGate()
       const handler = buildRoutedApprovalHandler({
         db,
         logger: silentLogger,
-        provider,
-        userId: user.id,
-        workspaceId: workspace.id,
-        waitGate,
-      })
-
-      await handler.onApprovalRequested(makeApprovalEvent())
-
-      // Recorded → the web notifier's user-scoped queue sees it.
-      const pending = listPendingApprovalsForUser(db, user.id)
-      expect(pending).toHaveLength(1)
-      expect(pending[0]!.providerApprovalId).toBe('appr-1')
-      expect(pending[0]!.workspaceId).toBe(workspace.id)
-      expect(pending[0]!.toolName).toBe('Write')
-
-      // Parked: the wait budget suspends; the provider was NOT answered.
-      expect(waitGate.isParked).toBe(true)
-      expect(provider.respondToApprovalRequest).not.toHaveBeenCalled()
-    })
-  })
-
-  it('pushes the card to the origin channel (buttons carry the explicit approval id)', async () => {
-    await withTestDatabase(async (db) => {
-      const { user, workspace, channel } = seedChannel(db)
-      const handler = buildRoutedApprovalHandler({
-        db,
-        logger: silentLogger,
         provider: makeProviderStub(),
-        userId: user.id,
-        workspaceId: workspace.id,
-        waitGate: new ApprovalWaitGate(),
+        workspaceName: 'vynel',
+        waitGate,
         origin: {
           channel,
           externalRecipientId: 'tg-42',
@@ -81,93 +53,105 @@ describe('buildRoutedApprovalHandler', () => {
         },
       })
 
-      await handler.onApprovalRequested(makeApprovalEvent())
+      handler.onApprovalRequested(makeApprovalEvent())
 
+      expect(waitGate.isParked).toBe(true)
       const outbound = listOutboundMessagesForChannel(db, channel.id)
       expect(outbound).toHaveLength(1)
       expect(outbound[0]!.payloadKind).toBe('approval-request')
       expect(outbound[0]!.externalRecipientId).toBe('tg-42')
-      expect(outbound[0]!.externalChatContextId).toBe('chat-7')
-      expect(outbound[0]!.messageBody).toContain('Write')
+      expect(outbound[0]!.messageBody).toContain('Write — in vynel')
       expect(outbound[0]!.messageStructure).toContain('approval:approve:appr-1')
     })
   })
 
-  it('resumes the gate ONLY for approvals this handler parked', async () => {
-    await withTestDatabase(async (db) => {
-      const { user, workspace } = seedChannel(db)
+  it('parks without a channel push when the job has no origin (web-driven)', async () => {
+    await withTestDatabase((db) => {
+      const { channel } = seedChannel(db)
       const waitGate = new ApprovalWaitGate()
       const handler = buildRoutedApprovalHandler({
         db,
         logger: silentLogger,
         provider: makeProviderStub(),
-        userId: user.id,
-        workspaceId: workspace.id,
         waitGate,
       })
 
-      await handler.onApprovalRequested(makeApprovalEvent())
-      expect(waitGate.isParked).toBe(true)
+      handler.onApprovalRequested(makeApprovalEvent())
 
-      // A resolution for an approval it never parked must not release the gate.
-      await handler.onApprovalResolved({
-        kind: 'approval-resolved',
-        sessionId: 'ws-root-sdk-1',
-        approvalRequestId: 'someone-elses',
-        decision: { kind: 'approved' },
-        resolvedAt: new Date(),
-      })
       expect(waitGate.isParked).toBe(true)
-
-      await handler.onApprovalResolved({
-        kind: 'approval-resolved',
-        sessionId: 'ws-root-sdk-1',
-        approvalRequestId: 'appr-1',
-        decision: { kind: 'approved' },
-        resolvedAt: new Date(),
-      })
-      expect(waitGate.isParked).toBe(false)
+      expect(listOutboundMessagesForChannel(db, channel.id)).toHaveLength(0)
     })
   })
 
-  it('fails closed when recording throws — denies at the provider, never deadlocks', async () => {
-    const provider = makeProviderStub()
-    const poisonedDb = {} as unknown as Database // any DB use throws → the record fails
+  it('resumes the gate ONLY for approvals this handler parked', () => {
+    const waitGate = new ApprovalWaitGate()
     const handler = buildRoutedApprovalHandler({
-      db: poisonedDb,
+      db: {} as unknown as Database, // no origin → the db is never touched
+      logger: silentLogger,
+      provider: makeProviderStub(),
+      waitGate,
+    })
+
+    handler.onApprovalRequested(makeApprovalEvent())
+    expect(waitGate.isParked).toBe(true)
+
+    handler.onApprovalResolved({
+      kind: 'approval-resolved',
+      approvalRequestId: 'someone-elses',
+      decision: { kind: 'approved' },
+      resolvedAt: new Date(),
+    })
+    expect(waitGate.isParked).toBe(true)
+
+    handler.onApprovalResolved({
+      kind: 'approval-resolved',
+      approvalRequestId: 'appr-1',
+      decision: { kind: 'approved' },
+      resolvedAt: new Date(),
+    })
+    expect(waitGate.isParked).toBe(false)
+  })
+
+  it('abandonParked denies everything still parked and releases the gate (turn threw mid-park)', async () => {
+    const provider = makeProviderStub()
+    const waitGate = new ApprovalWaitGate()
+    const handler = buildRoutedApprovalHandler({
+      db: {} as unknown as Database,
       logger: silentLogger,
       provider,
-      userId: 'user-1',
-      workspaceId: 'ws-1',
-      waitGate: new ApprovalWaitGate(),
+      waitGate,
     })
 
-    await handler.onApprovalRequested(makeApprovalEvent())
+    handler.onApprovalRequested(makeApprovalEvent({ approvalRequestId: 'appr-a' }))
+    handler.onApprovalRequested(makeApprovalEvent({ approvalRequestId: 'appr-b' }))
+    expect(waitGate.isParked).toBe(true)
 
+    await handler.abandonParked()
+
+    expect(provider.respondToApprovalRequest).toHaveBeenCalledTimes(2)
     expect(provider.respondToApprovalRequest).toHaveBeenCalledWith(
-      'appr-1',
+      'appr-a',
       expect.objectContaining({ kind: 'denied' }),
     )
+    expect(waitGate.isParked).toBe(false)
   })
 
-  it('tolerates the fail-closed deny finding the approval already resolved — the turn keeps draining', async () => {
-    // The auto-approve path can answer the provider BEFORE its Tx2 fails: the catch's
-    // deny then gets NotFound (registry entry gone). That must not reject the drain.
+  it('abandonParked tolerates an already-resolved approval (NotFound) — never throws', async () => {
     const provider = {
       respondToApprovalRequest: vi.fn(async () => {
         throw new NotFoundError('approval_request', 'appr-1')
       }),
     }
+    const waitGate = new ApprovalWaitGate()
     const handler = buildRoutedApprovalHandler({
-      db: {} as unknown as Database, // recording throws first
+      db: {} as unknown as Database,
       logger: silentLogger,
       provider,
-      userId: 'user-1',
-      workspaceId: 'ws-1',
-      waitGate: new ApprovalWaitGate(),
+      waitGate,
     })
 
-    await expect(handler.onApprovalRequested(makeApprovalEvent())).resolves.toBeUndefined()
-    expect(provider.respondToApprovalRequest).toHaveBeenCalledOnce()
+    handler.onApprovalRequested(makeApprovalEvent())
+    await expect(handler.abandonParked()).resolves.toBeUndefined()
+    expect(waitGate.isParked).toBe(false)
   })
 })

@@ -343,4 +343,64 @@ describe('consumeSessionEventStream — session lifecycle', () => {
       expect(onDisk.toString('base64')).toBe(pngBase64)
     })
   })
+
+  it('stamps messageAttribution on the user row + assistant rows (the routed-turn identity)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      const userMessageInput = makeUserMessageInput('create a readme')
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-routed-1',
+              resumedFromExisting: false,
+              startedAt: new Date('2026-07-06T00:00:00Z'),
+            },
+            {
+              kind: 'text-chunk',
+              sessionId: 'session-routed-1',
+              messageId: 'assistant-1',
+              textDelta: 'On it.',
+              isFinalChunk: true,
+            },
+            {
+              kind: 'session-completed',
+              sessionId: 'session-routed-1',
+              isNewSession: true,
+              completedAt: new Date('2026-07-06T00:00:05Z'),
+            },
+          ]),
+          userMessageInput,
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+          messageAttribution: {
+            partialSessionId: 'trace-key-1',
+            userSourceKind: 'global-root',
+            assistantSourceKind: 'workspace-manager',
+            assistantSourceLabel: 'Ava · vynel',
+          },
+        }),
+      )
+
+      // The task row reads "From Global" + carries the trace key.
+      const task = findChatMessageById(db, userMessageInput.id)
+      expect(task?.sourceKind).toBe('global-root')
+      expect(task?.partialSessionId).toBe('trace-key-1')
+
+      // The reply row carries the workspace-manager identity + the trace key.
+      const reply = findChatMessageById(db, 'assistant-1')
+      expect(reply?.sourceKind).toBe('workspace-manager')
+      expect(reply?.sourceLabel).toBe('Ava · vynel')
+      expect(reply?.partialSessionId).toBe('trace-key-1')
+      expect(reply?.body).toBe('On it.')
+    })
+  })
 })

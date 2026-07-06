@@ -1,37 +1,45 @@
 // `delegateToWorkspaceRoot` — the apps/local-api composition for routing a task INTO a
-// workspace's CONTINUING PRIMARY conversation (brain-tree Phase 1, the thin path).
-// Sibling of `delegateToLeafSession`, but instead of spawning a fresh throwaway
-// agent it resumes the workspace's OWN brain (its primary session, with its context),
-// so "hey jarvis, in Acme, summarize the notes" reaches Acme's actual conversation.
+// workspace's CONTINUING PRIMARY conversation (brain-tree Phase 1). Resumes the
+// workspace's OWN brain (its primary session, with its context), so "hey jarvis, in
+// Acme, summarize the notes" reaches Acme's actual conversation.
 //
-// It is the layer that injects the provider AND ties the pure
-// `@vynel/orchestration` run-op to the chat + session-continuity recording —
-// the `delegate-to-leaf-session` layering precedent (orchestration stays pure; it
-// never writes chat's tables).
+// THE ROUTED TURN RUNS THROUGH THE ONE SHARED PIPELINE (`consumeSessionEventStream`)
+// — the same path every other turn type uses — so everything persists LIVE: the task
+// row lands at session-started (attributed "From Global" + the trace key), the reply
+// grows chunk-by-chunk, TOOL CALLS and thinking persist as they happen. The workspace
+// chat and the Watch panel read it in realtime; nothing waits for completion. (The
+// old raw drain + flat completion rows — `recordDelegatedRootMessages` — are gone.)
 //
-// Flow: resolve the workspace primary + the session to resume → run the task on it
-// (resume, or fresh on the first delegation), drained with the injected surface-up
-// approval handling → record + link the segment if it ran on a NEW sdk session
-// (fresh OR a compaction swap — the P0.1 id-based gate) → emit the
-// global→workspace-root tree edge for the monitor → persist the task + result
-// attributed → return the clean result the global root absorbs.
-//
-// APPROVALS (surface-up, fork 3 BUILT): the tick injects record-and-park handlers —
-// a carded tool pauses for the user's decision (web notifier + origin channel).
-// Without the injection the turn falls back to the fail-closed auto-deny.
+// APPROVALS (surface-up): the pipeline RECORDS each card (workspace-scoped, rules
+// evaluated) and parks; the injected handler surfaces it (origin channel + wait
+// gate). The denial circuit-breaker lives in the consume loop here: two denied
+// decisions in one turn interrupt the leaf (retry-loop guard), ending with the
+// clean blocked note.
 
+import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
 import type { AiAgentProvider, AiAgentProviderId } from '@vynel/providers'
 import {
-  runRootDelegationTurn,
   recordDelegation,
+  ROUTED_LEAF_MAX_CARDED_DENIALS,
+  ROUTED_LEAF_WRITE_BLOCKED_NOTE,
   type DelegationPermissionMode,
-  type DrainLeafTurnOptions,
 } from '@vynel/orchestration'
-import { recordSwapSegmentSession, recordDelegatedRootMessages } from '@vynel/chat'
-import { findChatSessionById } from '@vynel/chat/repositories'
+import { consumeSessionEventStream, composeManagerSourceLabel } from '@vynel/chat'
 import { linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
 import { resolvePrimaryConversationTarget } from '@vynel/session/runtime'
+import type { Logger } from 'pino'
+import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
+
+// How a routed (background) turn should behave — appended to the SYSTEM prompt, never
+// the task text (the task persists verbatim to the transcript). Steers the model to
+// read-only tools for read tasks and sets expectations for the approval pause.
+export const ROUTED_TASK_INSTRUCTIONS =
+  'This task was routed from the user’s assistant and runs in the background. Prefer ' +
+  'read-only tools (Read, Glob, Grep, LS) for read/analysis tasks. An irreversible action ' +
+  '(write, edit, delete, shell command) PAUSES until the user approves it from their app or ' +
+  'chat — use one only when the task genuinely needs it, and if it is denied or times ' +
+  'out, report your findings as text instead of retrying.'
 
 export type DelegateToWorkspaceRootInput = {
   /** The delegating (parent) session — the global root's current SDK session id. */
@@ -41,28 +49,29 @@ export type DelegateToWorkspaceRootInput = {
   workspaceId: string
   /** The workspace folder on disk — the root's cwd. */
   workspacePath: string
-  /** The workspace name — the bubbled report's `sourceLabel` base. */
+  /** The workspace name — the reply attribution's `sourceLabel` base. */
   workspaceName: string
   /** The workspace manager's persona name (brain-tree Ch5) — composes "Mark · vynel".
    *  Absent → just the workspace name. */
   managerName?: string
   /** The task the global root delegates. */
   taskText: string
-  /** The provider id stamped on the recorded segment. */
+  /** The provider id stamped on the persisted rows. */
   providerId: AiAgentProviderId
   /** Optional model override for the delegated turn. */
   model?: string
+  /** The delegation request's correlation key (brain-tree Chapter 2) — stamped on
+   *  every row the turn persists so the chain is queryable as one trace. */
+  partialSessionId?: string
   /** The permission mode the routed turn runs under (surface-up step 1) — from the
    *  job row. Omit for the pre-mode default (`bypass-with-behavior-gate`). */
   permissionMode?: DelegationPermissionMode
-  /** The delegation request's correlation key (brain-tree Chapter 2) — stamped on the
-   *  workspace-side task + reply so the chain is queryable as one trace. */
-  partialSessionId?: string
-  /** Surface-up record-and-park (the tick's `buildRoutedApprovalHandler`). Omit for
-   *  the fail-closed auto-deny fallback. */
-  onApprovalRequested?: DrainLeafTurnOptions['onApprovalRequested']
-  /** Resumes the suspended wait budget on each decision. */
-  onApprovalResolved?: DrainLeafTurnOptions['onApprovalResolved']
+  /** The surface-up handler (the tick's `buildRoutedApprovalHandler`): channel push +
+   *  wait-gate edges. Recording happens inside the pipeline either way — without a
+   *  handler a carded tool still parks on the recorded card, bounded by the approvals
+   *  reaper (no instant auto-deny; production always injects). */
+  approvalHandler?: Pick<RoutedApprovalHandler, 'onApprovalRequested' | 'onApprovalResolved'>
+  logger?: Logger
 }
 
 export type DelegateToWorkspaceRootResult = {
@@ -83,56 +92,154 @@ export async function delegateToWorkspaceRoot(
     workspaceId: input.workspaceId,
   })
 
-  // 2. Run the task ON the workspace root — resume its brain, or fresh on first use.
-  const drained = await runRootDelegationTurn(provider, {
+  // 2. Start the provider turn — resume the workspace's brain, or fresh on first use.
+  const sessionEventStream = provider.startChatSession({
     workspacePath: input.workspacePath,
-    ...(target.resumeSdkSessionId !== null ? { resumeSessionId: target.resumeSdkSessionId } : {}),
-    taskText: input.taskText,
+    ...(target.resumeSdkSessionId !== null
+      ? { resumeSessionId: target.resumeSdkSessionId }
+      : {}),
+    userMessageText: input.taskText,
+    systemPromptAppend: ROUTED_TASK_INSTRUCTIONS,
+    permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
+    // Empty grants: a resumed root keeps the workspace's existing tool grants; a
+    // fresh root gets the SDK defaults. The behavior gate still cards the floor.
+    allowedToolNames: [],
+    deniedToolNames: [],
     ...(input.model !== undefined ? { model: input.model } : {}),
-    ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
-    ...(input.onApprovalRequested !== undefined
-      ? { onApprovalRequested: input.onApprovalRequested }
-      : {}),
-    ...(input.onApprovalResolved !== undefined
-      ? { onApprovalResolved: input.onApprovalResolved }
-      : {}),
   })
 
-  // 3. Record + link the segment if the turn ran on a NEW sdk session (fresh root OR
-  //    a compaction swap — the P0.1 id-based gate). An already-recorded session
-  //    (resumed) is a no-op here.
-  if (findChatSessionById(db, drained.sessionId) === null) {
-    recordSwapSegmentSession(db, {
-      sessionId: drained.sessionId,
-      userId: input.userId,
-      workspaceId: input.workspaceId,
-      providerId: input.providerId,
-    })
-    linkPrimarySessionToSdkSession(db, {
-      primarySessionId: target.primarySessionId,
-      userId: input.userId,
-      sdkSessionId: drained.sessionId,
-    })
+  // 3. Consume through the shared pipeline — every row persists as it streams,
+  //    attributed like the old completion rows were (task "From Global", replies
+  //    as the workspace manager, everything trace-keyed).
+  const turnStream = consumeSessionEventStream({
+    db,
+    sessionEventStream,
+    userMessageInput: { id: randomUUID(), body: input.taskText, attachedImagesMetadata: null },
+    userId: input.userId,
+    workspaceId: input.workspaceId,
+    workspacePath: input.workspacePath,
+    providerId: input.providerId,
+    isNewSession: target.resumeSdkSessionId === null,
+    // The routed segment keeps the swap-segment presentation (the old
+    // recordSwapSegmentSession shape): hidden from the curated sidebar — the
+    // continuing brain shows as ONE entry — and never auto-titled (it is the
+    // primary thread, not a user-named conversation).
+    newSessionOptions: { visibility: 'hidden', title: 'Continued conversation', skipAutoTitle: true },
+    messageAttribution: {
+      ...(input.partialSessionId !== undefined
+        ? { partialSessionId: input.partialSessionId }
+        : {}),
+      userSourceKind: 'global-root',
+      assistantSourceKind: 'workspace-manager',
+      assistantSourceLabel: composeManagerSourceLabel(input.workspaceName, input.managerName),
+    },
+    ...(input.logger !== undefined ? { logger: input.logger } : {}),
+  })
+
+  // 4. Drive the stream: link the primary on a new/swapped segment, accumulate the
+  //    clean result, surface approvals, and trip the denial breaker.
+  let sessionId: string | null = null
+  let resultText = ''
+  let cardedDenials = 0
+  let trippedBreaker = false
+  let streamError: { code: string; message: string } | null = null
+
+  try {
+    for await (const event of turnStream) {
+      switch (event.kind) {
+        case 'user-message-persisted':
+          // Fires on BOTH the new and resumed branches — every turn sets it.
+          sessionId = event.message.sessionId
+          break
+        case 'session-created':
+          // A fresh root OR a compaction swap — advance the primary's link so the
+          // next delegation resumes THIS segment (the P0.1 id-based gate, now
+          // event-driven like the global-root core).
+          linkPrimarySessionToSdkSession(db, {
+            primarySessionId: target.primarySessionId,
+            userId: input.userId,
+            sdkSessionId: event.session.id,
+          })
+          break
+        case 'text-chunk':
+          resultText += event.textDelta
+          break
+        case 'approval-requested':
+          input.approvalHandler?.onApprovalRequested(event)
+          break
+        case 'approval-resolved': {
+          input.approvalHandler?.onApprovalResolved(event)
+          // Breaker on DENIALS (user, reaper, or fallback): the leaf keeps proposing
+          // irreversible actions past the denials — interrupt it ONCE so it fails
+          // fast instead of burning the route timeout. Approvals never count.
+          if (event.decision.kind === 'denied') {
+            cardedDenials += 1
+            if (
+              !trippedBreaker &&
+              sessionId !== null &&
+              cardedDenials >= ROUTED_LEAF_MAX_CARDED_DENIALS
+            ) {
+              trippedBreaker = true
+              await provider.interruptChatSession(sessionId)
+            }
+          }
+          break
+        }
+        case 'session-errored':
+          streamError = { code: event.errorCode, message: event.errorMessage }
+          break
+        default:
+          break // tool/thinking/usage/title events persist inside the pipeline
+      }
+    }
+  } catch (err) {
+    // The pipeline threw mid-turn (e.g. an approval record failed before it could be
+    // yielded/parked). Fail CLOSED: interrupt the leaf session so the provider cancels
+    // any pending canUseTool Promise — never a background agent parked on a card no
+    // surface can see. Best-effort; the rethrow carries the real failure.
+    if (sessionId !== null) {
+      try {
+        await provider.interruptChatSession(sessionId)
+      } catch (interruptErr) {
+        input.logger?.warn(
+          { err: interruptErr, sessionId },
+          'delegateToWorkspaceRoot: interrupt-on-throw failed (the reaper bounds recorded cards)',
+        )
+      }
+    }
+    throw err
   }
 
-  // 4. The parent→child tree edge (global root → workspace root) for the monitor.
+  if (sessionId === null) {
+    // A provider that dies BEFORE session-started surfaces here — the pipeline only
+    // emits `session-errored` once a session exists (its contract), so the id is all
+    // we can report.
+    throw new Error(
+      'delegateToWorkspaceRoot: the runtime did not assign a session id for the routed turn',
+    )
+  }
+  if (streamError !== null) {
+    throw new Error(
+      `delegateToWorkspaceRoot: the routed turn errored (${streamError.code}): ${streamError.message}`,
+    )
+  }
+
+  // 5. The parent→child tree edge (global root → workspace root) for the monitor.
   recordDelegation(db, {
     parentSessionId: input.parentSessionId,
-    childSessionId: drained.sessionId,
+    childSessionId: sessionId,
     role: 'workspace-root',
     userId: input.userId,
   })
 
-  // 5. Persist the routed exchange to the workspace transcript, attributed + trace-keyed.
-  //    Conditional-spread the correlation key (exactOptionalPropertyTypes): absent → omit.
-  recordDelegatedRootMessages(db, {
-    sessionId: drained.sessionId,
-    taskText: input.taskText,
-    resultText: drained.resultText,
-    workspaceName: input.workspaceName,
-    ...(input.managerName !== undefined ? { managerName: input.managerName } : {}),
-    ...(input.partialSessionId !== undefined ? { partialSessionId: input.partialSessionId } : {}),
-  })
-
-  return { reference: drained.sessionId, resultText: drained.resultText }
+  // Tripped the breaker → end with the clean blocked note, preserving any text the
+  // leaf produced (never an empty result the root can't relay).
+  const cleaned = resultText.trim()
+  if (trippedBreaker) {
+    return {
+      reference: sessionId,
+      resultText: cleaned === '' ? ROUTED_LEAF_WRITE_BLOCKED_NOTE : `${cleaned}\n\n${ROUTED_LEAF_WRITE_BLOCKED_NOTE}`,
+    }
+  }
+  return { reference: sessionId, resultText: cleaned }
 }

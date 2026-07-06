@@ -370,6 +370,18 @@ describe('runDelegationClaimAndRunTick', () => {
       expect(card.workspaceId).toBe(workspace.id)
       expect(card.toolName).toBe('Write')
 
+      // REALTIME persistence: mid-park (the turn far from complete) the routed task
+      // already sits in the workspace transcript, attributed + trace-keyed — the
+      // shared-pipeline guarantee the Watch panel + workspace chat read live.
+      const midRunMessages = listChatMessagesForSession(db, 'ws-root-park')
+      expect(midRunMessages).toHaveLength(1)
+      expect(midRunMessages[0]).toMatchObject({
+        role: 'user',
+        body: 'update the notes file',
+        sourceKind: 'global-root',
+      })
+      expect(midRunMessages[0]!.partialSessionId).not.toBeNull()
+
       // The card ALSO reached the origin channel (with the explicit-id buttons).
       const cardOutbound = listOutboundMessagesForChannel(db, channel.id)
       expect(cardOutbound).toHaveLength(1)

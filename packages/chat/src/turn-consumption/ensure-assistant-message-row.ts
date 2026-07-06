@@ -16,16 +16,23 @@ import * as chatRepository from '../repositories/index.js'
 import type { Database } from '@vynel/db'
 import type { ChatMessage, ChatMessageSourceKind } from '../repositories/index.js'
 
-// `sourceKind` is optional + additive (brain-tree P0.1): workspace chat omits it
-// (the row stays null, rendered from `role` — byte-for-byte unchanged); the
-// global-root persister passes 'global-root' so the transcript attributes the
-// reply to the brain.
+// `attribution` is optional + additive (brain-tree P0.1 / the surface-up routed
+// turn): the workspace chat omits it (the row stays null, rendered from `role` —
+// byte-for-byte unchanged); a ROUTED turn passes the workspace-manager identity +
+// the delegation trace key so the live rows read exactly like the old flat
+// completion rows did.
+export type AssistantRowAttribution = {
+  sourceKind?: ChatMessageSourceKind
+  sourceLabel?: string
+  partialSessionId?: string
+}
+
 export function ensureAssistantMessageRow(
   db: Database,
   messageId: string,
   sessionId: string,
   cache: Map<string, ChatMessage>,
-  sourceKind?: ChatMessageSourceKind,
+  attribution?: AssistantRowAttribution,
 ): ChatMessage {
   const cached = cache.get(messageId)
   if (cached) return cached
@@ -40,8 +47,9 @@ export function ensureAssistantMessageRow(
     sessionId,
     role: 'assistant',
     body: '',
-    sourceKind: sourceKind ?? null,
-    sourceLabel: null,
+    sourceKind: attribution?.sourceKind ?? null,
+    sourceLabel: attribution?.sourceLabel ?? null,
+    partialSessionId: attribution?.partialSessionId ?? null,
     thinkingBody: null,
     inputTokens: null,
     outputTokens: null,

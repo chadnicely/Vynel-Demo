@@ -6,7 +6,7 @@
 // enqueue path.
 //
 // SYNC (not async) — better-sqlite3 repos are synchronous, matching the sibling
-// sync ops `recordDelegation` + `recordDelegatedRootMessages`. The `id` +
+// sync op `recordDelegation`. The `id` +
 // `createdAt` are generated HERE (the core layer owns UUID generation per the
 // locked `id()`-has-no-DEFAULT contract); every reserved/terminal column is
 // nulled at enqueue time.

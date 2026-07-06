@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { X } from "lucide-vue-next";
-import { IconButton, MarkdownText, PresenceDot } from "@vynel/ui";
+import { IconButton, MarkdownText, PresenceDot, ToolCallList } from "@vynel/ui";
 import { useDelegationTrace } from "../../composables/delegations/use-delegation-trace.js";
 import { collapseTraceEcho } from "../../composables/delegations/collapse-trace-echo.js";
 import { useSessionViewerStore } from "../../stores/session-viewer-store.js";
@@ -94,6 +94,11 @@ function authorLabel(entry: TraceEntry): string {
             <div v-else class="trace">
               <div v-for="entry in displayEntries" :key="entry.id" class="entry">
                 <p class="entry-author">{{ authorLabel(entry) }}</p>
+                <ToolCallList
+                  v-if="entry.toolCalls.length > 0"
+                  class="entry-tools"
+                  :tool-calls="entry.toolCalls"
+                />
                 <MarkdownText :source="entry.body" />
               </div>
               <p v-if="isWorking" class="working-note">

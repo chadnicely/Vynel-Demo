@@ -11,6 +11,9 @@ export interface InFlightDelegation {
   /** The delegation's correlation key — opens its live trace panel. Null only in the
    *  (Ch2-precluded) case of a job with no key; the indicator still counts it as live work. */
   partialSessionId: string | null
+  /** The target workspace — lets the workspace chat poll its transcript while a
+   *  routed turn streams rows into it. */
+  workspaceId: string
   /** The target workspace's name — the indicator label. */
   workspaceName: string
   status: 'pending' | 'claimed'
@@ -25,6 +28,7 @@ export function listInFlightDelegations(
   // `pending` | `claimed`.
   return listInFlightDelegationsForUser(db, input.userId).map((job) => ({
     partialSessionId: job.partialSessionId,
+    workspaceId: job.workspaceId,
     workspaceName: job.workspaceName,
     status: job.status as 'pending' | 'claimed',
   }))

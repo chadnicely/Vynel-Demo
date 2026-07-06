@@ -53,8 +53,6 @@ export { recordSwapSegmentSession } from './records/record-swap-segment-session.
 export type { RecordSwapSegmentSessionInput } from './records/record-swap-segment-session.js'
 export { recordLeafSession } from './records/record-leaf-session.js'
 export type { RecordLeafSessionInput } from './records/record-leaf-session.js'
-export { recordDelegatedRootMessages } from './records/record-delegated-root-messages.js'
-export type { RecordDelegatedRootMessagesInput } from './records/record-delegated-root-messages.js'
 export { recordPushedReportMessage } from './records/record-pushed-report-message.js'
 export type { RecordPushedReportMessageInput } from './records/record-pushed-report-message.js'
 export { composeManagerSourceLabel } from './records/compose-manager-source-label.js'

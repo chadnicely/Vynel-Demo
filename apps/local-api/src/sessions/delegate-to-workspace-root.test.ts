@@ -12,8 +12,10 @@ import { findChatSessionById, listChatMessagesForSession } from '@vynel/chat/rep
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { SESSION_DELEGATED, type SessionDelegatedPayload } from '@vynel/orchestration'
 import { findPrimaryConversation } from '@vynel/session/continuity'
+import type { AiAgentProvider, NormalizedSessionEvent, StartChatSessionInput } from '@vynel/providers'
+import { ROUTED_LEAF_WRITE_BLOCKED_NOTE } from '@vynel/orchestration'
 import { FakeAiAgentProvider } from './test-support/fake-ai-agent-provider.js'
-import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
+import { delegateToWorkspaceRoot, ROUTED_TASK_INSTRUCTIONS } from './delegate-to-workspace-root.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -49,9 +51,11 @@ describe('delegateToWorkspaceRoot', () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const startChatSessionInputs: StartChatSessionInput[] = []
       const provider = new FakeAiAgentProvider({
         seededSessionId: 'ws-root-new',
         resultText: 'Acme has 3 docs; all current.',
+        startChatSessionInputs,
       })
 
       const result = await delegateToWorkspaceRoot(db, provider, {
@@ -67,6 +71,9 @@ describe('delegateToWorkspaceRoot', () => {
       // Reports up the clean result + the workspace-root reference.
       expect(result.reference).toBe('ws-root-new')
       expect(result.resultText).toBe('Acme has 3 docs; all current.')
+
+      // The background steer rides the SYSTEM prompt, never the persisted task text.
+      expect(startChatSessionInputs[0]!.systemPromptAppend).toBe(ROUTED_TASK_INSTRUCTIONS)
 
       // The fresh workspace-root segment was recorded (hidden, workspace-scoped).
       const segment = findChatSessionById(db, 'ws-root-new')
@@ -129,6 +136,117 @@ describe('delegateToWorkspaceRoot', () => {
       expect(messages).toHaveLength(4)
       // Two delegation edges (one per turn).
       expect(listOutboxEventsByType(db, SESSION_DELEGATED)).toHaveLength(2)
+    })
+  })
+
+  it('trips the denial breaker: two denied decisions interrupt the leaf ONCE and append the blocked note', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      // A scripted provider: two carded proposals, both denied (e.g. by the user or
+      // the reaper), then the interrupt lands as a terminal event — the drain-test
+      // style, but through the SHARED pipeline the routed path now runs on.
+      const interrupted: string[] = []
+      const scripted = {
+        startChatSession(): AsyncIterable<NormalizedSessionEvent> {
+          return (async function* () {
+            yield {
+              kind: 'session-started',
+              sessionId: 'ws-root-breaker',
+              resumedFromExisting: false,
+              startedAt: new Date(),
+            } as NormalizedSessionEvent
+            yield {
+              kind: 'text-chunk',
+              sessionId: 'ws-root-breaker',
+              messageId: 'm-breaker',
+              textDelta: 'Here is what I found.',
+              isFinalChunk: false,
+            } as NormalizedSessionEvent
+            for (const id of ['appr-1', 'appr-2']) {
+              yield {
+                kind: 'approval-requested',
+                sessionId: 'ws-root-breaker',
+                approvalRequestId: id,
+                parentMessageId: 'm-breaker',
+                toolName: 'Write',
+                toolInput: {},
+                requestedAt: new Date(),
+              } as NormalizedSessionEvent
+              yield {
+                kind: 'approval-resolved',
+                sessionId: 'ws-root-breaker',
+                approvalRequestId: id,
+                decision: { kind: 'denied', reason: 'no' },
+                resolvedAt: new Date(),
+              } as NormalizedSessionEvent
+            }
+            yield {
+              kind: 'session-interrupted',
+              sessionId: 'ws-root-breaker',
+              interruptedAt: new Date(),
+            } as NormalizedSessionEvent
+          })()
+        },
+        interruptChatSession: async (sessionId: string) => {
+          interrupted.push(sessionId)
+        },
+      } as unknown as AiAgentProvider
+
+      const result = await delegateToWorkspaceRoot(db, scripted, {
+        parentSessionId: 'global-sdk-1',
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'write the config',
+        providerId: 'claude',
+      })
+
+      expect(interrupted).toEqual(['ws-root-breaker']) // interrupted exactly once
+      expect(result.resultText).toContain('Here is what I found.')
+      expect(result.resultText).toContain(ROUTED_LEAF_WRITE_BLOCKED_NOTE)
+    })
+  })
+
+  it('fail-closed on a mid-turn pipeline throw: interrupts the leaf session, then rethrows', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const interrupted: string[] = []
+      const scripted = {
+        startChatSession(): AsyncIterable<NormalizedSessionEvent> {
+          return (async function* () {
+            yield {
+              kind: 'session-started',
+              sessionId: 'ws-root-throw',
+              resumedFromExisting: false,
+              startedAt: new Date(),
+            } as NormalizedSessionEvent
+            throw new Error('provider transport died')
+          })()
+        },
+        interruptChatSession: async (sessionId: string) => {
+          interrupted.push(sessionId)
+        },
+      } as unknown as AiAgentProvider
+
+      await expect(
+        delegateToWorkspaceRoot(db, scripted, {
+          parentSessionId: 'global-sdk-1',
+          userId: user.id,
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
+          workspaceName: workspace.name,
+          taskText: 'anything',
+          providerId: 'claude',
+        }),
+      ).rejects.toThrow('provider transport died')
+
+      // The leaf was torn down — no background agent left parked on a dead turn.
+      expect(interrupted).toEqual(['ws-root-throw'])
     })
   })
 })

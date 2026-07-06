@@ -2,11 +2,11 @@
 // session (brain-tree Chapter 1, async core). When a background delegation completes,
 // the workspace manager's report is pushed UP onto the global root's transcript so it
 // surfaces in /global on reload, attributed 'workspace-manager' + the workspace name
-// ("Acme: …") — the same source identity the synchronous path uses
-// (`recordDelegatedRootMessages`).
+// ("Acme: …") — the same source identity the routed turn's live rows carry (the
+// shared pipeline's `messageAttribution`).
 //
-// Two differences from `recordDelegatedRootMessages` (which writes the WORKSPACE root's
-// session, whose FK row the composition just recorded):
+// Two differences from the workspace-side rows (which the shared pipeline persists
+// live on the WORKSPACE root's session as the turn streams):
 //   1. It writes the GLOBAL root's CURRENT session — re-resolved at push time by the
 //      caller (the root may have compaction-swapped between enqueue and completion;
 //      pushing onto the live segment keeps the report in chronological order).

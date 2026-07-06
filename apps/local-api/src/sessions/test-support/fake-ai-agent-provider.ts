@@ -58,6 +58,9 @@ export class FakeAiAgentProvider extends AiAgentProvider {
     const sessionId = this.options.seededSessionId ?? 'sdk-seeded'
     const { resultText, approvalToolName } = this.options
     const decisionArrived = this.approvalDecisionArrived
+    // Unique per turn — the real SDK mints fresh message ids; a reused id would
+    // make the shared consumer append a second turn's chunks to the first's row.
+    const messageId = `m-${crypto.randomUUID()}`
     async function* events(): AsyncIterable<NormalizedSessionEvent> {
       yield {
         kind: 'session-started',
@@ -88,7 +91,7 @@ export class FakeAiAgentProvider extends AiAgentProvider {
         yield {
           kind: 'text-chunk',
           sessionId,
-          messageId: 'm1',
+          messageId,
           textDelta: resultText,
           isFinalChunk: true,
         }

@@ -20,6 +20,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { enqueueWorkspaceDelegation, listInFlightDelegations } from '@vynel/orchestration'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import {
+  insertChatToolCall,
   insertChatSession,
   insertChatMessage,
   type NewChatMessage,
@@ -179,6 +180,24 @@ function seedTaggedChain(
   return { workspaceSessionId, globalSessionId, partialSessionId }
 }
 
+
+// A minimal tool-call row attached to a trace message — the panel's mid-turn rows.
+function insertToolCallForMessage(db: Database, parentMessageId: string) {
+  return insertChatToolCall(db, {
+    id: randomUUID(),
+    parentMessageId,
+    toolUseId: randomUUID(),
+    toolName: 'Write',
+    toolInput: { file_path: '/tmp/x' },
+    toolOutput: null,
+    status: 'started',
+    approvalStatus: null,
+    isErrorResult: false,
+    startedAt: new Date(),
+    completedAt: null,
+  })
+}
+
 describe('resolveDelegationTrace', () => {
   it('returns the faithful, ordered, SCOPED chain — ack, task, reply, report', async () => {
     await withTestDatabase((db) => {
@@ -203,6 +222,14 @@ describe('resolveDelegationTrace', () => {
         ['workspace-manager', 'workspace', workspaceSessionId], // the reply (the drill target)
         ['workspace-manager', 'global', globalSessionId], // the surfaced report
       ])
+
+      // Tool calls ride the assistant entry that owns them (live rows — the panel
+      // shows them mid-turn); user rows carry an empty list.
+      const reply = trace.entries[2]!
+      const replyToolCalls = insertToolCallForMessage(db, reply.id)
+      const refreshed = resolveDelegationTrace(db, { userId: user.id, partialSessionId })
+      expect(refreshed.entries[2]!.toolCalls.map((t) => t.id)).toEqual([replyToolCalls.id])
+      expect(refreshed.entries[1]!.toolCalls).toEqual([])
     })
   })
 

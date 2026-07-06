@@ -23,7 +23,10 @@ import type { Database } from '@vynel/db'
 import type { ChatMessage, AttachedImageMetadata } from '../repositories/index.js'
 import type { AiAgentProviderId, NormalizedSessionEvent } from '@vynel/providers'
 import { generateSessionTitle } from './generate-session-title.js'
-import { ensureAssistantMessageRow } from './ensure-assistant-message-row.js'
+import {
+  ensureAssistantMessageRow,
+  type AssistantRowAttribution,
+} from './ensure-assistant-message-row.js'
 import { handleSessionStarted } from './handle-session-started.js'
 import { handleApprovalRequested } from './handle-approval-requested.js'
 import { handleUsageReported } from './handle-usage-reported.js'
@@ -56,7 +59,22 @@ export type ConsumeSessionEventStreamInput = {
   /** Presentation overrides for the new-session row (the brain passes hidden +
    *  'Global brain' + skipAutoTitle). Omitted by the workspace path → defaults. */
   newSessionOptions?: NewSessionOptions
+  /** Attribution stamped on this turn's message rows (surface-up routed turns):
+   *  the trace key on every row, 'global-root' on the task, the workspace-manager
+   *  identity on the replies. Omitted by direct chat → rows stay null (unchanged). */
+  messageAttribution?: TurnMessageAttribution
   logger?: StructuralLogger
+}
+
+/** How a turn's persisted rows are attributed — who asked, who answered, and the
+ *  delegation trace key linking them (all optional, all additive). */
+export type TurnMessageAttribution = {
+  partialSessionId?: string
+  /** The user row's origin (a routed task passes 'global-root'). */
+  userSourceKind?: AssistantRowAttribution['sourceKind']
+  /** The assistant rows' identity (a routed turn passes 'workspace-manager' + label). */
+  assistantSourceKind?: AssistantRowAttribution['sourceKind']
+  assistantSourceLabel?: string
 }
 
 export async function* consumeSessionEventStream(
@@ -72,8 +90,25 @@ export async function* consumeSessionEventStream(
     providerId,
     isNewSession,
     newSessionOptions,
+    messageAttribution,
     logger,
   } = input
+
+  // The assistant-row attribution, built once (the three ensure call sites share it).
+  const assistantAttribution: AssistantRowAttribution | undefined =
+    messageAttribution !== undefined
+      ? {
+          ...(messageAttribution.assistantSourceKind !== undefined
+            ? { sourceKind: messageAttribution.assistantSourceKind }
+            : {}),
+          ...(messageAttribution.assistantSourceLabel !== undefined
+            ? { sourceLabel: messageAttribution.assistantSourceLabel }
+            : {}),
+          ...(messageAttribution.partialSessionId !== undefined
+            ? { partialSessionId: messageAttribution.partialSessionId }
+            : {}),
+        }
+      : undefined
 
   let sessionId: string | null = null
   let userMessage: ChatMessage | null = null
@@ -96,6 +131,7 @@ export async function* consumeSessionEventStream(
           providerId,
           isNewSession,
           ...(newSessionOptions !== undefined ? { newSessionOptions } : {}),
+          ...(messageAttribution !== undefined ? { messageAttribution } : {}),
         })
         sessionId = result.sessionId
         userMessage = result.userMessage
@@ -127,6 +163,7 @@ export async function* consumeSessionEventStream(
           event.messageId,
           sessionId!,
           assistantMessageByMessageId,
+          assistantAttribution,
         )
         chatRepository.appendToChatMessageBody(db, assistantMessage.id, event.textDelta)
         yield { kind: 'text-chunk', messageId: assistantMessage.id, textDelta: event.textDelta }
@@ -142,6 +179,7 @@ export async function* consumeSessionEventStream(
           event.messageId,
           sessionId!,
           assistantMessageByMessageId,
+          assistantAttribution,
         )
         // Provider's field is `textDelta`; chat-turn-event renames to `thinkingDelta`
         // for UI clarity (text vs thinking are distinct render surfaces).
@@ -160,6 +198,7 @@ export async function* consumeSessionEventStream(
           event.parentMessageId,
           sessionId!,
           assistantMessageByMessageId,
+          assistantAttribution,
         )
         const toolCall = chatRepository.insertChatToolCall(db, {
           id: crypto.randomUUID(),

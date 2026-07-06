@@ -19,7 +19,10 @@ import { CHAT_SESSION_CREATED } from '../chat-events.js'
 import { buildNewChatSessionRow } from './build-new-chat-session-row.js'
 import type { ChatTurnEvent } from '../chat-turn-event.js'
 import type { NewSessionOptions } from '../chat-types.js'
-import type { UserMessageInput } from './consume-session-event-stream.js'
+import type {
+  UserMessageInput,
+  TurnMessageAttribution,
+} from './consume-session-event-stream.js'
 
 export type HandleSessionStartedInput = {
   db: Database
@@ -34,6 +37,9 @@ export type HandleSessionStartedInput = {
   /** Presentation overrides for the new-session row (the brain passes hidden +
    *  'Global brain'). Omitted by the workspace path → defaults. */
   newSessionOptions?: NewSessionOptions
+  /** Stamped on the user row (surface-up routed turns): the task's origin
+   *  ('global-root') + the delegation trace key. Omitted → nulls (unchanged). */
+  messageAttribution?: TurnMessageAttribution
 }
 
 export type HandleSessionStartedResult = {
@@ -43,8 +49,21 @@ export type HandleSessionStartedResult = {
 }
 
 export function handleSessionStarted(input: HandleSessionStartedInput): HandleSessionStartedResult {
-  const { db, event, userMessageInput, userId, workspaceId, providerId, isNewSession, newSessionOptions } =
-    input
+  const {
+    db,
+    event,
+    userMessageInput,
+    userId,
+    workspaceId,
+    providerId,
+    isNewSession,
+    newSessionOptions,
+    messageAttribution,
+  } = input
+  const userRowAttribution = {
+    sourceKind: messageAttribution?.userSourceKind ?? null,
+    partialSessionId: messageAttribution?.partialSessionId ?? null,
+  }
   const sessionId = event.sessionId
   const now = event.startedAt
   const events: ChatTurnEvent[] = []
@@ -78,6 +97,8 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
         sessionId,
         role: 'user',
         body: userMessageInput.body,
+        sourceKind: userRowAttribution.sourceKind,
+        partialSessionId: userRowAttribution.partialSessionId,
         thinkingBody: null,
         inputTokens: null,
         outputTokens: null,
@@ -112,6 +133,8 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
         sessionId,
         role: 'user',
         body: userMessageInput.body,
+        sourceKind: userRowAttribution.sourceKind,
+        partialSessionId: userRowAttribution.partialSessionId,
         thinkingBody: null,
         inputTokens: null,
         outputTokens: null,

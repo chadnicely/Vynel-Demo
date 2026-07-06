@@ -14,6 +14,7 @@ import type { WorkspaceSectionId } from "../components/workspace/workspace-secti
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
+import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
@@ -93,9 +94,20 @@ const sessionsErrorText = computed(() =>
     : null,
 );
 
+// A routed task streams its rows into THIS workspace's transcript in the
+// background (the shared pipeline) — poll the open thread while one is in
+// flight here so the task/reply/tool-calls appear live, not on refresh.
+const inFlightQuery = useInFlightDelegations();
+const hasInFlightDelegationHere = computed(() =>
+  (inFlightQuery.data.value ?? []).some(
+    (delegation) => delegation.workspaceId === ui.activeWorkspaceId,
+  ),
+);
+
 const detailQuery = useSessionDetail(
   () => scope.value,
   () => activeSessionId.value,
+  () => (hasInFlightDelegationHere.value ? 4000 : false),
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const toolCallsByMessageId = computed(

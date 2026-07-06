@@ -44,11 +44,6 @@ export {
   type SessionReference,
 } from './leaf/create-leaf-session.js'
 export { pushToSession, type PushToSessionInput } from './leaf/push-to-session.js'
-export {
-  runRootDelegationTurn,
-  type RunRootDelegationTurnInput,
-  type RunRootDelegationTurnResult,
-} from './leaf/run-root-delegation-turn.js'
 export { recordDelegation, type RecordDelegationInput } from './records/record-delegation.js'
 export {
   enqueueWorkspaceDelegation,
@@ -108,6 +103,8 @@ export {
 export { ApprovalWaitGate } from './routing/approval-wait-gate.js'
 export {
   ROUTED_LEAF_APPROVAL_DENY_REASON,
+  ROUTED_LEAF_MAX_CARDED_DENIALS,
+  ROUTED_LEAF_WRITE_BLOCKED_NOTE,
   type DrainLeafTurnOptions,
 } from './leaf/drain-leaf-turn.js'
 

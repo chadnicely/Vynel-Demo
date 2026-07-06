@@ -36,6 +36,7 @@ import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import {
   buildRoutedApprovalHandler,
+  type RoutedApprovalHandler,
   type RoutedApprovalOrigin,
 } from './build-routed-approval-handler.js'
 
@@ -96,6 +97,10 @@ export async function runDelegationClaimAndRunTick(
     'delegation: claimed — running the workspace turn',
   )
 
+  // Hoisted so the failure paths (failed envelope + the outer catch) can abandon any
+  // still-parked approval — fail-closed, never a hanging SDK agent.
+  let approvalHandler: RoutedApprovalHandler | null = null
+
   try {
     // Resolve the workspace's persona ONCE (brain-tree Ch5) — both halves of the
     // "Mark · vynel" label come from this single fresh read: the manager name + the
@@ -105,21 +110,20 @@ export async function runDelegationClaimAndRunTick(
     const workspaceName = workspace?.name ?? claimed.workspaceName
     const managerName = workspace ? resolveManagerName(workspace) : undefined
 
-    // Surface-up: one gate + handler per job. A carded tool RECORDS its approval (web
-    // notifier always; the origin channel too, when the job came from one) and PARKS;
-    // the gate suspends the wait budget until the decision arrives (decision C).
+    // Surface-up: one gate + handler per job. The shared pipeline RECORDS each carded
+    // tool's approval (web notifier always) and parks; the handler pushes the card to
+    // the origin channel and suspends the wait budget until the decision (decision C).
     const waitGate = new ApprovalWaitGate()
     const approvalOrigin = resolveDeliverableOrigin(db, claimed)
-    const approvalHandler = buildRoutedApprovalHandler({
+    const handler = buildRoutedApprovalHandler({
       db,
       logger: deps.logger,
       provider: deps.provider,
-      userId: claimed.userId,
-      workspaceId: claimed.workspaceId,
       workspaceName,
       waitGate,
       ...(approvalOrigin !== null ? { origin: approvalOrigin } : {}),
     })
+    approvalHandler = handler
 
     const delegate: DelegateForRouting = (delegationInput) =>
       delegateToWorkspaceRoot(db, deps.provider, {
@@ -131,8 +135,8 @@ export async function runDelegationClaimAndRunTick(
         // The delegating turn's mode, stamped on the job at enqueue (surface-up step 1).
         // Null (pre-mode job / channel origin) → the runner's bypass default.
         ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
-        onApprovalRequested: approvalHandler.onApprovalRequested,
-        onApprovalResolved: approvalHandler.onApprovalResolved,
+        approvalHandler: handler,
+        logger: deps.logger,
       })
 
     const outcome = await routeRequest(
@@ -217,13 +221,17 @@ export async function runDelegationClaimAndRunTick(
         'delegation job timed out (the workspace turn keeps running in its own session)',
       )
     } else {
+      // The turn threw mid-run — deny anything still parked so the SDK agent isn't
+      // left hanging on an unanswerable Promise (best-effort; reaper-backed).
+      await approvalHandler.abandonParked()
       failDelegationJob(db, claimed.id, outcome.message, new Date())
       deps.logger.warn({ jobId: claimed.id, message: outcome.message }, 'delegation job failed')
     }
     return true
   } catch (err) {
     // An unexpected throw (e.g. a DB error in the push or the complete) must never leave
-    // the job stuck `claimed` (Ch1 does not auto-reclaim).
+    // the job stuck `claimed` (Ch1 does not auto-reclaim) — nor a parked approval hanging.
+    await approvalHandler?.abandonParked()
     failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
     deps.logger.error({ err, jobId: claimed.id }, 'delegation job run threw unexpectedly')
     return true

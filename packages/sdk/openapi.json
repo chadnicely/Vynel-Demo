@@ -14257,6 +14257,74 @@
                               "workspace"
                             ]
                           },
+                          "toolCalls": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "parentMessageId": {
+                                  "type": "string"
+                                },
+                                "toolUseId": {
+                                  "type": "string"
+                                },
+                                "toolName": {
+                                  "type": "string"
+                                },
+                                "toolInput": {},
+                                "toolOutput": {},
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "started",
+                                    "completed",
+                                    "failed",
+                                    "denied",
+                                    "cancelled"
+                                  ]
+                                },
+                                "approvalStatus": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "enum": [
+                                    "approved",
+                                    "denied",
+                                    "timed-out",
+                                    "cancelled",
+                                    null
+                                  ]
+                                },
+                                "isErrorResult": {
+                                  "type": "boolean"
+                                },
+                                "startedAt": {
+                                  "type": "string"
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "parentMessageId",
+                                "toolUseId",
+                                "toolName",
+                                "status",
+                                "approvalStatus",
+                                "isErrorResult",
+                                "startedAt",
+                                "completedAt"
+                              ]
+                            }
+                          },
                           "createdAt": {
                             "type": "string"
                           }
@@ -14269,6 +14337,7 @@
                           "body",
                           "sessionId",
                           "scope",
+                          "toolCalls",
                           "createdAt"
                         ]
                       }
@@ -14662,6 +14731,9 @@
                               "null"
                             ]
                           },
+                          "workspaceId": {
+                            "type": "string"
+                          },
                           "workspaceName": {
                             "type": "string"
                           },
@@ -14675,6 +14747,7 @@
                         },
                         "required": [
                           "partialSessionId",
+                          "workspaceId",
                           "workspaceName",
                           "status"
                         ]

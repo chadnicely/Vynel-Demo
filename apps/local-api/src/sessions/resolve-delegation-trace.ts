@@ -26,9 +26,11 @@ import {
 } from '@vynel/orchestration'
 import {
   listChatMessagesByPartialSessionId,
+  listChatToolCallsForMessage,
   findChatSessionById,
   type ChatMessageRole,
   type ChatMessageSourceKind,
+  type ChatToolCall,
 } from '@vynel/chat/repositories'
 
 /** Which session a trace entry lives on. The drill-down target is `'workspace'`; the
@@ -61,6 +63,9 @@ export interface DelegationTraceEntry {
    *  NOT inferred from `sourceKind` (the Ch3.5 acknowledgement is `global-root` yet lives
    *  on the global session). */
   scope: TraceEntryScope
+  /** The assistant entry's tool calls (live rows — the shared pipeline persists them
+   *  as they run, so a polling Watch panel shows tools mid-turn). Empty on user rows. */
+  toolCalls: ChatToolCall[]
   createdAt: Date
 }
 
@@ -114,6 +119,7 @@ export function resolveDelegationTrace(
       body: message.body,
       sessionId: message.sessionId,
       scope: scopeOf(message.sessionId),
+      toolCalls: message.role === 'assistant' ? listChatToolCallsForMessage(db, message.id) : [],
       createdAt: message.createdAt,
     }),
   )

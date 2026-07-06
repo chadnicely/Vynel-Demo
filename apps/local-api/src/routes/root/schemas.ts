@@ -82,6 +82,8 @@ export const DelegationTraceEntrySchema = z.object({
   body: z.string(),
   sessionId: z.string(),
   scope: TraceEntryScopeSchema,
+  // The assistant entry's tool calls — live rows the Watch panel renders mid-turn.
+  toolCalls: z.array(ChatToolCallSchema),
   createdAt: z.string(),
 })
 
@@ -95,6 +97,8 @@ export const DelegationTraceResponseSchema = z.object({
 export const InFlightDelegationSchema = z.object({
   // Null only for a (Ch2-precluded) job with no key; still counted as live work.
   partialSessionId: z.string().nullable(),
+  // The target workspace — the workspace chat polls its transcript while this runs.
+  workspaceId: z.string(),
   workspaceName: z.string(),
   status: z.enum(['pending', 'claimed']),
 })

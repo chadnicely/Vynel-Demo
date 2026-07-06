@@ -80,6 +80,7 @@ describe('listInFlightDelegations', () => {
       expect(inFlight).toHaveLength(2)
       expect(inFlight.map((d) => d.status).sort()).toEqual(['claimed', 'pending'])
       expect(inFlight[0]).toMatchObject({ workspaceName: 'Acme' })
+      expect(typeof inFlight[0]!.workspaceId).toBe('string')
       expect(typeof inFlight[0]!.partialSessionId).toBe('string')
     })
   })
