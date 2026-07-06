@@ -114,9 +114,18 @@ a `scripts/fetch-voice-models` download step, sourcing from the sherpa-onnx mode
    16 kHz clip. **Wake method revised: VAD-segment → transcribe → leaf `detectWakeWord`, NOT acoustic KWS**
    — Moonshine at ~70× realtime makes transcribe-everything ~free, killing KWS's efficiency case and its
    keyword-file risk; KWS is a deferred later pass (idle efficiency + fewer false wakes). ⚠ VAD needs 16 kHz.
-3. **NEXT — the live loop:** `@hono/node-ws` `/voice` route + `useVoiceSession` composable + real `VoiceOrb`
-   → full loop live (VAD → transcribe → "hey vynel" → brain → speak). Replace `VoiceOverlayDemo`. Close the
-   leaf's "jarvis"→"vynel" gap + add engine `close()`/dispose (reviewer-flagged) here.
+3. **The live loop, sub-sliced (advisor-blessed): 3a core → 3b transport → 3c browser.**
+   - 3a ✅ **DONE.** Leaf "vynel" wake-gap closed. `apps/local-api/src/voice/VoiceSessionDriver` — the
+     headless loop state machine (injected VAD/STT/synth/brain/io), unit-green (6 tests). Two advisor
+     contracts baked in: **echo defense** (mic reopens only on the client's `playback-drained`, not
+     server send-done) + **wake-then-pause** (bare "hey vynel" → next segment is the command). **v1 cut:
+     no user barge-in** (Chad-accepted).
+   - 3b **NEXT** — `@hono/node-ws` `/voice` route: mic frames → `pushAudio`; `VoiceSessionIo` → WS out;
+     `playback-drained` msg → `notifyPlaybackDrained`. Streaming `SessionSink` over `runGlobalRootTurnCore`
+     → `VoiceBrainEvent` (extract the SSE route's turn-setup into a shared helper, don't copy). Boot
+     `startVoiceEngine()` degrades if models absent. Add engine `close()`/dispose (reviewer-flagged).
+   - 3c — `useVoiceSession` (getUserMedia → 16 kHz worklet → WS; playback + drained) drives the real
+     `VoiceOrb`, replacing `VoiceOverlayDemo`; `ws:true` on the Vite proxy.
 4. **Chatterbox / exact-LuxTTS** as a selectable TTS backend behind the same interface (the optional Python
    TTS sidecar) — Chad's original ask, now a plug-in, not the critical path.
 

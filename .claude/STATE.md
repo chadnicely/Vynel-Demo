@@ -44,15 +44,31 @@ archives; fetch handles both. **Verified: fed a 6.63s 16 kHz clip in 512-sample 
 no KWS engine piece (wake is transcribe-based). ⚠ VAD requires **16 kHz** input (it doesn't resample like the
 recognizer — the mic feed must be 16 kHz).
 
-**⏭ INCREMENT 3 (next): the live web loop.** Compose the engine + leaf into the always-on loop:
-`@hono/node-ws` `/voice` WS route (mic frames up, TTS audio down) whose handler runs
-VAD-segment → `transcribe` → leaf `detectWakeWord` (⚠ close the "jarvis"→"vynel" gap first — add tolerant
-"vynel" variants to `WAKE_PATTERN`) → `appRequest('/root/turn')` → `summarizeTurnForVoice` + sentence-buffer
-→ `synthesize` → frames back; `useVoiceSession` composable in local-web (getUserMedia → 16 kHz AudioWorklet
-→ WS; playback) drives the real `VoiceOrb`, replacing `VoiceOverlayDemo`. Boot-owned `startVoiceEngine()`
-warms the models (schedules/channels/delegation service pattern). Add engine `close()`/dispose here
-(reviewer-flagged, for the long-lived boot instance). Then Increment 4 (Chatterbox / exact-LuxTTS Python
-TTS backend). **Kokoro not yet downloaded** — Chad grabs it for the nicer voice (`pnpm voice:fetch-models`).
+**Increment 3 = the live web loop, sub-sliced (advisor-blessed): 3a core → 3b transport → 3c browser.**
+
+**🏁 INCREMENT 3a DONE — the loop core, green (commit pending).** Leaf wake-gap closed ("vynel" variants +
+mishears vinyl/vinel/… in `WAKE_NAME`, both patterns, tested). `apps/local-api/src/voice/`:
+`VoiceSessionDriver` — a headless state machine (`listening`→`waiting-for-command`→`busy`) composing
+injected VAD/STT(`transcribe`)/synth + `runBrainTurn` + `SpokenSentenceBuffer` + `detectWakeWord`, with a
+`VoiceSessionIo` outbound seam. **Two advisor contracts baked in + tested:** (1) **echo defense** — mic
+stays closed while speaking; reopens ONLY on the client's `notifyPlaybackDrained()` (not server send-done),
+with a pending-flag guard for early signals; (2) **wake-then-pause** — bare "hey vynel" → `waiting-for-command`
+→ next segment is the command (6 s timeout → listening). **v1 cut: no user barge-in** (mic closed while
+speaking — Chad-accepted). 6 driver tests + fakes (PassThroughVad/ScriptedRecognizer/RecordingIo/brain gens);
+`FakeVoiceEngine` for synth. Gate **1903/4-skip** (+7). local-api now deps `@vynel/voice` + `@vynel/voice-engine`.
+
+**⏭ INCREMENT 3b (next): the transport.** `@hono/node-ws` `/voice` WS route wiring the driver to real audio:
+mic PCM frames up → `driver.pushAudio`; `VoiceSessionIo` → WS out (state JSON + TTS PCM frames + endSpeech);
+`playback-drained` client msg → `driver.notifyPlaybackDrained()`. Build the `VoiceSessionIo`→WS adapter + the
+`runBrainTurn` adapter (a streaming `SessionSink` over `runGlobalRootTurnCore` → map `ChatTurnEvent.text-chunk`
+→ `VoiceBrainEvent`; EXTRACT the SSE route's turn-setup deps into a shared helper, don't copy — advisor). Wire
+`@hono/node-ws` `createNodeWebSocket` + `injectWebSocket` in `server.ts` (verify it composes with `serve()` +
+boot services — wire a no-op WS route FIRST, boot green, then the loop). Boot-owned `startVoiceEngine()` warms
+models + **degrades cleanly if `.models/` absent** (log-and-skip, `/voice` returns "voice unavailable"), behind
+an env flag. Add engine `close()`/dispose (reviewer-flagged). **3c (browser):** `useVoiceSession` (getUserMedia
+→ `new AudioContext({sampleRate:16000})` worklet → WS; playback + drained signal) drives the real `VoiceOrb`,
+replacing `VoiceOverlayDemo`; add `ws:true` to the Vite `/api` proxy. Then Increment 4 (Chatterbox/LuxTTS Python
+TTS). **Kokoro not yet downloaded** — Chad grabs it for the nicer voice (`pnpm voice:fetch-models`).
 
 **What already exists (don't rebuild):**
 - **`@vynel/voice` leaf** (pulled 2026-07-04, journal `.claude/journal/2026-07-04-voice-pull.md`):
