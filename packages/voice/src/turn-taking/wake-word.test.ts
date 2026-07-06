@@ -26,6 +26,16 @@ describe('detectWakeWord', () => {
     expect(detectWakeWord('hi jervis remind me to call mom').command).toBe('remind me to call mom')
   })
 
+  it('detects "hey vynel" (the product wake word) and its mishears', () => {
+    expect(detectWakeWord('hey vynel what is on my plate today')).toEqual({
+      detected: true,
+      command: 'what is on my plate today',
+    })
+    expect(detectWakeWord('Hey Vynel!')).toEqual({ detected: true, command: '' })
+    expect(detectWakeWord('hey vinyl remind me to call mom').command).toBe('remind me to call mom')
+    expect(detectWakeWord('hi vinel whats up').detected).toBe(true)
+  })
+
   it('does not fire without the wake phrase', () => {
     expect(detectWakeWord('what time is it')).toEqual({ detected: false, command: '' })
     expect(detectWakeWord('hey there how are you')).toEqual({ detected: false, command: '' })

@@ -15,10 +15,19 @@ export interface WakeWordResult {
   command: string
 }
 
-// greeting + separator + a jarvis-like token, anchored at the start. `/i` covers
-// casing; the trailing class eats the punctuation Whisper leaves after the name.
-const WAKE_PATTERN =
-  /^[\s,.!?-]*(?:hey|hi|hello|okay|ok|yo)[\s,]+(?:jarvis|jarvas|jarviss|jervis|jarvus|jarviz|jarvi)\b[\s,.!?:-]*/i
+// The wake name + the near-spellings STT commonly returns for these uncommon
+// words: "jarvis" (legacy) and "vynel" (the product). "vynel" is invented, so it
+// gets mis-transcribed as vinyl/vinel/vanel/… — widen this list if a real mishear
+// slips through in the smoke.
+const WAKE_NAME =
+  'jarvis|jarvas|jarviss|jervis|jarvus|jarviz|jarvi|vynel|vinel|vynell|vinell|vinyl|vynal|vinal|vanel|vynol'
+
+// greeting + separator + a wake-name token, anchored at the start. `/i` covers
+// casing; the trailing class eats the punctuation STT leaves after the name.
+const WAKE_PATTERN = new RegExp(
+  `^[\\s,.!?-]*(?:hey|hi|hello|okay|ok|yo)[\\s,]+(?:${WAKE_NAME})\\b[\\s,.!?:-]*`,
+  'i',
+)
 
 export function detectWakeWord(transcript: string): WakeWordResult {
   const match = transcript.match(WAKE_PATTERN)
@@ -32,8 +41,10 @@ export function detectWakeWord(transcript: string): WakeWordResult {
 // greeting is OPTIONAL here — this only cleans the FRONT of an already-captured
 // command; it is NOT wake detection (a bare "jarvis" mid-conversation would
 // over-match), so don't use it for that.
-const WAKE_PREFIX_PATTERN =
-  /^[\s,.!?-]*(?:(?:hey|hi|hello|okay|ok|yo)[\s,]+)?(?:jarvis|jarvas|jarviss|jervis|jarvus|jarviz|jarvi)\b[\s,.!?:-]*/i
+const WAKE_PREFIX_PATTERN = new RegExp(
+  `^[\\s,.!?-]*(?:(?:hey|hi|hello|okay|ok|yo)[\\s,]+)?(?:${WAKE_NAME})\\b[\\s,.!?:-]*`,
+  'i',
+)
 
 export function stripWakePrefix(text: string): string {
   return text.replace(WAKE_PREFIX_PATTERN, '').trim()

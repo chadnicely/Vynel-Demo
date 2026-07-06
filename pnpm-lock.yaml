@@ -141,6 +141,12 @@ importers:
       '@vynel/skills':
         specifier: workspace:*
         version: link:../../packages/skills
+      '@vynel/voice':
+        specifier: workspace:*
+        version: link:../../packages/voice
+      '@vynel/voice-engine':
+        specifier: workspace:*
+        version: link:../../packages/voice-engine
       '@vynel/workspaces':
         specifier: workspace:*
         version: link:../../packages/workspaces
