@@ -3,6 +3,27 @@
 **Updated 2026-07-06.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## 🏁 MOVE 5: ROUTED TURNS ON THE SHARED PIPELINE (2026-07-06, Chad's live-smoke feedback) — `8587b04`, gate 1874, reviewer-clean
+
+**Chad's smoke found the real gap: the routed workspace turn was the LAST turn type on the raw drain —
+nothing persisted until completion, TOOL CALLS were never persisted at all, the workspace chat was empty
+mid-run, and the Watch sidebar only filled at the end.** Fixed by unifying it onto
+`consumeSessionEventStream` (the session-unification direction): the task row lands at session-started
+("From Global" + trace-keyed via the consumer's new `messageAttribution` option), the reply grows
+chunk-by-chunk, tool calls/thinking persist live. `recordDelegatedRootMessages` + the orchestration drain
+runner RETIRED (drainLeafTurn stays for leaf agents). The approval RECORDING moved inside the pipeline
+(`handleApprovalRequested`); `buildRoutedApprovalHandler` is surfacing-only (channel push + wait gate +
+`abandonParked`); the denial breaker relocated into `delegate-to-workspace-root` (tested) + interrupt-on-
+throw fail-closed. Trace entries carry live `toolCalls` (panel renders them); in-flight rows expose
+`workspaceId` (workspace chat polls 4s while a routed turn streams into it). UX rules from Chad this
+session: **Watch chip = work on ANOTHER session** — global thread shows chips (incl. the in-flight banner
+pill, `7e11849`), the workspace's own transcript never does (`ef1b5ff`; chips return there for Phase-3
+spawned agents). Routed segments keep hidden/no-auto-title presentation. Commits this batch: `7e11849` ·
+`ef1b5ff` · `8587b04`. **⚠ Deferred:** token-level SSE streaming of a background turn into the panel
+(polling reads the growing rows — good enough now); breaker logic exists twice (drain for leaf agents,
+delegate for routed) — watch for drift; consume-session-event-stream at 323 lines (extract next handler
+on next touch).
+
 ## 🏁 SURFACE-UP APPROVAL BUILT (2026-07-06) — all 4 moves committed, gate 1874, reviewer-clean
 
 **Shape shipped (Chad's revision): approvals surface on WEB ALWAYS + the ORIGIN CHANNEL (Telegram) when

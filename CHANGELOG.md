@@ -20,6 +20,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   delegation job) — the mode picks which tools pause for approval.
 - Channel approval cards for routed tasks name the acting workspace ("Write — in vynel"); routed agents
   are steered to read-only tools for read tasks; the Watch panel no longer shows the same answer twice.
+- **Watch a routed task live, as it works.** A routed task's activity now persists the moment it happens
+  — the task appears in the workspace chat instantly, the reply grows as it streams, and every tool call
+  shows up as it runs (previously nothing appeared until the task finished, and tool calls weren't kept
+  at all). The "Working in *{workspace}*…" indicator is now a clickable Watch pill that opens the live
+  trace panel mid-run (with tool cards), and the workspace chat updates itself while a routed task runs.
+  Watch chips only appear where they point at work happening elsewhere — the workspace's own transcript
+  no longer shows them on its routed exchanges.
 
 - **See delegated work happen.** When the brain routes a task to a workspace, the global chat now shows
   a live "⚡ Working in *{workspace}*…" indicator (polling the in-flight delegations) and keeps the thread
