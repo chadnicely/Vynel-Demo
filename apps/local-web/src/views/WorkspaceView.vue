@@ -247,6 +247,7 @@ function openContinuous() {
         :messages="messages"
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
+        :show-watch-chips="false"
         @decide-approval="onDecideApproval"
         @open-session="sessionViewer.open"
       />

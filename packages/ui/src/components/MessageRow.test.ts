@@ -48,6 +48,17 @@ describe("MessageRow", () => {
     expect(wrapper.find(".session-link").exists()).toBe(false);
   });
 
+  it("suppresses the chip when showWatchChip is false (the workspace's own transcript)", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ partialSessionId: "child-session" }),
+        showWatchChip: false,
+      },
+    });
+
+    expect(wrapper.find(".session-link").exists()).toBe(false);
+  });
+
   it("labels a delegated-in user message as coming from Global", () => {
     const wrapper = mount(MessageRow, {
       props: {

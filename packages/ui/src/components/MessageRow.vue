@@ -5,11 +5,20 @@ import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
 import PresenceDot from "./PresenceDot.vue";
 
-const props = defineProps<{
-  message: ChatMessageResponse;
-  /** True while the linked session is streaming — the chip pulses gold. */
-  linkedSessionLive?: boolean | undefined;
-}>();
+const props = withDefaults(
+  defineProps<{
+    message: ChatMessageResponse;
+    /** True while the linked session is streaming — the chip pulses gold. */
+    linkedSessionLive?: boolean | undefined;
+    /** A Watch chip means "work happening on ANOTHER session" (the global thread
+     *  watching a delegation). Inside the transcript where the work itself lives
+     *  (the workspace chat's routed exchange) the chip is noise — pass false to
+     *  suppress it. Explicit default: an absent Boolean prop casts to false, which
+     *  would silently suppress every chip. */
+    showWatchChip?: boolean;
+  }>(),
+  { linkedSessionLive: undefined, showWatchChip: true },
+);
 
 const emit = defineEmits<{
   /** The delegation chip: open the linked session's live view. */
@@ -35,7 +44,9 @@ const roleLabel = computed(() => {
 
 const isAssistant = computed(() => props.message.role === "assistant");
 
-const linkedSessionId = computed(() => props.message.partialSessionId ?? null);
+const linkedSessionId = computed(() =>
+  props.showWatchChip ? (props.message.partialSessionId ?? null) : null,
+);
 </script>
 
 <template>

@@ -9,11 +9,19 @@ import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js"
 import { useLiveSessionsStore } from "../../stores/live-sessions-store.js";
 import LiveTurn from "./LiveTurn.vue";
 
-const props = defineProps<{
-  messages: ChatMessageResponse[];
-  toolCallsByMessageId: Record<string, ChatToolCallResponse[]>;
-  activeTurn: ActiveTurnView | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    messages: ChatMessageResponse[];
+    toolCallsByMessageId: Record<string, ChatToolCallResponse[]>;
+    activeTurn: ActiveTurnView | null;
+    /** Watch chips point at work on ANOTHER session — the global thread shows them
+     *  (default); the workspace's own transcript suppresses them (the routed
+     *  exchange is local; chips return for spawned sub-agents, Phase 3). Explicit
+     *  default: an absent Boolean prop casts to false. */
+    showWatchChips?: boolean;
+  }>(),
+  { showWatchChips: true },
+);
 
 const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
@@ -46,6 +54,7 @@ watch(
       <template v-for="message in props.messages" :key="message.id">
         <MessageRow
           :message="message"
+          :show-watch-chip="props.showWatchChips"
           :linked-session-live="
             message.partialSessionId != null &&
             liveSessions.liveFor(message.partialSessionId) !== null
