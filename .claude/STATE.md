@@ -3,7 +3,7 @@
 **Updated 2026-07-07.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-07): VOICE — Increment 2 (the listening side)
+## ⏭ NEXT ACTION (2026-07-07): VOICE — Increment 2 finish (the "Hey Vynel" wake: VAD + KWS)
 
 **Voice decisions are LOCKED + Increment 1 (TTS) is DONE.** Full plan + rationale:
 **`docs/module-notes/voice-engine.md`** (read it first). Locked: **web-first** (drive local-web's real
@@ -23,11 +23,22 @@ the voice.** Two live-only bugs caught + fixed running it for real: CJS default-
 `import x from 'sherpa-onnx-node'` works); Windows `tar` reads the `E:` drive-colon as a remote host
 (extract with `cwd` + a bare filename).
 
-**⏭ INCREMENT 2 (next): the listening side.** Add Moonshine STT + silero-VAD + KWS "Hey Vynel" wake to
-`@vynel/voice-engine` behind the same contract — extend `VoiceEngine` with `transcribe` + a wake listener
-+ a `close()`/dispose lifecycle (reviewer flagged the missing dispose for the Increment-3 long-lived boot
-instance). Fake at the boundary for the gate; real models are a Chad live-smoke. Then Increment 3 (the
-live web loop: `@hono/node-ws` `/voice` route + `useVoiceSession` composable + real `VoiceOrb`, replacing
+**🏁 INCREMENT 2a DONE — STT + RTF benchmark, green (commit pending).** Chad asked "how much do we get?"
+→ measured on his CPU: **Moonshine STT RTF ~0.014 (~70× realtime), piper TTS RTF ~0.071 (~14×)** — huge
+headroom for the always-on loop; realtime-on-CPU premise validated. Landed the real STT half to get it:
+`SpeechRecognizer` contract + `SherpaSpeechRecognizer` (Moonshine, via the same `native.ts` boundary) +
+pure `buildOfflineRecognizerConfig` mapper + `readWavFile`; registry now covers STT (moonshine entry);
+`pnpm voice:bench` reports RTF for any downloaded model (TTS→STT round-trip also verifies STT accuracy).
+Note: STT is a SEPARATE `SpeechRecognizer` contract, not "transcribe on VoiceEngine" (cleaner — independent
+model + lifecycle). Gate green **1893/4-skip** (+3). Single STT kind today → `if`-guard not a `never`-switch.
+
+**⏭ INCREMENT 2b (next): the "Hey Vynel" wake.** Add **silero-VAD** (cut speech segments) + **KWS keyword
+spotting** to `@vynel/voice-engine` behind new small contracts — KWS spots the phrase acoustically so we
+only transcribe the command, not the room. sherpa KWS needs a `keywords.txt` with phonemes; "hey vynel"
+likely isn't stock → may need a custom keyword file. Also add a `close()`/dispose lifecycle to the engine
+classes (reviewer-flagged, for the Increment-3 long-lived boot instance) + close the leaf's "jarvis"→
+"vynel" wake gap. Fake at the boundary for the gate; real models are a Chad live-smoke. Then Increment 3
+(live web loop: `@hono/node-ws` `/voice` route + `useVoiceSession` + real `VoiceOrb`, replacing
 `VoiceOverlayDemo`) → Increment 4 (Chatterbox / exact-LuxTTS Python TTS backend).
 
 **What already exists (don't rebuild):**
