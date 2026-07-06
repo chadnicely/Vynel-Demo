@@ -1650,6 +1650,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/root/trace/{partialSessionId}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Observe a live delegation's turn — streams its ChatTurnEvents via SSE. */
+        get: operations["getRootTraceByPartialSessionIdStream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/root/sessions/{sessionId}": {
         parameters: {
             query?: never;
@@ -7450,6 +7467,33 @@ export interface operations {
                         }[];
                     };
                 };
+            };
+        };
+    };
+    getRootTraceByPartialSessionIdStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                partialSessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream of the routed turn’s events; ends with turn-stream-ended. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown trace key, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -25,7 +25,11 @@ import {
   ROUTED_LEAF_WRITE_BLOCKED_NOTE,
   type DelegationPermissionMode,
 } from '@vynel/orchestration'
-import { consumeSessionEventStream, composeManagerSourceLabel } from '@vynel/chat'
+import {
+  consumeSessionEventStream,
+  composeManagerSourceLabel,
+  type ChatTurnEvent,
+} from '@vynel/chat'
 import { linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
 import { resolvePrimaryConversationTarget } from '@vynel/session/runtime'
 import type { Logger } from 'pino'
@@ -71,6 +75,13 @@ export type DelegateToWorkspaceRootInput = {
    *  handler a carded tool still parks on the recorded card, bounded by the approvals
    *  reaper (no instant auto-deny; production always injects). */
   approvalHandler?: Pick<RoutedApprovalHandler, 'onApprovalRequested' | 'onApprovalResolved'>
+  /** Live observing (the SSE observe route): every ChatTurnEvent this turn drives is
+   *  forwarded, and `onTurnEnded` fires when the stream finishes — drained OR threw
+   *  (the observe stream closes either way). Omit → no observers. */
+  observer?: {
+    onTurnEvent: (event: ChatTurnEvent) => void
+    onTurnEnded: () => void
+  }
   logger?: Logger
 }
 
@@ -146,6 +157,13 @@ export async function delegateToWorkspaceRoot(
 
   try {
     for await (const event of turnStream) {
+      // Contained: a broken observer must never break the producing turn (the
+      // broadcaster already guards its subscribers; this guards the seam itself).
+      try {
+        input.observer?.onTurnEvent(event)
+      } catch (observerErr) {
+        input.logger?.warn({ err: observerErr }, 'routed-turn observer failed on an event')
+      }
       switch (event.kind) {
         case 'user-message-persisted':
           // Fires on BOTH the new and resumed branches — every turn sets it.
@@ -208,6 +226,14 @@ export async function delegateToWorkspaceRoot(
       }
     }
     throw err
+  } finally {
+    // Drained OR threw — either way the turn is over for its observers. Contained:
+    // a throw here would MASK the turn's real error.
+    try {
+      input.observer?.onTurnEnded()
+    } catch (observerErr) {
+      input.logger?.warn({ err: observerErr }, 'routed-turn observer failed on end')
+    }
   }
 
   if (sessionId === null) {

@@ -2,19 +2,21 @@
 import { computed } from "vue";
 import { X } from "lucide-vue-next";
 import { IconButton, MarkdownText, PresenceDot, ToolCallList } from "@vynel/ui";
-import { useDelegationTrace } from "../../composables/delegations/use-delegation-trace.js";
+import { useDelegationTraceLive } from "../../composables/delegations/use-delegation-trace-live.js";
 import { collapseTraceEcho } from "../../composables/delegations/collapse-trace-echo.js";
 import { useSessionViewerStore } from "../../stores/session-viewer-store.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 
 // The right-side "watch a delegation" panel. A report message's "Watch X" chip
 // carries the delegation's partialSessionId (a correlation key, NOT a session
-// id); this polls its condensed trace (task → workspace reply → report) and
-// fills in live while the routed task is still running.
+// id). The settled trace comes from one fetch; the live tail streams over the
+// SSE observe connection (token-level — polling only remains as the fallback
+// when the stream drops).
 const viewer = useSessionViewerStore();
 
-const traceQuery = useDelegationTrace(() => viewer.currentSessionId);
-const entries = computed(() => traceQuery.data.value?.entries ?? []);
+const { traceQuery, entries, pendingApprovalToolName } = useDelegationTraceLive(
+  () => viewer.currentSessionId,
+);
 
 // The workspace reply and the surfaced global report carry the SAME body — the
 // backend trace is deliberately faithful (both copies returned); display
@@ -101,7 +103,11 @@ function authorLabel(entry: TraceEntry): string {
                 />
                 <MarkdownText :source="entry.body" />
               </div>
-              <p v-if="isWorking" class="working-note">
+              <p v-if="pendingApprovalToolName" class="working-note is-approval">
+                <PresenceDot state="live" />
+                Waiting for your approval: {{ pendingApprovalToolName }}
+              </p>
+              <p v-else-if="isWorking" class="working-note">
                 <PresenceDot state="live" /> Still working…
               </p>
             </div>
@@ -219,6 +225,11 @@ function authorLabel(entry: TraceEntry): string {
   margin: 2px 0 0;
   color: var(--ink-2);
   font: 500 12px/1.5 var(--font-ui);
+}
+
+.working-note.is-approval {
+  color: var(--ink-1);
+  font-weight: 600;
 }
 
 .viewer-enter-active,

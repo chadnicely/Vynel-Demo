@@ -678,6 +678,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  streamTrace: async (partialSessionId: NonNullable<paths["/root/trace/{partialSessionId}/stream"]["get"]['parameters']>['path']["partialSessionId"]) => {
+    const { data, error, response } = await client["GET"]("/root/trace/{partialSessionId}/stream", {
+      params: { path: { partialSessionId: partialSessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   },
   routing: {
   delegate: async (input: NonNullable<paths["/routing/delegate"]["post"]['requestBody']>['content']['application/json']) => {

@@ -7,9 +7,19 @@ import { useVynel } from "../use-vynel.js";
 // while the routed task is still pending/claimed so the workspace's task →
 // reply → report fill in, and stops once the delegation is terminal.
 const TRACE_POLL_MS = 2_500;
+// While the SSE observe stream is attached the poll drops to a slow KEEP-ALIVE,
+// not off: settled rows keep advancing under the stream (the mid-turn-attach
+// freeze guard — the fetched trace may hold a partial assistant row the overlay
+// can't extend), and — because TanStack re-evaluates refetchInterval only on
+// query updates — the keep-alive tick is also what notices a dropped stream and
+// restores fast polling.
+const TRACE_KEEP_ALIVE_MS = TRACE_POLL_MS * 4;
 
 export function useDelegationTrace(
   partialSessionId: MaybeRefOrGetter<string | null>,
+  // True while the SSE observe stream is attached — the poll slows to the
+  // keep-alive cadence (never fully off; see TRACE_KEEP_ALIVE_MS).
+  streamAttached: MaybeRefOrGetter<boolean> = false,
 ) {
   const vynel = useVynel();
   const id = computed(() => toValue(partialSessionId));
@@ -24,9 +34,9 @@ export function useDelegationTrace(
     enabled: computed(() => id.value !== null),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === "pending" || status === "claimed"
-        ? TRACE_POLL_MS
-        : false;
+      const isLive = status === "pending" || status === "claimed";
+      if (!isLive) return false;
+      return toValue(streamAttached) ? TRACE_KEEP_ALIVE_MS : TRACE_POLL_MS;
     },
   });
 }

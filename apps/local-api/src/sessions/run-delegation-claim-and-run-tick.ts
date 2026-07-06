@@ -39,6 +39,7 @@ import {
   type RoutedApprovalHandler,
   type RoutedApprovalOrigin,
 } from './build-routed-approval-handler.js'
+import { traceChannelKey, type TurnEventBroadcaster } from './turn-event-broadcaster.js'
 
 // Generous — the bound is on WAITING, not the turn (which keeps running in its own SDK
 // session). 120s was sized for an HTTP request waiting on a result; a background job
@@ -48,6 +49,9 @@ const DELEGATION_RUN_BUDGET_MS = 600_000
 export interface RunDelegationTickDeps {
   provider: AiAgentProvider
   logger: Logger
+  /** The in-process turn-event pub/sub — the routed turn publishes to its trace
+   *  channel so the SSE observe route streams it live. Omit → no observers. */
+  turnEvents?: TurnEventBroadcaster
   /** Wait budget for one job's turn (ms). Defaults to DELEGATION_RUN_BUDGET_MS. */
   budgetMs?: number
 }
@@ -88,6 +92,7 @@ export async function runDelegationClaimAndRunTick(
   // so the whole chain shares it. `null` row value → `undefined` for the conditional
   // spreads (exactOptionalPropertyTypes: absent, not present-with-undefined).
   const partialSessionId = claimed.partialSessionId ?? undefined
+  const turnEvents = deps.turnEvents
 
   // Lifecycle visibility (Ch3.5 diagnostics): a delegation runs a full provider turn that
   // can take a while — and may PARK on a human approval (surface-up); log the claim + the
@@ -136,6 +141,17 @@ export async function runDelegationClaimAndRunTick(
         // Null (pre-mode job / channel origin) → the runner's bypass default.
         ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
         approvalHandler: handler,
+        // Live observing: publish the turn's events on its trace channel; the end
+        // closes any attached observe stream (drained or threw alike).
+        ...(turnEvents !== undefined && partialSessionId !== undefined
+          ? {
+              observer: {
+                onTurnEvent: (event) =>
+                  turnEvents.publish(traceChannelKey(partialSessionId), event),
+                onTurnEnded: () => turnEvents.end(traceChannelKey(partialSessionId)),
+              },
+            }
+          : {}),
         logger: deps.logger,
       })
 

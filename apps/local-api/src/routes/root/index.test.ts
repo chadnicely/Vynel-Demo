@@ -67,11 +67,12 @@ import {
   linkPrimarySessionToSdkSession,
   findPrimaryConversation,
 } from '@vynel/session/continuity'
-import { enqueueWorkspaceDelegation } from '@vynel/orchestration'
+import { enqueueWorkspaceDelegation, findDelegationJobById, failDelegationJob } from '@vynel/orchestration'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { insertChatSession, findChatSessionById } from '@vynel/chat/repositories'
 import type { AppEnv } from '../../factory.js'
 import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
+import { TurnEventBroadcaster, traceChannelKey } from '../../sessions/turn-event-broadcaster.js'
 import { rootApp } from './index.js'
 
 const silentLogger = pino({ level: 'silent' })
@@ -82,12 +83,13 @@ beforeEach(() => {
 })
 
 // Mirrors createApp's DI middleware + onError for the not-yet-mounted sub-app.
-function makeHarness(db: Database) {
+function makeHarness(db: Database, turnEvents: TurnEventBroadcaster = new TurnEventBroadcaster()) {
   const app = new Hono<AppEnv>()
   app.use('*', async (c, next) => {
     c.set('db', db)
     c.set('logger', silentLogger)
     c.set('appRequest', app.request.bind(app))
+    c.set('turnEvents', turnEvents)
     await next()
   })
   app.onError((err, c) => {
@@ -245,6 +247,87 @@ describe('GET /root/delegations', () => {
       expect(body.delegations[0]!.workspaceName).toBe('Acme')
       expect(body.delegations[0]!.status).toBe('pending')
       expect(body.delegations[0]!.partialSessionId).not.toBeNull()
+    })
+  })
+})
+
+describe('GET /root/trace/:partialSessionId/stream (SSE observe)', () => {
+  function seedJob(db: Database) {
+    const user = seedUser(db)
+    const workspace = insertWorkspace(db, {
+      id: randomUUID(),
+      userId: user.id,
+      name: 'Acme',
+      kind: 'personal',
+      path: `/tmp/vynel/${randomUUID()}`,
+      isArchived: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastAccessedAt: new Date(),
+    })
+    const jobId = enqueueWorkspaceDelegation(db, {
+      userId: user.id,
+      parentSessionId: 'g-parent',
+      workspaceId: workspace.id,
+      workspacePath: workspace.path,
+      workspaceName: workspace.name,
+      taskText: 'summarize the notes',
+    })
+    return { user, jobId, partialSessionId: findDelegationJobById(db, jobId)!.partialSessionId! }
+  }
+
+  it('404s on an unknown trace key (no enumeration leak)', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      const res = await app.request('/root/trace/no-such-key/stream')
+      expect(res.status).toBe(404)
+    })
+  })
+
+  it('closes immediately for a terminal job — the fetched trace is the whole story', async () => {
+    await withTestDatabase(async (db) => {
+      const { jobId, partialSessionId } = seedJob(db)
+      failDelegationJob(db, jobId, 'done elsewhere', new Date())
+      const app = makeHarness(db)
+
+      const res = await app.request(`/root/trace/${partialSessionId}/stream`)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('Content-Type')).toContain('text/event-stream')
+      const frames = await res.text()
+      expect(frames).toContain('event: turn-stream-ended')
+    })
+  })
+
+  it('streams the published live events and ends when the producer finishes', async () => {
+    await withTestDatabase(async (db) => {
+      const { partialSessionId } = seedJob(db)
+      const turnEvents = new TurnEventBroadcaster()
+      const app = makeHarness(db, turnEvents)
+
+      const res = await app.request(`/root/trace/${partialSessionId}/stream`)
+      expect(res.status).toBe(200)
+
+      // Let the stream attach its subscriber (the SSE callback runs async), then
+      // play a producer: two events, then the turn ends.
+      await new Promise((resolve) => setTimeout(resolve, 25))
+      const key = traceChannelKey(partialSessionId)
+      turnEvents.publish(key, {
+        kind: 'text-chunk',
+        messageId: 'm1',
+        textDelta: 'Working…',
+      } as never)
+      turnEvents.publish(key, {
+        kind: 'tool-call-started',
+        toolCall: { id: 't1', parentMessageId: 'm1', toolName: 'Read' },
+      } as never)
+      turnEvents.end(key)
+
+      const frames = await res.text()
+      expect(frames).toContain('event: text-chunk')
+      expect(frames).toContain('Working…')
+      expect(frames).toContain('event: tool-call-started')
+      expect(frames).toContain('event: turn-stream-ended')
     })
   })
 })

@@ -38,6 +38,7 @@ import { workspacesApp } from './routes/workspaces/index.js'
 import { rootApp } from './routes/root/index.js'
 import { routingApp } from './routes/routing/index.js'
 import { dashboardApp } from './routes/dashboard/index.js'
+import { TurnEventBroadcaster } from './sessions/turn-event-broadcaster.js'
 
 export interface CreateAppOptions {
   readonly db: Database
@@ -61,6 +62,10 @@ export interface CreateAppOptions {
   // so the SDK generator's stub-deps spec request is safe. Off by default
   // (domain route tests aren't gated); `server.ts` enables it for production.
   readonly enableFirstLaunchGate?: boolean
+  // The turn-event pub/sub shared with the delegation service. `server.ts`
+  // creates ONE instance and hands it to both; omitted (tests / generators) →
+  // createApp makes its own (routes still work, nothing publishes).
+  readonly turnEvents?: TurnEventBroadcaster
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -74,6 +79,8 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // is a Map lookup of an already-constructed instance, cheap at boot), or a
   // fake for tests. Set once, like `fileWatcher`.
   const aiProvider = options.aiProvider ?? resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
+  // The turn-event pub/sub — one per process (see CreateAppOptions).
+  const turnEvents = options.turnEvents ?? new TurnEventBroadcaster()
 
   app.use('*', async (c, next) => {
     c.set('db', options.db)
@@ -81,6 +88,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('appRequest', appRequest)
     c.set('fileWatcher', fileWatcher)
     c.set('aiProvider', aiProvider)
+    c.set('turnEvents', turnEvents)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
     await next()
   })

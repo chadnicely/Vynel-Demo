@@ -64,8 +64,9 @@ export async function* streamChatTurnEvents(
   yield* readChatTurnEvents(data);
 }
 
-/** Drive a raw SSE ReadableStream through the pure frame decoder. */
-async function* readChatTurnEvents(
+/** Drive a raw SSE ReadableStream through the pure frame decoder. Shared with the
+ *  delegation observe stream (use-delegation-trace-live) — one reader, one decoder. */
+export async function* readChatTurnEvents(
   stream: ReadableStream<Uint8Array>,
 ): AsyncGenerator<ChatTurnEvent> {
   const reader = stream.getReader();

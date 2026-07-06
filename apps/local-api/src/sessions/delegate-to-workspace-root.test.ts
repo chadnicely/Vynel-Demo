@@ -58,6 +58,8 @@ describe('delegateToWorkspaceRoot', () => {
         startChatSessionInputs,
       })
 
+      const observedKinds: string[] = []
+      let observedEnd = false
       const result = await delegateToWorkspaceRoot(db, provider, {
         parentSessionId: 'global-sdk-1',
         userId: user.id,
@@ -66,7 +68,19 @@ describe('delegateToWorkspaceRoot', () => {
         workspaceName: workspace.name,
         taskText: 'summarize the docs',
         providerId: 'claude',
+        observer: {
+          onTurnEvent: (event) => observedKinds.push(event.kind),
+          onTurnEnded: () => {
+            observedEnd = true
+          },
+        },
       })
+
+      // Live observing: every turn event was forwarded, and the end fired (the
+      // SSE observe stream's close signal).
+      expect(observedKinds).toContain('text-chunk')
+      expect(observedKinds).toContain('session-completed')
+      expect(observedEnd).toBe(true)
 
       // Reports up the clean result + the workspace-root reference.
       expect(result.reference).toBe('ws-root-new')
@@ -233,6 +247,7 @@ describe('delegateToWorkspaceRoot', () => {
         },
       } as unknown as AiAgentProvider
 
+      let observedEnd = false
       await expect(
         delegateToWorkspaceRoot(db, scripted, {
           parentSessionId: 'global-sdk-1',
@@ -242,11 +257,19 @@ describe('delegateToWorkspaceRoot', () => {
           workspaceName: workspace.name,
           taskText: 'anything',
           providerId: 'claude',
+          observer: {
+            onTurnEvent: () => {},
+            onTurnEnded: () => {
+              observedEnd = true
+            },
+          },
         }),
       ).rejects.toThrow('provider transport died')
 
-      // The leaf was torn down — no background agent left parked on a dead turn.
+      // The leaf was torn down — no background agent left parked on a dead turn —
+      // and the observe stream was closed (onTurnEnded fires on a throw too).
       expect(interrupted).toEqual(['ws-root-throw'])
+      expect(observedEnd).toBe(true)
     })
   })
 })

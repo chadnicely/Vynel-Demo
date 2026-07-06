@@ -5,6 +5,7 @@
 //   GET  /continuing            -> resolve the global root conversation (landing helper)
 //   GET  /transcript            -> the global root conversation history (cold-start hydration)
 //   GET  /trace/:partialSessionId -> TIER 1: the condensed delegation trace
+//   GET  /trace/:partialSessionId/stream -> observe a LIVE delegation's turn (SSE)
 //   GET  /sessions/:sessionId   -> TIER 2: one owned session in full (trace drill-down)
 //   GET  /delegations           -> the user's in-flight delegations (processing indicator)
 //   POST /turn                  -> start a global-root turn; SSE stream (LLM-native routing)
@@ -15,8 +16,10 @@
 // `factory.createApp()`.
 
 import { resolver, validator } from 'hono-openapi/zod'
+import { streamSSE } from 'hono/streaming'
 import { findPrimaryConversation } from '@vynel/session/continuity'
-import { listInFlightDelegations } from '@vynel/orchestration'
+import { listInFlightDelegations, findDelegationJobByPartialSessionId } from '@vynel/orchestration'
+import { NotFoundError } from '@vynel/errors'
 import { getChatSessionDetail } from '@vynel/chat'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
@@ -24,6 +27,7 @@ import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { streamGlobalRootTurn } from '../../streams/global-root-turn.js'
 import { resolveGlobalRootTranscript } from '../../sessions/resolve-global-root-transcript.js'
 import { resolveDelegationTrace } from '../../sessions/resolve-delegation-trace.js'
+import { traceChannelKey } from '../../sessions/turn-event-broadcaster.js'
 import {
   StartGlobalRootTurnRequestSchema,
   DelegationTraceParamSchema,
@@ -117,6 +121,80 @@ export const rootApp = factory
     (c) => {
       const { partialSessionId } = c.req.valid('param')
       return c.json(resolveDelegationTrace(c.var.db, { userId: c.var.user.id, partialSessionId }))
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /trace/:partialSessionId/stream — observe a LIVE delegation's turn.
+  // The delegation tick publishes every ChatTurnEvent to the in-process
+  // broadcaster; this streams them from attach-time on (the settled rows come
+  // from the plain trace GET — rows persist live, so there is no gap) and ends
+  // with `turn-stream-ended` when the turn finishes. A terminal job closes
+  // immediately. The Watch panel's poll remains the reconnect fallback.
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/trace/:partialSessionId/stream',
+    describeRoute({
+      tags: ['root'],
+      summary: "Observe a live delegation's turn — streams its ChatTurnEvents via SSE.",
+      'x-sdk-name': 'root.streamTrace',
+      responses: {
+        200: { description: 'SSE stream of the routed turn’s events; ends with turn-stream-ended.' },
+        404: { description: 'Unknown trace key, or not owned.' },
+      },
+      // No x-mcp — SSE streaming is not a tool surface.
+    }),
+    validator('param', DelegationTraceParamSchema),
+    ...userScoped,
+    (c) => {
+      const { partialSessionId } = c.req.valid('param')
+      // Ownership via the job anchor (the trace read's gate) — unknown and
+      // not-owned get the same 404 (no enumeration leak).
+      const job = findDelegationJobByPartialSessionId(c.var.db, partialSessionId)
+      if (job === null || job.userId !== c.var.user.id) {
+        throw new NotFoundError('delegation-trace', partialSessionId)
+      }
+
+      const db = c.var.db
+      const turnEvents = c.var.turnEvents
+      return streamSSE(c, async (stream) => {
+        // Terminal job → nothing live; the fetched trace is the whole story.
+        const isTerminal = (): boolean => {
+          const current = findDelegationJobByPartialSessionId(db, partialSessionId)
+          return current === null || (current.status !== 'pending' && current.status !== 'claimed')
+        }
+        if (isTerminal()) {
+          await stream.writeSSE({ event: 'turn-stream-ended', data: '{}' })
+          return
+        }
+
+        await new Promise<void>((resolve) => {
+          let settled = false
+          const finish = (): void => {
+            if (settled) return
+            settled = true
+            unsubscribe()
+            clearInterval(safetyTimer)
+            resolve()
+          }
+          const unsubscribe = turnEvents.subscribe(traceChannelKey(partialSessionId), {
+            onEvent: (event) => {
+              void stream.writeSSE({ event: event.kind, data: JSON.stringify(event) })
+            },
+            onEnd: () => {
+              void stream.writeSSE({ event: 'turn-stream-ended', data: '{}' }).finally(finish)
+            },
+          })
+          // Safety net for the attach race: if the turn ended between the liveness
+          // check and the subscribe (its `end` already fired), no event will ever
+          // arrive — a slow status re-check closes the stream instead of hanging it.
+          const safetyTimer = setInterval(() => {
+            if (isTerminal()) {
+              void stream.writeSSE({ event: 'turn-stream-ended', data: '{}' }).finally(finish)
+            }
+          }, 5_000)
+          stream.onAbort(finish)
+        })
+      })
     },
   )
   // ──────────────────────────────────────────────────────────────────

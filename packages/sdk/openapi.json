@@ -14372,6 +14372,35 @@
         "x-sdk-name": "root.getTrace"
       }
     },
+    "/root/trace/{partialSessionId}/stream": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "SSE stream of the routed turn’s events; ends with turn-stream-ended."
+          },
+          "404": {
+            "description": "Unknown trace key, or not owned."
+          }
+        },
+        "operationId": "getRootTraceByPartialSessionIdStream",
+        "tags": [
+          "root"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "partialSessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Observe a live delegation's turn — streams its ChatTurnEvents via SSE.",
+        "x-sdk-name": "root.streamTrace"
+      }
+    },
     "/root/sessions/{sessionId}": {
       "get": {
         "responses": {

@@ -17,6 +17,7 @@ import { startSchedulesService } from './services/schedules-service.js'
 import { startChannelsService } from './services/channels-service.js'
 import { startDelegationService } from './services/delegation-service.js'
 import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
+import { TurnEventBroadcaster } from './sessions/turn-event-broadcaster.js'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 
 export async function boot(): Promise<void> {
@@ -40,10 +41,15 @@ export async function boot(): Promise<void> {
   // for already-registered sources on restart is a separate follow-on.)
   const fileWatcher = new FileWatcherService(db, logger)
 
+  // ONE turn-event pub/sub per process — the delegation service publishes a routed
+  // turn's live events; the SSE observe route streams them to the Watch panel.
+  const turnEvents = new TurnEventBroadcaster()
+
   const app = createApp({
     db,
     logger,
     fileWatcher,
+    turnEvents,
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
   })
 
@@ -65,7 +71,7 @@ export async function boot(): Promise<void> {
   // runs it as a workspace turn, records the terminal state; at startup it fails
   // the jobs a crash left stuck `claimed`. Same api-process reasoning as above.
   const provider = resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
-  const delegationService = startDelegationService({ db, logger, provider })
+  const delegationService = startDelegationService({ db, logger, provider, turnEvents })
   // The stale-approval reaper (surface-up's unanswered bound) — denies the provider
   // approval so a parked turn resumes, then marks the row timed-out.
   const approvalsRecoveryService = startApprovalsRecoveryService({ db, logger, provider })

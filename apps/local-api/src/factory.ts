@@ -21,6 +21,7 @@ import type { FileWatcherService } from '@vynel/knowledge'
 import type { FireScheduleDeps } from '@vynel/schedules'
 import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
+import type { TurnEventBroadcaster } from './sessions/turn-event-broadcaster.js'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
 // stashed on `c.var.appRequest` so handlers can re-enter the app (the mcp
@@ -53,6 +54,10 @@ export interface AppEnv {
     // route test can fire with a FAKE turn (no live AI). Absent in production;
     // the routes lazily build the real deps via `buildScheduleFireDeps`.
     scheduleFireDeps?: FireScheduleDeps
+    // The in-process turn-event pub/sub — a BACKGROUND turn (the delegation
+    // tick) publishes; the SSE observe routes subscribe. One instance per
+    // process, shared with the delegation service via `server.ts`.
+    turnEvents: TurnEventBroadcaster
     // Set by the chat-session-resolver middleware (the session-scoped handler
     // bundle's triple-check) — present only inside `/chat/sessions/:sessionId`
     // routes, absent everywhere else.
