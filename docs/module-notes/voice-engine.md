@@ -196,6 +196,36 @@ doesn't exist in Tauri's WebView2 — **since DISPROVED by a live probe; see the
 - ⚠ Dev papercut found live: Vite can bind **IPv6-only** (`[::1]:8999`) — IPv4 `127.0.0.1` probes fail
   while `localhost` (→ ::1 in Chrome) works. The jarvis URL default uses `localhost` for this reason.
 
+### ✅ BUILT same-day on the probe: the Tauri always-on-top overlay + Kokoro overlay voice
+Chad greenlit both. **`apps/desktop`** is a deliberately thin Tauri v2 shell: ONE frameless,
+transparent, always-on-top 420×560 window (`label: jarvis`, title "Vynel Jarvis") rendering
+**local-web's `/jarvis` route** off the dev server (`devUrl localhost:8999`; `frontendDist` points at
+local-web's build for later). All overlay behavior lives in the WEB view via `withGlobalTauri` (no
+Tauri npm dep — `composables/voice/tauri-overlay-window.ts` wraps the `__TAURI__` global):
+**reveal (show+focus) on wake · dismiss (hide) when the session settles · park bottom-right · rounded
+draggable stage-card** (`data-tauri-drag-region`; page background forced transparent). Outside Tauri
+the same controls fall back to the Chrome app-window behaviors (close/resizeTo). Capabilities:
+`core:window:allow-{show,hide,set-focus,set-position,start-dragging}`. `main.rs` is the default
+builder; `icons/icon.ico` is a generated gold orb (tauri-build requires one on Windows even
+unbundled). Run: `pnpm --filter @vynel/desktop dev` (needs local-web up). A running overlay is just a
+connected `jarvis` client. **On wake with NO overlay connected the daemon now launches the TAURI app
+itself** (`VYNEL_VOICE_JARVIS_APP`, default the repo's `target/debug/vynel-desktop.exe`) and only
+falls back to the Chrome app-window when that executable doesn't exist (fresh clone, not yet built).
+**⚠ BEFORE `bundle.active: true` (dev-only assumptions, reviewer-flagged):** the page's relative
+`fetch('/voice/…')` + the SDK's `/api` base only work through the Vite dev proxy — a bundled build
+serves assets over the Tauri protocol and needs absolute daemon/API URLs (or a Rust-side proxy);
+`"url": "/jarvis"` relies on the dev server's SPA fallback — verify the asset protocol resolves it;
+and `"csp": null` must become a real CSP (with `withGlobalTauri` any XSS gets the window API —
+capabilities scope it to show/hide/position today, but still).
+
+**Overlay speak = Kokoro (Chad's pick: "chatterbox or the sherpa" → sherpa now, Chatterbox stays the
+deferred non-realtime quality plug-in).** The channel gained **`POST /synthesize {text}` → WAV**
+(pure `audio/wav-encode.ts`; the daemon's already-loaded Kokoro + `VYNEL_VOICE_ID`), and the browser
+session speaks through **`daemon-speaker.ts`** — fetch the WAV, play via an Audio element, and fall
+back to speechSynthesis **per-sentence** if the daemon is down/failing, so a reply never goes silent.
+One voice everywhere (native loop and overlay both Kokoro). ⚠ Restart the daemon after pulling this —
+an older running daemon lacks `/synthesize` and the overlay will quietly use the fallback voice.
+
 ### 🔬 PROBE RESULT (2026-07-07, Chad's box): WebView2 HAS working SpeechRecognition — Tauri overlay UNBLOCKED
 A minimal **wry** app (the exact webview Tauri uses on Windows; WebView2 runtime **149**) loaded a test
 page and, live on Chad's machine: `window.SpeechRecognition` **exists** (standard name, no webkit

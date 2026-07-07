@@ -46,12 +46,23 @@ Tauri's webview could do near-Google STT so a TRUE overlay is possible. Built a 
 working `SpeechRecognition`** — mic granted, interim results word-by-word, final PUNCTUATED transcript
 (Edge's Azure-backed recognizer), `speechSynthesis` spoke (voices list empty at first call — the async
 quirk our speaker already warms), `getUserMedia` fine. The old "Web Speech doesn't exist in WebView2"
-blocker was stale. **⏭ NEXT BIG LEVER: the M6 Tauri shell hosts the Jarvis overlay** — transparent
-always-on-top window rendering the SAME `/jarvis` surface (composables port as-is; the wrapper already
-prefers the unprefixed `SpeechRecognition`); the Chrome app-window stays the interim surface. Details:
+blocker was stale. Details:
 `docs/module-notes/voice-engine.md` §"🔬 PROBE RESULT". Also fixed same-day: JarvisView self-sizes
 (`resizeTo` 420×560, bottom-right — Chrome ignores `--window-size` when already running) + EADDRINUSE
 on the channel port now fails with an actionable message instead of a raw stack (tested).
+
+**🏁 SAME-DAY BUILD ON THE PROBE (Chad greenlit): `apps/desktop` TAURI OVERLAY + KOKORO OVERLAY VOICE
+(uncommitted — gate 1948/4-skip; reviewer's must-fix [cancel-during-playback hang], should-fixes, and
+nits ALL applied + tested).** The real always-on-top transparent overlay: a
+thin Tauri v2 shell (ONE frameless `jarvis` window on local-web's `/jarvis`, `withGlobalTauri`); ALL
+behavior in the web view via `composables/voice/tauri-overlay-window.ts` (reveal-on-wake ·
+hide-on-settle · park bottom-right · draggable rounded card; Chrome app-window fallbacks preserved).
+Daemon unchanged for the window; the channel gained **POST /synthesize → Kokoro WAV** and the browser
+speaks through `daemon-speaker.ts` (per-sentence speechSynthesis fallback) — ONE voice everywhere.
+Compiled + ran live: window "Vynel Jarvis" on Chad's desktop, connected as the jarvis surface. Run:
+`pnpm --filter @vynel/desktop dev` (needs local-web up). ⚠ Chad must RESTART his daemon to get
+/synthesize (an old daemon → overlay quietly falls back to the browser voice). Chatterbox stays
+deferred (not realtime on CPU). See voice-engine.md §"✅ BUILT same-day".
 
 **⏭ CHAD TO LIVE-SMOKE (needs a voice):** local-api + local-web + daemon up → say "Hey Vynel what time
 is it" → the floating window should pop to front, live transcript, spoken answer, follow-ups; let it
