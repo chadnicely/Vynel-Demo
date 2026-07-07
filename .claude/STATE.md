@@ -3,10 +3,35 @@
 **Updated 2026-07-07.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-07): THE HYBRID JARVIS VIEW IS BUILT — Chad live-smoke + commit
+## ⏭ NEXT ACTION (2026-07-08 morning): ① Chatterbox TTS experiment · ② then UI work
 
-**🏁 THE BROWSER "JARVIS VIEW" + WEB SPEECH COMMAND STT IS BUILT (2026-07-07, this session — commit
-pending).** The full hybrid Chad specified: **small local model (Moonshine) wakes → the browser Jarvis
+**🎉 THE VOICE FEATURE IS DONE — Chad-verified live, ALL COMMITTED (`dd4143e` hybrid · `ea61ba2` docs
+· `f1ca405` tauri overlay + kokoro voice · `f5ed591` docs · `f77059f` floating-orb style; tree clean,
+gate 1948/4-skip).** The full arc shipped in one day: local
+Moonshine wake → the **Tauri always-on-top transparent overlay** (the gold orb floats FREE on the
+desktop, no card — Chad's pick) launches/reveals on wake → Web Speech live transcript → `/root/turn` →
+**answers in Kokoro via the daemon's `/synthesize`** (speechSynthesis fallback) → follow-ups →
+idle-hide. Daemon launches the Tauri exe itself on wake (`VYNEL_VOICE_JARVIS_APP`; Chrome app-window
+only when it's missing). Chad's verdict on WebView2's Azure STT: "almost similar to google stt".
+
+**⏭ ① CHATTERBOX (Chad, planned 2026-07-08 morning): the premium-voice experiment.** Direction from
+the original voice plan: Chatterbox/LuxTTS as a SELECTABLE TTS backend behind the existing engine
+contract (`VoiceEngine`/`SentenceSpeaker` seams — the overlay already swaps voices per-sentence).
+Known constraints (docs/module-notes/voice-engine.md): Chatterbox Turbo is **not realtime on CPU**
+(GPU-tuned) — likely an optional Python sidecar or an offline/pre-rendered mode; LuxTTS is
+"zipvoice-based" and sherpa-onnx ships ZipVoice (voice cloning ~90% of the ask, no Python). Start by
+benching what Chad's box can do; wire behind the same interface, never in the critical path.
+
+**⏭ ② THEN: UI WORK (Chad, same note — "next I need to work on some uis").** Scope TBD with Chad.
+Known UI backlog from prior sessions: onboarding wizard (first-launch gate 412s on a fresh DB —
+`VYNEL_FIRST_LAUNCH_GATE_ENABLED=0` dodge), workspace-create "+" form, approval-card `actionKind`
+(contract gap → generic card), Watch-panel polish, voice-settings surface (voice picker / idle
+timeout / wake sensitivity). Remember: UI = fresh design, never port v1 (memory
+`ui-fresh-design-no-v1-porting`); letterman vue-query patterns.
+
+### (done 2026-07-07) The voice-feature arc, for the record
+
+**🏁 THE BROWSER "JARVIS VIEW" + WEB SPEECH COMMAND STT (committed `dd4143e` + docs `ea61ba2`).** The full hybrid Chad specified: **small local model (Moonshine) wakes → the browser Jarvis
 view (real `VoiceOrb`) opens → Web Speech (Google STT) transcribes commands with a live interim
 transcript → `/root/turn` SSE → the reply is SPOKEN sentence-by-sentence (browser `speechSynthesis`)
 → follow-ups without re-wake → 15 s silence closes it and the daemon takes the mic back.** Fork
@@ -52,7 +77,7 @@ blocker was stale. Details:
 on the channel port now fails with an actionable message instead of a raw stack (tested).
 
 **🏁 SAME-DAY BUILD ON THE PROBE (Chad greenlit): `apps/desktop` TAURI OVERLAY + KOKORO OVERLAY VOICE
-(uncommitted — gate 1948/4-skip; reviewer's must-fix [cancel-during-playback hang], should-fixes, and
+(committed `f1ca405`; reviewer's must-fix [cancel-during-playback hang], should-fixes, and
 nits ALL applied + tested).** The real always-on-top transparent overlay: a
 thin Tauri v2 shell (ONE frameless `jarvis` window on local-web's `/jarvis`, `withGlobalTauri`); ALL
 behavior in the web view via `composables/voice/tauri-overlay-window.ts` (reveal-on-wake ·
@@ -64,11 +89,10 @@ Compiled + ran live: window "Vynel Jarvis" on Chad's desktop, connected as the j
 /synthesize (an old daemon → overlay quietly falls back to the browser voice). Chatterbox stays
 deferred (not realtime on CPU). See voice-engine.md §"✅ BUILT same-day".
 
-**⏭ CHAD TO LIVE-SMOKE (needs a voice):** local-api + local-web + daemon up → say "Hey Vynel what time
-is it" → the floating window should pop to front, live transcript, spoken answer, follow-ups; let it
-idle-close (~15 s), re-wake (window relaunches or refocuses); try the same-breath command and
-mute/unmute. First mic use in the app-window prompts Chrome once — allow it. Then commit (2 commits
-queued: the hybrid + the floating window) + CHANGELOG.
+**✅ LIVE-SMOKED BY CHAD (2026-07-07): "It worked."** Wake → the daemon launched the Tauri overlay →
+orb + live transcript + spoken answer, screenshot-confirmed. The floating-orb (no-card) style was his
+final pick (`f77059f`). Daemon also now prefers launching the Tauri exe over the Chrome window
+(`VYNEL_VOICE_JARVIS_APP`, repo-relative debug-build default).
 
 **Also-deferred (lower priority):** Chatterbox/LuxTTS Python TTS (voice quality); Kokoro-streamed
 browser TTS (one consistent voice) behind `SentenceSpeaker`; acoustic KWS wake; user barge-in;
