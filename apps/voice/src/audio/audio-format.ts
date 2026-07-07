@@ -3,24 +3,12 @@
 // mono. TTS gives the model's rate mono; the speaker wants the device's rate +
 // channels. Pure + unit-tested — linear interpolation is plenty for speech.
 
-/** Resample mono float samples from one rate to another. Integer downsampling
- *  (e.g. 48 kHz → 16 kHz = 3:1) box-averages each group — a cheap anti-alias that
- *  keeps STT clean; every other case falls back to linear interpolation. */
+/** Linear-resample mono float samples from one rate to another. Linear (rather
+ *  than box-averaging) downsampling preserves the high-frequency energy speech
+ *  consonants live in — box-averaging dulled the audio and STT dropped MORE words
+ *  (Chad live-smoke, 2026-07-07). */
 export function resampleLinear(samples: Float32Array, fromRate: number, toRate: number): Float32Array {
   if (fromRate === toRate || samples.length === 0) return samples
-
-  if (fromRate > toRate && fromRate % toRate === 0) {
-    const factor = fromRate / toRate
-    const outLength = Math.floor(samples.length / factor)
-    const out = new Float32Array(outLength)
-    for (let i = 0; i < outLength; i += 1) {
-      let sum = 0
-      for (let j = 0; j < factor; j += 1) sum += samples[i * factor + j] ?? 0
-      out[i] = sum / factor
-    }
-    return out
-  }
-
   const ratio = toRate / fromRate
   const outLength = Math.max(1, Math.round(samples.length * ratio))
   const out = new Float32Array(outLength)
