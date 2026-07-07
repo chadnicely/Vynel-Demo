@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Menu, Mic, Moon, PanelLeft, Plus, Sun } from "lucide-vue-next";
 import { IconButton, PresenceDot, SegmentedTabs } from "@vynel/ui";
@@ -8,6 +8,8 @@ import { useActivityStore } from "../../stores/activity-store.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import WorkspaceSwitcher from "../workspace/WorkspaceSwitcher.vue";
+import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
+import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 
 const TABS = [
   { id: "home", label: "Home" },
@@ -54,6 +56,14 @@ function startFreshConversation() {
   ui.workspaceChat.target = "fresh";
   ui.workspaceChat.mainView = "chat";
 }
+
+// The switcher's "New workspace…" row — created workspace becomes active.
+const isCreateWorkspaceOpen = ref(false);
+
+function onWorkspaceCreated(workspace: WorkspaceResponse) {
+  isCreateWorkspaceOpen.value = false;
+  ui.activeWorkspaceId = workspace.id;
+}
 </script>
 
 <template>
@@ -82,6 +92,12 @@ function startFreshConversation() {
           :workspaces="workspacesQuery.data.value ?? []"
           :active-workspace-id="ui.activeWorkspaceId"
           @select="(id) => (ui.activeWorkspaceId = id)"
+          @create="isCreateWorkspaceOpen = true"
+        />
+        <CreateWorkspaceDialog
+          :open="isCreateWorkspaceOpen"
+          @close="isCreateWorkspaceOpen = false"
+          @created="onWorkspaceCreated"
         />
         <IconButton label="New conversation" @click="startFreshConversation()">
           <Plus :size="15" />

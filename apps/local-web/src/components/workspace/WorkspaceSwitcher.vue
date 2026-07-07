@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { ChevronsUpDown, FolderOpen } from "lucide-vue-next";
+import { ChevronsUpDown, FolderOpen, Plus } from "lucide-vue-next";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 
 const props = defineProps<{
@@ -10,6 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [workspaceId: string];
+  create: [];
 }>();
 
 const isOpen = ref(false);
@@ -37,6 +38,11 @@ const activeWorkspace = computed(
 function select(workspaceId: string) {
   isOpen.value = false;
   emit("select", workspaceId);
+}
+
+function create() {
+  isOpen.value = false;
+  emit("create");
 }
 </script>
 
@@ -67,6 +73,13 @@ function select(workspaceId: string) {
         <span class="menu-name">{{ workspace.name }}</span>
         <span v-if="workspace.managerName" class="menu-manager">
           {{ workspace.managerName }} is handling it
+        </span>
+      </button>
+
+      <button type="button" class="menu-row create-row" @click="create">
+        <span class="create-label">
+          <Plus :size="12" class="create-icon" />
+          New workspace…
         </span>
       </button>
     </div>
@@ -166,5 +179,28 @@ function select(workspaceId: string) {
 .menu-manager {
   color: var(--ink-3);
   font: 400 11px/1.4 var(--font-ui);
+}
+
+.create-row {
+  margin-top: 2px;
+  border-top: 1px solid var(--hair);
+  border-radius: 0 0 5px 5px;
+}
+
+.create-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font: 500 12px/1.6 var(--font-ui);
+}
+
+.create-icon {
+  color: var(--ink-3);
+}
+
+.create-row:hover .create-label,
+.create-row:hover .create-icon {
+  color: var(--ink-1);
 }
 </style>
