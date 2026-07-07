@@ -106,10 +106,16 @@ const statusLine = computed(() =>
   background: transparent;
 }
 
-.is-tauri .stage-card {
-  background: color-mix(in srgb, var(--bg-shell) 82%, transparent);
-  border: 1px solid var(--gold-soft);
-  border-radius: 24px;
-  box-shadow: 0 12px 48px rgb(0 0 0 / 0.45);
+/* No card at all — the orb, caption, and controls float free over the
+   desktop (Chad's pick). Text shadows keep the captions readable over bright
+   backgrounds; the (invisible) stage-card div remains the drag region. */
+.is-tauri :deep(.caption) {
+  text-shadow:
+    0 1px 3px rgb(0 0 0 / 0.9),
+    0 2px 12px rgb(0 0 0 / 0.6);
+}
+
+.is-tauri :deep(.status-line) {
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
 }
 </style>
