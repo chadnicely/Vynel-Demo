@@ -3,13 +3,26 @@
 **Updated 2026-07-07.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-07): VOICE — the `apps/voice` background sidecar (audio + brain wiring)
+## ⏭ NEXT ACTION (2026-07-07): VOICE DAEMON WORKS (Chad-verified live) — pick the next lever
 
-**⚠ MAJOR PIVOT (Chad, 2026-07-07): NOT web — a BACKGROUND SIDECAR.** Chad's priority is a background
-voice service on his machine (native mic/speaker daemon), NOT the local-web browser path I'd started.
-"I wake it up, talk, it responds, after a while no voice activity it's gone." **The engine + loop logic
-all carried over unchanged** — only the transport pivoted (browser/WS → native audio + a separate process).
-Full plan: **`docs/module-notes/voice-engine.md`**.
+**🎉 THE `apps/voice` BACKGROUND DAEMON WORKS END-TO-END, Chad-verified live.** "Hey Vynel" → wake →
+brain → spoken answer → multi-turn → sleeps on silence. CPU-light as intended. **STT = Moonshine-base**
+(now the default; tiny available via `VYNEL_VOICE_STT` — base is "good than the old one" per Chad).
+Full plan + as-built: **`docs/module-notes/voice-engine.md`**.
+
+**⏭ Next levers (Chad's call):** (a) **Hybrid STT** — Chad's idea: local Moonshine for always-on WAKE +
+a CLOUD STT for the post-wake COMMAND (room never streamed; only the command). Realize in the daemon via a
+cloud STT API, NOT the browser Web Speech API (browser-only) — the command recognizer becomes a pluggable
+`SpeechRecognizer`. (b) **Chatterbox/LuxTTS** Python TTS backend (voice quality/cloning). (c) **Acoustic KWS**
+wake if the "vynel" mishear list keeps needing widening. (d) A NEW module entirely. See module-notes Deferred.
+
+**⚠ PIVOT RECORD (Chad, 2026-07-07): NOT web — a BACKGROUND SIDECAR.** Priority was a background voice
+daemon (native mic/speaker), NOT the local-web browser path I'd started. **Engine + loop logic carried over
+unchanged**; only the transport pivoted (browser/WS → native audio + a separate process).
+
+**⚠ COMMIT CONVENTION (Chad, 2026-07-07): NO AI identity in commits** — no `Co-Authored-By: Claude` trailer
+(memory `no-ai-identity-in-commits`). This session's + all 13 old "Fable 5" trailers were scrubbed from local
+history (unpushed — `origin/main` is 28 behind at `2c04ad6`, so nothing published was rewritten).
 
 **Locked decisions:** host = **separate `apps/voice` process** (`@vynel/voice-daemon`), a true sidecar that
 hits the brain over **HTTP `/root/turn` (SSE)** · audio I/O = **`node-cpal`** (ONE prebuilt native lib does
@@ -75,13 +88,17 @@ audio-format 6). Gate **1918/4-skip**. **TWO node-cpal live-boot bugs caught by 
 via `createRequire` + a corrected local type in `audio/cpal.ts`; (b) `getDefaultInputDevice()` returns an
 OBJECT (`.deviceId`), not a string (README prose lied). Kokoro downloaded.
 
-**⏭ NEXT — CHAD'S LIVE MIC SMOKE (the only thing left; can't be unit-tested):** ① start local-api (`pnpm dev`
-or `pnpm --filter @vynel/local-api dev`) — the daemon POSTs its `/root/turn`. ② `pnpm --filter
-@vynel/voice-daemon dev` → logs "voice daemon listening". ③ say **"Hey Vynel, what's the time?"** → expect
-wake → thinking → spoken answer → stays active ~15 s → sleeps. **LIVE-TUNE points (flagged in code):** the
-`PLAYBACK_TAIL_MS`/duration-based drain estimate in `audio-shell` (echo gate timing); VAD threshold if it
-over/under-triggers in the room; wake mishears (widen `WAKE_NAME`). Then Increment 4 (Chatterbox/LuxTTS
-Python TTS backend).
+**🏁 LIVE SMOKE PASSED (Chad, 2026-07-07) — the daemon WORKS.** Run: local-api up (`pnpm --filter
+@vynel/local-api dev`) + `pnpm --filter @vynel/voice-daemon dev`, say "Hey Vynel …". **Findings + fixes from
+the live run (all committed):** ① node-cpal `createStream` REQUIRES the callback arg even for output (pass a
+no-op — omitting throws "not enough arguments"); ② node-cpal `getDefaultInputDevice()` returns an OBJECT
+(`.deviceId`), not a string, and the shipped `.d.ts` is out of sync with the v0.1.1 runtime (`createStream`,
+not `createInputStream`) — hence the corrected local type + `createRequire` in `audio/cpal.ts`; ③ the whole
+pipeline worked first try (mic→VAD→STT), only wake failed — tiny STT mangled "vynel"→"fine", so `WAKE_NAME`
+was widened (fine/final/…) + okay/ok greetings dropped; ④ **moonshine-base >> tiny** for accuracy (now the
+default); ⑤ a box-average resampler I added DULLED STT (dropped MORE words) — REVERTED to linear (preserves
+consonant highs). Diagnostics behind `LOG_LEVEL=debug` (mic rms · VAD segments · transcripts). **Remaining
+live-tune (if needed):** `PLAYBACK_TAIL_MS` echo-gate timing; VAD threshold.
 
 **What already exists (don't rebuild):**
 - **`@vynel/voice` leaf** (pulled 2026-07-04, journal `.claude/journal/2026-07-04-voice-pull.md`):

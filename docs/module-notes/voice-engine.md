@@ -140,12 +140,22 @@ accuracy, TTS voice, mic capture, wake sensitivity) are **Chad live-smoke** — 
 how the repo already defers live-boot smoke to Chad.
 
 ## Deferred (not gaps — deliberate, behind the interface)
-- **LuxTTS / Chatterbox Turbo** exact checkpoints → the optional Python TTS backend (Increment 4). Chatterbox
-  on CPU is **not real-time** (GPU-tuned) — it's the voice-clone/quality path, not the default live voice.
-- **Tauri overlay window** (M6, parked) — the same `VoiceOrb` mounts there later with the same state events.
-- **Acoustic-wake tuning** / custom "Hey Vynel" KWS model if the stock keyword list mis-fires.
+- **Hybrid STT — local wake + cloud command (Chad's idea, 2026-07-07).** Keep local Moonshine as the
+  always-on background STT (light, private, only needs to catch "hey vynel"), and after wake transcribe the
+  COMMAND with a more-accurate CLOUD STT — so the room is never streamed, only the intentional command. The
+  standard assistant pattern (local wake, cloud understand). ⚠ Nuance: **"Chrome speech recognition" (Web
+  Speech API) is browser-only — not callable from the headless daemon.** In the daemon, realize the same idea
+  with a cloud STT API (Google Cloud Speech / Deepgram / OpenAI transcription). Fits cleanly: the driver
+  already separates wake (`asleep`→`active`) from command handling, so the COMMAND recognizer becomes a
+  pluggable `SpeechRecognizer` (local `SherpaSpeechRecognizer` OR a cloud one), used only post-wake.
+- **LuxTTS / Chatterbox Turbo** exact checkpoints → the optional Python TTS backend. Chatterbox on CPU is
+  **not real-time** (GPU-tuned) — the voice-clone/quality path, not the default live voice.
+- **Acoustic KWS wake** (sherpa keyword-spotter) — the robust fix for the invented-word "vynel" mishears if
+  the widened text-match list keeps whack-a-mole'ing (currently: base STT + `WAKE_NAME` mishear list).
 - **Proactive/barge-in notifications** spoken at idle (the leaf's `relay-task-notifier` + `shouldBargeInNow`
-  are ready) — wire once the core loop is solid.
+  are ready). **User barge-in** (interrupt Vynel mid-reply) — the v1 no-barge-in cut.
+- **Tauri/overlay `VoiceOrb`** — the daemon's `VoiceSessionIo.setState` already emits the orb states; a tray
+  or overlay can subscribe later (the web `VoiceOrb`/`VoiceOverlayDemo` were dropped in the pivot).
 
 ## Watch-outs
 - Native addon + **pnpm** hoisting: `sherpa-onnx-node` is NOT hoisted to the repo root (it's only a dep of
