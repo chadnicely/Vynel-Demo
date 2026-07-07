@@ -36,6 +36,10 @@ describe('detectWakeWord', () => {
     expect(detectWakeWord('hi vinel whats up').detected).toBe(true)
   })
 
+  it('wakes on the live "hey fine" mishear tiny STT returns for "hey vynel"', () => {
+    expect(detectWakeWord('Hey, fine, hello')).toEqual({ detected: true, command: 'hello' })
+  })
+
   it('does not fire without the wake phrase', () => {
     expect(detectWakeWord('what time is it')).toEqual({ detected: false, command: '' })
     expect(detectWakeWord('hey there how are you')).toEqual({ detected: false, command: '' })

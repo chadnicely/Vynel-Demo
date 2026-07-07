@@ -31,11 +31,13 @@ interface CpalNative {
   getDefaultOutputDevice(): CpalDevice
   getDefaultInputConfig(deviceId: string): CpalStreamConfig
   getDefaultOutputConfig(deviceId: string): CpalStreamConfig
+  // The callback is REQUIRED by the binding even for output streams (pass a
+  // no-op) — omitting it throws "not enough arguments".
   createStream(
     deviceId: string,
     isInput: boolean,
     config: CpalStreamConfig,
-    callback?: (data: Float32Array) => void,
+    callback: (data: Float32Array) => void,
   ): CpalStreamHandle
   writeToStream(handle: CpalStreamHandle, data: Float32Array): void
   closeStream(handle: CpalStreamHandle): void

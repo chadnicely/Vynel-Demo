@@ -6,6 +6,8 @@
 
 import pino from 'pino'
 import { SherpaSpeechRecognizer, SherpaVoiceActivityDetector, SherpaVoiceEngine } from '@vynel/voice-engine'
+import type { SpeechRecognizer, VoiceActivityDetector } from '@vynel/voice-engine'
+import type { Logger } from 'pino'
 import { loadEnv } from './env.js'
 import {
   findMissingModelFile,
@@ -46,7 +48,13 @@ function main(): void {
   let driver!: VoiceSessionDriver
   const audioShell = createAudioShell(logger, () => driver.notifyPlaybackDrained())
   driver = new VoiceSessionDriver(
-    { vad, recognizer, synthesizer, runBrainTurn: createBrainClient(env.VYNEL_API_URL), io: audioShell.io },
+    {
+      vad: traceVad(vad, logger),
+      recognizer: traceRecognizer(recognizer, logger),
+      synthesizer,
+      runBrainTurn: createBrainClient(env.VYNEL_API_URL),
+      io: audioShell.io,
+    },
     { idleTimeoutMs: env.VYNEL_VOICE_IDLE_TIMEOUT_MS, voiceId: env.VYNEL_VOICE_ID },
   )
 
@@ -64,6 +72,31 @@ function main(): void {
   }
   process.on('SIGINT', shutdown)
   process.on('SIGTERM', shutdown)
+}
+
+// Diagnostic wrappers (LOG_LEVEL=debug): surface VAD segments + every transcript
+// so a silent loop can be traced to the exact stage it stalls.
+function traceVad(vad: VoiceActivityDetector, logger: Logger): VoiceActivityDetector {
+  return {
+    push(audio) {
+      const segments = vad.push(audio)
+      for (const segment of segments) {
+        logger.debug({ seconds: Number((segment.samples.length / segment.sampleRate).toFixed(2)) }, 'vad segment')
+      }
+      return segments
+    },
+    flush: () => vad.flush(),
+  }
+}
+
+function traceRecognizer(recognizer: SpeechRecognizer, logger: Logger): SpeechRecognizer {
+  return {
+    async transcribe(audio) {
+      const text = await recognizer.transcribe(audio)
+      logger.debug({ transcript: text }, 'stt')
+      return text
+    },
+  }
 }
 
 main()

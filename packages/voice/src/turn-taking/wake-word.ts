@@ -16,16 +16,20 @@ export interface WakeWordResult {
 }
 
 // The wake name + the near-spellings STT commonly returns for these uncommon
-// words: "jarvis" (legacy) and "vynel" (the product). "vynel" is invented, so it
-// gets mis-transcribed as vinyl/vinel/vanel/… — widen this list if a real mishear
-// slips through in the smoke.
+// words: "jarvis" (legacy) and "vynel" (the product). "vynel" is invented, so
+// tiny STT mangles it hard — observed live: "Hey Vynel" → "hey fine". The list
+// therefore includes common-word garbles (fine/final); widen as more surface.
 const WAKE_NAME =
-  'jarvis|jarvas|jarviss|jervis|jarvus|jarviz|jarvi|vynel|vinel|vynell|vinell|vinyl|vynal|vinal|vanel|vynol'
+  'jarvis|jarvas|jarviss|jervis|jarvus|jarviz|jarvi|vynel|vinel|vynell|vinell|vinyl|vynal|vinal|vanel|vynol|vino|vinnel|venel|fine|final'
+
+// Greetings that may precede the name. `okay`/`ok` are deliberately OUT: with
+// "fine" in the name list they'd fire on the very common "okay, fine …".
+const WAKE_GREETING = 'hey|hi|hello|yo'
 
 // greeting + separator + a wake-name token, anchored at the start. `/i` covers
 // casing; the trailing class eats the punctuation STT leaves after the name.
 const WAKE_PATTERN = new RegExp(
-  `^[\\s,.!?-]*(?:hey|hi|hello|okay|ok|yo)[\\s,]+(?:${WAKE_NAME})\\b[\\s,.!?:-]*`,
+  `^[\\s,.!?-]*(?:${WAKE_GREETING})[\\s,]+(?:${WAKE_NAME})\\b[\\s,.!?:-]*`,
   'i',
 )
 
@@ -42,7 +46,7 @@ export function detectWakeWord(transcript: string): WakeWordResult {
 // command; it is NOT wake detection (a bare "jarvis" mid-conversation would
 // over-match), so don't use it for that.
 const WAKE_PREFIX_PATTERN = new RegExp(
-  `^[\\s,.!?-]*(?:(?:hey|hi|hello|okay|ok|yo)[\\s,]+)?(?:${WAKE_NAME})\\b[\\s,.!?:-]*`,
+  `^[\\s,.!?-]*(?:(?:${WAKE_GREETING})[\\s,]+)?(?:${WAKE_NAME})\\b[\\s,.!?:-]*`,
   'i',
 )
 

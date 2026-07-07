@@ -18,6 +18,13 @@ describe('resampleLinear', () => {
     expect(out.length).toBe(4)
     expect(out[0]).toBeCloseTo(0)
   })
+
+  it('box-averages groups when integer-downsampling 3:1 (48k→16k)', () => {
+    const out = resampleLinear(new Float32Array([0, 0, 3, 3, 3, 6]), 48000, 16000)
+    expect(out.length).toBe(2)
+    expect(out[0]).toBeCloseTo(1) // avg(0, 0, 3)
+    expect(out[1]).toBeCloseTo(4) // avg(3, 3, 6)
+  })
 })
 
 describe('downmixToMono', () => {

@@ -34,12 +34,14 @@ export function createAudioShell(logger: Logger, onPlaybackDrained: () => void):
 
   // Pass the device's own native config back to createStream — guaranteed valid,
   // no guessing at field names. We convert audio to/from it in the format helpers.
-  const outputStream = cpal.createStream(outputDevice.deviceId, false, outputConfig)
+  // Output streams still need a (no-op) callback — the binding requires all args.
+  const outputStream = cpal.createStream(outputDevice.deviceId, false, outputConfig, () => {})
 
   let inputStream: CpalStreamHandle | null = null
   let playbackStartedAt: number | null = null
   let queuedSeconds = 0
   let drainTimer: ReturnType<typeof setTimeout> | null = null
+  let lastMicLogAt = 0 // throttle the diagnostic mic-level log
 
   const io: VoiceSessionIo = {
     setState(state: VoiceSessionState): void {
@@ -79,6 +81,16 @@ export function createAudioShell(logger: Logger, onPlaybackDrained: () => void):
         (frame: Float32Array) => {
           const mono = downmixToMono(frame, inputConfig.channels)
           const atCaptureRate = resampleLinear(mono, inputConfig.sampleRate, CAPTURE_RATE)
+          // Diagnostic: prove the mic is alive + carries signal (rms ~0 = silence
+          // or wrong channel extraction; rms rises when you speak). Throttled.
+          const now = performance.now()
+          if (now - lastMicLogAt > 1000) {
+            lastMicLogAt = now
+            let sumSquares = 0
+            for (const sample of atCaptureRate) sumSquares += sample * sample
+            const rms = Math.sqrt(sumSquares / Math.max(1, atCaptureRate.length))
+            logger.debug({ rms: Number(rms.toFixed(4)), frames: atCaptureRate.length }, 'mic')
+          }
           onAudio({ samples: atCaptureRate, sampleRate: CAPTURE_RATE })
         },
       )
