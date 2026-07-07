@@ -18,6 +18,7 @@
     "@codemirror/view": "^6.35.0",
     "@lezer/highlight": "^1.2.0",
     "@tanstack/vue-query": "^5.59.0",
+    "@vynel/approvals": "workspace:*",
     "@vynel/contracts": "workspace:*",
     "@vynel/sdk": "workspace:*",
     "@vynel/session": "workspace:*",

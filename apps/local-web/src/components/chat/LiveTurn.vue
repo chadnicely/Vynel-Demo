@@ -5,6 +5,9 @@ import {
   ToolCallList,
   MarkdownText,
 } from "@vynel/ui";
+// The pure taxonomy the server itself records with — same function, so the
+// inline card and the notifier card always classify identically.
+import { deriveActionKind } from "@vynel/approvals/action-kind";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
 
 // The in-flight turn: everything the assistant is doing RIGHT NOW —
@@ -50,12 +53,11 @@ const emit = defineEmits<{
       v-for="approval in props.view.approvals"
       :key="approval.approvalRequestId"
     >
-      <!-- No actionKind on the approval-requested event yet (contract gap,
-           noted for Slice-3) — the card's generic headline stays honest. -->
       <ApprovalCard
         v-if="!approval.isResolved"
         :tool-name="approval.toolName"
         :tool-input="approval.toolInput"
+        :action-kind="deriveActionKind(approval.toolName)"
         @approve="
           emit('decideApproval', approval.approvalRequestId, 'approved')
         "
