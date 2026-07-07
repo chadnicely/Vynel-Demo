@@ -10,11 +10,29 @@ brain → spoken answer → multi-turn → sleeps on silence. CPU-light as inten
 (now the default; tiny available via `VYNEL_VOICE_STT` — base is "good than the old one" per Chad).
 Full plan + as-built: **`docs/module-notes/voice-engine.md`**.
 
-**⏭ Next levers (Chad's call):** (a) **Hybrid STT** — Chad's idea: local Moonshine for always-on WAKE +
-a CLOUD STT for the post-wake COMMAND (room never streamed; only the command). Realize in the daemon via a
-cloud STT API, NOT the browser Web Speech API (browser-only) — the command recognizer becomes a pluggable
-`SpeechRecognizer`. (b) **Chatterbox/LuxTTS** Python TTS backend (voice quality/cloning). (c) **Acoustic KWS**
-wake if the "vynel" mishear list keeps needing widening. (d) A NEW module entirely. See module-notes Deferred.
+**⏭ NEXT SESSION — THE BROWSER "JARVIS VIEW" + WEB SPEECH COMMAND STT (Chad's refined vision, 2026-07-07).**
+The hybrid: the **native daemon stays the always-on, local, private WAKE layer** (Moonshine "hey vynel",
+never streams the room). **On wake → a small browser "Jarvis view" turns on** — the v1 `VoiceOrb` overlay
+(`packages/ui` `VoiceOrb` + `apps/local-web` `VoiceOverlayDemo`, both still present) — and THERE, in the
+browser, **Web Speech API (Google STT)** does the COMMAND transcription: accurate, free, with **interim
+results + sentence-completion/endpointing** + live transcript in the orb. Resolves the "Web Speech is
+browser-only" nuance: the browser view IS the surface, so it's available. Best of both — local/private wake,
+rich/accurate browser command session.
+  **START WITH CHAD'S ADVICE (build-discipline) — design forks to resolve first:**
+  1. **Daemon ↔ browser signaling on wake:** the daemon detects wake → activates the browser view. Channel?
+     (a small always-on local-web window connected to the daemon/local-api over WebSocket, daemon publishes
+     "wake"; vs the daemon launching a browser window). The daemon already has a `VoiceSessionIo.setState`
+     seam emitting orb states — that's the natural event source.
+  2. **After wake, what runs where:** command STT = browser Web Speech (decided). Does the response TTS +
+     turn also move to the browser (Web Audio playback, `/root/turn` SSE from the browser — the ORIGINAL
+     web-loop path, which still exists in local-web history), or stay in the daemon? Likely the browser owns
+     the whole active-conversation turn once woken; the daemon hands off.
+  3. **Does the daemon's own STT/VAD/TTS stay** (fallback / no-browser mode) or become wake-only.
+  4. **Revive the dropped web pieces:** `VoiceOverlayDemo` → real events; `@hono/node-ws` (removed from
+     local-api) may return for the daemon↔browser channel; `ws:true` on the Vite proxy.
+
+**Also-deferred (lower priority):** Chatterbox/LuxTTS Python TTS (voice quality); acoustic KWS wake;
+user barge-in; proactive spoken notifications. See `docs/module-notes/voice-engine.md` "Deferred".
 
 **⚠ PIVOT RECORD (Chad, 2026-07-07): NOT web — a BACKGROUND SIDECAR.** Priority was a background voice
 daemon (native mic/speaker), NOT the local-web browser path I'd started. **Engine + loop logic carried over

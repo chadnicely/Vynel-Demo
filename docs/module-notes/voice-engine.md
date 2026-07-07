@@ -139,15 +139,17 @@ composable's pure parts) is unit-testable and rides the `pnpm test` gate. The mo
 accuracy, TTS voice, mic capture, wake sensitivity) are **Chad live-smoke** — inherent to audio ML, matches
 how the repo already defers live-boot smoke to Chad.
 
+## NEXT big direction — the browser "Jarvis view" + Web Speech command STT (Chad, 2026-07-07)
+The daemon stays the always-on LOCAL wake layer (Moonshine "hey vynel", never streams the room). **On wake
+→ a small browser "Jarvis view" turns on** (the v1 `VoiceOrb` overlay — `packages/ui` `VoiceOrb` +
+`apps/local-web` `VoiceOverlayDemo`, both still present), and THERE the browser's **Web Speech API (Google
+STT)** transcribes the COMMAND: accurate, free, with **interim results + sentence-completion/endpointing** +
+live transcript in the orb. The browser view IS the surface, so Web Speech (browser-only) is available — the
+best of both: local/private wake, rich/accurate browser command session. **Design forks for the fresh
+session are in `.claude/STATE.md`** (daemon↔browser wake signaling · what runs in the browser vs daemon
+after wake · reviving the dropped web pieces: `VoiceOverlayDemo`, `@hono/node-ws`, Vite `ws:true`).
+
 ## Deferred (not gaps — deliberate, behind the interface)
-- **Hybrid STT — local wake + cloud command (Chad's idea, 2026-07-07).** Keep local Moonshine as the
-  always-on background STT (light, private, only needs to catch "hey vynel"), and after wake transcribe the
-  COMMAND with a more-accurate CLOUD STT — so the room is never streamed, only the intentional command. The
-  standard assistant pattern (local wake, cloud understand). ⚠ Nuance: **"Chrome speech recognition" (Web
-  Speech API) is browser-only — not callable from the headless daemon.** In the daemon, realize the same idea
-  with a cloud STT API (Google Cloud Speech / Deepgram / OpenAI transcription). Fits cleanly: the driver
-  already separates wake (`asleep`→`active`) from command handling, so the COMMAND recognizer becomes a
-  pluggable `SpeechRecognizer` (local `SherpaSpeechRecognizer` OR a cloud one), used only post-wake.
 - **LuxTTS / Chatterbox Turbo** exact checkpoints → the optional Python TTS backend. Chatterbox on CPU is
   **not real-time** (GPU-tuned) — the voice-clone/quality path, not the default live voice.
 - **Acoustic KWS wake** (sherpa keyword-spotter) — the robust fix for the invented-word "vynel" mishears if
