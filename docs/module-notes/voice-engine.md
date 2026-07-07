@@ -116,18 +116,21 @@ a `scripts/fetch-voice-models` download step, sourcing from the sherpa-onnx mode
    16 kHz clip. **Wake method revised: VAD-segment → transcribe → leaf `detectWakeWord`, NOT acoustic KWS**
    — Moonshine at ~70× realtime makes transcribe-everything ~free, killing KWS's efficiency case and its
    keyword-file risk; KWS is a deferred later pass (idle efficiency + fewer false wakes). ⚠ VAD needs 16 kHz.
-3. **The live loop, sub-sliced (advisor-blessed): 3a core → 3b transport → 3c browser.**
-   - 3a ✅ **DONE.** Leaf "vynel" wake-gap closed. `apps/local-api/src/voice/VoiceSessionDriver` — the
-     headless loop state machine (injected VAD/STT/synth/brain/io), unit-green (6 tests). Two advisor
-     contracts baked in: **echo defense** (mic reopens only on the client's `playback-drained`, not
-     server send-done) + **wake-then-pause** (bare "hey vynel" → next segment is the command). **v1 cut:
-     no user barge-in** (Chad-accepted).
-   - 3b **NEXT** — `@hono/node-ws` `/voice` route: mic frames → `pushAudio`; `VoiceSessionIo` → WS out;
-     `playback-drained` msg → `notifyPlaybackDrained`. Streaming `SessionSink` over `runGlobalRootTurnCore`
-     → `VoiceBrainEvent` (extract the SSE route's turn-setup into a shared helper, don't copy). Boot
-     `startVoiceEngine()` degrades if models absent. Add engine `close()`/dispose (reviewer-flagged).
-   - 3c — `useVoiceSession` (getUserMedia → 16 kHz worklet → WS; playback + drained) drives the real
-     `VoiceOrb`, replacing `VoiceOverlayDemo`; `ws:true` on the Vite proxy.
+3. **The background sidecar `apps/voice` (`@vynel/voice-daemon`) — ✅ CODE-COMPLETE + BOOT-VERIFIED**
+   (pivoted from the web loop; see the decisions table). Leaf "vynel" wake-gap closed. Pieces:
+   - **`loop/VoiceSessionDriver`** — the multi-turn state machine `asleep`→`active`→`busy` (injected
+     VAD/STT/synth/brain/io), unit-green. Echo defense (mic reopens only on `notifyPlaybackDrained`) +
+     multi-turn conversation with idle-timeout; **v1 cut: no user barge-in** (Chad-accepted).
+   - **`brain/`** — SSE frame parser + `mapFrameToBrainEvent` + `createBrainClient` (POST `/root/turn`,
+     stream `ChatTurnEvent` → `VoiceBrainEvent`). Unit-tested.
+   - **`audio/`** — `audio-format` (resample/downmix/upmix, tested) · `cpal.ts` (node-cpal via `createRequire`
+     + a corrected local type — the shipped `.d.ts` is out of sync with the v0.1.1 runtime) · `audio-shell`
+     (mic→pushAudio + speaker←emitAudio + duration-based drain).
+   - **`main.ts`** — loads the 3 engines, opens mic, runs the loop, degrades if models absent.
+   - **Boot-verified:** 3 models load (Kokoro 11 voices), node-cpal enumerates devices (mic+speaker 48 kHz
+     stereo → shell converts to/from 16 kHz mono). Two node-cpal live-boot bugs caught + fixed.
+   - **⏭ Chad's live mic smoke is the only thing left** (real mic/speaker/room). Live-tune: the drain-timing
+     `PLAYBACK_TAIL_MS`, VAD threshold, wake mishears.
 4. **Chatterbox / exact-LuxTTS** as a selectable TTS backend behind the same interface (the optional Python
    TTS sidecar) — Chad's original ask, now a plug-in, not the critical path.
 

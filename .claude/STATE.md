@@ -62,19 +62,26 @@ barge-in** (mic closed while speaking — Chad-accepted). 7 driver tests + fakes
 out of local-api** (was 3a's `apps/local-api/src/voice`) — the web pieces (`@hono/node-ws`, `@vynel/voice*`
 deps) were removed from local-api; the driver now lives in the sidecar shell.
 
-**⏭ NEXT — the sidecar shell (`apps/voice`), the parts that need Chad's live mic smoke:**
-- **Audio I/O** (`node-cpal`): mic input stream `createStream(inputDeviceId, true, config, onData)` → 16 kHz
-  mono → `driver.pushAudio`; speaker output stream + `writeToStream` for TTS PCM; the `VoiceSessionIo` impl
-  (emitAudio → play; endSpeech → on speaker-drain call `notifyPlaybackDrained`). ⚠ VAD needs **16 kHz** — if
-  the mic won't open at 16 kHz, resample (sherpa `LinearResampler`, exported). node-cpal ships `index.d.ts`
-  (no shim needed); `createStream(deviceId, isInput, config, onData?)`, `writeToStream`, `closeStream`.
-- **Brain client:** POST `/root/turn` (SSE) to local-api → parse `ChatTurnEvent` frames → map `text-chunk`→
-  `{kind:'text'}`, terminal→`completed`/`failed` → the driver's `runBrainTurn` AsyncIterable (push→pull queue).
-  local-api is loopback + unauthenticated (Phase 1) → plain `http://127.0.0.1:8998`. Needs local-api running.
-- **`main.ts`:** load the 3 engines from model paths (env), open mic, run the loop; degrade if `.models/`
-  absent. Config: api URL, model dir, wake/idle timeouts, voiceId.
-- **Live smoke (Chad):** run local-api + `pnpm --filter @vynel/voice-daemon dev`, say "Hey Vynel …".
-- Then Increment 4 (Chatterbox/LuxTTS Python TTS). **Kokoro not downloaded** — grab for the nicer voice.
+**🏁 SIDECAR CODE-COMPLETE + BOOT-VERIFIED (commit pending).** `apps/voice` (`@vynel/voice-daemon`) full:
+`env.ts` (Zod) · `models.ts` (resolve TTS/STT/VAD paths + `findMissingModelFile`) · `brain/` (SSE frame
+parser + `mapFrameToBrainEvent` + `createBrainClient` POST `/root/turn` → `runBrainTurn` AsyncIterable) ·
+`audio/` (`audio-format` resample/downmix/upmix; `cpal.ts` node-cpal wrapper; `audio-shell` mic→pushAudio +
+speaker←emitAudio + duration-based drain for the echo gate) · `main.ts` (load 3 engines, open mic, run loop,
+degrade if models absent). **Boot-check verified on Chad's box:** all 3 models load (Kokoro 11 voices @24kHz),
+node-cpal enumerates devices (**mic + speaker are 48 kHz STEREO** → shell downmixes+resamples to 16 kHz in,
+resamples+upmixes 24 kHz→48 kHz out). Pure logic unit-tested (driver 7 · sse-frames 3 · brain-map 5 ·
+audio-format 6). Gate **1918/4-skip**. **TWO node-cpal live-boot bugs caught by the boot-check + fixed:**
+(a) `.d.ts` is out of sync with the v0.1.1 runtime — it's `createStream(deviceId, isInput, config, cb)`, load
+via `createRequire` + a corrected local type in `audio/cpal.ts`; (b) `getDefaultInputDevice()` returns an
+OBJECT (`.deviceId`), not a string (README prose lied). Kokoro downloaded.
+
+**⏭ NEXT — CHAD'S LIVE MIC SMOKE (the only thing left; can't be unit-tested):** ① start local-api (`pnpm dev`
+or `pnpm --filter @vynel/local-api dev`) — the daemon POSTs its `/root/turn`. ② `pnpm --filter
+@vynel/voice-daemon dev` → logs "voice daemon listening". ③ say **"Hey Vynel, what's the time?"** → expect
+wake → thinking → spoken answer → stays active ~15 s → sleeps. **LIVE-TUNE points (flagged in code):** the
+`PLAYBACK_TAIL_MS`/duration-based drain estimate in `audio-shell` (echo gate timing); VAD threshold if it
+over/under-triggers in the room; wake mishears (widen `WAKE_NAME`). Then Increment 4 (Chatterbox/LuxTTS
+Python TTS backend).
 
 **What already exists (don't rebuild):**
 - **`@vynel/voice` leaf** (pulled 2026-07-04, journal `.claude/journal/2026-07-04-voice-pull.md`):

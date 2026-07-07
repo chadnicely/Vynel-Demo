@@ -17,10 +17,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   gitignored `.models/`; `pnpm voice:smoke` speaks a WAV; `pnpm voice:bench` reports the real-time factor
   of each model on your machine. **Measured on CPU: Moonshine transcribes ~70× faster than realtime,
   piper synthesizes ~14×** — ample headroom for the always-on loop. A `VoiceActivityDetector`
-  (silero-VAD) segments a continuous mic stream into complete utterances, so the loop transcribes
-  natural speech rather than fixed windows. Still to come: the live in-app loop that wires
-  VAD → transcribe → "Hey Vynel" wake → the brain → speak; the LuxTTS/Chatterbox voices plug in later
-  behind the same contracts.
+  (silero-VAD) segments a continuous mic stream into complete utterances.
+- **`@vynel/voice-daemon` — the always-on "Hey Vynel" background service.** A standalone sidecar that
+  listens on the mic (native audio via `node-cpal`, no browser), wakes on "Hey Vynel", holds a multi-turn
+  conversation with the brain over its HTTP API, speaks the answers, and falls back asleep after a stretch
+  of silence — entirely on the CPU, no Python. Built with an echo-defense gate (the mic stays shut until
+  the speaker has actually finished, so it never hears itself) and a no-barge-in v1. The LuxTTS/Chatterbox
+  voices plug in later behind the same engine contract.
 - **Routed tasks can now DO work — with your approval (surface-up).** A task the brain routes to a
   workspace no longer auto-denies irreversible actions: the action pauses, an approval card appears in
   the app (always) *and* in the channel the request came from (Telegram — ✅/❌ buttons, or reply
