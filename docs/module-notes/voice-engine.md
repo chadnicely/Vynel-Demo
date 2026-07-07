@@ -139,15 +139,77 @@ composable's pure parts) is unit-testable and rides the `pnpm test` gate. The mo
 accuracy, TTS voice, mic capture, wake sensitivity) are **Chad live-smoke** — inherent to audio ML, matches
 how the repo already defers live-boot smoke to Chad.
 
-## NEXT big direction — the browser "Jarvis view" + Web Speech command STT (Chad, 2026-07-07)
-The daemon stays the always-on LOCAL wake layer (Moonshine "hey vynel", never streams the room). **On wake
-→ a small browser "Jarvis view" turns on** (the v1 `VoiceOrb` overlay — `packages/ui` `VoiceOrb` +
-`apps/local-web` `VoiceOverlayDemo`, both still present), and THERE the browser's **Web Speech API (Google
-STT)** transcribes the COMMAND: accurate, free, with **interim results + sentence-completion/endpointing** +
-live transcript in the orb. The browser view IS the surface, so Web Speech (browser-only) is available — the
-best of both: local/private wake, rich/accurate browser command session. **Design forks for the fresh
-session are in `.claude/STATE.md`** (daemon↔browser wake signaling · what runs in the browser vs daemon
-after wake · reviving the dropped web pieces: `VoiceOverlayDemo`, `@hono/node-ws`, Vite `ws:true`).
+## ✅ BUILT — the browser "Jarvis view" + Web Speech command STT (2026-07-07)
+The hybrid landed. The daemon stays the always-on LOCAL wake layer (Moonshine "hey vynel", never streams
+the room); **on wake a browser Jarvis view owns the command session** — Web Speech API (Google STT) with a
+live interim transcript in the orb, the brain over the same `/root/turn` SSE the chat composer uses, and
+the reply spoken sentence-by-sentence via browser `speechSynthesis`. **Fork resolutions (as built):**
+
+| Fork | Resolution |
+|------|------------|
+| Daemon↔browser signaling | The **daemon hosts a loopback Hono server** (`apps/voice/src/overlay/overlay-channel.ts`, `VYNEL_VOICE_DAEMON_PORT` default **8997**): `GET /events` SSE (state replay on connect + wake/state events + 15s ping) · `POST /session/end`. local-web reaches it through a new Vite **`/voice` proxy** (`VYNEL_VOICE_DAEMON_URL`). No `@hono/node-ws` needed — events flow one way, the end-signal is a plain POST. |
+| What runs where after wake | **The browser owns the whole active session.** Driver gained a `'handed-off'` state + injected `WakeHandoff` seam: with an overlay client connected, wake publishes `{kind:'wake', command}` (same-breath command included) and the daemon goes deaf until `POST /session/end` or the client disconnects (`onClientsGone`) → back asleep. That deafness IS the cross-process echo defense — the daemon never hears the browser's TTS. |
+| Daemon's own STT/TTS | **Kept as the no-browser fallback.** Zero overlay clients → the native Moonshine+Kokoro loop runs exactly as before. |
+| Speak (browser) | **`speechSynthesis`**, sentence-by-sentence via the shared `SpokenSentenceBuffer` (prefers a Google en voice). Kokoro-streamed-to-browser is a later quality improve behind the same `SentenceSpeaker` interface. |
+
+**Web pieces** (`apps/local-web/src/composables/voice/`): `speech-recognition.ts` (Web Speech wrapper,
+local ambient types, fresh recognition per capture, interim callbacks, rejects only on mic-denial) ·
+`speech-synthesis.ts` · `voice-command-session.ts` (the injected browser session machine, unit-tested —
+listening→thinking→speaking, idle-silence accumulates across capture attempts, echo defense = recognition
+never runs while speaking) · `use-voice-session.ts` (Vue binding + chat-turn-SSE→voice-event adapter) ·
+`use-voice-daemon-link.ts` (EventSource + session-end signal). **`VoiceOverlay.vue` replaced
+`VoiceOverlayDemo.vue`** — the same orb + layout, real events, live transcript caption, mute/close, a
+wake-status line. Manual mic-button sessions work with the daemon down (EventSource just retries).
+
+**Live behavior:** "Hey Vynel" → daemon publishes wake → overlay opens listening (runs the same-breath
+command first if there was one) → talk freely, every pause-finalized utterance is a command → 15 s of
+silence → overlay closes, `POST /session/end`, daemon resumes wake-listening. Muting ends the capture but
+keeps the view; a new wake un-mutes. Web Speech needs Chrome/Edge — other browsers get an explanatory
+caption (the daemon-only native loop still works everywhere).
+
+### The FLOATING Jarvis window (Chad's pick, same day — "global overlay, not in the tab")
+Chad wanted v1's global feel, not an overlay buried in a browser tab. Picked at the time: **a chromeless
+Chrome app-window** (`chrome --app=<local-web>/jarvis`, 420×560) that the **daemon opens (or foregrounds)
+on wake** — global in practice, full Web Speech. (The fork was decided on the belief that Web Speech
+doesn't exist in Tauri's WebView2 — **since DISPROVED by a live probe; see the next section.**)
+- **`/jarvis` route** (`views/JarvisView.vue`, `meta.bare` — App.vue renders bare routes without the
+  shell and without the in-app `VoiceOverlay`, so one window never runs two daemon links). The stage
+  (orb + caption + controls) is the shared `components/voice/VoiceStage.vue` + pure `voice-stage-view.ts`
+  mapping — the in-app overlay and the window can't drift.
+- **Wake targeting:** clients subscribe as `?surface=app|jarvis`. With `VYNEL_VOICE_JARVIS_WINDOW=1`
+  (default) the channel delivers wakes ONLY to the newest jarvis-surface client — app tabs keep state
+  events + manual mic sessions but never race the window. `shouldHandOff` is unconditional in this mode.
+- **Held wake (`pendingWake`):** a wake nobody confirmed yet is REPLAYED to the next eligible connect —
+  the same-breath command survives the window's launch time; a wake written to a dying socket recovers
+  on reconnect (this replaced the browser-side "replayed state" hack). Dropped when the daemon leaves
+  the wake state. `onClientsGone` now means "the wake RUNNER left" (a mere tab dropping doesn't end a
+  live handoff).
+- **Launch/focus** (`apps/voice/src/overlay/jarvis-window.ts`): Windows launches via
+  `cmd /c start "" chrome --app=…` (App Paths, not PATH) and foregrounds an existing window via
+  PowerShell `AppActivate('Vynel Jarvis')` — the title JarvisView sets (keep in sync). A **10 s connect
+  watchdog** in main.ts ends the handoff if a launched window never connects (Chrome missing / web
+  down) so a failed launch can't leave the daemon deaf. Env: `VYNEL_VOICE_JARVIS_WINDOW` ('1') ·
+  `VYNEL_VOICE_JARVIS_URL` (default `http://localhost:8999/jarvis`) · `VYNEL_VOICE_JARVIS_BROWSER`
+  (chrome|msedge). `0` restores the previous behavior (hand off only to a connected tab, else native).
+- The window tries `window.close()` when the session settles (allowed while its history is a single
+  entry); if Chrome refuses, it stays idle and the next wake reuses it instantly (focus, no launch).
+- ⚠ Dev papercut found live: Vite can bind **IPv6-only** (`[::1]:8999`) — IPv4 `127.0.0.1` probes fail
+  while `localhost` (→ ::1 in Chrome) works. The jarvis URL default uses `localhost` for this reason.
+
+### 🔬 PROBE RESULT (2026-07-07, Chad's box): WebView2 HAS working SpeechRecognition — Tauri overlay UNBLOCKED
+A minimal **wry** app (the exact webview Tauri uses on Windows; WebView2 runtime **149**) loaded a test
+page and, live on Chad's machine: `window.SpeechRecognition` **exists** (standard name, no webkit
+prefix), mic granted, **interim results streamed word-by-word**, final transcript returned **punctuated
+and capitalized** ("Hey, can you check the weather for me?") — Edge's Azure-backed recognizer,
+Web-Speech-grade. `speechSynthesis` + `getUserMedia` also present. **Consequence: the TRUE always-on-top
+transparent Tauri overlay can host the ENTIRE existing browser session** — same
+`composables/voice/*` (the wrapper already prefers `SpeechRecognition` over webkit), same daemon
+channel, same speak path; JarvisView ports as the overlay window's view. The M6 Tauri shell is the
+natural next home (`with_always_on_top`, transparency, no taskbar entry); the Chrome app-window stays
+the interim surface. Probe source: scratchpad `stt-probe/` (wry 0.55 + tao; ~50-line main.rs; page
+posts capability/result events to a local log server). Caveats to re-verify when building for real:
+mic-permission behavior under Tauri's permission handler (wry default granted after one prompt), and
+whether recognition needs network (Azure-backed — assume yes, same as Chrome's).
 
 ## Deferred (not gaps — deliberate, behind the interface)
 - **LuxTTS / Chatterbox Turbo** exact checkpoints → the optional Python TTS backend. Chatterbox on CPU is

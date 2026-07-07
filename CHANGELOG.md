@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The Jarvis overlay — "Hey Vynel" now opens a floating voice window with Google-grade
+  transcription.** The always-on daemon keeps waking locally (Moonshine — your room's audio never
+  leaves the machine), but the command session now runs in a small floating Jarvis window: the Web
+  Speech API (Chrome/Edge's cloud recognizer) transcribes what you say with a live word-by-word
+  transcript in the orb, the brain answers over the same turn stream the chat uses, and the reply is
+  spoken sentence-by-sentence while it's still being written. Say "Hey Vynel, …" — the window pops to
+  front (launching if needed; the same-breath command survives the launch), follow-ups need no re-wake,
+  and ~15 s of silence puts it away and hands the mic back to the daemon. With no browser around, the
+  daemon still answers natively (Moonshine + Kokoro) exactly as before. The in-app mic button drives
+  the same session in a page overlay; the scripted voice demo is gone.
 - **`@vynel/voice-engine` — Vynel can now speak AND hear, on the CPU with no Python** (via
   `sherpa-onnx-node`, native ONNX). Model-agnostic contracts — `VoiceEngine` (text-to-speech) with a
   `SherpaVoiceEngine` backend (Kokoro's 11 natural voices, or a small VITS/piper voice) and

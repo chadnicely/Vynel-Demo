@@ -3,36 +3,68 @@
 **Updated 2026-07-07.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-07): VOICE DAEMON WORKS (Chad-verified live) — pick the next lever
+## ⏭ NEXT ACTION (2026-07-07): THE HYBRID JARVIS VIEW IS BUILT — Chad live-smoke + commit
 
-**🎉 THE `apps/voice` BACKGROUND DAEMON WORKS END-TO-END, Chad-verified live.** "Hey Vynel" → wake →
-brain → spoken answer → multi-turn → sleeps on silence. CPU-light as intended. **STT = Moonshine-base**
-(now the default; tiny available via `VYNEL_VOICE_STT` — base is "good than the old one" per Chad).
-Full plan + as-built: **`docs/module-notes/voice-engine.md`**.
+**🏁 THE BROWSER "JARVIS VIEW" + WEB SPEECH COMMAND STT IS BUILT (2026-07-07, this session — commit
+pending).** The full hybrid Chad specified: **small local model (Moonshine) wakes → the browser Jarvis
+view (real `VoiceOrb`) opens → Web Speech (Google STT) transcribes commands with a live interim
+transcript → `/root/turn` SSE → the reply is SPOKEN sentence-by-sentence (browser `speechSynthesis`)
+→ follow-ups without re-wake → 15 s silence closes it and the daemon takes the mic back.** Fork
+resolutions + as-built map: `docs/module-notes/voice-engine.md` §"✅ BUILT". Gate green **1933/4-skip**
+(+15: 3 driver-handoff · 3 overlay-channel · 6 browser-session · 1 failed-start · app-shell mounts the
+real overlay). Daemon boot-smoke verified: models load, overlay channel live on 8997, /events replays
+state, /session/end answers, client counts tracked. **Code-reviewer ran: verdict "approve after #1" —
+the must-fix + both should-fixes + nits ALL applied + tested** (the "stuck handed-off" family: a
+Web-Speech-less browser start now fires onEnded → releases the daemon; a wake lost mid-EventSource-
+reconnect recovers via the state replay; the SSE heartbeat can't leak on an early abort; a
+fast-failing recognition can't hot-spin — 500 ms silent-capture floor).
 
-**⏭ NEXT SESSION — THE BROWSER "JARVIS VIEW" + WEB SPEECH COMMAND STT (Chad's refined vision, 2026-07-07).**
-The hybrid: the **native daemon stays the always-on, local, private WAKE layer** (Moonshine "hey vynel",
-never streams the room). **On wake → a small browser "Jarvis view" turns on** — the v1 `VoiceOrb` overlay
-(`packages/ui` `VoiceOrb` + `apps/local-web` `VoiceOverlayDemo`, both still present) — and THERE, in the
-browser, **Web Speech API (Google STT)** does the COMMAND transcription: accurate, free, with **interim
-results + sentence-completion/endpointing** + live transcript in the orb. Resolves the "Web Speech is
-browser-only" nuance: the browser view IS the surface, so it's available. Best of both — local/private wake,
-rich/accurate browser command session.
-  **START WITH CHAD'S ADVICE (build-discipline) — design forks to resolve first:**
-  1. **Daemon ↔ browser signaling on wake:** the daemon detects wake → activates the browser view. Channel?
-     (a small always-on local-web window connected to the daemon/local-api over WebSocket, daemon publishes
-     "wake"; vs the daemon launching a browser window). The daemon already has a `VoiceSessionIo.setState`
-     seam emitting orb states — that's the natural event source.
-  2. **After wake, what runs where:** command STT = browser Web Speech (decided). Does the response TTS +
-     turn also move to the browser (Web Audio playback, `/root/turn` SSE from the browser — the ORIGINAL
-     web-loop path, which still exists in local-web history), or stay in the daemon? Likely the browser owns
-     the whole active-conversation turn once woken; the daemon hands off.
-  3. **Does the daemon's own STT/VAD/TTS stay** (fallback / no-browser mode) or become wake-only.
-  4. **Revive the dropped web pieces:** `VoiceOverlayDemo` → real events; `@hono/node-ws` (removed from
-     local-api) may return for the daemon↔browser channel; `ws:true` on the Vite proxy.
+**How it fits together:** daemon `VoiceSessionDriver` gained `'handed-off'` + a `WakeHandoff` seam;
+`apps/voice/src/overlay/overlay-channel.ts` (Hono loopback, `VYNEL_VOICE_DAEMON_PORT` 8997, SSE +
+POST /session/end); local-web gained `composables/voice/*` (recognition/synthesis wrappers, the
+unit-tested `voice-command-session` machine, `use-voice-session`, `use-voice-daemon-link`) + a Vite
+`/voice` proxy (`VYNEL_VOICE_DAEMON_URL`); **`VoiceOverlay.vue` replaced `VoiceOverlayDemo.vue`** (the
+last demo surface is gone). No overlay connected → the native Moonshine+Kokoro loop is untouched.
+Daemon deafness while handed off IS the cross-process echo defense.
 
-**Also-deferred (lower priority):** Chatterbox/LuxTTS Python TTS (voice quality); acoustic KWS wake;
-user barge-in; proactive spoken notifications. See `docs/module-notes/voice-engine.md` "Deferred".
+**🔁 SAME-DAY REVISION — THE FLOATING JARVIS WINDOW (Chad: "global overlay like v1, not in the tab").**
+Chad's first smoke: daemon+STT+speak all worked via the mic button, but wake answered natively (web
+wasn't running) and he expected a GLOBAL overlay. Built same-session: **wake now opens/foregrounds a
+chromeless Chrome app-window** (`/jarvis` bare route, shared `VoiceStage`) — Web Speech intact (it
+doesn't exist in Tauri WebView2/Electron, which is why NOT the Tauri overlay; that stays the true
+always-on-top future). Channel gained `?surface=app|jarvis` + wake-to-jarvis-only targeting +
+**pendingWake replay** (same-breath command survives the launch; supersedes the browser-side replay
+hack) + "wake-runner-gone" semantics; daemon gained `jarvis-window.ts` (launch via `start` App Paths /
+focus via `AppActivate('Vynel Jarvis')`) + a 10 s connect watchdog. Env: `VYNEL_VOICE_JARVIS_WINDOW=1`
+default. Gate **1939/4-skip** (+6). **Verified live as far as mic-less possible:** window launched on
+Chad's desktop, connected as `surface:jarvis`, daemon logged it. ⚠ Vite can bind IPv6-only
+(`[::1]:8999`) — probe/point at `localhost`, not `127.0.0.1`.
+
+**🔬 SAME-DAY PROBE — TAURI OVERLAY UNBLOCKED (Chad's hunch, verified live).** Chad asked whether
+Tauri's webview could do near-Google STT so a TRUE overlay is possible. Built a throwaway **wry** probe
+(scratchpad `stt-probe/`; Rust 1.96 + WebView2 149 already on the box, 48 s build): **WebView2 HAS
+working `SpeechRecognition`** — mic granted, interim results word-by-word, final PUNCTUATED transcript
+(Edge's Azure-backed recognizer), `speechSynthesis` spoke (voices list empty at first call — the async
+quirk our speaker already warms), `getUserMedia` fine. The old "Web Speech doesn't exist in WebView2"
+blocker was stale. **⏭ NEXT BIG LEVER: the M6 Tauri shell hosts the Jarvis overlay** — transparent
+always-on-top window rendering the SAME `/jarvis` surface (composables port as-is; the wrapper already
+prefers the unprefixed `SpeechRecognition`); the Chrome app-window stays the interim surface. Details:
+`docs/module-notes/voice-engine.md` §"🔬 PROBE RESULT". Also fixed same-day: JarvisView self-sizes
+(`resizeTo` 420×560, bottom-right — Chrome ignores `--window-size` when already running) + EADDRINUSE
+on the channel port now fails with an actionable message instead of a raw stack (tested).
+
+**⏭ CHAD TO LIVE-SMOKE (needs a voice):** local-api + local-web + daemon up → say "Hey Vynel what time
+is it" → the floating window should pop to front, live transcript, spoken answer, follow-ups; let it
+idle-close (~15 s), re-wake (window relaunches or refocuses); try the same-breath command and
+mute/unmute. First mic use in the app-window prompts Chrome once — allow it. Then commit (2 commits
+queued: the hybrid + the floating window) + CHANGELOG.
+
+**Also-deferred (lower priority):** Chatterbox/LuxTTS Python TTS (voice quality); Kokoro-streamed
+browser TTS (one consistent voice) behind `SentenceSpeaker`; acoustic KWS wake; user barge-in;
+proactive spoken notifications; live chat-thread refresh after a voice turn. See
+`docs/module-notes/voice-engine.md` "Deferred". Pre-existing papercut (not this diff): apps/voice isn't
+in the repo lint task; `main.ts` trips prefer-const (late-bound driver) + an unknown `n/no-process-exit`
+rule if linted directly.
 
 **⚠ PIVOT RECORD (Chad, 2026-07-07): NOT web — a BACKGROUND SIDECAR.** Priority was a background voice
 daemon (native mic/speaker), NOT the local-web browser path I'd started. **Engine + loop logic carried over
