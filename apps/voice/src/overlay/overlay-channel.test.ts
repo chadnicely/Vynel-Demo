@@ -31,6 +31,8 @@ function buildChannel(options?: OverlayChannelOptions): {
       onClientsGone: () => {
         hooks.clientsGone += 1
       },
+      // A recognizable fake WAV: the requested text length as a 1-byte "wav".
+      onSynthesize: (text) => Promise.resolve(new Uint8Array([text.length])),
     },
     silentLogger,
     options,
@@ -134,10 +136,65 @@ describe('overlay channel', () => {
 
     const second = startOverlayChannel(
       port,
-      { onSessionEnd: () => {}, onClientsGone: () => {} },
+      {
+        onSessionEnd: () => {},
+        onClientsGone: () => {},
+        onSynthesize: () => Promise.resolve(new Uint8Array()),
+      },
       silentLogger,
     )
     await expect(second.whenListening).rejects.toThrow(/EADDRINUSE/)
+  })
+
+  it('serves POST /synthesize as audio/wav and rejects empty text', async () => {
+    const { channel } = buildChannel()
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    const ok = await fetch(`http://127.0.0.1:${port}/synthesize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'Hello there.' }),
+    })
+    expect(ok.status).toBe(200)
+    expect(ok.headers.get('content-type')).toBe('audio/wav')
+    expect(new Uint8Array(await ok.arrayBuffer())).toEqual(new Uint8Array(['Hello there.'.length]))
+
+    const bad = await fetch(`http://127.0.0.1:${port}/synthesize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: '   ' }),
+    })
+    expect(bad.status).toBe(400)
+
+    const oversized = await fetch(`http://127.0.0.1:${port}/synthesize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'a'.repeat(1001) }),
+    })
+    expect(oversized.status).toBe(400)
+  })
+
+  it('maps a synthesis failure to a 500 with an actionable body', async () => {
+    const channel = startOverlayChannel(
+      0,
+      {
+        onSessionEnd: () => {},
+        onClientsGone: () => {},
+        onSynthesize: () => Promise.reject(new Error('model exploded')),
+      },
+      silentLogger,
+    )
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    const response = await fetch(`http://127.0.0.1:${port}/synthesize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'boom' }),
+    })
+    expect(response.status).toBe(500)
+    expect(((await response.json()) as { error: string }).error).toContain('daemon log')
   })
 
   it('replays an undelivered wake (with its command) to the next eligible connect', async () => {

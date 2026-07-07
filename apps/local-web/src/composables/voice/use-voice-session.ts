@@ -7,6 +7,7 @@ import {
   isWebSpeechAvailable,
 } from "./speech-recognition.js";
 import { createSentenceSpeaker } from "./speech-synthesis.js";
+import { createDaemonSpeaker } from "./daemon-speaker.js";
 import {
   startVoiceCommandSession,
   type VoiceCommandSession,
@@ -88,7 +89,9 @@ export function useVoiceSession(options: {
     }
 
     const recognizer = createCommandRecognizer();
-    const speaker = createSentenceSpeaker();
+    // Kokoro through the daemon when it's up; speechSynthesis per-sentence
+    // otherwise — the same voice as the native loop whenever possible.
+    const speaker = createDaemonSpeaker(createSentenceSpeaker());
     const started = startVoiceCommandSession(
       {
         captureCommand: (onInterim) => recognizer.capture(onInterim),

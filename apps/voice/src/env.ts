@@ -37,6 +37,12 @@ export const EnvSchema = z.object({
   // Where the floating window points (local-web's /jarvis route).
   VYNEL_VOICE_JARVIS_URL: z.string().url().default('http://localhost:8999/jarvis'),
   VYNEL_VOICE_JARVIS_BROWSER: z.enum(['chrome', 'msedge']).default('chrome'),
+  // The Tauri overlay executable — launched on wake when it exists and no
+  // overlay is connected; otherwise the Chrome app-window is the fallback.
+  VYNEL_VOICE_JARVIS_APP: z
+    .string()
+    .default('apps/desktop/src-tauri/target/debug/vynel-desktop.exe')
+    .transform(resolveAgainstRepoRoot),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 })
 

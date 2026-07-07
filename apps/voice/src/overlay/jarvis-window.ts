@@ -1,11 +1,14 @@
+import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import type { Logger } from 'pino'
 
-// Launch/focus the floating Jarvis window — a small chromeless Chrome/Edge
-// app-window on local-web's /jarvis route. The daemon opens it on wake when no
-// window is connected, and pulls an existing one to the front otherwise. Both
-// are best-effort native shell calls: if they fail the wake stays pending on
-// the overlay channel and the handoff watchdog returns the daemon to sleep.
+// Launch/focus the floating Jarvis window. Preferred: the Tauri overlay app
+// (transparent always-on-top, apps/desktop) when its executable exists;
+// fallback: a chromeless Chrome/Edge app-window on local-web's /jarvis route.
+// The daemon opens one on wake when no window is connected, and pulls an
+// existing one to the front otherwise. All best-effort native shell calls: if
+// they fail the wake stays pending on the overlay channel and the handoff
+// watchdog returns the daemon to sleep.
 
 // AppActivate matches by window title — keep in sync with JarvisView.vue.
 const WINDOW_TITLE = 'Vynel Jarvis'
@@ -44,7 +47,12 @@ export interface JarvisWindow {
 }
 
 export function createJarvisWindow(
-  config: { readonly browser: 'chrome' | 'msedge'; readonly url: string },
+  config: {
+    readonly browser: 'chrome' | 'msedge'
+    readonly url: string
+    /** Path to the Tauri overlay executable (preferred over the browser). */
+    readonly appPath?: string
+  },
   logger: Logger,
 ): JarvisWindow {
   const run = (invocation: JarvisWindowCommand, action: string): void => {
@@ -60,7 +68,12 @@ export function createJarvisWindow(
 
   return {
     open(): void {
-      logger.info({ url: config.url, browser: config.browser }, 'opening jarvis window')
+      if (config.appPath !== undefined && existsSync(config.appPath)) {
+        logger.info({ app: config.appPath }, 'opening jarvis overlay app')
+        run({ command: config.appPath, args: [] }, 'open')
+        return
+      }
+      logger.info({ url: config.url, browser: config.browser }, 'opening jarvis browser window')
       run(buildJarvisLaunchCommand(config.browser, config.url, process.platform), 'open')
     },
     focus(): void {

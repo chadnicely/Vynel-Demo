@@ -17,6 +17,7 @@ import {
 } from './models.js'
 import { createBrainClient } from './brain/run-brain-turn.js'
 import { createAudioShell } from './audio/audio-shell.js'
+import { encodeWav } from './audio/wav-encode.js'
 import { startOverlayChannel } from './overlay/overlay-channel.js'
 import { createJarvisWindow } from './overlay/jarvis-window.js'
 import { VoiceSessionDriver } from './loop/voice-session-driver.js'
@@ -58,7 +59,13 @@ function main(): void {
   const jarvisEnabled = env.VYNEL_VOICE_JARVIS_WINDOW === '1'
   const overlay = startOverlayChannel(
     env.VYNEL_VOICE_DAEMON_PORT,
-    { onSessionEnd: () => driver.endHandoff(), onClientsGone: () => driver.endHandoff() },
+    {
+      onSessionEnd: () => driver.endHandoff(),
+      onClientsGone: () => driver.endHandoff(),
+      // The overlay speaks with the daemon's own voice — one voice everywhere.
+      onSynthesize: async (text) =>
+        encodeWav(await synthesizer.synthesize(text, { voiceId: env.VYNEL_VOICE_ID })),
+    },
     logger,
     // With the floating window on, ONLY it runs wake sessions — app tabs keep
     // their state events + manual mic sessions but never race it for a wake.
@@ -76,7 +83,11 @@ function main(): void {
     process.exit(1)
   })
   const jarvisWindow = createJarvisWindow(
-    { browser: env.VYNEL_VOICE_JARVIS_BROWSER, url: env.VYNEL_VOICE_JARVIS_URL },
+    {
+      browser: env.VYNEL_VOICE_JARVIS_BROWSER,
+      url: env.VYNEL_VOICE_JARVIS_URL,
+      appPath: env.VYNEL_VOICE_JARVIS_APP,
+    },
     logger,
   )
   let jarvisConnectWatchdog: ReturnType<typeof setTimeout> | null = null

@@ -1,0 +1,13 @@
+# The Vynel desktop shell — today a single always-on-top Jarvis overlay window
+# rendering local-web's /jarvis route (WebView2 has full Web Speech; probed live
+# 2026-07-07, see docs/module-notes/voice-engine.md).
+[package]
+name = "vynel-desktop"
+version = "0.0.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The Jarvis overlay is now a real desktop overlay — transparent, always-on-top, speaking in
+  Vynel's own voice.** A thin Tauri shell (`apps/desktop`) hosts the orb as a frameless translucent
+  card that floats above everything: saying "Hey Vynel" launches it (or reveals it instantly if it's
+  already running, hidden), it transcribes live, and the reply is spoken with the daemon's Kokoro
+  voice — the same voice whether the overlay or the native loop answers (browser speech is the
+  automatic fallback if the daemon is away). Closing or silence hides the card; the next wake brings
+  it back. A live probe on WebView2 unblocked this: Tauri's webview ships a fully working
+  Web Speech recognizer (Azure-backed, punctuated finals), so the overlay keeps Google-grade STT.
+  The Chrome app-window remains the fallback surface on machines without the built desktop app.
 - **The Jarvis overlay — "Hey Vynel" now opens a floating voice window with Google-grade
   transcription.** The always-on daemon keeps waking locally (Moonshine — your room's audio never
   leaves the machine), but the command session now runs in a small floating Jarvis window: the Web

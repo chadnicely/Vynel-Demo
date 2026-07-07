@@ -14,6 +14,8 @@ import type { VoiceSessionState } from '../loop/voice-session-types.js'
 //        {kind:'state'|'wake', ...}. Wake events go to ONE client (never all —
 //        two sessions would answer twice): the newest eligible subscriber.
 //   POST /session/end — the overlay's command session finished; daemon resumes.
+//   POST /synthesize {text} — one spoken sentence as a WAV (Kokoro — the same
+//        voice as the native loop), played by the overlay's own audio element.
 //
 // An undelivered wake is held (`pendingWake`) and replayed to the next
 // eligible connect — that is how the same-breath command survives the Jarvis
@@ -33,6 +35,8 @@ export interface OverlayChannelHooks {
   onSessionEnd(): void
   /** The last wake-eligible client disconnected (window closed mid-session). */
   onClientsGone(): void
+  /** Synthesize one sentence for the overlay to play (the daemon's TTS voice). */
+  onSynthesize(text: string): Promise<Uint8Array>
 }
 
 export interface OverlayChannelOptions {
@@ -139,6 +143,23 @@ export function startOverlayChannel(
     .post('/session/end', (c) => {
       hooks.onSessionEnd()
       return c.json({ ok: true })
+    })
+    .post('/synthesize', async (c) => {
+      const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null
+      const text = typeof body?.text === 'string' ? body.text.trim() : ''
+      if (!text || text.length > 1000) {
+        return c.json({ error: 'text must be a non-empty string of at most 1000 characters' }, 400)
+      }
+      try {
+        const wav = await hooks.onSynthesize(text)
+        return c.body(wav.slice().buffer, 200, { 'content-type': 'audio/wav' })
+      } catch (error) {
+        logger.error(
+          { error: error instanceof Error ? error.message : String(error) },
+          'overlay synthesize failed',
+        )
+        return c.json({ error: 'synthesis failed — see the daemon log' }, 500)
+      }
     })
 
   // The executor runs synchronously, so `server` is assigned before any use.
