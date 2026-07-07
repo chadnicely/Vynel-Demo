@@ -21,6 +21,9 @@ export const EnvSchema = z.object({
   VYNEL_VOICE_MODELS_DIR: z.string().default('.models/voice').transform(resolveAgainstRepoRoot),
   // Which TTS voice to speak with: 'kokoro' (11 natural voices) or 'piper-lessac' (small).
   VYNEL_VOICE_TTS: z.enum(['kokoro', 'piper-lessac']).default('kokoro'),
+  // Which STT model to hear with: 'moonshine-tiny' (lightest) or 'moonshine-base'
+  // (more accurate, still realtime on CPU). Set VYNEL_VOICE_STT=moonshine-base to A/B.
+  VYNEL_VOICE_STT: z.enum(['moonshine-tiny', 'moonshine-base']).default('moonshine-tiny'),
   // Speaker id for multi-voice models (Kokoro: 0-10).
   VYNEL_VOICE_ID: z.coerce.number().int().min(0).default(0),
   // Silence (ms) in an active conversation before falling back asleep.

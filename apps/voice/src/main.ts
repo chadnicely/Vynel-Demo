@@ -24,7 +24,7 @@ function main(): void {
   const logger = pino({ level: env.LOG_LEVEL })
 
   const ttsConfig = resolveTtsConfig(env.VYNEL_VOICE_MODELS_DIR, env.VYNEL_VOICE_TTS)
-  const sttConfig = resolveSttConfig(env.VYNEL_VOICE_MODELS_DIR)
+  const sttConfig = resolveSttConfig(env.VYNEL_VOICE_MODELS_DIR, env.VYNEL_VOICE_STT)
   const vadConfig = resolveVadConfig(env.VYNEL_VOICE_MODELS_DIR)
 
   const missing = findMissingModelFile(ttsConfig, sttConfig, vadConfig)
@@ -37,7 +37,7 @@ function main(): void {
     return
   }
 
-  logger.info({ tts: env.VYNEL_VOICE_TTS }, 'loading voice models on CPU…')
+  logger.info({ tts: env.VYNEL_VOICE_TTS, stt: env.VYNEL_VOICE_STT }, 'loading voice models on CPU…')
   const synthesizer = new SherpaVoiceEngine({ tts: ttsConfig })
   const recognizer = new SherpaSpeechRecognizer({ stt: sttConfig })
   const vad = new SherpaVoiceActivityDetector({ vad: vadConfig })

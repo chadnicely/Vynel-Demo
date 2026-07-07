@@ -36,6 +36,18 @@ export type VoiceModelEntry = TtsModelEntry | SttModelEntry | VadModelEntry
 const TTS_RELEASE = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models'
 const ASR_RELEASE = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models'
 
+// Every Moonshine model (tiny/base) ships the same 4 files + tokens.
+function moonshineConfig(baseDir: string): SttModelConfig {
+  return {
+    kind: 'moonshine',
+    preprocessor: join(baseDir, 'preprocess.onnx'),
+    encoder: join(baseDir, 'encode.int8.onnx'),
+    uncachedDecoder: join(baseDir, 'uncached_decode.int8.onnx'),
+    cachedDecoder: join(baseDir, 'cached_decode.int8.onnx'),
+    tokens: join(baseDir, 'tokens.txt'),
+  }
+}
+
 export const voiceModels: Readonly<Record<string, VoiceModelEntry>> = {
   // Vynel's default voice — 11 natural English speakers, 24 kHz.
   kokoro: {
@@ -64,7 +76,7 @@ export const voiceModels: Readonly<Record<string, VoiceModelEntry>> = {
       dataDir: join(baseDir, 'espeak-ng-data'),
     }),
   },
-  // The listening side — Moonshine tiny English (int8), the realtime-on-CPU STT.
+  // The listening side — Moonshine tiny English (int8), the lightest realtime STT.
   moonshine: {
     kind: 'stt',
     folder: 'sherpa-onnx-moonshine-tiny-en-int8',
@@ -73,14 +85,18 @@ export const voiceModels: Readonly<Record<string, VoiceModelEntry>> = {
       format: 'archive',
       url: `${ASR_RELEASE}/sherpa-onnx-moonshine-tiny-en-int8.tar.bz2`,
     },
-    toSttConfig: (baseDir) => ({
-      kind: 'moonshine',
-      preprocessor: join(baseDir, 'preprocess.onnx'),
-      encoder: join(baseDir, 'encode.int8.onnx'),
-      uncachedDecoder: join(baseDir, 'uncached_decode.int8.onnx'),
-      cachedDecoder: join(baseDir, 'cached_decode.int8.onnx'),
-      tokens: join(baseDir, 'tokens.txt'),
-    }),
+    toSttConfig: (baseDir) => moonshineConfig(baseDir),
+  },
+  // Moonshine base — same architecture, more accurate, still realtime on CPU.
+  'moonshine-base': {
+    kind: 'stt',
+    folder: 'sherpa-onnx-moonshine-base-en-int8',
+    approxSize: '~240 MB',
+    download: {
+      format: 'archive',
+      url: `${ASR_RELEASE}/sherpa-onnx-moonshine-base-en-int8.tar.bz2`,
+    },
+    toSttConfig: (baseDir) => moonshineConfig(baseDir),
   },
   // Voice-activity detection — a single ~630 KB silero model file, 16 kHz.
   'silero-vad': {

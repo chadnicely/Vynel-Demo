@@ -28,8 +28,15 @@ export function resolveTtsConfig(modelsDir: string, choice: TtsChoice): TtsModel
   }
 }
 
-export function resolveSttConfig(modelsDir: string): SttModelConfig {
-  const base = join(modelsDir, 'sherpa-onnx-moonshine-tiny-en-int8')
+export type SttChoice = 'moonshine-tiny' | 'moonshine-base'
+
+export function resolveSttConfig(modelsDir: string, choice: SttChoice): SttModelConfig {
+  // Both Moonshine sizes ship the same 4 files + tokens; only the folder differs.
+  const folder =
+    choice === 'moonshine-base'
+      ? 'sherpa-onnx-moonshine-base-en-int8'
+      : 'sherpa-onnx-moonshine-tiny-en-int8'
+  const base = join(modelsDir, folder)
   return {
     kind: 'moonshine',
     preprocessor: join(base, 'preprocess.onnx'),
