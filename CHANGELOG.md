@@ -9,6 +9,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A first-launch setup wizard — a fresh install now opens to a guided welcome instead of a dead
+  screen.** The moment the app detects setup isn't finished (the API's first-launch gate), a
+  full-window wizard takes over: say hello, tell Vynel your name and timezone, name your first
+  workspace, seed your assistant's first memory about you, pick starter skills, optionally connect
+  Telegram, and optionally schedule a morning briefing. Every step is driven by the real onboarding
+  API — closing the app mid-setup resumes exactly where you left off, and "Start over" restarts the
+  run. When the last step lands, one click opens the app with everything already in place.
+- **Create a workspace from the app — the switcher's new "New workspace…" row.** A dialog names the
+  workspace and walks your real folders (drives, up-navigation, live listing) to pick the existing
+  directory it should live in; creating it selects it immediately. No more asking the assistant (or
+  the CLI) just to add a room.
 - **The Jarvis overlay is now a real desktop overlay — transparent, always-on-top, speaking in
   Vynel's own voice.** A thin Tauri shell (`apps/desktop`) hosts the orb as a frameless translucent
   card that floats above everything: saying "Hey Vynel" launches it (or reveals it instantly if it's
@@ -92,6 +103,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Approval cards in the chat now say what's being asked.** The inline card classifies the action
+  with the same taxonomy the server records — "wants to run a command", "wants to create a file" —
+  and risky kinds (shell commands, deletes, outgoing email) get the danger treatment instead of the
+  generic headline. The inline card and the corner notification can no longer disagree.
+- **The Watch panel reads at a glance.** Watching a delegated task now shows a live status pill
+  (working / done / failed), the instruction that started the task styled as its own card, and a
+  gold "waiting for your approval" banner while the task is paused on you. Escape closes the panel.
 - **Desktop UI now runs on the real API, not demo data (M7).** Deleted the hand-written demo
   namespaces and the scripted turn player; `workspaces`, `dashboard`, and the whole chat vertical
   (session reads + live turns + approvals + interrupt) now hit the generated SDK. Live turns stream

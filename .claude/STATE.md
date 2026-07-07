@@ -3,7 +3,7 @@
 **Updated 2026-07-07.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-08 morning): ① Chatterbox TTS experiment · ② then UI work
+## ⏭ NEXT ACTION (2026-07-08 morning): ① Chatterbox TTS experiment · ② smoke the new UI surfaces
 
 **🎉 THE VOICE FEATURE IS DONE — Chad-verified live, ALL COMMITTED (`dd4143e` hybrid · `ea61ba2` docs
 · `f1ca405` tauri overlay + kokoro voice · `f5ed591` docs · `f77059f` floating-orb style; tree clean,
@@ -22,12 +22,45 @@ Known constraints (docs/module-notes/voice-engine.md): Chatterbox Turbo is **not
 "zipvoice-based" and sherpa-onnx ships ZipVoice (voice cloning ~90% of the ask, no Python). Start by
 benching what Chad's box can do; wire behind the same interface, never in the critical path.
 
-**⏭ ② THEN: UI WORK (Chad, same note — "next I need to work on some uis").** Scope TBD with Chad.
-Known UI backlog from prior sessions: onboarding wizard (first-launch gate 412s on a fresh DB —
-`VYNEL_FIRST_LAUNCH_GATE_ENABLED=0` dodge), workspace-create "+" form, approval-card `actionKind`
-(contract gap → generic card), Watch-panel polish, voice-settings surface (voice picker / idle
-timeout / wake sensitivity). Remember: UI = fresh design, never port v1 (memory
-`ui-fresh-design-no-v1-porting`); letterman vue-query patterns.
+**🏁 ② UI BACKLOG CLEARED (2026-07-07 overnight autopilot, Chad's "cover beautiful uis everywhere").**
+Four moves, each gate-green + code-reviewer-APPROVEd + committed (gate ends **1962/4-skip**, +14; tree
+clean at `d61f1a4`):
+- **Onboarding wizard `bf3bdba`** — the first-launch 412 now has a real answer: ANY query/mutation
+  hitting the gate's `onboarding_required` envelope (QueryCache/MutationCache onError →
+  `onboarding-store`) swaps the whole window to `components/onboarding/OnboardingWizard.vue`. Server
+  truth drives it (start resumes an in-progress run → `getRunStatus` snapshot picks the step → 7 typed
+  step components → done screen → invalidate-everything). Boot failures surface with retry
+  (reviewer's catch); step-shared chrome lives ONCE in `WizardStepBody` (:deep home). **Chad can now
+  REMOVE `VYNEL_FIRST_LAUNCH_GATE_ENABLED=0` from `.env` — a fresh DB shows the wizard, not a dead
+  app.** Note: during onboarding only `/onboarding/*` routes pass the gate, so the skills step labels
+  suggestions from their ids (catalog routes are gated — honest limitation).
+- **Workspace-create "+" `62e4a8f`** — the switcher menu gained "New workspace…" →
+  `CreateWorkspaceDialog` (name + REAL folder browser over `workspaces.listDirectories`: drives, up,
+  live listing; the OPEN folder is the selection) → `workspaces.register` → created workspace becomes
+  active.
+- **Inline approval-card actionKind `5a41819`** — the LiveTurn card now derives the kind CLIENT-side
+  via a new web-safe subpath **`@vynel/approvals/action-kind`** (pure `deriveActionKind`, type-only
+  imports — reviewer verified no runtime deps reach the bundle). Same single-source function the
+  server records with → inline card + notifier can't drift. **The SSE `ChatTurnEvent`
+  `approval-requested.actionKind` contract change stays deliberately deferred** (this closes the UX
+  gap without touching the wire).
+- **Watch-panel polish `d61f1a4`** — status pill (gold-live / ok / danger), task-entry card
+  treatment, gold approval-wait banner, Escape-to-close (with stacked-overlay preventDefault
+  etiquette shared with the dialog).
+
+**⏭ CHAD TO LIVE-SMOKE (can't be unit-tested):** ① delete `.data/vynel.dev.db*` + drop the
+`VYNEL_FIRST_LAUNCH_GATE_ENABLED=0` line → boot → wizard appears, walk it end-to-end (Telegram +
+briefing steps are skippable), app opens with the workspace created; ② switcher → "New workspace…" →
+browse to a real folder → create → it's active; ③ send a write-y task in Ask mode → the INLINE card
+says "wants to run a command"/"wants to create a file" (danger red on Bash); ④ Watch chip → pill
+shows Working→Done, task card + approval banner render.
+
+**Honest deferrals (decide with Chad, not slipped in):** voice-settings surface (voice picker / idle
+timeout / wake sensitivity) — the daemon is env-driven at boot (`apps/voice/src/env.ts`); a real
+settings UI needs a daemon settings API + persistence design first · `approval-requested.actionKind`
+on the SSE contract (above) · reviewer nit: `#14171c` on-gold ink now in ~5 files → a `--ink-on-gold`
+token sweep someday. UI rules held: fresh design, tokens-only, gold = presence/attention only
+(memory `ui-fresh-design-no-v1-porting`).
 
 ### (done 2026-07-07) The voice-feature arc, for the record
 
