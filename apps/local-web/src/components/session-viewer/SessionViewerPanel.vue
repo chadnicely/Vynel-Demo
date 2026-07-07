@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, onUnmounted } from "vue";
 import { X } from "lucide-vue-next";
 import { IconButton, MarkdownText, PresenceDot, ToolCallList } from "@vynel/ui";
 import { useDelegationTraceLive } from "../../composables/delegations/use-delegation-trace-live.js";
@@ -52,6 +52,15 @@ const statusLabel = computed(() => {
   }
 });
 
+// The pill's tone: gold while alive, quiet green when settled well, danger red
+// when the job failed — the panel's state readable at a glance.
+const statusTone = computed(() => {
+  if (isWorking.value) return "live" as const;
+  if (status.value === "completed") return "ok" as const;
+  if (status.value === "failed") return "danger" as const;
+  return null;
+});
+
 type TraceEntry = (typeof entries.value)[number];
 
 function authorLabel(entry: TraceEntry): string {
@@ -60,6 +69,22 @@ function authorLabel(entry: TraceEntry): string {
   if (entry.sourceLabel) return `Assistant · ${entry.sourceLabel}`;
   return "Assistant";
 }
+
+// The instruction that started the delegation reads differently from the
+// replies — it gets the task-card treatment.
+function isTaskEntry(entry: TraceEntry): boolean {
+  return entry.role === "user";
+}
+
+function onKeydown(event: KeyboardEvent) {
+  // An inner overlay (e.g. the new-workspace dialog) that handled this press
+  // claims it via preventDefault — only the topmost overlay closes.
+  if (event.defaultPrevented) return;
+  if (event.key === "Escape" && viewer.isOpen) viewer.close();
+}
+
+onMounted(() => document.addEventListener("keydown", onKeydown));
+onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 </script>
 
 <template>
@@ -73,8 +98,18 @@ function authorLabel(entry: TraceEntry): string {
               <p class="viewer-title">
                 <PresenceDot :state="isWorking ? 'live' : 'idle'" />
                 {{ title }}
+                <span
+                  v-if="statusLabel"
+                  class="status-pill"
+                  :class="statusTone ? `is-${statusTone}` : ''"
+                >
+                  {{ statusLabel }}
+                </span>
               </p>
-              <p v-if="statusLabel" class="viewer-context">{{ statusLabel }}</p>
+              <p class="viewer-context">
+                Watching this task live — everything the workspace does shows
+                up here.
+              </p>
             </div>
             <IconButton label="Close" @click="viewer.close()">
               <X :size="15" />
@@ -94,7 +129,12 @@ function authorLabel(entry: TraceEntry): string {
               }}
             </p>
             <div v-else class="trace">
-              <div v-for="entry in displayEntries" :key="entry.id" class="entry">
+              <div
+                v-for="entry in displayEntries"
+                :key="entry.id"
+                class="entry"
+                :class="{ 'is-task': isTaskEntry(entry) }"
+              >
                 <p class="entry-author">{{ authorLabel(entry) }}</p>
                 <ToolCallList
                   v-if="entry.toolCalls.length > 0"
@@ -105,7 +145,8 @@ function authorLabel(entry: TraceEntry): string {
               </div>
               <p v-if="pendingApprovalToolName" class="working-note is-approval">
                 <PresenceDot state="live" />
-                Waiting for your approval: {{ pendingApprovalToolName }}
+                Waiting for your approval: {{ pendingApprovalToolName }} — the
+                task is paused until you decide.
               </p>
               <p v-else-if="isWorking" class="working-note">
                 <PresenceDot state="live" /> Still working…
@@ -178,6 +219,55 @@ function authorLabel(entry: TraceEntry): string {
   margin: 0;
   color: var(--ink-3);
   font: 400 10.5px/1.5 var(--font-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-pill {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 99px;
+  border: 1px solid var(--hair-strong);
+  color: var(--ink-2);
+  font: 600 10px/1.5 var(--font-ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.status-pill.is-live {
+  border-color: var(--gold-soft);
+  background: var(--gold-soft);
+  color: var(--gold);
+  animation: pill-breathe 1.6s var(--ease-out) infinite;
+}
+
+@keyframes pill-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-pill.is-live {
+    animation: none;
+  }
+}
+
+.status-pill.is-ok {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+
+.status-pill.is-danger {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
 }
 
 .viewer-body {
@@ -197,6 +287,16 @@ function authorLabel(entry: TraceEntry): string {
 .entry {
   display: grid;
   gap: 6px;
+}
+
+/* The instruction that STARTED the task — a quoted card, visually distinct
+   from the assistant's replies below it. */
+.entry.is-task {
+  padding: 10px 14px;
+  border: 1px solid var(--hair);
+  border-left: 3px solid var(--hair-strong);
+  border-radius: var(--radius-m);
+  background: var(--bg-raised);
 }
 
 .entry-author {
@@ -227,7 +327,12 @@ function authorLabel(entry: TraceEntry): string {
   font: 500 12px/1.5 var(--font-ui);
 }
 
+/* Needs-you moment — the one gold banner in the panel. */
 .working-note.is-approval {
+  padding: 9px 12px;
+  border: 1px solid var(--gold-soft);
+  border-radius: var(--radius-m);
+  background: var(--gold-soft);
   color: var(--ink-1);
   font-weight: 600;
 }

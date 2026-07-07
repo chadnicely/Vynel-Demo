@@ -64,7 +64,12 @@ function create() {
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") emit("close");
+  if (event.key === "Escape") {
+    // Claim the key so outer overlays (the Watch panel's document listener)
+    // don't also close on the same press.
+    event.preventDefault();
+    emit("close");
+  }
 }
 </script>
 
