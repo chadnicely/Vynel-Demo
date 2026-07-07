@@ -24,6 +24,12 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ""),
         },
+        // The voice daemon's overlay channel (SSE wake/state events + session-end).
+        "/voice": {
+          target: env.VYNEL_VOICE_DAEMON_URL,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/voice/, ""),
+        },
       },
     },
   };

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PcmAudio, SpeechRecognizer, VoiceActivityDetector } from '@vynel/voice-engine'
 import { FakeVoiceEngine } from '@vynel/voice-engine/test-support'
 import { VoiceSessionDriver } from './voice-session-driver.js'
+import type { WakeHandoff } from './voice-session-driver.js'
 import type { VoiceBrainEvent, VoiceSessionIo, VoiceSessionState } from './voice-session-types.js'
 
 // Pass-through VAD: each pushed chunk is one complete segment ("one utterance
@@ -57,16 +58,34 @@ async function* brainFailing(): AsyncIterable<VoiceBrainEvent> {
 const chunk = (): PcmAudio => ({ samples: new Float32Array(160), sampleRate: 16000 })
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
+class RecordingWakeHandoff implements WakeHandoff {
+  handOff = true
+  published: string[] = []
+  shouldHandOff(): boolean {
+    return this.handOff
+  }
+  publishWake(command: string): void {
+    this.published.push(command)
+  }
+}
+
 function buildDriver(
   transcripts: string[],
   brain: (u: string) => AsyncIterable<VoiceBrainEvent>,
-  options?: { idleTimeoutMs?: number; autoDrain?: boolean },
+  options?: { idleTimeoutMs?: number; autoDrain?: boolean; wakeHandoff?: WakeHandoff },
 ) {
   const io = new RecordingIo()
   const recognizer = new ScriptedRecognizer(transcripts)
   const synthesizer = new FakeVoiceEngine()
   const driver = new VoiceSessionDriver(
-    { vad: new PassThroughVad(), recognizer, synthesizer, runBrainTurn: brain, io },
+    {
+      vad: new PassThroughVad(),
+      recognizer,
+      synthesizer,
+      runBrainTurn: brain,
+      io,
+      ...(options?.wakeHandoff ? { wakeHandoff: options.wakeHandoff } : {}),
+    },
     options?.idleTimeoutMs !== undefined ? { idleTimeoutMs: options.idleTimeoutMs } : {},
   )
   if (options?.autoDrain !== false) io.onEndSpeech = () => driver.notifyPlaybackDrained()
@@ -139,6 +158,55 @@ describe('VoiceSessionDriver', () => {
     const { driver, synthesizer } = buildDriver(['hey vynel break it'], () => brainFailing())
     await driver.pushAudio(chunk())
     expect(synthesizer.spoken).toEqual(['Sorry, I ran into a problem with that.'])
+  })
+
+  it('hands the wake to a connected overlay instead of running the native turn', async () => {
+    const wakeHandoff = new RecordingWakeHandoff()
+    const { driver, io, synthesizer } = buildDriver(
+      ['hey vynel what is the time', 'ignored while handed off'],
+      () => brainSaying('never'),
+      { wakeHandoff },
+    )
+    await driver.pushAudio(chunk())
+    expect(wakeHandoff.published).toEqual(['what is the time'])
+    expect(synthesizer.spoken).toEqual([]) // the browser session speaks, not the daemon
+    expect(io.states.at(-1)).toBe('wake')
+
+    await driver.pushAudio(chunk()) // overlay owns the session — daemon deaf
+    expect(wakeHandoff.published).toHaveLength(1)
+    expect(synthesizer.spoken).toEqual([])
+  })
+
+  it('publishes a bare wake with an empty command and resumes on endHandoff', async () => {
+    const wakeHandoff = new RecordingWakeHandoff()
+    const { driver, io, synthesizer } = buildDriver(
+      ['hey vynel', 'hey vynel again'],
+      () => brainSaying('never'),
+      { wakeHandoff },
+    )
+    await driver.pushAudio(chunk())
+    expect(wakeHandoff.published).toEqual([''])
+
+    driver.endHandoff()
+    expect(driver.isAwake).toBe(false)
+    expect(io.states.at(-1)).toBe('idle')
+
+    await driver.pushAudio(chunk()) // asleep again — the next wake hands off again
+    expect(wakeHandoff.published).toEqual(['', 'again'])
+    expect(synthesizer.spoken).toEqual([])
+  })
+
+  it('runs the native turn when no overlay is connected', async () => {
+    const wakeHandoff = new RecordingWakeHandoff()
+    wakeHandoff.handOff = false
+    const { driver, synthesizer } = buildDriver(
+      ['hey vynel what is the time'],
+      () => brainSaying('Noon.'),
+      { wakeHandoff },
+    )
+    await driver.pushAudio(chunk())
+    expect(wakeHandoff.published).toEqual([])
+    expect(synthesizer.spoken).toEqual(['Noon.'])
   })
 
   it('keeps the mic closed until the shell reports playback drained (echo defense)', async () => {

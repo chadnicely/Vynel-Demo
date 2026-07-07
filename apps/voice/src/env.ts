@@ -28,6 +28,15 @@ export const EnvSchema = z.object({
   VYNEL_VOICE_ID: z.coerce.number().int().min(0).default(0),
   // Silence (ms) in an active conversation before falling back asleep.
   VYNEL_VOICE_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  // Loopback port for the browser Jarvis-view channel (SSE wake/state events).
+  VYNEL_VOICE_DAEMON_PORT: z.coerce.number().int().positive().default(8997),
+  // '1' = wake opens/focuses the floating Jarvis window (chrome --app) and the
+  // browser owns every command session; '0' = the pre-window behavior (hand
+  // off only to an already-connected tab, else answer natively).
+  VYNEL_VOICE_JARVIS_WINDOW: z.enum(['0', '1']).default('1'),
+  // Where the floating window points (local-web's /jarvis route).
+  VYNEL_VOICE_JARVIS_URL: z.string().url().default('http://localhost:8999/jarvis'),
+  VYNEL_VOICE_JARVIS_BROWSER: z.enum(['chrome', 'msedge']).default('chrome'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 })
 

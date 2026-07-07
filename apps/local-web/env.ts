@@ -10,6 +10,8 @@ const LocalWebEnvSchema = z.object({
   LOCAL_WEB_PORT: z.coerce.number().int().positive().default(8999),
   /** Where the local API daemon listens; the dev server proxies /api there. */
   LOCAL_API_URL: z.string().url().default("http://127.0.0.1:8998"),
+  /** Where the voice daemon's overlay channel listens; proxied at /voice. */
+  VYNEL_VOICE_DAEMON_URL: z.string().url().default("http://127.0.0.1:8997"),
 });
 
 export type LocalWebEnv = z.infer<typeof LocalWebEnvSchema>;

@@ -22,6 +22,7 @@
     "@vynel/sdk": "workspace:*",
     "@vynel/session": "workspace:*",
     "@vynel/ui": "workspace:*",
+    "@vynel/voice": "workspace:*",
     "codemirror": "^6.0.1",
     "lucide-vue-next": "^0.468.0",
     "pinia": "^3.0.0",

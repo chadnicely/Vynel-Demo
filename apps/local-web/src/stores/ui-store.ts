@@ -86,7 +86,7 @@ export const useUiStore = defineStore("ui", () => {
   const composerModelId = ref<string>(DEFAULT_CHAT_MODEL);
   const composerMode = ref<SessionMode>(DEFAULT_SESSION_MODE);
 
-  // The Jarvis voice overlay (demo animation until the voice engine lands).
+  // The Jarvis voice overlay — opens on the daemon's wake event or the mic button.
   const isVoiceOverlayOpen = ref(false);
 
   return {

@@ -11,8 +11,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hono/node-server": "^1.13.0",
     "@vynel/voice": "workspace:*",
     "@vynel/voice-engine": "workspace:*",
+    "hono": "^4.6.0",
     "node-cpal": "^0.1.1",
     "pino": "^9.5.0",
     "zod": "^3.23.0"

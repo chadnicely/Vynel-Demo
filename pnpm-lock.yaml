@@ -211,6 +211,9 @@ importers:
       '@vynel/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@vynel/voice':
+        specifier: workspace:*
+        version: link:../../packages/voice
       codemirror:
         specifier: ^6.0.1
         version: 6.0.2
@@ -285,12 +288,18 @@ importers:
 
   apps/voice:
     dependencies:
+      '@hono/node-server':
+        specifier: ^1.13.0
+        version: 1.19.14(hono@4.12.27)
       '@vynel/voice':
         specifier: workspace:*
         version: link:../../packages/voice
       '@vynel/voice-engine':
         specifier: workspace:*
         version: link:../../packages/voice-engine
+      hono:
+        specifier: ^4.6.0
+        version: 4.12.27
       node-cpal:
         specifier: ^0.1.1
         version: 0.1.1

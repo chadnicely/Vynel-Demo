@@ -22,6 +22,14 @@ export function createAppRouter() {
         name: "workspace",
         component: () => import("./views/WorkspaceView.vue"),
       },
+      {
+        // The floating Jarvis window (chrome --app). `bare` drops the app
+        // shell — this view IS the whole window.
+        path: "/jarvis",
+        name: "jarvis",
+        component: () => import("./views/JarvisView.vue"),
+        meta: { bare: true },
+      },
     ],
   });
 }
