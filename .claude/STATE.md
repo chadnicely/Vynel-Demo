@@ -3,7 +3,25 @@
 **Updated 2026-07-07.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-08 morning): ① Chatterbox TTS experiment · ② smoke the new UI surfaces
+## ⏭ NEXT ACTION (2026-07-08): VOICE-AS-COMMUNICATION SHIPPED — next: slice 3 (route-to-global speak-back) OR Chatterbox OR UI
+
+**🎉 VOICE-AS-COMMUNICATION DONE — Chad-verified live, COMMITTED `79506a2` (feat) + docs commit.**
+Chad's ask: a `speak` MCP tool + "voice as a channel with a light fast model." Built end-to-end:
+`speak` brain-surface tool (any global session talks) · voice turns run on **Haiku** + a "reply via
+`speak`" directive (short spoken answers, no markdown essay) · **ONE voice, played by the ACTIVE
+SURFACE** — the overlay plays the daemon's Kokoro WAV itself (the daemon speaker can't reach the device
+while the Tauri/WebView2 window holds it; browser AEC kills echo), daemon speaker only on the no-overlay
+native loop · browser STT with a **5 s silence endpoint** + recognizer-restart stitching (don't cut the
+user off). Full as-built + the hard-won audio pivot: `docs/module-notes/voice-engine.md` §"✅ BUILT
+(2026-07-08)". Gate **1975/4-skip**. Reviewer rounds (cancel-hang · deaf-daemon · echo) all applied.
+**⚠ Voice needs the daemon (`pnpm dev:voice` / `pnpm dev:full`) + Chrome/Edge/the Tauri overlay.**
+
+**⏭ SLICE 3 (designed, NOT built):** the true two-tier — Haiku ROUTES a heavy request to the global
+brain, which does the work and `speak`s back (or async fire-and-notify via the dormant
+`@vynel/voice` `RelayTaskNotifier`). Also a SHOULD-FIX: a spoken fallback when a voice turn completes
+without calling `speak` (Haiku occasionally skips → silent turn). Then the parked levers below.
+
+## ⏭ (parked) ① Chatterbox TTS experiment · ② smoke the new UI surfaces
 
 **🎉 THE VOICE FEATURE IS DONE — Chad-verified live, ALL COMMITTED (`dd4143e` hybrid · `ea61ba2` docs
 · `f1ca405` tauri overlay + kokoro voice · `f5ed591` docs · `f77059f` floating-orb style; tree clean,

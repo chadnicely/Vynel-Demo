@@ -1,0 +1,44 @@
+# 2026-07-08 — voice as communication: the `speak` tool + Haiku channel
+
+Chad's directive: "mcp for voice like speak so any global session can speak directly" + "voice as a
+channel with a light model that responds fast and sends to global." Studied the old repo
+(`voice-relay-design.md`): the two-tier fast-model design was DESIGNED but never fully shipped (they
+shipped instant-ack + relay-straight-to-root; the Haiku triage was a "next enrichment"). So this was
+building the original vision, plus a new twist (`speak` as a brain capability).
+
+## What shipped (commit `79506a2`)
+- **`speak` brain-surface MCP tool** — `POST /voice/speak` (rootSurface, mutatingApproved) relays to the
+  daemon; graceful `{spoken:false}` when the daemon's down.
+- **Haiku voice turns + "reply via speak" directive** — `voice:true` threads to `run-global-root-turn-
+  core` → `VOICE_TURN_INSTRUCTIONS`. The model does the work then SPEAKS a short result. Killed the
+  markdown-essay-read-aloud + the double-voice.
+- **ONE voice, played by the active surface** — see the pivot below.
+- **Browser STT endpointing** — 5 s silence window + recognizer-restart stitching.
+
+## The hard-won lessons (this session cost a lot of live back-and-forth)
+1. **A byte-identical audio path can behave differently by runtime STATE.** The daemon's `#speak` was
+   the same code that worked in slice 1, but silent through the `speak` tool. Cause: the daemon's
+   node-cpal speaker **can't reach the audio device while the Tauri/WebView2 overlay holds it**, and a
+   cold/idle WASAPI output stream plays nothing. Slice 1 worked because it was a warm, no-overlay, fresh
+   boot. → **Diagnose "no sound" by isolating warm-vs-cold + who-holds-the-device, not by re-reading the
+   emit code.** The `speak requested`/`speak failed` logs + the `onSpeakError` surfacing (a swallowed
+   per-line catch was hiding nothing — synth succeeded, the device just didn't play) were what finally
+   localized it.
+2. **The pivot: let the ACTIVE SURFACE play the one voice.** The overlay fetches the daemon's Kokoro WAV
+   (`/voice/synthesize`) and plays it in-browser — reliable (no device contention), and browser AEC
+   kills the cross-process echo the reviewer had flagged. "One voice" (Kokoro) is preserved; only the
+   playback device follows the active surface. The daemon speaker stays for the no-overlay native loop.
+   This partially un-did the "daemon speaker is the one voice" choice — but that choice assumed the
+   daemon could physically play, which it can't during a handoff.
+3. **Web Speech `continuous:false` finalizes too eagerly** (first phrase-pause). Own endpointing =
+   continuous + a silence timer + restart-across-auto-ends. The browser recognizer auto-ends after
+   ~10-15 words even in continuous mode, so restarting-and-stitching is required to honor a long window.
+4. **Reviewer caught two real handoff bugs** the green gate couldn't (no test exercised speak-during-
+   handoff): a mid-drain `endHandoff` was swallowed → permanently deaf daemon; the browser mic reopened
+   while the daemon was still speaking → echo. Both are the "newly-reachable state" class — a state that
+   was previously unreachable (the kick guard used to block draining while handed-off).
+
+## Verification
+Gate **1975/4-skip**. Chad live: "Its good now" — wake → Haiku → short spoken Kokoro reply in the
+overlay, no echo, 5 s pause tolerance. Deferred: slice 3 (route-to-global speak-back), the no-`speak`
+silent-turn fallback.

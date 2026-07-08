@@ -226,6 +226,45 @@ back to speechSynthesis **per-sentence** if the daemon is down/failing, so a rep
 One voice everywhere (native loop and overlay both Kokoro). ⚠ Restart the daemon after pulling this —
 an older running daemon lacks `/synthesize` and the overlay will quietly use the fallback voice.
 
+### ✅ BUILT (2026-07-08): voice-as-communication — the `speak` tool + Haiku channel (Chad-verified live)
+Chad's directive: "mcp for voice like speak so any global session can speak directly" + "voice as a
+channel with a light model that responds fast and sends to global." Built + working end-to-end.
+
+**The architecture (as-built, after several live-iterated pivots):**
+- **`speak` is a brain-surface MCP tool** (`mcp__vynel__speak`, `rootSurface`, `mutatingApproved` →
+  auto/no-card). Route `POST /voice/speak` (`apps/local-api/src/routes/voice/`) relays to the daemon's
+  overlay channel `POST /speak`. Any global-root session can call it — the light voice session, the
+  global brain, a scheduled task. `{ spoken:false, reason }` when the daemon's absent (answer in text).
+- **Voice turns are Haiku + a "reply via speak" directive.** `voice:true` threads `/root/turn` →
+  `run-global-root-turn-core` → appends `VOICE_TURN_INSTRUCTIONS` ("you're heard ONLY when you call
+  `speak`; short spoken sentences, no markdown"). Overlay + daemon brain-client pin `claude-haiku-4-5`.
+  So the model DOES the work (read tools / route to a workspace) then SPEAKS a short result — no essay.
+- **ONE voice, and the ACTIVE SURFACE plays it.** The `speak` tool is the only voice — no surface reads
+  the streamed response aloud (daemon `#runTurn` + browser TTS both removed). ⚠ **Hard-won pivot:** the
+  daemon's OWN speaker (node-cpal) can't reach the audio device while the Tauri overlay window (WebView2)
+  holds it, AND a cold/idle WASAPI output stream plays nothing. So: **when an overlay is connected it
+  PLAYS the reply itself** (`spoken-audio-player.ts` fetches the daemon's Kokoro WAV via
+  `/voice/synthesize` and plays it — browser AEC kills the echo for free); the daemon's speaker is used
+  ONLY on the no-overlay native loop (where it's warm from the mic). `main.ts` `onSpeak` skips
+  `driver.speak` when `overlay.hasClient`. A silence-heartbeat keep-alive (`audio-shell.ts`) keeps the
+  native output warm.
+- **Browser STT endpointing** (`speech-recognition.ts`): continuous recognition + our OWN 5 s
+  silence window (the browser finalizes after ~10-15 words / a phrase-pause and cuts you off), and it
+  RESTARTS the recognizer across its auto-ends, stitching the transcript, so a mid-thought pause never
+  ends the command.
+- **Driver `speak` = a fault-isolated queue** drained even during a handoff (browser owns the mic, the
+  speaker's free); preserves prior state (asleep/handed-off), honors a mid-drain `endHandoff`
+  (`#endHandoffPending`) so closing the overlay mid-sentence can't leave the daemon deaf.
+- **Shared `stripSpokenMarkup`** (`@vynel/voice`) — safety net so a markdown slip never voices "asterisk".
+
+**Reviewer rounds (all applied):** slice-1 cancel-during-playback hang; slice-2 deaf-daemon-on-mid-drain-
+endHandoff + speak-during-handoff echo. The daemon-speaker-during-handoff path was the source of the
+"caption perfect but no sound" bug — resolved by the browser-plays pivot. Gate **1975/4-skip**.
+
+**Deferred (slice 3, not built):** the true two-tier where Haiku ROUTES a heavy request to the global
+brain which then `speak`s back / async fire-and-notify via the dormant `RelayTaskNotifier`; a spoken
+fallback when a turn completes without calling `speak` (Haiku occasionally skips — reviewer SHOULD-FIX).
+
 ### 🔬 PROBE RESULT (2026-07-07, Chad's box): WebView2 HAS working SpeechRecognition — Tauri overlay UNBLOCKED
 A minimal **wry** app (the exact webview Tauri uses on Windows; WebView2 runtime **149**) loaded a test
 page and, live on Chad's machine: `window.SpeechRecognition` **exists** (standard name, no webkit
