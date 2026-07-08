@@ -1243,6 +1243,42 @@ export const sendToChannel: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const speak: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'speak',
+    "Speak a short message ALOUD to the user through their voice assistant. Pass plain, spoken-style prose — NO markdown, lists, code, or URLs; write it the way you would say it out loud, and keep it brief (a sentence or two). Use this to answer or notify the user by voice, especially when the request came in by voice. Returns { spoken: true } when it played, or { spoken: false, reason } when the voice assistant is not running (then reply in text instead).",
+    {
+    text: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/voice/speak'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['text']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 // Workspace-scoped tools — the normal chat turn's in-process server.
 export const generatedMcpTools: McpToolFactory[] = [
   addToKnowledge,
@@ -1284,4 +1320,5 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   registerWorkspace,
   routeToWorkspace,
   sendToChannel,
+  speak,
 ]

@@ -14,6 +14,12 @@ const CAPTURE_RATE = 16_000
 // The speaker keeps playing after the last frame is written; wait this long past
 // the estimated end before reopening the mic so the tail isn't heard by the mic.
 const PLAYBACK_TAIL_MS = 350
+// Keep the WASAPI output stream WARM. An idle output stream goes cold on Windows
+// and the next fresh write produces NO SOUND — which is why the daemon's own
+// turn (warm from the active mic conversation) was heard, but a `speak` fired
+// while idle/handed-off was silent. Feed a steady trickle of silence between
+// real audio so the stream never sleeps.
+const KEEPALIVE_MS = 50
 
 export interface AudioShell {
   readonly io: VoiceSessionIo
@@ -42,6 +48,18 @@ export function createAudioShell(logger: Logger, onPlaybackDrained: () => void):
   let queuedSeconds = 0
   let drainTimer: ReturnType<typeof setTimeout> | null = null
   let lastMicLogAt = 0 // throttle the diagnostic mic-level log
+  let lastRealEmitAt = 0
+
+  // ~KEEPALIVE_MS of silence, in the output's own interleaved format.
+  const keepAliveFrame = new Float32Array(
+    Math.max(1, Math.round((outputConfig.sampleRate * outputConfig.channels * KEEPALIVE_MS) / 1000)),
+  )
+  const keepAlive = setInterval(() => {
+    // Skip while real audio is actively flowing — it keeps the stream warm on
+    // its own, and queuing silence behind it would delay/gap playback.
+    if (performance.now() - lastRealEmitAt < 250) return
+    cpal.writeToStream(outputStream, keepAliveFrame)
+  }, KEEPALIVE_MS)
 
   const io: VoiceSessionIo = {
     setState(state: VoiceSessionState): void {
@@ -55,6 +73,7 @@ export function createAudioShell(logger: Logger, onPlaybackDrained: () => void):
         queuedSeconds = 0
       }
       queuedSeconds += pcm.samples.length / pcm.sampleRate
+      lastRealEmitAt = performance.now()
       cpal.writeToStream(outputStream, interleaved)
     },
     endSpeech(): void {
@@ -96,6 +115,7 @@ export function createAudioShell(logger: Logger, onPlaybackDrained: () => void):
       )
     },
     stop(): void {
+      clearInterval(keepAlive)
       if (drainTimer !== null) clearTimeout(drainTimer)
       if (inputStream !== null) cpal.closeStream(inputStream)
       cpal.closeStream(outputStream)

@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Voice is now a real communication channel — say "Hey Vynel" and talk to it like a person.** A
+  new `speak` tool lets the assistant *choose* to answer out loud: voice requests run on the fast
+  Haiku model, which does the work and then speaks a short, natural reply (no more reading a wall of
+  markdown aloud). It hears you through the browser's accurate speech recognition and waits a real
+  pause before deciding you're done — so you can think mid-sentence without being cut off. The reply
+  plays in one consistent voice with no echo, and the same `speak` capability means any part of the
+  assistant (a scheduled morning briefing, a finished background task) can talk to you when it makes
+  sense. Needs the voice daemon running (`pnpm dev:voice`) plus Chrome or Edge / the desktop overlay.
 - **A first-launch setup wizard — a fresh install now opens to a guided welcome instead of a dead
   screen.** The moment the app detects setup isn't finished (the API's first-launch gate), a
   full-window wizard takes over: say hello, tell Vynel your name and timezone, name your first

@@ -1,18 +1,20 @@
-import { SpokenSentenceBuffer } from "@vynel/voice";
+import { stripSpokenMarkup } from "@vynel/voice";
 
 // The browser half of the hybrid voice loop — the command session the daemon
-// hands off to on wake. Mirrors the daemon's VoiceSessionDriver shape, browser
-// idioms: Web Speech STT captures a command (with a live interim transcript),
-// the brain answers over the `/root/turn` SSE stream, complete sentences are
-// spoken as they form, then it listens for a follow-up. Silence past the idle
-// window ends the session (the overlay closes and the daemon takes the mic
-// back). Recognition never runs while speaking — the browser echo defense.
+// hands off to on wake. Web Speech STT captures a command (with a live interim
+// transcript), the brain runs the turn on the fast voice model, and — this is
+// the whole point — the browser NEVER speaks. Voice output happens only when the
+// brain calls the `speak` tool, which plays through the daemon's speaker (the
+// one voice). The session is ears + eyes: it shows the transcript and, when a
+// `speak` call arrives, the words on screen. Silence past the idle window ends
+// the session (the overlay closes, the daemon takes the mic back).
 //
 // Everything is injected so the whole flow is unit-tested with fakes — no Web
-// Speech, no network, no speakers.
+// Speech, no network.
 
 export type VoiceTurnEvent =
-  | { readonly kind: "text"; readonly delta: string }
+  // The brain called the `speak` tool — `text` is what the daemon is saying.
+  | { readonly kind: "spoke"; readonly text: string }
   | { readonly kind: "completed" }
   | { readonly kind: "failed"; readonly message: string };
 
@@ -26,7 +28,7 @@ export interface VoiceCommandSessionView {
   readonly state: VoiceCommandSessionState;
   /** The live interim transcript while listening; the command while answering. */
   readonly transcript: string;
-  /** The sentence currently being spoken ('' otherwise). */
+  /** What the daemon is saying (the last `speak` call this turn; '' otherwise). */
   readonly spokenText: string;
 }
 
@@ -35,13 +37,17 @@ export interface VoiceCommandSessionDeps {
   captureCommand(onInterim: (transcript: string) => void): Promise<string | null>;
   /** Cancel an in-flight capture (its promise resolves null). */
   abortCapture(): void;
+  /** Run the brain turn; yields each `speak` call + a terminal. */
   runBrainTurn(
     utterance: string,
     signal: AbortSignal,
   ): AsyncIterable<VoiceTurnEvent>;
-  /** Speak one sentence; resolves when playback finished. */
-  speak(text: string): Promise<void>;
-  cancelSpeech(): void;
+  /** Play a spoken reply (the daemon's Kokoro voice) IN THE BROWSER — the reliable
+   *  path while the overlay window holds the audio device. Awaited, so the mic
+   *  reopens only after playback (and the browser's echo cancellation covers it). */
+  playSpoken(text: string): Promise<void>;
+  /** Stop any in-flight playback (on end()). */
+  cancelSpoken(): void;
   onView(view: VoiceCommandSessionView): void;
 }
 
@@ -77,33 +83,30 @@ export function startVoiceCommandSession(
     if (!ended || view.state === "ended") deps.onView(view);
   };
 
-  async function speakSentence(command: string, sentence: string): Promise<void> {
-    if (ended) return;
-    setView({ state: "speaking", transcript: command, spokenText: sentence });
-    await deps.speak(sentence);
-  }
-
   async function runTurn(command: string): Promise<void> {
     setView({ state: "thinking", transcript: command, spokenText: "" });
-    const buffer = new SpokenSentenceBuffer();
     try {
       for await (const event of deps.runBrainTurn(command, turnAbort.signal)) {
         if (ended) return;
-        if (event.kind === "text") {
-          for (const sentence of buffer.push(event.delta))
-            await speakSentence(command, sentence);
+        if (event.kind === "spoke") {
+          // The brain called `speak` — show the words AND play them in the browser
+          // (awaited, so the mic waits for playback + browser AEC covers it).
+          const spoken = stripSpokenMarkup(event.text);
+          if (spoken !== "") {
+            setView({ state: "speaking", transcript: command, spokenText: spoken });
+            await deps.playSpoken(spoken);
+          }
         } else {
-          for (const sentence of buffer.flush())
-            await speakSentence(command, sentence);
+          // A failed turn stays silent (the brain owns the mic via `speak`); show
+          // the reason on screen so the user isn't left with a dead orb.
           if (event.kind === "failed")
-            await speakSentence(command, FAILED_TURN_LINE);
+            setView({ state: "speaking", transcript: command, spokenText: FAILED_TURN_LINE });
           return;
         }
       }
     } catch {
       if (ended) return;
-      for (const sentence of buffer.flush()) await speakSentence(command, sentence);
-      await speakSentence(command, FAILED_TURN_LINE);
+      setView({ state: "speaking", transcript: command, spokenText: FAILED_TURN_LINE });
     }
   }
 
@@ -150,7 +153,7 @@ export function startVoiceCommandSession(
       ended = true;
       turnAbort.abort();
       deps.abortCapture();
-      deps.cancelSpeech();
+      deps.cancelSpoken();
     },
   };
 }

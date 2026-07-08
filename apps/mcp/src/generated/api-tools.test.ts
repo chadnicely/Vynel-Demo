@@ -75,13 +75,15 @@ const EXPECTED_TOOL_NAMES = [
 // byte. Membership is path-prefix `/routing/` OR `x-mcp.rootSurface: true`.
 // Landed with the routing vertical (2026-07-05); `register_workspace` (the
 // user sets up a workspace from the global conversation — rootSurface, mutating
-// → cards) joined 2026-07-05.
+// → cards) joined 2026-07-05; `speak` (rootSurface — any global session's voice
+// output) joined 2026-07-08.
 const EXPECTED_ROUTING_TOOL_NAMES = [
   'list_routing_channels',
   'list_routing_workspaces',
   'register_workspace',
   'route_to_workspace',
   'send_to_channel',
+  'speak',
 ] as const
 
 const snakeToCamel = (s: string): string => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())

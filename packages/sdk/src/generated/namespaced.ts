@@ -922,6 +922,15 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  voice: {
+  speak: async (input: NonNullable<paths["/voice/speak"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/voice/speak", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   workspaces: {
   archive: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/archive"]["post"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/archive", {

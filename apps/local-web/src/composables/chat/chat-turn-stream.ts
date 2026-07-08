@@ -26,6 +26,8 @@ export interface StartTurnInput {
   /** The user-facing session mode (approval behavior). Both scopes — a global turn's
    *  mode also governs any delegation the brain enqueues (surface-up step 1). */
   mode?: SessionMode;
+  /** This turn came in by VOICE — the brain answers short + spoken (global scope). */
+  voice?: boolean;
   signal: AbortSignal;
 }
 
@@ -41,6 +43,7 @@ export async function* streamChatTurnEvents(
             userMessageText: input.userMessageText,
             ...(input.model ? { model: input.model } : {}),
             ...(input.mode ? { mode: input.mode } : {}),
+            ...(input.voice ? { voice: true } : {}),
           },
           parseAs: "stream",
           signal: input.signal,

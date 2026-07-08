@@ -65,6 +65,19 @@ function main(): void {
       // The overlay speaks with the daemon's own voice — one voice everywhere.
       onSynthesize: async (text) =>
         encodeWav(await synthesizer.synthesize(text, { voiceId: env.VYNEL_VOICE_ID })),
+      // The `speak` MCP tool — any global session's voice output. When an overlay
+      // is connected it PLAYS the audio itself (the daemon's speaker can't reach
+      // the device while the overlay window holds it); the daemon only speaks on
+      // its own native no-overlay loop. Accept + queue → resolves immediately.
+      onSpeak: (text) => {
+        if (overlay.hasClient) {
+          logger.info({ text: text.slice(0, 80) }, 'speak — overlay will play it')
+          return Promise.resolve()
+        }
+        logger.info({ text: text.slice(0, 80) }, 'speak requested (native)')
+        driver.speak(text)
+        return Promise.resolve()
+      },
     },
     logger,
     // With the floating window on, ONLY it runs wake sessions — app tabs keep
@@ -107,6 +120,11 @@ function main(): void {
       synthesizer,
       runBrainTurn: createBrainClient(env.VYNEL_API_URL),
       io,
+      onSpeakError: (error, text) =>
+        logger.error(
+          { error: error instanceof Error ? error.message : String(error), text: text.slice(0, 80) },
+          'speak failed — nothing was heard for this line',
+        ),
       // The browser owns the command session (Web Speech STT + spoken reply
       // run there). Jarvis mode: every wake hands off — the floating window is
       // opened/focused, and the held wake replays once it connects. Otherwise:

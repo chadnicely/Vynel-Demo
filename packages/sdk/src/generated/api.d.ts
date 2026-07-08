@@ -1786,6 +1786,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voice/speak": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Speak text aloud through the user's voice (the Jarvis speaker). */
+        post: operations["postVoiceSpeak"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard/overview": {
         parameters: {
             query?: never;
@@ -7630,6 +7647,7 @@ export interface operations {
                     model?: string;
                     /** @enum {string} */
                     mode?: "ask" | "auto" | "bypass";
+                    voice?: boolean;
                 };
             };
         };
@@ -7779,6 +7797,35 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    postVoiceSpeak: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description { spoken: true } — or { spoken: false, reason } if voice output isn't available. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        spoken: boolean;
+                        reason?: string;
+                    };
+                };
             };
         };
     };

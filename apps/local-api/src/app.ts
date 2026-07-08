@@ -37,6 +37,7 @@ import { firstLaunchGateMiddleware } from './middleware/first-launch-gate.js'
 import { workspacesApp } from './routes/workspaces/index.js'
 import { rootApp } from './routes/root/index.js'
 import { routingApp } from './routes/routing/index.js'
+import { voiceApp } from './routes/voice/index.js'
 import { dashboardApp } from './routes/dashboard/index.js'
 import { TurnEventBroadcaster } from './sessions/turn-event-broadcaster.js'
 
@@ -137,6 +138,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/agents', agentsApp)
   app.route('/root', rootApp)
   app.route('/routing', routingApp)
+  app.route('/voice', voiceApp)
   app.route('/dashboard', dashboardApp)
   // Bare `/workspaces` mounts AFTER every `/workspaces/:workspaceId/*` sub-app
   // (source order) so the param-scoped feature routes keep precedence.

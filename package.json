@@ -9,6 +9,8 @@
   },
   "scripts": {
     "dev": "turbo run dev --filter=@vynel/local-api --filter=@vynel/local-web",
+    "dev:voice": "pnpm --filter @vynel/voice-daemon dev",
+    "dev:full": "turbo run dev --filter=@vynel/local-api --filter=@vynel/local-web --filter=@vynel/voice-daemon",
     "dev:all": "turbo run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",

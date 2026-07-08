@@ -6,8 +6,7 @@ import {
   createCommandRecognizer,
   isWebSpeechAvailable,
 } from "./speech-recognition.js";
-import { createSentenceSpeaker } from "./speech-synthesis.js";
-import { createDaemonSpeaker } from "./daemon-speaker.js";
+import { createSpokenAudioPlayer } from "./spoken-audio-player.js";
 import {
   startVoiceCommandSession,
   type VoiceCommandSession,
@@ -16,9 +15,15 @@ import {
 } from "./voice-command-session.js";
 
 // Binds one browser voice-command session to Vue state for the Jarvis overlay:
-// Web Speech STT in, a global `/root/turn` per command, speechSynthesis out.
-// A voice utterance is just another origin for the one brain — the same SSE
-// stream the chat composer uses, reduced to text deltas + a terminal.
+// Web Speech STT in, a global `/root/turn` per command on the fast voice model.
+// The browser NEVER speaks — voice output happens only when the brain calls the
+// `speak` tool, which plays through the daemon's speaker. This composable turns
+// each `speak` call in the stream into a 'spoke' view update.
+
+// The small, fast model voice turns run on (the light triage tier).
+const VOICE_MODEL = "claude-haiku-4-5";
+// The brain-surface tool the model calls to talk (mcp__vynel__<name>).
+const SPEAK_TOOL_NAME = "mcp__vynel__speak";
 
 const IDLE_VIEW: VoiceCommandSessionView = {
   state: "ended",
@@ -26,7 +31,18 @@ const IDLE_VIEW: VoiceCommandSessionView = {
   spokenText: "",
 };
 
-/** Adapt the chat-turn SSE stream to the session's text-and-terminal events. */
+/** Pull the spoken text out of a `speak` tool call's input ({ text }). */
+function extractSpokenText(toolInput: unknown): string | null {
+  if (typeof toolInput === "object" && toolInput !== null && "text" in toolInput) {
+    const text = (toolInput as { text: unknown }).text;
+    if (typeof text === "string" && text.trim() !== "") return text;
+  }
+  return null;
+}
+
+/** Adapt the chat-turn SSE stream to the session's events: surface each `speak`
+ *  tool call (what the daemon is saying) + the terminal. The streamed TEXT is
+ *  ignored — it's the on-screen record, never voice. */
 async function* runGlobalVoiceTurn(
   client: VynelClient,
   utterance: string,
@@ -36,10 +52,13 @@ async function* runGlobalVoiceTurn(
     for await (const event of streamChatTurnEvents(client, {
       scope: { kind: "global" },
       userMessageText: utterance,
+      model: VOICE_MODEL, // the small, fast voice model
+      voice: true, // reply via the speak tool; nothing here is read aloud
       signal,
     })) {
-      if (event.kind === "text-chunk") {
-        yield { kind: "text", delta: event.textDelta };
+      if (event.kind === "tool-call-started" && event.toolCall.toolName === SPEAK_TOOL_NAME) {
+        const text = extractSpokenText(event.toolCall.toolInput);
+        if (text !== null) yield { kind: "spoke", text };
       } else if (event.kind === "session-errored") {
         yield { kind: "failed", message: event.errorMessage };
         return;
@@ -66,6 +85,7 @@ export function useVoiceSession(options: {
   onEnded: () => void;
 }) {
   const vynel = useVynel();
+  const player = createSpokenAudioPlayer();
 
   const view = ref<VoiceCommandSessionView>(IDLE_VIEW);
   /** A user-actionable failure (mic denied, unsupported browser). */
@@ -89,17 +109,14 @@ export function useVoiceSession(options: {
     }
 
     const recognizer = createCommandRecognizer();
-    // Kokoro through the daemon when it's up; speechSynthesis per-sentence
-    // otherwise — the same voice as the native loop whenever possible.
-    const speaker = createDaemonSpeaker(createSentenceSpeaker());
     const started = startVoiceCommandSession(
       {
         captureCommand: (onInterim) => recognizer.capture(onInterim),
         abortCapture: () => recognizer.abort(),
         runBrainTurn: (utterance, signal) =>
           runGlobalVoiceTurn(vynel, utterance, signal),
-        speak: (text) => speaker.speak(text),
-        cancelSpeech: () => speaker.cancel(),
+        playSpoken: (text) => player.play(text),
+        cancelSpoken: () => player.cancel(),
         onView: (next) => {
           view.value = next;
         },

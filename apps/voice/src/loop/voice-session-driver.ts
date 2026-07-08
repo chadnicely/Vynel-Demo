@@ -41,6 +41,9 @@ export interface VoiceSessionDriverDeps {
   readonly runBrainTurn: (utterance: string) => AsyncIterable<VoiceBrainEvent>
   readonly io: VoiceSessionIo
   readonly wakeHandoff?: WakeHandoff
+  /** Surface a swallowed speak/synth failure (silent otherwise — the queue keeps
+   *  going). The shell logs it; tests omit it. */
+  readonly onSpeakError?: (error: unknown, text: string) => void
 }
 
 export interface VoiceSessionDriverOptions {
@@ -65,6 +68,15 @@ export class VoiceSessionDriver {
   #idleTimer: ReturnType<typeof setTimeout> | null = null
   #resolvePlaybackDrained: (() => void) | null = null
   #playbackDrainedPending = false
+  // External `speak` text (the `speak` tool / proactive lines), drained even
+  // while handed off (the daemon speaker is free; the browser owns the mic).
+  #speakQueue: string[] = []
+  #drainingSpeakQueue = false
+  // The state a drain interrupted, restored when it finishes; and a handoff-end
+  // that arrived MID-drain (state forced 'busy' then, so endHandoff couldn't act)
+  // — honored by the drain's finally so it isn't swallowed (deaf-daemon bug).
+  #drainPriorState: DriverState | null = null
+  #endHandoffPending = false
 
   constructor(deps: VoiceSessionDriverDeps, options: VoiceSessionDriverOptions = {}) {
     this.#deps = deps
@@ -88,6 +100,85 @@ export class VoiceSessionDriver {
       }
     } finally {
       this.#processing = false
+      // A turn/segment just finished — the audio path may now be free for a
+      // speak that was queued while it ran.
+      this.#kickSpeakQueue()
+    }
+  }
+
+  /** Enqueue external text to speak — the `speak` MCP tool (any session) or a
+   *  proactive notification. Returns immediately once ACCEPTED; the queue drains
+   *  when the driver is free (not mid-turn, not handed off to a browser overlay),
+   *  so a proactive line never collides with a live conversation or defeats the
+   *  echo defense. Lines speak in order; a failure on one never strands the rest.
+   *  It does not run the brain — the caller supplies the exact words. */
+  speak(text: string): void {
+    const spoken = text.trim()
+    if (spoken !== '') this.#speakQueue.push(spoken)
+    this.#kickSpeakQueue()
+  }
+
+  // Start draining if there's text AND the speaker is free. A no-op while the
+  // daemon's OWN turn/segment owns the audio path — the next free transition
+  // (pushAudio's finally) re-kicks. Speaks freely while 'handed-off': the browser
+  // overlay owns the MIC, but the daemon speaker is idle and the `speak` tool is
+  // exactly how the overlay's brain turn talks. Never starts a second drain.
+  #kickSpeakQueue(): void {
+    if (this.#drainingSpeakQueue || this.#speakQueue.length === 0) return
+    if (this.#state === 'busy' || this.#processing) return
+    void this.#drainSpeakQueue()
+  }
+
+  async #drainSpeakQueue(): Promise<void> {
+    this.#drainingSpeakQueue = true
+    // Restore EXACTLY where we were afterward — a proactive line must not wake a
+    // sleeping daemon into a conversation, nor yank a handoff away from the
+    // browser overlay. Only 'busy' can't be the prior state — the kick guard
+    // blocks it. Tracked in a field so a mid-drain endHandoff can see it.
+    this.#drainPriorState = this.#state
+    this.#clearIdleTimer()
+    this.#state = 'busy' // drop mic frames while speaking (echo defense)
+    try {
+      while (this.#speakQueue.length > 0) {
+        const text = this.#speakQueue.shift()!
+        try {
+          await this.#speakLine(text)
+        } catch (error) {
+          // A TTS/audio hiccup on one line must never strand the queue or the
+          // state machine — drop it, speak the next; the finally restores state.
+          this.#deps.onSpeakError?.(error, text)
+        }
+      }
+    } finally {
+      const priorState = this.#drainPriorState
+      this.#drainPriorState = null
+      this.#drainingSpeakQueue = false
+      if (this.#endHandoffPending) {
+        // The overlay released the handoff WHILE we were speaking — honor it now
+        // (the guard on endHandoff couldn't, state was 'busy'). Else it'd be lost.
+        this.#endHandoffPending = false
+        this.#toAsleep()
+      } else if (priorState === 'asleep') {
+        this.#toAsleep()
+      } else if (priorState === 'handed-off') {
+        this.#state = 'handed-off'
+        // Signal the overlay the daemon speaker is free again (it gated its mic
+        // on this) — the state stays handed-off; this is the outbound signal only.
+        this.#deps.io.setState('idle')
+      } else {
+        this.#goActive()
+      }
+    }
+  }
+
+  async #speakLine(text: string): Promise<void> {
+    const buffer = new SpokenSentenceBuffer()
+    let spoke = false
+    for (const sentence of buffer.push(text)) spoke = (await this.#speak(sentence)) || spoke
+    for (const sentence of buffer.flush()) spoke = (await this.#speak(sentence)) || spoke
+    if (spoke) {
+      this.#deps.io.endSpeech()
+      await this.#awaitPlaybackDrained()
     }
   }
 
@@ -105,8 +196,19 @@ export class VoiceSessionDriver {
   /** The overlay's command session ended (or its client disconnected) — the
    *  daemon takes the mic back and resumes wake-listening. */
   endHandoff(): void {
-    if (this.#state !== 'handed-off') return
-    this.#toAsleep()
+    if (this.#state === 'handed-off') {
+      this.#toAsleep()
+      // The overlay released the audio path — a speak queued during the handoff
+      // can play now.
+      this.#kickSpeakQueue()
+      return
+    }
+    // A speak is draining on TOP of the handoff (state forced 'busy'), so we
+    // can't act yet — record it so the drain's finally returns to sleep instead
+    // of restoring the handoff and leaving the daemon deaf with no owner.
+    if (this.#drainingSpeakQueue && this.#drainPriorState === 'handed-off') {
+      this.#endHandoffPending = true
+    }
   }
 
   /** Stop the driver — clears timers (call on shutdown). */
@@ -148,27 +250,26 @@ export class VoiceSessionDriver {
     this.#state = 'busy'
     this.#deps.io.setState('thinking')
 
-    const buffer = new SpokenSentenceBuffer()
-    let spoke = false
+    // The daemon no longer speaks the reply text — the brain replies by CALLING
+    // the `speak` tool, which loops back to this driver's speaker (queued behind
+    // this turn, played once it frees). We just run the turn to completion.
+    let failed = false
     try {
       for await (const event of this.#deps.runBrainTurn(utterance)) {
-        if (event.kind === 'text') {
-          for (const sentence of buffer.push(event.delta)) spoke = (await this.#speak(sentence)) || spoke
-        } else {
-          for (const sentence of buffer.flush()) spoke = (await this.#speak(sentence)) || spoke
-          if (event.kind === 'failed') spoke = (await this.#speak(FAILED_TURN_LINE)) || spoke
+        if (event.kind === 'failed') {
+          failed = true
           break
         }
+        if (event.kind === 'completed') break
+        // 'text' deltas are ignored — voice output is the `speak` tool alone.
       }
     } catch {
-      for (const sentence of buffer.flush()) spoke = (await this.#speak(sentence)) || spoke
-      spoke = (await this.#speak(FAILED_TURN_LINE)) || spoke
+      failed = true
     }
 
-    if (spoke) {
-      this.#deps.io.endSpeech()
-      await this.#awaitPlaybackDrained()
-    }
+    // A failed turn won't have called `speak` — say so, queued like any speak
+    // (drained after we free this turn).
+    if (failed) this.speak(FAILED_TURN_LINE)
     // Stay in the conversation for follow-ups; silence eventually sleeps it.
     this.#goActive()
   }

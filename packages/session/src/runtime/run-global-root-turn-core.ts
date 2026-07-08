@@ -74,6 +74,29 @@ export interface RunGlobalRootTurnCoreInput {
   mutatingToolNames: string[]
   /** The MCP/feature system-prompt contribution; the core prepends GLOBAL_ROOT_INSTRUCTIONS. */
   mcpSystemPromptAppend: string
+  /** This turn arrived by VOICE — append the directive that makes the brain reply
+   *  by CALLING the `speak` tool (the single voice) instead of writing prose. */
+  voice?: boolean
+}
+
+// Appended for a voice turn. The user hears you ONLY through the `speak` tool —
+// your streamed text is never read aloud. So the reply must be MADE by calling
+// speak, and what you pass it must sound like speech (short, plain, no markup).
+const VOICE_TURN_INSTRUCTIONS = `This request came in by VOICE. The user HEARS you only when you call the \`speak\` tool — your normal text output is NOT read aloud.
+- To reply, CALL \`speak\` with what you want said. Do this for every voice turn — a turn with no \`speak\` call is silent to the user.
+- Pass ONE or TWO short spoken sentences: lead with the answer, plain conversational language, exactly as you'd say it out loud.
+- NEVER put markdown, asterisks, bullet points, headings, tables, code, or URLs in \`speak\` — no symbols the ear can't hear.
+- Do the work first (read tools, or route to a workspace for heavy tasks), THEN call \`speak\` with the spoken result. Keep any text answer brief; it's just the on-screen record.`
+
+/**
+ * Compose the turn's `systemPromptAppend`: the global-root instructions, the
+ * feature/MCP contribution, and — for a voice turn — the spoken-style directive.
+ */
+function buildSystemPromptAppend(input: RunGlobalRootTurnCoreInput): string {
+  const parts = [GLOBAL_ROOT_INSTRUCTIONS]
+  if (input.mcpSystemPromptAppend !== '') parts.push(input.mcpSystemPromptAppend)
+  if (input.voice === true) parts.push(VOICE_TURN_INSTRUCTIONS)
+  return parts.join('\n\n')
 }
 
 /**
@@ -129,10 +152,7 @@ export async function runGlobalRootTurnCore(
         ...(input.mutatingToolNames.length > 0
           ? { alwaysRequireApprovalToolNames: input.mutatingToolNames }
           : {}),
-        systemPromptAppend:
-          input.mcpSystemPromptAppend !== ''
-            ? `${GLOBAL_ROOT_INSTRUCTIONS}\n\n${input.mcpSystemPromptAppend}`
-            : GLOBAL_ROOT_INSTRUCTIONS,
+        systemPromptAppend: buildSystemPromptAppend(input),
         logger: deps.logger,
       })
 

@@ -121,6 +121,7 @@ export async function streamGlobalRootTurn(
         userMessageText: input.userMessageText,
         ...(input.model !== undefined ? { model: input.model } : {}),
         ...(permissionMode !== undefined ? { permissionMode } : {}),
+        ...(input.voice === true ? { voice: true } : {}),
         mcpServers: composedMcp.mcpServers,
         allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
         mutatingToolNames: composedMcp.mutatingToolNames,

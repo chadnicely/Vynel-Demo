@@ -15,13 +15,14 @@ const silentLogger = pino({ level: 'silent' })
 interface RecordedHooks {
   sessionEnds: number
   clientsGone: number
+  spoken: string[]
 }
 
 function buildChannel(options?: OverlayChannelOptions): {
   channel: OverlayChannel
   hooks: RecordedHooks
 } {
-  const hooks: RecordedHooks = { sessionEnds: 0, clientsGone: 0 }
+  const hooks: RecordedHooks = { sessionEnds: 0, clientsGone: 0, spoken: [] }
   const channel = startOverlayChannel(
     0,
     {
@@ -33,6 +34,10 @@ function buildChannel(options?: OverlayChannelOptions): {
       },
       // A recognizable fake WAV: the requested text length as a 1-byte "wav".
       onSynthesize: (text) => Promise.resolve(new Uint8Array([text.length])),
+      onSpeak: (text) => {
+        hooks.spoken.push(text)
+        return Promise.resolve()
+      },
     },
     silentLogger,
     options,
@@ -140,6 +145,7 @@ describe('overlay channel', () => {
         onSessionEnd: () => {},
         onClientsGone: () => {},
         onSynthesize: () => Promise.resolve(new Uint8Array()),
+        onSpeak: () => Promise.resolve(),
       },
       silentLogger,
     )
@@ -175,6 +181,28 @@ describe('overlay channel', () => {
     expect(oversized.status).toBe(400)
   })
 
+  it('speaks text posted to /speak and rejects empty text', async () => {
+    const { channel, hooks } = buildChannel()
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    const ok = await fetch(`http://127.0.0.1:${port}/speak`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'Your report is ready.' }),
+    })
+    expect(ok.status).toBe(200)
+    expect(hooks.spoken).toEqual(['Your report is ready.'])
+
+    const bad = await fetch(`http://127.0.0.1:${port}/speak`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: '   ' }),
+    })
+    expect(bad.status).toBe(400)
+    expect(hooks.spoken).toHaveLength(1)
+  })
+
   it('maps a synthesis failure to a 500 with an actionable body', async () => {
     const channel = startOverlayChannel(
       0,
@@ -182,6 +210,7 @@ describe('overlay channel', () => {
         onSessionEnd: () => {},
         onClientsGone: () => {},
         onSynthesize: () => Promise.reject(new Error('model exploded')),
+        onSpeak: () => Promise.resolve(),
       },
       silentLogger,
     )

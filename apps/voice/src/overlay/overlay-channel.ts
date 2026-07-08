@@ -37,6 +37,9 @@ export interface OverlayChannelHooks {
   onClientsGone(): void
   /** Synthesize one sentence for the overlay to play (the daemon's TTS voice). */
   onSynthesize(text: string): Promise<Uint8Array>
+  /** Speak text aloud through the daemon's own speaker (the `speak` MCP tool —
+   *  any global session's voice output). Resolves once the speaker has drained. */
+  onSpeak(text: string): Promise<void>
 }
 
 export interface OverlayChannelOptions {
@@ -143,6 +146,23 @@ export function startOverlayChannel(
     .post('/session/end', (c) => {
       hooks.onSessionEnd()
       return c.json({ ok: true })
+    })
+    .post('/speak', async (c) => {
+      const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null
+      const text = typeof body?.text === 'string' ? body.text.trim() : ''
+      if (!text || text.length > 2000) {
+        return c.json({ error: 'text must be a non-empty string of at most 2000 characters' }, 400)
+      }
+      try {
+        await hooks.onSpeak(text)
+        return c.json({ ok: true })
+      } catch (error) {
+        logger.error(
+          { error: error instanceof Error ? error.message : String(error) },
+          'overlay speak failed',
+        )
+        return c.json({ error: 'speak failed — see the daemon log' }, 500)
+      }
     })
     .post('/synthesize', async (c) => {
       const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null

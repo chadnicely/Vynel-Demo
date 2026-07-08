@@ -36,6 +36,9 @@ export const StartGlobalRootTurnRequestSchema = z.object({
   // this turn AND is threaded onto any delegation it enqueues (the mode header →
   // `delegation_jobs.permissionMode`). Omitted → the brain's bypass default.
   mode: z.enum(SESSION_MODE_VALUES).optional(),
+  // This turn came in by VOICE — the reply is spoken aloud, so the brain answers
+  // short + conversational + markdown-free (spoken-style directive appended).
+  voice: z.boolean().optional(),
 })
 
 /** Path param for the tier-1 delegation-trace read (brain-tree Ch3). */

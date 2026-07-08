@@ -35,7 +35,12 @@ export function mapFrameToBrainEvent(frame: SseFrame): VoiceBrainEvent | null {
   return null
 }
 
-/** Build the driver's `runBrainTurn` bound to a local-api base URL. */
+// The small, fast model the voice turn runs on (the light triage tier).
+const VOICE_MODEL = 'claude-haiku-4-5'
+
+/** Build the driver's `runBrainTurn` bound to a local-api base URL. Voice turns
+ *  run on the fast model with `voice: true` — the brain replies by calling the
+ *  `speak` tool (which loops back to this daemon's speaker), not with prose. */
 export function createBrainClient(
   apiUrl: string,
 ): (utterance: string) => AsyncIterable<VoiceBrainEvent> {
@@ -45,7 +50,7 @@ export function createBrainClient(
       response = await fetch(`${apiUrl}/root/turn`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-        body: JSON.stringify({ userMessageText: utterance }),
+        body: JSON.stringify({ userMessageText: utterance, model: VOICE_MODEL, voice: true }),
       })
     } catch (error) {
       yield { kind: 'failed', message: error instanceof Error ? error.message : 'brain unreachable' }

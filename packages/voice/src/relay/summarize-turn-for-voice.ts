@@ -7,6 +7,7 @@
 // Pure: input is the turn's events, output is a spoken line. No I/O, no SDK.
 
 import type { NormalizedSessionEvent } from '@vynel/providers'
+import { stripSpokenMarkup } from './strip-spoken-markup.js'
 
 export type VoiceTurnOutcome = 'completed' | 'failed' | 'interrupted'
 
@@ -57,17 +58,7 @@ export function summarizeTurnForVoice(
 // whitespace, keep the first sentence, cap the length. The list-marker strip
 // runs BEFORE the first-sentence scan so "1. Ship it." is not cut to "1.".
 function toSpoken(text: string): string {
-  const stripped = text
-    .replace(/```[\s\S]*?```/g, ' ') // fenced code blocks
-    .replace(/`([^`]*)`/g, '$1') // inline code
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1') // inline links / images → their text
-    .replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1') // reference-style links → their text
-    .replace(/<[^>]+>/g, ' ') // autolinks + HTML tags
-    .replace(/^[ \t]*(?:\d+\.|[-*+])[ \t]+/gm, '') // leading list markers (per line)
-    .replace(/[|]/g, ' ') // table pipes
-    .replace(/[*_#>~]/g, '') // emphasis / heading / quote / strike markers
-    .replace(/\s+/g, ' ')
-    .trim()
+  const stripped = stripSpokenMarkup(text)
   if (!stripped) return ''
 
   const firstSentence = stripped.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim() ?? stripped

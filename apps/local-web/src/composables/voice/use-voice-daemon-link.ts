@@ -12,6 +12,7 @@ import { onMounted, onUnmounted, ref } from "vue";
 interface DaemonEvent {
   readonly kind: string;
   readonly command?: string;
+  readonly state?: string;
 }
 
 export function useVoiceDaemonLink(options: {
@@ -21,6 +22,10 @@ export function useVoiceDaemonLink(options: {
   surface?: "app" | "jarvis";
 }) {
   const isDaemonConnected = ref(false);
+  // True while the daemon speaker is playing a `speak` reply — the overlay gates
+  // its Web Speech mic on this so it never hears the daemon (cross-process, no
+  // echo cancellation). The daemon publishes 'speaking' then 'idle' when done.
+  const isDaemonSpeaking = ref(false);
   let source: EventSource | null = null;
 
   onMounted(() => {
@@ -43,6 +48,7 @@ export function useVoiceDaemonLink(options: {
         return; // not ours — ignore a malformed frame rather than crash the link
       }
       if (event.kind === "wake") options.onWake(event.command ?? "");
+      else if (event.kind === "state") isDaemonSpeaking.value = event.state === "speaking";
     };
   });
 
@@ -57,5 +63,5 @@ export function useVoiceDaemonLink(options: {
     void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
   }
 
-  return { isDaemonConnected, notifySessionEnd };
+  return { isDaemonConnected, isDaemonSpeaking, notifySessionEnd };
 }

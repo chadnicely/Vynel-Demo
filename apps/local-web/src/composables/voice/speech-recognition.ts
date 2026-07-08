@@ -39,6 +39,8 @@ interface WebSpeechRecognition {
   onerror: ((event: WebSpeechErrorEvent) => void) | null;
   onend: (() => void) | null;
   start(): void;
+  /** Finalize the current speech and end (fires a final result then onend). */
+  stop(): void;
   abort(): void;
 }
 
@@ -70,7 +72,15 @@ export interface CommandRecognizer {
   abort(): void;
 }
 
-export function createCommandRecognizer(lang = "en-US"): CommandRecognizer {
+// How long a pause counts as "done speaking" before the transcript is finalized.
+// Generous so a mid-thought pause never cuts the user off — they finish talking,
+// then it waits this long of true silence before sending the command.
+const DEFAULT_ENDPOINT_SILENCE_MS = 5000;
+
+export function createCommandRecognizer(
+  lang = "en-US",
+  endpointSilenceMs = DEFAULT_ENDPOINT_SILENCE_MS,
+): CommandRecognizer {
   const RecognitionConstructor = resolveRecognitionConstructor();
   if (RecognitionConstructor === null) {
     throw new Error(
@@ -78,52 +88,108 @@ export function createCommandRecognizer(lang = "en-US"): CommandRecognizer {
     );
   }
 
-  let active: WebSpeechRecognition | null = null;
+  // The current capture's abort hook — abort() calls it so it can flip the
+  // capture's own `aborted` flag (which lives in the promise closure).
+  let cancelActive: (() => void) | null = null;
 
   return {
     capture(onInterim: (transcript: string) => void): Promise<string | null> {
-      // A fresh instance per capture — Chrome's recognizer is unreliable when
-      // restarted on the same object after stop/error.
-      const recognition = new RecognitionConstructor();
-      recognition.lang = lang;
-      recognition.interimResults = true;
-      recognition.continuous = false;
-      recognition.maxAlternatives = 1;
-      active = recognition;
-
       return new Promise<string | null>((resolve, reject) => {
-        let finalTranscript = "";
+        // Text finalized across sub-sessions — the recognizer auto-ends on its
+        // own endpointing; we fold each session's result in and keep listening
+        // until WE decide the user is done (endpointSilenceMs of true silence).
+        let committed = "";
         let permissionError: Error | null = null;
+        let aborted = false;
+        let finalizing = false; // our endpoint fired — stop for good
+        let recognition: WebSpeechRecognition | null = null;
+        let endpointTimer: ReturnType<typeof setTimeout> | null = null;
 
-        recognition.onresult = (event) => {
-          let transcript = "";
-          for (let i = 0; i < event.results.length; i += 1) {
-            const result = event.results[i]!;
-            transcript += result[0]?.transcript ?? "";
-            if (result.isFinal) finalTranscript = transcript;
-          }
-          if (transcript) onInterim(transcript);
-        };
-        recognition.onerror = (event) => {
-          // 'no-speech'/'aborted' are normal capture outcomes (resolved null via
-          // onend); a denied mic is the one failure the user must act on.
-          if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-            permissionError = new Error(
-              "Microphone access was denied — allow the mic for this site to use voice.",
-            );
+        const clearEndpoint = (): void => {
+          if (endpointTimer !== null) {
+            clearTimeout(endpointTimer);
+            endpointTimer = null;
           }
         };
-        recognition.onend = () => {
-          if (active === recognition) active = null;
+        // Reset on every result so a mid-sentence pause keeps listening; when the
+        // user is truly silent this long, stop and resolve.
+        const restartEndpoint = (): void => {
+          clearEndpoint();
+          endpointTimer = setTimeout(() => {
+            endpointTimer = null;
+            finalizing = true;
+            try {
+              recognition?.stop();
+            } catch {
+              /* already stopped — onend handles it */
+            }
+          }, endpointSilenceMs);
+        };
+
+        const finish = (): void => {
+          clearEndpoint();
+          cancelActive = null;
           if (permissionError) reject(permissionError);
-          else resolve(finalTranscript.trim() || null);
+          else resolve(committed.trim() || null);
         };
-        recognition.start();
+
+        const startSession = (): void => {
+          // A fresh instance per sub-session — Chrome is unreliable restarting the
+          // same object after end.
+          const rec = new RecognitionConstructor();
+          rec.lang = lang;
+          rec.interimResults = true;
+          rec.continuous = true;
+          rec.maxAlternatives = 1;
+          recognition = rec;
+          let sessionText = "";
+
+          rec.onresult = (event) => {
+            let full = "";
+            for (let i = 0; i < event.results.length; i += 1) {
+              full += event.results[i]?.[0]?.transcript ?? "";
+            }
+            sessionText = full;
+            const combined = `${committed} ${full}`.trim();
+            if (combined) onInterim(combined);
+            restartEndpoint();
+          };
+          rec.onerror = (event) => {
+            if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+              permissionError = new Error(
+                "Microphone access was denied — allow the mic for this site to use voice.",
+              );
+            }
+          };
+          rec.onend = () => {
+            if (sessionText) committed = `${committed} ${sessionText}`.trim();
+            // Keep listening across the recognizer's own auto-ends until the user
+            // is really done — UNLESS we're finalizing, aborted, errored, or no
+            // speech was ever heard (plain silence → resolve null).
+            if (finalizing || aborted || permissionError || committed === "") {
+              finish();
+              return;
+            }
+            startSession();
+          };
+          rec.start();
+        };
+
+        cancelActive = () => {
+          aborted = true;
+          clearEndpoint();
+          try {
+            recognition?.abort();
+          } catch {
+            /* onend resolves */
+          }
+        };
+        startSession();
       });
     },
     abort(): void {
-      active?.abort();
-      active = null;
+      cancelActive?.();
+      cancelActive = null;
     },
   };
 }

@@ -177,6 +177,7 @@ describe('makeNamespaced — shape', () => {
       'schedulesUser',
       'skills',
       'users',
+      'voice',
       'workspaces',
     ])
     expect(Object.keys(sdk.knowledge).sort()).toEqual([...EXPECTED_KNOWLEDGE_METHODS])

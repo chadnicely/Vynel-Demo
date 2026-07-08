@@ -14835,6 +14835,9 @@
                       "auto",
                       "bypass"
                     ]
+                  },
+                  "voice": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -15081,6 +15084,66 @@
                 "required": [
                   "channelId",
                   "message"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/speak": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ spoken: true } — or { spoken: false, reason } if voice output isn't available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spoken": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "spoken"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postVoiceSpeak",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "Speak text aloud through the user's voice (the Jarvis speaker).",
+        "x-sdk-name": "voice.speak",
+        "x-mcp": {
+          "exposed": true,
+          "name": "speak",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "description": "Speak a short message ALOUD to the user through their voice assistant. Pass plain, spoken-style prose — NO markdown, lists, code, or URLs; write it the way you would say it out loud, and keep it brief (a sentence or two). Use this to answer or notify the user by voice, especially when the request came in by voice. Returns { spoken: true } when it played, or { spoken: false, reason } when the voice assistant is not running (then reply in text instead)."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "text"
                 ]
               }
             }

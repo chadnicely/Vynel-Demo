@@ -65,6 +65,10 @@ export const EnvSchema = z.object({
     .string()
     .default('1')
     .transform((raw) => raw === '1' || raw.toLowerCase() === 'true'),
+  // The voice daemon's loopback overlay channel — the `speak` MCP tool POSTs the
+  // brain's spoken text here (the daemon owns the speaker). Best-effort: if the
+  // daemon isn't running, `speak` reports it couldn't (the brain falls back to text).
+  VYNEL_VOICE_DAEMON_URL: z.string().url().default('http://127.0.0.1:8997'),
 })
 
 export type Env = z.infer<typeof EnvSchema>
