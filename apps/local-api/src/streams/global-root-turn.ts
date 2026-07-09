@@ -121,7 +121,8 @@ export async function streamGlobalRootTurn(
         userMessageText: input.userMessageText,
         ...(input.model !== undefined ? { model: input.model } : {}),
         ...(permissionMode !== undefined ? { permissionMode } : {}),
-        ...(input.voice === true ? { voice: true } : {}),
+        // A voice turn also RECORDS its origin — the transcript shows "via Voice".
+        ...(input.voice === true ? { voice: true, originChannel: 'voice' as const } : {}),
         mcpServers: composedMcp.mcpServers,
         allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
         mutatingToolNames: composedMcp.mutatingToolNames,

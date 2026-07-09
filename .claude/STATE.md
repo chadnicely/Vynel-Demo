@@ -29,13 +29,18 @@ approve-after-fixes, all folded; committed this session).** Chad's direction lan
   "Ava is on vynel."), manager persona as `assistantName` through ThreadStream/LiveTurn, persona
   composer placeholder.
 
-**🔧 NOW BUILDING (Chad's next ask): per-message channel-ORIGIN badges — voice first.** He sent a
-message via the voice channel and wants the row to SAY it came through voice. Known gap since the
-strip round: `ChatMessageResponse` has NO origin field — needs schema (origin on the user message
-row) + threading (voice daemon `/root/turn` stamps 'voice'; telegram consumer stamps 'telegram';
-web default) + contract + a small origin chip on MessageRow. ⚠ Chad now has REAL conversation
-history — use an INCREMENTAL MIGRATION, not baseline-folding (which forces a dev-DB wipe, memory
-[[stale-dev-db-baseline-folding]]).
+**🎉 PER-MESSAGE CHANNEL-ORIGIN BADGES SHIPPED (same session; gate 2013/4-skip; reviewer APPROVE,
+should-fix folded).** A user row now records HOW it arrived: nullable `chat_messages.originChannel`
+('voice'/'telegram'/'discord'; null = app composer) shipped as **INCREMENTAL migration 0001** (the
+FIRST — no baseline fold; Chad's live history verified intact, the watcher-restarted API applied it
+cleanly). Threading: edges own origin (the core passes through) — `/root/turn`'s existing
+`voice:true` also stamps 'voice' (`streams/global-root-turn.ts`); `routeAsChatTurn` stamps its
+`channelKind` (structural type in channels-types.ts — no chat import); web/workspace/delegation
+paths stay null deliberately. Wire: contracts + chat route schema + the lean `/root/transcript` DTO
+(reviewer catch — it would have silently dropped origin) + `api:generate`. UI: a quiet "via Voice"
+pill beside YOU on user rows (`MessageRow`, inline glyphs). ⚠ Rows persisted BEFORE the column have
+null origin — Chad's original voice message shows no badge; new ones do. MessageRow sits at ~300
+lines (the cap) — extract the inline glyphs on next growth. Commit pending Chad's go.
 
 **Other carried deferrals:** hero Voice chip is a static capability (a `/voice` status read would
 light it) · settable workspace colors · voice overlay ignores Escape + caption/error overlap · the

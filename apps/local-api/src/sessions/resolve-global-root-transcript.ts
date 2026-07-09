@@ -29,6 +29,7 @@ import type {
   ChatMessage,
   ChatMessageRole,
   ChatMessageSourceKind,
+  ChatMessageOriginChannel,
   ChatToolCall,
 } from '@vynel/chat/repositories'
 import type { Database } from '@vynel/db'
@@ -50,6 +51,8 @@ export type GlobalRootTranscriptMessage = {
   /** Brain-tree Chapter 3 — the delegation request's correlation key on a bubbled-up
    *  report row; lets the /global bubble open its condensed trace. Null on ordinary rows. */
   partialSessionId: string | null
+  /** The inbound channel a USER row arrived through ("via Voice"); null = composer. */
+  originChannel: ChatMessageOriginChannel | null
 }
 
 function toTranscriptMessage(message: ChatMessage): GlobalRootTranscriptMessage {
@@ -60,6 +63,7 @@ function toTranscriptMessage(message: ChatMessage): GlobalRootTranscriptMessage 
     sourceKind: message.sourceKind,
     sourceLabel: message.sourceLabel,
     partialSessionId: message.partialSessionId,
+    originChannel: message.originChannel,
   }
 }
 

@@ -5086,6 +5086,18 @@
                               "null"
                             ]
                           },
+                          "originChannel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "voice",
+                              "telegram",
+                              "discord",
+                              null
+                            ]
+                          },
                           "partialSessionId": {
                             "type": [
                               "string",
@@ -5167,6 +5179,7 @@
                           "body",
                           "sourceKind",
                           "sourceLabel",
+                          "originChannel",
                           "partialSessionId",
                           "thinkingBody",
                           "inputTokens",
@@ -14081,6 +14094,18 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "originChannel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "voice",
+                              "telegram",
+                              "discord",
+                              null
+                            ]
                           }
                         },
                         "required": [
@@ -14089,7 +14114,8 @@
                           "body",
                           "sourceKind",
                           "sourceLabel",
-                          "partialSessionId"
+                          "partialSessionId",
+                          "originChannel"
                         ]
                       }
                     },
@@ -14541,6 +14567,18 @@
                               "null"
                             ]
                           },
+                          "originChannel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "voice",
+                              "telegram",
+                              "discord",
+                              null
+                            ]
+                          },
                           "partialSessionId": {
                             "type": [
                               "string",
@@ -14622,6 +14660,7 @@
                           "body",
                           "sourceKind",
                           "sourceLabel",
+                          "originChannel",
                           "partialSessionId",
                           "thinkingBody",
                           "inputTokens",

@@ -403,4 +403,81 @@ describe('consumeSessionEventStream — session lifecycle', () => {
       expect(reply?.body).toBe('On it.')
     })
   })
+
+  it('stamps originChannel on the user row when the message arrived via a channel', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      const userMessageInput = {
+        ...makeUserMessageInput('what is the traffic in dhaka'),
+        originChannel: 'voice' as const,
+      }
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-voice-1',
+              resumedFromExisting: false,
+              startedAt: new Date('2026-07-09T00:00:00Z'),
+            },
+            {
+              kind: 'session-completed',
+              sessionId: 'session-voice-1',
+              isNewSession: true,
+              completedAt: new Date('2026-07-09T00:00:05Z'),
+            },
+          ]),
+          userMessageInput,
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      expect(findChatMessageById(db, userMessageInput.id)?.originChannel).toBe('voice')
+    })
+  })
+
+  it('leaves originChannel null for an app-composer message', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      const userMessageInput = makeUserMessageInput('plain web message')
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-web-1',
+              resumedFromExisting: false,
+              startedAt: new Date('2026-07-09T00:00:00Z'),
+            },
+            {
+              kind: 'session-completed',
+              sessionId: 'session-web-1',
+              isNewSession: true,
+              completedAt: new Date('2026-07-09T00:00:05Z'),
+            },
+          ]),
+          userMessageInput,
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      expect(findChatMessageById(db, userMessageInput.id)?.originChannel).toBeNull()
+    })
+  })
 })

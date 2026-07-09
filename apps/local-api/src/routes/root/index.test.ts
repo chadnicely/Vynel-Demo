@@ -69,7 +69,11 @@ import {
 } from '@vynel/session/continuity'
 import { enqueueWorkspaceDelegation, findDelegationJobById, failDelegationJob } from '@vynel/orchestration'
 import { buildNewChatSessionRow } from '@vynel/chat'
-import { insertChatSession, findChatSessionById } from '@vynel/chat/repositories'
+import {
+  insertChatSession,
+  findChatSessionById,
+  listChatMessagesForSession,
+} from '@vynel/chat/repositories'
 import type { AppEnv } from '../../factory.js'
 import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
 import { TurnEventBroadcaster, traceChannelKey } from '../../sessions/turn-event-broadcaster.js'
@@ -378,6 +382,40 @@ describe('POST /root/turn (SSE)', () => {
       const transcript = await app.request('/root/transcript')
       const body = (await transcript.json()) as { messages: { body: string }[] }
       expect(body.messages.map((m) => m.body)).toContain('hello brain')
+    })
+  })
+
+  it("stamps 'voice' as the user row's originChannel on a voice turn (plain turns stay null)", async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-root-'))
+
+      await withVynelUserDataDir(dataDir, async () => {
+        const spoken = await app.request('/root/turn', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userMessageText: 'traffic in dhaka?', voice: true }),
+        })
+        expect(spoken.status).toBe(200)
+        await spoken.text() // drain the SSE body so the turn completes
+
+        const typed = await app.request('/root/turn', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userMessageText: 'and by keyboard' }),
+        })
+        expect(typed.status).toBe(200)
+        await typed.text()
+      })
+
+      const rows = listChatMessagesForSession(db, nextSdkSessionId).filter(
+        (message) => message.role === 'user',
+      )
+      expect(rows.map((message) => [message.body, message.originChannel])).toEqual([
+        ['traffic in dhaka?', 'voice'],
+        ['and by keyboard', null],
+      ])
     })
   })
 

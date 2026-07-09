@@ -62,6 +62,8 @@ export async function routeAsChatTurn(
       userId: input.channel.userId,
       userMessageText: input.message.messageBody,
       origin,
+      // The persisted user row records HOW this arrived ("via Telegram").
+      originChannel: input.channel.channelKind,
       // Surface-up: the brain's own carded tool (e.g. register_workspace) records its
       // approval in the core (web notifier) and PARKS the turn — push the card back to
       // the sender too, with full inbound context (reply-to + typed-reply correlation).

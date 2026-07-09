@@ -88,6 +88,26 @@ describe("MessageRow", () => {
     expect(report.find(".role-label").text()).toBe("Noah · vynel");
   });
 
+  it("badges a user message with the channel it arrived through", () => {
+    const voiced = mount(MessageRow, {
+      props: {
+        message: makeMessage({ role: "user", originChannel: "voice" }),
+      },
+    });
+    expect(voiced.find(".origin-badge").text()).toBe("via Voice");
+
+    const typed = mount(MessageRow, {
+      props: { message: makeMessage({ role: "user" }) },
+    });
+    expect(typed.find(".origin-badge").exists()).toBe(false);
+
+    // Origin marks how the USER's message arrived — assistant rows never wear it.
+    const assistant = mount(MessageRow, {
+      props: { message: makeMessage({ originChannel: "voice" }) },
+    });
+    expect(assistant.find(".origin-badge").exists()).toBe(false);
+  });
+
   it("names a plain assistant row (no sourceKind) after the surface's assistant", () => {
     const unnamed = mount(MessageRow, { props: { message: makeMessage() } });
     expect(unnamed.find(".role-label").text()).toBe("Assistant");

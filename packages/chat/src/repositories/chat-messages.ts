@@ -22,6 +22,7 @@ export type {
   NewChatMessage,
   ChatMessageRole,
   ChatMessageSourceKind,
+  ChatMessageOriginChannel,
   AttachedImageMetadata,
 } from '../schema/chat-messages.js'
 

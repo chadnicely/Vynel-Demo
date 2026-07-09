@@ -52,6 +52,25 @@ const roleLabel = computed(() => {
 
 const isAssistant = computed(() => props.message.role === "assistant");
 
+// A user message that arrived through a channel wears a small "via X" badge —
+// origin is HOW it reached the brain (voice daemon, Telegram), distinct from
+// who wrote it. The app composer is the default surface: no badge. Keyed on
+// the contract union so a new origin member is a compile error here.
+const ORIGIN_LABELS: Record<
+  NonNullable<ChatMessageResponse["originChannel"]>,
+  string
+> = {
+  voice: "Voice",
+  telegram: "Telegram",
+  discord: "Discord",
+};
+
+const originBadge = computed(() => {
+  const origin = props.message.originChannel;
+  if (props.message.role !== "user" || !origin) return null;
+  return { kind: origin, label: ORIGIN_LABELS[origin] };
+});
+
 const linkedSessionId = computed(() =>
   props.showWatchChip ? (props.message.partialSessionId ?? null) : null,
 );
@@ -78,7 +97,52 @@ const accentVar = computed(() => {
     :class="[`role-${props.message.role}`, { 'has-accent': accentVar }]"
     :style="accentVar ? { '--accent': accentVar } : undefined"
   >
-    <p class="role-label">{{ roleLabel }}</p>
+    <p class="role-label">
+      {{ roleLabel }}
+      <span v-if="originBadge" class="origin-badge">
+        <!-- Inline glyphs keep @vynel/ui icon-library-free -->
+        <svg
+          v-if="originBadge.kind === 'voice'"
+          width="10"
+          height="10"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
+          <rect
+            x="5.75"
+            y="1.5"
+            width="4.5"
+            height="8"
+            rx="2.25"
+            stroke="currentColor"
+            stroke-width="1.4"
+          />
+          <path
+            d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+          />
+        </svg>
+        <svg
+          v-else
+          width="10"
+          height="10"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M14.5 1.5L1.5 6.8l4 1.7 1.7 4 2.1-3 3.2 2.3 2-10.3z"
+            stroke="currentColor"
+            stroke-width="1.3"
+            stroke-linejoin="round"
+          />
+        </svg>
+        via {{ originBadge.label }}
+      </span>
+    </p>
 
     <ThinkingBlock
       v-if="props.message.thinkingBody"
@@ -163,6 +227,21 @@ const accentVar = computed(() => {
 
 .role-user .role-label {
   color: var(--ink-2);
+}
+
+/* "via Voice" — a quiet provenance mark beside the author line. */
+.origin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 0 7px;
+  border: 1px solid var(--hair);
+  border-radius: 99px;
+  color: var(--ink-3);
+  font: 500 9.5px/1.7 var(--font-ui);
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
 }
 
 .plain-body {

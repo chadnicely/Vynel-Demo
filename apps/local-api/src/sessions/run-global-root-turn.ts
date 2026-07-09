@@ -44,6 +44,8 @@ export interface RunGlobalRootTurnInput {
   userMessageText: string
   /** Set when a CHANNEL drove this turn (Ch4) — threaded onto any delegation the root enqueues. */
   origin?: DelegationOrigin
+  /** The inbound channel's kind — stamped on the persisted user row ("via Telegram"). */
+  originChannel?: 'telegram' | 'discord'
   model?: string
   /** Surface-up: called for each `approval-requested` the brain's own turn emits (the
    *  core already RECORDED it — web notifier). The channel path pushes the card back
@@ -160,6 +162,7 @@ export async function runGlobalRootTurn(
       userId: input.userId,
       userMessageText: input.userMessageText,
       ...(input.model !== undefined ? { model: input.model } : {}),
+      ...(input.originChannel !== undefined ? { originChannel: input.originChannel } : {}),
       mcpServers: composedMcp.mcpServers,
       allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
       mutatingToolNames: composedMcp.mutatingToolNames,

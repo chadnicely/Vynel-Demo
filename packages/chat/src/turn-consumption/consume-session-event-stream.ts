@@ -20,7 +20,11 @@
 
 import * as chatRepository from '../repositories/index.js'
 import type { Database } from '@vynel/db'
-import type { ChatMessage, AttachedImageMetadata } from '../repositories/index.js'
+import type {
+  ChatMessage,
+  ChatMessageOriginChannel,
+  AttachedImageMetadata,
+} from '../repositories/index.js'
 import type { AiAgentProviderId, NormalizedSessionEvent } from '@vynel/providers'
 import { generateSessionTitle } from './generate-session-title.js'
 import {
@@ -41,6 +45,10 @@ export type UserMessageInput = {
   attachedImagesMetadata: AttachedImageMetadata[] | null
   /** Raw image bytes (base64) for disk persistence; metadata above is the DB row shape. */
   attachedImages?: AttachedImageBytes[]
+  /** The inbound channel this message arrived through ('voice'/'telegram'/'discord');
+   *  omitted = the app composer. Persisted on the user row so the transcript
+   *  shows HOW it arrived. */
+  originChannel?: ChatMessageOriginChannel
 }
 
 export type ConsumeSessionEventStreamInput = {

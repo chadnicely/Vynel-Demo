@@ -65,6 +65,7 @@ export const GlobalRootTranscriptMessageSchema = z.object({
   sourceKind: TranscriptSourceKindSchema.nullable(),
   sourceLabel: z.string().nullable(),
   partialSessionId: z.string().nullable(),
+  originChannel: z.enum(['voice', 'telegram', 'discord']).nullable(),
 })
 
 export const GlobalRootTranscriptResponseSchema = z.object({

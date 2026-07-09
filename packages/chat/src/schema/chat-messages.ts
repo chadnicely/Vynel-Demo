@@ -29,6 +29,12 @@ export type ChatMessageRole = 'user' | 'assistant' | 'system'
 // = the workspace / agent name).
 export type ChatMessageSourceKind = 'user' | 'global-root' | 'workspace-manager' | 'agent'
 
+// The CHANNEL a user message arrived through — voice daemon, Telegram, Discord.
+// Null = the app's own composer (web is the default surface, so it wears no
+// badge). Distinct from sourceKind (WHO wrote it in the session tree): origin
+// is HOW it reached the brain.
+export type ChatMessageOriginChannel = 'voice' | 'telegram' | 'discord'
+
 export type AttachedImageMetadata = {
   /** Relative to <workspace.path>/.vynel/transcripts/<sessionId>/images/. */
   filename: string
@@ -51,6 +57,9 @@ export const chatMessages = table(
     // render from `role`; the global-root transcript populates them.
     sourceKind: text().$type<ChatMessageSourceKind>(),
     sourceLabel: text(), // the workspace / agent name for 'workspace-manager'/'agent'
+    // The inbound channel a USER row arrived through ('voice'/'telegram'/'discord');
+    // null = the app composer. Additive + nullable; assistant rows leave it null.
+    originChannel: text().$type<ChatMessageOriginChannel>(),
     // Brain-tree Chapter 2 correlation key — ties ONE delegation request's whole
     // chain (the global→workspace task, the workspace reply, the pushed report)
     // under a single id so it's queryable as a condensed trace without loading the

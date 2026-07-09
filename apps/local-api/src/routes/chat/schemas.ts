@@ -141,6 +141,8 @@ export const ChatMessageSchema = z.object({
   body: z.string(),
   sourceKind: ChatMessageSourceKindSchema.nullable(),
   sourceLabel: z.string().nullable(),
+  // The inbound channel a USER row arrived through; null = the app composer.
+  originChannel: z.enum(['voice', 'telegram', 'discord']).nullable(),
   partialSessionId: z.string().nullable(),
   thinkingBody: z.string().nullable(),
   inputTokens: z.number().nullable(),

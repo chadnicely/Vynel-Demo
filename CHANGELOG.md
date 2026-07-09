@@ -9,6 +9,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Messages remember how they reached Claude.** A message you speak through the voice channel now
+  wears a quiet "via Voice" mark beside it in the conversation (Telegram messages likewise), so a
+  transcript mixing typed, spoken, and channel messages stays legible at a glance. Applies to
+  messages from now on — history from before this release has no origin recorded.
+
 - **The chat opens with a real arrival moment, and your assistant is Claude by name.** An empty
   conversation now greets you personally under Claude's coral spark — "Good morning" with your name,
   the channels Claude is reachable on (Telegram health, Voice with the wake phrase), and your

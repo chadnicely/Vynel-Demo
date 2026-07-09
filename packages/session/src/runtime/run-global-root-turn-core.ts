@@ -77,6 +77,10 @@ export interface RunGlobalRootTurnCoreInput {
   /** This turn arrived by VOICE — append the directive that makes the brain reply
    *  by CALLING the `speak` tool (the single voice) instead of writing prose. */
   voice?: boolean
+  /** The inbound channel this turn arrived through — stamped on the persisted
+   *  user row ("via Voice" / "via Telegram"). Set by the EDGES (the SSE route
+   *  maps `voice`, the channel runner its kind); the core only passes it through. */
+  originChannel?: 'voice' | 'telegram' | 'discord'
 }
 
 // Appended for a voice turn. The user hears you ONLY through the `speak` tool —
@@ -171,6 +175,9 @@ export async function runGlobalRootTurnCore(
           id: crypto.randomUUID(),
           body: input.userMessageText,
           attachedImagesMetadata: null,
+          ...(input.originChannel !== undefined
+            ? { originChannel: input.originChannel }
+            : {}),
         },
         userId: input.userId,
         workspaceId: null,

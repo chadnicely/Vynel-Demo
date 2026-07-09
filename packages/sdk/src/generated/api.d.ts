@@ -3866,6 +3866,8 @@ export interface operations {
                             /** @enum {string|null} */
                             sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
                             sourceLabel: string | null;
+                            /** @enum {string|null} */
+                            originChannel: "voice" | "telegram" | "discord" | null;
                             partialSessionId: string | null;
                             thinkingBody: string | null;
                             inputTokens: number | null;
@@ -7410,6 +7412,8 @@ export interface operations {
                             sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
                             sourceLabel: string | null;
                             partialSessionId: string | null;
+                            /** @enum {string|null} */
+                            originChannel: "voice" | "telegram" | "discord" | null;
                         }[];
                         toolCallsByMessageId: {
                             [key: string]: {
@@ -7561,6 +7565,8 @@ export interface operations {
                             /** @enum {string|null} */
                             sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
                             sourceLabel: string | null;
+                            /** @enum {string|null} */
+                            originChannel: "voice" | "telegram" | "discord" | null;
                             partialSessionId: string | null;
                             thinkingBody: string | null;
                             inputTokens: number | null;
