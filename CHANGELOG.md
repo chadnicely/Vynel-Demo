@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The global chat now shows where your assistant is reachable, and color-codes work by workspace.**
+  A slim strip across the top of the main conversation lists the channels you can reach the assistant
+  on — your connected Telegram (with a health dot) and Voice ("say Hey Vynel"). And when the assistant
+  hands a task to one of your workspaces, its report comes back wearing that workspace's own accent
+  color: a colored bar down the message, plus a matching "Watch" chip and "Working in…" banner — so at
+  a glance you can tell which workspace each result came from. Each workspace gets a stable, distinct
+  color automatically (gold stays reserved for "the assistant is working here").
 - **Voice is now a real communication channel — say "Hey Vynel" and talk to it like a person.** A
   new `speak` tool lets the assistant *choose* to answer out loud: voice requests run on the fast
   Haiku model, which does the work and then speaks a short, natural reply (no more reading a wall of

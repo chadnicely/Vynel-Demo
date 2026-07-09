@@ -68,4 +68,45 @@ describe("MessageRow", () => {
 
     expect(wrapper.find(".role-label").text()).toBe("From Global");
   });
+
+  it("wears a workspace accent bar on a bubbled-up report", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          sourceKind: "workspace-manager",
+          sourceLabel: "Noah · vynel",
+        }),
+      },
+    });
+
+    const row = wrapper.find(".message-row");
+    expect(row.classes()).toContain("has-accent");
+    expect(row.attributes("style")).toContain("--accent");
+  });
+
+  it("suppresses the accent inside the workspace's own room (showWatchChip false)", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          sourceKind: "workspace-manager",
+          sourceLabel: "Noah · vynel",
+        }),
+        showWatchChip: false,
+      },
+    });
+
+    expect(wrapper.find(".message-row").classes()).not.toContain("has-accent");
+  });
+
+  it("stays neutral for the global brain and the user (no accent)", () => {
+    const brain = mount(MessageRow, {
+      props: { message: makeMessage({ sourceKind: "global-root" }) },
+    });
+    expect(brain.find(".message-row").classes()).not.toContain("has-accent");
+
+    const user = mount(MessageRow, {
+      props: { message: makeMessage({ role: "user" }) },
+    });
+    expect(user.find(".message-row").classes()).not.toContain("has-accent");
+  });
 });

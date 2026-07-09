@@ -4,6 +4,7 @@ import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
 import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
 import PresenceDot from "./PresenceDot.vue";
+import { workspaceAccentVar } from "../lib/workspace-color.js";
 
 const props = withDefaults(
   defineProps<{
@@ -47,10 +48,29 @@ const isAssistant = computed(() => props.message.role === "assistant");
 const linkedSessionId = computed(() =>
   props.showWatchChip ? (props.message.partialSessionId ?? null) : null,
 );
+
+// A report bubbled up from a workspace/agent wears that workspace's stable
+// accent (left bar + chip tint) so it reads as belonging to it. Gated on the
+// same signal as the Watch chip: the accent marks work from ANOTHER session, so
+// inside the workspace's own room (showWatchChip=false) it's noise — suppress
+// it. The global brain and the user stay neutral regardless.
+const accentVar = computed(() => {
+  const { role, sourceKind, sourceLabel } = props.message;
+  const isWorkspaceReport =
+    props.showWatchChip &&
+    role === "assistant" &&
+    (sourceKind === "workspace-manager" || sourceKind === "agent") &&
+    !!sourceLabel;
+  return isWorkspaceReport ? workspaceAccentVar(sourceLabel!) : null;
+});
 </script>
 
 <template>
-  <div class="message-row" :class="`role-${props.message.role}`">
+  <div
+    class="message-row"
+    :class="[`role-${props.message.role}`, { 'has-accent': accentVar }]"
+    :style="accentVar ? { '--accent': accentVar } : undefined"
+  >
     <p class="role-label">{{ roleLabel }}</p>
 
     <ThinkingBlock
@@ -107,6 +127,25 @@ const linkedSessionId = computed(() =>
   gap: 6px;
 }
 
+/* The workspace accent bar — a rounded rule down the left edge, marking a
+   report as belonging to its workspace. Color comes from `--accent`
+   (workspace-color.ts), never gold. */
+.message-row.has-accent {
+  position: relative;
+  padding-left: 14px;
+}
+
+.message-row.has-accent::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  border-radius: 99px;
+  background: var(--accent);
+}
+
 .role-label {
   margin: 0;
   color: var(--ink-3);
@@ -134,9 +173,12 @@ const linkedSessionId = computed(() =>
   padding: 10px 14px;
 }
 
+/* The chip carries the workspace accent (its frame), while its PresenceDot
+   still glows gold when the linked session is live — presence stays gold,
+   identity is the accent. Falls back to gold only where no workspace is known. */
 .session-link {
   appearance: none;
-  border: 1px solid var(--gold-soft);
+  border: 1px solid color-mix(in srgb, var(--accent, var(--gold)) 38%, transparent);
   margin: 0;
   justify-self: start;
   display: inline-flex;
@@ -144,7 +186,7 @@ const linkedSessionId = computed(() =>
   gap: 8px;
   padding: 5px 12px;
   border-radius: 99px;
-  background: var(--gold-soft);
+  background: color-mix(in srgb, var(--accent, var(--gold)) 12%, transparent);
   color: var(--ink-1);
   font: 600 11.5px/1.5 var(--font-ui);
   cursor: default;
@@ -152,11 +194,11 @@ const linkedSessionId = computed(() =>
 }
 
 .session-link:hover {
-  border-color: var(--gold);
+  border-color: var(--accent, var(--gold));
 }
 
 .session-link:focus-visible {
-  outline: 2px solid var(--gold);
+  outline: 2px solid var(--accent, var(--gold));
   outline-offset: 1px;
 }
 

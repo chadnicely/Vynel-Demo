@@ -48,6 +48,18 @@
   --file-image: #a78bfa;
   --file-code: #e08543;
 
+  /* Workspace accent palette — a stable per-workspace color so a bubbled-up
+     report reads as belonging to its workspace at a glance. Deliberately
+     spread around the wheel and kept OFF amber/orange: gold stays reserved
+     for assistant presence, never workspace identity. Assigned by name-hash
+     (packages/ui/src/lib/workspace-color.ts), so it needs no stored column. */
+  --ws-1: #45b8ac;
+  --ws-2: #6a93e6;
+  --ws-3: #8b8ff0;
+  --ws-4: #b07fdc;
+  --ws-5: #e07b9a;
+  --ws-6: #5cbf82;
+
   /* Shape */
   --radius-s: 6px;
   --radius-m: 10px;
@@ -100,6 +112,14 @@
   --file-data: #1f9d67;
   --file-image: #7c5fd3;
   --file-code: #c26a2b;
+
+  /* Workspace accents — darker on light surfaces for contrast, same meaning. */
+  --ws-1: #1c8f86;
+  --ws-2: #3f6fce;
+  --ws-3: #5b60d6;
+  --ws-4: #8a4fc0;
+  --ws-5: #c94f74;
+  --ws-6: #2b9463;
 
   --shadow-raised:
     0 1px 2px rgba(24, 30, 40, 0.08), 0 4px 16px rgba(24, 30, 40, 0.07);

@@ -1,7 +1,39 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-07.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-09.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ⏭ NEXT ACTION (2026-07-09): GLOBAL-CHAT CHANNELS STRIP + PER-WORKSPACE ACCENT COLORS SHIPPED — next: Fable UI polish + channels
+
+**🎉 CHANNEL PRESENCE STRIP + PER-WORKSPACE ACCENT COLORS DONE (Chad: "its good"; gate 1985/4-skip;
+code-reviewer-clean after 1 must-fix; committed this session).** Two UI asks on the global chat:
+- **Presence strip** atop the global thread — `apps/local-web/src/components/chat/ChannelPresenceStrip.vue`
+  (presentational, `channels` passed as a prop → unit-tested with plain props), wired in `GlobalChatView`.
+  A "Reachable on" bar: global-scoped Telegram/Discord from `channelsUser.list()` (health dot ok/attention)
+  + a static **Voice** capability chip (voice is a runtime sidecar, NOT a DB channel row — honest, not a
+  live-connection claim).
+- **Per-workspace accent colors** — one shared pure fn `packages/ui/src/lib/workspace-color.ts`
+  hashes the workspace NAME → a `--ws-1..6` token (new muted palette in `packages/ui/src/styles/tokens.css`,
+  dark+light, deliberately OFF amber — **gold stays presence-only**). Rendered as a **left accent bar** on
+  bubbled-up workspace/agent reports (`MessageRow`), same tint on the "Watch X" chip + the in-flight banner
+  chip (which also REDUCES the old gold-soft overuse there). Chad picked: **deterministic-now (no schema)**
+  + **left-accent-bar** style (via AskUserQuestion).
+- **⚠ REVIEWER MUST-FIX (caught + fixed):** `sourceLabel` is **persona-FIRST** — `@vynel/chat`'s
+  `composeManagerSourceLabel` = `"<manager> · <workspace>"` ("Noah · vynel"). The normalizer must take the
+  **LAST** " · " segment (not `[0]`) so the report row and the bare-workspace-name banner resolve to the
+  SAME color. My first pass took `[0]` (the manager) → colors diverged on EVERY delegation, and the test
+  codified the inverted assumption (gate green over a real bug). Fixed + test corrected + the cross-package
+  coupling documented in-file. See memory [[source-label-is-persona-first]].
+- **Also applied (reviewer):** accent gated on `showWatchChip` (suppressed inside a workspace's own room,
+  like the Watch chip — shows only in the global thread). Nits: dropped unused `workspaceColorSlot` barrel
+  export; nudged `--ws-2`/`--ws-6` off the exact `info`/`ok`/`file-*` token values.
+
+**⏭ CHAD'S PLAN (new Fable session): ① better UI polish · ② more channels work.** Honest deferrals to
+carry in: **per-message channel-ORIGIN badges** ("this came from Telegram") need the message to carry its
+origin — `ChatMessageResponse` has NO channel field today (backend + contract change); the **Voice chip is
+a static capability**, not a live daemon read (a lightweight `/voice` status read would light it);
+**settable** workspace colors (vs deterministic) need a `color` column + `workspaceId` threaded onto messages
++ a picker (deferred — "auto now, settable later").
 
 ## ⏭ NEXT ACTION (2026-07-08): VOICE-AS-COMMUNICATION SHIPPED — next: slice 3 (route-to-global speak-back) OR Chatterbox OR UI
 

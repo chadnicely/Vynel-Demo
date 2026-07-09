@@ -17,6 +17,7 @@ function makeFakeVynelClient(): VynelClient {
   return {
     approvals: { listPending: async () => [] },
     workspaces: { list: async () => [] },
+    channelsUser: { list: async () => [] },
     chat: {
       listSessions: async () => [],
       getContinuing: noConversation,

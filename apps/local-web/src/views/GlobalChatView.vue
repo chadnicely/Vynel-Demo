@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Settings2, Sparkles } from "lucide-vue-next";
-import { EmptyState, PresenceDot } from "@vynel/ui";
+import { EmptyState, PresenceDot, workspaceAccentVar } from "@vynel/ui";
 import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
+import ChannelPresenceStrip from "../components/chat/ChannelPresenceStrip.vue";
 import MenuPanel from "../components/shell/MenuPanel.vue";
+import { useChannels } from "../composables/channels/use-channels.js";
 import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
@@ -39,6 +41,13 @@ const activeSessionId = computed<string | null>(() => {
   if (shell.target === "fresh") return null;
   return shell.target.sessionId;
 });
+
+// The channels the assistant is reachable on (global-scoped only — the global
+// chat is the brain, not a workspace). Voice is added by the strip itself.
+const channelsQuery = useChannels(true);
+const globalChannels = computed(() =>
+  (channelsQuery.data.value ?? []).filter((row) => row.workspaceId === null),
+);
 
 const sessionsQuery = useSessionList(() => GLOBAL_SCOPE);
 const sessions = computed(() => sessionsQuery.data.value ?? []);
@@ -164,6 +173,8 @@ function openContinuous() {
     </div>
 
     <section v-else class="canvas thread-pane">
+      <ChannelPresenceStrip class="channel-strip-slot" :channels="globalChannels" />
+
       <div v-if="showsWelcome" class="welcome">
         <EmptyState
           title="Your assistant is ready"
@@ -192,6 +203,7 @@ function openContinuous() {
             v-if="delegation.partialSessionId"
             type="button"
             class="processing-chip"
+            :style="{ '--accent': workspaceAccentVar(delegation.workspaceName) }"
             @click="sessionViewer.open(delegation.partialSessionId)"
           >
             <PresenceDot state="live" />
@@ -235,9 +247,13 @@ function openContinuous() {
 
 .thread-pane {
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: auto 1fr auto;
   min-height: 0;
   background: var(--bg-shell);
+}
+
+.channel-strip-slot {
+  border-bottom: 1px solid var(--hair);
 }
 
 .welcome {
@@ -269,14 +285,14 @@ function openContinuous() {
    panel while the task is still running. */
 .processing-chip {
   appearance: none;
-  border: 1px solid var(--gold-soft);
+  border: 1px solid color-mix(in srgb, var(--accent, var(--gold)) 38%, transparent);
   margin: 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 5px 12px;
   border-radius: 99px;
-  background: var(--gold-soft);
+  background: color-mix(in srgb, var(--accent, var(--gold)) 12%, transparent);
   color: var(--ink-1);
   font: 600 11.5px/1.5 var(--font-ui);
   cursor: default;
@@ -284,7 +300,7 @@ function openContinuous() {
 }
 
 .processing-chip:not(.is-static):hover {
-  border-color: var(--gold);
+  border-color: var(--accent, var(--gold));
 }
 
 .processing-chip.is-static {
