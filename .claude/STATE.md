@@ -3,7 +3,40 @@
 **Updated 2026-07-09.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-09): CLAUDE-IDENTITY CHAT POLISH SHIPPED — now building: per-message channel-ORIGIN badges (voice first)
+## ⏭ NEXT ACTION (2026-07-09 evening): FEATURE-SECTIONS ROUND SHIPPED (channels · schedules · knowledge · memory) — next: Chad live-smokes the new sections
+
+**🎉 THE SECTIONS ROUND (same Fable session, Chad away — autonomous finish per his directive).**
+Four scope-aware sections under `components/sections/` (SectionScope global|workspace), on the
+GLOBAL menu (Chat · Channels · Schedules · Knowledge · Memory · Application) AND the workspace
+drawer (WorkspaceSectionPanel delegates; only skills/marketplace/agents remain panel-rendered):
+- **Channels** `9203974`: ConnectChannelDialog (Telegram + BotFather guidance; Discord honestly
+  "coming soon"; scope select). Reviewer must-fix caught pre-commit: the ONCE schedule path used
+  templateKind 'reminder' → 400s (its template demands a channel) AND delivers VERBATIM (no LLM
+  turn) — both branches now send templateKind 'custom' + destinationKind 'chat-only'.
+- **Schedules** `9203974`: CreateScheduleDialog — Once (15min/1h/tomorrow chips or datetime-local,
+  fireAt built at CLICK time not open time) / Repeats (daily/weekly/monthly + time + weekday chips /
+  day-of-month 1–28 validated) via pure `utils/schedule-cadence.ts` (cron build + describe + presets,
+  tested); rows read as words; pill = pause/resume (schedulesUser.update).
+- **Knowledge** (this commit): AddKnowledgeDialog = real directory browser → knowledge.addDirectory
+  (scope global|workspace; GLOBAL sources anchor on the chosen/first workspace — every knowledge
+  route is workspace-anchored); rows removable (removeSource). ⚠ single-FILE sources need a backend
+  change (register route takes a directory) — deliberate deferral, commented in-dialog.
+- **Memory** (this commit): entries listed with the API's REAL kinds (person/preference/
+  business-fact/recurring-pattern/note); AddMemoryDialog files kind→category/section defaults. ⚠
+  memory is WORKSPACE-owned today — the global surface AGGREGATES across workspaces; Chad's
+  context/reminder/rules-for-claude tagging + global memory = the planned memory build
+  (docs/module-notes/memory.md "tagging + sources") — backend schema work, NOT slipped in.
+- Dedupe: `use-scope-label` (workspaceId→name chips, all four sections);
+  `use-*-in-scope` composables aggregate the global surface (per-workspace fetch + merge).
+  Deferrals (reviewer-confirmed, non-blocking): dialog chrome CSS ~5×-duplicated → a shared dialog
+  primitive; a FAILED section query renders as "empty" (all four sections — add error branches like
+  WorkspaceView's sessionsErrorText); memory overview reads first page only (50/workspace, WHY
+  commented); section `scope` prop captured non-reactively (safe: workspace switch unmounts);
+  aggregates re-fetch workspaces.list inside queryFn instead of ensureQueryData.
+- ✅ Live-verified via Playwright (dark, global menu, all dialogs; Chad's real "what time is it"
+  VOICE message wears the VIA VOICE badge in production). Gate 2039/4-skip at review time.
+
+## (same day, earlier) CLAUDE-IDENTITY CHAT POLISH + ORIGIN BADGES — shipped `7159d3b` · `a8c51b5` · `e85ee2a` · `b29be8e` · `60d9c3f` · `9203974`
 
 **🎉 THE CHAT POLISH ROUND DONE (Chad: "its looking good now"; gate 2009/4-skip; reviewer
 approve-after-fixes, all folded; committed this session).** Chad's direction landed:

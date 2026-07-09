@@ -10,11 +10,11 @@ import {
   Sparkles,
 } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
-import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
-import { useKnowledgeSources } from "../../composables/knowledge/use-knowledge-sources.js";
 import { useMarketplaceItems } from "../../composables/marketplace/use-marketplace-items.js";
 import ChannelsSection from "../sections/ChannelsSection.vue";
+import KnowledgeSection from "../sections/KnowledgeSection.vue";
+import MemorySection from "../sections/MemorySection.vue";
 import SchedulesSection from "../sections/SchedulesSection.vue";
 import { WORKSPACE_SECTIONS } from "./workspace-sections.js";
 import type {
@@ -56,36 +56,32 @@ const skillsQuery = useInstalledSkills(
   workspaceId,
   computed(() => props.section === "skills"),
 );
-const knowledgeQuery = useKnowledgeSources(
-  workspaceId,
-  computed(() => props.section === "knowledge"),
-);
 const marketplaceQuery = useMarketplaceItems(
   workspaceId,
   computed(() => props.section === "marketplace"),
 );
 
 const skills = computed(() => skillsQuery.data.value ?? []);
-const knowledgeSources = computed(() => knowledgeQuery.data.value ?? []);
 const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
-
-// Knowledge sources carry only an absolute path — the folder's last segment is
-// the friendliest label the real wire can offer.
-function folderName(absolutePath: string): string {
-  const segments = absolutePath.split(/[\\/]/).filter(Boolean);
-  return segments.at(-1) ?? absolutePath;
-}
 </script>
 
 <template>
-  <!-- Channels + schedules have their own scope-aware sections (they also
-       serve the global menu); the panel hosts them directly. -->
+  <!-- Channels/schedules/knowledge/memory have their own scope-aware sections
+       (they also serve the global menu); the panel hosts them directly. -->
   <ChannelsSection
     v-if="props.section === 'channels'"
     :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
   />
   <SchedulesSection
     v-else-if="props.section === 'schedules'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
+  <KnowledgeSection
+    v-else-if="props.section === 'knowledge'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
+  <MemorySection
+    v-else-if="props.section === 'memory'"
     :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
   />
 
@@ -114,24 +110,6 @@ function folderName(absolutePath: string): string {
         <span class="pill" :class="skill.isEnabled ? 'is-on' : 'is-off'">
           {{ skill.isEnabled ? "On" : "Off" }}
         </span>
-      </div>
-    </div>
-
-    <!-- Knowledge -->
-    <div v-else-if="props.section === 'knowledge'" class="rows">
-      <div v-for="source in knowledgeSources" :key="source.id" class="row">
-        <div class="row-main">
-          <p class="row-title">
-            {{ folderName(source.absolutePath) }}
-            <span v-if="source.scope === 'global'" class="scope-chip"
-              >Global</span
-            >
-          </p>
-          <p class="row-sub">
-            {{ source.absolutePath }} · updated
-            {{ formatRelativeTime(source.updatedAt) }}
-          </p>
-        </div>
       </div>
     </div>
 

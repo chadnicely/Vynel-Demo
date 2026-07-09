@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The knowledge vault and Claude's memory are now manageable in the app — globally or per
+  workspace.** Knowledge: point Claude at any folder with a real folder browser and it indexes
+  everything readable inside for search — sources live globally ("searchable everywhere") or in one
+  workspace, and can be removed with one click. Memory: read everything Claude remembers (the global
+  menu shows every workspace's memories with scope chips) and add your own — a note, a preference, a
+  person, a business fact, a pattern. Both sections invite the first item instead of showing an
+  empty pane.
+
 - **Connect channels and create schedules from the app — on the global menu and in every
   workspace.** Channels: a guided connect dialog (Telegram with the @BotFather walkthrough; Discord
   marked coming soon) with a "where it lives" choice — global or one workspace — and empty states

@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { MessageSquare, Plus, Radio, Send } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import { useChannels } from "../../composables/channels/use-channels.js";
-import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
+import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import ConnectChannelDialog from "./ConnectChannelDialog.vue";
 import type { SectionScope } from "./section-scope.js";
 
@@ -15,14 +15,7 @@ const props = defineProps<{
 }>();
 
 const channelsQuery = useChannels(true);
-const workspacesQuery = useWorkspaceList();
-
-const workspaceNameById = computed(
-  () =>
-    new Map(
-      (workspacesQuery.data.value ?? []).map((row) => [row.id, row.name]),
-    ),
-);
+const { scopeLabel } = useScopeLabel();
 
 const channels = computed(() => {
   const rows = channelsQuery.data.value ?? [];
@@ -32,11 +25,6 @@ const channels = computed(() => {
     (row) => row.workspaceId === null || row.workspaceId === workspaceId,
   );
 });
-
-function scopeLabel(workspaceId: string | null): string {
-  if (workspaceId === null) return "Global";
-  return workspaceNameById.value.get(workspaceId) ?? "Workspace";
-}
 
 function statusNote(channel: {
   connectionStatus: string;

@@ -4,7 +4,7 @@ import { CalendarClock, Plus, Repeat, Timer } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import { useSchedules } from "../../composables/schedules/use-schedules.js";
 import { useToggleSchedule } from "../../composables/schedules/use-toggle-schedule.js";
-import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
+import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import { describeScheduleCadence } from "../../utils/schedule-cadence.js";
 import CreateScheduleDialog from "./CreateScheduleDialog.vue";
 import type { SectionScope } from "./section-scope.js";
@@ -18,14 +18,7 @@ const props = defineProps<{
 
 const schedulesQuery = useSchedules(true);
 const toggleSchedule = useToggleSchedule();
-const workspacesQuery = useWorkspaceList();
-
-const workspaceNameById = computed(
-  () =>
-    new Map(
-      (workspacesQuery.data.value ?? []).map((row) => [row.id, row.name]),
-    ),
-);
+const { scopeLabel } = useScopeLabel();
 
 const schedules = computed(() => {
   const rows = schedulesQuery.data.value ?? [];
@@ -35,11 +28,6 @@ const schedules = computed(() => {
     (row) => row.workspaceId === null || row.workspaceId === workspaceId,
   );
 });
-
-function scopeLabel(workspaceId: string | null): string {
-  if (workspaceId === null) return "Global";
-  return workspaceNameById.value.get(workspaceId) ?? "Workspace";
-}
 
 function nextFireNote(nextFireAt: string | null): string {
   if (!nextFireAt) return "not scheduled";

@@ -9,6 +9,8 @@ import AppComposer from "../components/chat/AppComposer.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
 import MenuPanel from "../components/shell/MenuPanel.vue";
 import ChannelsSection from "../components/sections/ChannelsSection.vue";
+import KnowledgeSection from "../components/sections/KnowledgeSection.vue";
+import MemorySection from "../components/sections/MemorySection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
 import { useChannels } from "../composables/channels/use-channels.js";
 import { useSessionList } from "../composables/chat/use-session-list.js";
@@ -38,8 +40,18 @@ const GLOBAL_MENU_ITEMS = [
   { id: "chat", label: "Chat", hint: "Your conversation" },
   { id: "channels", label: "Channels", hint: "Telegram and other ways in" },
   { id: "schedules", label: "Schedules", hint: "Claude on its own time" },
+  { id: "knowledge", label: "Knowledge", hint: "The vault Claude studies" },
+  { id: "memory", label: "Memory", hint: "What Claude remembers" },
   { id: "application", label: "Application", hint: "Global settings" },
 ];
+
+/** The global menu items that render a feature section on the canvas. */
+const GLOBAL_SECTION_IDS = ["channels", "schedules", "knowledge", "memory"] as const;
+type GlobalSectionId = (typeof GLOBAL_SECTION_IDS)[number];
+
+function isGlobalSection(view: unknown): view is GlobalSectionId {
+  return GLOBAL_SECTION_IDS.includes(view as GlobalSectionId);
+}
 
 const ui = useUiStore();
 const shell = ui.globalChat;
@@ -158,9 +170,7 @@ function sendMessage(text: string) {
 
 function onMenuSelect(itemId: string) {
   shell.mainView =
-    itemId === "channels" || itemId === "schedules" || itemId === "application"
-      ? itemId
-      : "chat";
+    isGlobalSection(itemId) || itemId === "application" ? itemId : "chat";
 }
 
 function openHistorySession(sessionId: string) {
@@ -209,16 +219,21 @@ function openContinuous() {
       </EmptyState>
     </div>
 
-    <div
-      v-else-if="shell.mainView === 'channels' || shell.mainView === 'schedules'"
-      class="canvas section-view"
-    >
+    <div v-else-if="isGlobalSection(shell.mainView)" class="canvas section-view">
       <div class="section-column">
         <ChannelsSection
           v-if="shell.mainView === 'channels'"
           :scope="{ kind: 'global' }"
         />
-        <SchedulesSection v-else :scope="{ kind: 'global' }" />
+        <SchedulesSection
+          v-else-if="shell.mainView === 'schedules'"
+          :scope="{ kind: 'global' }"
+        />
+        <KnowledgeSection
+          v-else-if="shell.mainView === 'knowledge'"
+          :scope="{ kind: 'global' }"
+        />
+        <MemorySection v-else :scope="{ kind: 'global' }" />
       </div>
     </div>
 
