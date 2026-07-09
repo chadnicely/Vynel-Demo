@@ -52,12 +52,9 @@ function goToTab(tabId: string) {
   void router.push({ name: tabId });
 }
 
-function startFreshConversation() {
-  ui.workspaceChat.target = "fresh";
-  ui.workspaceChat.mainView = "chat";
-}
-
-// The switcher's "New workspace…" row — created workspace becomes active.
+// The "+" beside the switcher AND the switcher's "New workspace…" row both open
+// this — a "+" next to a workspace picker reads as "add workspace" (Chad's
+// live-use finding; "new conversation" lives in the conversations panel now).
 const isCreateWorkspaceOpen = ref(false);
 
 function onWorkspaceCreated(workspace: WorkspaceResponse) {
@@ -99,7 +96,7 @@ function onWorkspaceCreated(workspace: WorkspaceResponse) {
           @close="isCreateWorkspaceOpen = false"
           @created="onWorkspaceCreated"
         />
-        <IconButton label="New conversation" @click="startFreshConversation()">
+        <IconButton label="New workspace" @click="isCreateWorkspaceOpen = true">
           <Plus :size="15" />
         </IconButton>
       </template>

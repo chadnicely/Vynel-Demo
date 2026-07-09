@@ -7,6 +7,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Fixed
+
+- **The "+" next to the workspace switcher now does what it looks like it does — create a
+  workspace.** It used to silently start a fresh conversation (often invisible on an empty room).
+  Starting a new conversation moved to where conversations live: the "+ New" button atop the
+  Conversations panel.
+
 ### Added
 
 - **Messages remember how they reached Claude.** A message you speak through the voice channel now

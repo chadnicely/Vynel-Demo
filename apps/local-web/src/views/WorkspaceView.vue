@@ -185,6 +185,12 @@ function openHistorySession(sessionId: string) {
   shell.mainView = "chat";
 }
 
+// A fresh per-topic conversation — the next send creates its session.
+function startFreshConversation() {
+  shell.target = "fresh";
+  shell.mainView = "chat";
+}
+
 function openContinuous() {
   shell.target = "continuous";
   shell.mainView = "chat";
@@ -208,8 +214,10 @@ function openContinuous() {
       :is-continuous-active="shell.target === 'continuous'"
       :is-loading="sessionsQuery.isPending.value"
       :error-text="sessionsErrorText"
+      can-start-new
       @select="openHistorySession"
       @select-continuous="openContinuous"
+      @start-new="startFreshConversation"
     />
 
     <div v-if="activeSection" class="canvas section-view">

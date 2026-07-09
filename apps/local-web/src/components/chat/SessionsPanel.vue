@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MessageCircle } from "lucide-vue-next";
+import { MessageCircle, Plus } from "lucide-vue-next";
 import type { ChatSessionResponse } from "@vynel/contracts/chat/chat-http";
 import { EmptyState } from "@vynel/ui";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
@@ -13,11 +13,15 @@ const props = defineProps<{
   isContinuousActive?: boolean;
   isLoading?: boolean;
   errorText?: string | null;
+  /** Show the "start a new conversation" affordance — the workspace room offers
+   *  per-topic sessions; the global brain stays one continuous thread. */
+  canStartNew?: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [sessionId: string];
   selectContinuous: [];
+  startNew: [];
 }>();
 </script>
 
@@ -25,6 +29,16 @@ const emit = defineEmits<{
   <aside class="sessions-panel">
     <header class="panel-header">
       <p class="panel-title">Conversations</p>
+      <button
+        v-if="props.canStartNew"
+        type="button"
+        class="new-conversation"
+        title="Start a new conversation"
+        @click="emit('startNew')"
+      >
+        <Plus :size="13" />
+        New
+      </button>
     </header>
 
     <div class="session-list">
@@ -89,6 +103,7 @@ const emit = defineEmits<{
 .panel-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 10px 12px 8px;
   border-bottom: 1px solid var(--hair);
 }
@@ -97,6 +112,33 @@ const emit = defineEmits<{
   margin: 0;
   color: var(--ink-2);
   font: 600 12px/1.5 var(--font-ui);
+}
+
+.new-conversation {
+  appearance: none;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border: 1px solid var(--hair);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--ink-2);
+  font: 600 11px/1.5 var(--font-ui);
+  cursor: default;
+  transition: border-color var(--t-fast) var(--ease-out);
+}
+
+.new-conversation:hover {
+  color: var(--ink-1);
+  border-color: var(--hair-strong);
+  background: var(--row-hover);
+}
+
+.new-conversation:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
 }
 
 .session-list {
