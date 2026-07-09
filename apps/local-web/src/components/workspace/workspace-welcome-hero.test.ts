@@ -23,12 +23,12 @@ function makeWorkspace(
 }
 
 describe("WorkspaceWelcomeHero", () => {
-  it("presents the manager persona on the workspace, wearing its accent", () => {
+  it("presents the manager persona on the workspace, wearing its monogram + accent", () => {
     const wrapper = mount(WorkspaceWelcomeHero, {
       props: { workspace: makeWorkspace() },
     });
 
-    expect(wrapper.find(".mark-initial").text()).toBe("A");
+    expect(wrapper.find(".mark-initial").text()).toBe("VY");
     expect(wrapper.find(".hero-wordmark").text()).toBe("vynel");
     expect(wrapper.find(".hero-greeting").text()).toBe("Ava is on vynel.");
     expect(wrapper.find(".workspace-hero").attributes("style")).toContain(
@@ -36,12 +36,12 @@ describe("WorkspaceWelcomeHero", () => {
     );
   });
 
-  it("welcomes without a persona and falls back to the workspace initial", () => {
+  it("welcomes without a persona, still wearing the room's monogram", () => {
     const wrapper = mount(WorkspaceWelcomeHero, {
       props: { workspace: makeWorkspace({ managerName: null, name: "blog" }) },
     });
 
-    expect(wrapper.find(".mark-initial").text()).toBe("B");
+    expect(wrapper.find(".mark-initial").text()).toBe("BL");
     expect(wrapper.find(".hero-greeting").text()).toBe("Welcome to blog.");
   });
 

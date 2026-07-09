@@ -16,6 +16,7 @@ export { default as ToolCallCard } from "./components/ToolCallCard.vue";
 export { default as ToolCallList } from "./components/ToolCallList.vue";
 export { default as VoiceOrb } from "./components/VoiceOrb.vue";
 export { workspaceAccentVar } from "./lib/workspace-color.js";
+export { workspaceMonogram } from "./lib/workspace-monogram.js";
 export type { ComposerOption } from "./components/ChatComposer.vue";
 export type { SegmentedTab } from "./components/SegmentedTabs.vue";
 export type { SelectChipOption } from "./components/SelectChip.vue";

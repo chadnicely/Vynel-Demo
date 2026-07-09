@@ -2,24 +2,19 @@
 import { computed } from "vue";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 import { WORKSPACE_KIND_BUNDLES } from "@vynel/contracts/workspaces/workspace-kind-bundles";
-import { workspaceAccentVar } from "@vynel/ui";
+import { workspaceAccentVar, workspaceMonogram } from "@vynel/ui";
 
 // The workspace room's arrival moment — the same hero language as the global
-// chat's, wearing this workspace's identity instead of Claude's: the manager
-// persona's initial in the workspace accent, the workspace name as the
-// wordmark, the persona as the greeting.
+// chat's, wearing this workspace's identity instead of Claude's: the room's
+// monogram ("VY" for vynel) in the workspace accent, the workspace name as
+// the wordmark, the persona as the greeting.
 const props = defineProps<{
   workspace: WorkspaceResponse;
 }>();
 
 const accent = computed(() => workspaceAccentVar(props.workspace.name));
 
-const managerInitial = computed(() =>
-  (props.workspace.managerName ?? props.workspace.name)
-    .trim()
-    .charAt(0)
-    .toUpperCase(),
-);
+const monogram = computed(() => workspaceMonogram(props.workspace.name));
 
 const headline = computed(() =>
   props.workspace.managerName
@@ -35,7 +30,7 @@ const kindLabel = computed(
 <template>
   <section class="workspace-hero" :style="{ '--accent': accent }">
     <div class="hero-mark">
-      <span class="mark-initial">{{ managerInitial }}</span>
+      <span class="mark-initial">{{ monogram }}</span>
     </div>
 
     <p class="hero-wordmark">{{ props.workspace.name }}</p>
@@ -56,8 +51,8 @@ const kindLabel = computed(
   padding: 32px 24px;
 }
 
-/* The persona's mark — the manager's initial in the workspace accent, the
-   same halo treatment as the global hero's spark. Never gold. */
+/* The room's mark — its monogram in the workspace accent, the same halo
+   treatment as the global hero's spark. Never gold. */
 .hero-mark {
   display: grid;
   place-items: center;
@@ -81,7 +76,8 @@ const kindLabel = computed(
   border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent);
   background: color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
   color: var(--accent);
-  font: 600 26px/1 var(--font-display);
+  font: 600 21px/1 var(--font-display);
+  letter-spacing: 0.03em;
 }
 
 .hero-wordmark {

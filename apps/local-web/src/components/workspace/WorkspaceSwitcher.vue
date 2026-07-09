@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { ChevronsUpDown, Plus } from "lucide-vue-next";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
-import { workspaceAccentVar } from "@vynel/ui";
+import { workspaceAccentVar, workspaceMonogram } from "@vynel/ui";
 
 const props = defineProps<{
   workspaces: WorkspaceResponse[];
@@ -44,12 +44,6 @@ const activeWorkspace = computed(
     props.workspaces.find((row) => row.id === props.activeWorkspaceId) ?? null,
 );
 
-// The same identity mark the room's hero wears, miniature: the manager's (or
-// workspace's) initial in the workspace accent.
-function markInitial(workspace: WorkspaceResponse): string {
-  return (workspace.managerName ?? workspace.name).trim().charAt(0).toUpperCase();
-}
-
 function select(workspaceId: string) {
   isOpen.value = false;
   emit("select", workspaceId);
@@ -90,7 +84,7 @@ function create() {
         :style="{ '--accent': workspaceAccentVar(workspace.name) }"
         @click="select(workspace.id)"
       >
-        <span class="row-mark">{{ markInitial(workspace) }}</span>
+        <span class="row-mark">{{ workspaceMonogram(workspace.name) }}</span>
         <span class="row-text">
           <span class="menu-name">{{ workspace.name }}</span>
           <span v-if="workspace.managerName" class="menu-manager">
@@ -222,8 +216,8 @@ function create() {
   outline-offset: -2px;
 }
 
-/* The room's mark — manager initial in the workspace accent (the hero's
-   identity, miniature). The create slot wears a dashed placeholder ring. */
+/* The room's monogram in its accent (the hero's identity, miniature). The
+   create slot wears a dashed placeholder ring. */
 .row-mark {
   display: grid;
   place-items: center;
@@ -233,7 +227,8 @@ function create() {
   border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
-  font: 600 12px/1 var(--font-display);
+  font: 600 10px/1 var(--font-display);
+  letter-spacing: 0.04em;
   flex: none;
 }
 
