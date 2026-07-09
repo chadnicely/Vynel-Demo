@@ -8,6 +8,8 @@ import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
 import MenuPanel from "../components/shell/MenuPanel.vue";
+import ChannelsSection from "../components/sections/ChannelsSection.vue";
+import SchedulesSection from "../components/sections/SchedulesSection.vue";
 import { useChannels } from "../composables/channels/use-channels.js";
 import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
@@ -34,6 +36,8 @@ const ASSISTANT_NAME = "Claude";
 
 const GLOBAL_MENU_ITEMS = [
   { id: "chat", label: "Chat", hint: "Your conversation" },
+  { id: "channels", label: "Channels", hint: "Telegram and other ways in" },
+  { id: "schedules", label: "Schedules", hint: "Claude on its own time" },
   { id: "application", label: "Application", hint: "Global settings" },
 ];
 
@@ -153,7 +157,10 @@ function sendMessage(text: string) {
 }
 
 function onMenuSelect(itemId: string) {
-  shell.mainView = itemId === "application" ? "application" : "chat";
+  shell.mainView =
+    itemId === "channels" || itemId === "schedules" || itemId === "application"
+      ? itemId
+      : "chat";
 }
 
 function openHistorySession(sessionId: string) {
@@ -173,7 +180,7 @@ function openContinuous() {
       v-if="ui.isMenuOpen"
       title="Menu"
       :items="GLOBAL_MENU_ITEMS"
-      :active-id="shell.mainView === 'chat' ? 'chat' : 'application'"
+      :active-id="typeof shell.mainView === 'string' ? shell.mainView : 'chat'"
       @select="onMenuSelect"
     />
 
@@ -200,6 +207,19 @@ function openContinuous() {
           <Settings2 :size="22" />
         </template>
       </EmptyState>
+    </div>
+
+    <div
+      v-else-if="shell.mainView === 'channels' || shell.mainView === 'schedules'"
+      class="canvas section-view"
+    >
+      <div class="section-column">
+        <ChannelsSection
+          v-if="shell.mainView === 'channels'"
+          :scope="{ kind: 'global' }"
+        />
+        <SchedulesSection v-else :scope="{ kind: 'global' }" />
+      </div>
     </div>
 
     <section v-else class="canvas thread-pane">
@@ -302,6 +322,17 @@ function openContinuous() {
   place-items: center;
   overflow-y: auto;
   background: var(--bg-shell);
+}
+
+.section-view {
+  overflow-y: auto;
+  background: var(--bg-shell);
+}
+
+.section-column {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px;
 }
 
 .processing-banner {

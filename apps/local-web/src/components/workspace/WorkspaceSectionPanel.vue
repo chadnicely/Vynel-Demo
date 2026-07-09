@@ -12,10 +12,10 @@ import {
 import { EmptyState } from "@vynel/ui";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
-import { useChannels } from "../../composables/channels/use-channels.js";
-import { useSchedules } from "../../composables/schedules/use-schedules.js";
 import { useKnowledgeSources } from "../../composables/knowledge/use-knowledge-sources.js";
 import { useMarketplaceItems } from "../../composables/marketplace/use-marketplace-items.js";
+import ChannelsSection from "../sections/ChannelsSection.vue";
+import SchedulesSection from "../sections/SchedulesSection.vue";
 import { WORKSPACE_SECTIONS } from "./workspace-sections.js";
 import type {
   WorkspaceSectionId,
@@ -56,12 +56,6 @@ const skillsQuery = useInstalledSkills(
   workspaceId,
   computed(() => props.section === "skills"),
 );
-const channelsQuery = useChannels(
-  computed(() => props.section === "channels"),
-);
-const schedulesQuery = useSchedules(
-  computed(() => props.section === "schedules"),
-);
 const knowledgeQuery = useKnowledgeSources(
   workspaceId,
   computed(() => props.section === "knowledge"),
@@ -75,27 +69,6 @@ const skills = computed(() => skillsQuery.data.value ?? []);
 const knowledgeSources = computed(() => knowledgeQuery.data.value ?? []);
 const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
 
-const channels = computed(() =>
-  (channelsQuery.data.value ?? []).filter(
-    (row) => row.workspaceId === null || row.workspaceId === props.workspaceId,
-  ),
-);
-
-const schedules = computed(() =>
-  (schedulesQuery.data.value ?? []).filter(
-    (row) => row.workspaceId === null || row.workspaceId === props.workspaceId,
-  ),
-);
-
-function scheduleTiming(nextFireAt: string | null): string {
-  if (!nextFireAt) return "not scheduled";
-  return `next ${new Date(nextFireAt).toLocaleString(undefined, {
-    weekday: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  })}`;
-}
-
 // Knowledge sources carry only an absolute path — the folder's last segment is
 // the friendliest label the real wire can offer.
 function folderName(absolutePath: string): string {
@@ -105,7 +78,18 @@ function folderName(absolutePath: string): string {
 </script>
 
 <template>
-  <div class="section-panel">
+  <!-- Channels + schedules have their own scope-aware sections (they also
+       serve the global menu); the panel hosts them directly. -->
+  <ChannelsSection
+    v-if="props.section === 'channels'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
+  <SchedulesSection
+    v-else-if="props.section === 'schedules'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
+
+  <div v-else class="section-panel">
     <header class="section-header">
       <component
         :is="SECTION_ICONS[props.section]"
@@ -129,55 +113,6 @@ function folderName(absolutePath: string): string {
         </div>
         <span class="pill" :class="skill.isEnabled ? 'is-on' : 'is-off'">
           {{ skill.isEnabled ? "On" : "Off" }}
-        </span>
-      </div>
-    </div>
-
-    <!-- Channels -->
-    <div v-else-if="props.section === 'channels'" class="rows">
-      <div v-for="channel in channels" :key="channel.id" class="row">
-        <div class="row-main">
-          <p class="row-title">
-            {{ channel.displayName }}
-            <span v-if="channel.workspaceId === null" class="scope-chip"
-              >Global</span
-            >
-          </p>
-          <p class="row-sub">
-            {{
-              channel.connectionStatus === "healthy"
-                ? "Connected and listening"
-                : (channel.connectionStatusMessage ?? channel.connectionStatus)
-            }}
-          </p>
-        </div>
-        <span
-          class="pill"
-          :class="channel.connectionStatus === 'healthy' ? 'is-on' : 'is-warn'"
-        >
-          {{ channel.connectionStatus === "healthy" ? "Healthy" : "Attention" }}
-        </span>
-      </div>
-    </div>
-
-    <!-- Schedules -->
-    <div v-else-if="props.section === 'schedules'" class="rows">
-      <div v-for="schedule in schedules" :key="schedule.id" class="row">
-        <div class="row-main">
-          <p class="row-title">
-            {{ schedule.displayName }}
-            <span v-if="schedule.workspaceId === null" class="scope-chip"
-              >Global</span
-            >
-          </p>
-          <p class="row-sub">
-            {{ schedule.scheduleKind === "one-time" ? "One time" : "Repeats" }}
-            ·
-            {{ scheduleTiming(schedule.nextScheduledFireAt) }}
-          </p>
-        </div>
-        <span class="pill" :class="schedule.isEnabled ? 'is-on' : 'is-off'">
-          {{ schedule.isEnabled ? "On" : "Paused" }}
         </span>
       </div>
     </div>
@@ -329,10 +264,5 @@ function folderName(absolutePath: string): string {
 .pill.is-off {
   color: var(--ink-3);
   background: var(--row-active);
-}
-
-.pill.is-warn {
-  color: var(--gold);
-  background: var(--gold-soft);
 }
 </style>

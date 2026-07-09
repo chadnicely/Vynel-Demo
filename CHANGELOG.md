@@ -7,6 +7,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Added
+
+- **Connect channels and create schedules from the app — on the global menu and in every
+  workspace.** Channels: a guided connect dialog (Telegram with the @BotFather walkthrough; Discord
+  marked coming soon) with a "where it lives" choice — global or one workspace — and empty states
+  that invite the first connect. Schedules: tell Claude what to do and when — **once** (in 15
+  minutes, in an hour, tomorrow 9 AM, or any picked moment) or **repeating** (daily / weekly on a
+  weekday / monthly on a day, at your chosen time). Schedule rows read in plain words ("Daily at
+  9:00 AM · next Fri 9:00 AM") and pause/resume with one click.
+
 ### Fixed
 
 - **The "+" next to the workspace switcher now does what it looks like it does — create a

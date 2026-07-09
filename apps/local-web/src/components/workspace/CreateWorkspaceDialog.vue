@@ -27,6 +27,8 @@ const listingQuery = useDirectoryListing(browsePath, isOpen);
 const registerWorkspace = useRegisterWorkspace();
 
 // A fresh dialog per open — yesterday's half-typed name shouldn't linger.
+// `immediate` covers a dialog mounted already-open (the same init hole the
+// section dialogs had).
 watch(
   () => props.open,
   (open) => {
@@ -36,6 +38,7 @@ watch(
       registerWorkspace.reset();
     }
   },
+  { immediate: true },
 );
 
 const listing = computed(() => listingQuery.data.value);
