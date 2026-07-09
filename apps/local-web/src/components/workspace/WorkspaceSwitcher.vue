@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { ChevronsUpDown, FolderOpen, Plus } from "lucide-vue-next";
+import { ChevronsUpDown, Plus } from "lucide-vue-next";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
+import { workspaceAccentVar } from "@vynel/ui";
 
 const props = defineProps<{
   workspaces: WorkspaceResponse[];
@@ -16,24 +17,38 @@ const emit = defineEmits<{
 const isOpen = ref(false);
 const rootElement = ref<HTMLElement | null>(null);
 
-// Dropdown etiquette: clicking anywhere else closes the menu.
+// Dropdown etiquette: clicking anywhere else — or Escape — closes the menu.
 function onDocumentPointerDown(event: PointerEvent) {
   if (!isOpen.value) return;
   if (rootElement.value?.contains(event.target as Node)) return;
   isOpen.value = false;
 }
 
-onMounted(() =>
-  document.addEventListener("pointerdown", onDocumentPointerDown),
-);
-onUnmounted(() =>
-  document.removeEventListener("pointerdown", onDocumentPointerDown),
-);
+function onDocumentKeydown(event: KeyboardEvent) {
+  if (!isOpen.value || event.key !== "Escape") return;
+  event.preventDefault();
+  isOpen.value = false;
+}
+
+onMounted(() => {
+  document.addEventListener("pointerdown", onDocumentPointerDown);
+  document.addEventListener("keydown", onDocumentKeydown);
+});
+onUnmounted(() => {
+  document.removeEventListener("pointerdown", onDocumentPointerDown);
+  document.removeEventListener("keydown", onDocumentKeydown);
+});
 
 const activeWorkspace = computed(
   () =>
     props.workspaces.find((row) => row.id === props.activeWorkspaceId) ?? null,
 );
+
+// The same identity mark the room's hero wears, miniature: the manager's (or
+// workspace's) initial in the workspace accent.
+function markInitial(workspace: WorkspaceResponse): string {
+  return (workspace.managerName ?? workspace.name).trim().charAt(0).toUpperCase();
+}
 
 function select(workspaceId: string) {
   isOpen.value = false;
@@ -54,7 +69,11 @@ function create() {
       :aria-expanded="isOpen"
       @click="isOpen = !isOpen"
     >
-      <FolderOpen :size="14" class="trigger-icon" />
+      <span
+        v-if="activeWorkspace"
+        class="trigger-dot"
+        :style="{ '--accent': workspaceAccentVar(activeWorkspace.name) }"
+      />
       <span class="trigger-name">{{
         activeWorkspace?.name ?? "Pick a workspace"
       }}</span>
@@ -68,18 +87,39 @@ function create() {
         type="button"
         class="menu-row"
         :class="{ 'is-active': workspace.id === props.activeWorkspaceId }"
+        :style="{ '--accent': workspaceAccentVar(workspace.name) }"
         @click="select(workspace.id)"
       >
-        <span class="menu-name">{{ workspace.name }}</span>
-        <span v-if="workspace.managerName" class="menu-manager">
-          {{ workspace.managerName }} is handling it
+        <span class="row-mark">{{ markInitial(workspace) }}</span>
+        <span class="row-text">
+          <span class="menu-name">{{ workspace.name }}</span>
+          <span v-if="workspace.managerName" class="menu-manager">
+            {{ workspace.managerName }} is handling it
+          </span>
         </span>
+        <svg
+          v-if="workspace.id === props.activeWorkspaceId"
+          class="row-check"
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M3 8.5l3.5 3.5L13 5"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
       </button>
 
       <button type="button" class="menu-row create-row" @click="create">
-        <span class="create-label">
-          <Plus :size="12" class="create-icon" />
-          New workspace…
+        <span class="row-mark is-create"><Plus :size="12" /></span>
+        <span class="row-text">
+          <span class="menu-name is-create-label">New workspace…</span>
         </span>
       </button>
     </div>
@@ -100,8 +140,8 @@ function create() {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  gap: 7px;
+  padding: 4px 9px;
   border-radius: var(--radius-s);
   background: transparent;
   cursor: default;
@@ -116,8 +156,12 @@ function create() {
   outline-offset: -2px;
 }
 
-.trigger-icon {
-  color: var(--ink-3);
+/* The active room's identity, in miniature. */
+.trigger-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
   flex: none;
 }
 
@@ -137,15 +181,16 @@ function create() {
 
 .menu {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   left: 0;
-  right: 0;
   z-index: 30;
+  min-width: 240px;
+  max-width: 320px;
   background: var(--bg-raised);
   border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-m);
   box-shadow: var(--shadow-overlay);
-  padding: 4px;
+  padding: 5px;
   display: grid;
   gap: 2px;
 }
@@ -154,10 +199,11 @@ function create() {
   appearance: none;
   border: 0;
   margin: 0;
-  display: grid;
-  gap: 1px;
-  padding: 6px 8px;
-  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: var(--radius-s);
   background: transparent;
   text-align: left;
   cursor: default;
@@ -168,39 +214,82 @@ function create() {
 }
 
 .menu-row.is-active {
-  background: var(--row-active);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.menu-row:focus-visible {
+  outline: 2px solid var(--accent, var(--gold));
+  outline-offset: -2px;
+}
+
+/* The room's mark — manager initial in the workspace accent (the hero's
+   identity, miniature). The create slot wears a dashed placeholder ring. */
+.row-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font: 600 12px/1 var(--font-display);
+  flex: none;
+}
+
+.row-mark.is-create {
+  border: 1px dashed var(--hair-strong);
+  background: transparent;
+  color: var(--ink-3);
+}
+
+.row-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
 }
 
 .menu-name {
   color: var(--ink-1);
-  font: 500 12.5px/1.5 var(--font-ui);
+  font: 500 12.5px/1.4 var(--font-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .menu-manager {
   color: var(--ink-3);
   font: 400 11px/1.4 var(--font-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-check {
+  color: var(--accent, var(--ok));
+  flex: none;
 }
 
 .create-row {
-  margin-top: 2px;
+  margin-top: 3px;
+  padding-top: 9px;
   border-top: 1px solid var(--hair);
-  border-radius: 0 0 5px 5px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
-.create-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.menu-name.is-create-label {
   color: var(--ink-2);
-  font: 500 12px/1.6 var(--font-ui);
+  font-weight: 500;
 }
 
-.create-icon {
-  color: var(--ink-3);
-}
-
-.create-row:hover .create-label,
-.create-row:hover .create-icon {
+.create-row:hover .menu-name.is-create-label {
   color: var(--ink-1);
+}
+
+.create-row:hover .row-mark.is-create {
+  color: var(--ink-1);
+  border-color: var(--ink-3);
 }
 </style>
