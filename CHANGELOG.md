@@ -9,13 +9,30 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
-- **The global chat now shows where your assistant is reachable, and color-codes work by workspace.**
-  A slim strip across the top of the main conversation lists the channels you can reach the assistant
-  on — your connected Telegram (with a health dot) and Voice ("say Hey Vynel"). And when the assistant
-  hands a task to one of your workspaces, its report comes back wearing that workspace's own accent
-  color: a colored bar down the message, plus a matching "Watch" chip and "Working in…" banner — so at
-  a glance you can tell which workspace each result came from. Each workspace gets a stable, distinct
-  color automatically (gold stays reserved for "the assistant is working here").
+- **The chat opens with a real arrival moment, and your assistant is Claude by name.** An empty
+  conversation now greets you personally under Claude's coral spark — "Good morning" with your name,
+  the channels Claude is reachable on (Telegram health, Voice with the wake phrase), and your
+  workspaces as clickable cards wearing their accent colors with their manager's name ("vynel — with
+  Ava"). Every reply is signed the same way: the assistant speaks as **Claude**, a workspace's
+  manager by their own name ("Ava · vynel"), and saying "Hey Claude" now genuinely wakes the voice
+  daemon. Workspace rooms get the identical welcome with their manager's mark in the workspace color,
+  and their composer asks "Ask Ava for anything…".
+- **The conversation scrolls like Discord.** Long history loads in pages — the newest 100 messages
+  render instantly and scrolling to the top reveals more without losing your place. New replies
+  follow at the bottom only while you're already there; if you've scrolled up to read, a floating
+  "Jump to latest" pill takes you back instead of yanking you. Your own sends always land you at the
+  latest message, and the whole thread got wider room to breathe.
+- **Tool activity now reads like Claude Code, not JSON.** Each tool the assistant uses is a compact
+  chip — "Wrote CLAUDE.md **+16** · 2.2s" — that expands into the real artifact: the file path in a
+  header bar with a copy button, a unified diff with green/red +/- gutters and syntax highlighting,
+  a terminal view for commands, the spoken sentence for `speak`. Assistant-internal tool ids
+  ("mcp__vynel__route_to_workspace") show as plain words ("route to workspace").
+
+- **Work is color-coded by workspace.** When the assistant hands a task to one of your workspaces,
+  its report comes back wearing that workspace's own accent color: a colored bar down the message,
+  plus a matching "Watch" chip and "Working in…" banner — so at a glance you can tell which workspace
+  each result came from. Each workspace gets a stable, distinct color automatically (gold stays
+  reserved for "the assistant is working here").
 - **Voice is now a real communication channel — say "Hey Vynel" and talk to it like a person.** A
   new `speak` tool lets the assistant *choose* to answer out loud: voice requests run on the fast
   Haiku model, which does the work and then speaks a short, natural reply (no more reading a wall of

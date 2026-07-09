@@ -13,6 +13,7 @@ import { usePendingApprovals } from "../composables/approvals/use-pending-approv
 import { useActivityStore } from "../stores/activity-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { formatRelativeTime } from "../utils/format-relative-time.js";
+import { greetingForHour } from "../utils/greeting.js";
 
 // The dashboard: everything the assistant is doing and holding, one glance.
 const router = useRouter();
@@ -25,13 +26,6 @@ const pendingApprovalsQuery = usePendingApprovals();
 const pendingCount = computed(
   () => pendingApprovalsQuery.data.value?.length ?? 0,
 );
-
-function greetingForHour(hour: number): string {
-  if (hour < 5) return "Up late";
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
 
 const greeting = greetingForHour(new Date().getHours());
 

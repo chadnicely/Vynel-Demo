@@ -59,14 +59,43 @@ describe("MessageRow", () => {
     expect(wrapper.find(".session-link").exists()).toBe(false);
   });
 
-  it("labels a delegated-in user message as coming from Global", () => {
+  // Author labels are persona-first: the brain speaks as Claude, a workspace
+  // persona by its own label — "Assistant · X" prefixes are gone.
+  it("labels a delegated-in user message as coming from Claude", () => {
     const wrapper = mount(MessageRow, {
       props: {
         message: makeMessage({ role: "user", sourceKind: "global-root" }),
       },
     });
 
-    expect(wrapper.find(".role-label").text()).toBe("From Global");
+    expect(wrapper.find(".role-label").text()).toBe("From Claude");
+  });
+
+  it("names the global brain Claude and a workspace report by its persona", () => {
+    const brain = mount(MessageRow, {
+      props: { message: makeMessage({ sourceKind: "global-root" }) },
+    });
+    expect(brain.find(".role-label").text()).toBe("Claude");
+
+    const report = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          sourceKind: "workspace-manager",
+          sourceLabel: "Noah · vynel",
+        }),
+      },
+    });
+    expect(report.find(".role-label").text()).toBe("Noah · vynel");
+  });
+
+  it("names a plain assistant row (no sourceKind) after the surface's assistant", () => {
+    const unnamed = mount(MessageRow, { props: { message: makeMessage() } });
+    expect(unnamed.find(".role-label").text()).toBe("Assistant");
+
+    const named = mount(MessageRow, {
+      props: { message: makeMessage(), assistantName: "Claude" },
+    });
+    expect(named.find(".role-label").text()).toBe("Claude");
   });
 
   it("wears a workspace accent bar on a bubbled-up report", () => {

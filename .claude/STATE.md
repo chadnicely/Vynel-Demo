@@ -3,37 +3,44 @@
 **Updated 2026-07-09.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-09): GLOBAL-CHAT CHANNELS STRIP + PER-WORKSPACE ACCENT COLORS SHIPPED — next: Fable UI polish + channels
+## ⏭ NEXT ACTION (2026-07-09): CLAUDE-IDENTITY CHAT POLISH SHIPPED — now building: per-message channel-ORIGIN badges (voice first)
 
-**🎉 CHANNEL PRESENCE STRIP + PER-WORKSPACE ACCENT COLORS DONE (Chad: "its good"; gate 1985/4-skip;
-code-reviewer-clean after 1 must-fix; committed this session).** Two UI asks on the global chat:
-- **Presence strip** atop the global thread — `apps/local-web/src/components/chat/ChannelPresenceStrip.vue`
-  (presentational, `channels` passed as a prop → unit-tested with plain props), wired in `GlobalChatView`.
-  A "Reachable on" bar: global-scoped Telegram/Discord from `channelsUser.list()` (health dot ok/attention)
-  + a static **Voice** capability chip (voice is a runtime sidecar, NOT a DB channel row — honest, not a
-  live-connection claim).
-- **Per-workspace accent colors** — one shared pure fn `packages/ui/src/lib/workspace-color.ts`
-  hashes the workspace NAME → a `--ws-1..6` token (new muted palette in `packages/ui/src/styles/tokens.css`,
-  dark+light, deliberately OFF amber — **gold stays presence-only**). Rendered as a **left accent bar** on
-  bubbled-up workspace/agent reports (`MessageRow`), same tint on the "Watch X" chip + the in-flight banner
-  chip (which also REDUCES the old gold-soft overuse there). Chad picked: **deterministic-now (no schema)**
-  + **left-accent-bar** style (via AskUserQuestion).
-- **⚠ REVIEWER MUST-FIX (caught + fixed):** `sourceLabel` is **persona-FIRST** — `@vynel/chat`'s
-  `composeManagerSourceLabel` = `"<manager> · <workspace>"` ("Noah · vynel"). The normalizer must take the
-  **LAST** " · " segment (not `[0]`) so the report row and the bare-workspace-name banner resolve to the
-  SAME color. My first pass took `[0]` (the manager) → colors diverged on EVERY delegation, and the test
-  codified the inverted assumption (gate green over a real bug). Fixed + test corrected + the cross-package
-  coupling documented in-file. See memory [[source-label-is-persona-first]].
-- **Also applied (reviewer):** accent gated on `showWatchChip` (suppressed inside a workspace's own room,
-  like the Watch chip — shows only in the global thread). Nits: dropped unused `workspaceColorSlot` barrel
-  export; nudged `--ws-2`/`--ws-6` off the exact `info`/`ok`/`file-*` token values.
+**🎉 THE CHAT POLISH ROUND DONE (Chad: "its looking good now"; gate 2009/4-skip; reviewer
+approve-after-fixes, all folded; committed this session).** Chad's direction landed:
+- **Assistant = CLAUDE, never "Vynel"** (memory [[assistant-is-claude-not-vynel]]): new `ClaudeMark`
+  coral-spark glyph (`--claude-mark` tokens, identity-only — gold stays presence-only), welcome hero
+  (spark + time-aware greeting via `users.getMe` + command deck: channels + accent-colored workspace
+  cards → click opens the workspace), labels "Claude"/"From Claude"/persona-first ("Ava · vynel"),
+  composer "Ask Claude…", and the wake-word leaf accepts "hey claude" variants so the UI invitation
+  is honest. ⚠ OPEN with Chad: does "no vynel anywhere" cover the PRODUCT name (onboarding wordmark,
+  "Vynel Jarvis" window titles)?
+- **No chrome over a flowing thread** — Chad killed the identity/channel bar (the earlier
+  ChannelPresenceStrip AND its richer one-session replacement are both gone); the hero carries those
+  facts on the empty state only.
+- **Discord scrolling** (`ThreadStream` rewrite): newest-100 window + reveal-on-scroll-top with
+  anchor math (client-side — the wire has NO pagination; real paging = backend change), pinned-only
+  live follow, "Jump to latest" pill, own-send always jumps, onMounted bottom-anchor (the stream
+  mounts with history preloaded — found live via Playwright). Thread column 760→920, docks 808→968.
+- **Claude-Code-style tool cards**: chip "Wrote CLAUDE.md +16 · 2.2s" (± stats, status word only
+  when not a clean completion), expanded `ToolCallDetail` (path header + copy, unified diff with
+  +/- gutters over shiki `.line` spans, terminal), MCP ids humanized ("speak"), speak renders its
+  spoken text (its output is a boilerplate ack — special-cased, WHY in tool-presenters.ts).
+- **Workspace rooms identical**: `WorkspaceWelcomeHero` (manager initial in the workspace accent,
+  "Ava is on vynel."), manager persona as `assistantName` through ThreadStream/LiveTurn, persona
+  composer placeholder.
 
-**⏭ CHAD'S PLAN (new Fable session): ① better UI polish · ② more channels work.** Honest deferrals to
-carry in: **per-message channel-ORIGIN badges** ("this came from Telegram") need the message to carry its
-origin — `ChatMessageResponse` has NO channel field today (backend + contract change); the **Voice chip is
-a static capability**, not a live daemon read (a lightweight `/voice` status read would light it);
-**settable** workspace colors (vs deterministic) need a `color` column + `workspaceId` threaded onto messages
-+ a picker (deferred — "auto now, settable later").
+**🔧 NOW BUILDING (Chad's next ask): per-message channel-ORIGIN badges — voice first.** He sent a
+message via the voice channel and wants the row to SAY it came through voice. Known gap since the
+strip round: `ChatMessageResponse` has NO origin field — needs schema (origin on the user message
+row) + threading (voice daemon `/root/turn` stamps 'voice'; telegram consumer stamps 'telegram';
+web default) + contract + a small origin chip on MessageRow. ⚠ Chad now has REAL conversation
+history — use an INCREMENTAL MIGRATION, not baseline-folding (which forces a dev-DB wipe, memory
+[[stale-dev-db-baseline-folding]]).
+
+**Other carried deferrals:** hero Voice chip is a static capability (a `/voice` status read would
+light it) · settable workspace colors · voice overlay ignores Escape + caption/error overlap · the
+workspace sections drawer (Channels especially) is a bare header with no connect/empty-state flow —
+its own polish round.
 
 ## ⏭ NEXT ACTION (2026-07-08): VOICE-AS-COMMUNICATION SHIPPED — next: slice 3 (route-to-global speak-back) OR Chatterbox OR UI
 

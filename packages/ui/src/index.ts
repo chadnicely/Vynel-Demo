@@ -2,6 +2,7 @@
 // Consumed by apps/local-web today and the cloud web view later.
 export { default as ApprovalCard } from "./components/ApprovalCard.vue";
 export { default as ChatComposer } from "./components/ChatComposer.vue";
+export { default as ClaudeMark } from "./components/ClaudeMark.vue";
 export { default as CodeBlock } from "./components/CodeBlock.vue";
 export { default as EmptyState } from "./components/EmptyState.vue";
 export { default as IconButton } from "./components/IconButton.vue";

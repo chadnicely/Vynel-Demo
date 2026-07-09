@@ -9,6 +9,7 @@ import MenuPanel from "../components/shell/MenuPanel.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
 import FileEditorView from "../components/workspace/FileEditorView.vue";
 import WorkspaceSectionPanel from "../components/workspace/WorkspaceSectionPanel.vue";
+import WorkspaceWelcomeHero from "../components/workspace/WorkspaceWelcomeHero.vue";
 import { WORKSPACE_SECTIONS } from "../components/workspace/workspace-sections.js";
 import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
@@ -241,12 +242,13 @@ function openContinuous() {
       </div>
 
       <div v-if="showsWelcome" class="welcome">
+        <WorkspaceWelcomeHero
+          v-if="activeWorkspace"
+          :workspace="activeWorkspace"
+        />
         <EmptyState
-          :title="
-            activeWorkspace
-              ? `${activeWorkspace.managerName ?? 'Your assistant'} is on ${activeWorkspace.name}`
-              : 'Pick a workspace'
-          "
+          v-else
+          title="Pick a workspace"
           hint="Ask for anything in this room — its files, tools, and history stay right here."
         >
           <template #icon>
@@ -260,6 +262,7 @@ function openContinuous() {
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
         :show-watch-chips="false"
+        :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
         @decide-approval="onDecideApproval"
         @open-session="sessionViewer.open"
       />
@@ -267,7 +270,11 @@ function openContinuous() {
       <footer class="composer-dock">
         <AppComposer
           :streaming="chatTurn.isStreaming.value"
-          :placeholder="`Ask about ${activeWorkspace?.name ?? 'this workspace'}…`"
+          :placeholder="
+            activeWorkspace?.managerName
+              ? `Ask ${activeWorkspace.managerName} for anything…`
+              : `Ask about ${activeWorkspace?.name ?? 'this workspace'}…`
+          "
           @send="sendMessage"
           @interrupt="chatTurn.interrupt"
         />
@@ -335,7 +342,7 @@ function openContinuous() {
 
 .composer-dock {
   padding: 0 24px 18px;
-  max-width: 808px;
+  max-width: 968px;
   width: 100%;
   margin: 0 auto;
 }

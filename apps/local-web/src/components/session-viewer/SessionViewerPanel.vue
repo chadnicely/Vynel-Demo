@@ -63,10 +63,12 @@ const statusTone = computed(() => {
 
 type TraceEntry = (typeof entries.value)[number];
 
+// Persona-first author labels, matching MessageRow: the brain is Claude, a
+// workspace persona speaks by its own label — no "Assistant · X" prefix.
 function authorLabel(entry: TraceEntry): string {
   if (entry.role === "user")
-    return entry.sourceKind === "global-root" ? "From Global" : "You";
-  if (entry.sourceLabel) return `Assistant · ${entry.sourceLabel}`;
+    return entry.sourceKind === "global-root" ? "From Claude" : "You";
+  if (entry.sourceLabel) return entry.sourceLabel;
   return "Assistant";
 }
 

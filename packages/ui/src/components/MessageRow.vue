@@ -17,8 +17,12 @@ const props = withDefaults(
      *  suppress it. Explicit default: an absent Boolean prop casts to false, which
      *  would silently suppress every chip. */
     showWatchChip?: boolean;
+    /** The surface's own assistant author — ordinary rows carry no sourceKind,
+     *  so the host names who speaks here (the global thread passes "Claude",
+     *  a workspace room its manager persona). */
+    assistantName?: string;
   }>(),
-  { linkedSessionLive: undefined, showWatchChip: true },
+  { linkedSessionLive: undefined, showWatchChip: true, assistantName: "Assistant" },
 );
 
 const emit = defineEmits<{
@@ -28,19 +32,22 @@ const emit = defineEmits<{
 
 // The author line comes from sourceKind (who WROTE this); sourceLabel alone
 // may just name a delegation target for the chip below — never the author.
+// Authors speak in first person: the global brain IS Claude (the product
+// never brands over it), a workspace persona speaks by its own label
+// ("Noah · vynel") — never "Assistant · X".
 const roleLabel = computed(() => {
   if (props.message.role === "user") {
-    return props.message.sourceKind === "global-root" ? "From Global" : "You";
+    return props.message.sourceKind === "global-root" ? "From Claude" : "You";
   }
-  if (props.message.sourceKind === "global-root") return "Assistant · Global";
+  if (props.message.sourceKind === "global-root") return "Claude";
   if (
     (props.message.sourceKind === "workspace-manager" ||
       props.message.sourceKind === "agent") &&
     props.message.sourceLabel
   ) {
-    return `Assistant · ${props.message.sourceLabel}`;
+    return props.message.sourceLabel;
   }
-  return "Assistant";
+  return props.assistantName;
 });
 
 const isAssistant = computed(() => props.message.role === "assistant");

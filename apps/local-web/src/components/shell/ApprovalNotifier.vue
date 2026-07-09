@@ -35,7 +35,7 @@ function decide(providerApprovalId: string, kind: "approved" | "denied") {
       : {
           providerApprovalId,
           kind,
-          reason: "Denied from the Vynel approval notification",
+          reason: "Denied from the approval notification",
         },
   );
 }

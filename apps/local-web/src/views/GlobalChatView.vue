@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Settings2, Sparkles } from "lucide-vue-next";
+import { useRouter } from "vue-router";
+import { Settings2 } from "lucide-vue-next";
 import { EmptyState, PresenceDot, workspaceAccentVar } from "@vynel/ui";
 import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
-import ChannelPresenceStrip from "../components/chat/ChannelPresenceStrip.vue";
+import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
 import MenuPanel from "../components/shell/MenuPanel.vue";
 import { useChannels } from "../composables/channels/use-channels.js";
 import { useSessionList } from "../composables/chat/use-session-list.js";
@@ -14,14 +15,22 @@ import { useContinuingConversation } from "../composables/chat/use-continuing-co
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
+import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
+import { useCurrentUser } from "../composables/users/use-current-user.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { useSessionViewerStore } from "../stores/session-viewer-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
+import { firstNameOf } from "../utils/greeting.js";
 
 // The global chat — ONE continuous conversation by default (the product's
 // "one brain"). Panels are opt-in: the menu (persistent, leftmost) and the
 // history list both sit beside the canvas, never over it.
 const GLOBAL_SCOPE = { kind: "global" } as const;
+
+// The assistant presents itself by name (hero wordmark, thread labels). It IS
+// Claude — the product never brands over it. One constant today; a
+// configurable persona later.
+const ASSISTANT_NAME = "Claude";
 
 const GLOBAL_MENU_ITEMS = [
   { id: "chat", label: "Chat", hint: "Your conversation" },
@@ -43,11 +52,32 @@ const activeSessionId = computed<string | null>(() => {
 });
 
 // The channels the assistant is reachable on (global-scoped only — the global
-// chat is the brain, not a workspace). Voice is added by the strip itself.
+// chat is the brain, not a workspace). Voice is added by the hero itself.
 const channelsQuery = useChannels(true);
 const globalChannels = computed(() =>
   (channelsQuery.data.value ?? []).filter((row) => row.workspaceId === null),
 );
+
+// The workspaces the assistant runs — shown on the hero's command deck, each
+// wearing its accent color with its manager persona.
+const workspacesQuery = useWorkspaceList();
+const activeWorkspaces = computed(() =>
+  (workspacesQuery.data.value ?? []).filter(
+    (workspace) => !workspace.isArchived,
+  ),
+);
+
+const currentUserQuery = useCurrentUser();
+const userFirstName = computed(() =>
+  firstNameOf(currentUserQuery.data.value?.displayName),
+);
+
+const router = useRouter();
+
+function openWorkspace(workspaceId: string) {
+  ui.activeWorkspaceId = workspaceId;
+  void router.push({ name: "workspace" });
+}
 
 const sessionsQuery = useSessionList(() => GLOBAL_SCOPE);
 const sessions = computed(() => sessionsQuery.data.value ?? []);
@@ -173,23 +203,22 @@ function openContinuous() {
     </div>
 
     <section v-else class="canvas thread-pane">
-      <ChannelPresenceStrip class="channel-strip-slot" :channels="globalChannels" />
-
       <div v-if="showsWelcome" class="welcome">
-        <EmptyState
-          title="Your assistant is ready"
-          hint="Ask for anything below — one continuous conversation that routes work to the right workspace and shows you every step."
-        >
-          <template #icon>
-            <Sparkles :size="22" />
-          </template>
-        </EmptyState>
+        <GlobalWelcomeHero
+          :assistant-name="ASSISTANT_NAME"
+          :user-first-name="userFirstName"
+          :channels="globalChannels"
+          :workspaces="activeWorkspaces"
+          @open-workspace="openWorkspace"
+        />
       </div>
       <ThreadStream
         v-else
+        class="thread-slot"
         :messages="messages"
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
+        :assistant-name="ASSISTANT_NAME"
         @decide-approval="onDecideApproval"
         @open-session="sessionViewer.open"
       />
@@ -220,7 +249,7 @@ function openContinuous() {
       <footer class="composer-dock">
         <AppComposer
           :streaming="chatTurn.isStreaming.value"
-          placeholder="Ask your assistant for anything…"
+          :placeholder="`Ask ${ASSISTANT_NAME} for anything…`"
           @send="sendMessage"
           @interrupt="chatTurn.interrupt"
         />
@@ -245,18 +274,24 @@ function openContinuous() {
   min-width: 0;
 }
 
+/* The thread owns the canvas — no chrome above it (Chad's call: the hero
+   carries channels/workspaces on the empty state; a flowing thread is just
+   the conversation). */
 .thread-pane {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   background: var(--bg-shell);
 }
 
-.channel-strip-slot {
-  border-bottom: 1px solid var(--hair);
+.thread-slot {
+  flex: 1;
+  min-height: 0;
 }
 
 .welcome {
+  flex: 1;
+  min-height: 0;
   display: grid;
   place-items: center;
   overflow-y: auto;
@@ -274,7 +309,7 @@ function openContinuous() {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  max-width: 808px;
+  max-width: 968px;
   width: 100%;
   margin: 0 auto;
   padding: 4px 24px 8px;
@@ -319,7 +354,7 @@ function openContinuous() {
 
 .composer-dock {
   padding: 0 24px 18px;
-  max-width: 808px;
+  max-width: 968px;
   width: 100%;
   margin: 0 auto;
 }

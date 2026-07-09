@@ -32,6 +32,18 @@ function makeFakeVynelClient(): VynelClient {
       },
       listDelegations: async () => ({ delegations: [] }),
     },
+    users: {
+      getMe: async () => ({
+        id: "u1",
+        displayName: "Sam Lee",
+        emailAddress: null,
+        locale: "en-US",
+        timezone: "UTC",
+        hasCompletedOnboarding: true,
+        createdAt: "2026-07-05T10:00:00.000Z",
+        updatedAt: "2026-07-05T10:00:00.000Z",
+      }),
+    },
     dashboard: {
       getOverview: async () => ({
         workspaces: [],
@@ -92,7 +104,13 @@ describe("app shell", () => {
     await flushPromises();
 
     expect(router.currentRoute.value.name).toBe("chat");
-    expect(wrapper.text()).toContain("Your assistant is ready");
+    // The welcome hero: the assistant presents itself by name, greets the
+    // user, and lays out its command deck.
+    expect(wrapper.text()).toContain("Claude");
+    expect(wrapper.text()).toMatch(
+      /(Good (morning|afternoon|evening)|Up late), Sam\./,
+    );
+    expect(wrapper.text()).toContain("Reachable on");
   });
 
   it("marks the tab of the current route as selected", async () => {

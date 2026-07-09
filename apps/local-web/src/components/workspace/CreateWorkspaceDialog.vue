@@ -159,7 +159,7 @@ function onKeydown(event: KeyboardEvent) {
             </div>
           </div>
           <span class="field-hint">
-            The open folder is the one Vynel uses. Step into the folder you
+            The open folder is the one Claude uses. Step into the folder you
             want, then create.
           </span>
         </div>

@@ -40,6 +40,16 @@ describe('detectWakeWord', () => {
     expect(detectWakeWord('Hey, fine, hello')).toEqual({ detected: true, command: 'hello' })
   })
 
+  it('detects "hey claude" (the assistant display name) and its mishears', () => {
+    expect(detectWakeWord('hey claude what time is it')).toEqual({
+      detected: true,
+      command: 'what time is it',
+    })
+    expect(detectWakeWord('Hey Claude!')).toEqual({ detected: true, command: '' })
+    expect(detectWakeWord('hey cloud remind me to call mom').command).toBe('remind me to call mom')
+    expect(detectWakeWord('hi clawed whats up').detected).toBe(true)
+  })
+
   it('does not fire without the wake phrase', () => {
     expect(detectWakeWord('what time is it')).toEqual({ detected: false, command: '' })
     expect(detectWakeWord('hey there how are you')).toEqual({ detected: false, command: '' })

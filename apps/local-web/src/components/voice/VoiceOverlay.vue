@@ -61,7 +61,7 @@ const caption = computed(() =>
 
 const wakeStatus = computed(() =>
   daemon.isDaemonConnected.value
-    ? "Wake word active — “Hey Vynel”"
+    ? "Wake word active — “Hey Claude”"
     : "Wake daemon offline — mic button only",
 );
 </script>

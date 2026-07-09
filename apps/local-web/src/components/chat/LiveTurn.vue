@@ -13,7 +13,14 @@ import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js"
 // The in-flight turn: everything the assistant is doing RIGHT NOW —
 // thinking, answer text typing in, tool cards appearing, approvals pausing
 // the stream. The gold cursor marks the live edge.
-const props = defineProps<{ view: ActiveTurnView }>();
+const props = withDefaults(
+  defineProps<{
+    view: ActiveTurnView;
+    /** Who is streaming — matches MessageRow's settled label for the surface. */
+    authorLabel?: string;
+  }>(),
+  { authorLabel: "Assistant" },
+);
 
 const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
@@ -23,7 +30,7 @@ const emit = defineEmits<{
 <template>
   <div class="live-turn">
     <p class="role-label">
-      Assistant
+      {{ props.authorLabel }}
       <span v-if="props.view.status === 'streaming'" class="live-chip"
         >working</span
       >

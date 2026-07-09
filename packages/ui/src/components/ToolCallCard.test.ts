@@ -23,32 +23,33 @@ function makeToolCall(
 }
 
 describe("ToolCallCard", () => {
-  it("shows the verb, argument, status, and duration collapsed", () => {
+  it("shows the verb, argument, and duration collapsed — no status word on a clean run", () => {
     const wrapper = mount(ToolCallCard, {
       props: { toolCall: makeToolCall() },
     });
 
     expect(wrapper.find(".verb").text()).toBe("Read");
     expect(wrapper.find(".argument").text()).toBe("pricing.ts");
-    expect(wrapper.text()).toContain("completed");
     expect(wrapper.text()).toContain("1.5s");
+    // A clean completion is told by the dot, not spelled out.
+    expect(wrapper.text()).not.toContain("completed");
     expect(wrapper.find(".detail").exists()).toBe(false);
   });
 
-  it("expands a Read into the file path and its content", async () => {
+  it("expands a Read into the file-path header and its content", async () => {
     const wrapper = mount(ToolCallCard, {
       props: { toolCall: makeToolCall() },
     });
 
     await wrapper.find(".summary").trigger("click");
 
-    expect(wrapper.find(".subtitle").text()).toBe("src/pricing.ts");
+    expect(wrapper.find(".file-path").text()).toBe("src/pricing.ts");
     expect(wrapper.find(".code-block").text()).toContain(
       "export const price = 49",
     );
   });
 
-  it("expands an Edit into before/after panes", async () => {
+  it("expands an Edit into a unified diff with ± stats on the chip", async () => {
     const wrapper = mount(ToolCallCard, {
       props: {
         toolCall: makeToolCall({
@@ -62,12 +63,13 @@ describe("ToolCallCard", () => {
       },
     });
 
+    expect(wrapper.find(".stat-added").text()).toBe("+1");
+    expect(wrapper.find(".stat-removed").text()).toBe("-1");
+
     await wrapper.find(".summary").trigger("click");
 
-    const panes = wrapper.findAll(".diff-pane");
-    expect(panes).toHaveLength(2);
-    expect(panes[0]!.text()).toContain("$39/mo");
-    expect(panes[1]!.text()).toContain("$49/mo");
+    expect(wrapper.find(".diff-block.is-removed").text()).toContain("$39/mo");
+    expect(wrapper.find(".diff-block.is-added").text()).toContain("$49/mo");
   });
 
   it("expands a Bash into a terminal with prompt and output", async () => {
@@ -89,16 +91,18 @@ describe("ToolCallCard", () => {
     );
   });
 
-  it("falls back to payload panes for unknown tools", async () => {
+  it("humanizes an MCP tool's name and falls back to payload panes", async () => {
     const wrapper = mount(ToolCallCard, {
       props: {
         toolCall: makeToolCall({
           toolName: "mcp__vynel__search_knowledge",
-          toolInput: { query: "invoices" },
+          toolInput: { query: "invoices", limit: 3 },
           toolOutput: { hits: 3 },
         }),
       },
     });
+
+    expect(wrapper.find(".verb").text()).toBe("search knowledge");
 
     await wrapper.find(".summary").trigger("click");
 
