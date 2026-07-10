@@ -25,7 +25,11 @@ export type MemoryEntryKind =
   | 'recurring-pattern'
   | 'note'
 
-export type MemoryEntryCreatedSource = 'workspace-seed' | 'user-manual' | 'onboarding-seed'
+export type MemoryEntryCreatedSource =
+  | 'workspace-seed'
+  | 'user-manual'
+  | 'onboarding-seed'
+  | 'file-import'
 
 export type MemoryEntryCategory = 'user' | 'preferences' | 'memory'
 

@@ -1,11 +1,13 @@
-// The `memory` HTTP surface — 7 routes mounted under
+// The `memory` HTTP surface — 9 routes mounted under
 // `/workspaces/:workspaceId/memory` from `apps/local-api/src/app.ts`:
 //
 //   GET    /entries                       -> listMemoryEntriesForWorkspace  [x-mcp]
 //   GET    /search                        -> searchMemoryForAgent          [x-mcp]
+//   GET    /tags                          -> listMemoryTags                [x-mcp]
 //   POST   /entries                       -> createMemoryEntry             [x-mcp, mutatingApproved]
+//   POST   /entries/from-file             -> importMemoryEntryFromFile     [x-mcp, mutatingApproved]
 //   GET    /entries/:entryId              -> findEntryById + serialize
-//   PATCH  /entries/:entryId              -> updateMemoryEntry
+//   PATCH  /entries/:entryId              -> updateMemoryEntry             [x-mcp, mutatingApproved]
 //   DELETE /entries/:entryId              -> deleteMemoryEntry
 //   GET    /entries/:entryId/mentions     -> listRecentMentionsForEntry
 //
@@ -14,11 +16,11 @@
 // hono-openapi/zod) → `...workspaceScoped` → handler. Chained methods
 // on `factory.createApp()`.
 //
-// MCP exposure: 3 tools — 2 safe-read GETs (list_memory_entries,
-// search_memory) + create_memory_entry (mutatingApproved, carried over
-// from source — agent write authority with no approval-card intercept
-// yet). GET /entries/:entryId, PATCH, DELETE, and GET mentions stay
-// unexposed, matching source exactly.
+// MCP exposure: 6 tools — 3 safe reads (list_memory_entries, search_memory,
+// list_memory_tags) + 3 mutating-approved writes (create_memory_entry,
+// add_memory_from_file, update_memory_entry — the last so the assistant can
+// KEEP context-tagged entries current). DELETE and GET mentions stay
+// unexposed.
 //
 // Error mapping: NONE here. Core ops throw typed `VynelError`
 // subclasses; the global `onError` in `app.ts` handles them.
@@ -33,8 +35,11 @@ import {
   createMemoryEntry,
   updateMemoryEntry,
   deleteMemoryEntry,
+  importMemoryEntryFromFile,
   findEntryById,
   listRecentMentionsForEntry,
+  listMemoryTags,
+  listMemoryTagsForEntries,
 } from '@vynel/memory'
 import { NotFoundError } from '@vynel/errors'
 import { serializeEntry, serializeMention, serializeSearchResult } from './serializers.js'
@@ -43,12 +48,15 @@ import {
   SearchMemoryQuerySchema,
   CreateMemoryEntryBodySchema,
   UpdateMemoryEntryBodySchema,
+  ImportMemoryFileBodySchema,
   MemoryEntryParamSchema,
   MemoryEntrySchema,
   ListMemoryEntriesResponseSchema,
   SearchMemoryResponseSchema,
   ListMemoryEntryMentionsResponseSchema,
+  ListMemoryTagsResponseSchema,
 } from './schemas.js'
+
 
 export const memoryApp = factory
   .createApp()
@@ -94,7 +102,14 @@ export const memoryApp = factory
       if (q.includeArchived !== undefined) input.includeArchived = q.includeArchived
       if (q.limit !== undefined) input.limit = q.limit
       const { entries, nextCursor } = listMemoryEntriesForWorkspace(c.var.db, input)
-      return c.json({ entries: entries.map(serializeEntry), nextCursor })
+      const tagsByEntry = listMemoryTagsForEntries(
+        c.var.db,
+        entries.map((entry) => entry.id),
+      )
+      return c.json({
+        entries: entries.map((entry) => serializeEntry(entry, tagsByEntry.get(entry.id) ?? [])),
+        nextCursor,
+      })
     },
   )
   // ──────────────────────────────────────────────────────────────────
@@ -170,6 +185,9 @@ export const memoryApp = factory
           '`body` is the entry content (1-10000 chars). ' +
           '`category` is the high-level grouping the entry belongs to (user / preferences / memory). ' +
           "`section` is a sub-grouping label within that category (e.g. 'Key contacts', 'Communication style'). " +
+          '`tags` (optional, up to 8 short labels) organize the entry; the reserved tag "context" is special — ' +
+          'entries tagged "context" are auto-injected at the start of every fresh session as the workspace\'s standing context, ' +
+          'so tag "context" exactly the facts a new session must always know (and keep those entries current via update_memory_entry). ' +
           "Side effect: writes a row + publishes a memory.entry-created outbox event. The user's memory panel will show the new entry. Returns the created entry with id + serverside-derived title.",
         mutatingApproved: true,
       },
@@ -188,8 +206,82 @@ export const memoryApp = factory
         createdSource: 'user-manual',
       }
       if (body.title !== undefined) input.title = body.title
+      if (body.tags !== undefined) input.tags = body.tags
       const entry = createMemoryEntry(c.var.db, input)
-      return c.json(serializeEntry(entry), 201)
+      return c.json(serializeEntry(entry, listMemoryTagsForEntries(c.var.db, [entry.id]).get(entry.id) ?? []), 201)
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // POST /entries/from-file — "remember this file" (one-shot import).
+  // Mutating MCP tool `add_memory_from_file` (approved, like create).
+  // ──────────────────────────────────────────────────────────────────
+  .post(
+    '/entries/from-file',
+    describeRoute({
+      tags: ['memory'],
+      summary: 'Import a single on-disk file as a memory entry.',
+      'x-sdk-name': 'memory.importFile',
+      responses: {
+        201: {
+          description: 'SerializedMemoryEntry (imported).',
+          content: { 'application/json': { schema: resolver(MemoryEntrySchema) } },
+        },
+        400: { description: 'Validation error (missing, unreadable, unsupported, or too long).' },
+        404: { description: 'Workspace not found.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'add_memory_from_file',
+        description:
+          'Read ONE on-disk file (markdown, plain text, PDF, Word, HTML, CSV, or JSON) and save its ' +
+          'text as a memory entry in the active workspace. `absolutePath` is the file on disk; ' +
+          '`tags` (optional) label it — tag "context" to make it part of the standing context every ' +
+          'fresh session receives. Files too long for a single memory are rejected with a pointer to ' +
+          'the knowledge base (add_to_knowledge), which handles large documents. Mutating.',
+        mutatingApproved: true,
+      },
+    }),
+    validator('json', ImportMemoryFileBodySchema),
+    ...workspaceScoped,
+    async (c) => {
+      const body = c.req.valid('json')
+      const entry = await importMemoryEntryFromFile(c.var.db, {
+        userId: c.var.user.id,
+        workspaceId: c.var.workspace!.id,
+        absolutePath: body.absolutePath,
+        ...(body.tags !== undefined ? { tags: body.tags } : {}),
+      })
+      return c.json(serializeEntry(entry, listMemoryTagsForEntries(c.var.db, [entry.id]).get(entry.id) ?? []), 201)
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /tags — the tag-picker read (in-use ∪ defaults; `context` first).
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/tags',
+    describeRoute({
+      tags: ['memory'],
+      summary: "List the workspace's memory tags (in use + suggested defaults).",
+      'x-sdk-name': 'memory.listTags',
+      responses: {
+        200: {
+          description: '{ tags: string[] } — "context" always leads.',
+          content: { 'application/json': { schema: resolver(ListMemoryTagsResponseSchema) } },
+        },
+        404: { description: 'Workspace not found.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'list_memory_tags',
+        description:
+          "List the memory tags in use across the active workspace's entries, merged with the " +
+          'suggested defaults. Use an existing tag when one fits before coining a new one. The ' +
+          'reserved tag "context" marks entries auto-injected as standing session context. Read-only.',
+      },
+    }),
+    ...workspaceScoped,
+    async (c) => {
+      return c.json({ tags: listMemoryTags(c.var.db, { workspaceId: c.var.workspace!.id }) })
     },
   )
   // ──────────────────────────────────────────────────────────────────
@@ -217,7 +309,7 @@ export const memoryApp = factory
       if (!entry || entry.workspaceId !== c.var.workspace!.id || entry.deletedAt !== null) {
         throw new NotFoundError('memory-entry', entryId)
       }
-      return c.json(serializeEntry(entry))
+      return c.json(serializeEntry(entry, listMemoryTagsForEntries(c.var.db, [entry.id]).get(entry.id) ?? []))
     },
   )
   // ──────────────────────────────────────────────────────────────────
@@ -227,7 +319,7 @@ export const memoryApp = factory
     '/entries/:entryId',
     describeRoute({
       tags: ['memory'],
-      summary: 'Update a memory entry (title, body, kind, archive state).',
+      summary: 'Update a memory entry (title, body, kind, tags, archive state).',
       'x-sdk-name': 'memory.update',
       responses: {
         200: {
@@ -236,6 +328,18 @@ export const memoryApp = factory
         },
         400: { description: 'Validation error.' },
         404: { description: 'Memory entry not found.' },
+      },
+      // Exposed so the assistant can KEEP the standing context current — the
+      // "context" tag only works if stale facts get updated, not re-created.
+      'x-mcp': {
+        exposed: true,
+        name: 'update_memory_entry',
+        description:
+          'Update an existing memory entry by id: title, body, kind, isArchived, and/or tags ' +
+          '(REPLACE semantics — the list you send becomes the entry\'s tags). Use this to keep ' +
+          'context-tagged entries current instead of creating duplicates: when a standing fact ' +
+          'changes, update the entry that holds it. Mutating.',
+        mutatingApproved: true,
       },
     }),
     validator('param', MemoryEntryParamSchema),
@@ -266,8 +370,9 @@ export const memoryApp = factory
       if (body.body !== undefined) patch.body = body.body
       if (body.kind !== undefined) patch.kind = body.kind
       if (body.isArchived !== undefined) patch.isArchived = body.isArchived
+      if (body.tags !== undefined) patch.tags = body.tags
       const updated = updateMemoryEntry(c.var.db, entryId, patch)
-      return c.json(serializeEntry(updated))
+      return c.json(serializeEntry(updated, listMemoryTagsForEntries(c.var.db, [updated.id]).get(updated.id) ?? []))
     },
   )
   // ──────────────────────────────────────────────────────────────────

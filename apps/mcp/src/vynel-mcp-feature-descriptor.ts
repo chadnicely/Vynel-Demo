@@ -19,10 +19,10 @@ import { buildInProcessMcpServer, buildGlobalRootMcpServer } from './build-in-pr
 
 // The MCP tools each capability owns (server name `vynel` → `mcp__vynel__<x-mcp
 // name>`); the composer denies a capability's tools when that capability is off.
-// Aligned to KLONE's ACTUAL generated registry: only `knowledge` produces tools
-// today (all 7 knowledge tools, read + mutating, gate together — knowledge OFF
-// means no knowledge tool at all). `memory` is a valid CapabilityId but emits zero
-// MCP tools yet, so it has no entry; skills/channels/schedules tools are ungated.
+// Aligned to KLONE's ACTUAL generated registry: `knowledge` (all 7 tools) and
+// `memory` (all 6 — 3 reads + 3 mutatingApproved writes) each gate together —
+// a capability OFF means none of its tools at all. skills/channels/schedules
+// tools stay ungated.
 const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly string[]>> = {
   knowledge: [
     'mcp__vynel__search_knowledge',
@@ -32,6 +32,14 @@ const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly string[]>> 
     'mcp__vynel__list_knowledge_sources',
     'mcp__vynel__add_to_knowledge',
     'mcp__vynel__remove_knowledge_source',
+  ],
+  memory: [
+    'mcp__vynel__list_memory_entries',
+    'mcp__vynel__search_memory',
+    'mcp__vynel__list_memory_tags',
+    'mcp__vynel__create_memory_entry',
+    'mcp__vynel__update_memory_entry',
+    'mcp__vynel__add_memory_from_file',
   ],
 }
 

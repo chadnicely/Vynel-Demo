@@ -44,7 +44,9 @@ function onCreated() {
       <Brain :size="15" class="section-icon" />
       <div class="section-text">
         <p class="section-title">Memory</p>
-        <p class="section-hint">What Claude remembers about you and your work</p>
+        <p class="section-hint">
+          What Claude remembers about you and your work
+        </p>
       </div>
       <button
         v-if="entries.length > 0"
@@ -65,6 +67,19 @@ function onCreated() {
             <span class="kind-chip">{{
               KIND_LABELS[entry.kind] ?? entry.kind
             }}</span>
+            <span
+              v-for="tag in entry.tags"
+              :key="tag"
+              class="tag-chip"
+              :class="{ 'is-context': tag === 'context' }"
+            >
+              <span
+                v-if="tag === 'context'"
+                class="context-dot"
+                aria-hidden="true"
+              />
+              {{ tag }}
+            </span>
             <span v-if="props.scope.kind === 'global'" class="scope-chip">{{
               scopeLabel(entry.workspaceId)
             }}</span>
@@ -232,6 +247,31 @@ function onCreated() {
   border: 1px solid var(--hair-strong);
   border-radius: 99px;
   padding: 0 6px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-3);
+  font: 500 10px/1.5 var(--font-ui);
+  border: 1px solid var(--hair);
+  border-radius: 99px;
+  padding: 0 6px;
+}
+
+/* "context" is the always-known marker — gold is the attention accent. */
+.tag-chip.is-context {
+  color: var(--ink-2);
+  border-color: var(--gold);
+}
+
+.context-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--gold);
+  flex: none;
 }
 
 .row-time {

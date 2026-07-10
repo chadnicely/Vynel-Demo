@@ -22,6 +22,20 @@
       "when": 1783665453539,
       "tag": "0002_marketplace-cloud-catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1783721816283,
+      "tag": "0003_knowledge_source_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1783723190440,
+      "tag": "0004_memory_tags",
+      "breakpoints": true
     }
   ]
 }

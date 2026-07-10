@@ -9,7 +9,9 @@ import type { Database } from '@vynel/db'
 import type { MemoryEntry, MemoryEntryKind } from '../repositories/index.js'
 import { loadWorkspaceContextForSession } from './load-workspace-context-for-session.js'
 
-export const MEMORY_AGENT_INSTRUCTIONS = `You have a persistent memory of facts about this user and their work — shown below, and searchable with the memory tools. Ground your responses in it: when the user refers to "me", "my business", or to people and projects, treat these facts as the source of truth. If a fact you need isn't here and isn't in the conversation, ask rather than guess.`
+export const MEMORY_AGENT_INSTRUCTIONS = `You have a persistent memory of facts about this user and their work — shown below, and searchable with the memory tools. Ground your responses in it: when the user refers to "me", "my business", or to people and projects, treat these facts as the source of truth. If a fact you need isn't here and isn't in the conversation, ask rather than guess.
+
+Memory entries carry TAGS. The reserved tag "context" marks the workspace's STANDING CONTEXT — those entries are exactly what a fresh session (like this one) is shown first. You maintain it: when the user shares something every future session must know (who they are, how the business runs, standing decisions), save it with create_memory_entry tagged "context" — and when a standing fact changes, UPDATE the entry that holds it (update_memory_entry) instead of adding a duplicate. Use list_memory_tags to reuse existing topical tags before coining new ones.`
 
 const KIND_HEADINGS: Record<MemoryEntryKind, string> = {
   person: 'People',

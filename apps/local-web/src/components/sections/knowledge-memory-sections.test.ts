@@ -36,6 +36,7 @@ function makeEntry(overrides: Record<string, unknown> = {}) {
     embeddingPresent: false,
     embeddingModelVersion: null,
     isArchived: false,
+    tags: [],
     createdAt: "2026-07-05T10:00:00.000Z",
     updatedAt: "2026-07-05T10:00:00.000Z",
     lastMentionedAt: null,
@@ -123,7 +124,9 @@ describe("KnowledgeSection", () => {
 describe("MemorySection", () => {
   it("lists a workspace's entries with kind chips, hiding archived ones", async () => {
     const client = {
-      workspaces: { list: async () => [{ id: "w1", name: "vynel", isArchived: false }] },
+      workspaces: {
+        list: async () => [{ id: "w1", name: "vynel", isArchived: false }],
+      },
       memory: {
         list: async () => ({
           entries: [
@@ -136,7 +139,9 @@ describe("MemorySection", () => {
     } as unknown as VynelClient;
 
     const wrapper = mount(MemorySection, {
-      props: { scope: { kind: "workspace", workspaceId: "w1" } satisfies SectionScope },
+      props: {
+        scope: { kind: "workspace", workspaceId: "w1" } satisfies SectionScope,
+      },
       global: globalConfig(client),
     });
     await flushPromises();
@@ -146,39 +151,96 @@ describe("MemorySection", () => {
     expect(wrapper.text()).toContain("Preference");
     expect(wrapper.text()).not.toContain("Old");
   });
-});
 
-describe("AddMemoryDialog", () => {
-  it("saves a memory into the chosen workspace with the kind's filing defaults", async () => {
-    const createCalls: unknown[] = [];
+  it("shows an entry's tags as chips, marking context", async () => {
     const client = {
       workspaces: {
         list: async () => [{ id: "w1", name: "vynel", isArchived: false }],
       },
       memory: {
-        create: async (workspaceId: string, body: unknown) => {
-          createCalls.push([workspaceId, body]);
-          return makeEntry();
-        },
+        list: async () => ({
+          entries: [makeEntry({ tags: ["context", "billing"] })],
+          nextCursor: null,
+        }),
       },
     } as unknown as VynelClient;
 
-    const wrapper = mount(AddMemoryDialog, {
-      props: { open: true, defaultScope: { kind: "global" } satisfies SectionScope },
+    const wrapper = mount(MemorySection, {
+      props: {
+        scope: { kind: "workspace", workspaceId: "w1" } satisfies SectionScope,
+      },
       global: globalConfig(client),
     });
     await flushPromises();
 
-    const dialogs = document.body.querySelectorAll<HTMLElement>('[role="dialog"]');
-    const dialog = dialogs[dialogs.length - 1]!;
+    const tagChips = wrapper.findAll(".tag-chip");
+    expect(tagChips.map((chip) => chip.text())).toEqual(["context", "billing"]);
+    expect(tagChips[0]!.classes()).toContain("is-context");
+    expect(tagChips[0]!.find(".context-dot").exists()).toBe(true);
+  });
+});
+
+describe("AddMemoryDialog", () => {
+  function makeClient(calls: { create?: unknown[]; importFile?: unknown[] }) {
+    return {
+      workspaces: {
+        list: async () => [{ id: "w1", name: "vynel", isArchived: false }],
+        listDirectories: async () => ({
+          path: "C:\\Users\\KLONE",
+          parent: null,
+          drives: [],
+          entries: [],
+          files: [{ name: "notes.md", path: "C:\\Users\\KLONE\\notes.md" }],
+        }),
+      },
+      memory: {
+        listTags: async () => ({ tags: ["context", "reminder"] }),
+        create: async (workspaceId: string, body: unknown) => {
+          calls.create?.push([workspaceId, body]);
+          return makeEntry();
+        },
+        importFile: async (workspaceId: string, body: unknown) => {
+          calls.importFile?.push([workspaceId, body]);
+          return makeEntry();
+        },
+      },
+    } as unknown as VynelClient;
+  }
+
+  function mountDialog(client: VynelClient) {
+    return mount(AddMemoryDialog, {
+      props: {
+        open: true,
+        defaultScope: { kind: "global" } satisfies SectionScope,
+      },
+      global: globalConfig(client),
+    });
+  }
+
+  function latestDialog() {
+    const dialogs =
+      document.body.querySelectorAll<HTMLElement>('[role="dialog"]');
+    return dialogs[dialogs.length - 1]!;
+  }
+
+  function clickButton(dialog: HTMLElement, label: string) {
+    [...dialog.querySelectorAll("button")]
+      .find((b) => b.textContent?.trim() === label)!
+      .click();
+  }
+
+  it("saves a memory into the chosen workspace with the kind's filing defaults", async () => {
+    const createCalls: unknown[] = [];
+    const wrapper = mountDialog(makeClient({ create: createCalls }));
+    await flushPromises();
+
+    const dialog = latestDialog();
     const body = dialog.querySelector<HTMLTextAreaElement>("textarea")!;
     body.value = "Invoices due on the 15th";
     body.dispatchEvent(new Event("input"));
     await flushPromises();
 
-    [...dialog.querySelectorAll("button")]
-      .find((b) => b.textContent?.trim() === "Save memory")!
-      .click();
+    clickButton(dialog, "Save memory");
     await flushPromises();
 
     expect(createCalls).toEqual([
@@ -191,6 +253,65 @@ describe("AddMemoryDialog", () => {
           section: "Notes",
         },
       ],
+    ]);
+    expect(wrapper.emitted("created")).toHaveLength(1);
+  });
+
+  it("sends toggled and freshly coined tags with the create", async () => {
+    const createCalls: unknown[] = [];
+    mountDialog(makeClient({ create: createCalls }));
+    await flushPromises();
+    // The tags read enables only once the workspace select is seeded.
+    await flushPromises();
+
+    const dialog = latestDialog();
+    const body = dialog.querySelector<HTMLTextAreaElement>("textarea")!;
+    body.value = "Invoices due on the 15th";
+    body.dispatchEvent(new Event("input"));
+    await flushPromises();
+
+    clickButton(dialog, "context");
+    const newTag = dialog.querySelector<HTMLInputElement>(".new-tag-input")!;
+    newTag.value = " Billing ";
+    newTag.dispatchEvent(new Event("input"));
+    await flushPromises();
+    dialog.querySelector<HTMLButtonElement>(".new-tag-add")!.click();
+    await flushPromises();
+
+    clickButton(dialog, "Save memory");
+    await flushPromises();
+
+    expect(createCalls).toEqual([
+      [
+        "w1",
+        {
+          kind: "note",
+          body: "Invoices due on the 15th",
+          category: "memory",
+          section: "Notes",
+          tags: ["context", "billing"],
+        },
+      ],
+    ]);
+  });
+
+  it("imports a picked file in from-a-file mode", async () => {
+    const importCalls: unknown[] = [];
+    const wrapper = mountDialog(makeClient({ importFile: importCalls }));
+    await flushPromises();
+
+    const dialog = latestDialog();
+    clickButton(dialog, "From a file");
+    await flushPromises();
+
+    clickButton(dialog, "notes.md");
+    await flushPromises();
+
+    clickButton(dialog, "Import file");
+    await flushPromises();
+
+    expect(importCalls).toEqual([
+      ["w1", { absolutePath: "C:\\Users\\KLONE\\notes.md" }],
     ]);
     expect(wrapper.emitted("created")).toHaveLength(1);
   });

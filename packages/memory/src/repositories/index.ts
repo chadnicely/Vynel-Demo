@@ -5,3 +5,4 @@
 export * from './memory-entries.js'
 export * from './memory-entry-mentions.js'
 export * from './memory-search.js'
+export * from './memory-tags.js'

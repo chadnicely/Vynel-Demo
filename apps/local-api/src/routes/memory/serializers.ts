@@ -15,7 +15,7 @@ import { MemoryEntryMentionSchema, MemoryEntrySchema, MemorySearchResultSchema }
 
 export type SerializedMemoryEntry = z.infer<typeof MemoryEntrySchema>
 
-export function serializeEntry(entry: MemoryEntry): SerializedMemoryEntry {
+export function serializeEntry(entry: MemoryEntry, tags: string[] = []): SerializedMemoryEntry {
   return {
     id: entry.id,
     userId: entry.userId,
@@ -33,6 +33,7 @@ export function serializeEntry(entry: MemoryEntry): SerializedMemoryEntry {
     embeddingPresent: entry.embedding !== null,
     embeddingModelVersion: entry.embeddingModelVersion,
     isArchived: entry.isArchived,
+    tags,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
     lastMentionedAt: entry.lastMentionedAt ? entry.lastMentionedAt.toISOString() : null,

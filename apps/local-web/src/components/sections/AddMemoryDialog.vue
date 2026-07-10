@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useCreateMemoryEntry } from "../../composables/memory/use-create-memory-entry.js";
+import { useImportMemoryFile } from "../../composables/memory/use-import-memory-file.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
+import FilePickerField from "./FilePickerField.vue";
+import MemoryTagsField from "./MemoryTagsField.vue";
 import type { SectionScope } from "./section-scope.js";
 
-// Add a memory by hand: what Claude should remember, filed under one of the
-// real memory kinds. Memory lives IN a workspace today — the scope select
-// offers workspaces only; global memory (and the context/reminder/rules
-// tagging Chad described) is the planned memory build (module-notes/memory.md).
+// Add a memory two ways: write it by hand under one of the real memory kinds,
+// or import a single on-disk file (the server parses it into an entry).
+// Either way it can be tagged — "context" makes it always-known. Memory lives
+// IN a workspace today; global memory is the planned build (module-notes).
 const props = defineProps<{
   open: boolean;
   defaultScope: SectionScope;
@@ -20,11 +23,7 @@ const emit = defineEmits<{
 }>();
 
 type MemoryKind =
-  | "person"
-  | "preference"
-  | "business-fact"
-  | "recurring-pattern"
-  | "note";
+  "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
 
 const KINDS: { id: MemoryKind; label: string; section: string }[] = [
   { id: "note", label: "Note", section: "Notes" },
@@ -34,10 +33,13 @@ const KINDS: { id: MemoryKind; label: string; section: string }[] = [
   { id: "recurring-pattern", label: "Pattern", section: "Patterns" },
 ];
 
+const mode = ref<"write" | "file">("write");
 const kind = ref<MemoryKind>("note");
 const title = ref("");
 const body = ref("");
 const workspaceChoice = ref<string>("");
+const selectedFilePath = ref<string | null>(null);
+const selectedTags = ref<string[]>([]);
 
 const workspacesQuery = useWorkspaceList();
 const workspaces = computed(() =>
@@ -45,14 +47,18 @@ const workspaces = computed(() =>
 );
 
 const createEntry = useCreateMemoryEntry();
+const importFile = useImportMemoryFile();
 
 watch(
   () => props.open,
   (open) => {
     if (!open) return;
+    mode.value = "write";
     kind.value = "note";
     title.value = "";
     body.value = "";
+    selectedFilePath.value = null;
+    selectedTags.value = [];
     // Seed from the cache too — an already-loaded list never re-fires the
     // watcher below, which would leave the select blank.
     workspaceChoice.value =
@@ -60,6 +66,7 @@ watch(
         ? props.defaultScope.workspaceId
         : (workspaces.value[0]?.id ?? "");
     createEntry.reset();
+    importFile.reset();
   },
   { immediate: true },
 );
@@ -71,19 +78,39 @@ watch(workspaces, (rows) => {
   }
 });
 
-const canCreate = computed(
-  () =>
-    body.value.trim().length > 0 &&
-    workspaceChoice.value !== "" &&
-    !createEntry.isPending.value,
+const canSubmit = computed(() => {
+  if (workspaceChoice.value === "") return false;
+  if (mode.value === "write") {
+    return body.value.trim().length > 0 && !createEntry.isPending.value;
+  }
+  return selectedFilePath.value !== null && !importFile.isPending.value;
+});
+
+const isPending = computed(() =>
+  mode.value === "write"
+    ? createEntry.isPending.value
+    : importFile.isPending.value,
 );
 
-const errorMessage = computed(() =>
-  createEntry.error.value ? formatSdkError(createEntry.error.value) : null,
-);
+const errorMessage = computed(() => {
+  const error =
+    mode.value === "write" ? createEntry.error.value : importFile.error.value;
+  return error ? formatSdkError(error) : null;
+});
 
-function create() {
-  if (!canCreate.value) return;
+function submit() {
+  if (!canSubmit.value) return;
+  if (mode.value === "file") {
+    importFile.mutate(
+      {
+        workspaceId: workspaceChoice.value,
+        absolutePath: selectedFilePath.value!,
+        tags: selectedTags.value,
+      },
+      { onSuccess: () => emit("created") },
+    );
+    return;
+  }
   const kindMeta = KINDS.find((row) => row.id === kind.value)!;
   const trimmedTitle = title.value.trim();
   createEntry.mutate(
@@ -95,6 +122,7 @@ function create() {
         category: kind.value === "preference" ? "preferences" : "memory",
         section: kindMeta.section,
         ...(trimmedTitle.length > 0 ? { title: trimmedTitle } : {}),
+        ...(selectedTags.value.length > 0 ? { tags: selectedTags.value } : {}),
       },
     },
     { onSuccess: () => emit("created") },
@@ -131,44 +159,80 @@ function onKeydown(event: KeyboardEvent) {
           </p>
         </header>
 
-        <div class="field">
-          <span class="field-label">Kind</span>
-          <div class="chips">
-            <button
-              v-for="option in KINDS"
-              :key="option.id"
-              type="button"
-              class="chip"
-              :class="{ 'is-selected': kind === option.id }"
-              :aria-pressed="kind === option.id"
-              @click="kind = option.id"
-            >
-              {{ option.label }}
-            </button>
-          </div>
+        <div class="mode-toggle" role="group" aria-label="How to add it">
+          <button
+            type="button"
+            class="mode"
+            :class="{ 'is-active': mode === 'write' }"
+            :aria-pressed="mode === 'write'"
+            @click="mode = 'write'"
+          >
+            Write it
+          </button>
+          <button
+            type="button"
+            class="mode"
+            :class="{ 'is-active': mode === 'file' }"
+            :aria-pressed="mode === 'file'"
+            @click="mode = 'file'"
+          >
+            From a file
+          </button>
         </div>
 
-        <label class="field">
-          <span class="field-label">What to remember</span>
-          <textarea
-            v-model="body"
-            rows="3"
-            autofocus
-            placeholder="e.g. Invoices are always due on the 15th; remind me two days before."
-          />
-        </label>
+        <template v-if="mode === 'write'">
+          <div class="field">
+            <span class="field-label">Kind</span>
+            <div class="chips">
+              <button
+                v-for="option in KINDS"
+                :key="option.id"
+                type="button"
+                class="chip"
+                :class="{ 'is-selected': kind === option.id }"
+                :aria-pressed="kind === option.id"
+                @click="kind = option.id"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
 
-        <label class="field">
-          <span class="field-label">
-            Title <span class="optional-tag">optional</span>
+          <label class="field">
+            <span class="field-label">What to remember</span>
+            <textarea
+              v-model="body"
+              rows="3"
+              autofocus
+              placeholder="e.g. Invoices are always due on the 15th; remind me two days before."
+            />
+          </label>
+
+          <label class="field">
+            <span class="field-label">
+              Title <span class="optional-tag">optional</span>
+            </span>
+            <input
+              v-model="title"
+              type="text"
+              maxlength="120"
+              placeholder="e.g. Invoice cadence"
+            />
+          </label>
+        </template>
+
+        <div v-else class="field">
+          <span class="field-label">File</span>
+          <FilePickerField v-model="selectedFilePath" />
+          <span class="field-hint">
+            Click a file to import it as a memory — folders just navigate.
           </span>
-          <input
-            v-model="title"
-            type="text"
-            maxlength="120"
-            placeholder="e.g. Invoice cadence"
-          />
-        </label>
+        </div>
+
+        <MemoryTagsField
+          v-model:selected="selectedTags"
+          :workspace-id="workspaceChoice || null"
+        />
 
         <label class="field">
           <span class="field-label">Workspace</span>
@@ -205,10 +269,18 @@ function onKeydown(event: KeyboardEvent) {
           <button
             type="button"
             class="primary"
-            :disabled="!canCreate"
-            @click="create"
+            :disabled="!canSubmit"
+            @click="submit"
           >
-            {{ createEntry.isPending.value ? "Saving…" : "Save memory" }}
+            {{
+              mode === "write"
+                ? isPending
+                  ? "Saving…"
+                  : "Save memory"
+                : isPending
+                  ? "Importing…"
+                  : "Import file"
+            }}
           </button>
         </footer>
       </div>
@@ -254,6 +326,43 @@ function onKeydown(event: KeyboardEvent) {
   margin: 0;
   color: var(--ink-2);
   font: 400 12px/1.5 var(--font-ui);
+}
+
+.mode-toggle {
+  justify-self: start;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-s);
+  background: var(--bg-panel);
+}
+
+.mode {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--ink-2);
+  font: 600 11.5px/1.5 var(--font-ui);
+  cursor: default;
+}
+
+.mode:hover {
+  color: var(--ink-1);
+}
+
+.mode.is-active {
+  background: var(--bg-raised);
+  color: var(--ink-1);
+  box-shadow: inset 0 0 0 1px var(--hair-strong);
+}
+
+.mode:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
 }
 
 .field {
@@ -308,8 +417,8 @@ function onKeydown(event: KeyboardEvent) {
   outline-offset: 1px;
 }
 
-.field textarea,
-.field input,
+.field > textarea,
+.field > input,
 .scope-select {
   appearance: none;
   width: 100%;
@@ -322,8 +431,8 @@ function onKeydown(event: KeyboardEvent) {
   resize: vertical;
 }
 
-.field textarea:focus-visible,
-.field input:focus-visible,
+.field > textarea:focus-visible,
+.field > input:focus-visible,
 .scope-select:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: -1px;

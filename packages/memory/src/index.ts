@@ -28,6 +28,15 @@ export type {
   MemoryEntryHardDeletedPayload,
 } from './memory-events.js'
 
+// Tags — the vocabulary + the reserved behavioral `context` tag.
+export {
+  CONTEXT_MEMORY_TAG,
+  DEFAULT_MEMORY_TAGS,
+  MAX_TAGS_PER_ENTRY,
+  normalizeMemoryTag,
+  normalizeMemoryTags,
+} from './memory-tags.js'
+
 // Read ops
 export {
   listMemoryEntriesForWorkspace,
@@ -35,6 +44,7 @@ export {
   type ListMemoryEntriesResult,
   type ListMemoryEntriesCursor,
 } from './queries/list-memory-entries-for-workspace.js'
+export { listMemoryTags } from './queries/list-memory-tags.js'
 export {
   loadWorkspaceContextForSession,
   type LoadWorkspaceContextForSessionInput,
@@ -48,6 +58,10 @@ export {
 // Write ops
 export { createMemoryEntry, type CreateMemoryEntryInput } from './lifecycle/create-memory-entry.js'
 export { updateMemoryEntry, type UpdateMemoryEntryInput } from './lifecycle/update-memory-entry.js'
+export {
+  importMemoryEntryFromFile,
+  type ImportMemoryEntryFromFileInput,
+} from './lifecycle/import-memory-entry-from-file.js'
 export { deleteMemoryEntry } from './lifecycle/delete-memory-entry.js'
 export {
   recordMemoryEntryMention,
@@ -59,7 +73,11 @@ export {
 // (listRecentMentionsForEntry) — no package.json subpath export exists
 // for `./repositories`, so these are widened onto the main barrel
 // instead of a new export map entry.
-export { findEntryById, listRecentMentionsForEntry } from './repositories/index.js'
+export {
+  findEntryById,
+  listRecentMentionsForEntry,
+  listMemoryTagsForEntries,
+} from './repositories/index.js'
 
 // Outbox consumers
 export {

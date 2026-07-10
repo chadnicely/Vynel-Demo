@@ -19,7 +19,9 @@ const stubClient = {} as unknown as Client<paths>
 // The knowledge namespace's methods, sorted (the generator emits
 // alphabetically). Grows as more `x-sdk-name` routes land.
 const EXPECTED_KNOWLEDGE_METHODS = [
-  'addDirectory',
+  // renamed from addDirectory when sources gained single-file support —
+  // deliberate spec change, 2026-07-11
+  'addSource',
   'getDocument',
   'getStatus',
   'listDocuments',

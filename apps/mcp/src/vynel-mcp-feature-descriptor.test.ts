@@ -35,12 +35,21 @@ describe('vynelWorkspaceDescriptor', () => {
     // KLONE's mutating vynel tools are auto-approved (x-mcp mutatingApproved), so
     // nothing cards under bypass yet.
     expect(vynelWorkspaceDescriptor.mutatingToolNames).toEqual([])
-    // Only `knowledge` gates tools today (memory emits none); the gate names use
-    // the mcp__vynel__ prefix.
+    // `knowledge` and `memory` each gate their whole toolset (capability OFF →
+    // none of its tools); the gate names use the mcp__vynel__ prefix.
+    // test: correct expectation for memory gating — memory grew 6 MCP tools in
+    // the 2026-07-11 tags round, so it now gates like knowledge (was: no entry).
     expect(vynelWorkspaceDescriptor.capabilityGatedTools?.knowledge).toContain(
       'mcp__vynel__search_knowledge',
     )
-    expect(vynelWorkspaceDescriptor.capabilityGatedTools).not.toHaveProperty('memory')
+    expect(vynelWorkspaceDescriptor.capabilityGatedTools?.memory).toEqual([
+      'mcp__vynel__list_memory_entries',
+      'mcp__vynel__search_memory',
+      'mcp__vynel__list_memory_tags',
+      'mcp__vynel__create_memory_entry',
+      'mcp__vynel__update_memory_entry',
+      'mcp__vynel__add_memory_from_file',
+    ])
   })
 
   it('build() returns a live server for a workspace context', () => {

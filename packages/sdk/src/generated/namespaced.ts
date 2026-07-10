@@ -492,7 +492,7 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   knowledge: {
-  addDirectory: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['requestBody']>['content']['application/json']) => {
+  addSource: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/knowledge/sources", {
       params: { path: { workspaceId: workspaceId } },
       body: input,
@@ -597,6 +597,14 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  importFile: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/from-file"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/from-file"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/memory/entries/from-file", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/memory/entries"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/memory/entries", {
       params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
@@ -607,6 +615,13 @@ export function makeNamespaced(client: Client<paths>) {
   listMentions: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/{entryId}/mentions"]["get"]['parameters']>['path']["workspaceId"], entryId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries/{entryId}/mentions"]["get"]['parameters']>['path']["entryId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/memory/entries/{entryId}/mentions", {
       params: { path: { workspaceId: workspaceId, entryId: entryId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listTags: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/tags"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/memory/tags", {
+      params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data

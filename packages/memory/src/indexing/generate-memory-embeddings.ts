@@ -44,6 +44,17 @@ export async function generateMemoryEmbeddings(
       succeeded += 1
     } catch (err) {
       failed += 1
+      // A failure before ANY success is the MODEL (load/download), not this
+      // entry — abort with ONE actionable error instead of a stack trace per
+      // entry; the next tick retries fresh (corrupt cache self-heals —
+      // @vynel/embeddings).
+      if (succeeded === 0) {
+        deps.logger?.error(
+          { err, entryId: entry.id },
+          'generateMemoryEmbeddings: embedding model unavailable — batch aborted, retrying next tick',
+        )
+        break
+      }
       deps.logger?.warn(
         { err, entryId: entry.id, workspaceId: entry.workspaceId },
         'generateMemoryEmbeddings: embedding failed for one entry; batch continues',

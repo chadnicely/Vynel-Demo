@@ -38,7 +38,11 @@ import { generatedMcpTools, generatedRoutingMcpTools } from './api-tools.js'
 //     providers (3 reads). Approvals routes carry NO x-mcp at all (the agent
 //     never sees the approval surface); files/agents/capabilities/onboarding/
 //     dashboard/root likewise expose nothing.
+//   - the 2026-07-11 memory-tags round: +list_memory_tags (read) +
+//     add_memory_from_file + update_memory_entry (both mutatingApproved — the
+//     latter so the agent KEEPS context-tagged entries current).
 const EXPECTED_TOOL_NAMES = [
+  'add_memory_from_file',
   'add_to_knowledge',
   'create_memory_entry',
   'discover_installed_skills_for_provider',
@@ -58,6 +62,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_knowledge_documents',
   'list_knowledge_sources',
   'list_memory_entries',
+  'list_memory_tags',
   'list_my_channels',
   'list_my_schedules',
   'list_schedule_runs',
@@ -68,6 +73,7 @@ const EXPECTED_TOOL_NAMES = [
   'search_chat_messages',
   'search_knowledge',
   'search_memory',
+  'update_memory_entry',
 ] as const
 
 // The ROUTING (brain) tools live in a SEPARATE array — only the global-root

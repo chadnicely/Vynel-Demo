@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { withTransaction, type Database } from '@vynel/db'
 import {
   insertEntry,
+  insertMemoryTags,
   type MemoryEntry,
   type MemoryEntryKind,
   type MemoryEntryCreatedSource,
@@ -14,6 +15,7 @@ import {
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { deriveTitleFromBody } from './derive-title-from-body.js'
 import { signalEmbeddingWorker } from '../indexing/embedding-worker-signal.js'
+import { normalizeMemoryTags } from '../memory-tags.js'
 import { MEMORY_ENTRY_CREATED, type MemoryEntryCreatedPayload } from '../memory-events.js'
 
 export type CreateMemoryEntryInput = {
@@ -26,10 +28,13 @@ export type CreateMemoryEntryInput = {
   section: string
   sourceMessageId?: string
   createdSource: MemoryEntryCreatedSource
+  /** Open topical labels + the behavioral `context` tag — normalized here. */
+  tags?: string[]
 }
 
 export function createMemoryEntry(db: Database, input: CreateMemoryEntryInput): MemoryEntry {
   const now = new Date()
+  const tags = normalizeMemoryTags(input.tags)
   const entry = withTransaction(db, (tx) => {
     const row = insertEntry(tx, {
       id: randomUUID(),
@@ -50,6 +55,7 @@ export function createMemoryEntry(db: Database, input: CreateMemoryEntryInput): 
       lastMentionedAt: null,
       deletedAt: null,
     })
+    insertMemoryTags(tx, row.id, tags, now)
     const payload: MemoryEntryCreatedPayload = {
       entryId: row.id,
       userId: row.userId,

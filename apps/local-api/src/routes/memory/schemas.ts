@@ -20,7 +20,12 @@ const MemoryEntryCreatedSourceSchema = z.enum([
   'workspace-seed',
   'user-manual',
   'onboarding-seed',
+  'file-import',
 ])
+
+// Open user vocabulary — length caps mirror @vynel/memory's normalizeMemoryTags
+// (the core re-validates; this bounds the wire).
+const MemoryTagsSchema = z.array(z.string().min(1).max(32)).max(8)
 
 const MentionKindSchema = z.enum(['session-context-load', 'tool-output', 'agent-citation'])
 
@@ -44,6 +49,7 @@ export const CreateMemoryEntryBodySchema = z.object({
   body: z.string().min(1).max(10_000),
   category: MemoryEntryCategorySchema,
   section: z.string().min(1).max(200),
+  tags: MemoryTagsSchema.optional(),
 })
 
 export const UpdateMemoryEntryBodySchema = z.object({
@@ -51,6 +57,13 @@ export const UpdateMemoryEntryBodySchema = z.object({
   body: z.string().min(1).max(10_000).optional(),
   kind: MemoryEntryKindSchema.optional(),
   isArchived: z.boolean().optional(),
+  // REPLACE semantics — the entry's tags become exactly this list.
+  tags: MemoryTagsSchema.optional(),
+})
+
+export const ImportMemoryFileBodySchema = z.object({
+  absolutePath: z.string().min(1).max(4096),
+  tags: MemoryTagsSchema.optional(),
 })
 
 export const MemoryEntryParamSchema = z.object({
@@ -78,6 +91,7 @@ export const MemoryEntrySchema = z.object({
   embeddingPresent: z.boolean(),
   embeddingModelVersion: z.string().nullable(),
   isArchived: z.boolean(),
+  tags: z.array(z.string()),
   createdAt: z.string(),
   updatedAt: z.string(),
   lastMentionedAt: z.string().nullable(),
@@ -118,4 +132,8 @@ export const SearchMemoryResponseSchema = z.object({
 
 export const ListMemoryEntryMentionsResponseSchema = z.object({
   mentions: z.array(MemoryEntryMentionSchema),
+})
+
+export const ListMemoryTagsResponseSchema = z.object({
+  tags: z.array(z.string()),
 })

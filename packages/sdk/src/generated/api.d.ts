@@ -94,7 +94,7 @@ export interface paths {
         /** List registered knowledge sources (the workspace's + the user's global sources). */
         get: operations["getWorkspacesByWorkspaceIdKnowledgeSources"];
         put?: never;
-        /** Register a directory to index, at workspace or global scope. */
+        /** Register a directory or single file to index, at workspace or global scope. */
         post: operations["postWorkspacesByWorkspaceIdKnowledgeSources"];
         delete?: never;
         options?: never;
@@ -925,6 +925,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/memory/entries/from-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import a single on-disk file as a memory entry. */
+        post: operations["postWorkspacesByWorkspaceIdMemoryEntriesFrom-file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/memory/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the workspace's memory tags (in use + suggested defaults). */
+        get: operations["getWorkspacesByWorkspaceIdMemoryTags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/memory/entries/{entryId}": {
         parameters: {
             query?: never;
@@ -940,7 +974,7 @@ export interface paths {
         delete: operations["deleteWorkspacesByWorkspaceIdMemoryEntriesByEntryId"];
         options?: never;
         head?: never;
-        /** Update a memory entry (title, body, kind, archive state). */
+        /** Update a memory entry (title, body, kind, tags, archive state). */
         patch: operations["patchWorkspacesByWorkspaceIdMemoryEntriesByEntryId"];
         trace?: never;
     };
@@ -2285,9 +2319,15 @@ export interface operations {
                             workspaceId: string | null;
                             /** @enum {string} */
                             scope: "workspace" | "global";
+                            /** @enum {string} */
+                            sourceKind: "directory" | "file";
                             absolutePath: string;
                             createdAt: string;
                             updatedAt: string;
+                            documentCount: number;
+                            indexedDocumentCount: number;
+                            failedDocumentCount: number;
+                            lastIndexedAt: string | null;
                         }[];
                     };
                 };
@@ -2333,6 +2373,8 @@ export interface operations {
                             workspaceId: string | null;
                             /** @enum {string} */
                             scope: "workspace" | "global";
+                            /** @enum {string} */
+                            sourceKind: "directory" | "file";
                             absolutePath: string;
                             createdAt: string;
                             updatedAt: string;
@@ -3957,7 +3999,7 @@ export interface operations {
                     attachedImages?: {
                         filename: string;
                         /** @enum {string} */
-                        mimeType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+                        mimeType: "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "application/pdf" | "text/plain" | "text/markdown" | "text/csv" | "text/html" | "application/json" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" | "application/vnd.openxmlformats-officedocument.presentationml.presentation";
                         base64Data: string;
                     }[];
                     model?: string;
@@ -4887,10 +4929,11 @@ export interface operations {
                             section: string;
                             sourceMessageId: string | null;
                             /** @enum {string} */
-                            createdSource: "workspace-seed" | "user-manual" | "onboarding-seed";
+                            createdSource: "workspace-seed" | "user-manual" | "onboarding-seed" | "file-import";
                             embeddingPresent: boolean;
                             embeddingModelVersion: string | null;
                             isArchived: boolean;
+                            tags: string[];
                             createdAt: string;
                             updatedAt: string;
                             lastMentionedAt: string | null;
@@ -4930,6 +4973,7 @@ export interface operations {
                     /** @enum {string} */
                     category: "user" | "preferences" | "memory";
                     section: string;
+                    tags?: string[];
                 };
             };
         };
@@ -4953,10 +4997,11 @@ export interface operations {
                         section: string;
                         sourceMessageId: string | null;
                         /** @enum {string} */
-                        createdSource: "workspace-seed" | "user-manual" | "onboarding-seed";
+                        createdSource: "workspace-seed" | "user-manual" | "onboarding-seed" | "file-import";
                         embeddingPresent: boolean;
                         embeddingModelVersion: string | null;
                         isArchived: boolean;
+                        tags: string[];
                         createdAt: string;
                         updatedAt: string;
                         lastMentionedAt: string | null;
@@ -5021,6 +5066,101 @@ export interface operations {
             };
         };
     };
+    "postWorkspacesByWorkspaceIdMemoryEntriesFrom-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    absolutePath: string;
+                    tags?: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description SerializedMemoryEntry (imported). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        /** @enum {string} */
+                        kind: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
+                        title: string;
+                        body: string;
+                        /** @enum {string} */
+                        category: "user" | "preferences" | "memory";
+                        section: string;
+                        sourceMessageId: string | null;
+                        /** @enum {string} */
+                        createdSource: "workspace-seed" | "user-manual" | "onboarding-seed" | "file-import";
+                        embeddingPresent: boolean;
+                        embeddingModelVersion: string | null;
+                        isArchived: boolean;
+                        tags: string[];
+                        createdAt: string;
+                        updatedAt: string;
+                        lastMentionedAt: string | null;
+                    };
+                };
+            };
+            /** @description Validation error (missing, unreadable, unsupported, or too long). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdMemoryTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { tags: string[] } — "context" always leads. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tags: string[];
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getWorkspacesByWorkspaceIdMemoryEntriesByEntryId: {
         parameters: {
             query?: never;
@@ -5052,10 +5192,11 @@ export interface operations {
                         section: string;
                         sourceMessageId: string | null;
                         /** @enum {string} */
-                        createdSource: "workspace-seed" | "user-manual" | "onboarding-seed";
+                        createdSource: "workspace-seed" | "user-manual" | "onboarding-seed" | "file-import";
                         embeddingPresent: boolean;
                         embeddingModelVersion: string | null;
                         isArchived: boolean;
+                        tags: string[];
                         createdAt: string;
                         updatedAt: string;
                         lastMentionedAt: string | null;
@@ -5117,6 +5258,7 @@ export interface operations {
                     /** @enum {string} */
                     kind?: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
                     isArchived?: boolean;
+                    tags?: string[];
                 };
             };
         };
@@ -5140,10 +5282,11 @@ export interface operations {
                         section: string;
                         sourceMessageId: string | null;
                         /** @enum {string} */
-                        createdSource: "workspace-seed" | "user-manual" | "onboarding-seed";
+                        createdSource: "workspace-seed" | "user-manual" | "onboarding-seed" | "file-import";
                         embeddingPresent: boolean;
                         embeddingModelVersion: string | null;
                         isArchived: boolean;
+                        tags: string[];
                         createdAt: string;
                         updatedAt: string;
                         lastMentionedAt: string | null;
@@ -7579,6 +7722,11 @@ export interface operations {
                             partialSessionId: string | null;
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | null;
+                            attachedImagesMetadata: {
+                                filename: string;
+                                mimeType: string;
+                                sizeBytes: number;
+                            }[] | null;
                         }[];
                         toolCallsByMessageId: {
                             [key: string]: {
@@ -7815,6 +7963,12 @@ export interface operations {
             content: {
                 "application/json": {
                     userMessageText: string;
+                    attachedImages?: {
+                        filename: string;
+                        /** @enum {string} */
+                        mimeType: "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "application/pdf" | "text/plain" | "text/markdown" | "text/csv" | "text/html" | "application/json" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" | "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+                        base64Data: string;
+                    }[];
                     model?: string;
                     /** @enum {string} */
                     mode?: "ask" | "auto" | "bypass";
@@ -8400,6 +8554,7 @@ export interface operations {
         parameters: {
             query?: {
                 path?: string;
+                includeFiles?: boolean;
             };
             header?: never;
             path?: never;
@@ -8417,6 +8572,10 @@ export interface operations {
                         path: string;
                         parent: string | null;
                         entries: {
+                            name: string;
+                            path: string;
+                        }[];
+                        files?: {
                             name: string;
                             path: string;
                         }[];

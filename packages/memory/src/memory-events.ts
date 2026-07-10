@@ -24,7 +24,7 @@ export type MemoryEntryCreatedPayload = {
   kind: 'person' | 'preference' | 'business-fact' | 'recurring-pattern' | 'note'
   category: 'user' | 'preferences' | 'memory'
   section: string
-  createdSource: 'workspace-seed' | 'user-manual' | 'onboarding-seed'
+  createdSource: 'workspace-seed' | 'user-manual' | 'onboarding-seed' | 'file-import'
   createdAt: string
 }
 

@@ -10,11 +10,14 @@ import { withTransaction, type Database } from '@vynel/db'
 import {
   findEntryById,
   updateEntry,
+  deleteMemoryTagsForEntry,
+  insertMemoryTags,
   type MemoryEntry,
   type MemoryEntryKind,
 } from '../repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { signalEmbeddingWorker } from '../indexing/embedding-worker-signal.js'
+import { normalizeMemoryTags } from '../memory-tags.js'
 import { MEMORY_ENTRY_UPDATED, type MemoryEntryUpdatedPayload } from '../memory-events.js'
 
 export type UpdateMemoryEntryInput = {
@@ -22,6 +25,8 @@ export type UpdateMemoryEntryInput = {
   body?: string
   kind?: MemoryEntryKind
   isArchived?: boolean
+  /** REPLACE semantics: the entry's tags become exactly this list. */
+  tags?: string[]
 }
 
 export function updateMemoryEntry(
@@ -31,9 +36,15 @@ export function updateMemoryEntry(
 ): MemoryEntry {
   const willChangeBody = input.body !== undefined
   const updatedFields = Object.keys(input)
+  const replacementTags = input.tags !== undefined ? normalizeMemoryTags(input.tags) : undefined
   const result = withTransaction(db, (tx) => {
     const before = findEntryById(tx, entryId)
     if (!before) throw new NotFoundError('memory-entry', entryId)
+
+    if (replacementTags !== undefined) {
+      deleteMemoryTagsForEntry(tx, entryId)
+      insertMemoryTags(tx, entryId, replacementTags, new Date())
+    }
 
     // Conditional spread for optional fields (exactOptionalPropertyTypes).
     const patch: Parameters<typeof updateEntry>[2] = {}

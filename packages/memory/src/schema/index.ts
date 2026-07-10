@@ -3,3 +3,4 @@
 // `.claude/rules/structure-standard.md` "packages/db/src/schema/".
 export * from './memory-entries.js'
 export * from './memory-entry-mentions.js'
+export * from './memory-tags.js'

@@ -5,9 +5,11 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   insertEntry,
+  insertMemoryTags,
   countMentionsForEntry,
   type NewMemoryEntry,
 } from '../repositories/index.js'
+import { CONTEXT_MEMORY_TAG } from '../memory-tags.js'
 import { loadWorkspaceContextForSession } from './load-workspace-context-for-session.js'
 
 function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
@@ -108,6 +110,53 @@ describe('loadWorkspaceContextForSession', () => {
         topEntriesPerKind: 3,
       })
       expect(snapshot.topEntriesByKind.person).toHaveLength(3)
+    })
+  })
+
+  it('context-tagged entries ALONE form the snapshot once any exist (selective injection)', async () => {
+    await withTestDatabase((db) => {
+      const { user, workspace } = seedWorld(db)
+      const standing = insertEntry(
+        db,
+        makeEntry(user.id, workspace.id, { kind: 'business-fact', title: 'standing' }),
+      )
+      insertMemoryTags(db, standing.id, [CONTEXT_MEMORY_TAG, 'project'], new Date())
+      // Ordinary entries — tagged or not, they stay OUT of the snapshot now.
+      const ordinary = insertEntry(
+        db,
+        makeEntry(user.id, workspace.id, { kind: 'person', title: 'ordinary' }),
+      )
+      insertMemoryTags(db, ordinary.id, ['person'], new Date())
+      insertEntry(db, makeEntry(user.id, workspace.id, { kind: 'note', title: 'untagged' }))
+
+      const snapshot = loadWorkspaceContextForSession(db, {
+        workspaceId: workspace.id,
+        sessionId: 's-1',
+        messageId: 'm-1',
+      })
+
+      expect(snapshot.topEntriesByKind['business-fact'].map((e) => e.id)).toEqual([standing.id])
+      expect(snapshot.topEntriesByKind.person).toEqual([])
+      expect(snapshot.topEntriesByKind.note).toEqual([])
+      // The injected entry still advances its recency signal.
+      expect(countMentionsForEntry(db, standing.id)).toBe(1)
+      expect(countMentionsForEntry(db, ordinary.id)).toBe(0)
+    })
+  })
+
+  it('archived and deleted context-tagged entries stay out of the snapshot', async () => {
+    await withTestDatabase((db) => {
+      const { user, workspace } = seedWorld(db)
+      const archived = insertEntry(
+        db,
+        makeEntry(user.id, workspace.id, { kind: 'note', isArchived: true }),
+      )
+      insertMemoryTags(db, archived.id, [CONTEXT_MEMORY_TAG], new Date())
+      const live = insertEntry(db, makeEntry(user.id, workspace.id, { kind: 'note', title: 'live' }))
+
+      const snapshot = loadWorkspaceContextForSession(db, { workspaceId: workspace.id })
+      // No LIVE context-tagged entry exists → falls back to top-N per kind.
+      expect(snapshot.topEntriesByKind.note.map((e) => e.id)).toContain(live.id)
     })
   })
 

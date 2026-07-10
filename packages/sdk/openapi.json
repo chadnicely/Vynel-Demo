@@ -727,6 +727,13 @@
                             "global"
                           ]
                         },
+                        "sourceKind": {
+                          "type": "string",
+                          "enum": [
+                            "directory",
+                            "file"
+                          ]
+                        },
                         "absolutePath": {
                           "type": "string"
                         },
@@ -742,6 +749,7 @@
                         "userId",
                         "workspaceId",
                         "scope",
+                        "sourceKind",
                         "absolutePath",
                         "createdAt",
                         "updatedAt"
@@ -793,13 +801,13 @@
             "required": true
           }
         ],
-        "summary": "Register a directory to index, at workspace or global scope.",
-        "x-sdk-name": "knowledge.addDirectory",
+        "summary": "Register a directory or single file to index, at workspace or global scope.",
+        "x-sdk-name": "knowledge.addSource",
         "x-mcp": {
           "exposed": true,
           "name": "add_to_knowledge",
           "mutatingApproved": true,
-          "description": "Add a directory to the knowledge base so its files are indexed for search. `absolutePath` is the directory on disk; `scope` is \"workspace\" (indexed for the active workspace) or \"global\" (indexed for the user across all workspaces). Registers the source, starts watching it for changes, and indexes its current files. Mutating."
+          "description": "Add a directory OR a single file to the knowledge base so it is indexed for search. `absolutePath` is the directory or file on disk; `scope` is \"workspace\" (indexed for the active workspace) or \"global\" (indexed for the user across all workspaces). Registers the source, starts watching it for changes, and indexes it. Mutating."
         },
         "requestBody": {
           "content": {
@@ -862,6 +870,13 @@
                               "global"
                             ]
                           },
+                          "sourceKind": {
+                            "type": "string",
+                            "enum": [
+                              "directory",
+                              "file"
+                            ]
+                          },
                           "absolutePath": {
                             "type": "string"
                           },
@@ -870,6 +885,21 @@
                           },
                           "updatedAt": {
                             "type": "string"
+                          },
+                          "documentCount": {
+                            "type": "number"
+                          },
+                          "indexedDocumentCount": {
+                            "type": "number"
+                          },
+                          "failedDocumentCount": {
+                            "type": "number"
+                          },
+                          "lastIndexedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -877,9 +907,14 @@
                           "userId",
                           "workspaceId",
                           "scope",
+                          "sourceKind",
                           "absolutePath",
                           "createdAt",
-                          "updatedAt"
+                          "updatedAt",
+                          "documentCount",
+                          "indexedDocumentCount",
+                          "failedDocumentCount",
+                          "lastIndexedAt"
                         ]
                       }
                     }
@@ -5023,7 +5058,16 @@
                             "image/png",
                             "image/jpeg",
                             "image/gif",
-                            "image/webp"
+                            "image/webp",
+                            "application/pdf",
+                            "text/plain",
+                            "text/markdown",
+                            "text/csv",
+                            "text/html",
+                            "application/json",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
                           ]
                         },
                         "base64Data": {
@@ -7010,7 +7054,8 @@
                             "enum": [
                               "workspace-seed",
                               "user-manual",
-                              "onboarding-seed"
+                              "onboarding-seed",
+                              "file-import"
                             ]
                           },
                           "embeddingPresent": {
@@ -7024,6 +7069,12 @@
                           },
                           "isArchived": {
                             "type": "boolean"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           },
                           "createdAt": {
                             "type": "string"
@@ -7052,6 +7103,7 @@
                           "embeddingPresent",
                           "embeddingModelVersion",
                           "isArchived",
+                          "tags",
                           "createdAt",
                           "updatedAt",
                           "lastMentionedAt"
@@ -7218,7 +7270,8 @@
                       "enum": [
                         "workspace-seed",
                         "user-manual",
-                        "onboarding-seed"
+                        "onboarding-seed",
+                        "file-import"
                       ]
                     },
                     "embeddingPresent": {
@@ -7232,6 +7285,12 @@
                     },
                     "isArchived": {
                       "type": "boolean"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "createdAt": {
                       "type": "string"
@@ -7260,6 +7319,7 @@
                     "embeddingPresent",
                     "embeddingModelVersion",
                     "isArchived",
+                    "tags",
                     "createdAt",
                     "updatedAt",
                     "lastMentionedAt"
@@ -7294,7 +7354,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "create_memory_entry",
-          "description": "Create a new memory entry in the active workspace. Use this to record information the user mentions that should persist across chat sessions — facts about people, preferences, business context, recurring patterns, or general notes. `kind` is one of person / preference / business-fact / recurring-pattern / note. `title` is optional (derived from body if omitted). `body` is the entry content (1-10000 chars). `category` is the high-level grouping the entry belongs to (user / preferences / memory). `section` is a sub-grouping label within that category (e.g. 'Key contacts', 'Communication style'). Side effect: writes a row + publishes a memory.entry-created outbox event. The user's memory panel will show the new entry. Returns the created entry with id + serverside-derived title.",
+          "description": "Create a new memory entry in the active workspace. Use this to record information the user mentions that should persist across chat sessions — facts about people, preferences, business context, recurring patterns, or general notes. `kind` is one of person / preference / business-fact / recurring-pattern / note. `title` is optional (derived from body if omitted). `body` is the entry content (1-10000 chars). `category` is the high-level grouping the entry belongs to (user / preferences / memory). `section` is a sub-grouping label within that category (e.g. 'Key contacts', 'Communication style'). `tags` (optional, up to 8 short labels) organize the entry; the reserved tag \"context\" is special — entries tagged \"context\" are auto-injected at the start of every fresh session as the workspace's standing context, so tag \"context\" exactly the facts a new session must always know (and keep those entries current via update_memory_entry). Side effect: writes a row + publishes a memory.entry-created outbox event. The user's memory panel will show the new entry. Returns the created entry with id + serverside-derived title.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -7335,6 +7395,15 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "maxItems": 8
                   }
                 },
                 "required": [
@@ -7467,6 +7536,231 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/memory/entries/from-file": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "SerializedMemoryEntry (imported).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "preference",
+                        "business-fact",
+                        "recurring-pattern",
+                        "note"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "preferences",
+                        "memory"
+                      ]
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "sourceMessageId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdSource": {
+                      "type": "string",
+                      "enum": [
+                        "workspace-seed",
+                        "user-manual",
+                        "onboarding-seed",
+                        "file-import"
+                      ]
+                    },
+                    "embeddingPresent": {
+                      "type": "boolean"
+                    },
+                    "embeddingModelVersion": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "isArchived": {
+                      "type": "boolean"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "lastMentionedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "kind",
+                    "title",
+                    "body",
+                    "category",
+                    "section",
+                    "sourceMessageId",
+                    "createdSource",
+                    "embeddingPresent",
+                    "embeddingModelVersion",
+                    "isArchived",
+                    "tags",
+                    "createdAt",
+                    "updatedAt",
+                    "lastMentionedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (missing, unreadable, unsupported, or too long)."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdMemoryEntriesFrom-file",
+        "tags": [
+          "memory"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Import a single on-disk file as a memory entry.",
+        "x-sdk-name": "memory.importFile",
+        "x-mcp": {
+          "exposed": true,
+          "name": "add_memory_from_file",
+          "description": "Read ONE on-disk file (markdown, plain text, PDF, Word, HTML, CSV, or JSON) and save its text as a memory entry in the active workspace. `absolutePath` is the file on disk; `tags` (optional) label it — tag \"context\" to make it part of the standing context every fresh session receives. Files too long for a single memory are rejected with a pointer to the knowledge base (add_to_knowledge), which handles large documents. Mutating.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "absolutePath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "maxItems": 8
+                  }
+                },
+                "required": [
+                  "absolutePath"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/memory/tags": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ tags: string[] } — \"context\" always leads.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "tags"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdMemoryTags",
+        "tags": [
+          "memory"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List the workspace's memory tags (in use + suggested defaults).",
+        "x-sdk-name": "memory.listTags",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_memory_tags",
+          "description": "List the memory tags in use across the active workspace's entries, merged with the suggested defaults. Use an existing tag when one fits before coining a new one. The reserved tag \"context\" marks entries auto-injected as standing session context. Read-only."
+        }
+      }
+    },
     "/workspaces/{workspaceId}/memory/entries/{entryId}": {
       "get": {
         "responses": {
@@ -7524,7 +7818,8 @@
                       "enum": [
                         "workspace-seed",
                         "user-manual",
-                        "onboarding-seed"
+                        "onboarding-seed",
+                        "file-import"
                       ]
                     },
                     "embeddingPresent": {
@@ -7538,6 +7833,12 @@
                     },
                     "isArchived": {
                       "type": "boolean"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "createdAt": {
                       "type": "string"
@@ -7566,6 +7867,7 @@
                     "embeddingPresent",
                     "embeddingModelVersion",
                     "isArchived",
+                    "tags",
                     "createdAt",
                     "updatedAt",
                     "lastMentionedAt"
@@ -7660,7 +7962,8 @@
                       "enum": [
                         "workspace-seed",
                         "user-manual",
-                        "onboarding-seed"
+                        "onboarding-seed",
+                        "file-import"
                       ]
                     },
                     "embeddingPresent": {
@@ -7674,6 +7977,12 @@
                     },
                     "isArchived": {
                       "type": "boolean"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "createdAt": {
                       "type": "string"
@@ -7702,6 +8011,7 @@
                     "embeddingPresent",
                     "embeddingModelVersion",
                     "isArchived",
+                    "tags",
                     "createdAt",
                     "updatedAt",
                     "lastMentionedAt"
@@ -7740,8 +8050,14 @@
             "required": true
           }
         ],
-        "summary": "Update a memory entry (title, body, kind, archive state).",
+        "summary": "Update a memory entry (title, body, kind, tags, archive state).",
         "x-sdk-name": "memory.update",
+        "x-mcp": {
+          "exposed": true,
+          "name": "update_memory_entry",
+          "description": "Update an existing memory entry by id: title, body, kind, isArchived, and/or tags (REPLACE semantics — the list you send becomes the entry's tags). Use this to keep context-tagged entries current instead of creating duplicates: when a standing fact changes, update the entry that holds it. Mutating.",
+          "mutatingApproved": true
+        },
         "requestBody": {
           "content": {
             "application/json": {
@@ -7770,6 +8086,15 @@
                   },
                   "isArchived": {
                     "type": "boolean"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "maxItems": 8
                   }
                 }
               }
@@ -14221,6 +14546,31 @@
                               "discord",
                               null
                             ]
+                          },
+                          "attachedImagesMetadata": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "filename": {
+                                  "type": "string"
+                                },
+                                "mimeType": {
+                                  "type": "string"
+                                },
+                                "sizeBytes": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "filename",
+                                "mimeType",
+                                "sizeBytes"
+                              ]
+                            }
                           }
                         },
                         "required": [
@@ -14230,7 +14580,8 @@
                           "sourceKind",
                           "sourceLabel",
                           "partialSessionId",
-                          "originChannel"
+                          "originChannel",
+                          "attachedImagesMetadata"
                         ]
                       }
                     },
@@ -14976,8 +15327,49 @@
                 "properties": {
                   "userMessageText": {
                     "type": "string",
-                    "minLength": 1,
                     "maxLength": 50000
+                  },
+                  "attachedImages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "filename": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "mimeType": {
+                          "type": "string",
+                          "enum": [
+                            "image/png",
+                            "image/jpeg",
+                            "image/gif",
+                            "image/webp",
+                            "application/pdf",
+                            "text/plain",
+                            "text/markdown",
+                            "text/csv",
+                            "text/html",
+                            "application/json",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                          ]
+                        },
+                        "base64Data": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 7000000
+                        }
+                      },
+                      "required": [
+                        "filename",
+                        "mimeType",
+                        "base64Data"
+                      ]
+                    },
+                    "maxItems": 6
                   },
                   "model": {
                     "type": "string"
@@ -16453,6 +16845,24 @@
                         ]
                       }
                     },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "path"
+                        ]
+                      }
+                    },
                     "drives": {
                       "type": "array",
                       "items": {
@@ -16484,6 +16894,13 @@
             "name": "path",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "includeFiles",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],

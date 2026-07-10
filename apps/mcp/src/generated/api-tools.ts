@@ -34,10 +34,49 @@ type McpToolFn = (
   },
 ) => unknown
 
+export const addMemoryFromFile: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'add_memory_from_file',
+    "Read ONE on-disk file (markdown, plain text, PDF, Word, HTML, CSV, or JSON) and save its text as a memory entry in the active workspace. `absolutePath` is the file on disk; `tags` (optional) label it — tag \"context\" to make it part of the standing context every fresh session receives. Files too long for a single memory are rejected with a pointer to the knowledge base (add_to_knowledge), which handles large documents. Mutating.",
+    {
+    workspaceId: z.string(),
+    absolutePath: z.string(),
+    tags: z.array(z.string()).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/memory/entries/from-file'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['absolutePath', 'tags']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const addToKnowledge: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'add_to_knowledge',
-    "Add a directory to the knowledge base so its files are indexed for search. `absolutePath` is the directory on disk; `scope` is \"workspace\" (indexed for the active workspace) or \"global\" (indexed for the user across all workspaces). Registers the source, starts watching it for changes, and indexes its current files. Mutating.",
+    "Add a directory OR a single file to the knowledge base so it is indexed for search. `absolutePath` is the directory or file on disk; `scope` is \"workspace\" (indexed for the active workspace) or \"global\" (indexed for the user across all workspaces). Registers the source, starts watching it for changes, and indexes it. Mutating.",
     {
     workspaceId: z.string(),
     absolutePath: z.string(),
@@ -76,7 +115,7 @@ export const addToKnowledge: McpToolFactory = (scope, app) =>
 export const createMemoryEntry: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_memory_entry',
-    "Create a new memory entry in the active workspace. Use this to record information the user mentions that should persist across chat sessions — facts about people, preferences, business context, recurring patterns, or general notes. `kind` is one of person / preference / business-fact / recurring-pattern / note. `title` is optional (derived from body if omitted). `body` is the entry content (1-10000 chars). `category` is the high-level grouping the entry belongs to (user / preferences / memory). `section` is a sub-grouping label within that category (e.g. 'Key contacts', 'Communication style'). Side effect: writes a row + publishes a memory.entry-created outbox event. The user's memory panel will show the new entry. Returns the created entry with id + serverside-derived title.",
+    "Create a new memory entry in the active workspace. Use this to record information the user mentions that should persist across chat sessions — facts about people, preferences, business context, recurring patterns, or general notes. `kind` is one of person / preference / business-fact / recurring-pattern / note. `title` is optional (derived from body if omitted). `body` is the entry content (1-10000 chars). `category` is the high-level grouping the entry belongs to (user / preferences / memory). `section` is a sub-grouping label within that category (e.g. 'Key contacts', 'Communication style'). `tags` (optional, up to 8 short labels) organize the entry; the reserved tag \"context\" is special — entries tagged \"context\" are auto-injected at the start of every fresh session as the workspace's standing context, so tag \"context\" exactly the facts a new session must always know (and keep those entries current via update_memory_entry). Side effect: writes a row + publishes a memory.entry-created outbox event. The user's memory panel will show the new entry. Returns the created entry with id + serverside-derived title.",
     {
     workspaceId: z.string(),
     kind: z.enum(['person', 'preference', 'business-fact', 'recurring-pattern', 'note']),
@@ -84,6 +123,7 @@ export const createMemoryEntry: McpToolFactory = (scope, app) =>
     body: z.string(),
     category: z.enum(['user', 'preferences', 'memory']),
     section: z.string(),
+    tags: z.array(z.string()).optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
@@ -91,7 +131,7 @@ export const createMemoryEntry: McpToolFactory = (scope, app) =>
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['kind', 'title', 'body', 'category', 'section']) {
+        for (const k of ['kind', 'title', 'body', 'category', 'section', 'tags']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -706,6 +746,39 @@ export const listMemoryEntries: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listMemoryTags: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_memory_tags',
+    "List the memory tags in use across the active workspace's entries, merged with the suggested defaults. Use an existing tag when one fits before coining a new one. The reserved tag \"context\" marks entries auto-injected as standing session context. Read-only.",
+    {
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/memory/tags'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const listMyChannels: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_my_channels',
@@ -1279,8 +1352,53 @@ export const speak: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const updateMemoryEntry: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'update_memory_entry',
+    "Update an existing memory entry by id: title, body, kind, isArchived, and/or tags (REPLACE semantics — the list you send becomes the entry's tags). Use this to keep context-tagged entries current instead of creating duplicates: when a standing fact changes, update the entry that holds it. Mutating.",
+    {
+    entryId: z.string(),
+    workspaceId: z.string(),
+    title: z.string().optional(),
+    body: z.string().optional(),
+    kind: z.enum(['person', 'preference', 'business-fact', 'recurring-pattern', 'note']).optional(),
+    isArchived: z.boolean().optional(),
+    tags: z.array(z.string()).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/memory/entries/{entryId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{entryId}', encodeURIComponent(String(args['entryId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['title', 'body', 'kind', 'isArchived', 'tags']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 // Workspace-scoped tools — the normal chat turn's in-process server.
 export const generatedMcpTools: McpToolFactory[] = [
+  addMemoryFromFile,
   addToKnowledge,
   createMemoryEntry,
   discoverInstalledSkillsForProvider,
@@ -1300,6 +1418,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   listKnowledgeDocuments,
   listKnowledgeSources,
   listMemoryEntries,
+  listMemoryTags,
   listMyChannels,
   listMySchedules,
   listScheduleRuns,
@@ -1310,6 +1429,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   searchChatMessages,
   searchKnowledge,
   searchMemory,
+  updateMemoryEntry,
 ]
 
 // Routing tools (agent-base Slice 4) — the GLOBAL-ROOT turn's server ONLY.
