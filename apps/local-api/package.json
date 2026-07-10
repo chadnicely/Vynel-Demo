@@ -26,6 +26,7 @@
     "@vynel/db": "workspace:*",
     "@vynel/errors": "workspace:*",
     "@vynel/files": "workspace:*",
+    "@vynel/hub-account": "workspace:*",
     "@vynel/knowledge": "workspace:*",
     "@vynel/marketplace": "workspace:*",
     "@vynel/mcp": "workspace:*",

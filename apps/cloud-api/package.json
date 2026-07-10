@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "node --watch --env-file-if-exists=../../.env --import tsx src/server.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
@@ -21,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@vynel/hub-account": "workspace:*",
     "jose": "^5.9.0",
     "typescript": "^5.6.0"
   }

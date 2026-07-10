@@ -15497,6 +15497,488 @@
         "x-sdk-name": "dashboard.getOverview"
       }
     },
+    "/hub/session": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The HubLinkStatus union.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "not-configured"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "signed-out"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "signed-in"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "checkedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "email",
+                        "displayName",
+                        "checkedAt"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "locked"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "message"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "offline"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "displayName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "email",
+                        "displayName"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getHubSession",
+        "tags": [
+          "hub"
+        ],
+        "parameters": [],
+        "summary": "The desktop's hub-account link status.",
+        "x-sdk-name": "hub.getSession"
+      }
+    },
+    "/hub/sign-in": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The resulting HubLinkStatus (signed-in on success).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "not-configured"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "signed-out"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "signed-in"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "checkedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "email",
+                        "displayName",
+                        "checkedAt"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "locked"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "message"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "offline"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "displayName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "email",
+                        "displayName"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Wrong email or password."
+          },
+          "403": {
+            "description": "Account disabled."
+          }
+        },
+        "operationId": "postHubSign-in",
+        "tags": [
+          "hub"
+        ],
+        "parameters": [],
+        "summary": "Sign in to the Vynel hub with email + password.",
+        "x-sdk-name": "hub.signIn",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 320
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "email",
+                  "password"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hub/sign-out": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The resulting HubLinkStatus (signed-out).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "not-configured"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "signed-out"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "signed-in"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "checkedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "email",
+                        "displayName",
+                        "checkedAt"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "locked"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "message"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "offline"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "displayName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "email",
+                        "displayName"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postHubSign-out",
+        "tags": [
+          "hub"
+        ],
+        "parameters": [],
+        "summary": "Sign this device out of the Vynel hub.",
+        "x-sdk-name": "hub.signOut"
+      }
+    },
+    "/hub/devices": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ devices: HubDeviceView[] }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "devices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "deviceName": {
+                            "type": "string"
+                          },
+                          "devicePlatform": {
+                            "type": "string"
+                          },
+                          "appVersion": {
+                            "type": "string"
+                          },
+                          "lastUsedAt": {
+                            "type": "string"
+                          },
+                          "expiresAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "deviceName",
+                          "devicePlatform",
+                          "appVersion",
+                          "lastUsedAt",
+                          "expiresAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "devices"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in."
+          }
+        },
+        "operationId": "getHubDevices",
+        "tags": [
+          "hub"
+        ],
+        "parameters": [],
+        "summary": "The hub account's signed-in devices.",
+        "x-sdk-name": "hub.listDevices"
+      }
+    },
+    "/hub/devices/{deviceId}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "{ revoked: true }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revoked": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "revoked"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Device not found."
+          }
+        },
+        "operationId": "deleteHubDevicesByDeviceId",
+        "tags": [
+          "hub"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "deviceId",
+            "required": true
+          }
+        ],
+        "summary": "Revoke one signed-in device (its session dies at next contact).",
+        "x-sdk-name": "hub.revokeDevice"
+      }
+    },
     "/workspaces": {
       "get": {
         "responses": {

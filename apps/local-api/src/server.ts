@@ -13,9 +13,17 @@ import pino from 'pino'
 import { createDatabase, closeDatabase, runMigrations, sqliteMigrationsFolder } from '@vynel/db'
 import { getOrCreateLocalUser } from '@vynel/core/users'
 import { FileWatcherService } from '@vynel/knowledge'
+import { hostname } from 'node:os'
+import {
+  createHubClient,
+  createHubSession,
+  createKeyringRefreshTokenVault,
+  type HubSession,
+} from '@vynel/hub-account'
 import { loadEnv } from './env.js'
 import { createApp } from './app.js'
 import { createGatewayApp } from './gateway.js'
+import { startHubSessionService, type HubSessionService } from './services/hub-session-service.js'
 import { startSchedulesService } from './services/schedules-service.js'
 import { startChannelsService } from './services/channels-service.js'
 import { startDelegationService } from './services/delegation-service.js'
@@ -48,12 +56,30 @@ export async function boot(): Promise<void> {
   // turn's live events; the SSE observe route streams them to the Watch panel.
   const turnEvents = new TurnEventBroadcaster()
 
+  // The hub link (accounts) — only when a hub is configured; the refresh
+  // token lives in the OS credential store, never a file.
+  let hubSession: HubSession | undefined
+  let hubSessionService: HubSessionService | undefined
+  if (env.VYNEL_HUB_URL !== undefined) {
+    hubSession = createHubSession({
+      client: createHubClient({ baseUrl: env.VYNEL_HUB_URL }),
+      vault: createKeyringRefreshTokenVault(),
+      // appVersion is a dev placeholder until the D2 installer stamps real
+      // release versions.
+      device: { deviceName: hostname(), devicePlatform: process.platform, appVersion: '0.0.0' },
+      logger,
+    })
+    hubSessionService = startHubSessionService({ hubSession, logger })
+    logger.info({ hubUrl: env.VYNEL_HUB_URL }, 'api boot: hub link enabled')
+  }
+
   const app = createApp({
     db,
     logger,
     fileWatcher,
     turnEvents,
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
+    ...(hubSession !== undefined ? { hubSession } : {}),
   })
 
   // The in-process Hono dispatcher for headless turns (the schedule fire path's
@@ -114,6 +140,7 @@ export async function boot(): Promise<void> {
       channelsService.stop()
       delegationService.stop()
       approvalsRecoveryService.stop()
+      hubSessionService?.stop()
       void fileWatcher.stopAll()
       closeDatabase(db)
       logger.info({}, 'api shutdown complete')

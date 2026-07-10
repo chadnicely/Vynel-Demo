@@ -166,6 +166,7 @@ describe('makeNamespaced — shape', () => {
       'chat',
       'dashboard',
       'files',
+      'hub',
       'knowledge',
       'marketplace',
       'memory',

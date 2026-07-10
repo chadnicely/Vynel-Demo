@@ -74,6 +74,10 @@ export const EnvSchema = z.object({
   // mode — the Tauri shell points its windows at us); when absent, the api runs
   // bare and the Vite dev server fronts the UI. Repo-root-resolved like DB_PATH.
   VYNEL_WEB_UI_DIST: z.string().default('apps/local-web/dist').transform(resolveAgainstRepoRoot),
+  // The Vynel HUB (apps/cloud-api, hosted) — accounts + tiers + marketplace.
+  // OPTIONAL: unset = hub features off (the /hub routes answer
+  // `not-configured`), so dev without a hub keeps working.
+  VYNEL_HUB_URL: z.string().url().optional(),
 })
 
 export type Env = z.infer<typeof EnvSchema>

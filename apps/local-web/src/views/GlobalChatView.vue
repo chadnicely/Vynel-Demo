@@ -8,6 +8,7 @@ import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
 import MenuPanel from "../components/shell/MenuPanel.vue";
+import AccountSection from "../components/sections/AccountSection.vue";
 import ChannelsSection from "../components/sections/ChannelsSection.vue";
 import KnowledgeSection from "../components/sections/KnowledgeSection.vue";
 import MemorySection from "../components/sections/MemorySection.vue";
@@ -42,11 +43,18 @@ const GLOBAL_MENU_ITEMS = [
   { id: "schedules", label: "Schedules", hint: "Claude on its own time" },
   { id: "knowledge", label: "Knowledge", hint: "The vault Claude studies" },
   { id: "memory", label: "Memory", hint: "What Claude remembers" },
+  { id: "account", label: "Account", hint: "Your Vynel account" },
   { id: "application", label: "Application", hint: "Global settings" },
 ];
 
 /** The global menu items that render a feature section on the canvas. */
-const GLOBAL_SECTION_IDS = ["channels", "schedules", "knowledge", "memory"] as const;
+const GLOBAL_SECTION_IDS = [
+  "channels",
+  "schedules",
+  "knowledge",
+  "memory",
+  "account",
+] as const;
 type GlobalSectionId = (typeof GLOBAL_SECTION_IDS)[number];
 
 function isGlobalSection(view: unknown): view is GlobalSectionId {
@@ -233,6 +241,7 @@ function openContinuous() {
           v-else-if="shell.mainView === 'knowledge'"
           :scope="{ kind: 'global' }"
         />
+        <AccountSection v-else-if="shell.mainView === 'account'" />
         <MemorySection v-else :scope="{ kind: 'global' }" />
       </div>
     </div>

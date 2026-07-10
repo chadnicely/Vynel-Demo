@@ -12,10 +12,11 @@ export type Theme = "dark" | "light";
 export type ChatTarget = "continuous" | "fresh" | { sessionId: string };
 
 /** What the canvas shows: the chat itself, a menu item's view (Application
- *  globally; a feature section in a workspace), or an open file. */
+ *  and Account globally; a feature section in a workspace), or an open file. */
 export type ChatMainView =
   | "chat"
   | "application"
+  | "account"
   | WorkspaceSectionId
   | { kind: "file"; filePath: string };
 

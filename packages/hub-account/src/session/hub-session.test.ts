@@ -1,0 +1,131 @@
+// The session state machine against a STUBBED client — every restore verdict
+// (signed-in / signed-out / locked / offline), sign-out resilience, and the
+// access-token retry. The real-hub integration lives in apps/cloud-api
+// (packages never import apps, so the pairing test sits on the app side).
+
+import { describe, it, expect, vi } from 'vitest'
+import pino from 'pino'
+import { ForbiddenError, UnauthorizedError } from '@vynel/errors'
+import type { HubSessionResponse } from '@vynel/contracts/hub/hub-auth'
+import type { HubClient } from '../client/hub-client.js'
+import { createInMemoryRefreshTokenVault } from '../vault/refresh-token-vault.js'
+import { createHubSession } from './hub-session.js'
+
+const DEVICE = { deviceName: 'Chad-PC', devicePlatform: 'windows', appVersion: '0.1.0' }
+const silentLogger = pino({ level: 'silent' })
+
+function sessionResponse(overrides: Partial<HubSessionResponse> = {}): HubSessionResponse {
+  return {
+    accountId: 'acc-1',
+    email: 'chad@example.com',
+    displayName: 'Chad',
+    accessToken: 'access-1',
+    accessTokenExpiresAt: new Date().toISOString(),
+    refreshToken: 'refresh-2',
+    ...overrides,
+  }
+}
+
+function buildClient(overrides: Partial<HubClient> = {}): HubClient {
+  return {
+    signIn: vi.fn().mockResolvedValue(sessionResponse()),
+    refresh: vi.fn().mockResolvedValue(sessionResponse()),
+    signOut: vi.fn().mockResolvedValue(undefined),
+    listDevices: vi.fn().mockResolvedValue({ devices: [] }),
+    revokeDevice: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  }
+}
+
+describe('createHubSession', () => {
+  it('restore with no stored token is signed-out', async () => {
+    const session = createHubSession({
+      client: buildClient(),
+      vault: createInMemoryRefreshTokenVault(),
+      device: DEVICE,
+      logger: silentLogger,
+    })
+    expect(await session.restore()).toEqual({ kind: 'signed-out' })
+  })
+
+  it('restore rotates the vaulted token and lands signed-in', async () => {
+    const vault = createInMemoryRefreshTokenVault('refresh-1')
+    const client = buildClient()
+    const session = createHubSession({ client, vault, device: DEVICE, logger: silentLogger })
+    const status = await session.restore()
+    expect(status).toMatchObject({ kind: 'signed-in', email: 'chad@example.com' })
+    expect(client.refresh).toHaveBeenCalledWith({ refreshToken: 'refresh-1' })
+    expect(await vault.load()).toBe('refresh-2')
+  })
+
+  it('a 401 verdict clears the vault (signed-out); a 403 locks', async () => {
+    const unauthorizedVault = createInMemoryRefreshTokenVault('dead-token')
+    const unauthorized = createHubSession({
+      client: buildClient({ refresh: vi.fn().mockRejectedValue(new UnauthorizedError('expired')) }),
+      vault: unauthorizedVault,
+      device: DEVICE,
+      logger: silentLogger,
+    })
+    expect(await unauthorized.restore()).toEqual({ kind: 'signed-out' })
+    expect(await unauthorizedVault.load()).toBeNull()
+
+    const lockedVault = createInMemoryRefreshTokenVault('revoked-token')
+    const locked = createHubSession({
+      client: buildClient({
+        refresh: vi.fn().mockRejectedValue(new ForbiddenError('This account is disabled.')),
+      }),
+      vault: lockedVault,
+      device: DEVICE,
+      logger: silentLogger,
+    })
+    expect(await locked.restore()).toEqual({
+      kind: 'locked',
+      message: 'This account is disabled.',
+    })
+    expect(await lockedVault.load()).toBeNull()
+  })
+
+  it('an unreachable hub is offline: vault kept, cached identity carried', async () => {
+    const vault = createInMemoryRefreshTokenVault('refresh-1')
+    const refresh = vi
+      .fn()
+      .mockResolvedValueOnce(sessionResponse())
+      .mockRejectedValue(new TypeError('fetch failed'))
+    const session = createHubSession({
+      client: buildClient({ refresh }),
+      vault,
+      device: DEVICE,
+      logger: silentLogger,
+    })
+    await session.restore() // signed-in, identity cached
+    const offline = await session.restore()
+    expect(offline).toEqual({ kind: 'offline', email: 'chad@example.com', displayName: 'Chad' })
+    expect(await vault.load()).toBe('refresh-2')
+  })
+
+  it('sign-out clears locally even when the hub is unreachable', async () => {
+    const vault = createInMemoryRefreshTokenVault('refresh-1')
+    const session = createHubSession({
+      client: buildClient({ signOut: vi.fn().mockRejectedValue(new TypeError('fetch failed')) }),
+      vault,
+      device: DEVICE,
+      logger: silentLogger,
+    })
+    expect(await session.signOut()).toEqual({ kind: 'signed-out' })
+    expect(await vault.load()).toBeNull()
+  })
+
+  it('devices calls retry once after an aged-out access token', async () => {
+    const vault = createInMemoryRefreshTokenVault('refresh-1')
+    const listDevices = vi
+      .fn()
+      .mockRejectedValueOnce(new UnauthorizedError('token expired'))
+      .mockResolvedValue({ devices: [{ id: 'd1' }] })
+    const client = buildClient({ listDevices })
+    const session = createHubSession({ client, vault, device: DEVICE, logger: silentLogger })
+    await session.restore()
+    const devices = await session.listDevices()
+    expect(devices).toEqual([{ id: 'd1' }])
+    expect(client.refresh).toHaveBeenCalledTimes(2) // boot restore + retry restore
+  })
+})

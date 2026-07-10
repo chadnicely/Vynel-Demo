@@ -1,0 +1,31 @@
+# Local Postgres for HUB development (no hosted DB yet — Chad, 2026-07-10).
+# Port 5433 to stay clear of any system Postgres on 5432. The volume keeps
+# hub dev data across restarts; `docker compose down -v` resets it.
+#
+#   pnpm --filter @vynel/cloud-api db:up     # start
+#   pnpm --filter @vynel/cloud-api db:down   # stop (data kept)
+#
+# Deploy note: this doubles as the reference for the on-server container —
+# production swaps the credentials + adds real volume/backup discipline.
+name: vynel-hub-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vynel-hub-postgres
+    ports:
+      - '127.0.0.1:5433:5432'
+    environment:
+      POSTGRES_USER: vynel
+      POSTGRES_PASSWORD: vynel-dev-password
+      POSTGRES_DB: vynel_hub
+    volumes:
+      - hub-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U vynel -d vynel_hub']
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+volumes:
+  hub-data:

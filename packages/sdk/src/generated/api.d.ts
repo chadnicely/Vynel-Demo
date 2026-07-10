@@ -1820,6 +1820,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/hub/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The desktop's hub-account link status. */
+        get: operations["getHubSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hub/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in to the Vynel hub with email + password. */
+        post: operations["postHubSign-in"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hub/sign-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign this device out of the Vynel hub. */
+        post: operations["postHubSign-out"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hub/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub account's signed-in devices. */
+        get: operations["getHubDevices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hub/devices/{deviceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke one signed-in device (its session dies at next contact). */
+        delete: operations["deleteHubDevicesByDeviceId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces": {
         parameters: {
             query?: never;
@@ -7911,6 +7996,219 @@ export interface operations {
                         }[];
                     };
                 };
+            };
+        };
+    };
+    getHubSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The HubLinkStatus union. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        kind: "not-configured";
+                    } | {
+                        /** @constant */
+                        kind: "signed-out";
+                    } | {
+                        /** @constant */
+                        kind: "signed-in";
+                        email: string;
+                        displayName: string;
+                        checkedAt: string;
+                    } | {
+                        /** @constant */
+                        kind: "locked";
+                        message: string;
+                    } | {
+                        /** @constant */
+                        kind: "offline";
+                        email: string | null;
+                        displayName: string | null;
+                    };
+                };
+            };
+        };
+    };
+    "postHubSign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The resulting HubLinkStatus (signed-in on success). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        kind: "not-configured";
+                    } | {
+                        /** @constant */
+                        kind: "signed-out";
+                    } | {
+                        /** @constant */
+                        kind: "signed-in";
+                        email: string;
+                        displayName: string;
+                        checkedAt: string;
+                    } | {
+                        /** @constant */
+                        kind: "locked";
+                        message: string;
+                    } | {
+                        /** @constant */
+                        kind: "offline";
+                        email: string | null;
+                        displayName: string | null;
+                    };
+                };
+            };
+            /** @description Wrong email or password. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Account disabled. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postHubSign-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The resulting HubLinkStatus (signed-out). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        kind: "not-configured";
+                    } | {
+                        /** @constant */
+                        kind: "signed-out";
+                    } | {
+                        /** @constant */
+                        kind: "signed-in";
+                        email: string;
+                        displayName: string;
+                        checkedAt: string;
+                    } | {
+                        /** @constant */
+                        kind: "locked";
+                        message: string;
+                    } | {
+                        /** @constant */
+                        kind: "offline";
+                        email: string | null;
+                        displayName: string | null;
+                    };
+                };
+            };
+        };
+    };
+    getHubDevices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { devices: HubDeviceView[] }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        devices: {
+                            id: string;
+                            deviceName: string;
+                            devicePlatform: string;
+                            appVersion: string;
+                            lastUsedAt: string;
+                            expiresAt: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteHubDevicesByDeviceId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { revoked: true }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        revoked: true;
+                    };
+                };
+            };
+            /** @description Device not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

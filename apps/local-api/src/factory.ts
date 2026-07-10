@@ -21,6 +21,7 @@ import type { FileWatcherService } from '@vynel/knowledge'
 import type { FireScheduleDeps } from '@vynel/schedules'
 import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
+import type { HubSession } from '@vynel/hub-account'
 import type { TurnEventBroadcaster } from './sessions/turn-event-broadcaster.js'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
@@ -62,6 +63,10 @@ export interface AppEnv {
     // bundle's triple-check) — present only inside `/chat/sessions/:sessionId`
     // routes, absent everywhere else.
     chatSession?: ChatSession
+    // The daemon's hub-account session (`@vynel/hub-account`) — present only
+    // when VYNEL_HUB_URL is configured; the /hub routes answer
+    // `not-configured` without it.
+    hubSession?: HubSession
   }
 }
 

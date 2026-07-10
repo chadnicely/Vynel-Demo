@@ -460,6 +460,37 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  hub: {
+  getSession: async () => {
+    const { data, error, response } = await client["GET"]("/hub/session")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listDevices: async () => {
+    const { data, error, response } = await client["GET"]("/hub/devices")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  revokeDevice: async (deviceId: NonNullable<paths["/hub/devices/{deviceId}"]["delete"]['parameters']>['path']["deviceId"]) => {
+    const { data, error, response } = await client["DELETE"]("/hub/devices/{deviceId}", {
+      params: { path: { deviceId: deviceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  signIn: async (input: NonNullable<paths["/hub/sign-in"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/hub/sign-in", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  signOut: async () => {
+    const { data, error, response } = await client["POST"]("/hub/sign-out")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   knowledge: {
   addDirectory: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/knowledge/sources"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/knowledge/sources", {

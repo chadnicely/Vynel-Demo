@@ -13,6 +13,7 @@ import { VynelError } from '@vynel/errors'
 import { FileWatcherService } from '@vynel/knowledge'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AiAgentProvider } from '@vynel/providers'
+import type { HubSession } from '@vynel/hub-account'
 import type { FireScheduleDeps } from '@vynel/schedules'
 import type { AppEnv } from './factory.js'
 import { openApiInfo } from './openapi.js'
@@ -35,6 +36,7 @@ import { providersApp } from './routes/providers/index.js'
 import { onboardingApp } from './routes/onboarding/index.js'
 import { firstLaunchGateMiddleware } from './middleware/first-launch-gate.js'
 import { workspacesApp } from './routes/workspaces/index.js'
+import { hubApp } from './routes/hub/index.js'
 import { rootApp } from './routes/root/index.js'
 import { routingApp } from './routes/routing/index.js'
 import { voiceApp } from './routes/voice/index.js'
@@ -67,6 +69,9 @@ export interface CreateAppOptions {
   // creates ONE instance and hands it to both; omitted (tests / generators) →
   // createApp makes its own (routes still work, nothing publishes).
   readonly turnEvents?: TurnEventBroadcaster
+  // The daemon's hub-account session — present only when VYNEL_HUB_URL is
+  // configured (server.ts); the /hub routes answer `not-configured` without it.
+  readonly hubSession?: HubSession
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -91,6 +96,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('aiProvider', aiProvider)
     c.set('turnEvents', turnEvents)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
+    if (options.hubSession !== undefined) c.set('hubSession', options.hubSession)
     await next()
   })
 
@@ -140,6 +146,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/routing', routingApp)
   app.route('/voice', voiceApp)
   app.route('/dashboard', dashboardApp)
+  app.route('/hub', hubApp)
   // Bare `/workspaces` mounts AFTER every `/workspaces/:workspaceId/*` sub-app
   // (source order) so the param-scoped feature routes keep precedence.
   app.route('/workspaces', workspacesApp)

@@ -150,10 +150,13 @@ const showsWelcome = computed(
   () => messages.value.length === 0 && activeTurn.value === null,
 );
 
+// "account" is global-only — the workspace menu never sets it, but the type
+// excludes it here so the shell union stays one shared shape.
 const activeSection = computed<WorkspaceSectionId | null>(() =>
   typeof shell.mainView === "string" &&
   shell.mainView !== "chat" &&
-  shell.mainView !== "application"
+  shell.mainView !== "application" &&
+  shell.mainView !== "account"
     ? shell.mainView
     : null,
 );
