@@ -17,12 +17,13 @@ export default defineConfig(({ mode }) => {
       port: env.LOCAL_WEB_PORT,
       strictPort: true,
       // The local API has no CORS (loopback-only by design) — the dev server
-      // fronts it; the SDK client's baseUrl is '/api'.
+      // fronts it; the SDK client's baseUrl is '/api'. No rewrite: the daemon's
+      // gateway serves /api/* itself, so dev and sidecar mode see identical
+      // paths (see apps/local-api/src/gateway.ts).
       proxy: {
         "/api": {
           target: env.LOCAL_API_URL,
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, ""),
         },
         // The voice daemon's overlay channel (SSE wake/state events + session-end).
         "/voice": {

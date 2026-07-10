@@ -6,6 +6,8 @@
 // (Knowledge-slice pull: the provider / desktop-notification / channels /
 // schedules / delegation boot services return as their features land.)
 
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { serve } from '@hono/node-server'
 import pino from 'pino'
 import { createDatabase, closeDatabase, runMigrations, sqliteMigrationsFolder } from '@vynel/db'
@@ -13,6 +15,7 @@ import { getOrCreateLocalUser } from '@vynel/core/users'
 import { FileWatcherService } from '@vynel/knowledge'
 import { loadEnv } from './env.js'
 import { createApp } from './app.js'
+import { createGatewayApp } from './gateway.js'
 import { startSchedulesService } from './services/schedules-service.js'
 import { startChannelsService } from './services/channels-service.js'
 import { startDelegationService } from './services/delegation-service.js'
@@ -76,8 +79,31 @@ export async function boot(): Promise<void> {
   // approval so a parked turn resumes, then marks the row timed-out.
   const approvalsRecoveryService = startApprovalsRecoveryService({ db, logger, provider })
 
+  // The gateway fronts the api: /api mount, /voice daemon proxy, and — when a
+  // built local-web dist exists — the whole desktop UI (sidecar mode, the Tauri
+  // shell loads its windows from this port). Checked once at boot: build the
+  // web ui, then restart the daemon, to switch modes.
+  const webUiDistDir =
+    env.VYNEL_WEB_UI_DIST !== undefined && existsSync(join(env.VYNEL_WEB_UI_DIST, 'index.html'))
+      ? env.VYNEL_WEB_UI_DIST
+      : undefined
+  if (webUiDistDir !== undefined) {
+    logger.info({ webUiDistDir }, 'api boot: serving the built web ui (sidecar mode)')
+  } else {
+    logger.info(
+      { checked: env.VYNEL_WEB_UI_DIST },
+      'api boot: no built web ui found — api only (the vite dev server fronts the ui)',
+    )
+  }
+  const gateway = createGatewayApp({
+    apiApp: app,
+    ...(webUiDistDir !== undefined ? { webUiDistDir } : {}),
+    voiceDaemonUrl: env.VYNEL_VOICE_DAEMON_URL,
+    logger,
+  })
+
   // Bind to loopback only in Phase 1 — the local API is unauthenticated.
-  const server = serve({ fetch: app.fetch, hostname: '127.0.0.1', port: env.PORT }, (info) => {
+  const server = serve({ fetch: gateway.fetch, hostname: '127.0.0.1', port: env.PORT }, (info) => {
     logger.info({ port: info.port }, 'api listening')
   })
 

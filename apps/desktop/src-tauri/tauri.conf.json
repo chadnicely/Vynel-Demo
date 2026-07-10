@@ -5,25 +5,11 @@
   "identifier": "app.vynel.desktop",
   "build": {
     "devUrl": "http://localhost:8999",
-    "frontendDist": "../../local-web/dist"
+    "frontendDist": "http://127.0.0.1:8998"
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [
-      {
-        "label": "jarvis",
-        "url": "/jarvis",
-        "title": "Vynel Jarvis",
-        "width": 420,
-        "height": 560,
-        "decorations": false,
-        "transparent": true,
-        "shadow": false,
-        "alwaysOnTop": true,
-        "resizable": false,
-        "skipTaskbar": false
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }

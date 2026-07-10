@@ -1,0 +1,32 @@
+// Window creation lives in code (not tauri.conf.json) because release builds
+// must delay it until the daemon sidecar is listening — a config window would
+// load http://127.0.0.1:8998 before anything serves it and freeze an error
+// page. Dev creates immediately (`pnpm dev` owns the servers).
+
+use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
+
+pub fn create_windows(handle: &AppHandle, jarvis_only: bool) -> tauri::Result<()> {
+    if !jarvis_only {
+        WebviewWindowBuilder::new(handle, "main", WebviewUrl::App("/".into()))
+            .title("Vynel")
+            .inner_size(1280.0, 800.0)
+            .min_inner_size(960.0, 600.0)
+            .build()?;
+    }
+
+    // Flags mirror the pre-D1 tauri.conf.json jarvis window verbatim — the
+    // overlay web view manages its own show/hide/park/drag behavior
+    // (local-web composables/voice/tauri-overlay-window.ts).
+    WebviewWindowBuilder::new(handle, "jarvis", WebviewUrl::App("/jarvis".into()))
+        .title("Vynel Jarvis")
+        .inner_size(420.0, 560.0)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .always_on_top(true)
+        .resizable(false)
+        .skip_taskbar(false)
+        .build()?;
+
+    Ok(())
+}

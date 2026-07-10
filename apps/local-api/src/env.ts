@@ -69,6 +69,11 @@ export const EnvSchema = z.object({
   // brain's spoken text here (the daemon owns the speaker). Best-effort: if the
   // daemon isn't running, `speak` reports it couldn't (the brain falls back to text).
   VYNEL_VOICE_DAEMON_URL: z.string().url().default('http://127.0.0.1:8997'),
+  // Where the BUILT local-web bundle lives. When an index.html exists there at
+  // boot, the gateway serves the whole desktop UI from this process (sidecar
+  // mode — the Tauri shell points its windows at us); when absent, the api runs
+  // bare and the Vite dev server fronts the UI. Repo-root-resolved like DB_PATH.
+  VYNEL_WEB_UI_DIST: z.string().default('apps/local-web/dist').transform(resolveAgainstRepoRoot),
 })
 
 export type Env = z.infer<typeof EnvSchema>

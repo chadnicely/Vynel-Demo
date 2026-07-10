@@ -12,7 +12,11 @@ import { formatError } from './output.js'
 
 let client: VynelClient | undefined
 function getClient(): VynelClient {
-  client ??= createVynelClient({ baseUrl: loadEnv().VYNEL_API_URL })
+  // Dispatch through the gateway's /api mount — the one external surface. At
+  // root paths /voice/* belongs to the voice-daemon proxy (local-api
+  // gateway.ts), which would shadow the api's own voice routes.
+  const apiUrl = loadEnv().VYNEL_API_URL.replace(/\/+$/, '')
+  client ??= createVynelClient({ baseUrl: `${apiUrl}/api` })
   return client
 }
 

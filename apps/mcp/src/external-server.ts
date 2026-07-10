@@ -16,10 +16,15 @@ import {
 import { loadEnv } from './env.js'
 
 // A fetch dispatcher targeting the running api. The tool handlers pass a path
-// (+ query); we resolve it against the api base URL. Phase-1 single-user: the
-// api resolves the local user server-side, so there's no auth header here.
+// (+ query); we resolve it against the api's /api gateway mount — at root
+// paths the gateway gives /voice/* to the voice-daemon proxy (gateway.ts), so
+// root dispatch would break the `speak` tool. Concatenate rather than
+// new URL(path, base): an absolute path REPLACES a prefix baked into the
+// base. Phase-1 single-user: the api resolves the local user server-side, so
+// there's no auth header here.
 function createFetchDispatch(apiUrl: string): FetchDispatch {
-  return (url, init) => fetch(new URL(url, apiUrl), init)
+  const apiMountUrl = apiUrl.replace(/\/+$/, '') + '/api'
+  return (url, init) => fetch(new URL(apiMountUrl + url), init)
 }
 
 async function main(): Promise<void> {

@@ -70,7 +70,9 @@ export function createJarvisWindow(
     open(): void {
       if (config.appPath !== undefined && existsSync(config.appPath)) {
         logger.info({ app: config.appPath }, 'opening jarvis overlay app')
-        run({ command: config.appPath, args: [] }, 'open')
+        // A wake opens ONLY the overlay — --jarvis-only tells the shell to
+        // skip its main app window (apps/desktop src/main.rs).
+        run({ command: config.appPath, args: ['--jarvis-only'] }, 'open')
         return
       }
       logger.info({ url: config.url, browser: config.browser }, 'opening jarvis browser window')
