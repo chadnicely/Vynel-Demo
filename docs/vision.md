@@ -18,6 +18,14 @@ professionals, creators. They feel the AI wave and want a real assistant, but th
 `npm install -g`. **Easy to install, everything built in.** Vynel is emphatically *not* for
 developers — they already have Claude Code and Cursor.
 
+Concretely: **our community members.** They believe AI can help them, but every time they've tried —
+Claude Desktop, Claude Code, OpenClaw-style assistants — they hit a console they can't read, skills
+and project structures they can't manage, agents they don't understand, and they **give up**. The
+most powerful tool in the world is sitting right there and they can't use it. Vynel exists for
+exactly these people: it puts Claude Code's full power into their *daily work* without asking them to
+become technical. **Every product decision tests against one question: would a non-technical
+community member understand this screen, this word, this flow — without anyone explaining it?**
+
 ## 3. The gap we close
 
 To reach Claude's real power today (tools, memory, skills, channels, scheduled tasks) a person must
@@ -126,6 +134,10 @@ is simply the desktop-control plugin's tools attached to the running session.
 
 ## 8. The line we hold (non-goals)
 
+- **The tool is free; workshops fund it.** We earn by *teaching* — hands-on workshops that take a
+  community member from install to running their work on AI. Vynel itself is never the thing we
+  sell, so the product is never bent toward extraction; it is bent toward the person learning it.
+  Accounts and access come through the community platform (workshop membership), not a checkout.
 - **Never resell AI models.** The user pays Anthropic; we never sit in that path.
 - **Never replace developer tools** (Cursor, Claude Code itself).
 - **No free-for-all marketplace** — curation is the value.

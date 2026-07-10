@@ -9,6 +9,38 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Paste or attach files and images in chat — and Claude actually receives them.** Paste a
+  screenshot, drop a PDF onto the message box, or pick files with the attach button; they ride the
+  message in the main chat and in every workspace room (images, PDF, Word, Excel, PowerPoint, text,
+  markdown, CSV, HTML, JSON — up to 6 files, 5 MB each). Sent messages show what rode along as quiet
+  chips; unsupported or oversized files are declined in plain words before anything is sent.
+
+- **The chat mic now types for you.** The little mic in the message box is dictation — talk and your
+  words appear in the box for you to read and send yourself. Nothing is sent until you press Send.
+  Talking WITH Claude stays one click away: the mic in the top bar opens the voice overlay, which
+  always appears mid-screen (the floating desktop orb now centers itself too).
+
+- **Memory has tags — and the special "context" tag Claude keeps for you.** Every memory can carry
+  a few short labels: pick from suggestions (context, preference, person, project, decision,
+  routine, reminder, note), reuse what you've coined before, or type a new one. Tag a memory
+  **context** and it becomes part of what Claude always knows in that workspace — every fresh
+  conversation starts from those facts, and Claude is instructed to keep them current (updating a
+  standing fact instead of piling up duplicates). A memory can also be imported straight **from a
+  file** — pick a document and its text is remembered, tags and all.
+
+### Fixed
+
+- **Knowledge folders actually index now — and keep indexing after a restart.** Two invisible gaps
+  made "add a folder" look dead: folder watchers were never re-opened when the app restarted, and
+  the background embedding step never ran in the desktop app at all (it lived in a worker process
+  nothing launched). Both now run inside the app itself: sources re-index on boot (catching files
+  changed while the app was closed), file changes index live, and search embeddings generate within
+  a minute — for knowledge *and* memory. Each knowledge source row now shows its real status ("12
+  files indexed · updated 2m ago") instead of sitting silent, and single FILES can be added to the
+  vault, not just folders.
+
+### Added
+
 - **The knowledge vault and Claude's memory are now manageable in the app — globally or per
   workspace.** Knowledge: point Claude at any folder with a real folder browser and it indexes
   everything readable inside for search — sources live globally ("searchable everywhere") or in one

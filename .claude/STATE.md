@@ -1,9 +1,66 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-10.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-11.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-10): M4a BUILT + LIVE-SMOKED + GATE-GREEN (2107/4-skip) — reviewer running; then fold + commit; next: M4b (desktop sync + install)
+## ⏭ NEXT ACTION (2026-07-11): CHAD'S 5-FIX ROUND BUILT (voice UX · dictation · attachments · knowledge indexing · memory tags) — memory UI subagent finishing; then full gate → reviewer → commit prompt
+
+**Chad's ask (2026-07-11): vision refresh + 5 fixes. Vision updated (`docs/vision.md` §2 community
+members who bounced off Claude Desktop/Code/OpenClaw + the litmus question; §8 tool is FREE,
+WORKSHOPS fund it — accounts via the community platform, never a checkout).** Built, gate-green at
+each checkpoint (2151/4-skip after slice 4):
+1. **Top-bar mic = overlay, always MID-SCREEN** — in-app overlay was already centered; the floating
+   `/jarvis` window now parks CENTER (was bottom-right): `tauri-overlay-window.ts` `parkCenter()`.
+2. **Composer mic = DICTATION-only** — `use-dictation.ts` (wraps `createCommandRecognizer`; interim
+   words stream into the draft; `cancel()` guards send-races), ChatComposer `draft` = `defineModel`
+   + `voiceActive` pulse + `notice` line. Talking-with-Claude vs typing-by-voice now distinct.
+3. **Chat attachments END-TO-END, both scopes** — workspace pipeline existed but the UI dropped
+   files; the ROOT turn had no plumbing. Now: paste/drag-drop/picker → `turn-attachments.ts`
+   (client allowlist + 5MB caps, plain-words rejects) → widened MIME allowlist (+pdf/docx/xlsx/
+   pptx/text/csv/html/json) → root schema+core carry `attachedImages` (bytes persist under the
+   root's user-data D22 layout) → provider per-turn temp DIR keeps REAL filenames → `AttachmentChips`
+   on MessageRow + root transcript DTO. Deferred: inline thumbnails (serve-route hookup) · the
+   `attachedImages`→`attachments` rename sweep (43 files).
+4. **Knowledge indexing REAL on the desktop** — root causes: watchers never restored on restart AND
+   `apps/worker` (the only embeddings runner) is launched by NOTHING. Fix: `knowledge-indexing-service`
+   in local-api (boot watcher-restore + catch-up scan + 60s in-process embeddings tick). PLUS
+   single-FILE sources (`sourceKind`, migration 0003; `source-paths.ts`; picker lists files;
+   sdk rename `knowledge.addDirectory`→`addSource` — deliberate spec change) + per-source status
+   in the UI via `summarizeKnowledgeDocumentsBySource`.
+5. **Memory tags + `context` + file import** (module-notes plan built): `memory_tags` (migration
+   0004) · `context` = reserved behavioral tag — `loadWorkspaceContextForSession` injects ONLY
+   context-tagged entries once any exist (cap 50; fallback = old top-10-per-kind) ·
+   `MEMORY_AGENT_INSTRUCTIONS` teach save-context + UPDATE-don't-duplicate · MCP grew
+   `update_memory_entry` + `add_memory_from_file` + `list_memory_tags` · `GET /tags` · one-shot
+   FILE import (≤20k chars; bigger → "add to Knowledge" error; watched memory_sources = deliberate
+   follow-up) · `memory-maintenance-service` (memory embeddings were NEVER generated — no runner
+   registered anywhere; + daily purge).
+**Memory UI landed (subagent: MemoryTagsField/FilePickerField/AddMemoryDialog modes/MemorySection
+chips). Reviewer: APPROVE, 0 must-fix; should-fixes applied (memory MCP tools now capability-gated
+like knowledge — descriptor + spec test; failed file-reads surface in the composer notice; `:`
+filename guard; catch-up scan stop-flag). Chad's FIRST BOOT then caught a real one: transformers.js
+cached a TRUNCATED MiniLM download inside node_modules (my mock-less test run died mid-download) →
+"Protobuf parsing failed" ×50/min. Fixed 4-layer: `configureEmbeddingsCacheDir` →
+`.models/embeddings` (env `VYNEL_EMBEDDINGS_CACHE_DIR`, api+worker boot) · corrupt-cache
+self-healing (evict+retry-once, no poisoned promise) · both embed ops abort batch with ONE
+actionable error when the model itself is down · switched to q8 (~23 MB vs ~90; free — no vector
+ever generated anywhere; version suffix unchanged). LIVE-SMOKED: real 384-dim embedding via the new
+cache in 16 s. Full gate GREEN 2165/4-skip.**
+**Live-smoke catch #2 (Chad's real `search_knowledge` → "Permission denied"): `workspace_capabilities`
+is EMPTY on his box — nothing seeds rows, and no-row meant OFF, so knowledge tools (always) + memory
+tools (post-review-fix) + the memory session snapshot were ALL silently dead on every fresh install.
+Fixed: catalog gained `defaultEnabled: true` (memory + knowledge); `listEnabledCapabilities` +
+`listCapabilityStatusForWorkspace` resolve catalog-first (row = explicit toggle override, opt-out
+still wins) — no seeding, no migration, panel + composer can't disagree. Spec tests updated
+(deliberate spec change). Gate GREEN 2165/4-skip.**
+**⏭ REMAINING: prompt Chad to commit (suggest: feat splits per feature + fix(embeddings) +
+fix(capabilities) + docs; the PRE-EXISTING root package.json dev-script change [cloud-api in
+`pnpm dev`] is from the hub arc — its own `chore`) → Chad smoke: retry the knowledge search in a
+workspace chat (should answer now) · paste a screenshot in the MAIN chat · dictate with the composer
+mic · add a knowledge FILE · tag a memory "context" then open a fresh session and ask about it ·
+confirm the embedding tick logs a clean batch (no protobuf errors).**
+
+## (prev) NEXT ACTION (2026-07-10): M4a BUILT + LIVE-SMOKED + GATE-GREEN (2107/4-skip) — reviewer running; then fold + commit; next: M4b (desktop sync + install)
 
 **🏗 M4a HUB REGISTRY DONE — "the real marketplace data holder" (uncommitted; journal
 `.claude/journal/2026-07-10-hub-m4a-registry.md`).** Built exactly to the advisor-vetted plan

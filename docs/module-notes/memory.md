@@ -4,6 +4,28 @@ Memory is knowledge-like (owns entries + FTS/vec via embeddings). Pulled faithfu
 fan-out (wave 1); now doing the **improve** phase one-by-one: (1) vertical-slice + fold, then (2) the tagging
 + sources feature build.
 
+## ✅ BUILT (2026-07-11) — tags + `context` injection + file import
+
+Step 2 landed (Chad's direct ask, matching the plan below):
+- **`memory_tags` relation** (migration `0004_memory_tags`): open lowercase labels, ≤8/entry,
+  unique per (entry, tag); `normalizeMemoryTags` in `memory-tags.ts` is the one gate.
+  `DEFAULT_MEMORY_TAGS` are picker STARTERS, not an enum — the taxonomy grows in the wild.
+- **`context` is the reserved BEHAVIORAL tag** (`CONTEXT_MEMORY_TAG`):
+  `loadWorkspaceContextForSession` is now SELECTIVE — once any live entry wears `context`, those
+  entries ALONE (freshest first, cap 50) form the session-start snapshot; with none, the old
+  top-10-per-kind fallback keeps memory working pre-tags. `MEMORY_AGENT_INSTRUCTIONS` teaches the
+  agent to SAVE standing facts tagged `context` and to UPDATE (not duplicate) them —
+  `update_memory_entry` is now MCP-exposed (mutatingApproved) exactly for that.
+- **Memory from a FILE**: `importMemoryEntryFromFile` — one-shot import (md/txt/pdf/docx/html/csv/
+  json via `@vynel/indexer`), ≤20k chars (bigger → actionable error pointing at Knowledge),
+  `createdSource: 'file-import'`, taggable. Route `POST /entries/from-file` + MCP
+  `add_memory_from_file`. A WATCHED `memory_sources` registry stays the deliberate follow-up.
+- **Routes**: `GET /tags` (in-use ∪ defaults, `context` first; MCP `list_memory_tags`) · create/
+  update carry `tags` · entry responses carry `tags: string[]`.
+- **`memory-maintenance-service`** (apps/local-api): embeddings tick 60 s + daily retention purge —
+  these jobs were never registered ANYWHERE (worker or api), so memory semantic search had been
+  silently FTS-only. Mirrors the knowledge-indexing-service pattern.
+
 ## Chad's vision — the gaps to BUILD (schema changes, after the vertical-slice lands green)
 > "We're gonna have tagging like `context` (carries context needed at session start) and one for normal
 > memory (what Claude stores under its memory). Tags can be ~100 types — we need to find the categories. User
