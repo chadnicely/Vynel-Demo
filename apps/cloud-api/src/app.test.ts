@@ -11,8 +11,10 @@ import type { CloudDatabase } from '@vynel/cloud-db'
 import {
   createAccessTokenIssuer,
   createAccessTokenVerifier,
+  createEntitlementTokenIssuer,
   type AccessTokenIssuer,
   type AccessTokenVerifier,
+  type EntitlementTokenIssuer,
   type AccountMailSender,
   type SetPasswordLinkMail,
 } from '@vynel/accounts'
@@ -23,6 +25,7 @@ const DEVICE = { deviceName: 'Chad-PC', devicePlatform: 'windows', appVersion: '
 
 let accessTokens: AccessTokenIssuer
 let accessTokenVerifier: AccessTokenVerifier
+let entitlements: EntitlementTokenIssuer
 
 beforeAll(async () => {
   const { privateKey, publicKey } = await generateKeyPair('EdDSA', { extractable: true })
@@ -32,6 +35,10 @@ beforeAll(async () => {
   })
   accessTokenVerifier = await createAccessTokenVerifier({
     publicKeyPem: await exportSPKI(publicKey),
+  })
+  entitlements = await createEntitlementTokenIssuer({
+    privateKeyPem: await exportPKCS8(privateKey),
+    keyId: 'test-key',
   })
 })
 
@@ -54,6 +61,7 @@ function buildApp(db: CloudDatabase, mail: AccountMailSender): Hono {
     logger: pino({ level: 'silent' }),
     accessTokens,
     accessTokenVerifier,
+    entitlements,
     mail,
     linkBaseUrl: 'https://hub.test',
     adminToken: ADMIN_TOKEN,

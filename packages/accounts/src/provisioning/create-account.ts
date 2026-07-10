@@ -7,22 +7,12 @@ import { ConflictError } from '@vynel/errors'
 import type { CloudDatabase } from '@vynel/cloud-db'
 import { findAccountByEmail, insertAccount } from '@vynel/cloud-db/repositories/accounts'
 import { issueSetPasswordLink, type SetPasswordLinkDeps } from '../credentials/set-password-links.js'
+import { isUniqueViolation } from './unique-violation.js'
 
 export interface CreateProvisionedAccountInput {
   readonly email: string
   readonly displayName: string
   readonly platformUserId?: string
-}
-
-// Postgres unique-violation (23505) — drizzle may wrap the driver error, so
-// walk the cause chain.
-function isUniqueViolation(error: unknown): boolean {
-  let current: unknown = error
-  while (current !== null && typeof current === 'object') {
-    if ((current as { code?: unknown }).code === '23505') return true
-    current = (current as { cause?: unknown }).cause
-  }
-  return false
 }
 
 export async function createProvisionedAccount(

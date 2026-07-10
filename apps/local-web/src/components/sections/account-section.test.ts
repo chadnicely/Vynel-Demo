@@ -85,6 +85,8 @@ describe("AccountSection", () => {
           email: "chad@vynel.app",
           displayName: "Chad",
           checkedAt: "2026-07-10T09:00:00.000Z",
+          tier: "pro",
+          features: ["channels", "schedules", "knowledge", "memory"],
         }),
         listDevices: async () => ({
           devices: [
@@ -104,9 +106,47 @@ describe("AccountSection", () => {
 
     expect(wrapper.text()).toContain("Chad");
     expect(wrapper.text()).toContain("chad@vynel.app");
+    expect(wrapper.find(".tier-chip").text()).toBe("Pro");
     expect(wrapper.text()).toContain("KLONE desktop");
     expect(wrapper.text()).toContain("MacBook");
     expect(wrapper.find(".add-button").text()).toContain("Sign out");
+  });
+
+  it("shows the plan chip on the offline card only while the grace window holds", async () => {
+    const inGrace = {
+      hub: {
+        getSession: async () => ({
+          kind: "offline",
+          email: "chad@vynel.app",
+          displayName: "Chad",
+          tier: "basic",
+          features: ["channels"],
+        }),
+      },
+    } as unknown as VynelClient;
+
+    const graceWrapper = mountAccount(inGrace);
+    await flushPromises();
+
+    expect(graceWrapper.text()).toContain("Can't reach the hub");
+    expect(graceWrapper.find(".tier-chip").text()).toBe("Basic");
+
+    const pastGrace = {
+      hub: {
+        getSession: async () => ({
+          kind: "offline",
+          email: null,
+          displayName: null,
+          tier: null,
+          features: [],
+        }),
+      },
+    } as unknown as VynelClient;
+
+    const expiredWrapper = mountAccount(pastGrace);
+    await flushPromises();
+
+    expect(expiredWrapper.find(".tier-chip").exists()).toBe(false);
   });
 
   it("revokes a device only after the explicit confirm click", async () => {
@@ -118,6 +158,8 @@ describe("AccountSection", () => {
           email: "chad@vynel.app",
           displayName: "Chad",
           checkedAt: "2026-07-10T09:00:00.000Z",
+          tier: "basic",
+          features: ["channels"],
         }),
         listDevices: async () => ({ devices: [makeDevice()] }),
         revokeDevice: async (deviceId: string) => {

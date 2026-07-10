@@ -82,3 +82,47 @@ export async function setAccountStatus(
     .set({ status: input.status, updatedAt: new Date() })
     .where(eq(accounts.id, input.accountId))
 }
+
+export async function setAccountTier(
+  db: CloudDatabase,
+  input: { readonly accountId: string; readonly tier: string; readonly tierExpiresAt: Date | null },
+): Promise<void> {
+  await db
+    .update(accounts)
+    .set({ tier: input.tier, tierExpiresAt: input.tierExpiresAt, updatedAt: new Date() })
+    .where(eq(accounts.id, input.accountId))
+}
+
+export async function findAccountByPlatformUserId(
+  db: CloudDatabase,
+  platformUserId: string,
+): Promise<AccountRow | null> {
+  const rows = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.platformUserId, platformUserId))
+    .limit(1)
+  return rows[0] ?? null
+}
+
+export async function updateAccountDisplayName(
+  db: CloudDatabase,
+  input: { readonly accountId: string; readonly displayName: string },
+): Promise<void> {
+  await db
+    .update(accounts)
+    .set({ displayName: input.displayName, updatedAt: new Date() })
+    .where(eq(accounts.id, input.accountId))
+}
+
+/** Stored lowercased (case-insensitive uniqueness). Throws a pg 23505 if the
+ * email now belongs to another account — the caller maps that to a conflict. */
+export async function updateAccountEmail(
+  db: CloudDatabase,
+  input: { readonly accountId: string; readonly email: string },
+): Promise<void> {
+  await db
+    .update(accounts)
+    .set({ email: input.email.toLowerCase(), updatedAt: new Date() })
+    .where(eq(accounts.id, input.accountId))
+}

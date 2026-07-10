@@ -15,6 +15,7 @@
   "dependencies": {
     "@node-rs/argon2": "^2.0.0",
     "@vynel/cloud-db": "workspace:*",
+    "@vynel/contracts": "workspace:*",
     "@vynel/errors": "workspace:*",
     "@vynel/logger": "workspace:*",
     "drizzle-orm": "^0.45.0",

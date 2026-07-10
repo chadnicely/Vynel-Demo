@@ -49,12 +49,14 @@ function toSessionResponse(session: AuthenticatedSession) {
     accessToken: session.accessToken,
     accessTokenExpiresAt: session.accessTokenExpiresAt.toISOString(),
     refreshToken: session.refreshToken,
+    entitlementToken: session.entitlementToken,
   }
 }
 
 export function buildAuthRoutes(options: CloudAppOptions) {
   const sessionDeps = {
     accessTokens: options.accessTokens,
+    entitlements: options.entitlements,
     ...(options.now !== undefined ? { now: options.now } : {}),
   }
   const linkDeps = {

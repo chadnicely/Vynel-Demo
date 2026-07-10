@@ -66,6 +66,13 @@ export async function signInWithPassword(
     email: account.email,
     displayName: account.displayName,
   })
+  const entitlementToken = await deps.entitlements.issue({
+    accountId: account.id,
+    email: account.email,
+    displayName: account.displayName,
+    tier: account.tier,
+    tierExpiresAt: account.tierExpiresAt,
+  })
   return {
     accountId: account.id,
     email: account.email,
@@ -73,5 +80,6 @@ export async function signInWithPassword(
     accessToken: access.token,
     accessTokenExpiresAt: access.expiresAt,
     refreshToken: refreshSecret,
+    entitlementToken,
   }
 }

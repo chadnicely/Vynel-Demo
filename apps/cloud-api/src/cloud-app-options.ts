@@ -3,16 +3,24 @@
 
 import type { StructuralLogger } from '@vynel/logger'
 import type { CloudDatabase } from '@vynel/cloud-db'
-import type { AccessTokenIssuer, AccessTokenVerifier, AccountMailSender } from '@vynel/accounts'
+import type {
+  AccessTokenIssuer,
+  AccessTokenVerifier,
+  AccountMailSender,
+  EntitlementTokenIssuer,
+} from '@vynel/accounts'
 
 export interface CloudAppOptions {
   readonly db: CloudDatabase
   readonly logger: StructuralLogger
   readonly accessTokens: AccessTokenIssuer
   readonly accessTokenVerifier: AccessTokenVerifier
+  readonly entitlements: EntitlementTokenIssuer
   readonly mail: AccountMailSender
   readonly linkBaseUrl: string
   readonly adminToken: string
+  /** HMAC secret for /platform/webhooks; absent = that surface answers 503. */
+  readonly platformWebhookSecret?: string
   /** Test seam — flows and rate-limit windows read time through this. */
   readonly now?: () => Date
 }

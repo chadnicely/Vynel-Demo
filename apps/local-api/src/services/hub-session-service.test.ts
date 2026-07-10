@@ -12,6 +12,7 @@ function buildHubSession(restore: HubSession['restore']): HubSession {
   return {
     restore,
     getStatus: vi.fn().mockReturnValue({ kind: 'signed-out' }),
+    getEntitlement: vi.fn().mockReturnValue(null),
     signIn: vi.fn(),
     signOut: vi.fn(),
     listDevices: vi.fn(),
@@ -31,12 +32,14 @@ describe('startHubSessionService', () => {
   it('checks at boot, retries offline fast, then settles to the slow cadence', async () => {
     const restore = vi
       .fn<HubSession['restore']>()
-      .mockResolvedValueOnce({ kind: 'offline', email: null, displayName: null })
+      .mockResolvedValueOnce({ kind: 'offline', email: null, displayName: null, tier: null, features: [] })
       .mockResolvedValue({
         kind: 'signed-in',
         email: 'c@e.com',
         displayName: 'C',
         checkedAt: 'now',
+        tier: 'basic',
+        features: ['channels'],
       })
     const service = startHubSessionService({
       hubSession: buildHubSession(restore),

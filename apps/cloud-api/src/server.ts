@@ -9,6 +9,7 @@ import { createCloudDatabase, closeCloudDatabase, runCloudMigrations } from '@vy
 import {
   createAccessTokenIssuer,
   createAccessTokenVerifier,
+  createEntitlementTokenIssuer,
   createLoggingAccountMailSender,
 } from '@vynel/accounts'
 import { loadEnv } from './env.js'
@@ -37,6 +38,14 @@ export async function boot(): Promise<void> {
     accessTokenVerifier: await createAccessTokenVerifier({
       publicKeyPem: env.CLOUD_ACCESS_TOKEN_PUBLIC_KEY,
     }),
+    entitlements: await createEntitlementTokenIssuer({
+      privateKeyPem: env.CLOUD_ACCESS_TOKEN_PRIVATE_KEY,
+      keyId: env.CLOUD_TOKEN_KEY_ID,
+      ttlSeconds: env.CLOUD_ENTITLEMENT_TTL_SECONDS,
+    }),
+    ...(env.CLOUD_PLATFORM_WEBHOOK_SECRET !== undefined
+      ? { platformWebhookSecret: env.CLOUD_PLATFORM_WEBHOOK_SECRET }
+      : {}),
     // The dev fallback: logs set-password links. Swapped for a real provider
     // (Resend/Postmark) at deploy — cloud-api.md §3.
     mail: createLoggingAccountMailSender(logger),

@@ -7,6 +7,16 @@ export {
 } from './tokens/access-token.js'
 export { hashPassword, verifyPassword } from './passwords/password-hash.js'
 export {
+  createEntitlementTokenIssuer,
+  resolveEffectiveTier,
+  type EntitlementTokenIssuer,
+} from './tokens/entitlement-token.js'
+export {
+  applyPlatformEvent,
+  type PlatformUserEvent,
+  type ApplyPlatformEventResult,
+} from './provisioning/apply-platform-event.js'
+export {
   signInWithPassword,
   type SignInWithPasswordInput,
 } from './sessions/sign-in.js'

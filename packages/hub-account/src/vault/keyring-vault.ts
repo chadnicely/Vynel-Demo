@@ -7,10 +7,19 @@ import { Entry } from '@napi-rs/keyring'
 import type { RefreshTokenVault } from './refresh-token-vault.js'
 
 const KEYRING_SERVICE = 'vynel-hub'
-const KEYRING_ACCOUNT = 'refresh-token'
 
 export function createKeyringRefreshTokenVault(): RefreshTokenVault {
-  const entry = new Entry(KEYRING_SERVICE, KEYRING_ACCOUNT)
+  return createKeyringVault('refresh-token')
+}
+
+/** The entitlement JWT gets its own entry: offline boots read tier +
+ * features + identity from it without the hub (cloud-api.md §4). */
+export function createKeyringEntitlementVault(): RefreshTokenVault {
+  return createKeyringVault('entitlement')
+}
+
+function createKeyringVault(entryName: string): RefreshTokenVault {
+  const entry = new Entry(KEYRING_SERVICE, entryName)
   return {
     async load() {
       try {

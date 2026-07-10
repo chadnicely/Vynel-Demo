@@ -35,6 +35,7 @@ import { agentsApp } from './routes/agents/index.js'
 import { providersApp } from './routes/providers/index.js'
 import { onboardingApp } from './routes/onboarding/index.js'
 import { firstLaunchGateMiddleware } from './middleware/first-launch-gate.js'
+import { featureGate } from './middleware/feature-gate.js'
 import { workspacesApp } from './routes/workspaces/index.js'
 import { hubApp } from './routes/hub/index.js'
 import { rootApp } from './routes/root/index.js'
@@ -103,6 +104,16 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   if (options.enableFirstLaunchGate) {
     app.use('*', firstLaunchGateMiddleware)
   }
+
+  // Tier gates (Chad's matrix: basic = channels only). Path-scoped BEFORE the
+  // route mounts; permissive without a live entitlement (feature-gate.ts).
+  // Channels + chat + workspaces + skills stay ungated (core assistant).
+  app.use('/workspaces/:workspaceId/schedules/*', featureGate('schedules'))
+  app.use('/schedules/*', featureGate('schedules'))
+  app.use('/workspaces/:workspaceId/knowledge/*', featureGate('knowledge'))
+  app.use('/workspaces/:workspaceId/memory/*', featureGate('memory'))
+  app.use('/workspaces/:workspaceId/marketplace/*', featureGate('marketplace'))
+  app.use('/voice/*', featureGate('voice'))
 
   app.onError((err, c) => {
     if (err instanceof VynelError) {

@@ -15,7 +15,8 @@
     "@napi-rs/keyring": "^1.1.0",
     "@vynel/contracts": "workspace:*",
     "@vynel/errors": "workspace:*",
-    "@vynel/logger": "workspace:*"
+    "@vynel/logger": "workspace:*",
+    "jose": "^5.9.0"
   },
   "devDependencies": {
     "pino": "^9.5.0",

@@ -1,12 +1,13 @@
 // The desktop's hub session — ONE stateful service per daemon process (a
 // closure store, shared by the /hub routes and the boot-check interval).
 // `restore()` IS the boot-time account-status check (cloud-api.md §4):
-//   online + good     -> refresh rotated, vault re-stored, signed-in
-//   online + 401      -> session dead server-side -> vault cleared, signed-out
-//   online + 403      -> account disabled -> vault cleared, LOCKED
-//   hub unreachable   -> offline; the vault keeps the token, the cached
-//                        identity carries the UI (grace semantics land in M3)
-// No app enforcement yet — locking waits for M3 entitlements.
+//   online + good     -> refresh rotated, entitlement re-issued, signed-in
+//   online + 401      -> session dead server-side -> vaults cleared, signed-out
+//   online + 403      -> account disabled -> vaults cleared, LOCKED
+//   hub unreachable   -> offline; the STORED entitlement (verified against
+//                        the pinned key) carries identity + tier + features
+//                        through the ~7-day grace window
+// Tier gating reads getEntitlement(); the /hub routes read getStatus().
 
 import { ForbiddenError, UnauthorizedError } from '@vynel/errors'
 import type { StructuralLogger } from '@vynel/logger'
@@ -16,11 +17,17 @@ import type {
   HubLinkStatus,
   HubSessionResponse,
 } from '@vynel/contracts/hub/hub-auth'
+import type { HubEntitlementClaims } from '@vynel/contracts/hub/entitlements'
 import type { HubClient } from '../client/hub-client.js'
 import type { RefreshTokenVault } from '../vault/refresh-token-vault.js'
+import type { EntitlementVerifier } from '../tokens/entitlement-verifier.js'
 
 export interface HubSession {
   getStatus(): HubLinkStatus
+  /** The verified claims backing the current status — null when signed out,
+   * locked, or past the offline grace window. The daemon's feature gate
+   * reads this. */
+  getEntitlement(): HubEntitlementClaims | null
   signIn(input: { email: string; password: string }): Promise<HubLinkStatus>
   signOut(): Promise<HubLinkStatus>
   restore(): Promise<HubLinkStatus>
@@ -31,6 +38,8 @@ export interface HubSession {
 export interface CreateHubSessionOptions {
   readonly client: HubClient
   readonly vault: RefreshTokenVault
+  readonly entitlementVault: RefreshTokenVault
+  readonly entitlements: EntitlementVerifier
   readonly device: HubDeviceDescription
   readonly logger: StructuralLogger
   readonly now?: () => Date
@@ -40,7 +49,7 @@ export function createHubSession(options: CreateHubSessionOptions): HubSession {
   const now = options.now ?? (() => new Date())
   let status: HubLinkStatus = { kind: 'signed-out' }
   let accessToken: string | null = null
-  let identity: { email: string; displayName: string } | null = null
+  let entitlement: HubEntitlementClaims | null = null
 
   // Every vault-mutating op runs strictly serialized: a daily restore() in
   // flight while the user signs out (or a boot restore racing a fresh
@@ -57,24 +66,51 @@ export function createHubSession(options: CreateHubSessionOptions): HubSession {
     return result
   }
 
-  function adoptSession(session: HubSessionResponse): HubLinkStatus {
+  async function adoptSession(session: HubSessionResponse): Promise<HubLinkStatus> {
     accessToken = session.accessToken
-    identity = { email: session.email, displayName: session.displayName }
+    try {
+      entitlement = await options.entitlements.verify(session.entitlementToken)
+      await options.entitlementVault.store(session.entitlementToken)
+    } catch {
+      // A hub/desktop key mismatch must not block sign-in — the account is
+      // proven; only the tier proof is missing (features read as none).
+      entitlement = null
+      options.logger.warn(
+        {},
+        'entitlement token failed verification — check VYNEL_HUB_PUBLIC_KEY matches the hub keypair',
+      )
+    }
     status = {
       kind: 'signed-in',
       email: session.email,
       displayName: session.displayName,
       checkedAt: now().toISOString(),
+      // null (not 'basic'/[]) when unproven: the UI reads null as "don't
+      // gate", matching the daemon's permissive-without-entitlement gate.
+      tier: entitlement?.tier ?? null,
+      features: entitlement ? [...entitlement.features] : null,
     }
     return status
   }
 
   async function dropSession(nextStatus: HubLinkStatus): Promise<HubLinkStatus> {
     accessToken = null
-    identity = null
+    entitlement = null
     await options.vault.clear()
+    await options.entitlementVault.clear()
     status = nextStatus
     return status
+  }
+
+  /** The stored entitlement, if still inside its grace window. */
+  async function loadStoredEntitlement(): Promise<HubEntitlementClaims | null> {
+    const token = await options.entitlementVault.load()
+    if (token === null) return null
+    try {
+      return await options.entitlements.verify(token)
+    } catch {
+      return null
+    }
   }
 
   async function restoreNow(): Promise<HubLinkStatus> {
@@ -93,16 +129,20 @@ export function createHubSession(options: CreateHubSessionOptions): HubSession {
       if (error instanceof ForbiddenError) {
         return dropSession({ kind: 'locked', message: error.message })
       }
-      // Unreachable hub (or a 5xx): NOT a verdict on the account — keep the
-      // token and carry the cached identity.
+      // Unreachable hub (or a 5xx): NOT a verdict on the account — the
+      // stored entitlement carries identity + features through the grace
+      // window (or reads as none once expired).
       options.logger.warn(
         { error: error instanceof Error ? error.message : String(error) },
         'hub unreachable during session restore — staying offline',
       )
+      entitlement = await loadStoredEntitlement()
       status = {
         kind: 'offline',
-        email: identity?.email ?? null,
-        displayName: identity?.displayName ?? null,
+        email: entitlement?.email ?? null,
+        displayName: entitlement?.displayName ?? null,
+        tier: entitlement?.tier ?? null,
+        features: entitlement?.features ?? [],
       }
       return status
     }
@@ -128,6 +168,9 @@ export function createHubSession(options: CreateHubSessionOptions): HubSession {
   return {
     getStatus() {
       return status
+    },
+    getEntitlement() {
+      return entitlement
     },
     signIn(input) {
       return serialized(async () => {

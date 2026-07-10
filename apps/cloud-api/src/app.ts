@@ -8,6 +8,8 @@ import { VynelError } from '@vynel/errors'
 import type { CloudAppOptions } from './cloud-app-options.js'
 import { buildAuthRoutes } from './routes/auth.js'
 import { buildAdminRoutes } from './routes/admin.js'
+import { buildPlatformRoutes } from './routes/platform.js'
+import { buildSetPasswordPage } from './routes/set-password-page.js'
 
 export function createCloudApp(options: CloudAppOptions): Hono {
   const app = new Hono()
@@ -23,6 +25,8 @@ export function createCloudApp(options: CloudAppOptions): Hono {
   app.get('/health', (c) => c.json({ status: 'ok' }))
   app.route('/auth', buildAuthRoutes(options))
   app.route('/admin', buildAdminRoutes(options))
+  app.route('/platform', buildPlatformRoutes(options))
+  app.route('/set-password', buildSetPasswordPage())
 
   return app
 }

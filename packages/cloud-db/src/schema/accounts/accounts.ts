@@ -24,6 +24,13 @@ export const accounts = pgTable(
     // at sign-in and refresh, enforced as app logic (not a DB enum: adding a
     // status must not need a migration).
     status: text().notNull().default('active'),
+    // The access tier ('basic' | 'pro' — app-enforced union, contracts
+    // TIER_FEATURES is the matrix). Set by the platform's tier.updated
+    // webhook / the admin fallback; stamped into the entitlement JWT.
+    tier: text().notNull().default('basic'),
+    // Null = no expiry (until the platform says otherwise). A lapsed term
+    // means the entitlement stamps `basic` regardless of `tier`.
+    tierExpiresAt: timestamp({ withTimezone: true, mode: 'date' }),
     createdAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },

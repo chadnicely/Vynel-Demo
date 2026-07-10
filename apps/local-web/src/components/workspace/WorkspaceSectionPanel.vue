@@ -10,10 +10,12 @@ import {
   Sparkles,
 } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
+import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
 import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
 import { useMarketplaceItems } from "../../composables/marketplace/use-marketplace-items.js";
 import ChannelsSection from "../sections/ChannelsSection.vue";
 import KnowledgeSection from "../sections/KnowledgeSection.vue";
+import LockedFeatureCard from "../sections/LockedFeatureCard.vue";
 import MemorySection from "../sections/MemorySection.vue";
 import SchedulesSection from "../sections/SchedulesSection.vue";
 import { WORKSPACE_SECTIONS } from "./workspace-sections.js";
@@ -48,6 +50,10 @@ const sectionMeta = computed(
     WORKSPACE_SECTIONS.find((row) => row.id === props.section) ?? FALLBACK_META,
 );
 
+// Tier gating: a locked section renders the upgrade card in place of its
+// component — the drawer item stays visible, so the lock is discoverable.
+const { isLocked } = useHubFeatures();
+
 // Each section fetches only while it's the active drawer panel — the composable
 // passes `enabled` through to vue-query, so the four inactive reads stay idle.
 const workspaceId = () => props.workspaceId;
@@ -56,9 +62,10 @@ const skillsQuery = useInstalledSkills(
   workspaceId,
   computed(() => props.section === "skills"),
 );
+// A locked marketplace never asks for rows the daemon would answer with 403.
 const marketplaceQuery = useMarketplaceItems(
   workspaceId,
-  computed(() => props.section === "marketplace"),
+  computed(() => props.section === "marketplace" && !isLocked("marketplace")),
 );
 
 const skills = computed(() => skillsQuery.data.value ?? []);
@@ -72,17 +79,31 @@ const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
     v-if="props.section === 'channels'"
     :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
   />
-  <SchedulesSection
-    v-else-if="props.section === 'schedules'"
-    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
-  />
-  <KnowledgeSection
-    v-else-if="props.section === 'knowledge'"
-    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
-  />
-  <MemorySection
-    v-else-if="props.section === 'memory'"
-    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  <template v-else-if="props.section === 'schedules'">
+    <LockedFeatureCard v-if="isLocked('schedules')" feature-label="Schedules" />
+    <SchedulesSection
+      v-else
+      :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+    />
+  </template>
+  <template v-else-if="props.section === 'knowledge'">
+    <LockedFeatureCard v-if="isLocked('knowledge')" feature-label="Knowledge" />
+    <KnowledgeSection
+      v-else
+      :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+    />
+  </template>
+  <template v-else-if="props.section === 'memory'">
+    <LockedFeatureCard v-if="isLocked('memory')" feature-label="Memory" />
+    <MemorySection
+      v-else
+      :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+    />
+  </template>
+
+  <LockedFeatureCard
+    v-else-if="props.section === 'marketplace' && isLocked('marketplace')"
+    feature-label="Marketplace"
   />
 
   <div v-else class="section-panel">
@@ -105,7 +126,9 @@ const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
           <p class="row-title">
             {{ skill.definition?.displayName ?? skill.skillId }}
           </p>
-          <p class="row-sub">{{ skill.definition?.oneLineDescription ?? "" }}</p>
+          <p class="row-sub">
+            {{ skill.definition?.oneLineDescription ?? "" }}
+          </p>
         </div>
         <span class="pill" :class="skill.isEnabled ? 'is-on' : 'is-off'">
           {{ skill.isEnabled ? "On" : "Off" }}

@@ -10,17 +10,21 @@ import { setAccountStatus } from '@vynel/cloud-db/repositories/accounts'
 import {
   createAccessTokenIssuer,
   createAccessTokenVerifier,
+  createEntitlementTokenIssuer,
   createProvisionedAccount,
   confirmSetPassword,
   type AccessTokenIssuer,
   type AccessTokenVerifier,
+  type EntitlementTokenIssuer,
   type AccountMailSender,
   type SetPasswordLinkMail,
 } from '@vynel/accounts'
 import {
+  createEntitlementVerifier,
   createHubClient,
   createHubSession,
   createInMemoryRefreshTokenVault,
+  type EntitlementVerifier,
 } from '@vynel/hub-account'
 import type { Hono } from 'hono'
 import { createCloudApp } from './app.js'
@@ -30,6 +34,8 @@ const silentLogger = pino({ level: 'silent' })
 
 let accessTokens: AccessTokenIssuer
 let accessTokenVerifier: AccessTokenVerifier
+let entitlements: EntitlementTokenIssuer
+let entitlementVerifier: EntitlementVerifier
 
 beforeAll(async () => {
   const { privateKey, publicKey } = await generateKeyPair('EdDSA', { extractable: true })
@@ -38,6 +44,13 @@ beforeAll(async () => {
     ttlSeconds: 3600,
   })
   accessTokenVerifier = await createAccessTokenVerifier({
+    publicKeyPem: await exportSPKI(publicKey),
+  })
+  entitlements = await createEntitlementTokenIssuer({
+    privateKeyPem: await exportPKCS8(privateKey),
+    keyId: 'test-key',
+  })
+  entitlementVerifier = await createEntitlementVerifier({
     publicKeyPem: await exportSPKI(publicKey),
   })
 })
@@ -62,6 +75,7 @@ describe('hub-account against the real hub', () => {
         logger: silentLogger,
         accessTokens,
         accessTokenVerifier,
+        entitlements,
         mail,
         linkBaseUrl: 'https://hub.test',
         adminToken: 'test-admin-token-0123456789abcdef-0123456789abcdef',
@@ -80,6 +94,8 @@ describe('hub-account against the real hub', () => {
       const session = createHubSession({
         client: createHubClient({ baseUrl: '', fetchFn: appFetch(app) }),
         vault,
+        entitlementVault: createInMemoryRefreshTokenVault(),
+        entitlements: entitlementVerifier,
         device: DEVICE,
         logger: silentLogger,
       })
@@ -121,6 +137,7 @@ describe('hub-account against the real hub', () => {
         logger: silentLogger,
         accessTokens,
         accessTokenVerifier,
+        entitlements,
         mail: { sendSetPasswordLink: async () => {} },
         linkBaseUrl: 'https://hub.test',
         adminToken: 'test-admin-token-0123456789abcdef-0123456789abcdef',
@@ -128,6 +145,8 @@ describe('hub-account against the real hub', () => {
       const session = createHubSession({
         client: createHubClient({ baseUrl: '', fetchFn: appFetch(app) }),
         vault: createInMemoryRefreshTokenVault(),
+        entitlementVault: createInMemoryRefreshTokenVault(),
+        entitlements: entitlementVerifier,
         device: DEVICE,
         logger: silentLogger,
       })

@@ -35,6 +35,17 @@ export const EnvSchema = z.object({
   CLOUD_ACCESS_TOKEN_PRIVATE_KEY: base64Pem,
   CLOUD_ACCESS_TOKEN_PUBLIC_KEY: base64Pem,
   CLOUD_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(3600),
+  // The `kid` stamped on signed tokens — bump when rotating the keypair so
+  // pinned clients can overlap two keys without a breaking change.
+  CLOUD_TOKEN_KEY_ID: z.string().min(1).default('hub-1'),
+  CLOUD_ENTITLEMENT_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(7 * 24 * 60 * 60),
+  // HMAC secret shared with Chad's platform for /platform/webhooks. OPTIONAL:
+  // unset = the webhook surface answers 503 (admin provisioning still works).
+  CLOUD_PLATFORM_WEBHOOK_SECRET: z.string().min(32).optional(),
   // Bearer for the /admin fallback surface (manual provisioning). Long and
   // random; the platform webhook auth (M3) is separate.
   CLOUD_ADMIN_TOKEN: z.string().min(32),

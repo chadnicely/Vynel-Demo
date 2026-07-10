@@ -1,6 +1,7 @@
 // Shared shapes for the session flows (sign-in / rotate / devices).
 
 import type { AccessTokenIssuer } from '../tokens/access-token.js'
+import type { EntitlementTokenIssuer } from '../tokens/entitlement-token.js'
 
 // Sliding window re-stamped on every rotation — Chad's "log in once" call
 // (cloud-api.md §3: the LONG lifetime lives in the refresh token, never in
@@ -15,6 +16,7 @@ export interface DeviceDescription {
 
 export interface SessionDeps {
   readonly accessTokens: AccessTokenIssuer
+  readonly entitlements: EntitlementTokenIssuer
   readonly now?: () => Date
 }
 
@@ -26,6 +28,8 @@ export interface AuthenticatedSession {
   readonly accessTokenExpiresAt: Date
   /** The raw refresh secret — returned once, stored hashed. */
   readonly refreshToken: string
+  /** Signed tier+features proof, verified offline by the desktop (§4). */
+  readonly entitlementToken: string
 }
 
 export function refreshTokenExpiry(now: Date): Date {

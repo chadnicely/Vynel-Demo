@@ -15,6 +15,7 @@ export default defineConfig({
   casing: 'snake_case',
   schema: [
     './src/schema/accounts/accounts.ts',
+    './src/schema/accounts/platform-events.ts',
     '../accounts/src/schema/refresh-tokens.ts',
     '../accounts/src/schema/account-action-tokens.ts',
   ],

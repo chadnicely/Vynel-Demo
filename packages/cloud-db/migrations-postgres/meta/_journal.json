@@ -8,6 +8,20 @@
       "when": 1783652509476,
       "tag": "0000_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783658755588,
+      "tag": "0001_account_tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783661230674,
+      "tag": "0002_platform_events",
+      "breakpoints": true
     }
   ]
 }

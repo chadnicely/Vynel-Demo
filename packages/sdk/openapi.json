@@ -15545,13 +15545,30 @@
                         },
                         "checkedAt": {
                           "type": "string"
+                        },
+                        "tier": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "features": {
+                          "type": [
+                            "array",
+                            "null"
+                          ],
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       },
                       "required": [
                         "kind",
                         "email",
                         "displayName",
-                        "checkedAt"
+                        "checkedAt",
+                        "tier",
+                        "features"
                       ]
                     },
                     {
@@ -15588,12 +15605,26 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "tier": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "features": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       },
                       "required": [
                         "kind",
                         "email",
-                        "displayName"
+                        "displayName",
+                        "tier",
+                        "features"
                       ]
                     }
                   ]
@@ -15659,13 +15690,30 @@
                         },
                         "checkedAt": {
                           "type": "string"
+                        },
+                        "tier": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "features": {
+                          "type": [
+                            "array",
+                            "null"
+                          ],
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       },
                       "required": [
                         "kind",
                         "email",
                         "displayName",
-                        "checkedAt"
+                        "checkedAt",
+                        "tier",
+                        "features"
                       ]
                     },
                     {
@@ -15702,12 +15750,26 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "tier": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "features": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       },
                       "required": [
                         "kind",
                         "email",
-                        "displayName"
+                        "displayName",
+                        "tier",
+                        "features"
                       ]
                     }
                   ]
@@ -15804,13 +15866,30 @@
                         },
                         "checkedAt": {
                           "type": "string"
+                        },
+                        "tier": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "features": {
+                          "type": [
+                            "array",
+                            "null"
+                          ],
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       },
                       "required": [
                         "kind",
                         "email",
                         "displayName",
-                        "checkedAt"
+                        "checkedAt",
+                        "tier",
+                        "features"
                       ]
                     },
                     {
@@ -15847,12 +15926,26 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "tier": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "features": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       },
                       "required": [
                         "kind",
                         "email",
-                        "displayName"
+                        "displayName",
+                        "tier",
+                        "features"
                       ]
                     }
                   ]

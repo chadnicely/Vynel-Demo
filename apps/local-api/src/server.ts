@@ -15,8 +15,10 @@ import { getOrCreateLocalUser } from '@vynel/core/users'
 import { FileWatcherService } from '@vynel/knowledge'
 import { hostname } from 'node:os'
 import {
+  createEntitlementVerifier,
   createHubClient,
   createHubSession,
+  createKeyringEntitlementVault,
   createKeyringRefreshTokenVault,
   type HubSession,
 } from '@vynel/hub-account'
@@ -60,10 +62,14 @@ export async function boot(): Promise<void> {
   // token lives in the OS credential store, never a file.
   let hubSession: HubSession | undefined
   let hubSessionService: HubSessionService | undefined
-  if (env.VYNEL_HUB_URL !== undefined) {
+  if (env.VYNEL_HUB_URL !== undefined && env.VYNEL_HUB_PUBLIC_KEY !== undefined) {
     hubSession = createHubSession({
       client: createHubClient({ baseUrl: env.VYNEL_HUB_URL }),
       vault: createKeyringRefreshTokenVault(),
+      entitlementVault: createKeyringEntitlementVault(),
+      entitlements: await createEntitlementVerifier({
+        publicKeyPem: env.VYNEL_HUB_PUBLIC_KEY,
+      }),
       // appVersion is a dev placeholder until the D2 installer stamps real
       // release versions.
       device: { deviceName: hostname(), devicePlatform: process.platform, appVersion: '0.0.0' },

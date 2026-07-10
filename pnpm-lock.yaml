@@ -411,6 +411,9 @@ importers:
       '@vynel/cloud-db':
         specifier: workspace:*
         version: link:../cloud-db
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@vynel/errors':
         specifier: workspace:*
         version: link:../errors
@@ -691,6 +694,9 @@ importers:
       '@vynel/logger':
         specifier: workspace:*
         version: link:../logger
+      jose:
+        specifier: ^5.9.0
+        version: 5.10.0
     devDependencies:
       pino:
         specifier: ^9.5.0

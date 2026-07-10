@@ -6,8 +6,7 @@
 import { SignJWT, jwtVerify, importPKCS8, importSPKI } from 'jose'
 import type { KeyLike } from 'jose'
 import { UnauthorizedError } from '@vynel/errors'
-
-const ACCESS_TOKEN_ISSUER = 'vynel-hub'
+import { HUB_TOKEN_ISSUER, HUB_ACCESS_TOKEN_USE } from '@vynel/contracts/hub/entitlements'
 
 export interface AccessTokenClaims {
   readonly accountId: string
@@ -31,10 +30,14 @@ export async function createAccessTokenIssuer(options: {
   return {
     async issue(claims) {
       const expiresAt = new Date(Date.now() + options.ttlSeconds * 1000)
-      const token = await new SignJWT({ email: claims.email, displayName: claims.displayName })
+      const token = await new SignJWT({
+        email: claims.email,
+        displayName: claims.displayName,
+        token_use: HUB_ACCESS_TOKEN_USE,
+      })
         .setProtectedHeader({ alg: 'EdDSA' })
         .setSubject(claims.accountId)
-        .setIssuer(ACCESS_TOKEN_ISSUER)
+        .setIssuer(HUB_TOKEN_ISSUER)
         .setIssuedAt()
         .setExpirationTime(Math.floor(expiresAt.getTime() / 1000))
         .sign(privateKey)
@@ -50,9 +53,18 @@ export async function createAccessTokenVerifier(options: {
   return {
     async verify(token) {
       try {
-        const { payload } = await jwtVerify(token, publicKey, { issuer: ACCESS_TOKEN_ISSUER })
-        if (typeof payload.sub !== 'string' || typeof payload['email'] !== 'string') {
-          throw new Error('missing claims')
+        const { payload } = await jwtVerify(token, publicKey, {
+          issuer: HUB_TOKEN_ISSUER,
+          algorithms: ['EdDSA'],
+        })
+        // token_use MUST be 'access': the entitlement token shares this key +
+        // issuer and would otherwise authenticate as a 7-day access token.
+        if (
+          payload['token_use'] !== HUB_ACCESS_TOKEN_USE ||
+          typeof payload.sub !== 'string' ||
+          typeof payload['email'] !== 'string'
+        ) {
+          throw new Error('missing or wrong claims')
         }
         return {
           accountId: payload.sub,

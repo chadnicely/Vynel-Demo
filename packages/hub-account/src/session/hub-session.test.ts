@@ -14,6 +14,18 @@ import { createHubSession } from './hub-session.js'
 const DEVICE = { deviceName: 'Chad-PC', devicePlatform: 'windows', appVersion: '0.1.0' }
 const silentLogger = pino({ level: 'silent' })
 
+// A verifier that accepts the fake 'ent-1' token from sessionResponse().
+const fakeEntitlements = {
+  verify: vi.fn().mockResolvedValue({
+    accountId: 'acc-1',
+    email: 'chad@example.com',
+    displayName: 'Chad',
+    tier: 'pro',
+    features: ['channels', 'voice'],
+    expiresAtMs: Date.now() + 1_000_000,
+  }),
+}
+
 function sessionResponse(overrides: Partial<HubSessionResponse> = {}): HubSessionResponse {
   return {
     accountId: 'acc-1',
@@ -22,6 +34,7 @@ function sessionResponse(overrides: Partial<HubSessionResponse> = {}): HubSessio
     accessToken: 'access-1',
     accessTokenExpiresAt: new Date().toISOString(),
     refreshToken: 'refresh-2',
+    entitlementToken: 'ent-1',
     ...overrides,
   }
 }
@@ -42,6 +55,8 @@ describe('createHubSession', () => {
     const session = createHubSession({
       client: buildClient(),
       vault: createInMemoryRefreshTokenVault(),
+      entitlementVault: createInMemoryRefreshTokenVault(),
+      entitlements: fakeEntitlements,
       device: DEVICE,
       logger: silentLogger,
     })
@@ -51,7 +66,7 @@ describe('createHubSession', () => {
   it('restore rotates the vaulted token and lands signed-in', async () => {
     const vault = createInMemoryRefreshTokenVault('refresh-1')
     const client = buildClient()
-    const session = createHubSession({ client, vault, device: DEVICE, logger: silentLogger })
+    const session = createHubSession({ client, vault, entitlementVault: createInMemoryRefreshTokenVault(), entitlements: fakeEntitlements, device: DEVICE, logger: silentLogger })
     const status = await session.restore()
     expect(status).toMatchObject({ kind: 'signed-in', email: 'chad@example.com' })
     expect(client.refresh).toHaveBeenCalledWith({ refreshToken: 'refresh-1' })
@@ -63,6 +78,8 @@ describe('createHubSession', () => {
     const unauthorized = createHubSession({
       client: buildClient({ refresh: vi.fn().mockRejectedValue(new UnauthorizedError('expired')) }),
       vault: unauthorizedVault,
+      entitlementVault: createInMemoryRefreshTokenVault(),
+      entitlements: fakeEntitlements,
       device: DEVICE,
       logger: silentLogger,
     })
@@ -75,6 +92,8 @@ describe('createHubSession', () => {
         refresh: vi.fn().mockRejectedValue(new ForbiddenError('This account is disabled.')),
       }),
       vault: lockedVault,
+      entitlementVault: createInMemoryRefreshTokenVault(),
+      entitlements: fakeEntitlements,
       device: DEVICE,
       logger: silentLogger,
     })
@@ -94,12 +113,19 @@ describe('createHubSession', () => {
     const session = createHubSession({
       client: buildClient({ refresh }),
       vault,
+      entitlementVault: createInMemoryRefreshTokenVault(),
+      entitlements: fakeEntitlements,
       device: DEVICE,
       logger: silentLogger,
     })
     await session.restore() // signed-in, identity cached
     const offline = await session.restore()
-    expect(offline).toEqual({ kind: 'offline', email: 'chad@example.com', displayName: 'Chad' })
+    expect(offline).toMatchObject({
+      kind: 'offline',
+      email: 'chad@example.com',
+      displayName: 'Chad',
+      tier: 'pro',
+    })
     expect(await vault.load()).toBe('refresh-2')
   })
 
@@ -108,6 +134,8 @@ describe('createHubSession', () => {
     const session = createHubSession({
       client: buildClient({ signOut: vi.fn().mockRejectedValue(new TypeError('fetch failed')) }),
       vault,
+      entitlementVault: createInMemoryRefreshTokenVault(),
+      entitlements: fakeEntitlements,
       device: DEVICE,
       logger: silentLogger,
     })
@@ -122,7 +150,7 @@ describe('createHubSession', () => {
       .mockRejectedValueOnce(new UnauthorizedError('token expired'))
       .mockResolvedValue({ devices: [{ id: 'd1' }] })
     const client = buildClient({ listDevices })
-    const session = createHubSession({ client, vault, device: DEVICE, logger: silentLogger })
+    const session = createHubSession({ client, vault, entitlementVault: createInMemoryRefreshTokenVault(), entitlements: fakeEntitlements, device: DEVICE, logger: silentLogger })
     await session.restore()
     const devices = await session.listDevices()
     expect(devices).toEqual([{ id: 'd1' }])

@@ -8026,6 +8026,8 @@ export interface operations {
                         email: string;
                         displayName: string;
                         checkedAt: string;
+                        tier: string | null;
+                        features: string[] | null;
                     } | {
                         /** @constant */
                         kind: "locked";
@@ -8035,6 +8037,8 @@ export interface operations {
                         kind: "offline";
                         email: string | null;
                         displayName: string | null;
+                        tier: string | null;
+                        features: string[];
                     };
                 };
             };
@@ -8075,6 +8079,8 @@ export interface operations {
                         email: string;
                         displayName: string;
                         checkedAt: string;
+                        tier: string | null;
+                        features: string[] | null;
                     } | {
                         /** @constant */
                         kind: "locked";
@@ -8084,6 +8090,8 @@ export interface operations {
                         kind: "offline";
                         email: string | null;
                         displayName: string | null;
+                        tier: string | null;
+                        features: string[];
                     };
                 };
             };
@@ -8130,6 +8138,8 @@ export interface operations {
                         email: string;
                         displayName: string;
                         checkedAt: string;
+                        tier: string | null;
+                        features: string[] | null;
                     } | {
                         /** @constant */
                         kind: "locked";
@@ -8139,6 +8149,8 @@ export interface operations {
                         kind: "offline";
                         email: string | null;
                         displayName: string | null;
+                        tier: string | null;
+                        features: string[];
                     };
                 };
             };

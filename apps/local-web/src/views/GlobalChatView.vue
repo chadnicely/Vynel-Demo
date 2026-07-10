@@ -11,9 +11,11 @@ import MenuPanel from "../components/shell/MenuPanel.vue";
 import AccountSection from "../components/sections/AccountSection.vue";
 import ChannelsSection from "../components/sections/ChannelsSection.vue";
 import KnowledgeSection from "../components/sections/KnowledgeSection.vue";
+import LockedFeatureCard from "../components/sections/LockedFeatureCard.vue";
 import MemorySection from "../components/sections/MemorySection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
 import { useChannels } from "../composables/channels/use-channels.js";
+import { useHubFeatures } from "../composables/hub/use-hub-features.js";
 import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
@@ -64,6 +66,10 @@ function isGlobalSection(view: unknown): view is GlobalSectionId {
 const ui = useUiStore();
 const shell = ui.globalChat;
 const sessionViewer = useSessionViewerStore();
+
+// Tier gating: a locked section renders the upgrade card in place of its
+// component — the menu item stays visible, so the lock is discoverable.
+const { isLocked } = useHubFeatures();
 
 const continuingQuery = useContinuingConversation(() => GLOBAL_SCOPE);
 
@@ -227,21 +233,34 @@ function openContinuous() {
       </EmptyState>
     </div>
 
-    <div v-else-if="isGlobalSection(shell.mainView)" class="canvas section-view">
+    <div
+      v-else-if="isGlobalSection(shell.mainView)"
+      class="canvas section-view"
+    >
       <div class="section-column">
         <ChannelsSection
           v-if="shell.mainView === 'channels'"
           :scope="{ kind: 'global' }"
         />
-        <SchedulesSection
-          v-else-if="shell.mainView === 'schedules'"
-          :scope="{ kind: 'global' }"
-        />
-        <KnowledgeSection
-          v-else-if="shell.mainView === 'knowledge'"
-          :scope="{ kind: 'global' }"
-        />
+        <template v-else-if="shell.mainView === 'schedules'">
+          <LockedFeatureCard
+            v-if="isLocked('schedules')"
+            feature-label="Schedules"
+          />
+          <SchedulesSection v-else :scope="{ kind: 'global' }" />
+        </template>
+        <template v-else-if="shell.mainView === 'knowledge'">
+          <LockedFeatureCard
+            v-if="isLocked('knowledge')"
+            feature-label="Knowledge"
+          />
+          <KnowledgeSection v-else :scope="{ kind: 'global' }" />
+        </template>
         <AccountSection v-else-if="shell.mainView === 'account'" />
+        <LockedFeatureCard
+          v-else-if="isLocked('memory')"
+          feature-label="Memory"
+        />
         <MemorySection v-else :scope="{ kind: 'global' }" />
       </div>
     </div>
@@ -276,7 +295,9 @@ function openContinuous() {
             v-if="delegation.partialSessionId"
             type="button"
             class="processing-chip"
-            :style="{ '--accent': workspaceAccentVar(delegation.workspaceName) }"
+            :style="{
+              '--accent': workspaceAccentVar(delegation.workspaceName),
+            }"
             @click="sessionViewer.open(delegation.partialSessionId)"
           >
             <PresenceDot state="live" />
@@ -375,7 +396,8 @@ function openContinuous() {
    panel while the task is still running. */
 .processing-chip {
   appearance: none;
-  border: 1px solid color-mix(in srgb, var(--accent, var(--gold)) 38%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--accent, var(--gold)) 38%, transparent);
   margin: 0;
   display: inline-flex;
   align-items: center;

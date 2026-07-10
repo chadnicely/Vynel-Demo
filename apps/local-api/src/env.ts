@@ -78,6 +78,22 @@ export const EnvSchema = z.object({
   // OPTIONAL: unset = hub features off (the /hub routes answer
   // `not-configured`), so dev without a hub keeps working.
   VYNEL_HUB_URL: z.string().url().optional(),
+  // The hub's PINNED public key (base64-encoded SPKI PEM — the same value as
+  // the hub's CLOUD_ACCESS_TOKEN_PUBLIC_KEY). Verifies entitlement tokens
+  // OFFLINE; required whenever a hub is configured. D2's installer bakes it.
+  VYNEL_HUB_PUBLIC_KEY: z
+    .string()
+    .transform((raw) => Buffer.from(raw, 'base64').toString('utf8'))
+    .optional(),
+}).superRefine((env, ctx) => {
+  if (env.VYNEL_HUB_URL !== undefined && env.VYNEL_HUB_PUBLIC_KEY === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['VYNEL_HUB_PUBLIC_KEY'],
+      message:
+        'VYNEL_HUB_URL is set but VYNEL_HUB_PUBLIC_KEY is not — copy the hub keypair’s public half (base64 PEM).',
+    })
+  }
 })
 
 export type Env = z.infer<typeof EnvSchema>

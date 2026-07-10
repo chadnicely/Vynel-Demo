@@ -12,12 +12,16 @@ export const HubLinkStatusSchema = z.discriminatedUnion('kind', [
     email: z.string(),
     displayName: z.string(),
     checkedAt: z.string(),
+    tier: z.string().nullable(),
+    features: z.array(z.string()).nullable(),
   }),
   z.object({ kind: z.literal('locked'), message: z.string() }),
   z.object({
     kind: z.literal('offline'),
     email: z.string().nullable(),
     displayName: z.string().nullable(),
+    tier: z.string().nullable(),
+    features: z.array(z.string()),
   }),
 ])
 

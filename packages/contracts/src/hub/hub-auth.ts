@@ -29,6 +29,9 @@ export interface HubSessionResponse {
   readonly accessToken: string
   readonly accessTokenExpiresAt: string
   readonly refreshToken: string
+  /** Signed tier+features proof (~7d exp) — the desktop verifies it against
+   * the pinned public key and keeps it for offline boots (§4). */
+  readonly entitlementToken: string
 }
 
 export interface HubDeviceView {
@@ -63,10 +66,19 @@ export type HubLinkStatus =
       readonly email: string
       readonly displayName: string
       readonly checkedAt: string
+      /** null when the entitlement token failed verification (a hub/desktop
+       * key mismatch): the account is proven, the tier isn't — the UI must
+       * not gate on an unproven tier, and the daemon stays permissive. */
+      readonly tier: string | null
+      readonly features: readonly string[] | null
     }
   | { readonly kind: 'locked'; readonly message: string }
   | {
       readonly kind: 'offline'
       readonly email: string | null
       readonly displayName: string | null
+      /** From the stored entitlement while it's inside the grace window;
+       * null once it expired (features then read as none). */
+      readonly tier: string | null
+      readonly features: readonly string[]
     }

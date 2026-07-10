@@ -9,6 +9,7 @@ import { setAccountStatus, findAccountByEmail } from '@vynel/cloud-db/repositori
 import {
   createAccessTokenIssuer,
   createAccessTokenVerifier,
+  createEntitlementTokenIssuer,
   createProvisionedAccount,
   confirmSetPassword,
   signInWithPassword,
@@ -54,7 +55,13 @@ beforeAll(async () => {
   accessTokenVerifier = await createAccessTokenVerifier({
     publicKeyPem: await exportSPKI(publicKey),
   })
-  sessionDeps = { accessTokens }
+  sessionDeps = {
+    accessTokens,
+    entitlements: await createEntitlementTokenIssuer({
+      privateKeyPem: await exportPKCS8(privateKey),
+      keyId: 'test-key',
+    }),
+  }
 })
 
 describe('the account lifecycle', () => {

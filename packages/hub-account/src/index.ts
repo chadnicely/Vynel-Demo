@@ -3,7 +3,14 @@ export {
   createInMemoryRefreshTokenVault,
   type RefreshTokenVault,
 } from './vault/refresh-token-vault.js'
-export { createKeyringRefreshTokenVault } from './vault/keyring-vault.js'
+export {
+  createKeyringRefreshTokenVault,
+  createKeyringEntitlementVault,
+} from './vault/keyring-vault.js'
+export {
+  createEntitlementVerifier,
+  type EntitlementVerifier,
+} from './tokens/entitlement-verifier.js'
 export {
   createHubSession,
   type HubSession,

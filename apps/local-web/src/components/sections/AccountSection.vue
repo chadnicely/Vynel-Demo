@@ -27,6 +27,11 @@ function isRevoking(deviceId: string): boolean {
     revokeDevice.isPending.value && revokeDevice.variables.value === deviceId
   );
 }
+
+// "basic" → "Basic": the chip reads as a word, not a wire value.
+function tierLabel(tier: string): string {
+  return tier.charAt(0).toUpperCase() + tier.slice(1);
+}
 </script>
 
 <template>
@@ -67,7 +72,14 @@ function isRevoking(deviceId: string): boolean {
           <UserRound :size="16" />
         </span>
         <div class="identity-main">
-          <p class="identity-name">{{ status.displayName }}</p>
+          <p class="identity-name">
+            {{ status.displayName }}
+            <!-- Absent when the entitlement couldn't be verified (key
+                 mismatch): show no tier rather than a wrong one. -->
+            <span v-if="status.tier !== null" class="tier-chip">{{
+              tierLabel(status.tier)
+            }}</span>
+          </p>
           <p class="identity-sub">{{ status.email }}</p>
         </div>
         <span class="identity-time">
@@ -117,6 +129,9 @@ function isRevoking(deviceId: string): boolean {
       <div class="status-main">
         <p class="status-title">
           {{ status.displayName ?? "Signed in" }}
+          <span v-if="status.tier !== null" class="tier-chip">{{
+            tierLabel(status.tier)
+          }}</span>
           <span v-if="status.email" class="status-email">{{
             status.email
           }}</span>
@@ -261,6 +276,17 @@ function isRevoking(deviceId: string): boolean {
 .status-email {
   color: var(--ink-3);
   font: 400 11px/1.5 var(--font-ui);
+}
+
+/* The plan chip — the sections' scope-chip shape, reading as a word
+   ("Basic" / "Pro"): the tier is a fact, not a status. */
+.tier-chip {
+  color: var(--ink-3);
+  font: 600 10px/1.5 var(--font-ui);
+  border: 1px solid var(--hair-strong);
+  border-radius: 99px;
+  padding: 0 7px;
+  flex: none;
 }
 
 .devices-block {
