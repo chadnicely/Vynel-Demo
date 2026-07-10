@@ -20,6 +20,7 @@ import { useContinuingConversation } from "../composables/chat/use-continuing-co
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import type { SessionScope } from "../composables/chat/session-scope.js";
+import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { useSessionViewerStore } from "../stores/session-viewer-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
@@ -169,13 +170,14 @@ function openFileOnCanvas(filePath: string) {
   shell.mainView = { kind: "file", filePath };
 }
 
-function sendMessage(text: string) {
+function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
   // A fresh conversation's session id arrives via `session-created` — the turn's
   // onSessionCreated binds the shell to it; no synchronous binding here.
   void chatTurn.startTurn({
     sessionId: activeSessionId.value,
     isContinuous: shell.target === "continuous",
     userText: text,
+    ...(attachments.length > 0 ? { attachments } : {}),
   });
 }
 

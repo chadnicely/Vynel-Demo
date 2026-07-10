@@ -38,6 +38,7 @@ export {
   readAttachedImageBytes,
   persistAttachedImages,
   imagesDirFor,
+  attachedImagesMetadataFor,
 } from './turn-consumption/attached-images.js'
 export type {
   AttachedImageBytes,

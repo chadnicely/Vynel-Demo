@@ -23,7 +23,12 @@
 
 import type { Database } from '@vynel/db'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
-import { consumeSessionEventStream, type StructuralLogger } from '@vynel/chat'
+import {
+  consumeSessionEventStream,
+  attachedImagesMetadataFor,
+  type AttachedImageBytes,
+  type StructuralLogger,
+} from '@vynel/chat'
 import { collectDelegationReportsForRoot, markDelegationsSurfacedToRoot } from '@vynel/orchestration'
 import { linkPrimarySessionToSdkSession } from '../continuity/index.js'
 import type { SessionPermissionMode } from '../session-mode.js'
@@ -60,6 +65,10 @@ export interface RunGlobalRootTurnCoreDeps {
 export interface RunGlobalRootTurnCoreInput {
   userId: string
   userMessageText: string
+  /** Attachments for this turn — inline base64; sent to the provider + persisted
+   *  for re-display under the root's hidden user-data cwd (same D22 layout the
+   *  workspace turn uses). */
+  attachedImages?: AttachedImageBytes[]
   model?: string
   /** The provider permission mode for the brain's OWN tools this turn (the caller maps
    *  the user-facing `SessionMode` via `toPermissionMode`). Omit for the pre-mode
@@ -137,10 +146,13 @@ export async function runGlobalRootTurnCore(
         markDelegationsSurfacedToRoot(deps.db, reports.jobIds, new Date())
       }
 
+      const attachedImages = input.attachedImages ?? []
+
       const sessionEventStream = provider.startChatSession({
         workspacePath: target.workspacePath,
         ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
         userMessageText: providerUserMessageText,
+        ...(attachedImages.length > 0 ? { attachedImages } : {}),
         ...(input.model !== undefined ? { model: input.model } : {}),
         permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
         // Empty native allowlist + the MCP wildcards => the routing tools (+ the
@@ -174,13 +186,17 @@ export async function runGlobalRootTurnCore(
         userMessageInput: {
           id: crypto.randomUUID(),
           body: input.userMessageText,
-          attachedImagesMetadata: null,
+          attachedImagesMetadata: attachedImagesMetadataFor(attachedImages),
+          ...(attachedImages.length > 0 ? { attachedImages } : {}),
           ...(input.originChannel !== undefined
             ? { originChannel: input.originChannel }
             : {}),
         },
         userId: input.userId,
         workspaceId: null,
+        // The root's hidden user-data cwd — attachment bytes persist under its
+        // D22 transcripts layout so a reopened brain thread can re-display them.
+        workspacePath: target.workspacePath,
         providerId: DEFAULT_PROVIDER_ID,
         isNewSession: resumeSessionId === undefined,
         newSessionOptions: { visibility: 'hidden', title: 'Global brain', skipAutoTitle: true },

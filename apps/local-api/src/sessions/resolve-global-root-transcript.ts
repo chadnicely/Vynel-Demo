@@ -11,9 +11,9 @@
 // session — so the union below covers both.
 //
 // Returns a LEAN, attributed DTO (not the raw chat_messages row): the transcript UI
-// needs only id + role + body + the brain-tree source identity. Keeping the row
-// shape out of the API boundary avoids leaking the full schema (tokens, timestamps,
-// image metadata) over the wire.
+// needs only id + role + body + the brain-tree source identity + the user row's
+// attachment references. Keeping the row shape out of the API boundary avoids
+// leaking the full schema (tokens, timestamps) over the wire.
 
 import {
   findPrimaryConversation,
@@ -31,6 +31,7 @@ import type {
   ChatMessageSourceKind,
   ChatMessageOriginChannel,
   ChatToolCall,
+  AttachedImageMetadata,
 } from '@vynel/chat/repositories'
 import type { Database } from '@vynel/db'
 
@@ -53,6 +54,9 @@ export type GlobalRootTranscriptMessage = {
   partialSessionId: string | null
   /** The inbound channel a USER row arrived through ("via Voice"); null = composer. */
   originChannel: ChatMessageOriginChannel | null
+  /** Attachment references on a USER row (filename/mimeType/sizeBytes) — the
+   *  transcript renders their chips on reload; null = no attachments. */
+  attachedImagesMetadata: AttachedImageMetadata[] | null
 }
 
 function toTranscriptMessage(message: ChatMessage): GlobalRootTranscriptMessage {
@@ -64,6 +68,7 @@ function toTranscriptMessage(message: ChatMessage): GlobalRootTranscriptMessage 
     sourceLabel: message.sourceLabel,
     partialSessionId: message.partialSessionId,
     originChannel: message.originChannel,
+    attachedImagesMetadata: message.attachedImagesMetadata,
   }
 }
 

@@ -17,11 +17,26 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { NotFoundError, ValidationError } from '@vynel/errors'
+import type { AttachedImageMetadata } from '../schema/chat-messages.js'
 
 export type AttachedImageBytes = {
   filename: string
   mimeType: string
   base64Data: string
+}
+
+/** The DB-row shape for a turn's attachments (filename/mimeType/sizeBytes —
+ *  references only, never bytes). ONE home — both turn cores (workspace +
+ *  global root) derive their `attachedImagesMetadata` here. */
+export function attachedImagesMetadataFor(
+  images: AttachedImageBytes[],
+): AttachedImageMetadata[] | null {
+  if (images.length === 0) return null
+  return images.map((image) => ({
+    filename: image.filename,
+    mimeType: image.mimeType,
+    sizeBytes: Buffer.byteLength(image.base64Data, 'base64'),
+  }))
 }
 
 export function imagesDirFor(workspacePath: string, sessionId: string): string {

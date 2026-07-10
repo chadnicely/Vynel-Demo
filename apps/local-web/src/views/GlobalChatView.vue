@@ -22,6 +22,7 @@ import { useContinuingConversation } from "../composables/chat/use-continuing-co
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
+import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../composables/users/use-current-user.js";
 import { useUiStore } from "../stores/ui-store.js";
@@ -172,13 +173,14 @@ const showsWelcome = computed(
   () => messages.value.length === 0 && activeTurn.value === null,
 );
 
-function sendMessage(text: string) {
+function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
   // A fresh conversation's session id arrives via `session-created` — the turn's
   // onSessionCreated binds the shell to it; no synchronous binding here.
   void chatTurn.startTurn({
     sessionId: activeSessionId.value,
     isContinuous: shell.target === "continuous",
     userText: text,
+    ...(attachments.length > 0 ? { attachments } : {}),
   });
 }
 

@@ -10,10 +10,31 @@ import { z } from 'zod'
 import { CHAT_MODEL_IDS } from '@vynel/contracts/chat/chat-models'
 import { SESSION_MODES, type SessionMode } from '@vynel/session'
 
-// ~5 MB once base64 is decoded (base64 inflates ~4/3). Per-image, generous for
-// pasted screenshots while bounding a single JSON turn POST.
+// ~5 MB once base64 is decoded (base64 inflates ~4/3). Per-attachment, generous
+// for pasted screenshots while bounding a single JSON turn POST.
 const MAX_IMAGE_BASE64_LENGTH = 7_000_000
-const MAX_ATTACHED_IMAGES = 6
+export const MAX_ATTACHED_IMAGES = 6
+
+// What the chat composer may attach. Images render inline for the agent as
+// `[Image: path]`; documents as `[Attached file: path]` — both read off disk by
+// the agent's own tools (handle-attached-images). Fail-closed: anything not
+// listed is rejected at the boundary (no .exe riding a chat turn). The UI maps
+// picked-file extensions to these (browsers report "" for e.g. `.md`).
+export const ATTACHMENT_MIME_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'application/pdf',
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'text/html',
+  'application/json',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+] as const
 
 // Derived from @vynel/session's canonical SESSION_MODES so the route enum can't
 // drift from the SessionMode union — a renamed/removed mode fails to compile here.
@@ -38,10 +59,8 @@ export const AttachedImageInputSchema = z.object({
         !name.split(/[/\\]/).some((segment) => segment === '..'),
       'Filename must not contain path separators, "..", or null bytes.',
     ),
-  // Restricted to what the provider's handle-attached-images supports — any
-  // other type would be written as `.bin` and not read as an image.
-  mimeType: z.enum(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
-  /** The image bytes, base64-encoded. */
+  mimeType: z.enum(ATTACHMENT_MIME_TYPES),
+  /** The attachment bytes, base64-encoded. */
   base64Data: z.string().min(1).max(MAX_IMAGE_BASE64_LENGTH),
 })
 

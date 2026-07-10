@@ -23,7 +23,7 @@ import type { Database } from '@vynel/db'
 import type { AiAgentProviderId, ChatMessageImage, ClaudePermissionMode } from '@vynel/providers'
 import {
   consumeSessionEventStream,
-  type AttachedImageMetadata,
+  attachedImagesMetadataFor,
   type AttachedImageBytes,
   type ChatTurnEvent,
   type StructuralLogger,
@@ -82,23 +82,15 @@ export async function* startChatTurn(
   const userMessageId = crypto.randomUUID()
   const attachedImages = input.attachedImages ?? []
 
-  // 1. Images reach the provider INLINE as base64 — it writes its own temp
-  //    files + inlines `[Image: path]` into the prompt (handle-attached-images).
-  //    The DB row stores only references (filename/mimeType/sizeBytes); the
-  //    bytes are persisted to `<workspace>/.vynel/transcripts/<sessionId>/images/`
-  //    by the consumer once the real session id exists (D22 + attached-images.ts).
-  const attachedImagesMetadata: AttachedImageMetadata[] | null =
-    attachedImages.length > 0
-      ? attachedImages.map((image) => ({
-          filename: image.filename,
-          mimeType: image.mimeType,
-          sizeBytes: Buffer.byteLength(image.base64Data, 'base64'),
-        }))
-      : null
+  // 1. Attachments reach the provider INLINE as base64 — it writes its own temp
+  //    files + inlines `[Image: path]` / `[Attached file: path]` into the prompt
+  //    (handle-attached-images). The DB row stores only references
+  //    (filename/mimeType/sizeBytes); the bytes are persisted to
+  //    `<workspace>/.vynel/transcripts/<sessionId>/images/` by the consumer once
+  //    the real session id exists (D22 + attached-images.ts).
+  const attachedImagesMetadata = attachedImagesMetadataFor(attachedImages)
   const chatMessageImages: ChatMessageImage[] | undefined =
-    attachedImages.length > 0
-      ? attachedImages.map((image) => ({ mimeType: image.mimeType, base64Data: image.base64Data }))
-      : undefined
+    attachedImages.length > 0 ? attachedImages : undefined
 
   // 2. Resolve provider + start the underlying session. Conditional spread
   //    for optional fields per `exactOptionalPropertyTypes` (MEMORY foot-gun).

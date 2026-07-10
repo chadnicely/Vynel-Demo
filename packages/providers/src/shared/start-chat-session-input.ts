@@ -3,6 +3,9 @@
 // See `docs/blueprints/providers/blueprint.md §7.1`.
 
 export type ChatMessageImage = {
+  /** Original filename — when present the temp file keeps it, so the agent
+   *  sees "report.pdf", not a UUID. Display-name only; sanitized before use. */
+  filename?: string
   mimeType: string
   base64Data: string
 }

@@ -4,6 +4,7 @@ import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
 import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
 import PresenceDot from "./PresenceDot.vue";
+import AttachmentChips from "./AttachmentChips.vue";
 import { workspaceAccentVar } from "../lib/workspace-color.js";
 
 const props = withDefaults(
@@ -151,7 +152,14 @@ const accentVar = computed(() => {
     />
 
     <MarkdownText v-if="isAssistant" :source="props.message.body" />
-    <p v-else class="plain-body">{{ props.message.body }}</p>
+    <p v-else-if="props.message.body" class="plain-body">
+      {{ props.message.body }}
+    </p>
+
+    <AttachmentChips
+      v-if="props.message.attachedImagesMetadata?.length"
+      :attachments="props.message.attachedImagesMetadata"
+    />
 
     <button
       v-if="linkedSessionId"

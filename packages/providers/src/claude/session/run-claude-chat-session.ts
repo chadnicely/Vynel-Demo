@@ -50,7 +50,6 @@ export async function* runClaudeChatSession(
   // rejects a literal `field: undefined` against an optional `field?: T`.
   const imageHandling = await handleAttachedImages({
     userMessageText: input.userMessageText,
-    workspacePath: input.workspacePath,
     ...(input.attachedImages !== undefined ? { attachedImages: input.attachedImages } : {}),
   })
   const abortController = new AbortController()

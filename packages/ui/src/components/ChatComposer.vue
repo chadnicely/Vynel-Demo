@@ -6,13 +6,15 @@ export interface ComposerOption {
 </script>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { nextTick, ref, watch } from "vue";
 import SelectChip from "./SelectChip.vue";
 
 // THE chat input, used by every chat surface: multiline draft, model + mode
-// chips, optional voice, file attachments, send/stop. Data-blind — option
-// lists and selections come in as props; the host wires them to real state.
-// Icons are inline SVGs so @vynel/ui stays icon-library-free.
+// chips, optional voice, file attachments (picker, paste, drag-drop),
+// send/stop. Data-blind — option lists and selections come in as props; the
+// host wires them to real state. The draft is an optional v-model so a host
+// can write into it (dictation types here). Icons are inline SVGs so
+// @vynel/ui stays icon-library-free.
 const props = defineProps<{
   placeholder?: string | undefined;
   /** True while a turn is streaming — the send button becomes Stop. */
@@ -22,6 +24,10 @@ const props = defineProps<{
   modes: ComposerOption[];
   modeId: string;
   showVoice?: boolean | undefined;
+  /** True while the host is dictating into the draft — the mic pulses. */
+  voiceActive?: boolean | undefined;
+  /** A quiet one-line message above the input (e.g. "mic access denied"). */
+  notice?: string | undefined;
 }>();
 
 const emit = defineEmits<{
@@ -32,10 +38,11 @@ const emit = defineEmits<{
   "update:modeId": [id: string];
 }>();
 
-const draft = ref("");
+const draft = defineModel<string>("draft", { default: "" });
 const attachments = ref<File[]>([]);
 const textareaElement = ref<HTMLTextAreaElement | null>(null);
 const fileInputElement = ref<HTMLInputElement | null>(null);
+const isDropTarget = ref(false);
 
 function autoGrow() {
   const element = textareaElement.value;
@@ -43,6 +50,9 @@ function autoGrow() {
   element.style.height = "auto";
   element.style.height = `${Math.min(element.scrollHeight, 168)}px`;
 }
+
+// Hosts write the draft programmatically (dictation) — grow for them too.
+watch(draft, () => void nextTick(autoGrow));
 
 function submit() {
   const text = draft.value.trim();
@@ -63,17 +73,66 @@ function onKeydown(event: KeyboardEvent) {
 
 function onFilesPicked(event: Event) {
   const input = event.target as HTMLInputElement;
-  attachments.value = [...attachments.value, ...Array.from(input.files ?? [])];
+  addFiles(Array.from(input.files ?? []));
   input.value = "";
+}
+
+function addFiles(files: File[]) {
+  if (files.length === 0) return;
+  attachments.value = [...attachments.value, ...files];
 }
 
 function removeAttachment(index: number) {
   attachments.value = attachments.value.filter((_, i) => i !== index);
 }
+
+// Pasting a screenshot or a copied file attaches it; plain text pastes as
+// usual (only intercept when the clipboard actually carries files).
+function onPaste(event: ClipboardEvent) {
+  const files = Array.from(event.clipboardData?.files ?? []);
+  if (files.length === 0) return;
+  event.preventDefault();
+  addFiles(files);
+}
+
+// Drag-drop onto the whole composer. dragenter/dragleave fire on every child
+// boundary — a depth counter keeps the highlight steady until the real leave.
+let dragDepth = 0;
+
+function dragCarriesFiles(event: DragEvent): boolean {
+  return event.dataTransfer?.types.includes("Files") ?? false;
+}
+
+function onDragEnter(event: DragEvent) {
+  if (!dragCarriesFiles(event)) return;
+  dragDepth += 1;
+  isDropTarget.value = true;
+}
+
+function onDragLeave(event: DragEvent) {
+  if (!dragCarriesFiles(event)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) isDropTarget.value = false;
+}
+
+function onDrop(event: DragEvent) {
+  dragDepth = 0;
+  isDropTarget.value = false;
+  addFiles(Array.from(event.dataTransfer?.files ?? []));
+}
 </script>
 
 <template>
-  <div class="chat-composer">
+  <div
+    class="chat-composer"
+    :class="{ 'is-drop-target': isDropTarget }"
+    @dragenter="onDragEnter"
+    @dragover.prevent
+    @dragleave="onDragLeave"
+    @drop.prevent="onDrop"
+  >
+    <p v-if="props.notice" class="composer-notice">{{ props.notice }}</p>
+
     <div v-if="attachments.length > 0" class="attachment-strip">
       <span
         v-for="(file, index) in attachments"
@@ -113,6 +172,7 @@ function removeAttachment(index: number) {
       :placeholder="props.placeholder ?? 'Ask for anything…'"
       @input="autoGrow"
       @keydown="onKeydown"
+      @paste="onPaste"
     />
 
     <div class="toolbar">
@@ -160,7 +220,8 @@ function removeAttachment(index: number) {
         v-if="props.showVoice"
         type="button"
         class="tool-button"
-        aria-label="Talk instead"
+        :class="{ 'is-voice-active': props.voiceActive }"
+        :aria-label="props.voiceActive ? 'Stop dictating' : 'Dictate a message'"
         @click="emit('voice')"
       >
         <svg
@@ -261,6 +322,16 @@ function removeAttachment(index: number) {
   border-color: var(--ink-3);
 }
 
+.chat-composer.is-drop-target {
+  border-color: var(--gold);
+}
+
+.composer-notice {
+  margin: 0;
+  color: var(--danger);
+  font: 500 11.5px/1.5 var(--font-ui);
+}
+
 .attachment-strip {
   display: flex;
   flex-wrap: wrap;
@@ -335,6 +406,29 @@ function removeAttachment(index: number) {
 .tool-button:hover {
   color: var(--ink-1);
   background: var(--row-hover);
+}
+
+/* Dictation live — gold is the "attention" accent; the pulse says recording. */
+.tool-button.is-voice-active {
+  color: var(--gold);
+  background: var(--row-active);
+  animation: dictation-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes dictation-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-button.is-voice-active {
+    animation: none;
+  }
 }
 
 .tool-button:focus-visible,

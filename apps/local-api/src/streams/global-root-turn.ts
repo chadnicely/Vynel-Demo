@@ -119,6 +119,9 @@ export async function streamGlobalRootTurn(
       {
         userId: c.var.user.id,
         userMessageText: input.userMessageText,
+        ...(input.attachedImages !== undefined && input.attachedImages.length > 0
+          ? { attachedImages: input.attachedImages }
+          : {}),
         ...(input.model !== undefined ? { model: input.model } : {}),
         ...(permissionMode !== undefined ? { permissionMode } : {}),
         // A voice turn also RECORDS its origin — the transcript shows "via Voice".

@@ -49,6 +49,66 @@ describe("ChatComposer", () => {
     expect(wrapper.emitted("update:modelId")).toEqual([["sonnet"]]);
   });
 
+  it("a host can write the draft from outside (dictation) and it still sends", async () => {
+    const wrapper = mount(ChatComposer, {
+      props: { ...baseProps, draft: "spoken words" },
+    });
+
+    const input = wrapper.find("textarea");
+    expect((input.element as HTMLTextAreaElement).value).toBe("spoken words");
+
+    await input.trigger("keydown", { key: "Enter" });
+    expect(wrapper.emitted("send")).toEqual([["spoken words", []]]);
+    expect(wrapper.emitted("update:draft")?.at(-1)).toEqual([""]);
+  });
+
+  it("the mic pulses while dictating and reads as a stop control", async () => {
+    const wrapper = mount(ChatComposer, {
+      props: { ...baseProps, showVoice: true, voiceActive: true },
+    });
+
+    const mic = wrapper.find('[aria-label="Stop dictating"]');
+    expect(mic.classes()).toContain("is-voice-active");
+
+    await mic.trigger("click");
+    expect(wrapper.emitted("voice")).toHaveLength(1);
+  });
+
+  it("renders the notice line when the host passes one", () => {
+    const wrapper = mount(ChatComposer, {
+      props: { ...baseProps, notice: "Microphone access was denied." },
+    });
+    expect(wrapper.find(".composer-notice").text()).toBe(
+      "Microphone access was denied.",
+    );
+  });
+
+  it("pasting files attaches them instead of inserting text", async () => {
+    const wrapper = mount(ChatComposer, { props: baseProps });
+    const file = new File(["png-bytes"], "screenshot.png", {
+      type: "image/png",
+    });
+
+    await wrapper.find("textarea").trigger("paste", {
+      clipboardData: { files: [file] },
+    });
+
+    expect(wrapper.find(".attachment-chip").text()).toContain("screenshot.png");
+  });
+
+  it("dropping files onto the composer attaches them", async () => {
+    const wrapper = mount(ChatComposer, { props: baseProps });
+    const file = new File(["pdf-bytes"], "report.pdf", {
+      type: "application/pdf",
+    });
+
+    await wrapper.find(".chat-composer").trigger("drop", {
+      dataTransfer: { files: [file], types: ["Files"] },
+    });
+
+    expect(wrapper.find(".attachment-chip").text()).toContain("report.pdf");
+  });
+
   it("picked files show as removable chips and ride the send", async () => {
     const wrapper = mount(ChatComposer, { props: baseProps });
     const fileInput = wrapper.find('input[type="file"]');

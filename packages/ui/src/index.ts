@@ -1,6 +1,7 @@
 // @vynel/ui — shared Vynel components + design tokens (public API re-exports only).
 // Consumed by apps/local-web today and the cloud web view later.
 export { default as ApprovalCard } from "./components/ApprovalCard.vue";
+export { default as AttachmentChips } from "./components/AttachmentChips.vue";
 export { default as ChatComposer } from "./components/ChatComposer.vue";
 export { default as ClaudeMark } from "./components/ClaudeMark.vue";
 export { default as CodeBlock } from "./components/CodeBlock.vue";

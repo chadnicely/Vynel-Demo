@@ -1,7 +1,8 @@
 // Zod schemas for the global-root routes (agent-base Slice 4). Per
 // `coding-standard.md` "Zod schemas" — XxxSchema suffix; API-internal lives beside
-// the route. The global root has no workspace, no attachments, and always continues
-// its own thread, so the request shape is minimal (text + optional model).
+// the route. The global root has no workspace and always continues its own
+// thread; attachments ride the same shape as the workspace turn (one home —
+// imported from the chat route's schemas).
 //
 // Response schemas (knowledge-routes precedent): the routes wire them into
 // `describeRoute` via `resolver` so the OpenAPI spec — and therefore the generated
@@ -13,7 +14,11 @@
 import { z } from 'zod'
 import { CHAT_MODEL_IDS } from '@vynel/contracts/chat/chat-models'
 import { SESSION_MODES, type SessionMode } from '@vynel/session'
-import { ChatToolCallSchema } from '../chat/schemas.js'
+import {
+  ChatToolCallSchema,
+  AttachedImageInputSchema,
+  MAX_ATTACHED_IMAGES,
+} from '../chat/schemas.js'
 
 export {
   ContinuingConversationResponseSchema,
@@ -24,22 +29,29 @@ export {
 // drift from the SessionMode union (the chat-schemas precedent).
 const SESSION_MODE_VALUES = SESSION_MODES.map((entry) => entry.mode) as [SessionMode, ...SessionMode[]]
 
-export const StartGlobalRootTurnRequestSchema = z.object({
-  /** The user's message to the global brain (a routing request). */
-  userMessageText: z.string().min(1).max(50000),
-  /** The model to run this turn. Validated against the curated allowlist. */
-  model: z
-    .string()
-    .refine((value) => CHAT_MODEL_IDS.includes(value), 'Unsupported model.')
-    .optional(),
-  // The user-facing session mode (surface-up step 1). Governs the brain's own tools
-  // this turn AND is threaded onto any delegation it enqueues (the mode header →
-  // `delegation_jobs.permissionMode`). Omitted → the brain's bypass default.
-  mode: z.enum(SESSION_MODE_VALUES).optional(),
-  // This turn came in by VOICE — the reply is spoken aloud, so the brain answers
-  // short + conversational + markdown-free (spoken-style directive appended).
-  voice: z.boolean().optional(),
-})
+export const StartGlobalRootTurnRequestSchema = z
+  .object({
+    // May be empty when at least one attachment rides along (image-only message);
+    // the cross-field refine below enforces "text or attachment".
+    userMessageText: z.string().max(50000),
+    attachedImages: z.array(AttachedImageInputSchema).max(MAX_ATTACHED_IMAGES).optional(),
+    /** The model to run this turn. Validated against the curated allowlist. */
+    model: z
+      .string()
+      .refine((value) => CHAT_MODEL_IDS.includes(value), 'Unsupported model.')
+      .optional(),
+    // The user-facing session mode (surface-up step 1). Governs the brain's own tools
+    // this turn AND is threaded onto any delegation it enqueues (the mode header →
+    // `delegation_jobs.permissionMode`). Omitted → the brain's bypass default.
+    mode: z.enum(SESSION_MODE_VALUES).optional(),
+    // This turn came in by VOICE — the reply is spoken aloud, so the brain answers
+    // short + conversational + markdown-free (spoken-style directive appended).
+    voice: z.boolean().optional(),
+  })
+  .refine(
+    (turn) => turn.userMessageText.trim().length > 0 || (turn.attachedImages?.length ?? 0) > 0,
+    'A turn needs text or at least one attachment.',
+  )
 
 /** Path param for the tier-1 delegation-trace read (brain-tree Ch3). */
 export const DelegationTraceParamSchema = z.object({
@@ -66,6 +78,9 @@ export const GlobalRootTranscriptMessageSchema = z.object({
   sourceLabel: z.string().nullable(),
   partialSessionId: z.string().nullable(),
   originChannel: z.enum(['voice', 'telegram', 'discord']).nullable(),
+  attachedImagesMetadata: z
+    .array(z.object({ filename: z.string(), mimeType: z.string(), sizeBytes: z.number() }))
+    .nullable(),
 })
 
 export const GlobalRootTranscriptResponseSchema = z.object({

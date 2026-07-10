@@ -2,6 +2,7 @@ import type { ChatTurnEvent } from "@vynel/contracts/chat/chat-http";
 import type { SessionMode } from "@vynel/session";
 import { SdkError, type VynelClient } from "@vynel/sdk";
 import type { SessionScope } from "./session-scope.js";
+import type { TurnAttachmentInput } from "./turn-attachments.js";
 import {
   frameToChatTurnEvent,
   parseSseFrame,
@@ -17,6 +18,8 @@ import {
 export interface StartTurnInput {
   scope: SessionScope;
   userMessageText: string;
+  /** Files/images riding this turn (already base64-encoded). Both scopes. */
+  attachments?: TurnAttachmentInput[];
   /** The Claude model to run this turn (a CHAT_MODEL_IDS value). Both scopes. */
   model?: string;
   /** Resume this specific SDK session (a history pick). Workspace scope only. */
@@ -41,6 +44,9 @@ export async function* streamChatTurnEvents(
       ? await client.POST("/root/turn", {
           body: {
             userMessageText: input.userMessageText,
+            ...(input.attachments?.length
+              ? { attachedImages: input.attachments }
+              : {}),
             ...(input.model ? { model: input.model } : {}),
             ...(input.mode ? { mode: input.mode } : {}),
             ...(input.voice ? { voice: true } : {}),
@@ -52,6 +58,9 @@ export async function* streamChatTurnEvents(
           params: { path: { workspaceId: input.scope.workspaceId } },
           body: {
             userMessageText: input.userMessageText,
+            ...(input.attachments?.length
+              ? { attachedImages: input.attachments }
+              : {}),
             ...(input.model ? { model: input.model } : {}),
             ...(input.continueRoot ? { continueRoot: true } : {}),
             ...(input.resumeSessionId

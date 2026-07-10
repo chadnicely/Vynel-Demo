@@ -3,13 +3,13 @@
 
 import { describe, expect, it } from 'vitest'
 import { readFile } from 'node:fs/promises'
+import { basename } from 'node:path'
 import { handleAttachedImages } from './handle-attached-images.js'
 
 describe('handleAttachedImages', () => {
-  it('returns the message unchanged with a no-op cleanup when there are no images', async () => {
+  it('returns the message unchanged with a no-op cleanup when there are no attachments', async () => {
     const result = await handleAttachedImages({
       userMessageText: 'hello',
-      workspacePath: '/tmp/ws',
     })
     expect(result.modifiedPrompt).toBe('hello')
     await result.cleanup()
@@ -20,7 +20,6 @@ describe('handleAttachedImages', () => {
     const result = await handleAttachedImages({
       userMessageText: 'look at this',
       attachedImages: [{ mimeType: 'image/png', base64Data }],
-      workspacePath: '/tmp/ws',
     })
 
     expect(result.modifiedPrompt).toContain('look at this')
@@ -32,5 +31,43 @@ describe('handleAttachedImages', () => {
 
     await result.cleanup()
     await expect(readFile(imagePath)).rejects.toThrow()
+  })
+
+  it('keeps the original filename and labels non-images as attached files', async () => {
+    const base64Data = Buffer.from('%PDF-fake').toString('base64')
+    const result = await handleAttachedImages({
+      userMessageText: 'summarize this',
+      attachedImages: [{ filename: 'report.pdf', mimeType: 'application/pdf', base64Data }],
+    })
+
+    const match = result.modifiedPrompt.match(/\[Attached file: (.+)\]/)
+    expect(match).not.toBeNull()
+    expect(basename(match![1]!)).toBe('report.pdf')
+    expect((await readFile(match![1]!)).toString()).toBe('%PDF-fake')
+
+    await result.cleanup()
+    await expect(readFile(match![1]!)).rejects.toThrow()
+  })
+
+  it('rejects an unsafe filename and de-collides duplicate names', async () => {
+    const base64Data = Buffer.from('bytes').toString('base64')
+    const result = await handleAttachedImages({
+      userMessageText: 'two files',
+      attachedImages: [
+        { filename: '../escape.png', mimeType: 'image/png', base64Data },
+        { filename: 'image.png', mimeType: 'image/png', base64Data },
+        { filename: 'image.png', mimeType: 'image/png', base64Data },
+      ],
+    })
+
+    const paths = [...result.modifiedPrompt.matchAll(/\[Image: (.+)\]/g)].map((m) => m[1]!)
+    expect(paths).toHaveLength(3)
+    // The traversal name fell back to a generated one, inside the temp dir.
+    expect(basename(paths[0]!)).toMatch(/^attachment-.+\.png$/)
+    // Duplicate names got distinct files.
+    expect(new Set(paths.map((p) => basename(p))).size).toBe(3)
+
+    await result.cleanup()
+    await expect(readFile(paths[1]!)).rejects.toThrow()
   })
 })

@@ -8,6 +8,7 @@ import { useVynel } from "../use-vynel.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { streamChatTurnEvents } from "./chat-turn-stream.js";
+import type { TurnAttachmentInput } from "./turn-attachments.js";
 import {
   applyChatTurnEvent,
   createActiveTurnView,
@@ -56,6 +57,7 @@ export function useChatTurn(options: {
     sessionId: string | null;
     isContinuous: boolean;
     userText: string;
+    attachments?: TurnAttachmentInput[];
   }) {
     if (isStreaming.value) return;
 
@@ -69,6 +71,7 @@ export function useChatTurn(options: {
       const stream = streamChatTurnEvents(vynel, {
         scope,
         userMessageText: input.userText,
+        ...(input.attachments?.length ? { attachments: input.attachments } : {}),
         model: ui.composerModelId,
         // Both scopes carry the composer's session mode — a global turn's mode also
         // governs any delegation the brain enqueues (surface-up step 1).
