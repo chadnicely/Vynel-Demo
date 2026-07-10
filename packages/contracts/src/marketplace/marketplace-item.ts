@@ -45,6 +45,10 @@ export type MarketplaceItem = {
   recommendedScope: SkillScope
   isOfficial: boolean
   installStatus: MarketplaceItemInstallStatus
+  /** Cloud items only: the access tier required to INSTALL. The UI shows a
+   * "Pro" badge from this vs the current entitlement (display only — the real
+   * gate is server-side fail-closed at download). Bundled items omit it. */
+  minimumTier?: 'basic' | 'pro'
 }
 
 export type MarketplaceFilterInput = {

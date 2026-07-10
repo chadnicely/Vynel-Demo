@@ -42,6 +42,7 @@ export function toHubCatalogItem(
     recommendedScope: item.recommendedScope,
     minimumTier,
     latestVersion: latest.version,
+    latestVersionSha256: latest.artifactSha256,
     releasedAt: latest.releasedAt.toISOString(),
     canInstall: tierMeetsMinimum(callerTier, minimumTier),
   }

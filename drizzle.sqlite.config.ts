@@ -36,6 +36,7 @@ export default defineConfig({
     '../knowledge/src/schema/chunks.ts',
     '../skills/src/schema/installed-skills.ts',
     '../skills/src/schema/skill-settings.ts',
+    '../marketplace/src/schema/cloud-catalog-cache.ts',
     './src/schema/files/file-activities.ts',
     '../channels/src/schema/channels.ts',
     '../channels/src/schema/channel-user-links.ts',

@@ -39,6 +39,9 @@ export interface HubCatalogItem {
   readonly recommendedScope: string | null
   readonly minimumTier: HubTier
   readonly latestVersion: string
+  /** sha256 of the latest version's artifact — the desktop caches this as the
+   * integrity anchor and compares it against the bytes it downloads (M4b). */
+  readonly latestVersionSha256: string
   readonly releasedAt: string
   /** Annotated per-caller from the caller's FRESH tier. Fail-open on browse:
    * false only means "shown, not installable" — the download route is the

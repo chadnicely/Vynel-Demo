@@ -2062,6 +2062,13 @@
                             ]
                           }
                         ]
+                      },
+                      "minimumTier": {
+                        "type": "string",
+                        "enum": [
+                          "basic",
+                          "pro"
+                        ]
                       }
                     },
                     "required": [
@@ -2279,6 +2286,13 @@
                             "versionInstalled"
                           ]
                         }
+                      ]
+                    },
+                    "minimumTier": {
+                      "type": "string",
+                      "enum": [
+                        "basic",
+                        "pro"
                       ]
                     }
                   },

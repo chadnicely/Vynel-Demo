@@ -18,6 +18,7 @@ import type {
   HubSessionResponse,
 } from '@vynel/contracts/hub/hub-auth'
 import type { HubEntitlementClaims } from '@vynel/contracts/hub/entitlements'
+import type { HubCatalogItem } from '@vynel/contracts/hub/catalog'
 import type { HubClient } from '../client/hub-client.js'
 import type { RefreshTokenVault } from '../vault/refresh-token-vault.js'
 import type { EntitlementVerifier } from '../tokens/entitlement-verifier.js'
@@ -33,6 +34,9 @@ export interface HubSession {
   restore(): Promise<HubLinkStatus>
   listDevices(): Promise<HubDeviceView[]>
   revokeDevice(deviceId: string): Promise<void>
+  /** The hub's cloud catalog, ridden on the access token (restore-and-retry
+   * on a stale token). Throws UnauthorizedError when not signed in. */
+  fetchCatalog(): Promise<readonly HubCatalogItem[]>
 }
 
 export interface CreateHubSessionOptions {
@@ -204,6 +208,10 @@ export function createHubSession(options: CreateHubSessionOptions): HubSession {
     },
     async revokeDevice(deviceId) {
       await withAccessToken((token) => options.client.revokeDevice(token, deviceId))
+    },
+    async fetchCatalog() {
+      const response = await withAccessToken((token) => options.client.getCatalog(token))
+      return response.items
     },
   }
 }

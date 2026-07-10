@@ -21,6 +21,7 @@ import type {
   HubSessionResponse,
   HubSignInRequest,
 } from '@vynel/contracts/hub/hub-auth'
+import type { HubCatalogResponse } from '@vynel/contracts/hub/catalog'
 
 export interface HubClient {
   signIn(request: HubSignInRequest): Promise<HubSessionResponse>
@@ -28,6 +29,7 @@ export interface HubClient {
   signOut(request: HubRefreshRequest): Promise<void>
   listDevices(accessToken: string): Promise<HubDevicesResponse>
   revokeDevice(accessToken: string, deviceId: string): Promise<void>
+  getCatalog(accessToken: string): Promise<HubCatalogResponse>
 }
 
 class HubRequestFailedError extends VynelError {
@@ -122,6 +124,10 @@ export function createHubClient(options: {
         method: 'DELETE',
         accessToken,
       })
+    },
+    async getCatalog(accessToken) {
+      const response = await request('/catalog', { method: 'GET', accessToken })
+      return (await response.json()) as HubCatalogResponse
     },
   }
 }

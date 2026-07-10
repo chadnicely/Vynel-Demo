@@ -33,6 +33,7 @@ function buildFakeHubSession(overrides: Partial<HubSession> = {}): HubSession {
     restore: vi.fn().mockResolvedValue({ kind: 'signed-out' }),
     listDevices: vi.fn().mockResolvedValue([]),
     revokeDevice: vi.fn().mockResolvedValue(undefined),
+    fetchCatalog: vi.fn().mockResolvedValue([]),
     ...overrides,
   }
 }

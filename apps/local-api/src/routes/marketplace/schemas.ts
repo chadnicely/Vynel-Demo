@@ -67,6 +67,8 @@ export const MarketplaceItemSchema = z.object({
   recommendedScope: SkillScopeSchema,
   isOfficial: z.boolean(),
   installStatus: MarketplaceItemInstallStatusSchema,
+  // Cloud items only — the UI's "Pro" badge (display); bundled items omit it.
+  minimumTier: z.enum(['basic', 'pro']).optional(),
 })
 
 export const ListMarketplaceItemsResponseSchema = z.array(MarketplaceItemSchema)

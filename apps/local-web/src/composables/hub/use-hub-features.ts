@@ -24,10 +24,22 @@ export function useHubFeatures() {
 
   const hasEntitlement = computed(() => entitledFeatures.value !== null);
 
+  // A live, proven Pro tier. An unknown tier (not-configured, signed-out,
+  // unproven key, offline past grace) reads as NOT pro — so a "Pro" badge on a
+  // pro-only item stays honest: the user genuinely can't install it yet.
+  const isPro = computed(() => {
+    const status = sessionQuery.data.value;
+    if (!status) return false;
+    if (status.kind === "signed-in" || status.kind === "offline") {
+      return status.tier === "pro";
+    }
+    return false;
+  });
+
   function isLocked(feature: HubFeatureKey): boolean {
     const features = entitledFeatures.value;
     return features !== null && !features.includes(feature);
   }
 
-  return { hasEntitlement, isLocked };
+  return { hasEntitlement, isPro, isLocked };
 }

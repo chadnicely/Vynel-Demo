@@ -58,6 +58,7 @@ describe("useHubFeatures", () => {
     await flushPromises();
 
     expect(features().hasEntitlement.value).toBe(true);
+    expect(features().isPro.value).toBe(false);
     expect(features().isLocked("channels")).toBe(false);
     expect(features().isLocked("schedules")).toBe(true);
     expect(features().isLocked("knowledge")).toBe(true);
@@ -85,6 +86,7 @@ describe("useHubFeatures", () => {
     await flushPromises();
 
     expect(features().hasEntitlement.value).toBe(true);
+    expect(features().isPro.value).toBe(true);
     expect(features().isLocked("schedules")).toBe(false);
     expect(features().isLocked("marketplace")).toBe(false);
     wrapper.unmount();
@@ -96,6 +98,7 @@ describe("useHubFeatures", () => {
       await flushPromises();
 
       expect(features().hasEntitlement.value).toBe(false);
+      expect(features().isPro.value).toBe(false);
       expect(features().isLocked("schedules")).toBe(false);
       expect(features().isLocked("memory")).toBe(false);
       wrapper.unmount();
@@ -113,6 +116,7 @@ describe("useHubFeatures", () => {
     await flushPromises();
 
     expect(features().hasEntitlement.value).toBe(true);
+    expect(features().isPro.value).toBe(false);
     expect(features().isLocked("channels")).toBe(false);
     expect(features().isLocked("knowledge")).toBe(true);
     wrapper.unmount();
@@ -129,6 +133,7 @@ describe("useHubFeatures", () => {
     await flushPromises();
 
     expect(features().hasEntitlement.value).toBe(false);
+    expect(features().isPro.value).toBe(false);
     expect(features().isLocked("schedules")).toBe(false);
     wrapper.unmount();
   });

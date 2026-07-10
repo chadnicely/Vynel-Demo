@@ -17,6 +17,7 @@ function buildHubSession(restore: HubSession['restore']): HubSession {
     signOut: vi.fn(),
     listDevices: vi.fn(),
     revokeDevice: vi.fn(),
+    fetchCatalog: vi.fn(),
   }
 }
 

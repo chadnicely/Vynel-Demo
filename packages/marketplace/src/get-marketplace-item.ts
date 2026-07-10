@@ -11,7 +11,7 @@
 // Spec: blueprint §5.4 + coding.md §6.3.
 
 import { NotFoundError } from '@vynel/errors'
-import { resolveCatalogSources } from '@vynel/contracts/marketplace/resolve-catalog-sources'
+import { resolveMergedCatalog } from './resolve-merged-catalog.js'
 import type { Database } from '@vynel/db'
 import type { MarketplaceItem } from '@vynel/contracts/marketplace/marketplace-item'
 import { annotateWithInstallStatus } from './annotate-with-install-status.js'
@@ -28,7 +28,7 @@ export function getMarketplaceItem(
   input: GetMarketplaceItemInput,
   deps: MarketplaceDeps,
 ): MarketplaceItem {
-  const catalogItems = resolveCatalogSources()
+  const catalogItems = resolveMergedCatalog(db)
   const item = catalogItems.find((i) => i.itemId === input.itemId)
   if (!item) throw new NotFoundError('marketplace-item', input.itemId)
 

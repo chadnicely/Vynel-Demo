@@ -10,7 +10,7 @@
 //
 // Spec: blueprint §5.3 + coding.md §6.2.
 
-import { resolveCatalogSources } from '@vynel/contracts/marketplace/resolve-catalog-sources'
+import { resolveMergedCatalog } from './resolve-merged-catalog.js'
 import type { Database } from '@vynel/db'
 import type {
   ListMarketplaceItemsInput,
@@ -26,7 +26,7 @@ export function listMarketplaceItems(
   input: ListMarketplaceItemsInput,
   deps: MarketplaceDeps,
 ): MarketplaceItem[] {
-  const catalogItems = resolveCatalogSources()
+  const catalogItems = resolveMergedCatalog(db)
   const installedSkills = deps.listInstalledSkills(db, {
     userId: input.userId,
     workspaceId: input.workspaceId,

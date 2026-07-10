@@ -1,7 +1,8 @@
-// The single catalog seam. Phase 1 reads from `VERIFIED_SKILL_CATALOG`
-// only (D2); Phase 1.5+ extends this function to merge cloud-fetched
-// and locally-curated catalogs into the same `MarketplaceItem[]`
-// shape — every caller stays unchanged.
+// The BUNDLED catalog source: `VERIFIED_SKILL_CATALOG` → `MarketplaceItem[]`.
+// This stays pure (no db) — the cloud merge can't live here because it needs
+// the product DB. The actual merge (bundled ∪ cached cloud, deduped) lives at
+// `@vynel/marketplace/resolve-merged-catalog`, which the two read callers now
+// use instead of calling this directly.
 //
 // Filters out `isSystemInstalled: true` entries (D4) so
 // system-installed bundles don't surface in the marketplace. Single

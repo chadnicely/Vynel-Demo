@@ -52,7 +52,7 @@ const sectionMeta = computed(
 
 // Tier gating: a locked section renders the upgrade card in place of its
 // component — the drawer item stays visible, so the lock is discoverable.
-const { isLocked } = useHubFeatures();
+const { isLocked, isPro } = useHubFeatures();
 
 // Each section fetches only while it's the active drawer panel — the composable
 // passes `enabled` through to vue-query, so the four inactive reads stay idle.
@@ -144,6 +144,13 @@ const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
             {{ item.displayName }}
             <span v-if="item.isOfficial" class="scope-chip is-gold"
               >Official</span
+            >
+            <!-- Display-only: the real install gate is server-side. Shows while
+                 the user can't yet install a pro-only item (not on Pro). -->
+            <span
+              v-if="item.minimumTier === 'pro' && !isPro"
+              class="scope-chip is-pro"
+              >Pro</span
             >
           </p>
           <p class="row-sub">{{ item.oneLineDescription }}</p>
@@ -248,6 +255,14 @@ const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
   color: var(--gold);
   border-color: var(--gold-soft);
   background: var(--gold-soft);
+}
+
+/* Distinct from Official's gold (gold is presence-only) — the informational
+   status token reads as "upgrade to reach this". */
+.scope-chip.is-pro {
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 40%, transparent);
+  background: color-mix(in srgb, var(--info) 14%, transparent);
 }
 
 .pill {

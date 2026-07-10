@@ -31,6 +31,7 @@ function buildHubSession(features: string[] | null): HubSession {
     restore: vi.fn(),
     listDevices: vi.fn(),
     revokeDevice: vi.fn(),
+    fetchCatalog: vi.fn(),
   }
 }
 

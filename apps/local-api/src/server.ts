@@ -26,6 +26,7 @@ import { loadEnv } from './env.js'
 import { createApp } from './app.js'
 import { createGatewayApp } from './gateway.js'
 import { startHubSessionService, type HubSessionService } from './services/hub-session-service.js'
+import { startCatalogSyncService, type CatalogSyncService } from './services/catalog-sync-service.js'
 import { startSchedulesService } from './services/schedules-service.js'
 import { startChannelsService } from './services/channels-service.js'
 import { startDelegationService } from './services/delegation-service.js'
@@ -62,6 +63,7 @@ export async function boot(): Promise<void> {
   // token lives in the OS credential store, never a file.
   let hubSession: HubSession | undefined
   let hubSessionService: HubSessionService | undefined
+  let catalogSyncService: CatalogSyncService | undefined
   if (env.VYNEL_HUB_URL !== undefined && env.VYNEL_HUB_PUBLIC_KEY !== undefined) {
     hubSession = createHubSession({
       client: createHubClient({ baseUrl: env.VYNEL_HUB_URL }),
@@ -76,6 +78,7 @@ export async function boot(): Promise<void> {
       logger,
     })
     hubSessionService = startHubSessionService({ hubSession, logger })
+    catalogSyncService = startCatalogSyncService({ hubSession, db, logger })
     logger.info({ hubUrl: env.VYNEL_HUB_URL }, 'api boot: hub link enabled')
   }
 
@@ -147,6 +150,7 @@ export async function boot(): Promise<void> {
       delegationService.stop()
       approvalsRecoveryService.stop()
       hubSessionService?.stop()
+      catalogSyncService?.stop()
       void fileWatcher.stopAll()
       closeDatabase(db)
       logger.info({}, 'api shutdown complete')

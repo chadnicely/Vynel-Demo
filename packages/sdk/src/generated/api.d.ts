@@ -2809,6 +2809,8 @@ export interface operations {
                             installedSkillId: string;
                             versionInstalled: string;
                         };
+                        /** @enum {string} */
+                        minimumTier?: "basic" | "pro";
                     }[];
                 };
             };
@@ -2867,6 +2869,8 @@ export interface operations {
                             installedSkillId: string;
                             versionInstalled: string;
                         };
+                        /** @enum {string} */
+                        minimumTier?: "basic" | "pro";
                     };
                 };
             };
