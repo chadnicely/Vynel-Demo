@@ -259,8 +259,10 @@ cheapest, most motivating win; the hub follows immediately.
 - **C. Sign-in — ✅ email + password** (§3: argon2id, reset emails, platform-provisioned accounts).
 - **D. Monetization — ✅ Chad's own platform provisions users and handles payments** (§4: the hub
   exposes a provisioning API; no payment code in the hub).
-- **E. Tier matrix — OPEN:** names + which feature keys/limits per tier — pure business call,
-  needed before milestone 3 ships (mechanism lands first regardless).
+- **E. Tier matrix — ✅ (Chad, 2026-07-10): two tiers — `basic` = channels ONLY · `pro` =
+  everything.** Encoded in `@vynel/contracts/hub/entitlements` `TIER_FEATURES`. Gateable feature
+  keys: channels · voice · schedules · knowledge · memory · marketplace (core chat + workspaces
+  never gated). Voice is its own key, pro-only for now (a one-entry flip moves it into basic).
 - **F. Daemon runtime packaging — OPEN:** bundle pinned Node (**recommended**) vs
   single-executable compile — needed before milestone 5.
 - **G. Sequence — ✅ D1 desktop shell first**, then the hub milestones in §8 order.

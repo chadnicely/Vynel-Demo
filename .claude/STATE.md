@@ -3,7 +3,87 @@
 **Updated 2026-07-10.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-10): M2b COMPLETE + GATE-GREEN (2081/4-skip) — UNCOMMITTED; Chad to smoke sign-in end-to-end, then commit; next: M3 (tiers + entitlements + platform webhooks)
+## ⏭ NEXT ACTION (2026-07-10): M3 COMPLETE + REVIEW-FIXED + GATE-GREEN (2101/4-skip) — UNCOMMITTED; Chad to smoke basic-vs-pro, then commit; next: M4 (marketplace registry) OR D2 (installer)
+
+**🏗 M3 TIERS DONE (reviewer: 1 must-fix + should-fixes ALL applied; journal
+`.claude/journal/2026-07-10-hub-m3-tiers.md`). Matrix: basic = channels only · pro = all.**
+- **MUST-FIX applied — token-type confusion:** the 7-day entitlement JWT authenticated as an
+  access token (same key+issuer). Now a `token_use` claim (`access`/`entitlement`) is REQUIRED by
+  both verifiers + explicit `algorithms:['EdDSA']`; constants in contracts/hub/entitlements.
+- **Webhook replay dedup:** `platform_events` table (migration 0002, event id PK, ON CONFLICT DO
+  NOTHING) → exactly-once; `bodyLimit` before HMAC; hex-shape precheck. **user.updated now applies
+  email** (23505→409). Shared `isUniqueViolation` extracted.
+- **UI/API agree on unproven entitlement:** signed-in tier/features now NULLABLE (null=verify
+  failed → UI doesn't gate, matching the permissive daemon).
+- **Tests added:** resolveEffectiveTier downgrades · access-verifier-rejects-entitlement (accounts)
+  + entitlement-verifier-rejects-access/expired (hub-account, inline jose, no cross-leaf import) ·
+  apply-platform-event lifecycle+email-conflict · webhook dedup · feature-gate all 6 mounts.
+- **✅ LIVE (Chad's running hub): incremental migrations 0001+0002 applied to the docker volume
+  cleanly** (node --watch reloaded to M3; /set-password 200, /platform/webhooks 401-unsigned —
+  M3 routes serving). `.env` gained CLOUD_PLATFORM_WEBHOOK_SECRET.
+- **⏭ CHAD SMOKE (basic vs pro):** with the hub up, Account shows a **Basic** chip; Schedules/
+  Knowledge/Memory menu items show a "Part of Vynel Pro" locked card. To flip: send a signed
+  tier.updated webhook (or admin) → sign out/in → chip flips **Pro**, sections unlock. (I didn't
+  flip your live account — that's yours.)
+- **DEFERRED (reviewer, non-blocking):** gate is HTTP-only (downgrade doesn't stop running
+  schedules/watcher; 403s whole tree incl. disable) · dashboard upcomingSchedules ungated read ·
+  `kid` two-key rotation · lock-to-sign-in-when-no-entitlement (product call).
+- **COMMIT: feat(hub): tiers + entitlements + platform webhooks + gating · docs.**
+
+## (prev) M3 IN FLIGHT — tiers + entitlements + webhooks (Chad's matrix: **basic = channels only · pro = ALL**)
+
+**§9-E RESOLVED (Chad): two tiers — `basic` gets ONLY channels; `pro` gets everything.** Voice
+modeled as its OWN feature key, pro-only for now (vision says voice is a channel — if Chad meant
+voice-in-basic it's a one-array-entry flip in TIER_FEATURES). Core chat + workspaces are NOT
+gated (the app's heart); gateable keys: channels · voice · schedules · knowledge · memory ·
+marketplace.
+
+**M3 PROGRESS: backend (slices 1–4 API-side) DONE + FULL GATE GREEN (uncommitted). Built:
+contracts/hub/entitlements.ts (HubTier/HubFeatureKey/TIER_FEATURES value map + claims incl.
+email/displayName for offline identity) · cloud-db migration `0001_account_tier` (INCREMENTAL —
+hub DB live on Chad's docker volume) + tier repo fns · accounts leaf: entitlement-token.ts
+(EdDSA issuer, kid header, resolveEffectiveTier lapsed→basic) + apply-platform-event.ts
+(idempotent user.created[converges]/updated/tier.updated/removed[disable+revoke-all]) · cloud-api:
+platform.ts webhooks (HMAC sha256 over `${ts}.${rawBody}`, 5-min replay window, hex-compare
+timingSafe; 503 without CLOUD_PLATFORM_WEBHOOK_SECRET) + set-password-page.ts (inline-HTML GET
+/set-password) + entitlementToken on session responses (env: CLOUD_TOKEN_KEY_ID/
+CLOUD_ENTITLEMENT_TTL_SECONDS/CLOUD_PLATFORM_WEBHOOK_SECRET) · hub-account: entitlement-verifier
+(pinned SPKI) + second keyring entry 'entitlement' + session rework (adoptSession verifies+stores,
+verify-fail = sign-in still works w/ features:[] + warn; offline reads STORED entitlement →
+identity+tier+features through grace; getEntitlement() seam) · local-api: VYNEL_HUB_PUBLIC_KEY
+env (REQUIRED with VYNEL_HUB_URL — superRefine; Chad's .env updated =CLOUD pub key) +
+middleware/feature-gate.ts (403 `feature_locked`; PERMISSIVE when no entitlement — deferred
+product call) + mounts (schedules both scopes/knowledge/memory/marketplace/voice; channels+chat+
+workspaces+skills ungated) + hub schemas tier/features + SDK regenerated. Tests: webhooks contract
+(sig/replay/503/lifecycle) + feature-gate (basic 403s, pro+none pass) + patched fixtures.
+REMAINING: UI subagent (locked cards + tier chip) in flight → full gate → reviewer → docs →
+commit prompt.**
+
+**M3 PLAN (slices, gate-green each; hub DB is LIVE on Chad's docker volume → migrations are
+INCREMENTAL from here, 0001+ via drizzle-kit generate — NEVER edit 0000):**
+1. **Shared matrix:** `contracts/src/hub/entitlements.ts` — `HubTier='basic'|'pro'`,
+   `HubFeatureKey` union, `TIER_FEATURES` value map (contracts ships values elsewhere:
+   VERIFIED_SKILL_CATALOG precedent). Entitlement claims type {tier, features[], exp}.
+2. **Hub:** accounts kernel gains `tier` (default 'basic') + `tierExpiresAt` nullable
+   (migration 0001) · **entitlement JWT** (EdDSA, SAME keypair, `kid` header NOW — reviewer
+   precondition before any client pins keys; ~7d exp = the offline grace) issued alongside
+   access token on sign-in/refresh (`HubSessionResponse.entitlementToken`) · **platform
+   webhooks** POST /platform/webhooks — WE author payloads (zod): user.created/updated/removed +
+   tier.updated; HMAC-sha256 signature header + timestamp replay window (CLOUD_PLATFORM_WEBHOOK_
+   SECRET env, min 32); idempotent on platformUserId; user.removed → disable + revoke all
+   sessions · **set-password PAGE** GET /set-password (tiny inline-HTML form posting to
+   /auth/set-password — workshop users never see a terminal).
+3. **Desktop:** hub-account verifies the entitlement JWT against a PINNED public key
+   (env `VYNEL_HUB_PUBLIC_KEY` base64-PEM for now; D2 installer bakes it), persists the token in
+   a SECOND keyring entry ('entitlement') so OFFLINE boots keep features until exp; HubLinkStatus
+   signed-in/offline gain {tier, features[]}; daemon exposes `hasFeature` seam.
+4. **Enforcement v1:** UI — gated sections (schedules/knowledge/memory/marketplace for basic)
+   render a locked card ("Included in Pro") instead of the section; API — the mutating routes of
+   gated features check the seam → 403 `feature_locked` (channels stays open on both tiers).
+   Signed-out/not-configured = NO gating change yet (app remains usable; the lock-to-sign-in
+   moment is a Chad product call, deferred deliberately).
+5. Gate → reviewer (security: webhook HMAC/replay, kid rotation, entitlement verify) → docs
+   (cloud-api.md §9-E + journal + STATE) → prompt Chad (feat + docs).
 
 **🏗 M2b DESKTOP SIGN-IN DONE (reviewer: NO must-fix; 5 should-fixes ALL applied + nits).**
 Review round added: session ops STRICTLY SERIALIZED (op-queue — a daily restore racing sign-out
