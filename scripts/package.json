@@ -8,8 +8,9 @@
   },
   "dependencies": {
     "@vynel/local-api": "workspace:*",
+    "@vynel/voice-engine": "workspace:*",
     "jose": "^5.9.0",
-    "@vynel/voice-engine": "workspace:*"
+    "jszip": "^3.10.0"
   },
   "devDependencies": {
     "openapi-typescript": "^7.13.0",

@@ -19,6 +19,7 @@ import {
   type EntitlementTokenIssuer,
 } from '@vynel/accounts'
 import { createCloudApp } from './../app.js'
+import { createInMemoryArtifactStore } from '../artifacts/artifact-store.js'
 
 const SECRET = 'webhook-secret-0123456789abcdef-0123456789abcdef'
 const silentLogger = pino({ level: 'silent' })
@@ -50,6 +51,7 @@ function buildApp(db: CloudDatabase, withSecret = true): Hono {
     accessTokenVerifier,
     entitlements,
     mail: { sendSetPasswordLink: async () => {} },
+    artifactStore: createInMemoryArtifactStore(),
     linkBaseUrl: 'https://hub.test',
     adminToken: 'test-admin-token-0123456789abcdef-0123456789abcdef',
     ...(withSecret ? { platformWebhookSecret: SECRET } : {}),

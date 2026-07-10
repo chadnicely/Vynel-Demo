@@ -18,6 +18,9 @@ export default defineConfig({
     './src/schema/accounts/platform-events.ts',
     '../accounts/src/schema/refresh-tokens.ts',
     '../accounts/src/schema/account-action-tokens.ts',
+    '../registry/src/schema/publishers.ts',
+    '../registry/src/schema/catalog-items.ts',
+    '../registry/src/schema/item-versions.ts',
   ],
   out: './migrations-postgres',
 })

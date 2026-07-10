@@ -14,6 +14,7 @@ import {
 } from '@vynel/accounts'
 import { loadEnv } from './env.js'
 import { createCloudApp } from './app.js'
+import { createFilesystemArtifactStore } from './artifacts/artifact-store.js'
 
 export async function boot(): Promise<void> {
   const env = loadEnv()
@@ -49,6 +50,7 @@ export async function boot(): Promise<void> {
     // The dev fallback: logs set-password links. Swapped for a real provider
     // (Resend/Postmark) at deploy — cloud-api.md §3.
     mail: createLoggingAccountMailSender(logger),
+    artifactStore: createFilesystemArtifactStore(env.CLOUD_ARTIFACT_DIR),
     linkBaseUrl: env.CLOUD_PUBLIC_BASE_URL,
     adminToken: env.CLOUD_ADMIN_TOKEN,
   })

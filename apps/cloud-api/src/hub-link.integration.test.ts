@@ -28,6 +28,7 @@ import {
 } from '@vynel/hub-account'
 import type { Hono } from 'hono'
 import { createCloudApp } from './app.js'
+import { createInMemoryArtifactStore } from './artifacts/artifact-store.js'
 
 const DEVICE = { deviceName: 'Chad-PC', devicePlatform: 'windows', appVersion: '0.1.0' }
 const silentLogger = pino({ level: 'silent' })
@@ -77,6 +78,7 @@ describe('hub-account against the real hub', () => {
         accessTokenVerifier,
         entitlements,
         mail,
+        artifactStore: createInMemoryArtifactStore(),
         linkBaseUrl: 'https://hub.test',
         adminToken: 'test-admin-token-0123456789abcdef-0123456789abcdef',
       })
@@ -139,6 +141,7 @@ describe('hub-account against the real hub', () => {
         accessTokenVerifier,
         entitlements,
         mail: { sendSetPasswordLink: async () => {} },
+        artifactStore: createInMemoryArtifactStore(),
         linkBaseUrl: 'https://hub.test',
         adminToken: 'test-admin-token-0123456789abcdef-0123456789abcdef',
       })

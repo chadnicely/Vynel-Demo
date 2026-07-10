@@ -22,6 +22,7 @@
     "format:check": "prettier --check .",
     "api:generate": "tsx scripts/src/generators/generate-sdk.ts && tsx scripts/src/generators/generate-namespaced-sdk.ts && tsx scripts/src/generators/generate-mcp-tools.ts",
     "cloud:generate-keys": "tsx scripts/src/cloud/generate-cloud-keys.ts",
+    "cloud:publish": "tsx scripts/src/cloud/publish-catalog-item.ts",
     "voice:fetch-models": "tsx scripts/src/voice/fetch-voice-models.ts",
     "voice:smoke": "tsx scripts/src/voice/synthesize-smoke.ts",
     "voice:bench": "tsx scripts/src/voice/benchmark.ts"

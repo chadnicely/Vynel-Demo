@@ -52,6 +52,10 @@ export const EnvSchema = z.object({
   // Where set-password links point (the hub's public origin). REQUIRED — a
   // default would mean a prod deploy that forgets it emails localhost links.
   CLOUD_PUBLIC_BASE_URL: z.string().url(),
+  // Directory holding marketplace artifact bytes (filesystem ArtifactStore).
+  // Defaults under the repo-root .data so dev "just works"; a server deploy
+  // points it at a persistent volume.
+  CLOUD_ARTIFACT_DIR: z.string().default('.data/cloud-artifacts'),
 })
 
 export type Env = z.infer<typeof EnvSchema>

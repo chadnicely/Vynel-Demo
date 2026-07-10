@@ -1,0 +1,20 @@
+{
+  "publisher": { "id": "vynel-team", "name": "Vynel Team", "tier": "verified", "url": null },
+  "item": {
+    "itemId": "email-drafter",
+    "kind": "skill",
+    "displayName": "Email Drafter",
+    "oneLineDescription": "Drafts clear, on-brand emails from a short prompt.",
+    "category": "email",
+    "iconName": "mail",
+    "recommendedScope": "user",
+    "minimumTier": "basic",
+    "status": "published"
+  },
+  "version": {
+    "version": "1.0.0",
+    "changelog": "First cloud release.",
+    "manifest": { "kind": "skill", "entryFile": "SKILL.md" },
+    "minAppVersion": null
+  }
+}

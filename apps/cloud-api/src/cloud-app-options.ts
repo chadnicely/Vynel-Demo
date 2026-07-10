@@ -9,6 +9,7 @@ import type {
   AccountMailSender,
   EntitlementTokenIssuer,
 } from '@vynel/accounts'
+import type { ArtifactStore } from './artifacts/artifact-store.js'
 
 export interface CloudAppOptions {
   readonly db: CloudDatabase
@@ -17,6 +18,7 @@ export interface CloudAppOptions {
   readonly accessTokenVerifier: AccessTokenVerifier
   readonly entitlements: EntitlementTokenIssuer
   readonly mail: AccountMailSender
+  readonly artifactStore: ArtifactStore
   readonly linkBaseUrl: string
   readonly adminToken: string
   /** HMAC secret for /platform/webhooks; absent = that surface answers 503. */
