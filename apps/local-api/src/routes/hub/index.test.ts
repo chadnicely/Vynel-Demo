@@ -34,6 +34,7 @@ function buildFakeHubSession(overrides: Partial<HubSession> = {}): HubSession {
     listDevices: vi.fn().mockResolvedValue([]),
     revokeDevice: vi.fn().mockResolvedValue(undefined),
     fetchCatalog: vi.fn().mockResolvedValue([]),
+    downloadArtifact: vi.fn().mockResolvedValue(Buffer.from('')),
     ...overrides,
   }
 }

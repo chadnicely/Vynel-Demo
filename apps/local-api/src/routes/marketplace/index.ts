@@ -1,19 +1,22 @@
-// HTTP routes for the `marketplace` domain. Two read-only routes per
-// blueprint §6 — `GET /items` (list, annotated with install status) +
-// `GET /items/:itemId` (detail). Owner-filtered via `...workspaceScoped`.
-// Mounted under `/workspaces/:workspaceId/marketplace` in `app.ts`.
+// HTTP routes for the `marketplace` domain, mounted under
+// `/workspaces/:workspaceId/marketplace`. Three routes: `GET /items` (list,
+// annotated with install status) + `GET /items/:itemId` (detail) +
+// `POST /install`. Owner-filtered via `...workspaceScoped`.
 //
 // The install-status annotation is derived from the caller's installed
 // skills. The `@vynel/marketplace` LEAF never imports the `skills`
 // sibling leaf (invariant #2); it takes the reader as an injected dep.
 // This route file is the composition point — apps compose leaves — so
-// it imports `listInstalledSkillsForUserAndWorkspace` from `@vynel/skills`
-// and passes it as `deps.listInstalledSkills`.
+// it imports `listInstalledSkillsForUserAndWorkspace` + the install
+// functions from `@vynel/skills`.
 //
-// **No `POST /install`** (D7 — UI calls `POST /skills/install`
-// directly). **No `x-mcp`** (D9 — skills already exposes
-// `list_available_skills` + `list_installed_skills`; marketplace's
-// reads are the join of those two, redundant for the LLM).
+// **`POST /install` lives HERE, not in `/skills/install`** (M4b-2 reverses
+// the old D7): a CLOUD item requires a server-side download + sha256 verify
+// before install, so the route dispatches by cache membership — a cached
+// cloud item downloads its verified artifact, a bundled item renders its
+// in-code template. **No `x-mcp`** (D9 — skills already exposes
+// `list_available_skills` + `list_installed_skills`; marketplace's reads are
+// the join of those two, redundant for the LLM).
 //
 // **No error mapping in this file.** Core throws `NotFoundError` from
 // `@vynel/errors`; the single `onError` middleware in `app.ts` maps it.
@@ -28,13 +31,16 @@ import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
-import { listMarketplaceItems, getMarketplaceItem } from '@vynel/marketplace'
-import { listInstalledSkillsForUserAndWorkspace } from '@vynel/skills'
+import { ValidationError } from '@vynel/errors'
+import { listMarketplaceItems, getMarketplaceItem, findCachedCloudItem } from '@vynel/marketplace'
+import { listInstalledSkillsForUserAndWorkspace, installSkill, installCloudSkill } from '@vynel/skills'
 import {
   ListMarketplaceItemsQuerySchema,
   ItemIdParamSchema,
   ListMarketplaceItemsResponseSchema,
   MarketplaceItemSchema,
+  InstallMarketplaceItemBodySchema,
+  InstallMarketplaceItemResponseSchema,
 } from './schemas.js'
 import { serializeMarketplaceItem } from './serializers.js'
 
@@ -103,5 +109,67 @@ export const marketplaceApp = factory
         marketplaceDeps,
       )
       return c.json(serializeMarketplaceItem(item))
+    },
+  )
+  .post(
+    '/install',
+    describeRoute({
+      tags: ['marketplace'],
+      summary: 'Install a marketplace item (cloud artifact or bundled skill).',
+      'x-sdk-name': 'marketplace.install',
+      responses: {
+        201: {
+          description: 'The installed skill.',
+          content: { 'application/json': { schema: resolver(InstallMarketplaceItemResponseSchema) } },
+        },
+        403: { description: 'The caller’s tier may not install this item.' },
+        404: { description: 'Item not in catalog OR workspace not found.' },
+        409: { description: 'Already installed at the requested scope.' },
+      },
+    }),
+    validator('json', InstallMarketplaceItemBodySchema),
+    ...workspaceScoped,
+    async (c) => {
+      const { itemId, scope } = c.req.valid('json')
+      const workspace = c.var.workspace!
+      const base = {
+        userId: c.var.user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        scope,
+      }
+      // A cloud item downloads its verified artifact; a bundled item renders
+      // its in-code template. One route, dispatched by cache membership.
+      const cloud = findCachedCloudItem(c.var.db, itemId)
+      let installed
+      if (cloud !== null) {
+        if (c.var.hubSession === undefined) {
+          throw new ValidationError('The hub is not available to download this item.')
+        }
+        const artifactBytes = await c.var.hubSession.downloadArtifact(itemId, cloud.latestVersion)
+        installed = await installCloudSkill(
+          c.var.db,
+          {
+            ...base,
+            itemId,
+            artifactBytes,
+            expectedSha256: cloud.latestVersionSha256,
+            version: cloud.latestVersion,
+          },
+          { logger: c.var.logger },
+        )
+      } else {
+        installed = await installSkill(c.var.db, { ...base, skillId: itemId }, { logger: c.var.logger })
+      }
+      return c.json(
+        {
+          installedSkillId: installed.id,
+          itemId,
+          scope: installed.scope,
+          source: installed.installedFromSource,
+          version: installed.versionInstalled,
+        },
+        201,
+      )
     },
   )

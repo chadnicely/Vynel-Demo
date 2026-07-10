@@ -18,7 +18,8 @@
     "@vynel/errors": "workspace:*",
     "@vynel/logger": "workspace:*",
     "@vynel/providers": "workspace:*",
-    "drizzle-orm": "^0.45.0"
+    "drizzle-orm": "^0.45.0",
+    "jszip": "^3.10.0"
   },
   "devDependencies": {
     "@vynel/testing": "workspace:*",

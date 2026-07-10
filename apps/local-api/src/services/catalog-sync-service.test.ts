@@ -43,6 +43,7 @@ function fakeSession(over: Partial<HubSession>): HubSession {
     listDevices: vi.fn(),
     revokeDevice: vi.fn(),
     fetchCatalog: vi.fn(),
+    downloadArtifact: vi.fn(),
     ...over,
   }
 }

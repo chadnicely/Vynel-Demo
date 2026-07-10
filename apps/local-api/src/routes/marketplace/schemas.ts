@@ -72,3 +72,16 @@ export const MarketplaceItemSchema = z.object({
 })
 
 export const ListMarketplaceItemsResponseSchema = z.array(MarketplaceItemSchema)
+
+export const InstallMarketplaceItemBodySchema = z.object({
+  itemId: z.string().min(1).max(200),
+  scope: SkillScopeSchema,
+})
+
+export const InstallMarketplaceItemResponseSchema = z.object({
+  installedSkillId: z.string(),
+  itemId: z.string(),
+  scope: SkillScopeSchema,
+  source: z.enum(['verified-catalog', 'marketplace', 'external']),
+  version: z.string(),
+})

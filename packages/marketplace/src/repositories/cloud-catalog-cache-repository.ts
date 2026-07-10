@@ -1,6 +1,7 @@
 // Functional cache repository — `db` first arg, stateless, SYNC (better-
 // sqlite3), so the merge in `listMarketplaceItems` stays synchronous.
 
+import { eq } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   marketplaceCloudCatalog,
@@ -20,6 +21,21 @@ export function replaceCloudCatalog(db: Database, rows: InsertCloudCatalogRow[])
 
 export function listCloudCatalog(db: Database): MarketplaceCloudCatalogRow[] {
   return db.select().from(marketplaceCloudCatalog).all()
+}
+
+/** One cached cloud item by id — the install route reads the latest version +
+ * its sha256 (the integrity anchor) here. Null = not a cloud item (bundled). */
+export function findCachedCloudItem(
+  db: Database,
+  itemId: string,
+): MarketplaceCloudCatalogRow | null {
+  return (
+    db
+      .select()
+      .from(marketplaceCloudCatalog)
+      .where(eq(marketplaceCloudCatalog.itemId, itemId))
+      .get() ?? null
+  )
 }
 
 export function clearCloudCatalog(db: Database): void {

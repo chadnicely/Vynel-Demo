@@ -29,3 +29,6 @@ export { getMarketplaceItem, type GetMarketplaceItemInput } from './get-marketpl
 export { syncCloudCatalog, clearCachedCloudCatalog } from './sync-cloud-catalog.js'
 
 export { resolveMergedCatalog } from './resolve-merged-catalog.js'
+
+export { findCachedCloudItem } from './repositories/cloud-catalog-cache-repository.js'
+export type { MarketplaceCloudCatalogRow } from './schema/cloud-catalog-cache.js'

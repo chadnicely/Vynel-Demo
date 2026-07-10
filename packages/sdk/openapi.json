@@ -2348,6 +2348,107 @@
         "x-sdk-name": "marketplace.getItem"
       }
     },
+    "/workspaces/{workspaceId}/marketplace/install": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The installed skill.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "installedSkillId": {
+                      "type": "string"
+                    },
+                    "itemId": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "verified-catalog",
+                        "marketplace",
+                        "external"
+                      ]
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "installedSkillId",
+                    "itemId",
+                    "scope",
+                    "source",
+                    "version"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller’s tier may not install this item."
+          },
+          "404": {
+            "description": "Item not in catalog OR workspace not found."
+          },
+          "409": {
+            "description": "Already installed at the requested scope."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdMarketplaceInstall",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Install a marketplace item (cloud artifact or bundled skill).",
+        "x-sdk-name": "marketplace.install",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "itemId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "workspace"
+                    ]
+                  }
+                },
+                "required": [
+                  "itemId",
+                  "scope"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/channels": {
       "get": {
         "responses": {

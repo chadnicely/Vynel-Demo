@@ -13,6 +13,8 @@ import { EmptyState } from "@vynel/ui";
 import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
 import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
 import { useMarketplaceItems } from "../../composables/marketplace/use-marketplace-items.js";
+import { useInstallMarketplaceItem } from "../../composables/marketplace/use-install-marketplace-item.js";
+import { formatSdkError } from "../../utils/format-sdk-error.js";
 import ChannelsSection from "../sections/ChannelsSection.vue";
 import KnowledgeSection from "../sections/KnowledgeSection.vue";
 import LockedFeatureCard from "../sections/LockedFeatureCard.vue";
@@ -70,6 +72,25 @@ const marketplaceQuery = useMarketplaceItems(
 
 const skills = computed(() => skillsQuery.data.value ?? []);
 const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
+
+// One install mutation drives the whole list; `variables` scopes its pending
+// and error state to the row the user actually clicked (AccountSection idiom).
+const install = useInstallMarketplaceItem();
+
+function isInstalling(itemId: string): boolean {
+  return install.isPending.value && install.variables.value?.itemId === itemId;
+}
+
+function installLabel(itemId: string, isInstalled: boolean): string {
+  if (isInstalled) return "Installed";
+  return isInstalling(itemId) ? "Installing…" : "Get";
+}
+
+function installErrorFor(itemId: string): string | null {
+  return install.isError.value && install.variables.value?.itemId === itemId
+    ? formatSdkError(install.error.value)
+    : null;
+}
 </script>
 
 <template>
@@ -155,12 +176,33 @@ const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
           </p>
           <p class="row-sub">{{ item.oneLineDescription }}</p>
         </div>
-        <span
+        <!-- Install dispatches cloud vs. bundled server-side; the button just
+             names the item. Installed stays disabled (no re-install). -->
+        <button
+          type="button"
           class="pill"
           :class="item.installStatus.kind === 'installed' ? 'is-on' : 'is-off'"
+          :disabled="
+            item.installStatus.kind === 'installed' || isInstalling(item.itemId)
+          "
+          @click="
+            install.mutate({
+              workspaceId: props.workspaceId,
+              itemId: item.itemId,
+            })
+          "
         >
-          {{ item.installStatus.kind === "installed" ? "Installed" : "Get" }}
-        </span>
+          {{
+            installLabel(item.itemId, item.installStatus.kind === "installed")
+          }}
+        </button>
+        <p
+          v-if="installErrorFor(item.itemId)"
+          class="row-error"
+          role="alert"
+        >
+          {{ installErrorFor(item.itemId) }}
+        </p>
       </div>
     </div>
 
@@ -210,6 +252,7 @@ const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
 
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
@@ -280,5 +323,30 @@ const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
 .pill.is-off {
   color: var(--ink-3);
   background: var(--row-active);
+}
+
+button.pill {
+  appearance: none;
+  margin: 0;
+  border: none;
+  cursor: default;
+  transition: color var(--t-fast) var(--ease-out);
+}
+
+button.pill.is-off:hover:not(:disabled) {
+  color: var(--ink-1);
+}
+
+button.pill:disabled {
+  opacity: 0.6;
+}
+
+/* Wraps to its own line under the row (flex-basis 100%) so an install failure
+   reads clearly without shoving the button. */
+.row-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--danger);
+  font: 400 11px/1.5 var(--font-ui);
 }
 </style>

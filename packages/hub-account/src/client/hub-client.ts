@@ -30,6 +30,9 @@ export interface HubClient {
   listDevices(accessToken: string): Promise<HubDevicesResponse>
   revokeDevice(accessToken: string, deviceId: string): Promise<void>
   getCatalog(accessToken: string): Promise<HubCatalogResponse>
+  /** The raw artifact bytes for a catalog item version (tier-gated
+   * server-side; a 403 surfaces as ForbiddenError). */
+  downloadArtifact(accessToken: string, itemId: string, version: string): Promise<Buffer>
 }
 
 class HubRequestFailedError extends VynelError {
@@ -128,6 +131,13 @@ export function createHubClient(options: {
     async getCatalog(accessToken) {
       const response = await request('/catalog', { method: 'GET', accessToken })
       return (await response.json()) as HubCatalogResponse
+    },
+    async downloadArtifact(accessToken, itemId, version) {
+      const response = await request(
+        `/catalog/${encodeURIComponent(itemId)}/versions/${encodeURIComponent(version)}/download`,
+        { method: 'GET', accessToken },
+      )
+      return Buffer.from(await response.arrayBuffer())
     },
   }
 }

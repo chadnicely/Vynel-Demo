@@ -558,6 +558,14 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  install: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/marketplace/install"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/marketplace/install"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/marketplace/install", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   listItems: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/marketplace/items", {
       params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },

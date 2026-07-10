@@ -289,6 +289,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/marketplace/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Install a marketplace item (cloud artifact or bundled skill). */
+        post: operations["postWorkspacesByWorkspaceIdMarketplaceInstall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/channels": {
         parameters: {
             query?: never;
@@ -2876,6 +2893,65 @@ export interface operations {
             };
             /** @description Item not in catalog OR workspace not found. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdMarketplaceInstall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    itemId: string;
+                    /** @enum {string} */
+                    scope: "user" | "workspace";
+                };
+            };
+        };
+        responses: {
+            /** @description The installed skill. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        installedSkillId: string;
+                        itemId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        /** @enum {string} */
+                        source: "verified-catalog" | "marketplace" | "external";
+                        version: string;
+                    };
+                };
+            };
+            /** @description The caller’s tier may not install this item. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Item not in catalog OR workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Already installed at the requested scope. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

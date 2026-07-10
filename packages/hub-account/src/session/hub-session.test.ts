@@ -47,6 +47,7 @@ function buildClient(overrides: Partial<HubClient> = {}): HubClient {
     listDevices: vi.fn().mockResolvedValue({ devices: [] }),
     revokeDevice: vi.fn().mockResolvedValue(undefined),
     getCatalog: vi.fn().mockResolvedValue({ items: [] }),
+    downloadArtifact: vi.fn().mockResolvedValue(Buffer.from('')),
     ...overrides,
   }
 }

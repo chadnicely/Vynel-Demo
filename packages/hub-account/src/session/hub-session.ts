@@ -37,6 +37,8 @@ export interface HubSession {
   /** The hub's cloud catalog, ridden on the access token (restore-and-retry
    * on a stale token). Throws UnauthorizedError when not signed in. */
   fetchCatalog(): Promise<readonly HubCatalogItem[]>
+  /** Download a catalog item version's artifact bytes (tier-gated server-side). */
+  downloadArtifact(itemId: string, version: string): Promise<Buffer>
 }
 
 export interface CreateHubSessionOptions {
@@ -212,6 +214,9 @@ export function createHubSession(options: CreateHubSessionOptions): HubSession {
     async fetchCatalog() {
       const response = await withAccessToken((token) => options.client.getCatalog(token))
       return response.items
+    },
+    async downloadArtifact(itemId, version) {
+      return withAccessToken((token) => options.client.downloadArtifact(token, itemId, version))
     },
   }
 }

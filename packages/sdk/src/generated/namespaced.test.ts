@@ -80,10 +80,10 @@ const EXPECTED_SKILLS_METHODS = [
 ] as const
 
 // The marketplace namespace's methods, sorted. Two read GETs
-// (listItems / getItem) carry `x-sdk-name`; NEITHER carries x-mcp (D9 —
-// marketplace's reads are the join of skills' already-exposed
-// list_available + list_installed tools, redundant for the LLM).
-const EXPECTED_MARKETPLACE_METHODS = ['getItem', 'listItems'] as const
+// (listItems / getItem) + install (M4b-2 — cloud artifact or bundled skill);
+// none carry x-mcp (D9 — marketplace's reads are the join of skills' already-
+// exposed list_available + list_installed tools, redundant for the LLM).
+const EXPECTED_MARKETPLACE_METHODS = ['getItem', 'install', 'listItems'] as const
 
 // The schedules namespace's methods, sorted. The 3 read GETs (list /
 // listTemplates / listRuns) + the 6 mutating lifecycle routes all carry

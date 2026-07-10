@@ -18,6 +18,7 @@ function buildHubSession(restore: HubSession['restore']): HubSession {
     listDevices: vi.fn(),
     revokeDevice: vi.fn(),
     fetchCatalog: vi.fn(),
+    downloadArtifact: vi.fn(),
   }
 }
 

@@ -4,7 +4,7 @@
 // `minimumTier === 'pro' && !isPro`, since the composable test alone can't
 // catch a template that drops either half.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import type { MarketplaceItem } from "@vynel/contracts/marketplace/marketplace-item";
@@ -38,7 +38,23 @@ const items: MarketplaceItem[] = [
   makeItem({ itemId: "free-skill", displayName: "Free Skill", minimumTier: "basic" }),
 ];
 
-function mountPanel(session: Record<string, unknown>) {
+const installResult = {
+  installedSkillId: "sk1",
+  itemId: "free-skill",
+  scope: "workspace",
+  source: "marketplace",
+  version: "1.0.0",
+};
+
+function mountPanel(
+  session: Record<string, unknown>,
+  options: {
+    items?: MarketplaceItem[];
+    install?: (...args: unknown[]) => Promise<unknown>;
+  } = {},
+) {
+  const listItems = options.items ?? items;
+  const install = options.install ?? (async () => installResult);
   return mount(WorkspaceSectionPanel, {
     props: { section: "marketplace", workspaceId: "w1" },
     global: {
@@ -55,7 +71,7 @@ function mountPanel(session: Record<string, unknown>) {
       provide: {
         [vynelClientKey as symbol]: {
           hub: { getSession: async () => session },
-          marketplace: { listItems: async () => items },
+          marketplace: { listItems: async () => listItems, install },
         },
       },
     },
@@ -85,6 +101,55 @@ describe("WorkspaceSectionPanel — marketplace Pro badge", () => {
     await flushPromises();
 
     expect(wrapper.findAll(".scope-chip.is-pro")).toHaveLength(0);
+    wrapper.unmount();
+  });
+});
+
+describe("WorkspaceSectionPanel — marketplace install", () => {
+  it("installs the clicked item at the workspace scope", async () => {
+    const install = vi.fn(async () => installResult);
+    const wrapper = mountPanel(
+      { kind: "signed-out" },
+      {
+        items: [makeItem({ itemId: "free-skill", displayName: "Free Skill" })],
+        install,
+      },
+    );
+    await flushPromises();
+
+    await wrapper.get("button.pill").trigger("click");
+    await flushPromises();
+
+    expect(install).toHaveBeenCalledWith("w1", {
+      itemId: "free-skill",
+      scope: "workspace",
+    });
+    wrapper.unmount();
+  });
+
+  it("shows an installed item as disabled, not a live Get button", async () => {
+    const wrapper = mountPanel(
+      { kind: "signed-out" },
+      {
+        items: [
+          makeItem({
+            itemId: "owned",
+            displayName: "Owned",
+            installStatus: {
+              kind: "installed",
+              scope: "workspace",
+              installedSkillId: "sk1",
+              versionInstalled: "1.0.0",
+            },
+          }),
+        ],
+      },
+    );
+    await flushPromises();
+
+    const button = wrapper.get("button.pill");
+    expect(button.text()).toBe("Installed");
+    expect(button.attributes("disabled")).toBeDefined();
     wrapper.unmount();
   });
 });
