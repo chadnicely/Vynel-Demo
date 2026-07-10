@@ -3,7 +3,62 @@
 **Updated 2026-07-10.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-10): M3 COMPLETE + REVIEW-FIXED + GATE-GREEN (2101/4-skip) — UNCOMMITTED; Chad to smoke basic-vs-pro, then commit; next: M4 (marketplace registry) OR D2 (installer)
+## ⏭ NEXT ACTION (2026-07-10): M4a BUILT + LIVE-SMOKED + GATE-GREEN (2107/4-skip) — reviewer running; then fold + commit; next: M4b (desktop sync + install)
+
+**🏗 M4a HUB REGISTRY DONE — "the real marketplace data holder" (uncommitted; journal
+`.claude/journal/2026-07-10-hub-m4a-registry.md`).** Built exactly to the advisor-vetted plan
+below. **✅ LIVE-SMOKED: `pnpm cloud:publish scripts/seed-catalog/email-drafter` published to
+Chad's running hub → catalog_items + item_versions rows + 347-byte artifact + sha256 confirmed via
+docker psql; migration 0003 applied to the live volume on node --watch reload.** 7 new tests
+(registry leaf + catalog routes incl. the fail-closed download gate + the downgrade-defeats-valid-
+token staleness defense + republish-immutability). **Reviewer: security core CLEAN (all 4 asks);
+1 must-fix + 1 should-fix APPLIED** — a REJECTED republish used to overwrite the artifact bytes
+before the 409 (byte-immutability breach): now conflict-check BEFORE the store put + publishItem
+Version's 3 writes wrapped in db.transaction; semver regex added. Gate 2108/4-skip. ⏭ **COMMIT:
+feat(registry) + docs.** ⚠ M4a has NO in-app payoff by design (proof = CLI + tests); the app
+payoff is M4b.
+- **Files:** `contracts/hub/catalog.ts` (kind-agnostic DTOs + tierMeetsMinimum) · `packages/registry`
+  leaf (schema publishers/catalog_items/item_versions · repos · listCatalog/getCatalogItemDetail/
+  publishItemVersion · PublishItemSchema opaque-manifest) · migration 0003_registry · cloud-api
+  `artifacts/artifact-store.ts` (seam + fs impl w/ containment + in-memory for tests) ·
+  `routes/catalog.ts` (browse/detail/download; access-token'd; download FRESH-tier FAIL-CLOSED) ·
+  admin.ts +POST /catalog/publish (admin bearer, base64 ≤10MB) · env CLOUD_ARTIFACT_DIR ·
+  `scripts/src/cloud/publish-catalog-item.ts` + `cloud:publish` + `scripts/seed-catalog/email-drafter/`
+  (jszip). Chad's `.env` gained CLOUD_PLATFORM_WEBHOOK_SECRET (M3) — CLOUD_ARTIFACT_DIR defaults.
+
+## (M4a plan — advisor-vetted, executed above)
+
+**M4 = the marketplace registry — "the real marketplace data holder" from Chad's opening ask.
+SPLIT: M4a hub-side (hold + distribute) → M4b desktop (sync + merge + install). ⚠ M4a is the FIRST
+milestone Chad CAN'T live-smoke in the app — proof = publish CLI + tier-gated-download check
+(basic denied / pro allowed) over curl+tests; the app payoff lands in M4b. Advisor-vetted plan:**
+- **Download gate reads tier FRESH from the accounts table, FAIL-CLOSED** (never the ~7d-stale
+  token claim — highest-stakes staleness spot: paid content). Browse fail-OPEN, install fail-CLOSED
+  = the §5 "browse generous, install gated" line.
+- **NO per-artifact Ed25519 signature in M4a** (hub serves catalog+bytes over TLS from one box →
+  a detached sig protects nothing the SHA-256-in-catalog doesn't; it earns its keep only at the
+  object-storage move, and THEN a SEPARATE keypair — never the token key). v1 integrity =
+  SHA-256 stored in catalog, M4b recomputes-and-compares from downloaded bytes.
+- **Hub gets its OWN catalog DTO** in `contracts/hub/catalog.ts` (itemId, kind, minimumTier,
+  versions) — NOT the skill-shaped `MarketplaceItem` (that + the UI merge is M4b's hard problem).
+- **`minAppVersion`: STORE, don't ENFORCE** (desktop still reports appVersion '0.0.0' — enforcing
+  would reject everything; treat 0.0.0 as dev-bypass until D2 stamps real versions).
+- **Filesystem `ArtifactStore` behind a seam** (no infra; route free to return bytes now / a
+  redirect at the R2 move). Registry tables leaf-owned (packages/registry, like accounts owns
+  refresh_tokens); migration 0003 incremental.
+
+**M4a BUILD ORDER:** contracts/hub/catalog.ts (DTOs + tierMeetsMinimum) → cloud-db... NO: registry
+LEAF owns schema (publishers · catalog_items · item_versions [artifactSha256/size, manifestJson,
+minAppVersion stored-not-enforced, NO signature col]) + repos → `packages/registry` leaf
+(publish-validate + list/get/annotate) → cloud-api ArtifactStore seam + fs impl + catalog routes
+(GET /catalog browse[access-token, annotate canInstall via fresh tier, fail-open] · GET
+/catalog/:itemId detail · GET /catalog/:itemId/versions/:v/download[fresh-tier FAIL-CLOSED +
+sha256] · POST /admin/catalog/publish[admin-token, base64 zip ≤10MB]) → publish CLI
+(scripts/src/cloud/publish-catalog-item.ts) → tests (PGlite+temp store: publish→list→tier-gated
+download basic-denied/pro-allowed→sha256 matches). v1 catalog = verified/Vynel-Team only;
+kind-agnostic (skill|agent|mcp|rule|plugin) seeded with skill(s).
+
+## (prev) M3 COMPLETE + REVIEW-FIXED + GATE-GREEN — COMMITTED `a60815d`+`dcd7a35`, tier-flip Chad-verified
 
 **🏗 M3 TIERS DONE (reviewer: 1 must-fix + should-fixes ALL applied; journal
 `.claude/journal/2026-07-10-hub-m3-tiers.md`). Matrix: basic = channels only · pro = all.**

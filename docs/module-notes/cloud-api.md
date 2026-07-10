@@ -206,6 +206,19 @@ it never streams big files through itself.
 validates a bundle locally (manifest schema, size, no traversal), computes hash + signature,
 uploads to R2, and inserts the version — auth'd by an admin token. A real admin UI is later.
 
+**✅ M4a BUILT (2026-07-10) — the hub holds + distributes; the app-side consume is M4b.**
+`packages/registry` leaf (publishers · catalog_items · item_versions, migration 0003) +
+`apps/cloud-api` catalog routes + `ArtifactStore` seam (filesystem impl; R2 swap keeps the same
+shape) + `pnpm cloud:publish` CLI (zips a bundle dir → base64 → admin publish). Advisor-revised
+from this section: (a) the download gate reads tier **fresh from the DB, fail-closed** — never the
+~7-day-stale token claim (browse fail-open, install fail-closed = the "browse generous, install
+gated" line above); (b) the per-artifact **Ed25519 signature is DEFERRED to the object-storage
+move** (hub serves catalog+bytes over TLS from one box → a detached sig protects nothing the
+SHA-256-in-catalog doesn't yet, and then it needs a SEPARATE key from the token key); v1 integrity
+= SHA-256 stored + recomputed on the desktop in M4b; (c) `minAppVersion` is stored but **not
+enforced** (desktop still reports '0.0.0'); (d) the hub speaks its own `contracts/hub/catalog`
+DTO, not skill-shaped `MarketplaceItem` — merging into the marketplace UI is M4b's job.
+
 ## 6. App updates (same hub, later milestone)
 
 The Tauri updater consumes a static-shaped manifest (`latest.json` + signed installer). The hub
