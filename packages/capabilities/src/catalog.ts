@@ -7,12 +7,17 @@
 import type { Capability } from './capabilities-types.js'
 
 export const CAPABILITY_CATALOG: readonly Capability[] = [
+  // Both core capabilities default ON: their writes still card / stay
+  // approval-gated, and a user who adds a memory or a knowledge folder
+  // through the UI plainly expects the assistant to be able to use it —
+  // an off-by-default read gate just reads as "broken" (vision litmus).
   {
     id: 'memory',
     displayName: 'Memory',
     description: 'Remembers facts about you and your work, and grounds the agent in them each turn.',
     scope: 'workspace',
     isFirstParty: true,
+    defaultEnabled: true,
   },
   {
     id: 'knowledge',
@@ -20,6 +25,7 @@ export const CAPABILITY_CATALOG: readonly Capability[] = [
     description: 'Indexes a folder so the agent can search your documents.',
     scope: 'workspace',
     isFirstParty: true,
+    defaultEnabled: true,
   },
 ] as const
 

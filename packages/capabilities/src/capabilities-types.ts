@@ -22,4 +22,9 @@ export interface Capability {
   description: string
   scope: CapabilityScope
   isFirstParty: boolean
+  /** Enabled with NO explicit `workspace_capabilities` row — a row is an
+   *  override (the toggle panel writes one, either way). Discovered live
+   *  2026-07-11: nothing seeds rows, so a no-row-means-off default left
+   *  memory + knowledge silently dead in every session on a fresh install. */
+  defaultEnabled: boolean
 }

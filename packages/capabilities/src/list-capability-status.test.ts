@@ -34,27 +34,30 @@ function seed(db: Database) {
 }
 
 describe('listCapabilityStatusForWorkspace', () => {
-  it('returns every catalog capability, all disabled by default', async () => {
+  // test: correct expectation — first-party capabilities now default ON with
+  // no row (was: all off). Same resolution as listEnabledCapabilities, so the
+  // panel can never show "off" while the session composes the capability in.
+  it('returns every catalog capability, enabled by default (no rows)', async () => {
     await withTestDatabase((db) => {
       const { workspace } = seed(db)
       const statuses = listCapabilityStatusForWorkspace(db, workspace.id)
       expect(statuses.map((s) => s.capability.id).sort()).toEqual(['knowledge', 'memory'])
-      expect(statuses.every((s) => !s.isEnabled)).toBe(true)
+      expect(statuses.every((s) => s.isEnabled)).toBe(true)
     })
   })
 
-  it('reflects an enabled capability while leaving the others off', async () => {
+  it('reflects an explicit disable while leaving the others on', async () => {
     await withTestDatabase((db) => {
       const { user, workspace } = seed(db)
       setCapabilityEnabled(db, {
         userId: user.id,
         workspaceId: workspace.id,
         capabilityId: 'memory',
-        isEnabled: true,
+        isEnabled: false,
       })
       const statuses = listCapabilityStatusForWorkspace(db, workspace.id)
-      expect(statuses.find((s) => s.capability.id === 'memory')?.isEnabled).toBe(true)
-      expect(statuses.find((s) => s.capability.id === 'knowledge')?.isEnabled).toBe(false)
+      expect(statuses.find((s) => s.capability.id === 'memory')?.isEnabled).toBe(false)
+      expect(statuses.find((s) => s.capability.id === 'knowledge')?.isEnabled).toBe(true)
     })
   })
 })

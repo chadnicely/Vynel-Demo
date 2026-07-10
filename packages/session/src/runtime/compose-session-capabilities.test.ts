@@ -57,24 +57,26 @@ describe('composeSessionCapabilities', () => {
     })
   })
 
-  it('omits the memory contribution when the memory capability is not enabled', async () => {
+  // test: correct expectation — capabilities now default ON with no row, so
+  // "not enabled" requires an EXPLICIT disable (was: no row = off).
+  it('omits the memory contribution when the memory capability is explicitly disabled', async () => {
     await withTestDatabase((db) => {
       const { user, workspace } = seed(db)
-      addMemoryEntry(db, user.id, workspace.id) // entries exist, but memory is OFF
+      addMemoryEntry(db, user.id, workspace.id) // entries exist, but memory is toggled OFF
+      setCapabilityEnabled(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        capabilityId: 'memory',
+        isEnabled: false,
+      })
       const composed = composeSessionCapabilities(db, { workspaceId: workspace.id })
       expect(composed.systemPromptAppend).not.toContain('Head of partnerships at Acme.')
     })
   })
 
-  it('includes the memory snapshot when the memory capability is enabled', async () => {
+  it('includes the memory snapshot by default (no capability rows)', async () => {
     await withTestDatabase((db) => {
       const { user, workspace } = seed(db)
-      setCapabilityEnabled(db, {
-        userId: user.id,
-        workspaceId: workspace.id,
-        capabilityId: 'memory',
-        isEnabled: true,
-      })
       addMemoryEntry(db, user.id, workspace.id)
       const composed = composeSessionCapabilities(db, { workspaceId: workspace.id })
       expect(composed.systemPromptAppend).toContain('Head of partnerships at Acme.')

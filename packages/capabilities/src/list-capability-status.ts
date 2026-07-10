@@ -21,6 +21,9 @@ export function listCapabilityStatusForWorkspace(
   const isEnabledById = new Map(rows.map((row) => [row.capabilityId, row.isEnabled]))
   return CAPABILITY_CATALOG.map((capability) => ({
     capability,
-    isEnabled: isEnabledById.get(capability.id) ?? false,
+    // No row → the catalog default (a row is an explicit toggle override) —
+    // the same resolution listEnabledCapabilities uses, so the panel never
+    // shows "off" while the session composes the capability in.
+    isEnabled: isEnabledById.get(capability.id) ?? capability.defaultEnabled,
   }))
 }

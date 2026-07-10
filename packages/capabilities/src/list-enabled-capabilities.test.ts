@@ -34,30 +34,21 @@ function seedUserWorkspace(db: Database) {
 }
 
 describe('listEnabledCapabilities', () => {
-  it('returns enabled first-party capabilities resolved through the catalog', async () => {
+  // test: correct expectation for no-row workspaces — first-party capabilities
+  // now DEFAULT ON (a row is an explicit toggle override); was: empty. Nothing
+  // seeds rows at workspace creation, so the old default meant memory +
+  // knowledge were silently off everywhere (2026-07-11 live catch).
+  it('defaults first-party capabilities ON for a workspace with no rows', async () => {
     await withTestDatabase((db) => {
-      const { user, workspace } = seedUserWorkspace(db)
-      setCapabilityEnabled(db, {
-        userId: user.id,
-        workspaceId: workspace.id,
-        capabilityId: 'memory',
-        isEnabled: true,
-      })
+      const { workspace } = seedUserWorkspace(db)
       const enabled = listEnabledCapabilities(db, workspace.id)
-      expect(enabled.map((c) => c.id)).toEqual(['memory'])
-      expect(enabled[0]!.displayName).toBe('Memory')
+      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory'])
     })
   })
 
-  it('excludes disabled capabilities', async () => {
+  it('an explicit disable row overrides the default', async () => {
     await withTestDatabase((db) => {
       const { user, workspace } = seedUserWorkspace(db)
-      setCapabilityEnabled(db, {
-        userId: user.id,
-        workspaceId: workspace.id,
-        capabilityId: 'memory',
-        isEnabled: true,
-      })
       setCapabilityEnabled(db, {
         userId: user.id,
         workspaceId: workspace.id,
@@ -65,6 +56,27 @@ describe('listEnabledCapabilities', () => {
         isEnabled: false,
       })
       expect(listEnabledCapabilities(db, workspace.id).map((c) => c.id)).toEqual(['memory'])
+    })
+  })
+
+  it('an explicit re-enable row restores a disabled capability', async () => {
+    await withTestDatabase((db) => {
+      const { user, workspace } = seedUserWorkspace(db)
+      setCapabilityEnabled(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        capabilityId: 'memory',
+        isEnabled: false,
+      })
+      setCapabilityEnabled(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        capabilityId: 'memory',
+        isEnabled: true,
+      })
+      const enabled = listEnabledCapabilities(db, workspace.id)
+      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory'])
+      expect(enabled.find((c) => c.id === 'memory')!.displayName).toBe('Memory')
     })
   })
 
@@ -77,14 +89,11 @@ describe('listEnabledCapabilities', () => {
         capabilityId: 'some-marketplace-plugin',
         isEnabled: true,
       })
-      expect(listEnabledCapabilities(db, workspace.id)).toEqual([])
-    })
-  })
-
-  it('returns an empty array for a workspace with no capabilities', async () => {
-    await withTestDatabase((db) => {
-      const { workspace } = seedUserWorkspace(db)
-      expect(listEnabledCapabilities(db, workspace.id)).toEqual([])
+      // Catalog capabilities resolve by default; the unknown plugin id is skipped.
+      expect(listEnabledCapabilities(db, workspace.id).map((c) => c.id).sort()).toEqual([
+        'knowledge',
+        'memory',
+      ])
     })
   })
 })

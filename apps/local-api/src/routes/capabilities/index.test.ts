@@ -40,7 +40,10 @@ function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
 
 describe('capabilities routes', () => {
   describe('GET /capabilities', () => {
-    it('returns every catalog capability, all disabled by default', async () => {
+    // test: correct expectation — first-party capabilities now default ON with
+    // no row (was: all off); nothing seeds rows, so the old default left them
+    // silently dead on fresh installs (2026-07-11).
+    it('returns every catalog capability, enabled by default', async () => {
       await withTestDatabase(async (db) => {
         const { workspace } = seedWorld(db)
         const app = createApp({ db, logger: silentLogger })
@@ -48,7 +51,7 @@ describe('capabilities routes', () => {
         expect(res.status).toBe(200)
         const body = (await res.json()) as { capabilities: Array<{ id: string; isEnabled: boolean }> }
         expect(body.capabilities.map((c) => c.id).sort()).toEqual(['knowledge', 'memory'])
-        expect(body.capabilities.every((c) => !c.isEnabled)).toBe(true)
+        expect(body.capabilities.every((c) => c.isEnabled)).toBe(true)
       })
     })
 
@@ -64,25 +67,26 @@ describe('capabilities routes', () => {
   })
 
   describe('PUT /capabilities/:capabilityId', () => {
-    it('enables a capability and returns the updated status', async () => {
+    it('disables a capability (overriding the on-default) and returns the updated status', async () => {
       await withTestDatabase(async (db) => {
         const { workspace } = seedWorld(db)
         const app = createApp({ db, logger: silentLogger })
         const res = await app.request(`/workspaces/${workspace.id}/capabilities/memory`, {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ isEnabled: true }),
+          body: JSON.stringify({ isEnabled: false }),
         })
         expect(res.status).toBe(200)
         const body = (await res.json()) as { id: string; isEnabled: boolean }
         expect(body.id).toBe('memory')
-        expect(body.isEnabled).toBe(true)
+        expect(body.isEnabled).toBe(false)
 
-        // Round-trips through the list route too.
+        // Round-trips through the list route too — the untouched capability
+        // keeps its on-default.
         const listRes = await app.request(`/workspaces/${workspace.id}/capabilities`)
         const list = (await listRes.json()) as { capabilities: Array<{ id: string; isEnabled: boolean }> }
-        expect(list.capabilities.find((c) => c.id === 'memory')?.isEnabled).toBe(true)
-        expect(list.capabilities.find((c) => c.id === 'knowledge')?.isEnabled).toBe(false)
+        expect(list.capabilities.find((c) => c.id === 'memory')?.isEnabled).toBe(false)
+        expect(list.capabilities.find((c) => c.id === 'knowledge')?.isEnabled).toBe(true)
       })
     })
 
