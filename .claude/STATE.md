@@ -26,7 +26,26 @@ payoff is M4b.
   `scripts/src/cloud/publish-catalog-item.ts` + `cloud:publish` + `scripts/seed-catalog/email-drafter/`
   (jszip). Chad's `.env` gained CLOUD_PLATFORM_WEBHOOK_SECRET (M3) — CLOUD_ARTIFACT_DIR defaults.
 
-## ⏭ M4b-1 BACKEND DONE + TESTED (uncommitted) — UI badge subagent running → gate → reviewer → commit
+## ✅ THE CLOUD-API + DESKTOP ARC IS COMPLETE (2026-07-10) — D1 · M2a · M2b · M3 · M4a · M4b-1 · M4b-2 all SHIPPED + gate-green (2126/4-skip)
+
+**The full arc from Chad's opening ask is done: a real desktop app, a hosted hub (accounts + access
+tiers), and a real marketplace that HOLDS and DISTRIBUTES skills — with email-drafter, published to
+the hub, now installable from the app.** M4b-2 (install finale) built + reviewed (APPROVE, no
+must-fix; 2 should-fixes folded: itemId path-traversal guard on the FS write + the stale route
+docblock) + committed. Commits: D1 `67530d7` · M2a `0757350` · M2b `d6ea770` · M3 `a60815d` · M4a
+`39f2d36` · M4b-1 `f403d93` · M4b-2 (this). Journals in `.claude/journal/2026-07-10-*`.
+**M4b-2:** hub artifact download (hub-account) → `installCloudSkill` (verify sha256 FIRST, then
+extract SKILL.md via jszip [reads only SKILL.md, writes nothing archive-relative; safe-itemId
+guard], disk-first then tx, stamps `installedFromSource:'marketplace'`) · `POST /marketplace/install`
+dispatches cloud-vs-bundled by cache membership · the "Get" button now installs (was dead even for
+bundled). **⏭ Chad's ONE manual check (tests can't prove):** click Get on email-drafter in the app
+→ the row should flip to "Installed" after the post-install refetch (annotateWithInstallStatus).
+**Next arcs (open, none started):** D2 installer + bundled Node (§9-F) · marketplace update-flow
+(catalog version > installed → "update available") · non-skill kinds (agent/mcp/rule) + `kind` on
+MarketplaceItem · object storage (R2) + detached artifact signature (own key) · memory
+backup/restore · the CLI surface.
+
+## (M4b-1 done — see below)
 
 **M4b-1 (sync + merged browse) backend built to the advisor plan; 49 scoped tests green (incl. the
 COLLISION dedup + sync-service status behavior).** Files: contracts MarketplaceItem +`minimumTier?`
