@@ -218,6 +218,9 @@ importers:
         specifier: ^4.0.0
         version: 4.2.4(zod@3.25.76)
     devDependencies:
+      '@vynel/embeddings':
+        specifier: workspace:*
+        version: link:../../packages/embeddings
       '@vynel/testing':
         specifier: workspace:*
         version: link:../../packages/testing
@@ -386,6 +389,9 @@ importers:
       '@vynel/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@vynel/embeddings':
+        specifier: workspace:*
+        version: link:../../packages/embeddings
       '@vynel/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
@@ -829,6 +835,9 @@ importers:
       '@vynel/errors':
         specifier: workspace:*
         version: link:../errors
+      '@vynel/indexer':
+        specifier: workspace:*
+        version: link:../indexer
       '@vynel/logger':
         specifier: workspace:*
         version: link:../logger

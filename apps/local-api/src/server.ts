@@ -12,6 +12,7 @@ import { serve } from '@hono/node-server'
 import pino from 'pino'
 import { createDatabase, closeDatabase, runMigrations, sqliteMigrationsFolder } from '@vynel/db'
 import { getOrCreateLocalUser } from '@vynel/core/users'
+import { configureEmbeddingsCacheDir } from '@vynel/embeddings'
 import { FileWatcherService } from '@vynel/knowledge'
 import { hostname } from 'node:os'
 import {
@@ -28,6 +29,8 @@ import { createGatewayApp } from './gateway.js'
 import { startHubSessionService, type HubSessionService } from './services/hub-session-service.js'
 import { startCatalogSyncService, type CatalogSyncService } from './services/catalog-sync-service.js'
 import { startSchedulesService } from './services/schedules-service.js'
+import { startKnowledgeIndexingService } from './services/knowledge-indexing-service.js'
+import { startMemoryMaintenanceService } from './services/memory-maintenance-service.js'
 import { startChannelsService } from './services/channels-service.js'
 import { startDelegationService } from './services/delegation-service.js'
 import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
@@ -37,6 +40,12 @@ import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 export async function boot(): Promise<void> {
   const env = loadEnv()
   const logger = pino({ level: env.LOG_LEVEL })
+
+  // Before any embedding tick can lazily load the model — the cache must live
+  // outside node_modules (see @vynel/embeddings).
+  if (env.VYNEL_EMBEDDINGS_CACHE_DIR !== undefined) {
+    configureEmbeddingsCacheDir(env.VYNEL_EMBEDDINGS_CACHE_DIR)
+  }
 
   logger.info({ dialect: env.DB_DIALECT }, 'api boot: opening database')
   const db = createDatabase({
@@ -51,8 +60,8 @@ export async function boot(): Promise<void> {
   const user = getOrCreateLocalUser(db, { logger })
   logger.info({ userId: user.id, displayName: user.displayName }, 'api boot: local user ready')
 
-  // Boot-owned so shutdown can close every chokidar watcher. (Resuming watchers
-  // for already-registered sources on restart is a separate follow-on.)
+  // Boot-owned so shutdown can close every chokidar watcher. The knowledge
+  // indexing service (below) restores watchers for already-registered sources.
   const fileWatcher = new FileWatcherService(db, logger)
 
   // ONE turn-event pub/sub per process — the delegation service publishes a routed
@@ -99,6 +108,11 @@ export async function boot(): Promise<void> {
   // headless workspace turn. MCP-intrinsic, so it lives in the api process (not
   // the worker). Stopped on shutdown, like the file watcher.
   const schedulesService = await startSchedulesService({ db, logger, appRequest })
+  // Watcher restore + catch-up scan for every registered knowledge source, plus
+  // the in-process embeddings tick (the desktop app runs no apps/worker).
+  const knowledgeIndexingService = startKnowledgeIndexingService({ db, logger, fileWatcher })
+  // Memory's embeddings + retention purge — same in-process reasoning.
+  const memoryMaintenanceService = startMemoryMaintenanceService({ db, logger })
   // The channel poll(5s) / process(1s) / deliver(2s) loops — fetch inbound messages
   // from each enabled channel's adapter and persist them; run a global-root turn per
   // pending inbound message and queue the answer; send queued outbound messages.
@@ -146,6 +160,8 @@ export async function boot(): Promise<void> {
     logger.info({ signal }, 'api shutdown initiated')
     server.close(() => {
       schedulesService.stop()
+      knowledgeIndexingService.stop()
+      memoryMaintenanceService.stop()
       channelsService.stop()
       delegationService.stop()
       approvalsRecoveryService.stop()

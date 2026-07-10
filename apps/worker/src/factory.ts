@@ -8,6 +8,7 @@
 
 import pino, { type Logger } from 'pino'
 import { createDatabase, type Database } from '@vynel/db'
+import { configureEmbeddingsCacheDir } from '@vynel/embeddings'
 import { loadEnv } from './env.js'
 
 export interface WorkerContext {
@@ -18,6 +19,9 @@ export interface WorkerContext {
 export function createWorkerContext(): WorkerContext {
   const env = loadEnv()
   const logger = pino({ level: env.LOG_LEVEL })
+  // Before any embedding job can lazily load the model — the cache must live
+  // outside node_modules (see @vynel/embeddings).
+  configureEmbeddingsCacheDir(env.VYNEL_EMBEDDINGS_CACHE_DIR)
   const db = createDatabase({
     dialect: env.DB_DIALECT,
     ...(env.DB_PATH !== undefined ? { path: env.DB_PATH } : {}),

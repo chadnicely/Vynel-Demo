@@ -74,6 +74,13 @@ export const EnvSchema = z.object({
   // mode — the Tauri shell points its windows at us); when absent, the api runs
   // bare and the Vite dev server fronts the UI. Repo-root-resolved like DB_PATH.
   VYNEL_WEB_UI_DIST: z.string().default('apps/local-web/dist').transform(resolveAgainstRepoRoot),
+  // Where the embedding model cache lives — OUTSIDE node_modules so reinstalls
+  // and interrupted first downloads can't poison it (@vynel/embeddings; the
+  // voice-models `.models/` precedent). Repo-root-resolved like DB_PATH.
+  VYNEL_EMBEDDINGS_CACHE_DIR: z
+    .string()
+    .default('.models/embeddings')
+    .transform(resolveAgainstRepoRoot),
   // The Vynel HUB (apps/cloud-api, hosted) — accounts + tiers + marketplace.
   // OPTIONAL: unset = hub features off (the /hub routes answer
   // `not-configured`), so dev without a hub keeps working.

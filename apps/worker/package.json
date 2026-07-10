@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@vynel/db": "workspace:*",
+    "@vynel/embeddings": "workspace:*",
     "@vynel/knowledge": "workspace:*",
     "node-cron": "^3.0.3",
     "pino": "^9.5.0",

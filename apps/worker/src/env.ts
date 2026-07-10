@@ -34,6 +34,13 @@ export const EnvSchema = z.object({
   DB_PATH: z.string().default('.data/vynel.dev.db').transform(resolveAgainstRepoRoot),
   DB_URL: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  // Where the embedding model cache lives — OUTSIDE node_modules so reinstalls
+  // and interrupted first downloads can't poison it (@vynel/embeddings; the
+  // voice-models `.models/` precedent). Mirrors apps/local-api.
+  VYNEL_EMBEDDINGS_CACHE_DIR: z
+    .string()
+    .default('.models/embeddings')
+    .transform((raw) => resolveAgainstRepoRoot(raw) as string),
 })
 
 export type Env = z.infer<typeof EnvSchema>
