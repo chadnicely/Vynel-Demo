@@ -26,6 +26,59 @@ payoff is M4b.
   `scripts/src/cloud/publish-catalog-item.ts` + `cloud:publish` + `scripts/seed-catalog/email-drafter/`
   (jszip). Chad's `.env` gained CLOUD_PLATFORM_WEBHOOK_SECRET (M3) — CLOUD_ARTIFACT_DIR defaults.
 
+## ⏭ M4b-1 BACKEND DONE + TESTED (uncommitted) — UI badge subagent running → gate → reviewer → commit
+
+**M4b-1 (sync + merged browse) backend built to the advisor plan; 49 scoped tests green (incl. the
+COLLISION dedup + sync-service status behavior).** Files: contracts MarketplaceItem +`minimumTier?`
++ HubCatalogItem +`latestVersionSha256` (integrity anchor for M4b-2) · marketplace leaf now OWNS
+`marketplace_cloud_catalog` (product migration 0002; supersede of D1) + repo (SYNC reads keep
+listMarketplaceItems sync) + `sync-cloud-catalog` (full-swap replace/clear) + `resolve-merged-
+catalog` (bundled ∪ cached-cloud, dedup CLOUD-WINS, non-skill kinds filtered) + cloud→MarketplaceItem
+mapper · resolveCatalogSources stays pure (seam comment repointed) · hub-account client.getCatalog +
+session.fetchCatalog (via withAccessToken) · local-api `catalog-sync-service` (status-keyed:
+signed-in→fetch+cache · offline→KEEP · signed-out/locked→CLEAR) + wired in server.ts · marketplace
+route schema +minimumTier + SDK regen. **⏭ UI subagent a855a157 (Pro badge). Then full gate →
+reviewer → commit feat + docs.** ⚠ still no INSTALL (Get button dead even for bundled — M4b-2).
+**Chad smoke (when he runs the app):** signed-in → email-drafter (from the cloud) appears in the
+workspace Marketplace section (deduped with the bundled one, cloud-wins); product migration 0002
+applies incrementally to his dev DB (NO reset — it's an additive table, not a baseline fold).
+
+## M4b PLAN (2026-07-10, advisor-vetted; M4a COMMITTED `39f2d36`+`605e910`) — desktop CONSUMES the cloud catalog
+
+**M4b = the app-side payoff. SPLIT: M4b-1 sync + merged BROWSE (read) → M4b-2 INSTALL (write).**
+Map: Explore agent acae9bf. Advisor reshaped it — SIMPLER than feared:
+- **⚠ COLLISION (build the test): `email-drafter` is in BOTH the bundled `VERIFIED_SKILL_CATALOG`
+  AND the cloud (I seeded it).** Merge naively → 2 rows same itemId → annotate-by-skillId breaks.
+  **Dedup by itemId, CLOUD-WINS.**
+- **Cache table lives in the MARKETPLACE leaf** (deliberate supersede of D1 "marketplace owns no
+  tables" — bundled-catalog premise is retired; name it in the commit). Leaf reads its OWN cache
+  (no injection). better-sqlite3 is SYNC → the cache read keeps `listMarketplaceItems` sync.
+- **Merge in the LEAF, `resolveCatalogSources` stays pure:** `[...bundled, ...cachedCloud(db)]` →
+  dedup(cloud-wins) → annotate. Update the reserved-seam comment to point at the real merge site.
+- **Cache the TIER-NEUTRAL row (itemId·kind·publisher·display·category·iconName·recommendedScope·
+  minimumTier·latestVersion·artifactSha256·releasedAt·syncedAt) — NOT `canInstall`.** UI shows a
+  "Pro" badge client-side from `minimumTier` vs the entitlement; real gate stays server-side.
+- **DEFER `kind` on MarketplaceItem, manifest transport, settings.** v1 cloud item = a settings-
+  free skill; map it as a skill (skillId=itemId; category 'email' is a valid SkillCategory).
+  Merge only kind='skill' cloud rows for now. Add optional `minimumTier?` to MarketplaceItem
+  (additive, for the badge).
+- **Signed-out → bundled only:** sync service keys off hubSession status — signed-in → fetch
+  /catalog + replace cache · offline → KEEP cache (offline browse) · signed-out/locked/not-
+  configured → CLEAR cache.
+- **⚠ The marketplace "Get" button is DEAD today even for BUNDLED skills** (no install mutation
+  exists). So M4b-1 = "cloud catalog flows to the app + appears" (no regression); M4b-2 = "Get
+  actually installs, bundled AND cloud" (install first works at all).
+
+**M4b-1 BUILD:** contracts MarketplaceItem +`minimumTier?` · marketplace leaf: schema/cloud-
+catalog-cache.ts + repo (sync reads) + sync-cloud-catalog.ts (replace cache) + merge/dedup in
+list+get-marketplace-items + cachedRow→MarketplaceItem mapper + product migration 0002 · hub-
+account: client.getCatalog(accessToken) + session.fetchCatalog() via withAccessToken · local-api:
+catalog-sync-service (status-keyed) + wire · UI: Pro badge · SDK regen · tests (cache repo · sync ·
+**merge dedup collision** · route merged). **M4b-2 (next):** manifest-in-zip OR SKILL.md-by-
+convention · hub download+verify-sha256+extract(traversal/absolute/symlink-safe, zip-bomb caps) ·
+cloud-install path stamping installedFromSource:'marketplace' · install route + `use-install-skill`
+mutation + wire the Get button (bundled + cloud).
+
 ## (M4a plan — advisor-vetted, executed above)
 
 **M4 = the marketplace registry — "the real marketplace data holder" from Chad's opening ask.
