@@ -3,7 +3,80 @@
 **Updated 2026-07-10.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-10): HUB M2a BUILT (cloud-api + cloud-db + accounts) — UNCOMMITTED, prompt Chad to commit; next: M2b desktop sign-in OR M3 tiers+webhooks
+## ⏭ NEXT ACTION (2026-07-10): M2b COMPLETE + GATE-GREEN (2081/4-skip) — UNCOMMITTED; Chad to smoke sign-in end-to-end, then commit; next: M3 (tiers + entitlements + platform webhooks)
+
+**🏗 M2b DESKTOP SIGN-IN DONE (reviewer: NO must-fix; 5 should-fixes ALL applied + nits).**
+Review round added: session ops STRICTLY SERIALIZED (op-queue — a daily restore racing sign-out
+can't resurrect a cleared vault) · client network-fail now throws typed `HubUnreachableError`
+(503 "check your connection", 15s AbortSignal.timeout; restore() still reads non-401/403 as
+offline) · hub-session-service cadence ADAPTIVE (offline retries 60s, settled 24h — tested with
+fake timers) · locked card gained "Sign in again" (a re-enabled user isn't stranded till the daily
+check) · the two missing app-side test files landed (routes/hub not-configured contract +
+delegation; service cadence/stop). UI (subagent-built, sibling-idiom): AccountSection (all 5
+HubLinkStatus kinds) + SignInForm + DeviceRow(two-step confirm) + composables/hub/* (15s refetch
+ONLY while offline) + Account menu item before Application; ChatMainView +'account'.
+**✅ LIVE-SMOKED END-TO-END (2026-07-10, Chad's box, demo password 'vynel-demo-2026'):** hub DB =
+DOCKER postgres (apps/cloud-api/docker-compose.yml, port 5433, volume `hub-data`; `db:up`/`db:down`
+scripts) — no hosted DB yet (Chad). `.env` gained the full hub block (keys via cloud:generate-keys,
+admin token, VYNEL_HUB_URL=http://localhost:8890) — server.ts boot VERIFIED live (migrations over
+the direct connection, /health ok). Chad's account provisioned (gaurav.subedi40@gmail.com,
+'Chad'); set-password + direct sign-in verified; **daemon /hub/sign-in stored the token in REAL
+Windows Credential Manager, devices listed (hostname KLONE), and a daemon KILL+RESTART came back
+SIGNED-IN from the keyring alone — the log-in-once promise proven.** Probe device revoked.
+⚠ The hub must be RUNNING for the app's Account section: `pnpm --filter @vynel/cloud-api dev`
+(postgres container survives on its own). ⚠ Invite links have no set-password PAGE yet (curl-only)
+— a hub-hosted page is the M3 rider so real users never see a terminal. **Deferred (reviewer-noted):** offline-at-boot shows null identity (persist
+w/ M3 entitlement) · initial-status flash pre-boot-check · DeviceRow pending-disable + revoke
+error line · keyring load() conflates no-entry/broken-keyring · 404 mapping drops hub message.
+**COMMIT: feat(hub-account + /hub + UI) + docs.** Then M3 per cloud-api.md §8 (plans/grants
+schema, webhook endpoints [WE author payloads], entitlement JWT claims, daemon hasFeature seam).
+
+## (prev) M2b plan (executed above)
+
+**M2b PROGRESS: steps 1–4 DONE + GATE GREEN (2071/4-skip, exit 0; uncommitted). Built:
+`contracts/src/hub/hub-auth.ts` (wire types incl. HubLinkStatus union) · `packages/hub-account`
+(client maps hub {code,message}→VynelError subclasses, network-fail throws raw = offline signal;
+keyring vault quarantined in vault/keyring-vault.ts, service 'vynel-hub'; createHubSession closure
+service — restore() = boot check: 401→vault-clear signed-out · 403→locked+clear · unreachable→
+offline keeps vault+identity; devices retry-once-on-401; 6 unit tests) · REAL leaf↔hub integration
+test in apps/cloud-api/src/hub-link.integration.test.ts (packages never import apps, so the
+pairing test lives app-side; full arc incl. revoke→signed-out, disable→locked) · local-api /hub
+routes (getSession/signIn/signOut/listDevices/revokeDevice; x-sdk-name hub.*; NO x-mcp; unset
+VYNEL_HUB_URL → not-configured) + hubSession var (factory/app DI) + hub-session-service (boot
+restore + 24h re-check) + server wiring (keyring vault, hostname device, appVersion '0.0.0'
+placeholder until D2 installer) · SDK regenerated (116 paths, 138 methods, hub namespace;
+namespaced.test.ts list updated +hub — deliberate spec change). ⚠ keyring NATIVE store untested on
+real Windows (fake-covered; Chad's smoke). REMAINING: step 5 UI (below) + step 6 reviewer/docs.**
+
+**M2b PLAN (execute in order, gate-green each step):**
+1. **`packages/contracts/src/hub/`** — the hub wire TYPES (sign-in/refresh/session/device DTOs)
+   shared by cloud-api routes AND the desktop client (the co-location argument made real). Zod
+   stays app-side; contracts export types only (match existing contracts style — CHECK first).
+2. **`packages/hub-account` leaf** (desktop-side "my hub account on this device"): `client/`
+   hub HTTP client (injectable fetch, typed against contracts, maps hub error codes) · `vault/`
+   `RefreshTokenVault` contract + `@napi-rs/keyring` impl (Windows Credential Manager;
+   service 'vynel-hub'; native dep QUARANTINED here like sherpa native.ts) + in-memory fake ·
+   `session/` flows: signIn (device desc: hostname/platform/appVersion) → vault store;
+   restoreSession = rotate (the BOOT-TIME STATUS CHECK, cloud-api.md §4: 401 → clear vault =
+   signed-out; 403 = locked/disabled; network-fail = offline, keep token); signOut; devices
+   list/revoke. Status union: signed-out | signed-in{email,displayName} | locked{message} |
+   offline. NO enforcement yet (locking waits for M3 entitlements).
+3. **apps/local-api:** env `VYNEL_HUB_URL` (OPTIONAL — unset = hub features disabled, routes 404
+   or report 'not-configured') · `/hub` routes (GET /hub/session · POST /hub/sign-in ·
+   POST /hub/sign-out · GET /hub/devices · DELETE /hub/devices/:id) — thin over the leaf ·
+   boot service: restoreSession on boot + ~daily re-check interval (house *-service pattern,
+   stop() on shutdown).
+4. **`pnpm api:generate`** (SDK gains hub.* — parity gate demands regen) — check how routes
+   declare x-sdk-name (describeRoute) and follow it.
+5. **apps/local-web:** Account surface (Application section or its own menu item): signed-out →
+   email+password form (+ 'accounts are created by your workshop/platform' hint); signed-in →
+   account card + devices list with revoke; locked → the message. vue-query per house patterns.
+6. Gate → code-reviewer → STATE/journal → prompt Chad (feat + docs commits).
+**Watch-outs:** keyring native on Windows (test with fake; real keyring smoke = Chad) · SDK
+parity will FAIL until api:generate runs · don't import cloud packages from the product monolith
+(contracts/hub is the ONLY shared piece) · hub client must NOT log tokens.
+
+## (prev same day) HUB M2a BUILT (cloud-api + cloud-db + accounts) — COMMITTED
 
 **🏗 HUB MILESTONE 2a — the cloud second system exists (gate 2063/4-skip, +10; reviewer: NO
 must-fix, 4 security should-fixes ALL applied + 3 nits; journal
