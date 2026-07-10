@@ -3,7 +3,41 @@
 **Updated 2026-07-10.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-10): D1 SHIPPED + CHAD-VERIFIED ("Yup it worked") — next: hub milestone 2 (cloud-api skeleton + accounts, cloud-api.md §8)
+## ⏭ NEXT ACTION (2026-07-10): HUB M2a BUILT (cloud-api + cloud-db + accounts) — UNCOMMITTED, prompt Chad to commit; next: M2b desktop sign-in OR M3 tiers+webhooks
+
+**🏗 HUB MILESTONE 2a — the cloud second system exists (gate 2063/4-skip, +10; reviewer: NO
+must-fix, 4 security should-fixes ALL applied + 3 nits; journal
+`.claude/journal/2026-07-10-hub-m2a-accounts.md`).** Chad answered "platform sends whatever
+payload we need" → the webhook contract is OURS to author (cloud-api.md §9-H updated).
+- **`packages/cloud-db`** — hub Postgres kernel, SEPARATE from `@vynel/db` by design: postgres-js
+  client (`prepare:false` default), **PGlite `withTestCloudDatabase`** (real pg dialect, in-process,
+  NO Docker on the gate) at `@vynel/cloud-db/testing`, direct-connection boot migrator,
+  `accounts` table kernel-core (email stored LOWERCASED for case-insensitive unique),
+  `migrations-postgres/0000_baseline.sql` (drizzle-kit generated, renamed).
+- **`packages/accounts`** leaf (owns refresh_tokens + account_action_tokens schema): argon2id
+  (@node-rs/argon2, OWASP params; ambient-const-enum quirk → numeric `2 as Algorithm`), EdDSA
+  access JWT (jose), sha256'd opaque secrets, sign-in (anti-enumeration: generic error +
+  timing-dummy + status-after-password-proof), **rotateSession = the boot-time account-status
+  check** (TRANSACTIONAL claim-based rotation — 0 rows revoked = concurrent replay → FAMILY KILL
+  outside the tx [a throw inside would roll the kill back]; disabled → family kill + 403),
+  devices list/revoke/signOut, set-password links (invite 7d/reset 30m, single-use claim in one tx
+  with password-set + revoke-all), createProvisionedAccount (NEVER self-serve; 23505→409 via
+  cause-chain walk), MailSender seam (dev impl logs the link, WHY'd).
+- **`apps/cloud-api`** — thin Hono: /auth sign-in·refresh·sign-out·devices·password-reset·
+  set-password + /admin/accounts (sha256+timingSafeEqual bearer) + /health; per-email fixed-window
+  rate limits (sweep = EXPIRED-only, attacker can't reset live windows — tested); reset route
+  answers 202 WITHOUT awaiting issuance (timing side-channel); env.ts = base64-PEM keys
+  (`pnpm cloud:generate-keys`), CLOUD_PUBLIC_BASE_URL REQUIRED, binds 0.0.0.0 (hosted).
+- **Parity script extended:** every `packages/*/src/schema` file must be in EXACTLY ONE drizzle
+  config (`drizzle.cloud-postgres.config.ts` added; double-registration errors).
+- **⚠ NOT live-verified:** server.ts boot needs a real Postgres (deploy-time / Neon). Tests cover
+  everything else over PGlite (lifecycle + HTTP arc + limiter). **⏭ Deferred (reviewer-noted):**
+  `kid` header before the desktop pins the key (M3) · revoked-row retention sweep · pglite out of
+  prod deps before the Docker image · expired-token test cases.
+- **COMMIT (2 suggested):** `feat(cloud): hub skeleton — accounts auth over postgres` (new
+  packages/apps + parity + scripts) · docs/journal/STATE as `docs:`.
+
+## (prev) D1 SHIPPED + CHAD-VERIFIED ("Yup it worked") — hub milestone 2 was next
 
 **🎉 D1 THE REAL DESKTOP APP — built same session Chad said "go", live-smoked by Chad, COMMITTED
 `67530d7` (feat) + the docs commit alongside (gate 2053/4-skip, +14; cargo check clean; reviewer

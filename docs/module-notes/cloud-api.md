@@ -265,9 +265,10 @@ cheapest, most motivating win; the hub follows immediately.
   single-executable compile — needed before milestone 5.
 - **G. Sequence — ✅ D1 desktop shell first**, then the hub milestones in §8 order.
 - **H. Platform integration — ✅ WEBHOOKS** (`user.created/updated/removed` + `tier.updated`, §4).
-  **Still open (blocks milestone 3, not 1–2):** the platform's exact payload schemas + signing
-  scheme, the field set per event (email, name, tier, term), and whether purchase should
-  deep-link back into the desktop app.
+  **✅ (Chad, 2026-07-10): the platform sends whatever payload WE need — the webhook contract is
+  OURS to author** (Zod schemas in `@vynel/contracts`, shared with the hub's routes). Remaining
+  open: the signing-secret exchange at deploy time, and whether purchase should deep-link back
+  into the desktop app.
 - **I. Session lifetime — ✅ log in once, revocation on next online contact** (§3 two-token split:
   ~1-year rotating refresh token = stay signed in; ~7-day signed entitlement JWT = offline grace;
   boot-time account-status check enforces revocation → logged out + app locked, §4).
