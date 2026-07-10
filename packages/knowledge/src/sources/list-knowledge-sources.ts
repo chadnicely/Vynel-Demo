@@ -8,6 +8,14 @@ import {
   type KnowledgeSourceRow,
 } from '../repositories/index.js'
 
+// The boot-time read (watcher restore + catch-up scan) — every source, all
+// users/scopes.
+export { listAllKnowledgeSources } from '../repositories/index.js'
+
+// The per-source indexing rollup the sources-list route decorates rows with.
+export { summarizeKnowledgeDocumentsBySource } from '../repositories/index.js'
+export type { SourceDocumentSummary } from '../repositories/index.js'
+
 export function listKnowledgeSources(
   db: Database,
   input: { userId: string; workspaceId: string },

@@ -1,7 +1,8 @@
-// `registerKnowledgeSource` — the "add a directory to my knowledge" core op.
-// Validates the directory (path-safety), inserts the source at the chosen scope
-// (workspace or global), starts the file watcher on it, and runs the initial scan.
-// The add-directory HTTP route + the `add_to_knowledge` MCP tool call this.
+// `registerKnowledgeSource` — the "add a directory or file to my knowledge"
+// core op. Validates the path (path-safety, which also resolves whether it's a
+// directory or a single file), inserts the source at the chosen scope
+// (workspace or global), starts the file watcher on it, and runs the initial
+// scan. The add-source HTTP route + the `add_to_knowledge` MCP tool call this.
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
@@ -13,7 +14,7 @@ import {
 } from '../repositories/index.js'
 import { indexSource, type IndexSourceResult } from '../indexing/index-workspace.js'
 import { FileWatcherService } from '../indexing/file-watcher.js'
-import { assertIndexableDirectory } from './path-safety.js'
+import { resolveIndexableSourceKind } from './path-safety.js'
 import type { StructuralLogger } from '../knowledge-types.js'
 
 export type RegisterKnowledgeSourceInput = {
@@ -34,7 +35,7 @@ export async function registerKnowledgeSource(
   input: RegisterKnowledgeSourceInput,
   deps: { fileWatcher: FileWatcherService; logger?: StructuralLogger },
 ): Promise<RegisterKnowledgeSourceResult> {
-  assertIndexableDirectory(input.absolutePath)
+  const sourceKind = resolveIndexableSourceKind(input.absolutePath)
 
   const now = new Date()
   const id = randomUUID()
@@ -44,6 +45,7 @@ export async function registerKnowledgeSource(
     workspaceId: input.workspaceId,
     scope: input.scope,
     absolutePath: input.absolutePath,
+    sourceKind,
     createdAt: now,
     updatedAt: now,
   })

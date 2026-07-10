@@ -4,9 +4,11 @@
 // directories through this op. Phase 1 is localhost-bound single-user; Phase 2
 // auth gates who may browse.
 //
-// Returns directories only (files + dot-hidden entries are filtered out), each
-// with its absolute path, plus the parent for "up" navigation. The listed path
-// is realpath-canonical so it matches what `createWorkspace` will store + dedup.
+// Returns directories (dot-hidden entries filtered out), each with its
+// absolute path, plus the parent for "up" navigation. Callers that pick FILES
+// too (the knowledge add-source picker) opt in via `includeFiles` — the
+// listing then also carries the folder's visible files. The listed path is
+// realpath-canonical so it matches what `createWorkspace` will store + dedup.
 //
 // Every fs call is guarded so a TOCTOU race (path removed / perms revoked
 // between calls) surfaces as a typed ValidationError → 400, never a plain Error
@@ -30,11 +32,16 @@ export type DirectoryListing = {
   parent: string | null
   /** Immediate subdirectories, sorted by name. */
   entries: DirectoryEntry[]
+  /** Immediate visible files, sorted by name — only when `includeFiles` was asked for. */
+  files?: DirectoryEntry[]
   /** Drive/volume roots the user can jump to (Windows drive letters; POSIX root). */
   drives: string[]
 }
 
-export async function listChildDirectories(targetPath?: string): Promise<DirectoryListing> {
+export async function listChildDirectories(
+  targetPath?: string,
+  options: { includeFiles?: boolean } = {},
+): Promise<DirectoryListing> {
   const requested = targetPath && targetPath.trim().length > 0 ? targetPath : homedir()
 
   let resolved: string
@@ -67,12 +74,20 @@ export async function listChildDirectories(targetPath?: string): Promise<Directo
     .map((dirent) => ({ name: dirent.name, path: path.join(resolved, dirent.name) }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
+  const files = options.includeFiles
+    ? dirents
+        .filter((dirent) => dirent.isFile() && !dirent.name.startsWith('.'))
+        .map((dirent) => ({ name: dirent.name, path: path.join(resolved, dirent.name) }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    : undefined
+
   const parent = path.dirname(resolved)
   return {
     path: resolved,
     // dirname of the filesystem root is the root itself → no further "up".
     parent: parent === resolved ? null : parent,
     entries,
+    ...(files !== undefined ? { files } : {}),
     drives: await listDriveRoots(),
   }
 }

@@ -23,6 +23,7 @@ describe('handleWorkspaceRemoved', () => {
           userId: randomUUID(),
           workspaceId,
           scope: 'workspace',
+          sourceKind: 'directory',
           absolutePath: workspacePath,
           createdAt: now,
           updatedAt: now,

@@ -160,8 +160,10 @@ export const workspacesApp = factory
     validator('query', BrowseDirectoriesQuerySchema),
     ...userScoped,
     async (c) => {
-      const { path: queryPath } = c.req.valid('query')
-      return c.json(await listChildDirectories(queryPath))
+      const { path: queryPath, includeFiles } = c.req.valid('query')
+      return c.json(
+        await listChildDirectories(queryPath, includeFiles === true ? { includeFiles } : {}),
+      )
     },
   )
   .get(

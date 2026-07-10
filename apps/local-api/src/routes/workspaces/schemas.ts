@@ -45,8 +45,11 @@ export const DeleteWorkspaceRequestSchema = z.object({
 })
 
 // Folder picker — `path` omitted starts at the user's home directory.
+// `includeFiles` opts the listing into carrying visible files too (the
+// knowledge add-source picker; the workspace picker leaves it off).
 export const BrowseDirectoriesQuerySchema = z.object({
   path: z.string().optional(),
+  includeFiles: z.coerce.boolean().optional(),
 })
 
 export const ListWorkspacesQuerySchema = z.object({
@@ -82,6 +85,10 @@ export const DirectoryListingResponseSchema = z.object({
   path: z.string(),
   parent: z.string().nullable(),
   entries: z.array(DirectoryEntryResponseSchema),
+  // Present only when the request asked for files (`includeFiles`) — the
+  // knowledge add-source picker selects single files, the workspace picker
+  // never sees them.
+  files: z.array(DirectoryEntryResponseSchema).optional(),
   drives: z.array(z.string()),
 })
 

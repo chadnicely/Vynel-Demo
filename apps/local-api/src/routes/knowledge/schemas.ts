@@ -131,10 +131,13 @@ export const ReindexResponseSchema = z.object({
   failedCount: z.number(),
 })
 
-// ── Knowledge sources (registered directories) ──────────────────────
+// ── Knowledge sources (registered directories or single files) ──────
 const KnowledgeSourceScopeSchema = z.enum(['workspace', 'global'])
+const KnowledgeSourceKindSchema = z.enum(['directory', 'file'])
 
 export const AddDirectoryBodySchema = z.object({
+  // A directory (indexed recursively) or a single file — the server resolves
+  // which (path-safety) and stores it as the source's `sourceKind`.
   absolutePath: z.string().min(1).max(4096),
   scope: KnowledgeSourceScopeSchema,
 })
@@ -149,9 +152,19 @@ export const KnowledgeSourceSchema = z.object({
   // Null for a global (user-level) source; set for a workspace source.
   workspaceId: z.string().nullable(),
   scope: KnowledgeSourceScopeSchema,
+  sourceKind: KnowledgeSourceKindSchema,
   absolutePath: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
+})
+
+// The list row adds the indexing rollup — what lets the UI show "12 files
+// indexed · 1 failed" instead of a silent row.
+export const KnowledgeSourceListItemSchema = KnowledgeSourceSchema.extend({
+  documentCount: z.number(),
+  indexedDocumentCount: z.number(),
+  failedDocumentCount: z.number(),
+  lastIndexedAt: z.string().nullable(),
 })
 
 export const AddDirectoryResponseSchema = z.object({
@@ -164,7 +177,7 @@ export const AddDirectoryResponseSchema = z.object({
 })
 
 export const ListKnowledgeSourcesResponseSchema = z.object({
-  sources: z.array(KnowledgeSourceSchema),
+  sources: z.array(KnowledgeSourceListItemSchema),
 })
 
 export const RemoveKnowledgeSourceResponseSchema = z.object({

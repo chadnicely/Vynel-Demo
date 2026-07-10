@@ -17,6 +17,7 @@
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { indexFile } from './index-file.js'
+import { sourceRelativePathFor } from '../sources/source-paths.js'
 import type { Database } from '@vynel/db'
 import type { KnowledgeSourceRow } from '../repositories/index.js'
 import type { StructuralLogger } from '../knowledge-types.js'
@@ -34,7 +35,11 @@ export async function indexSource(
   source: KnowledgeSourceRow,
   deps: { logger?: StructuralLogger } = {},
 ): Promise<IndexSourceResult> {
-  const allRelativePaths = await walkSourceFiles(source.absolutePath)
+  // A single-FILE source has exactly one document — no walk.
+  const allRelativePaths =
+    source.sourceKind === 'file'
+      ? [sourceRelativePathFor(source, source.absolutePath)]
+      : await walkSourceFiles(source.absolutePath)
   const stats: IndexSourceResult = {
     indexedCount: 0,
     skippedCount: 0,

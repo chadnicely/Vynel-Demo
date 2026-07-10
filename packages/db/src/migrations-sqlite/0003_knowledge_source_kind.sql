@@ -1,0 +1,1 @@
+ALTER TABLE `knowledge_sources` ADD `source_kind` text DEFAULT 'directory' NOT NULL;

@@ -46,6 +46,7 @@
     "zod-openapi": "^4.0.0"
   },
   "devDependencies": {
+    "@vynel/embeddings": "workspace:*",
     "@vynel/testing": "workspace:*",
     "jszip": "^3.10.0",
     "tsx": "^4.19.0",

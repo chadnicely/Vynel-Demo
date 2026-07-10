@@ -20,7 +20,7 @@ function stubClient(): { client: VynelClient; calls: Array<{ method: string; arg
       getDocument: record('getDocument'),
       getStatus: record('getStatus'),
       reindex: record('reindex'),
-      addDirectory: record('addDirectory'),
+      addSource: record('addSource'),
       listSources: record('listSources'),
       removeSource: record('removeSource'),
     },
@@ -80,7 +80,7 @@ describe('vynel knowledge', () => {
     const { client, calls } = stubClient()
     await run(client, ['knowledge', 'add-directory', '/tmp/docs', '-w', 'ws_1'])
     expect(calls).toStrictEqual([
-      { method: 'addDirectory', args: ['ws_1', { absolutePath: '/tmp/docs', scope: 'workspace' }] },
+      { method: 'addSource', args: ['ws_1', { absolutePath: '/tmp/docs', scope: 'workspace' }] },
     ])
   })
 
@@ -88,7 +88,7 @@ describe('vynel knowledge', () => {
     const { client, calls } = stubClient()
     await run(client, ['knowledge', 'add-directory', '/tmp/docs', '-w', 'ws_1', '--global'])
     expect(calls).toStrictEqual([
-      { method: 'addDirectory', args: ['ws_1', { absolutePath: '/tmp/docs', scope: 'global' }] },
+      { method: 'addSource', args: ['ws_1', { absolutePath: '/tmp/docs', scope: 'global' }] },
     ])
   })
 

@@ -52,6 +52,7 @@ export function seedUserWorkspaceAndSource(
     userId: user.id,
     workspaceId: workspace.id,
     scope: 'workspace',
+    sourceKind: 'directory',
     absolutePath,
     createdAt: now,
     updatedAt: now,

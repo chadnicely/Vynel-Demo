@@ -48,6 +48,7 @@ import {
   type KnowledgeDocumentIndexedPayload,
   type KnowledgeDocumentUpdatedPayload,
 } from '../knowledge-events.js'
+import { sourceRootFor } from '../sources/source-paths.js'
 import { sha256 } from './content-hash.js'
 import { removeFileFromIndex } from './remove-file-from-index.js'
 import { upsertSkippedDocument } from './upsert-skipped-document.js'
@@ -72,7 +73,12 @@ export async function indexFile(
 ): Promise<KnowledgeDocumentRow> {
   const { source } = input
   const normalizedRelative = input.relativePath.split(path.sep).join('/')
-  const absolutePath = path.join(source.absolutePath, normalizedRelative.split('/').join(path.sep))
+  // A file source roots at its parent dir (its one document keys on the
+  // basename); a directory source roots at itself — source-paths.ts.
+  const absolutePath = path.join(
+    sourceRootFor(source),
+    normalizedRelative.split('/').join(path.sep),
+  )
   const now = new Date()
 
   if (SKIPPED_FOLDER_PREFIXES.some((p) => normalizedRelative.startsWith(p))) {

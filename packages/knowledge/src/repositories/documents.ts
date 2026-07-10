@@ -10,7 +10,7 @@
 //
 // Spec: `docs/blueprints/knowledge/blueprint.md §1` + `coding.md §6.1`.
 
-import { and, desc, eq, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   knowledgeDocuments,
@@ -170,6 +170,51 @@ export type IndexerStatus = {
   skippedDocuments: number
   unindexedChunks: number
   lastIndexedAt: Date | null
+}
+
+export type SourceDocumentSummary = {
+  sourceId: string
+  totalDocuments: number
+  parsedDocuments: number
+  failedDocuments: number
+  skippedDocuments: number
+  lastIndexedAt: Date | null
+}
+
+// Per-source rollup for the sources list — what lets the UI say
+// "12 files indexed" instead of a silent row.
+export function summarizeKnowledgeDocumentsBySource(
+  db: Database,
+  sourceIds: string[],
+): Map<string, SourceDocumentSummary> {
+  if (sourceIds.length === 0) return new Map()
+  const rows = db
+    .select({
+      sourceId: knowledgeDocuments.sourceId,
+      totalDocuments: sql<number>`COUNT(*)`,
+      parsedDocuments: sql<number>`SUM(CASE WHEN ${knowledgeDocuments.parseStatus} = 'parsed' THEN 1 ELSE 0 END)`,
+      failedDocuments: sql<number>`SUM(CASE WHEN ${knowledgeDocuments.parseStatus} = 'failed' THEN 1 ELSE 0 END)`,
+      skippedDocuments: sql<number>`SUM(CASE WHEN ${knowledgeDocuments.parseStatus} = 'skipped' THEN 1 ELSE 0 END)`,
+      lastIndexedAt: sql<number | null>`MAX(${knowledgeDocuments.indexedAt})`,
+    })
+    .from(knowledgeDocuments)
+    .where(inArray(knowledgeDocuments.sourceId, sourceIds))
+    .groupBy(knowledgeDocuments.sourceId)
+    .all()
+
+  return new Map(
+    rows.map((row) => [
+      row.sourceId,
+      {
+        sourceId: row.sourceId,
+        totalDocuments: Number(row.totalDocuments ?? 0),
+        parsedDocuments: Number(row.parsedDocuments ?? 0),
+        failedDocuments: Number(row.failedDocuments ?? 0),
+        skippedDocuments: Number(row.skippedDocuments ?? 0),
+        lastIndexedAt: row.lastIndexedAt != null ? new Date(row.lastIndexedAt) : null,
+      },
+    ]),
+  )
 }
 
 export function getKnowledgeIndexerStatusForWorkspace(

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { BookOpen, FolderOpen, Plus, X } from "lucide-vue-next";
+import { BookOpen, FileText, FolderOpen, Plus, X } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import { useKnowledgeSourcesInScope } from "../../composables/knowledge/use-knowledge-sources-in-scope.js";
 import { useRemoveKnowledgeSource } from "../../composables/knowledge/use-remove-knowledge-source.js";
@@ -26,6 +26,25 @@ const workspacesQuery = useWorkspaceList();
 function folderName(absolutePath: string): string {
   const segments = absolutePath.split(/[\\/]/).filter(Boolean);
   return segments.at(-1) ?? absolutePath;
+}
+
+// The indexing rollup in plain words — the row must SHOW that indexing
+// happened (or didn't), not sit silent.
+function indexingSummary(source: {
+  documentCount: number;
+  indexedDocumentCount: number;
+  failedDocumentCount: number;
+  lastIndexedAt: string | null;
+}): string {
+  if (source.documentCount === 0) return "indexing…";
+  const parts = [
+    `${source.indexedDocumentCount} ${source.indexedDocumentCount === 1 ? "file" : "files"} indexed`,
+  ];
+  if (source.failedDocumentCount > 0)
+    parts.push(`${source.failedDocumentCount} failed`);
+  if (source.lastIndexedAt)
+    parts.push(`updated ${formatRelativeTime(source.lastIndexedAt)}`);
+  return parts.join(" · ");
 }
 
 // Every knowledge route anchors on a workspace: a workspace source anchors on
@@ -58,7 +77,9 @@ function onAdded() {
       <BookOpen :size="15" class="section-icon" />
       <div class="section-text">
         <p class="section-title">Knowledge</p>
-        <p class="section-hint">The vault of folders Claude studies and searches</p>
+        <p class="section-hint">
+          The vault of folders and files Claude studies and searches
+        </p>
       </div>
       <button
         v-if="sources.length > 0"
@@ -67,21 +88,23 @@ function onAdded() {
         @click="isAddOpen = true"
       >
         <Plus :size="13" />
-        Add folder
+        Add
       </button>
     </header>
 
     <div v-if="sources.length > 0" class="rows">
       <div v-for="source in sources" :key="source.id" class="row">
-        <span class="row-icon"><FolderOpen :size="14" /></span>
+        <span class="row-icon">
+          <FileText v-if="source.sourceKind === 'file'" :size="14" />
+          <FolderOpen v-else :size="14" />
+        </span>
         <div class="row-main">
           <p class="row-title">
             {{ folderName(source.absolutePath) }}
             <span class="scope-chip">{{ scopeLabel(source.workspaceId) }}</span>
           </p>
           <p class="row-sub">
-            {{ source.absolutePath }} · updated
-            {{ formatRelativeTime(source.updatedAt) }}
+            {{ source.absolutePath }} · {{ indexingSummary(source) }}
           </p>
         </div>
         <button
@@ -99,7 +122,7 @@ function onAdded() {
     <EmptyState
       v-else
       title="The vault is empty"
-      hint="Point Claude at a folder — notes, documents, exports — and everything readable inside becomes searchable knowledge."
+      hint="Point Claude at a folder or a single file — notes, documents, exports — and everything readable becomes searchable knowledge."
     >
       <template #icon>
         <BookOpen :size="22" />
@@ -107,7 +130,7 @@ function onAdded() {
       <template #action>
         <button type="button" class="invite-button" @click="isAddOpen = true">
           <Plus :size="13" />
-          Add a folder
+          Add a folder or file
         </button>
       </template>
     </EmptyState>

@@ -6,13 +6,14 @@
 
 import type { z } from 'zod'
 import type { KnowledgeDocumentRow, KnowledgeChunkRow, KnowledgeSourceRow } from '@vynel/knowledge'
-import type { IndexerStatus, SearchKnowledgeResult } from '@vynel/knowledge'
+import type { IndexerStatus, SearchKnowledgeResult, SourceDocumentSummary } from '@vynel/knowledge'
 import {
   IndexerStatusSchema,
   KnowledgeChunkSchema,
   KnowledgeDocumentSchema,
   KnowledgeSearchResultSchema,
   KnowledgeSourceSchema,
+  KnowledgeSourceListItemSchema,
 } from './schemas.js'
 
 export type SerializedKnowledgeDocument = z.infer<typeof KnowledgeDocumentSchema>
@@ -82,6 +83,7 @@ export function serializeSearchResult(
 }
 
 export type SerializedKnowledgeSource = z.infer<typeof KnowledgeSourceSchema>
+export type SerializedKnowledgeSourceListItem = z.infer<typeof KnowledgeSourceListItemSchema>
 
 export function serializeSource(source: KnowledgeSourceRow): SerializedKnowledgeSource {
   return {
@@ -89,9 +91,23 @@ export function serializeSource(source: KnowledgeSourceRow): SerializedKnowledge
     userId: source.userId,
     workspaceId: source.workspaceId,
     scope: source.scope,
+    sourceKind: source.sourceKind,
     absolutePath: source.absolutePath,
     createdAt: source.createdAt.toISOString(),
     updatedAt: source.updatedAt.toISOString(),
+  }
+}
+
+export function serializeSourceListItem(
+  source: KnowledgeSourceRow,
+  summary: SourceDocumentSummary | undefined,
+): SerializedKnowledgeSourceListItem {
+  return {
+    ...serializeSource(source),
+    documentCount: summary?.totalDocuments ?? 0,
+    indexedDocumentCount: summary?.parsedDocuments ?? 0,
+    failedDocumentCount: summary?.failedDocuments ?? 0,
+    lastIndexedAt: summary?.lastIndexedAt?.toISOString() ?? null,
   }
 }
 

@@ -62,6 +62,13 @@ export function listKnowledgeSourcesForWorkspace(
     .all()
 }
 
+// Every registered source, all users/scopes — the boot-time watcher restore +
+// catch-up scan read (Phase 1 single-user; stays correct multi-user because
+// each row carries its own userId/scope).
+export function listAllKnowledgeSources(db: Database): KnowledgeSourceRow[] {
+  return db.select().from(knowledgeSources).all()
+}
+
 export function listGlobalKnowledgeSourcesForUser(
   db: Database,
   userId: string,

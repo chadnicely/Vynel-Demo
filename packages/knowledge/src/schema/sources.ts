@@ -21,6 +21,7 @@ import { users } from '@vynel/db/schema/users'
 import { workspaces } from '@vynel/db/schema/workspaces'
 
 export type KnowledgeSourceScope = 'workspace' | 'global'
+export type KnowledgeSourceKind = 'directory' | 'file'
 
 export const knowledgeSources = table(
   'knowledge_sources',
@@ -30,8 +31,11 @@ export const knowledgeSources = table(
     // Nullable: non-null for a workspace source, NULL for a global source.
     workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
     scope: text().$type<KnowledgeSourceScope>().notNull(),
-    // The absolute directory path on disk this source indexes.
+    // The absolute path on disk this source indexes — a whole directory, or a
+    // single file (`sourceKind`). File sources index just that one document;
+    // their document rows key on the file's basename.
     absolutePath: text().notNull(),
+    sourceKind: text().$type<KnowledgeSourceKind>().notNull().default('directory'),
     createdAt: timestamp().notNull(),
     updatedAt: timestamp().notNull(),
   },

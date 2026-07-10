@@ -89,13 +89,14 @@ export function registerKnowledgeCommands(program: Command, getClient: () => Vyn
     })
 
   knowledge
-    .command('add-directory <path>')
-    .description('Register a directory to index (indexes + watches it)')
+    .command('add-source <path>')
+    .alias('add-directory')
+    .description('Register a directory or single file to index (indexes + watches it)')
     .requiredOption('-w, --workspace <id>', 'workspace id')
     .option('-g, --global', 'register as a global (user-level) source, not workspace-scoped')
     .action(async (path: string, opts: { workspace: string; global?: boolean }) => {
       printResult(
-        await getClient().knowledge.addDirectory(opts.workspace, {
+        await getClient().knowledge.addSource(opts.workspace, {
           absolutePath: path,
           scope: opts.global ? 'global' : 'workspace',
         }),

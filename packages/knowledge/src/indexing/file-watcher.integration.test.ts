@@ -69,6 +69,7 @@ function seedWorld(
     userId: user.id,
     workspaceId: workspace.id,
     scope: 'workspace',
+    sourceKind: 'directory',
     absolutePath: workspaceLocation,
     createdAt: now,
     updatedAt: now,

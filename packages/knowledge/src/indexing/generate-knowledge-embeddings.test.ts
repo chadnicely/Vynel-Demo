@@ -72,6 +72,7 @@ function seedWorld(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
     userId: user.id,
     workspaceId: workspace.id,
     scope: 'workspace',
+    sourceKind: 'directory',
     absolutePath: workspace.path,
     createdAt: now,
     updatedAt: now,

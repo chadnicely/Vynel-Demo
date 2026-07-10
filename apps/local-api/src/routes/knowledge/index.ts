@@ -28,6 +28,7 @@ import {
   registerKnowledgeSource,
   removeKnowledgeSource,
   listKnowledgeSources,
+  summarizeKnowledgeDocumentsBySource,
 } from '@vynel/knowledge'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
@@ -54,6 +55,7 @@ import {
   serializeIndexerStatus,
   serializeSearchResult,
   serializeSource,
+  serializeSourceListItem,
 } from './serializers.js'
 
 const VALID_DOCUMENT_KINDS = DocumentKindSchema.options
@@ -269,8 +271,8 @@ export const knowledgeApp = factory
     '/sources',
     describeRoute({
       tags: ['knowledge'],
-      summary: 'Register a directory to index, at workspace or global scope.',
-      'x-sdk-name': 'knowledge.addDirectory',
+      summary: 'Register a directory or single file to index, at workspace or global scope.',
+      'x-sdk-name': 'knowledge.addSource',
       responses: {
         200: {
           description: '{ source: SerializedKnowledgeSource, indexed: { indexedCount, skippedCount, failedCount } }.',
@@ -283,10 +285,10 @@ export const knowledgeApp = factory
         name: 'add_to_knowledge',
         mutatingApproved: true,
         description:
-          'Add a directory to the knowledge base so its files are indexed for search. ' +
-          '`absolutePath` is the directory on disk; `scope` is "workspace" (indexed for the ' +
-          'active workspace) or "global" (indexed for the user across all workspaces). Registers ' +
-          'the source, starts watching it for changes, and indexes its current files. Mutating.',
+          'Add a directory OR a single file to the knowledge base so it is indexed for search. ' +
+          '`absolutePath` is the directory or file on disk; `scope` is "workspace" (indexed for ' +
+          'the active workspace) or "global" (indexed for the user across all workspaces). ' +
+          'Registers the source, starts watching it for changes, and indexes it. Mutating.',
       },
     }),
     validator('json', AddDirectoryBodySchema),
@@ -337,7 +339,13 @@ export const knowledgeApp = factory
         userId: c.var.user.id,
         workspaceId: c.var.workspace!.id,
       })
-      return c.json({ sources: sources.map(serializeSource) })
+      const summaries = summarizeKnowledgeDocumentsBySource(
+        c.var.db,
+        sources.map((source) => source.id),
+      )
+      return c.json({
+        sources: sources.map((source) => serializeSourceListItem(source, summaries.get(source.id))),
+      })
     },
   )
   // ──────────────────────────────────────────────────────────────────

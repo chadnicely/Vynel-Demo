@@ -20,6 +20,7 @@
 import chokidar, { type FSWatcher } from 'chokidar'
 import path from 'node:path'
 import { indexFile } from './index-file.js'
+import { sourceRelativePathFor } from '../sources/source-paths.js'
 import { removeFileFromIndex } from './remove-file-from-index.js'
 import type { Database } from '@vynel/db'
 import type { KnowledgeSourceRow } from '../repositories/index.js'
@@ -101,7 +102,7 @@ export class FileWatcherService {
     kind: 'added' | 'changed',
   ): void {
     this.debounce(absolutePath, async () => {
-      const normalized = path.relative(source.absolutePath, absolutePath).split(path.sep).join('/')
+      const normalized = sourceRelativePathFor(source, absolutePath)
       try {
         await indexFile(this.db, { source, relativePath: normalized }, { logger: this.logger })
         this.recordActivity(source.id, {
@@ -128,7 +129,7 @@ export class FileWatcherService {
 
   private scheduleRemove(source: KnowledgeSourceRow, absolutePath: string): void {
     this.debounce(absolutePath, async () => {
-      const normalized = path.relative(source.absolutePath, absolutePath).split(path.sep).join('/')
+      const normalized = sourceRelativePathFor(source, absolutePath)
       try {
         removeFileFromIndex(this.db, { source, relativePath: normalized })
         this.recordActivity(source.id, {

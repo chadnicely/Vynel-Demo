@@ -59,6 +59,18 @@ export async function generateKnowledgeEmbeddings(
       succeeded += 1
     } catch (err) {
       failed += 1
+      // A failure before ANY success is the MODEL (load/download), not this
+      // chunk — every remaining chunk would fail identically, spamming a
+      // stack trace per chunk per tick. One actionable error, abort the
+      // batch; the next tick retries fresh (and a corrupt model cache
+      // self-heals — @vynel/embeddings).
+      if (succeeded === 0) {
+        deps.logger?.error(
+          { err, chunkId: chunk.id },
+          'generateKnowledgeEmbeddings: embedding model unavailable — batch aborted, retrying next tick',
+        )
+        break
+      }
       deps.logger?.warn(
         { err, chunkId: chunk.id, documentId: chunk.documentId, sourceId },
         'generateKnowledgeEmbeddings: embedding failed for one chunk; batch continues',

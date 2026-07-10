@@ -1,17 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { ArrowUp, Folder, HardDrive } from "lucide-vue-next";
+import { ArrowUp, FileText, Folder, HardDrive } from "lucide-vue-next";
 import { useDirectoryListing } from "../../composables/workspaces/use-directory-listing.js";
-import { useAddKnowledgeDirectory } from "../../composables/knowledge/use-add-knowledge-directory.js";
+import { useAddKnowledgeSource } from "../../composables/knowledge/use-add-knowledge-source.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import type { SectionScope } from "./section-scope.js";
 
-// Add a folder to the knowledge vault: walk the real filesystem to the
-// directory Claude should study (the OPEN folder is the selection — the
-// workspace-dialog convention), then choose where the knowledge lives.
-// Single-FILE sources need backend support (the register route takes a
-// directory) — a deliberate follow-up, not offered dishonestly here.
+// Add a folder OR a single file to the knowledge vault: walk the real
+// filesystem, click a file to pick just it — otherwise the OPEN folder is the
+// selection (the workspace-dialog convention) — then choose where the
+// knowledge lives.
 const props = defineProps<{
   open: boolean;
   defaultScope: SectionScope;
@@ -24,12 +23,16 @@ const emit = defineEmits<{
 
 // null = the API's default start (the user's home directory).
 const browsePath = ref<string | null>(null);
+// A clicked file wins over the open folder; navigating clears it.
+const selectedFilePath = ref<string | null>(null);
 // "global" or a workspaceId.
 const scopeChoice = ref<string>("global");
 
 const isOpen = computed(() => props.open);
-const listingQuery = useDirectoryListing(browsePath, isOpen);
-const addDirectory = useAddKnowledgeDirectory();
+const listingQuery = useDirectoryListing(browsePath, isOpen, {
+  includeFiles: true,
+});
+const addSource = useAddKnowledgeSource();
 const workspacesQuery = useWorkspaceList();
 
 const workspaces = computed(() =>
@@ -41,17 +44,29 @@ watch(
   (open) => {
     if (!open) return;
     browsePath.value = null;
+    selectedFilePath.value = null;
     scopeChoice.value =
       props.defaultScope.kind === "workspace"
         ? props.defaultScope.workspaceId
         : "global";
-    addDirectory.reset();
+    addSource.reset();
   },
   { immediate: true },
 );
 
 const listing = computed(() => listingQuery.data.value);
-const selectedPath = computed(() => listing.value?.path ?? null);
+const selectedPath = computed(
+  () => selectedFilePath.value ?? listing.value?.path ?? null,
+);
+
+function openFolder(path: string) {
+  selectedFilePath.value = null;
+  browsePath.value = path;
+}
+
+function pickFile(path: string) {
+  selectedFilePath.value = selectedFilePath.value === path ? null : path;
+}
 
 // Every knowledge route anchors on a workspace — a GLOBAL source anchors on
 // the chosen (or first) workspace. No workspaces at all → nothing to anchor.
@@ -66,17 +81,17 @@ const canAdd = computed(
   () =>
     selectedPath.value !== null &&
     anchorWorkspaceId.value !== null &&
-    !addDirectory.isPending.value,
+    !addSource.isPending.value,
 );
 
 const errorMessage = computed(() => {
-  const error = addDirectory.error.value ?? listingQuery.error.value;
+  const error = addSource.error.value ?? listingQuery.error.value;
   return error ? formatSdkError(error) : null;
 });
 
 function add() {
   if (!canAdd.value || selectedPath.value === null) return;
-  addDirectory.mutate(
+  addSource.mutate(
     {
       anchorWorkspaceId: anchorWorkspaceId.value!,
       absolutePath: selectedPath.value,
@@ -109,15 +124,15 @@ function onKeydown(event: KeyboardEvent) {
         aria-label="Add to knowledge"
       >
         <header class="dialog-header">
-          <h2 class="dialog-title">Add a folder to knowledge</h2>
+          <h2 class="dialog-title">Add a folder or file to knowledge</h2>
           <p class="dialog-subtitle">
-            Claude studies every readable file inside — searchable in chat the
-            moment it's indexed.
+            Claude studies what you add — searchable in chat the moment it's
+            indexed.
           </p>
         </header>
 
         <div class="field">
-          <span class="field-label">Folder</span>
+          <span class="field-label">Folder or file</span>
           <div class="picker">
             <div class="picker-bar">
               <button
@@ -125,11 +140,11 @@ function onKeydown(event: KeyboardEvent) {
                 class="up"
                 :disabled="!listing?.parent"
                 title="Up one folder"
-                @click="listing?.parent && (browsePath = listing.parent)"
+                @click="listing?.parent && openFolder(listing.parent)"
               >
                 <ArrowUp :size="13" />
               </button>
-              <span class="current-path">{{ listing?.path ?? "…" }}</span>
+              <span class="current-path">{{ selectedPath ?? "…" }}</span>
             </div>
             <div v-if="listing?.drives?.length" class="drives">
               <button
@@ -137,7 +152,7 @@ function onKeydown(event: KeyboardEvent) {
                 :key="drive"
                 type="button"
                 class="drive"
-                @click="browsePath = drive"
+                @click="openFolder(drive)"
               >
                 <HardDrive :size="11" />
                 {{ drive }}
@@ -149,19 +164,37 @@ function onKeydown(event: KeyboardEvent) {
                 :key="entry.path"
                 type="button"
                 class="entry"
-                @click="browsePath = entry.path"
+                @click="openFolder(entry.path)"
               >
                 <Folder :size="13" class="entry-icon" />
                 {{ entry.name }}
               </button>
-              <p v-if="listing && listing.entries.length === 0" class="empty-note">
-                No subfolders — this folder itself becomes the source.
+              <button
+                v-for="file in listing?.files ?? []"
+                :key="file.path"
+                type="button"
+                class="entry"
+                :class="{ 'is-selected': selectedFilePath === file.path }"
+                @click="pickFile(file.path)"
+              >
+                <FileText :size="13" class="entry-icon file" />
+                {{ file.name }}
+              </button>
+              <p
+                v-if="
+                  listing &&
+                  listing.entries.length === 0 &&
+                  (listing.files?.length ?? 0) === 0
+                "
+                class="empty-note"
+              >
+                Nothing inside — this folder itself becomes the source.
               </p>
             </div>
           </div>
           <span class="field-hint">
-            The open folder is what Claude studies. Step into the folder you
-            want, then add.
+            Click a file to add just that file — otherwise the open folder is
+            what Claude studies.
           </span>
         </div>
 
@@ -191,7 +224,7 @@ function onKeydown(event: KeyboardEvent) {
             Cancel
           </button>
           <button type="button" class="primary" :disabled="!canAdd" @click="add">
-            {{ addDirectory.isPending.value ? "Indexing…" : "Add to knowledge" }}
+            {{ addSource.isPending.value ? "Indexing…" : "Add to knowledge" }}
           </button>
         </footer>
       </div>
@@ -348,9 +381,18 @@ function onKeydown(event: KeyboardEvent) {
   background: var(--row-hover);
 }
 
+.entry.is-selected {
+  background: var(--row-active);
+  color: var(--ink-1);
+}
+
 .entry-icon {
   color: var(--file-folder);
   flex: none;
+}
+
+.entry-icon.file {
+  color: var(--ink-3);
 }
 
 .empty-note {
