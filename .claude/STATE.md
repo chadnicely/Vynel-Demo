@@ -1,9 +1,75 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-09.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-10.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-09 evening): FEATURE-SECTIONS ROUND SHIPPED (channels · schedules · knowledge · memory) — next: Chad live-smokes the new sections
+## ⏭ NEXT ACTION (2026-07-10): D1 SHIPPED + CHAD-VERIFIED ("Yup it worked") — next: hub milestone 2 (cloud-api skeleton + accounts, cloud-api.md §8)
+
+**🎉 D1 THE REAL DESKTOP APP — built same session Chad said "go", live-smoked by Chad, COMMITTED
+`67530d7` (feat) + the docs commit alongside (gate 2053/4-skip, +14; cargo check clean; reviewer
+2 must-fix + 3 should-fix ALL applied; journal `.claude/journal/2026-07-10-d1-desktop-shell.md`).**
+- **Gateway (`apps/local-api/src/gateway.ts` + `static-web-ui.ts`):** the daemon's front door —
+  `/api/*` strip-mount (SDK baseUrl '/api'; Vite proxy REWRITE REMOVED so dev==sidecar paths) ·
+  `/voice/*` → voice-daemon proxy (Vite's prod twin; SSE-safe, abort-propagating, actionable 502)
+  · built local-web dist served (hand-rolled absolute-root static — serveStatic is cwd-relative;
+  traversal-guarded incl. double-encoded, tested) + SPA fallback (html-accepting GETs) · root
+  passthrough (voice daemon's brain client). `VYNEL_WEB_UI_DIST` env (default apps/local-web/dist);
+  sidecar mode logs at boot. LIVE-SMOKED: / + /jarvis → shell, hashed assets immutable, /api 200,
+  /root/turn passthrough, voice 502, traversal 404.
+- **Shell (`apps/desktop`):** windows moved config→code (`windows.rs`: `main` 1280×800 + jarvis
+  verbatim flags); release = `daemon.rs` sidecar (spawn `node --import tsx` via repo-root walk-up /
+  `VYNEL_DESKTOP_REPO_ROOT`, port-probe 8998 = health [api binds LAST], supervised respawn ×3,
+  kill-on-exit, abandoned-flag cuts the 60s wait); `frontendDist` = `http://127.0.0.1:8998`; dev
+  (`tauri dev`) unchanged — no spawn, Vite URLs. Main-window close exits the app (else hidden
+  jarvis keeps a headless process). `--jarvis-only` (voice daemon now passes it on wake-launch)
+  opens overlay only.
+- **Reviewer must-fixes (both real):** ① the `/voice/*` shadow broke apps/mcp's external `speak`
+  dispatch at root paths → ALL out-of-process consumers now dispatch via `/api` (external-server.ts
+  string-concats the mount — `new URL(path, base)` DROPS a baked prefix; apps/cli swept too);
+  ② stop()-vs-spawn orphan race → single-lock check+store (kills a fresh child if stopping).
+- **✅ SMOKE (Chad-verified 2026-07-10: "Yup it worked"):** ① `pnpm dev` + `pnpm --filter @vynel/desktop dev` → REAL app window (Vite) +
+  overlay; ② sidecar: `pnpm --filter @vynel/local-web build` + `pnpm --filter @vynel/desktop build`
+  → run `apps/desktop/src-tauri/target/release/vynel-desktop.exe` (no pnpm dev running!) → app
+  opens, daemon self-spawned, chat works, X quits+kills daemon; ③ voice wake still overlay-only.
+  ⚠ watch SSE token-streaming in sidecar mode (gateway returns the api Response directly — should
+  stream; the classic proxy-buffering risk doesn't apply, but only a live turn proves it).
+- **D2 punch-list:** installer + bundled Node (§9-F) · single-instance + daemon ownership
+  (--jarvis-only has no exit path) · Job Object kill-on-close · tauri log plugin · graceful daemon
+  shutdown · updater via the hub (§6). Next hub milestone: cloud-api skeleton + accounts (§8 M2).
+
+## (prev) CLOUD-API + DESKTOP DISCOVERY (2026-07-10, same day — decisions folded into the doc)
+
+**Chad opened the next arc: a HOSTED hub (auth · access tiers · marketplace registry · app
+updates) + getting to a REAL installable desktop app.** Full discovery written + fork-resolved:
+**`docs/module-notes/cloud-api.md`** (read it before touching this arc). Decided same day:
+**G** D1-desktop-shell FIRST (Tauri main window hosting local-web + local-api spawned as sidecar
+with health-check/restart/clean-shutdown; the jarvis overlay window stays as-is) · **C**
+email+password sign-in (argon2id; accounts NOT self-serve — Chad's own platform provisions users
+and handles ALL payments; the hub exposes an idempotent server-to-server provisioning API, §9-D)
+· **B** hub DB = Postgres (Neon) day one (postgres-phase2.md letterman notes now actionable;
+PGlite as the test substrate — no Docker on the gate). Shape: `apps/cloud-api` +
+`packages/cloud-db` + `packages/accounts` + `packages/registry` — a SECOND system in the same
+monorepo sharing contracts/errors/logger/testing; the product `@vynel/db` is never imported by
+it. Marketplace distribution rides the RESERVED `resolveCatalogSources()` seam (cloud catalog
+merged with the bundled one + cached locally for offline; artifacts zipped in R2, SHA-256 +
+Ed25519 verified on install; downloads tier-gated SERVER-side). Entitlements = signed JWT (tier +
+feature keys + limits, ~7-day offline grace, pinned public key), daemon gains a `hasFeature`/
+`limitFor` gate seam (NOT `@vynel/capabilities` — that's a user preference). **Second round of
+Chad's answers (same day): A hosting = HIS OWN SERVERS** (ship the hub as a Docker image, deploy
+when complete) · **H platform integration = WEBHOOKS** (`user.created/updated/removed` +
+`tier.updated`; HMAC-signed, idempotent on platformUserId; payload schemas still open) · **I
+session lifetime = log-in-once + revocation-on-next-online-contact**: ~1-year ROTATING REFRESH
+token in the OS credential store carries "never log in again"; the signed entitlement JWT stays
+SHORT (~7d = offline grace); EVERY APP START runs an account-status check — online+revoked →
+logged out + app LOCKED to sign-in (local data never touched); offline → cached JWT carries the
+app until expiry (Chad's explicit call — do NOT give the JWT itself a 1-year life, that would let
+a revoked user run offline for a year). **Still open (§9): E tier matrix + H payload/signing
+details (both block milestone 3) · F Node runtime packaging (blocks the installer, milestone 5).**
+Vynel auth stays fully separate from Anthropic auth — users buy their own Claude subscription
+(vision: never resell models). Discovery doc uncommitted — commit alongside the D1 kickoff or
+solo as `docs:`.
+
+## (prev 2026-07-09 evening): FEATURE-SECTIONS ROUND SHIPPED (channels · schedules · knowledge · memory) — Chad still to live-smoke the new sections
 
 **🎉 THE SECTIONS ROUND (same Fable session, Chad away — autonomous finish per his directive).**
 Four scope-aware sections under `components/sections/` (SectionScope global|workspace), on the
