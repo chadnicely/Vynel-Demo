@@ -1,0 +1,27 @@
+{
+  "name": "@vynel/cloud-db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts",
+    "./repositories/*": "./src/repositories/*/index.ts",
+    "./schema/*": "./src/schema/*/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.2.0",
+    "@vynel/errors": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "postgres": "^3.4.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,17 +1,19 @@
 // Schema-parity guard. Verifies every schema file under any
 // `packages/<pkg>/src/schema/` (the kernel's domains + any vertical-slice
 // feature that owns its schema, e.g. knowledge; excluding barrel `index.ts`
-// files) is registered in `drizzle.sqlite.config.ts` (and, when Phase 2 lands,
-// `drizzle.postgres.config.ts`). A missing entry would cause
-// drizzle-kit to silently skip the table when generating migrations —
-// review-blocking per `.claude/rules/data-standard.md` "Migrations".
+// files) is registered in EXACTLY ONE drizzle config: the product's
+// `drizzle.sqlite.config.ts` or the hub's `drizzle.cloud-postgres.config.ts`
+// (the cloud second system, docs/module-notes/cloud-api.md §2). A missing
+// entry would cause drizzle-kit to silently skip the table when generating
+// migrations; a double entry would generate the table in the wrong dialect —
+// both review-blocking per `.claude/rules/data-standard.md` "Migrations".
 //
 // Wired into `pnpm test` via `pnpm test:parity`.
 //
-// Reads the drizzle config file as TEXT rather than importing it as a
-// module — keeps `@vynel/scripts` free of drizzle-kit (only @vynel/db
-// owns that dep) and avoids the rootDir constraint when crossing
-// package boundaries.
+// Reads the drizzle config files as TEXT rather than importing them as
+// modules — keeps `@vynel/scripts` free of drizzle-kit (only the db kernels
+// own that dep) and avoids the rootDir constraint when crossing package
+// boundaries.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -19,6 +21,13 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../../..')
+
+// Each drizzle config + the CWD its schema paths are relative to (the
+// `--filter <pkg> exec drizzle-kit` target).
+const DRIZZLE_CONFIGS = [
+  { file: 'drizzle.sqlite.config.ts', cwd: join('packages', 'db') },
+  { file: 'drizzle.cloud-postgres.config.ts', cwd: join('packages', 'cloud-db') },
+] as const
 
 function listSchemaFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -48,9 +57,9 @@ function configuredSchemaPaths(configPath: string, packageDir: string): string[]
     .map((p) => resolve(packageDir, p))
 }
 
-// Every `packages/<pkg>/src/schema` directory on disk. The kernel owns most
-// domains; a vertical-slice feature (e.g. knowledge) owns its own schema in
-// its package — the guard must see both.
+// Every `packages/<pkg>/src/schema` directory on disk. The kernels own core
+// domains; a vertical-slice feature (e.g. knowledge, accounts) owns its own
+// schema in its package — the guard must see all of them.
 function findSchemaRoots(): string[] {
   const packagesDir = join(repoRoot, 'packages')
   const roots: string[] = []
@@ -66,34 +75,52 @@ function findSchemaRoots(): string[] {
 }
 
 export function checkSchemaParity(): void {
-  const configPath = join(repoRoot, 'drizzle.sqlite.config.ts')
-  // drizzle paths are relative to `packages/db` (where `--filter @vynel/db
-  // exec drizzle-kit` runs). The parity check normalizes against the
-  // same base for an apples-to-apples comparison.
-  const drizzleCwd = join(repoRoot, 'packages', 'db')
-
   const onDisk = findSchemaRoots()
     .flatMap((root) => listSchemaFiles(root))
     .map((p) => p.replace(/\\/g, '/'))
     .sort()
-  const configured = configuredSchemaPaths(configPath, drizzleCwd)
-    .map((p) => p.replace(/\\/g, '/'))
-    .sort()
 
-  const missing = onDisk.filter((f) => !configured.includes(f))
-  const stale = configured.filter((c) => !onDisk.includes(c))
+  // Path -> the config file(s) that claim it.
+  const claims = new Map<string, string[]>()
+  const stalePerConfig: string[] = []
+  for (const config of DRIZZLE_CONFIGS) {
+    const configured = configuredSchemaPaths(
+      join(repoRoot, config.file),
+      join(repoRoot, config.cwd),
+    ).map((p) => p.replace(/\\/g, '/'))
+    for (const path of configured) {
+      if (!onDisk.includes(path)) {
+        stalePerConfig.push(
+          `    - ${config.file}: ${relative(repoRoot, path).split(sep).join('/')}`,
+        )
+        continue
+      }
+      claims.set(path, [...(claims.get(path) ?? []), config.file])
+    }
+  }
 
-  if (missing.length > 0 || stale.length > 0) {
+  const missing = onDisk.filter((f) => !claims.has(f))
+  const doubled = [...claims.entries()].filter(([, configs]) => configs.length > 1)
+
+  if (missing.length > 0 || stalePerConfig.length > 0 || doubled.length > 0) {
     const lines: string[] = ['Schema-parity check FAILED:']
     if (missing.length > 0) {
-      lines.push('  Schema files on disk but NOT registered in drizzle.sqlite.config.ts:')
+      lines.push('  Schema files on disk but NOT registered in any drizzle config:')
       for (const f of missing) lines.push(`    - ${relative(repoRoot, f).split(sep).join('/')}`)
     }
-    if (stale.length > 0) {
-      lines.push('  Registered in drizzle.sqlite.config.ts but NOT on disk:')
-      for (const c of stale) lines.push(`    - ${relative(repoRoot, c).split(sep).join('/')}`)
+    if (stalePerConfig.length > 0) {
+      lines.push('  Registered in a drizzle config but NOT on disk:')
+      lines.push(...stalePerConfig)
     }
-    lines.push('  Fix: update drizzle.sqlite.config.ts `schema:` to match the on-disk tree.')
+    if (doubled.length > 0) {
+      lines.push('  Registered in MORE THAN ONE drizzle config (pick one dialect):')
+      for (const [f, configs] of doubled) {
+        lines.push(`    - ${relative(repoRoot, f).split(sep).join('/')} (${configs.join(', ')})`)
+      }
+    }
+    lines.push(
+      '  Fix: update the drizzle config `schema:` lists to match the on-disk tree, one config per file.',
+    )
     throw new Error(lines.join('\n'))
   }
 
