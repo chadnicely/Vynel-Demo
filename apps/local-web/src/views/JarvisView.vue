@@ -52,7 +52,7 @@ function close(): void {
 
 onMounted(() => {
   document.title = WINDOW_TITLE;
-  overlayWindow.parkBottomRight();
+  overlayWindow.parkCenter();
   if (overlayWindow.isTauri) {
     // The Tauri window is transparent — the page background must be too, so
     // only the rounded stage card is visible as the overlay.
