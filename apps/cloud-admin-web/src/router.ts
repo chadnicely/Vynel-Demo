@@ -19,6 +19,13 @@ export function createAppRouter() {
         component: () => import("./views/CatalogView.vue"),
       },
       {
+        // Registered before /catalog/:itemId so the intent reads plainly —
+        // vue-router would rank the static segment first either way.
+        path: "/catalog/publish",
+        name: "catalog-publish",
+        component: () => import("./views/PublishItemView.vue"),
+      },
+      {
         path: "/catalog/:itemId",
         name: "catalog-item",
         component: () => import("./views/CatalogItemView.vue"),

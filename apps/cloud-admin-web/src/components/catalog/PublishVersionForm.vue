@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import type { HubAdminCatalogItem } from "@vynel/contracts/hub/admin";
 import { AdminApiError } from "../../lib/admin-api.js";
+import { readFileAsBase64 } from "../../lib/read-file-base64.js";
 import { usePublishCatalogVersion } from "../../composables/catalog/use-publish-catalog-version.js";
 
 const props = defineProps<{ item: HubAdminCatalogItem }>();
@@ -34,22 +35,6 @@ function handleFileChange(event: Event) {
   zipFile.value = input.files?.[0] ?? null;
 }
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Could not read the zip file."));
-    // An aborted read fires onabort, not onerror — without this the promise
-    // would hang forever.
-    reader.onabort = () =>
-      reject(new Error("Reading the zip file was aborted."));
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      resolve(dataUrl.slice(dataUrl.indexOf(",") + 1));
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 function parseManifest(): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(manifestText.value);
@@ -80,7 +65,7 @@ async function handleSubmit() {
   }
   let artifactBase64: string;
   try {
-    artifactBase64 = await fileToBase64(zipFile.value);
+    artifactBase64 = await readFileAsBase64(zipFile.value);
   } catch (error) {
     localError.value =
       error instanceof Error ? error.message : "Could not read the zip file.";

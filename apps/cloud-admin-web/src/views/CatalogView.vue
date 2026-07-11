@@ -36,7 +36,15 @@ function isKind(tab: KindTab): tab is HubItemKind {
 
 <template>
   <section>
-    <h1 class="page-title">Catalog</h1>
+    <header class="page-header">
+      <h1 class="page-title">Catalog</h1>
+      <RouterLink
+        class="button button-primary"
+        :to="{ name: 'catalog-publish' }"
+      >
+        Publish item
+      </RouterLink>
+    </header>
     <div class="kind-tabs" role="tablist">
       <button
         v-for="tab in KIND_TABS"
@@ -67,9 +75,8 @@ function isKind(tab: KindTab): tab is HubItemKind {
         No {{ activeKind }} items yet.
       </template>
       <template v-else>
-        The catalog is empty — publish the first item with the publish CLI
-        (pnpm cloud:publish); the portal's publish form lives on each item's
-        page once one exists.
+        The catalog is empty — use the "Publish item" button above to publish
+        the first one.
       </template>
     </p>
     <table v-else class="catalog-table">
@@ -105,9 +112,16 @@ function isKind(tab: KindTab): tab is HubItemKind {
 </template>
 
 <style scoped>
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
 .page-title {
   font-size: 17px;
-  margin: 0 0 16px;
+  margin: 0;
 }
 
 .kind-tabs {

@@ -93,6 +93,9 @@ body {
   padding: 7px 14px;
   font: inherit;
   cursor: pointer;
+  /* .button also dresses router links (e.g. Publish item) — kill the
+     anchor underline so both elements render identically. */
+  text-decoration: none;
   transition: background var(--t-fast) var(--ease-out);
 }
 

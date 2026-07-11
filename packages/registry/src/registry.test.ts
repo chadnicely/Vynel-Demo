@@ -7,7 +7,7 @@ import { listCatalog } from './list-catalog.js'
 import { getCatalogItemDetail } from './get-catalog-item.js'
 import { publishItemVersion } from './publish-item-version.js'
 import { setCatalogItemStatus } from './repositories/catalog-repository.js'
-import type { PublishItemInput } from './publish-input.js'
+import { PublishItemSchema, type PublishItemInput } from './publish-input.js'
 
 function publishInput(over: Partial<PublishItemInput['item']> = {}): PublishItemInput {
   return {
@@ -77,5 +77,16 @@ describe('registry', () => {
         getCatalogItemDetail(db, { itemId: 'email-drafter', callerTier: 'pro' }),
       ).rejects.toMatchObject({ code: 'not_found' })
     })
+  })
+})
+
+describe('PublishItemSchema reserved ids', () => {
+  it("rejects itemId 'publish' — the portal routes /catalog/publish as its own page", () => {
+    const input = publishInput()
+    const result = PublishItemSchema.safeParse({
+      ...input,
+      item: { ...input.item, itemId: 'publish' },
+    })
+    expect(result.success).toBe(false)
   })
 })

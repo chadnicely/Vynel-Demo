@@ -16,7 +16,13 @@ export const PublishItemSchema = z.object({
     url: z.string().url().max(400).nullable().optional(),
   }),
   item: z.object({
-    itemId: z.string().regex(KEBAB).max(120),
+    // 'publish' is reserved: the admin portal routes /catalog/publish as its
+    // own page, so an item with that id would have an unreachable detail URL.
+    itemId: z
+      .string()
+      .regex(KEBAB)
+      .max(120)
+      .refine((id) => id !== 'publish', { message: "'publish' is a reserved item id." }),
     kind: z.enum(['skill', 'agent', 'mcp', 'rule', 'plugin']),
     displayName: z.string().min(1).max(120),
     oneLineDescription: z.string().min(1).max(280),
