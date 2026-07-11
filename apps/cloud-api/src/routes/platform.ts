@@ -19,6 +19,7 @@ import { UnauthorizedError, ValidationError, VynelError } from '@vynel/errors'
 import { applyPlatformEvent } from '@vynel/accounts'
 import { claimPlatformEvent } from '@vynel/cloud-db/repositories/platform-events'
 import type { CloudAppOptions } from '../cloud-app-options.js'
+import { formatZodIssues } from '../middleware/json-validator.js'
 
 const REPLAY_WINDOW_SECONDS = 5 * 60
 
@@ -96,7 +97,11 @@ export function buildPlatformRoutes(options: CloudAppOptions) {
     } catch {
       throw new ValidationError('Webhook body is not valid JSON.')
     }
-    const event = PlatformWebhookSchema.parse(parsed)
+    // safeParse, not parse — a raw ZodError would escape onError as a 500
+    // instead of the hub's `{code, message}` 400 envelope.
+    const eventResult = PlatformWebhookSchema.safeParse(parsed)
+    if (!eventResult.success) throw new ValidationError(formatZodIssues(eventResult.error))
+    const event = eventResult.data
 
     // Exactly-once: a duplicate/replayed delivery of the same event id is
     // acknowledged without re-applying (a replayed upgrade-after-downgrade

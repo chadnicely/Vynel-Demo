@@ -1,0 +1,56 @@
+/*
+ * Portal design tokens — a deliberate trimmed COPY of the Vynel visual
+ * contract (packages/ui/src/styles/tokens.css). The portal keeps zero runtime
+ * deps on desktop packages until it ships hub-served, so it carries its own
+ * subset: same slate depths, same ink ladder, same status colors. Gold stays
+ * reserved for attention/focus, exactly as in the desktop app.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces — shell < panel < raised, each one step lighter */
+  --bg-shell: #0f1115;
+  --bg-panel: #14171c;
+  --bg-raised: #1a1e24;
+
+  /* Ink ladder */
+  --ink-1: #eceef1;
+  --ink-2: #a7adb8;
+  --ink-3: #6b7280;
+
+  /* Hairlines + row states */
+  --hair: rgba(231, 235, 240, 0.07);
+  --hair-strong: rgba(231, 235, 240, 0.13);
+  --row-hover: rgba(231, 235, 240, 0.045);
+  --row-active: rgba(231, 235, 240, 0.08);
+
+  /* Attention accent */
+  --gold: #d9a03f;
+  --gold-soft: rgba(217, 160, 63, 0.14);
+
+  /* Status */
+  --ok: #4fb984;
+  --ok-soft: rgba(79, 185, 132, 0.14);
+  --danger: #e5484d;
+  --danger-soft: rgba(229, 72, 77, 0.14);
+  --info: #5c9dd9;
+  --info-soft: rgba(92, 157, 217, 0.14);
+
+  /* Shape */
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 14px;
+
+  /* Type */
+  --font-ui:
+    "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+
+  /* Elevation */
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: 120ms;
+}

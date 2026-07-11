@@ -30,6 +30,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A real admin portal for the marketplace hub.** `apps/cloud-admin-web` is a small web app where
+  hub admins sign in with their own account and manage the catalog visually: every item (drafts
+  included) in one table, metadata editing, pull-from-distribution and restore with a confirm step,
+  version history with integrity fingerprints, publishing a new version by picking a zip, and
+  provisioning accounts/roles — no more curl for day-to-day catalog work. Validation errors from
+  the hub now arrive as the same plain `{code, message}` shape everywhere, so the portal (and any
+  future client) can show exactly what was wrong.
+
 - **The marketplace hub now has real admin machinery (the portal's backend).** Hub accounts can
   carry an admin role — granted once with the server's own key, revocable instantly, and checked
   fresh on every request so a removed admin loses access immediately. Admins can list the whole

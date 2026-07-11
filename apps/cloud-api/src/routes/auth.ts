@@ -2,7 +2,6 @@
 // response. No business logic here — the flows live in @vynel/accounts.
 
 import { Hono } from 'hono'
-import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import {
   confirmSetPassword,
@@ -15,6 +14,7 @@ import {
   type AuthenticatedSession,
 } from '@vynel/accounts'
 import type { CloudAppOptions } from '../cloud-app-options.js'
+import { jsonValidator } from '../middleware/json-validator.js'
 import { requireAccount, type AccountVariables } from '../middleware/require-account.js'
 import { createFixedWindowRateLimiter } from '../middleware/rate-limit.js'
 
@@ -78,21 +78,21 @@ export function buildAuthRoutes(options: CloudAppOptions) {
   })
 
   return new Hono<{ Variables: AccountVariables }>()
-    .post('/sign-in', zValidator('json', SignInSchema), async (c) => {
+    .post('/sign-in', jsonValidator(SignInSchema), async (c) => {
       const body = c.req.valid('json')
       signInLimiter.consume(body.email.toLowerCase())
       const session = await signInWithPassword(options.db, body, sessionDeps)
       return c.json(toSessionResponse(session))
     })
-    .post('/refresh', zValidator('json', RefreshTokenSchema), async (c) => {
+    .post('/refresh', jsonValidator(RefreshTokenSchema), async (c) => {
       const session = await rotateSession(options.db, c.req.valid('json'), sessionDeps)
       return c.json(toSessionResponse(session))
     })
-    .post('/sign-out', zValidator('json', RefreshTokenSchema), async (c) => {
+    .post('/sign-out', jsonValidator(RefreshTokenSchema), async (c) => {
       await signOut(options.db, c.req.valid('json'))
       return c.json({ signedOut: true })
     })
-    .post('/password-reset/request', zValidator('json', PasswordResetRequestSchema), (c) => {
+    .post('/password-reset/request', jsonValidator(PasswordResetRequestSchema), (c) => {
       const body = c.req.valid('json')
       resetLimiter.consume(body.email.toLowerCase())
       // Fire WITHOUT awaiting and always 202: a known email would otherwise
@@ -106,7 +106,7 @@ export function buildAuthRoutes(options: CloudAppOptions) {
       })
       return c.json({ accepted: true }, 202)
     })
-    .post('/set-password', zValidator('json', SetPasswordSchema), async (c) => {
+    .post('/set-password', jsonValidator(SetPasswordSchema), async (c) => {
       const { accountId } = await confirmSetPassword(options.db, c.req.valid('json'), sessionDeps)
       return c.json({ accountId })
     })

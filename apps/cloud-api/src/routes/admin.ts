@@ -6,7 +6,6 @@
 
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { assignAccountRole, createProvisionedAccount } from '@vynel/accounts'
 import {
@@ -19,6 +18,7 @@ import {
   CatalogItemStatusSchema,
 } from '@vynel/registry'
 import type { CloudAppOptions } from '../cloud-app-options.js'
+import { jsonValidator } from '../middleware/json-validator.js'
 import { requireAdminAccess } from '../middleware/require-admin.js'
 
 const CreateAccountSchema = z.object({
@@ -52,7 +52,7 @@ export function buildAdminRoutes(options: CloudAppOptions) {
         db: options.db,
       }),
     )
-    .post('/accounts', zValidator('json', CreateAccountSchema), async (c) => {
+    .post('/accounts', jsonValidator(CreateAccountSchema), async (c) => {
       const body = c.req.valid('json')
       // exactOptionalPropertyTypes: spread the optional only when present.
       const { accountId } = await createProvisionedAccount(
@@ -68,7 +68,7 @@ export function buildAdminRoutes(options: CloudAppOptions) {
     })
     .post(
       '/accounts/:accountId/role',
-      zValidator('json', z.object({ role: z.enum(['member', 'admin']) })),
+      jsonValidator(z.object({ role: z.enum(['member', 'admin']) })),
       async (c) => {
         const accountId = c.req.param('accountId')
         const { role } = c.req.valid('json')
@@ -82,7 +82,7 @@ export function buildAdminRoutes(options: CloudAppOptions) {
     })
     .patch(
       '/catalog/:itemId',
-      zValidator('json', UpdateCatalogItemMetadataSchema),
+      jsonValidator(UpdateCatalogItemMetadataSchema),
       async (c) => {
         const itemId = c.req.param('itemId')
         await updateCatalogItemMetadata(options.db, itemId, c.req.valid('json'))
@@ -91,7 +91,7 @@ export function buildAdminRoutes(options: CloudAppOptions) {
     )
     .post(
       '/catalog/:itemId/status',
-      zValidator('json', z.object({ status: CatalogItemStatusSchema })),
+      jsonValidator(z.object({ status: CatalogItemStatusSchema })),
       async (c) => {
         const itemId = c.req.param('itemId')
         const { status } = c.req.valid('json')
@@ -102,7 +102,7 @@ export function buildAdminRoutes(options: CloudAppOptions) {
     .post(
       '/catalog/publish',
       bodyLimit({ maxSize: MAX_PUBLISH_BODY_BYTES }),
-      zValidator('json', PublishRequestSchema),
+      jsonValidator(PublishRequestSchema),
       async (c) => {
         const { artifactBase64, ...item } = c.req.valid('json')
         const result = await publishCatalogArtifact(options.db, options.artifactStore, {

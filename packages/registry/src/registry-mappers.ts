@@ -7,7 +7,7 @@ import type { HubTier } from '@vynel/contracts/hub/entitlements'
 import type { CatalogItemWithPublisher } from './repositories/catalog-repository.js'
 import type { ItemVersionRow } from './schema/item-versions.js'
 
-function normalizeTier(raw: string): HubTier {
+export function normalizeTier(raw: string): HubTier {
   return raw === 'pro' ? 'pro' : 'basic'
 }
 

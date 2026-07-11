@@ -132,6 +132,23 @@ describe('admin routes — the dual door', () => {
   })
 })
 
+describe('admin routes — validation envelope', () => {
+  it('answers a schema-invalid publish with the {code, message} 400 envelope', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const app = buildApp(db)
+      const body = publishBody('bad-version-skill')
+      body.version.version = 'not-a-semver'
+      const response = await app.request('/admin/catalog/publish', jsonInit(ADMIN, body))
+      expect(response.status).toBe(400)
+      // The exact regression this guards: bare zValidator used to answer raw
+      // zod output here, breaking the hub-wide error envelope.
+      const errorBody = (await response.json()) as { code: string; message: string }
+      expect(errorBody.code).toBe('validation_failed')
+      expect(errorBody.message).toContain('version.version')
+    })
+  })
+})
+
 describe('admin routes — the catalog lifecycle', () => {
   it('lists ALL statuses with versions, edits metadata, and yank kills browse + download', async () => {
     await withTestCloudDatabase(async (db) => {
@@ -153,6 +170,15 @@ describe('admin routes — the catalog lifecycle', () => {
         (await app.request('/admin/catalog/live-skill', jsonInit(ADMIN, { displayName: 'Live!' }, 'PATCH'))).status,
       ).toBe(200)
       expect((await app.request('/admin/catalog/live-skill', jsonInit(ADMIN, {}, 'PATCH'))).status).toBe(400)
+      // Publish allows 280-char descriptions — the PATCH cap must round-trip them.
+      expect(
+        (
+          await app.request(
+            '/admin/catalog/live-skill',
+            jsonInit(ADMIN, { oneLineDescription: 'd'.repeat(250) }, 'PATCH'),
+          )
+        ).status,
+      ).toBe(200)
       expect(
         (await app.request('/admin/catalog/ghost', jsonInit(ADMIN, { displayName: 'X' }, 'PATCH'))).status,
       ).toBe(404)

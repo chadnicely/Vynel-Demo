@@ -6,6 +6,7 @@
 // Consumers import the file directly (`@vynel/contracts/hub/admin`).
 
 import type { HubItemKind, HubItemStatus, HubCatalogVersion, HubPublisherTier } from './catalog.js'
+import type { HubTier } from './entitlements.js'
 
 export type HubAccountRole = 'member' | 'admin'
 
@@ -20,8 +21,8 @@ export interface HubAdminCatalogItem {
   readonly oneLineDescription: string
   readonly category: string
   readonly iconName: string
-  readonly recommendedScope: string | null
-  readonly minimumTier: string
+  readonly recommendedScope: 'user' | 'workspace' | null
+  readonly minimumTier: HubTier
   readonly createdAt: string
   readonly updatedAt: string
   /** Every published version, newest first — the portal's version history. */

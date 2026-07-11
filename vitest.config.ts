@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from "vitest/config";
 
 // The `node` project of `vitest.workspace.ts` — every server-side test
 // in the repo (apps/local-api, apps/worker, packages/**). The `web` project
@@ -8,23 +8,30 @@ import { defineConfig } from 'vitest/config'
 // `.claude/memory/decisions/apps-web-foundation-design.md`.
 export default defineConfig({
   test: {
-    name: 'node',
-    include: ['apps/**/*.test.ts', 'packages/**/*.test.ts'],
-    // `apps/local-web/**` + `packages/ui/**` are owned by their DOM-env
-    // projects — exclude them here so tests aren't run twice.
+    name: "node",
+    include: ["apps/**/*.test.ts", "packages/**/*.test.ts"],
+    // `apps/local-web/**`, `apps/cloud-admin-web/**` + `packages/ui/**` are
+    // owned by their DOM-env projects — exclude them here so tests aren't
+    // run twice.
     exclude: [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/.turbo/**',
-      'apps/local-web/**',
-      'packages/ui/**',
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.turbo/**",
+      "apps/local-web/**",
+      "apps/cloud-admin-web/**",
+      "packages/ui/**",
     ],
-    environment: 'node',
+    environment: "node",
     passWithNoTests: true,
     coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html'],
-      exclude: ['**/node_modules/**', '**/dist/**', '**/*.test.ts', '**/migrations-*/**'],
+      provider: "v8",
+      reporter: ["text", "html"],
+      exclude: [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/*.test.ts",
+        "**/migrations-*/**",
+      ],
     },
   },
-})
+});

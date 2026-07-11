@@ -18,8 +18,14 @@ import {
   updateCatalogItemMetadata as updateCatalogItemMetadataRow,
   type CatalogItemWithPublisher,
 } from './repositories/catalog-repository.js'
-import { toHubCatalogVersion } from './registry-mappers.js'
+import { normalizeTier, toHubCatalogVersion } from './registry-mappers.js'
 import type { ItemVersionRow } from './schema/item-versions.js'
+
+// The DB column is plain text; publish validates at write time, but the wire
+// contract promises the enum — coerce legacy/unknown rows here, in one home.
+function normalizeScope(raw: string | null): 'user' | 'workspace' | null {
+  return raw === 'user' || raw === 'workspace' ? raw : null
+}
 
 function toHubAdminCatalogItem(
   joined: CatalogItemWithPublisher,
@@ -37,8 +43,8 @@ function toHubAdminCatalogItem(
     oneLineDescription: item.oneLineDescription,
     category: item.category,
     iconName: item.iconName,
-    recommendedScope: item.recommendedScope,
-    minimumTier: item.minimumTier,
+    recommendedScope: normalizeScope(item.recommendedScope),
+    minimumTier: normalizeTier(item.minimumTier),
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
     versions: versions.map(toHubCatalogVersion),
@@ -57,7 +63,9 @@ export async function listCatalogForAdmin(db: CloudDatabase): Promise<HubAdminCa
 export const UpdateCatalogItemMetadataSchema = z
   .object({
     displayName: z.string().min(1).max(120).optional(),
-    oneLineDescription: z.string().min(1).max(200).optional(),
+    // Max matches publish-input.ts — a published 280-char description must
+    // round-trip the edit form.
+    oneLineDescription: z.string().min(1).max(280).optional(),
     category: z.string().min(1).max(60).optional(),
     iconName: z.string().min(1).max(60).optional(),
     recommendedScope: z.enum(['user', 'workspace']).nullable().optional(),

@@ -3,7 +3,27 @@
 **Updated 2026-07-12.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-12b): ADMIN PHASE A BUILT + REVIEWED CLEAN (role column · dual-door · catalog lifecycle) — UNCOMMITTED; next: Phase B the portal app
+## ⏭ NEXT ACTION (2026-07-12c): PORTAL PHASE B BUILT + REVIEWED (apps/cloud-admin-web) — review fixes folding; then gate → commit prompt; next: Phase C / instructions-notebook (arc ④)
+
+**Phase A COMMITTED `fe2d2be`. Chad's admin account LIVE: kaone.kafi@gmail.com ('itskafi',
+role=admin, account 1c945a45…) on his running hub — set-password link handed over (dev-mail log).
+The hub (`:8890`) + the portal dev server (`:8891`) were left RUNNING for his smoke.**
+
+**Phase B = `apps/cloud-admin-web`** (subagent-built to spec; as-built in
+`docs/module-notes/cloud-admin-web.md` §Phase B): Vue3+Vite+vue-query SPA, `/api` proxy → 8890,
+sessionStorage-only session, views SignIn/Catalog/CatalogItem/Accounts, 5 DOM tests, registered in
+root vitest workspace (+ node-project exclude). Gate GREEN 2190/4-skip AFTER review fixes (fixer also caught platform.ts raw-ZodError→500, same-class sweep).
+**LIVE-SMOKED**: bogus sign-in → 401 → hub's anti-enumeration message rendered (portal→proxy→hub
+chain proven). **Reviewer: CLEAN, 0 must-fix; 3 should-fixes + nits → fixer subagent** (FileReader
+surfacing+abort · file-input clear after publish · hub-side `jsonValidator` wrapper sweeping the
+{code,message} envelope onto zod 400s + route test · contracts admin DTO enums w/ mapper normalize ·
+qc.clear() on sign-out · clipboard catch · PATCH description 200→280 round-trip fix · empty-state
+copy · redundant error casts). **⏭ After fixer: full gate → commit prompt
+(`feat(cloud-admin-web): the marketplace admin portal (phase b)` + `fix(cloud): validation-error
+envelope` if split feels right — one slice is also fine) → Chad smoke (sign in · browse ·
+yank/un-yank · publish a version bump). Then arc ④ instructions-notebook OR Phase C.**
+
+## (prev) NEXT ACTION (2026-07-12b): ADMIN PHASE A BUILT + REVIEWED CLEAN (role column · dual-door · catalog lifecycle) — UNCOMMITTED; next: Phase B the portal app
 
 **Arc ③ Phase A done same day (fork answers: real admin accounts · deprecate-only=yank).** Built to
 `docs/module-notes/cloud-admin-web.md` §"Phase A as built": migration `0004_account_role` (additive,

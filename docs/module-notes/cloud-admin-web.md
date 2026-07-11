@@ -4,7 +4,34 @@
 plugins, MCPs — so users can browse and install them when they need them. Chad named the app:
 **`apps/cloud-admin-web`**.
 
-**Status: Phase A BUILT (2026-07-12, reviewer-clean) — Phase B next.** Read
+**Status: Phase A + Phase B BUILT (2026-07-12, both reviewer-clean) — Phase C (non-skill kinds on
+desktop) and hub-served static hosting remain.**
+
+## ✅ Phase B as built (2026-07-12)
+
+`apps/cloud-admin-web` — Vue 3 + Vite + @tanstack/vue-query SPA (subagent-built to spec, mirrors
+local-web idioms: per-feature composables + keys files, happy-dom project tests, dark token CSS).
+Run: `pnpm --filter @vynel/cloud-admin-web dev` → `http://localhost:8891` (Vite proxies `/api` →
+`localhost:8890`, prefix-stripped — the gateway dev==prod-paths precedent).
+
+- **Session**: access token in sessionStorage ONLY (deliberate: admin tool, per-browser-session
+  credentials; refresh-token persistence is non-scope until hub-served). 401 → session cleared →
+  sign-in; 403 → the full-page "not an admin" card (auth is generic — the gate is per-request).
+- **Views**: SignIn · Catalog (kind filter tabs, status chips, list from GET /admin/catalog) ·
+  CatalogItem (dirty-tracked sparse PATCH · two-step yank confirm · versions table w/ sha copy ·
+  publish-new-version zip→base64 with vynel-team publisher prefill) · Accounts (provision +
+  role-grant forms; list-accounts endpoint doesn't exist yet — said honestly in the UI).
+- **Review round applied**: FileReader failure surfaced + abort handled · file input cleared after
+  publish · **hub-side `jsonValidator` wrapper** (zod issues → `ValidationError` → the one
+  `{code,message}` envelope; swept every cloud-api route) · contracts admin DTO tightened to enums
+  (normalize lives in the registry mapper) · queryClient.clear() on sign-out · clipboard reject
+  caught · PATCH description cap aligned to publish's 280.
+- **LIVE-SMOKED** (2026-07-12): portal → proxy → running hub → 401 → anti-enumeration message
+  rendered. Authenticated flows are Chad's smoke (sign in as kaone.kafi@gmail.com after
+  set-password; browse catalog; yank/un-yank email-drafter; publish a version bump).
+- **Deferred**: hub-served dist (`/admin-app` static from the Docker image — needs the static-serve
+  helper extracted from local-api into a shared package; deploy arc) · token refresh mid-session ·
+  fold the portal's trimmed `tokens.css` into `@vynel/ui` when hub-served lands. Read
 `docs/module-notes/cloud-api.md` first (the hub discovery doc) — the portal is the "real admin
 tooling" that the current `CLOUD_ADMIN_TOKEN`-guarded `/admin` fallback routes and the
 `cloud:publish` CLI explicitly stand in for.
