@@ -14,7 +14,7 @@ import {
 } from '@vynel/accounts'
 import { loadEnv } from './env.js'
 import { createCloudApp } from './app.js'
-import { createFilesystemArtifactStore } from './artifacts/artifact-store.js'
+import { createFilesystemArtifactStore } from '@vynel/registry'
 
 export async function boot(): Promise<void> {
   const env = loadEnv()

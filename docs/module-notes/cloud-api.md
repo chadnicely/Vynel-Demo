@@ -295,3 +295,23 @@ it. No free-for-all marketplace — v1 publishes Vynel Team only. Every irrevers
 passes the approval-card discipline. Offline keeps working within the entitlement grace window
 (~7 days), and a lock never touches the user's local data (§4) — their workspaces and memory are
 theirs even when their access isn't.
+
+## 11. ✅ Discipline round (2026-07-12) — routes went thin, registry owns its seams
+
+Chad's review ask ("cloud-api didn't follow discipline") verified: the leaves were right, but two
+routes held business logic. Fixed behavior-neutrally, gate 2172/4-skip:
+
+- **`ArtifactStore` moved into `@vynel/registry`** (`artifact-store.ts`: contract + key + fs +
+  in-memory) — the registry's own artifact seam; the app only wires `CLOUD_ARTIFACT_DIR` in
+  `server.ts`.
+- **`publishCatalogArtifact(db, store, input)`** (registry) — the whole publish use-case (10MB cap,
+  sha256, conflict-check BEFORE the store put [byte-immutability], put, `publishItemVersion`).
+  `/admin/catalog/publish` now only decodes base64.
+- **`authorizeCatalogDownload` + `loadCatalogArtifact`** (registry `catalog-download.ts`, with
+  `TierTooLowError`/`ArtifactMissingError` moved beside them) — every fail-CLOSED download gate in
+  one core home; the route keeps only ETag/304 (an HTTP concern).
+- **`resolveActiveAccountTier(db, accountId, now)`** (`@vynel/accounts` `tiers/`) — the
+  fresh-from-DB live-tier read; browse's fail-open `?? 'basic'` stays visible at the route surface
+  (the §5 asymmetry is policy, kept legible where it applies).
+- New leaf tests: `registry/src/catalog-download.test.ts` (7, PGlite + in-memory store).
+  The admin-portal arc (`docs/module-notes/cloud-admin-web.md`) builds directly on these functions.

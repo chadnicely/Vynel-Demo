@@ -11,6 +11,7 @@ export {
   resolveEffectiveTier,
   type EntitlementTokenIssuer,
 } from './tokens/entitlement-token.js'
+export { resolveActiveAccountTier } from './tiers/resolve-active-account-tier.js'
 export {
   applyPlatformEvent,
   type PlatformUserEvent,

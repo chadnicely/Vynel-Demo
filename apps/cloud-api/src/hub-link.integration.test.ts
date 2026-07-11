@@ -28,7 +28,7 @@ import {
 } from '@vynel/hub-account'
 import type { Hono } from 'hono'
 import { createCloudApp } from './app.js'
-import { createInMemoryArtifactStore } from './artifacts/artifact-store.js'
+import { createInMemoryArtifactStore } from '@vynel/registry'
 
 const DEVICE = { deviceName: 'Chad-PC', devicePlatform: 'windows', appVersion: '0.1.0' }
 const silentLogger = pino({ level: 'silent' })

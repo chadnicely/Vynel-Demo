@@ -19,7 +19,7 @@ import {
   type EntitlementTokenIssuer,
 } from '@vynel/accounts'
 import { createCloudApp } from './../app.js'
-import { createInMemoryArtifactStore } from '../artifacts/artifact-store.js'
+import { createInMemoryArtifactStore } from '@vynel/registry'
 
 const SECRET = 'webhook-secret-0123456789abcdef-0123456789abcdef'
 const silentLogger = pino({ level: 'silent' })

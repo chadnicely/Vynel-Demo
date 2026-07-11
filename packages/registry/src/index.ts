@@ -10,3 +10,22 @@ export {
   findCatalogItemById,
   findItemVersion,
 } from './repositories/catalog-repository.js'
+export {
+  artifactKey,
+  createFilesystemArtifactStore,
+  createInMemoryArtifactStore,
+  type ArtifactStore,
+} from './artifact-store.js'
+export {
+  publishCatalogArtifact,
+  MAX_ARTIFACT_BYTES,
+  type PublishCatalogArtifactInput,
+} from './publish-catalog-artifact.js'
+export {
+  authorizeCatalogDownload,
+  loadCatalogArtifact,
+  TierTooLowError,
+  ArtifactMissingError,
+  type AuthorizeCatalogDownloadInput,
+  type AuthorizedCatalogDownload,
+} from './catalog-download.js'

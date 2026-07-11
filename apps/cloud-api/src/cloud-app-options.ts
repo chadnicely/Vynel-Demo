@@ -9,7 +9,7 @@ import type {
   AccountMailSender,
   EntitlementTokenIssuer,
 } from '@vynel/accounts'
-import type { ArtifactStore } from './artifacts/artifact-store.js'
+import type { ArtifactStore } from '@vynel/registry'
 
 export interface CloudAppOptions {
   readonly db: CloudDatabase

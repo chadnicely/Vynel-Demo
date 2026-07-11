@@ -19,7 +19,7 @@ import {
   type SetPasswordLinkMail,
 } from '@vynel/accounts'
 import { createCloudApp } from './app.js'
-import { createInMemoryArtifactStore } from './artifacts/artifact-store.js'
+import { createInMemoryArtifactStore } from '@vynel/registry'
 
 const ADMIN_TOKEN = 'test-admin-token-0123456789abcdef-0123456789abcdef'
 const DEVICE = { deviceName: 'Chad-PC', devicePlatform: 'windows', appVersion: '0.1.0' }
