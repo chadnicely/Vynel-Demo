@@ -13,6 +13,14 @@ export type {
   NewAgentSkillRow,
 } from './agents-types.js'
 
+export { AGENT_CREATED, AGENT_UPDATED, AGENT_DELETED } from './agents-events.js'
+
+export type {
+  AgentCreatedPayload,
+  AgentUpdatedPayload,
+  AgentDeletedPayload,
+} from './agents-events.js'
+
 export { mapAgentToDefinition } from './internal/map-agent-to-definition.js'
 
 export { createAgent, type CreateAgentInput } from './lifecycle/create-agent.js'

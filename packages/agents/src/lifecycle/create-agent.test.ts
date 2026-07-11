@@ -7,8 +7,10 @@ import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { listSkillIdsForAgent } from '@vynel/db/repositories/agents'
+import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { ConflictError } from '@vynel/errors'
 import { createAgent, type CreateAgentInput } from './create-agent.js'
+import { AGENT_CREATED } from '../agents-events.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -75,6 +77,16 @@ describe('createAgent', () => {
       expect(agent.source).toBe('user')
       expect(agent.allowedTools).toEqual(['Read', 'Write'])
       expect(listSkillIdsForAgent(db, agent.id)).toEqual(['email-drafter'])
+
+      // Outbox event co-committed with the row.
+      const events = listOutboxEventsByType(db, AGENT_CREATED)
+      expect(events).toHaveLength(1)
+      const payload = events[0]!.payload as Record<string, unknown>
+      expect(payload.agentId).toBe(agent.id)
+      expect(payload.slug).toBe('doc-gen')
+      expect(payload.scope).toBe('workspace')
+      expect(payload.workspaceId).toBe(workspace.id)
+      expect(payload.source).toBe('user')
     })
   })
 
@@ -105,6 +117,8 @@ describe('createAgent', () => {
       await expect(createAgent(db, baseInput(user.id, { slug: 'dup' }))).rejects.toBeInstanceOf(
         ConflictError,
       )
+      // A failed create leaves no stray event — only the first create's.
+      expect(listOutboxEventsByType(db, AGENT_CREATED)).toHaveLength(1)
     })
   })
 

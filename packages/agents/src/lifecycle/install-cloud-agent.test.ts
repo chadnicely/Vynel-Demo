@@ -11,8 +11,10 @@ import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findAgentBySlug } from '@vynel/db/repositories/agents'
+import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import type { AgentItemManifest } from '@vynel/contracts/marketplace/agent-item-manifest'
 import { installCloudAgent } from './install-cloud-agent.js'
+import { AGENT_CREATED } from '../agents-events.js'
 
 function makeManifest(overrides: Partial<AgentItemManifest> = {}): AgentItemManifest {
   return {
@@ -90,6 +92,14 @@ describe('installCloudAgent', () => {
       expect(
         findAgentBySlug(db, { userId: user.id, workspaceId: workspace.id, slug: 'focus-writer' })?.id,
       ).toBe(row.id)
+
+      // Exactly ONE agent.created — emitted by the delegated createAgent,
+      // never doubled by the install wrapper; `source` carries provenance.
+      const events = listOutboxEventsByType(db, AGENT_CREATED)
+      expect(events).toHaveLength(1)
+      const payload = events[0]!.payload as Record<string, unknown>
+      expect(payload.agentId).toBe(row.id)
+      expect(payload.source).toBe('community')
     })
   })
 

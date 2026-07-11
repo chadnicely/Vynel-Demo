@@ -14,6 +14,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { withTransaction, type Database } from '@vynel/db'
+import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { ConflictError } from '@vynel/errors'
 import * as agentsRepository from '@vynel/db/repositories/agents'
 import type {
@@ -25,6 +26,7 @@ import type {
   AgentPermissionMode,
 } from '@vynel/db/repositories/agents'
 import type { StructuralLogger } from '../agents-types.js'
+import { AGENT_CREATED, type AgentCreatedPayload } from '../agents-events.js'
 
 export type CreateAgentInput = {
   userId: string
@@ -99,6 +101,26 @@ export async function createAgent(
     for (const skillId of skillIds) {
       agentsRepository.insertAgentSkill(tx, { agentId: inserted.id, skillId })
     }
+
+    // Outbox co-commit — `source` carries the install provenance, so
+    // the curated/cloud install paths (which delegate here) never
+    // emit a second event.
+    const payload: AgentCreatedPayload = {
+      agentId: inserted.id,
+      userId: inserted.userId,
+      workspaceId: inserted.workspaceId,
+      slug: inserted.slug,
+      scope: inserted.scope,
+      source: inserted.source,
+      createdAt: inserted.createdAt.toISOString(),
+    }
+    insertOutboxEvent(tx, {
+      id: randomUUID(),
+      type: AGENT_CREATED,
+      payload,
+      createdAt: now,
+      processedAt: null,
+    })
 
     return inserted
   })

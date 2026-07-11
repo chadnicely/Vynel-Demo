@@ -9,8 +9,10 @@ import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { listSkillIdsForAgent } from '@vynel/db/repositories/agents'
+import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { NotFoundError } from '@vynel/errors'
 import { installCuratedAgent } from './install-curated-agent.js'
+import { AGENT_CREATED } from '../agents-events.js'
 import { resolveEnabledAgentsForSession } from '../session/resolve-enabled-agents-for-session.js'
 
 function makeUser(id: string = randomUUID()) {
@@ -57,6 +59,15 @@ describe('installCuratedAgent', () => {
       expect(agent.enabled).toBe(true)
       expect(agent.scope).toBe('user')
       expect(agent.allowedTools).toEqual(['Read', 'Write', 'Edit', 'Glob'])
+
+      // Exactly ONE agent.created — the delegated createAgent emits it;
+      // the install wrapper must not add a second. Provenance rides in
+      // the payload's `source`.
+      const events = listOutboxEventsByType(db, AGENT_CREATED)
+      expect(events).toHaveLength(1)
+      const payload = events[0]!.payload as Record<string, unknown>
+      expect(payload.agentId).toBe(agent.id)
+      expect(payload.source).toBe('vynel')
     })
   })
 

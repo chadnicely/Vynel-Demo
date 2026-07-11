@@ -8,7 +8,9 @@
 // the same transaction). This lets thin callers (e.g. the enable
 // toggle) patch a single field without disturbing skills.
 
+import { randomUUID } from 'node:crypto'
 import { withTransaction, type Database } from '@vynel/db'
+import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { ConflictError, NotFoundError } from '@vynel/errors'
 import * as agentsRepository from '@vynel/db/repositories/agents'
 import type {
@@ -18,6 +20,7 @@ import type {
   AgentPermissionMode,
 } from '@vynel/db/repositories/agents'
 import type { StructuralLogger } from '../agents-types.js'
+import { AGENT_UPDATED, type AgentUpdatedPayload } from '../agents-events.js'
 
 export type UpdateAgentInput = {
   agentId: string
@@ -91,6 +94,24 @@ export async function updateAgent(
         agentsRepository.insertAgentSkill(tx, { agentId: input.agentId, skillId })
       }
     }
+
+    // Outbox co-commit — same transaction as the patch.
+    const payload: AgentUpdatedPayload = {
+      agentId: row.id,
+      userId: row.userId,
+      workspaceId: row.workspaceId,
+      slug: row.slug,
+      scope: row.scope,
+      updatedAt: row.updatedAt.toISOString(),
+    }
+    insertOutboxEvent(tx, {
+      id: randomUUID(),
+      type: AGENT_UPDATED,
+      payload,
+      createdAt: row.updatedAt,
+      processedAt: null,
+    })
+
     return row
   })
 

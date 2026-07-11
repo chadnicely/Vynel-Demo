@@ -6,9 +6,11 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { findAgentById } from '@vynel/db/repositories/agents'
+import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { NotFoundError } from '@vynel/errors'
 import { createAgent, type CreateAgentInput } from './create-agent.js'
 import { softDeleteAgent } from './soft-delete-agent.js'
+import { AGENT_DELETED } from '../agents-events.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -45,6 +47,15 @@ describe('softDeleteAgent', () => {
       const agent = await createAgent(db, baseInput(user.id))
       await softDeleteAgent(db, { agentId: agent.id, userId: user.id })
       expect(findAgentById(db, agent.id)).toBeNull()
+
+      // Outbox event co-committed with the deletedAt flip.
+      const events = listOutboxEventsByType(db, AGENT_DELETED)
+      expect(events).toHaveLength(1)
+      const payload = events[0]!.payload as Record<string, unknown>
+      expect(payload.agentId).toBe(agent.id)
+      expect(payload.slug).toBe('researcher')
+      expect(payload.scope).toBe('user')
+      expect(payload.workspaceId).toBeNull()
     })
   })
 
@@ -67,6 +78,9 @@ describe('softDeleteAgent', () => {
       await expect(
         softDeleteAgent(db, { agentId: agent.id, userId: user.id }),
       ).rejects.toBeInstanceOf(NotFoundError)
+      // The failed second call's transaction rolled back — the first
+      // delete's event is still the only one.
+      expect(listOutboxEventsByType(db, AGENT_DELETED)).toHaveLength(1)
     })
   })
 })

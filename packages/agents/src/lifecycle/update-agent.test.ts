@@ -6,9 +6,11 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { listSkillIdsForAgent } from '@vynel/db/repositories/agents'
+import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { ConflictError, NotFoundError } from '@vynel/errors'
 import { createAgent, type CreateAgentInput } from './create-agent.js'
 import { updateAgent } from './update-agent.js'
+import { AGENT_UPDATED } from '../agents-events.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -55,6 +57,15 @@ describe('updateAgent', () => {
       expect(updated.enabled).toBe(false)
       // skills untouched
       expect(listSkillIdsForAgent(db, agent.id)).toEqual(['email-drafter'])
+
+      // Outbox event co-committed with the patch.
+      const events = listOutboxEventsByType(db, AGENT_UPDATED)
+      expect(events).toHaveLength(1)
+      const payload = events[0]!.payload as Record<string, unknown>
+      expect(payload.agentId).toBe(agent.id)
+      expect(payload.slug).toBe('researcher')
+      expect(payload.scope).toBe('user')
+      expect(payload.workspaceId).toBeNull()
     })
   })
 
@@ -92,6 +103,8 @@ describe('updateAgent', () => {
       await expect(
         updateAgent(db, { agentId: agent.id, userId: other.id, name: 'Hacked' }),
       ).rejects.toBeInstanceOf(NotFoundError)
+      // A rejected update emits nothing.
+      expect(listOutboxEventsByType(db, AGENT_UPDATED)).toHaveLength(0)
     })
   })
 
