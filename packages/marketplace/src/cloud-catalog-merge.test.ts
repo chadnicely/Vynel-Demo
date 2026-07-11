@@ -31,14 +31,16 @@ function cloudItem(over: Partial<HubCatalogItem> & { itemId: string }): HubCatal
 }
 
 describe('cloud catalog merge', () => {
-  it('dedups the bundled+cloud collision (cloud-wins) and filters non-skill kinds', async () => {
+  it('dedups the bundled+cloud collision (cloud-wins), keeps agents, filters mcp/rule/plugin', async () => {
     await withTestDatabase(async (db) => {
       syncCloudCatalog(
         db,
         [
           cloudItem({ itemId: 'email-drafter', displayName: 'Email Drafter (Cloud)' }),
           cloudItem({ itemId: 'pro-skill', displayName: 'Pro Skill', minimumTier: 'pro' }),
-          cloudItem({ itemId: 'some-agent', kind: 'agent' }),
+          cloudItem({ itemId: 'focus-writer', kind: 'agent', displayName: 'Focus Writer' }),
+          cloudItem({ itemId: 'some-mcp', kind: 'mcp' }),
+          cloudItem({ itemId: 'some-rule', kind: 'rule' }),
         ],
         new Date(),
       )
@@ -50,8 +52,13 @@ describe('cloud catalog merge', () => {
       expect(drafter[0]?.displayName).toBe('Email Drafter (Cloud)')
       // Cloud-only skill carries its tier for the Pro badge.
       expect(merged.find((i) => i.itemId === 'pro-skill')?.minimumTier).toBe('pro')
-      // Non-skill kinds don't fit the skill-shaped MarketplaceItem yet.
-      expect(merged.map((i) => i.itemId)).not.toContain('some-agent')
+      // Agent items are installable now (C-agents) and carry their kind.
+      expect(merged.find((i) => i.itemId === 'focus-writer')?.kind).toBe('agent')
+      // Bundled rows stamp 'skill'.
+      expect(merged.every((i) => i.kind === 'skill' || i.kind === 'agent')).toBe(true)
+      // Non-installable kinds stay hidden — honest UI over dead Get buttons.
+      expect(merged.map((i) => i.itemId)).not.toContain('some-mcp')
+      expect(merged.map((i) => i.itemId)).not.toContain('some-rule')
     })
   })
 
@@ -65,11 +72,34 @@ describe('cloud catalog merge', () => {
           listInstalledSkills: () => [
             { id: 'i1', skillId: 'email-drafter', workspaceId: null, scope: 'user', versionInstalled: '1.0.0' },
           ],
+          listInstalledAgents: () => [],
         },
       )
       const drafter = items.filter((i) => i.itemId === 'email-drafter')
       expect(drafter).toHaveLength(1)
       expect(drafter[0]?.installStatus.kind).toBe('installed')
+    })
+  })
+
+  it('annotates a cloud AGENT row installed via the injected agents reader', async () => {
+    await withTestDatabase(async (db) => {
+      syncCloudCatalog(db, [cloudItem({ itemId: 'focus-writer', kind: 'agent' })], new Date())
+      const items = listMarketplaceItems(
+        db,
+        { userId: 'u', workspaceId: 'w' },
+        {
+          listInstalledSkills: () => [],
+          listInstalledAgents: () => [{ id: 'a1', slug: 'focus-writer', workspaceId: 'w' }],
+        },
+      )
+      const agent = items.find((i) => i.itemId === 'focus-writer')
+      expect(agent?.kind).toBe('agent')
+      expect(agent?.installStatus).toEqual({
+        kind: 'installed',
+        scope: 'workspace',
+        installedId: 'a1',
+        versionInstalled: null,
+      })
     })
   })
 

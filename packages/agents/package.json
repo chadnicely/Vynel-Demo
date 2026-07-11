@@ -16,7 +16,8 @@
     "@vynel/contracts": "workspace:*",
     "@vynel/db": "workspace:*",
     "@vynel/errors": "workspace:*",
-    "@vynel/logger": "workspace:*"
+    "@vynel/logger": "workspace:*",
+    "jszip": "^3.10.0"
   },
   "devDependencies": {
     "@vynel/testing": "workspace:*",

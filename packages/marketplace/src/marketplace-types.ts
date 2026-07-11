@@ -25,12 +25,27 @@ export type InstalledSkillView = {
   versionInstalled: string
 }
 
+// The three fields `annotateWithInstallStatus` reads off an installed
+// AGENT row (`@vynel/agents` is a sibling leaf too — same structural-
+// view rule). Scope is derived: `workspaceId === null` = user-scope.
+// `AgentRow` is assignable here, so the app can bind the kernel's
+// `listAgentsForUserAndWorkspace` directly.
+export type InstalledAgentView = {
+  id: string
+  slug: string
+  workspaceId: string | null
+}
+
 // The cross-leaf reads `listMarketplaceItems` / `getMarketplaceItem`
-// need injected. `listInstalledSkills` returns the union of the
-// caller's user-scope + workspace-scope installed skills.
+// need injected. Each reader returns the union of the caller's
+// user-scope + workspace-scope rows for its kind.
 export type MarketplaceDeps = {
   listInstalledSkills: (
     db: Database,
     input: { userId: string; workspaceId: string },
   ) => InstalledSkillView[]
+  listInstalledAgents: (
+    db: Database,
+    input: { userId: string; workspaceId: string },
+  ) => InstalledAgentView[]
 }

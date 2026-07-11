@@ -30,6 +30,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Marketplace agents — install a ready-made helper, not just skills.** Items of kind "agent"
+  published to the hub now appear in the app's marketplace with an Agent badge, and Get installs
+  them as a real agent (persona, model, working style) marked as community-sourced. Every install
+  is integrity-checked against the catalog's fingerprint before anything is read, a malicious or
+  oversized package is rejected before it can waste memory, and no community agent can skip the
+  approval card on irreversible actions — that floor is enforced by the app itself, not by the
+  package. Other kinds (MCPs, rules, plugins) stay hidden until they're actually installable.
+
 - **A real admin portal for the marketplace hub.** `apps/cloud-admin-web` is a small web app where
   hub admins sign in with their own account and manage the catalog visually: every item (drafts
   included) in one table, metadata editing, pull-from-distribution and restore with a confirm step,

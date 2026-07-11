@@ -36,3 +36,7 @@ export {
   installCuratedAgent,
   type InstallCuratedAgentInput,
 } from './lifecycle/install-curated-agent.js'
+export {
+  installCloudAgent,
+  type InstallCloudAgentInput,
+} from './lifecycle/install-cloud-agent.js'

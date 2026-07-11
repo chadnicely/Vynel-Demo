@@ -38,8 +38,10 @@ export async function installCloudSkill(
   deps: { logger?: StructuralLogger } = {},
 ): Promise<InstalledSkillRow> {
   // 1. Integrity check FIRST — never parse/write unverified bytes.
+  //    Lowercase both sides: digest('hex') emits lowercase, but a hub
+  //    record may carry uppercase hex — casing must never fail a valid hash.
   const actualSha256 = createHash('sha256').update(input.artifactBytes).digest('hex')
-  if (actualSha256 !== input.expectedSha256) {
+  if (actualSha256.toLowerCase() !== input.expectedSha256.toLowerCase()) {
     throw new ValidationError(
       'The downloaded skill failed its integrity check (sha256 mismatch) — install aborted.',
     )

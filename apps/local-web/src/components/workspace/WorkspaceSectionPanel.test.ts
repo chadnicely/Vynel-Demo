@@ -14,6 +14,7 @@ import WorkspaceSectionPanel from "./WorkspaceSectionPanel.vue";
 function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
   return {
     itemId: "email-drafter",
+    kind: "skill",
     skillId: "email-drafter",
     publisherTier: "verified",
     publisherName: "Vynel",
@@ -39,6 +40,7 @@ const items: MarketplaceItem[] = [
 ];
 
 const installResult = {
+  kind: "skill",
   installedSkillId: "sk1",
   itemId: "free-skill",
   scope: "workspace",
@@ -105,6 +107,31 @@ describe("WorkspaceSectionPanel — marketplace Pro badge", () => {
   });
 });
 
+describe("WorkspaceSectionPanel — marketplace kind chip", () => {
+  it("labels every row with its kind (Skill / Agent)", async () => {
+    const wrapper = mountPanel(
+      { kind: "signed-out" },
+      {
+        items: [
+          makeItem({ itemId: "email-drafter", displayName: "Email Drafter" }),
+          makeItem({
+            itemId: "focus-writer",
+            kind: "agent",
+            skillId: "focus-writer",
+            displayName: "Focus Writer",
+          }),
+        ],
+      },
+    );
+    await flushPromises();
+
+    const chips = wrapper.findAll(".scope-chip").map((chip) => chip.text());
+    expect(chips).toContain("Skill");
+    expect(chips).toContain("Agent");
+    wrapper.unmount();
+  });
+});
+
 describe("WorkspaceSectionPanel — marketplace install", () => {
   it("installs the clicked item at the workspace scope", async () => {
     const install = vi.fn(async () => installResult);
@@ -138,7 +165,7 @@ describe("WorkspaceSectionPanel — marketplace install", () => {
             installStatus: {
               kind: "installed",
               scope: "workspace",
-              installedSkillId: "sk1",
+              installedId: "sk1",
               versionInstalled: "1.0.0",
             },
           }),

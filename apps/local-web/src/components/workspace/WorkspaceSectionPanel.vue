@@ -163,6 +163,11 @@ function installErrorFor(itemId: string): string | null {
         <div class="row-main">
           <p class="row-title">
             {{ item.displayName }}
+            <!-- What you're getting: a skill (a capability) or an agent
+                 (a persona) — the Get flow is identical for both. -->
+            <span class="scope-chip">{{
+              item.kind === "agent" ? "Agent" : "Skill"
+            }}</span>
             <span v-if="item.isOfficial" class="scope-chip is-gold"
               >Official</span
             >

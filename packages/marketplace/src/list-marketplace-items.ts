@@ -27,11 +27,12 @@ export function listMarketplaceItems(
   deps: MarketplaceDeps,
 ): MarketplaceItem[] {
   const catalogItems = resolveMergedCatalog(db)
-  const installedSkills = deps.listInstalledSkills(db, {
-    userId: input.userId,
-    workspaceId: input.workspaceId,
+  const owner = { userId: input.userId, workspaceId: input.workspaceId }
+  const annotated = annotateWithInstallStatus({
+    catalogItems,
+    installedSkills: deps.listInstalledSkills(db, owner),
+    installedAgents: deps.listInstalledAgents(db, owner),
   })
-  const annotated = annotateWithInstallStatus({ catalogItems, installedSkills })
 
   // Build the filter input conditionally — `exactOptionalPropertyTypes`
   // foot-gun: spreading `{x: input.x}` when `x?: T` produces

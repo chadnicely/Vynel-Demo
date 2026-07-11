@@ -32,13 +32,11 @@ export function getMarketplaceItem(
   const item = catalogItems.find((i) => i.itemId === input.itemId)
   if (!item) throw new NotFoundError('marketplace-item', input.itemId)
 
-  const installedSkills = deps.listInstalledSkills(db, {
-    userId: input.userId,
-    workspaceId: input.workspaceId,
-  })
+  const owner = { userId: input.userId, workspaceId: input.workspaceId }
   const [annotated] = annotateWithInstallStatus({
     catalogItems: [item],
-    installedSkills,
+    installedSkills: deps.listInstalledSkills(db, owner),
+    installedAgents: deps.listInstalledAgents(db, owner),
   })
   return annotated!
 }

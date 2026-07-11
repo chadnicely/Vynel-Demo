@@ -8,6 +8,7 @@ import type { MarketplaceItem } from '@vynel/contracts/marketplace/marketplace-i
 function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
   return {
     itemId: 'a',
+    kind: 'skill',
     skillId: 'a',
     publisherTier: 'verified',
     publisherName: 'Vynel Team',
@@ -61,7 +62,7 @@ describe('filterAndSortMarketplaceItems', () => {
           installStatus: {
             kind: 'installed',
             scope: 'user',
-            installedSkillId: 'x',
+            installedId: 'x',
             versionInstalled: '1.0.0',
           },
         }),
@@ -79,7 +80,7 @@ describe('filterAndSortMarketplaceItems', () => {
           installStatus: {
             kind: 'installed',
             scope: 'user',
-            installedSkillId: 'x',
+            installedId: 'x',
             versionInstalled: '1.0.0',
           },
         }),

@@ -14,7 +14,7 @@ import { getMarketplaceItem } from './get-marketplace-item.js'
 import type { InstalledSkillView, MarketplaceDeps } from './marketplace-types.js'
 
 function depsReturning(installed: InstalledSkillView[]): MarketplaceDeps {
-  return { listInstalledSkills: () => installed }
+  return { listInstalledSkills: () => installed, listInstalledAgents: () => [] }
 }
 
 const owner = { userId: 'user-1', workspaceId: 'ws-1' }
@@ -47,7 +47,7 @@ describe('getMarketplaceItem', () => {
       expect(item.installStatus).toMatchObject({
         kind: 'installed',
         scope: 'user',
-        installedSkillId: 'u1',
+        installedId: 'u1',
         versionInstalled: '1.0.0',
       })
     })

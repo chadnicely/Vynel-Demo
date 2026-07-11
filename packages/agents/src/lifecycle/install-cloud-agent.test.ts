@@ -1,0 +1,245 @@
+// The cloud-agent install security core over the real product DB:
+// integrity-verify-first, manifest extraction + zod validation, the
+// slug === itemId anchor, the community source/trust stamp — plus the
+// failure paths (sha mismatch, bad archive, missing/invalid agent.json,
+// slug mismatch, unsafe permissionMode, duplicate).
+
+import { createHash, randomUUID } from 'node:crypto'
+import JSZip from 'jszip'
+import { describe, it, expect } from 'vitest'
+import { withTestDatabase } from '@vynel/testing'
+import { insertUser } from '@vynel/db/repositories/users'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
+import { findAgentBySlug } from '@vynel/db/repositories/agents'
+import type { AgentItemManifest } from '@vynel/contracts/marketplace/agent-item-manifest'
+import { installCloudAgent } from './install-cloud-agent.js'
+
+function makeManifest(overrides: Partial<AgentItemManifest> = {}): AgentItemManifest {
+  return {
+    slug: 'focus-writer',
+    name: 'Focus Writer',
+    description: 'Turns rough notes into polished prose.',
+    prompt: 'You are a focused writing assistant.',
+    ...overrides,
+  }
+}
+
+async function makeArtifact(files: Record<string, string>): Promise<{ bytes: Buffer; sha: string }> {
+  const zip = new JSZip()
+  for (const [name, content] of Object.entries(files)) zip.file(name, content)
+  const bytes = await zip.generateAsync({ type: 'nodebuffer' })
+  return { bytes, sha: createHash('sha256').update(bytes).digest('hex') }
+}
+
+async function manifestArtifact(manifest: unknown): Promise<{ bytes: Buffer; sha: string }> {
+  return makeArtifact({ 'agent.json': JSON.stringify(manifest) })
+}
+
+function seed(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
+  const now = new Date()
+  const user = insertUser(db, {
+    id: randomUUID(),
+    displayName: 'T',
+    emailAddress: null,
+    locale: 'en-US',
+    timezone: 'UTC',
+    hasCompletedOnboarding: true,
+    createdAt: now,
+    updatedAt: now,
+  })
+  const workspace = insertWorkspace(db, {
+    id: randomUUID(),
+    userId: user.id,
+    name: 'Acme',
+    kind: 'small-business',
+    path: 'C:/tmp/acme',
+    isArchived: false,
+    createdAt: now,
+    updatedAt: now,
+    lastAccessedAt: now,
+  })
+  return { user, workspace }
+}
+
+describe('installCloudAgent', () => {
+  it('verifies, parses agent.json, and creates a community-trust agent row', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      const { bytes, sha } = await manifestArtifact(
+        makeManifest({ icon: 'pen-line', model: 'sonnet', effort: 'medium', allowedTools: ['Read'] }),
+      )
+      const row = await installCloudAgent(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        itemId: 'focus-writer',
+        scope: 'workspace',
+        artifactBytes: bytes,
+        expectedSha256: sha,
+      })
+      expect(row.slug).toBe('focus-writer')
+      expect(row.source).toBe('community')
+      expect(row.trustTier).toBe('community')
+      expect(row.enabled).toBe(true)
+      expect(row.scope).toBe('workspace')
+      expect(row.workspaceId).toBe(workspace.id)
+      expect(row.icon).toBe('pen-line')
+      expect(row.model).toBe('sonnet')
+      expect(row.effort).toBe('medium')
+      expect(row.allowedTools).toEqual(['Read'])
+      // Persisted, not just returned.
+      expect(
+        findAgentBySlug(db, { userId: user.id, workspaceId: workspace.id, slug: 'focus-writer' })?.id,
+      ).toBe(row.id)
+    })
+  })
+
+  it('installs at user scope (workspaceId null) when scope=user', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      const { bytes, sha } = await manifestArtifact(makeManifest())
+      const row = await installCloudAgent(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        itemId: 'focus-writer',
+        scope: 'user',
+        artifactBytes: bytes,
+        expectedSha256: sha,
+      })
+      expect(row.scope).toBe('user')
+      expect(row.workspaceId).toBeNull()
+    })
+  })
+
+  it('rejects a sha256 mismatch BEFORE parsing anything', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      const { bytes } = await manifestArtifact(makeManifest())
+      await expect(
+        installCloudAgent(db, {
+          userId: user.id,
+          workspaceId: workspace.id,
+          itemId: 'focus-writer',
+          scope: 'workspace',
+          artifactBytes: bytes,
+          expectedSha256: 'b'.repeat(64),
+        }),
+      ).rejects.toMatchObject({ code: 'validation_failed' })
+    })
+  })
+
+  it('rejects a non-archive, a missing agent.json, and invalid JSON', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      const base = { userId: user.id, workspaceId: workspace.id, itemId: 'x', scope: 'workspace' as const }
+
+      const garbage = Buffer.from('not a zip')
+      await expect(
+        installCloudAgent(db, {
+          ...base,
+          artifactBytes: garbage,
+          expectedSha256: createHash('sha256').update(garbage).digest('hex'),
+        }),
+      ).rejects.toMatchObject({ code: 'validation_failed' })
+
+      const noManifest = await makeArtifact({ 'README.md': 'no agent here' })
+      await expect(
+        installCloudAgent(db, { ...base, artifactBytes: noManifest.bytes, expectedSha256: noManifest.sha }),
+      ).rejects.toMatchObject({ code: 'validation_failed' })
+
+      const badJson = await makeArtifact({ 'agent.json': '{not json' })
+      await expect(
+        installCloudAgent(db, { ...base, artifactBytes: badJson.bytes, expectedSha256: badJson.sha }),
+      ).rejects.toMatchObject({ code: 'validation_failed' })
+    })
+  })
+
+  it('rejects a manifest that fails the schema (empty prompt, unsafe permissionMode)', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      const base = { userId: user.id, workspaceId: workspace.id, itemId: 'focus-writer', scope: 'workspace' as const }
+
+      const emptyPrompt = await manifestArtifact({ ...makeManifest(), prompt: '' })
+      await expect(
+        installCloudAgent(db, { ...base, artifactBytes: emptyPrompt.bytes, expectedSha256: emptyPrompt.sha }),
+      ).rejects.toMatchObject({ code: 'validation_failed' })
+
+      // A community artifact never models the approval-card-skip pattern.
+      const bypass = await manifestArtifact({ ...makeManifest(), permissionMode: 'bypassPermissions' })
+      await expect(
+        installCloudAgent(db, { ...base, artifactBytes: bypass.bytes, expectedSha256: bypass.sha }),
+      ).rejects.toMatchObject({ code: 'validation_failed' })
+    })
+  })
+
+  it('rejects a manifest that out-bounds the user-create caps (prompt length, tool-list size)', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      const base = { userId: user.id, workspaceId: workspace.id, itemId: 'focus-writer', scope: 'workspace' as const }
+
+      // prompt cap mirrors the user-create route's 50_000 — a community
+      // artifact must not out-bound what the user can create by hand.
+      const hugePrompt = await manifestArtifact({ ...makeManifest(), prompt: 'a'.repeat(50_001) })
+      await expect(
+        installCloudAgent(db, { ...base, artifactBytes: hugePrompt.bytes, expectedSha256: hugePrompt.sha }),
+      ).rejects.toMatchObject({ code: 'validation_failed' })
+
+      const tooManyTools = await manifestArtifact({
+        ...makeManifest(),
+        allowedTools: Array.from({ length: 65 }, (_, i) => `Tool${i}`),
+      })
+      await expect(
+        installCloudAgent(db, { ...base, artifactBytes: tooManyTools.bytes, expectedSha256: tooManyTools.sha }),
+      ).rejects.toMatchObject({ code: 'validation_failed' })
+    })
+  })
+
+  it('installs when the hub records the expected sha256 in uppercase hex', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      const { bytes, sha } = await manifestArtifact(makeManifest())
+      const row = await installCloudAgent(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        itemId: 'focus-writer',
+        scope: 'workspace',
+        artifactBytes: bytes,
+        expectedSha256: sha.toUpperCase(),
+      })
+      expect(row.slug).toBe('focus-writer')
+    })
+  })
+
+  it('rejects a manifest whose slug does not match the catalog itemId', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      const { bytes, sha } = await manifestArtifact(makeManifest({ slug: 'other-slug' }))
+      await expect(
+        installCloudAgent(db, {
+          userId: user.id,
+          workspaceId: workspace.id,
+          itemId: 'focus-writer',
+          scope: 'workspace',
+          artifactBytes: bytes,
+          expectedSha256: sha,
+        }),
+      ).rejects.toMatchObject({ code: 'validation_failed' })
+    })
+  })
+
+  it('rejects a duplicate install at the same scope', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      const { bytes, sha } = await manifestArtifact(makeManifest())
+      const input = {
+        userId: user.id,
+        workspaceId: workspace.id,
+        itemId: 'focus-writer',
+        scope: 'workspace' as const,
+        artifactBytes: bytes,
+        expectedSha256: sha,
+      }
+      await installCloudAgent(db, input)
+      await expect(installCloudAgent(db, input)).rejects.toMatchObject({ code: 'conflict' })
+    })
+  })
+})

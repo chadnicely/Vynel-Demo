@@ -36,6 +36,9 @@ function verifiedSkillToMarketplaceItem(skill: VerifiedSkillDefinition): Marketp
     // per D7). The second item kind (rule pack, agent bundle) will
     // make these diverge — recorded in `decisions.md` D7 trigger.
     itemId: skill.skillId,
+    // The bundled catalog only ever carries skills; agent items are
+    // cloud-only (curated agents have their own surface).
+    kind: 'skill',
     skillId: skill.skillId,
     publisherTier: 'verified',
     publisherName: VYNEL_TEAM_PUBLISHER_NAME,

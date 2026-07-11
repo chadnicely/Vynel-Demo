@@ -34,6 +34,8 @@ import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
 import { ValidationError } from '@vynel/errors'
 import { listMarketplaceItems, getMarketplaceItem, findCachedCloudItem } from '@vynel/marketplace'
 import { listInstalledSkillsForUserAndWorkspace, installSkill, installCloudSkill } from '@vynel/skills'
+import { installCloudAgent } from '@vynel/agents'
+import { listAgentsForUserAndWorkspace } from '@vynel/db/repositories/agents'
 import {
   ListMarketplaceItemsQuerySchema,
   ItemIdParamSchema,
@@ -42,9 +44,15 @@ import {
   InstallMarketplaceItemBodySchema,
   InstallMarketplaceItemResponseSchema,
 } from './schemas.js'
-import { serializeMarketplaceItem } from './serializers.js'
+import { serializeMarketplaceItem, serializeInstalledSkillResponse } from './serializers.js'
 
-const marketplaceDeps = { listInstalledSkills: listInstalledSkillsForUserAndWorkspace }
+// Agents' install-status reader binds the kernel repo directly — the
+// `@vynel/agents` leaf export (`listAgentsForWorkspace`) is async, and
+// the marketplace pipeline is sync (Phase-1 sync-transactions).
+const marketplaceDeps = {
+  listInstalledSkills: listInstalledSkillsForUserAndWorkspace,
+  listInstalledAgents: listAgentsForUserAndWorkspace,
+}
 
 export const marketplaceApp = factory
   .createApp()
@@ -139,15 +147,47 @@ export const marketplaceApp = factory
         scope,
       }
       // A cloud item downloads its verified artifact; a bundled item renders
-      // its in-code template. One route, dispatched by cache membership.
-      const cloud = findCachedCloudItem(c.var.db, itemId)
-      let installed
+      // its in-code template. One route, dispatched by cache membership +
+      // the cached kind (C-agents). A cached row of a NON-INSTALLABLE kind
+      // (mcp/rule/plugin) is treated as "not cloud" and falls through to
+      // the bundled dispatch: a hidden cloud row must never shadow a
+      // same-id bundled skill, and the final not-found stays byte-identical
+      // to the unknown-id case (`installSkill`'s NotFoundError('skill', …))
+      // — no enumeration distinguisher.
+      const cached = findCachedCloudItem(c.var.db, itemId)
+      const cloud =
+        cached !== null && (cached.kind === 'skill' || cached.kind === 'agent') ? cached : null
       if (cloud !== null) {
         if (c.var.hubSession === undefined) {
           throw new ValidationError('The hub is not available to download this item.')
         }
         const artifactBytes = await c.var.hubSession.downloadArtifact(itemId, cloud.latestVersion)
-        installed = await installCloudSkill(
+        if (cloud.kind === 'agent') {
+          const agent = await installCloudAgent(
+            c.var.db,
+            {
+              userId: base.userId,
+              workspaceId: base.workspaceId,
+              itemId,
+              scope,
+              artifactBytes,
+              expectedSha256: cloud.latestVersionSha256,
+            },
+            { logger: c.var.logger },
+          )
+          return c.json(
+            {
+              kind: 'agent' as const,
+              agentId: agent.id,
+              slug: agent.slug,
+              itemId,
+              scope: agent.scope,
+              version: cloud.latestVersion,
+            },
+            201,
+          )
+        }
+        const installed = await installCloudSkill(
           c.var.db,
           {
             ...base,
@@ -158,18 +198,13 @@ export const marketplaceApp = factory
           },
           { logger: c.var.logger },
         )
-      } else {
-        installed = await installSkill(c.var.db, { ...base, skillId: itemId }, { logger: c.var.logger })
+        return c.json(serializeInstalledSkillResponse(installed, itemId), 201)
       }
-      return c.json(
-        {
-          installedSkillId: installed.id,
-          itemId,
-          scope: installed.scope,
-          source: installed.installedFromSource,
-          version: installed.versionInstalled,
-        },
-        201,
+      const installed = await installSkill(
+        c.var.db,
+        { ...base, skillId: itemId },
+        { logger: c.var.logger },
       )
+      return c.json(serializeInstalledSkillResponse(installed, itemId), 201)
     },
   )

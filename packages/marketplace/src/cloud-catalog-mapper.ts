@@ -1,10 +1,12 @@
-// Cache row → the skill-shaped `MarketplaceItem` the UI renders. v1 maps a
-// cloud SKILL as a skill: `skillId === itemId` (as bundled items already do).
-// Non-skill kinds are filtered out upstream (they don't fit this shape until
-// `MarketplaceItem` gains `kind`).
+// Cache row → the `MarketplaceItem` the UI renders. `skillId === itemId`
+// for every kind (the id anchor, not skill-semantics — see the contract's
+// D7 note). Non-installable kinds (mcp/rule/plugin) are filtered out
+// upstream in `resolveMergedCatalog`, so the narrowing here only ever
+// sees skill/agent rows.
 
 import type {
   MarketplaceItem,
+  MarketplaceItemKind,
   PublisherTier,
 } from '@vynel/contracts/marketplace/marketplace-item'
 import type {
@@ -33,9 +35,14 @@ function toPublisherTier(raw: string): PublisherTier {
   return raw === 'community' ? 'community' : 'verified'
 }
 
+function toItemKind(raw: string): MarketplaceItemKind {
+  return raw === 'agent' ? 'agent' : 'skill'
+}
+
 export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): MarketplaceItem {
   return {
     itemId: row.itemId,
+    kind: toItemKind(row.kind),
     skillId: row.itemId,
     publisherTier: toPublisherTier(row.publisherTier),
     publisherName: row.publisherName,

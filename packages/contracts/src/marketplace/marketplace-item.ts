@@ -17,21 +17,34 @@ export type PublisherTier = 'verified' | 'anthropic-official' | 'community'
  * no update flow in Phase 1). */
 export type MarketplaceSortKey = 'recommended' | 'name-asc' | 'newest'
 
+/** The DESKTOP's item-kind union — only kinds the app can actually
+ * install ever reach the wire (mcp/rule/plugin stay filtered at the
+ * merge; widening later is additive). The hub-side registry union is
+ * the wider `HubItemKind`. Slice C-agents. */
+export type MarketplaceItemKind = 'skill' | 'agent'
+
 /** Install-status discriminator. Phase 1 has two variants (no
- * `'installed-with-update-available'` per D8). */
+ * `'installed-with-update-available'` per D8). Generalized when the
+ * `agent` kind landed (C-agents): `installedId` is the installed row's
+ * id in its owning leaf (`installed_skills.id` / `agents.id`);
+ * `versionInstalled` is null for agents — agent rows don't record the
+ * installed version (the update flow is a deferred arc). */
 export type MarketplaceItemInstallStatus =
   | { kind: 'not-installed' }
   | {
       kind: 'installed'
       scope: SkillScope
-      installedSkillId: string
-      versionInstalled: string
+      installedId: string
+      versionInstalled: string | null
     }
 
-/** A catalog row, always annotated with install status. Under
- * MINIMAL, `itemId === skillId` (one item kind only) — see D7. */
+/** A catalog row, always annotated with install status. `skillId`
+ * stays `=== itemId` for every row today — the id anchor, not
+ * skill-semantics (see D7); agent items anchor on itemId === the
+ * manifest slug, enforced at install. */
 export type MarketplaceItem = {
   itemId: string
+  kind: MarketplaceItemKind
   skillId: string
   publisherTier: PublisherTier
   publisherName: string

@@ -1,0 +1,20 @@
+{
+  "publisher": { "id": "vynel-team", "name": "Vynel Team", "tier": "verified", "url": null },
+  "item": {
+    "itemId": "focus-writer",
+    "kind": "agent",
+    "displayName": "Focus Writer",
+    "oneLineDescription": "A writing assistant that turns rough notes into polished prose.",
+    "category": "documents",
+    "iconName": "pen-line",
+    "recommendedScope": "user",
+    "minimumTier": "basic",
+    "status": "published"
+  },
+  "version": {
+    "version": "1.0.0",
+    "changelog": "First cloud release.",
+    "manifest": { "kind": "agent", "entryFile": "agent.json" },
+    "minAppVersion": null
+  }
+}

@@ -42,18 +42,23 @@ export const ItemIdParamSchema = z.object({
 
 const SkillScopeSchema = z.enum(['user', 'workspace'])
 
+export const MarketplaceItemKindSchema = z.enum(['skill', 'agent'])
+
 const MarketplaceItemInstallStatusSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('not-installed') }),
   z.object({
     kind: z.literal('installed'),
     scope: SkillScopeSchema,
-    installedSkillId: z.string(),
-    versionInstalled: z.string(),
+    // The installed row's id in its owning leaf (installed_skills.id /
+    // agents.id); agents carry no installed version (null).
+    installedId: z.string(),
+    versionInstalled: z.string().nullable(),
   }),
 ])
 
 export const MarketplaceItemSchema = z.object({
   itemId: z.string(),
+  kind: MarketplaceItemKindSchema,
   skillId: z.string(),
   publisherTier: PublisherTierSchema,
   publisherName: z.string(),
@@ -78,10 +83,23 @@ export const InstallMarketplaceItemBodySchema = z.object({
   scope: SkillScopeSchema,
 })
 
-export const InstallMarketplaceItemResponseSchema = z.object({
-  installedSkillId: z.string(),
-  itemId: z.string(),
-  scope: SkillScopeSchema,
-  source: z.enum(['verified-catalog', 'marketplace', 'external']),
-  version: z.string(),
-})
+// Discriminated by item kind (C-agents): a skill install answers with the
+// installed-skill row, an agent install with the created agent row.
+export const InstallMarketplaceItemResponseSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('skill'),
+    installedSkillId: z.string(),
+    itemId: z.string(),
+    scope: SkillScopeSchema,
+    source: z.enum(['verified-catalog', 'marketplace', 'external']),
+    version: z.string(),
+  }),
+  z.object({
+    kind: z.literal('agent'),
+    agentId: z.string(),
+    slug: z.string(),
+    itemId: z.string(),
+    scope: SkillScopeSchema,
+    version: z.string(),
+  }),
+])

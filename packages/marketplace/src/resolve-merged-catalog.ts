@@ -15,8 +15,12 @@ export function resolveMergedCatalog(db: Database): MarketplaceItem[] {
   const byId = new Map<string, MarketplaceItem>()
   for (const item of resolveCatalogSources()) byId.set(item.itemId, item)
   for (const row of listCloudCatalog(db)) {
-    // Non-skill kinds don't fit the skill-shaped MarketplaceItem yet.
-    if (row.kind !== 'skill') continue
+    // Only INSTALLABLE kinds surface — honest UI over dead Get buttons:
+    // `rule` waits for the instructions-notebook leaf (its install
+    // target), `mcp` needs two open calls (which leaf owns a standalone
+    // MCP install; whether it cards), `plugin` has no desktop semantics
+    // yet. See docs/module-notes/marketplace-kinds.md "Deferred".
+    if (row.kind !== 'skill' && row.kind !== 'agent') continue
     byId.set(row.itemId, cloudRowToMarketplaceItem(row)) // cloud wins
   }
   return [...byId.values()]

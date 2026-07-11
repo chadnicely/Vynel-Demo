@@ -2842,6 +2842,8 @@ export interface operations {
                 content: {
                     "application/json": {
                         itemId: string;
+                        /** @enum {string} */
+                        kind: "skill" | "agent";
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -2865,8 +2867,8 @@ export interface operations {
                             kind: "installed";
                             /** @enum {string} */
                             scope: "user" | "workspace";
-                            installedSkillId: string;
-                            versionInstalled: string;
+                            installedId: string;
+                            versionInstalled: string | null;
                         };
                         /** @enum {string} */
                         minimumTier?: "basic" | "pro";
@@ -2902,6 +2904,8 @@ export interface operations {
                 content: {
                     "application/json": {
                         itemId: string;
+                        /** @enum {string} */
+                        kind: "skill" | "agent";
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -2925,8 +2929,8 @@ export interface operations {
                             kind: "installed";
                             /** @enum {string} */
                             scope: "user" | "workspace";
-                            installedSkillId: string;
-                            versionInstalled: string;
+                            installedId: string;
+                            versionInstalled: string | null;
                         };
                         /** @enum {string} */
                         minimumTier?: "basic" | "pro";
@@ -2968,12 +2972,23 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @constant */
+                        kind: "skill";
                         installedSkillId: string;
                         itemId: string;
                         /** @enum {string} */
                         scope: "user" | "workspace";
                         /** @enum {string} */
                         source: "verified-catalog" | "marketplace" | "external";
+                        version: string;
+                    } | {
+                        /** @constant */
+                        kind: "agent";
+                        agentId: string;
+                        slug: string;
+                        itemId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
                         version: string;
                     };
                 };

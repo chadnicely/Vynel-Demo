@@ -19,7 +19,7 @@ import { listMarketplaceItems } from './list-marketplace-items.js'
 import type { InstalledSkillView, MarketplaceDeps } from './marketplace-types.js'
 
 function depsReturning(installed: InstalledSkillView[]): MarketplaceDeps {
-  return { listInstalledSkills: () => installed }
+  return { listInstalledSkills: () => installed, listInstalledAgents: () => [] }
 }
 
 const input = { userId: 'user-1', workspaceId: 'ws-1' }
@@ -39,14 +39,14 @@ describe('listMarketplaceItems', () => {
     })
   })
 
-  it('forwards the db handle + userId/workspaceId to the injected reader', async () => {
+  it('forwards the db handle + userId/workspaceId to both injected readers', async () => {
     await withTestDatabase(async (db) => {
       const listInstalledSkills = vi.fn<MarketplaceDeps['listInstalledSkills']>(() => [])
-      listMarketplaceItems(db, input, { listInstalledSkills })
-      expect(listInstalledSkills).toHaveBeenCalledWith(db, {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-      })
+      const listInstalledAgents = vi.fn<MarketplaceDeps['listInstalledAgents']>(() => [])
+      listMarketplaceItems(db, input, { listInstalledSkills, listInstalledAgents })
+      const owner = { userId: 'user-1', workspaceId: 'ws-1' }
+      expect(listInstalledSkills).toHaveBeenCalledWith(db, owner)
+      expect(listInstalledAgents).toHaveBeenCalledWith(db, owner)
     })
   })
 
@@ -68,7 +68,7 @@ describe('listMarketplaceItems', () => {
       expect(items[0]?.installStatus).toMatchObject({
         kind: 'installed',
         scope: 'user',
-        installedSkillId: 'u1',
+        installedId: 'u1',
         versionInstalled: '1.0.0',
       })
     })
@@ -92,7 +92,7 @@ describe('listMarketplaceItems', () => {
       expect(items[0]?.installStatus).toMatchObject({
         kind: 'installed',
         scope: 'workspace',
-        installedSkillId: 'w1',
+        installedId: 'w1',
       })
     })
   })

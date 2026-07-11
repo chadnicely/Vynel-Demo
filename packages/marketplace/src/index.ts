@@ -9,6 +9,7 @@
 
 export type {
   MarketplaceItem,
+  MarketplaceItemKind,
   MarketplaceItemInstallStatus,
   PublisherTier,
   MarketplaceSortKey,
@@ -16,7 +17,11 @@ export type {
   ListMarketplaceItemsInput,
 } from '@vynel/contracts/marketplace/marketplace-item'
 
-export type { InstalledSkillView, MarketplaceDeps } from './marketplace-types.js'
+export type {
+  InstalledSkillView,
+  InstalledAgentView,
+  MarketplaceDeps,
+} from './marketplace-types.js'
 
 export { annotateWithInstallStatus, type AnnotateInput } from './annotate-with-install-status.js'
 

@@ -1997,6 +1997,13 @@
                       "itemId": {
                         "type": "string"
                       },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "skill",
+                          "agent"
+                        ]
+                      },
                       "skillId": {
                         "type": "string"
                       },
@@ -2082,17 +2089,20 @@
                                   "workspace"
                                 ]
                               },
-                              "installedSkillId": {
+                              "installedId": {
                                 "type": "string"
                               },
                               "versionInstalled": {
-                                "type": "string"
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
                               }
                             },
                             "required": [
                               "kind",
                               "scope",
-                              "installedSkillId",
+                              "installedId",
                               "versionInstalled"
                             ]
                           }
@@ -2108,6 +2118,7 @@
                     },
                     "required": [
                       "itemId",
+                      "kind",
                       "skillId",
                       "publisherTier",
                       "publisherName",
@@ -2222,6 +2233,13 @@
                     "itemId": {
                       "type": "string"
                     },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "skill",
+                        "agent"
+                      ]
+                    },
                     "skillId": {
                       "type": "string"
                     },
@@ -2307,17 +2325,20 @@
                                 "workspace"
                               ]
                             },
-                            "installedSkillId": {
+                            "installedId": {
                               "type": "string"
                             },
                             "versionInstalled": {
-                              "type": "string"
+                              "type": [
+                                "string",
+                                "null"
+                              ]
                             }
                           },
                           "required": [
                             "kind",
                             "scope",
-                            "installedSkillId",
+                            "installedId",
                             "versionInstalled"
                           ]
                         }
@@ -2333,6 +2354,7 @@
                   },
                   "required": [
                     "itemId",
+                    "kind",
                     "skillId",
                     "publisherTier",
                     "publisherName",
@@ -2391,39 +2413,84 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "installedSkillId": {
-                      "type": "string"
-                    },
-                    "itemId": {
-                      "type": "string"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "user",
-                        "workspace"
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "skill"
+                        },
+                        "installedSkillId": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "workspace"
+                          ]
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "verified-catalog",
+                            "marketplace",
+                            "external"
+                          ]
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "installedSkillId",
+                        "itemId",
+                        "scope",
+                        "source",
+                        "version"
                       ]
                     },
-                    "source": {
-                      "type": "string",
-                      "enum": [
-                        "verified-catalog",
-                        "marketplace",
-                        "external"
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "agent"
+                        },
+                        "agentId": {
+                          "type": "string"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "workspace"
+                          ]
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "agentId",
+                        "slug",
+                        "itemId",
+                        "scope",
+                        "version"
                       ]
-                    },
-                    "version": {
-                      "type": "string"
                     }
-                  },
-                  "required": [
-                    "installedSkillId",
-                    "itemId",
-                    "scope",
-                    "source",
-                    "version"
                   ]
                 }
               }

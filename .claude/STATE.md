@@ -3,7 +3,35 @@
 **Updated 2026-07-12.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-12c): PORTAL PHASE B BUILT + REVIEWED (apps/cloud-admin-web) — review fixes folding; then gate → commit prompt; next: Phase C / instructions-notebook (arc ④)
+## ⏭ NEXT ACTION (2026-07-12d): PHASE C "C-AGENTS" BUILT + REVIEWED + FIXED — gate 2212/4-skip, UNCOMMITTED; commit prompt out; next: arc ④ instructions-notebook (rule kind rides it) / mcp-kind forks
+
+**Phase B COMMITTED `40f8111` (port corrected to 8891 — Chad's serial-from-8890 convention, memory
+saved). Phase C slice C-agents built to `docs/module-notes/marketplace-kinds.md`** (Explore recon →
+builder subagent → reviewer → fixer subagent):
+- **Contracts:** `MarketplaceItem.kind: 'skill'|'agent'` · install-status `installedSkillId`→
+  `installedId` + nullable version (deliberate spec change) · `AgentItemManifestSchema` (kebab slug
+  ≤64 · prompt ≤50k matching the user-create route · tools arrays ≤64×120 · permissionMode clamped
+  to default|acceptEdits|plan — bypass unrepresentable).
+- **Marketplace leaf:** merge passes skill+agent (mcp/rule/plugin stay filtered w/ WHY — rule waits
+  on arc ④, mcp needs owner+carding forks, plugin undefined) · per-kind install-status (agents by
+  slug===itemId, D12 workspace-preference) · injected `MarketplaceDeps.listInstalledAgents`.
+- **Agents leaf:** `installCloudAgent` (sha verify FIRST, lowercased compare · jszip extract of root
+  agent.json ONLY, nothing to disk · slug===itemId enforced · createAgent source/trustTier
+  'community'). **Zip-bomb walls in BOTH extractors** (input cap 1MB agents / 10MB skills +
+  declared-uncompressed-size guard + post-inflate backstop — the skills ordering flaw was
+  pre-existing, swept). ⚠ trustTier gates NOTHING at runtime (reviewer finding) — real safety = the
+  tier-independent TOOLS_ALWAYS_REQUIRING_APPROVAL floor + the permissionMode clamp; comments say so.
+- **Route:** kind dispatch; non-installable cached kinds FALL THROUGH to bundled (no same-id
+  shadowing; 404 indistinguishable from unknown-id) · discriminated install response · SDK regen.
+  **UI:** Skill/Agent chip. **Seed:** `scripts/seed-catalog/focus-writer/`.
+- **Reviewer: 0 must-fix; 3 should-fixes + nits ALL applied.** Gate GREEN **2212/4-skip**.
+  createAgent outbox gap (pre-existing, invariant 8) → spawn_task chip `task_4415a082`.
+**⏭ COMMIT: `feat(marketplace): agent-kind items installable from the cloud catalog`. CHAD E2E
+SMOKE: `pnpm cloud:publish scripts/seed-catalog/focus-writer` → app marketplace shows Focus Writer
+w/ Agent chip → Get → Installed → agent appears in the Agents panel as community. Then arc ④
+instructions-notebook (3 forks in its module notes) — `rule` installs ride it.**
+
+## (prev) NEXT ACTION (2026-07-12c): PORTAL PHASE B BUILT + REVIEWED (apps/cloud-admin-web) — review fixes folding; then gate → commit prompt; next: Phase C / instructions-notebook (arc ④)
 
 **Phase A COMMITTED `fe2d2be`. Chad's admin account LIVE: kaone.kafi@gmail.com ('itskafi',
 role=admin, account 1c945a45…) on his running hub — set-password link handed over (dev-mail log).
