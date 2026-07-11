@@ -26,10 +26,16 @@ builder subagent → reviewer → fixer subagent):
   **UI:** Skill/Agent chip. **Seed:** `scripts/seed-catalog/focus-writer/`.
 - **Reviewer: 0 must-fix; 3 should-fixes + nits ALL applied.** Gate GREEN **2212/4-skip**.
   createAgent outbox gap (pre-existing, invariant 8) → spawn_task chip `task_4415a082`.
-**⏭ COMMIT: `feat(marketplace): agent-kind items installable from the cloud catalog`. CHAD E2E
-SMOKE: `pnpm cloud:publish scripts/seed-catalog/focus-writer` → app marketplace shows Focus Writer
-w/ Agent chip → Get → Installed → agent appears in the Agents panel as community. Then arc ④
-instructions-notebook (3 forks in its module notes) — `rule` installs ride it.**
+**C-agents COMMITTED `711c52d`. STANDING COMMIT AUTHORIZATION from Chad (memory saved) — commit
+autonomously after gate+review. SAME SESSION follow-ups (all reviewed, gate 2216/4-skip):
+`cloud:publish` now loads .env (root cause: script never read it — Chad hit it live) ·
+focus-writer@1.0.0 PUBLISHED to Chad's hub · portal gained the PUBLISH-ITEM form (/catalog/publish,
+manifest prefill follows kind, shared read-file-base64 helper; 'publish' now a RESERVED itemId in
+PublishItemSchema — route-collision guard, hub-side so the CLI path is covered too) · agents
+lifecycle now co-commits outbox events (agent.created/updated/deleted; softDelete gained its
+missing transaction; installs don't double-emit). ⏭ CHAD E2E SMOKE: app marketplace → Focus Writer
+w/ Agent chip → Get → Installed → Agents panel shows it community-sourced; portal → Publish item
+form. Then arc ④ instructions-notebook (3 forks in its module notes) — `rule` installs ride it.**
 
 ## (prev) NEXT ACTION (2026-07-12c): PORTAL PHASE B BUILT + REVIEWED (apps/cloud-admin-web) — review fixes folding; then gate → commit prompt; next: Phase C / instructions-notebook (arc ④)
 

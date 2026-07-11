@@ -30,6 +30,21 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Publish new marketplace items straight from the admin portal.** The catalog page gained a
+  "Publish item" button opening a full form — pick the kind (skills and agents install in the app
+  today; other kinds publish but stay hidden until supported), fill in the details, attach the zip,
+  and publish as a draft or live. The `pnpm cloud:publish` command also now reads the project's
+  `.env` on its own instead of failing when the admin token isn't exported in the shell.
+
+### Changed
+
+- **Every agent change now leaves a durable event trail.** Creating, editing, or deleting an agent
+  records an event in the same transaction as the change itself (deleting previously ran outside
+  any transaction) — the same bookkeeping every other feature already had, groundwork for sync and
+  activity feeds.
+
+### Added
+
 - **Marketplace agents — install a ready-made helper, not just skills.** Items of kind "agent"
   published to the hub now appear in the app's marketplace with an Agent badge, and Get installs
   them as a real agent (persona, model, working style) marked as community-sourced. Every install
