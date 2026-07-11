@@ -1,9 +1,46 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-11.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-12.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-11): CHAD'S 5-FIX ROUND BUILT (voice UX · dictation · attachments · knowledge indexing · memory tags) — memory UI subagent finishing; then full gate → reviewer → commit prompt
+## ⏭ NEXT ACTION (2026-07-12): DISCIPLINE ROUND BUILT (session lift + cloud-api thin routes) — both REVIEWED CLEAN, gate 2172/4-skip, UNCOMMITTED; then arc ③ cloud-admin-web
+
+**Chad's 4-item queue (2026-07-12): ① session discipline ② cloud-api discipline ③ `apps/cloud-admin-web`
+admin portal ④ instructions/notebook.** ①+② BUILT this session, behavior-neutral, full gate GREEN
+**2172/4-skip** (+7 new registry leaf tests + 1 accounts leaf test). One unrelated test flaked ONCE
+mid-round (name not captured — vanished on two immediate re-runs; watch for recurrence).
+
+1. **① The delegation lift** — `apps/local-api/src/sessions/` cross-domain composition moved into
+   **`packages/session/src/delegation/`** (new `./delegation` subpath): `delegate-to-workspace-root` ·
+   `delegate-to-leaf-session` · `run-delegation-claim-and-run-tick` · `build-routed-approval-handler` ·
+   `resolve-delegation-trace` · `turn-event-broadcaster` (+tests); `resolve-global-root-transcript` →
+   `runtime/`. Session deps += channels/workspaces (prod), agents/approvals (dev). Fake-provider
+   duplicate CONSOLIDATED (app superset won, `runtime/test-support/`). STAYS at edge with live
+   reasons (`docs/module-notes/session.md` §"delegation lift"): compose-session-mcp-servers (LOCKED
+   api-side decision) · run-global-root-turn (imports apps/mcp) · global-root-workspace (env) ·
+   delegation headers (HTTP wire) · build-schedule-fire-deps (factory) · streams/services/handler-bundles.
+   **Reviewer: CLEAN, 0 must-fix; 2 nits applied** (stale comment; importOriginal-spread mock).
+2. **② Cloud-api thin routes** — registry now owns `artifact-store.ts` + `publishCatalogArtifact` +
+   `catalog-download.ts` (authorize/load + TierTooLow/ArtifactMissing beside the logic); accounts
+   owns `resolveActiveAccountTier` (`tiers/`); catalog.ts + admin.ts are parse→core→shape (ETag/304
+   + browse's fail-open `?? 'basic'` stay route-side deliberately). As-built:
+   `docs/module-notes/cloud-api.md` §11. **Reviewer: CLEAN, 0 must-fix; 2 nits applied**
+   (key-format pin comment; resolveActiveAccountTier leaf test added).
+3. **③ PLANNED:** `docs/module-notes/cloud-admin-web.md` — Phase A backend (accounts `role` column +
+   registry lifecycle fns) → Phase B the Vue portal served by cloud-api → Phase C non-skill kinds on
+   desktop. 3 forks for Chad in the doc (admin accounts vs token-only · curated-only · deprecate-only).
+4. **④ PLANNED:** `docs/module-notes/instructions-notebook.md` — `packages/instructions` leaf, ONE
+   table `instruction_documents` (`mode 'always'|'notebook'`), always-docs injected at the session
+   runtime's prompt composition, notebook via a read-only `vynel-notebook` McpFeatureDescriptor + a
+   UI section. 3 forks for Chad in the doc (agent writes? · seeded starters? · memory-context overlap).
+
+**⏭ COMMIT PROMPT (2 commits by path):** `refactor(session): lift delegation composition into
+@vynel/session` (packages/session + apps/local-api + docs/architecture.md + module-notes/session.md) ·
+`refactor(cloud): registry owns artifact store + publish + download gates` (packages/registry +
+packages/accounts + apps/cloud-api + module-notes/cloud-api.md §11). The two plan docs + STATE ride
+as `docs:`. Then arc ③ Phase A on Chad's fork answers.
+
+## (prev) NEXT ACTION (2026-07-11): CHAD'S 5-FIX ROUND BUILT (voice UX · dictation · attachments · knowledge indexing · memory tags) — memory UI subagent finishing; then full gate → reviewer → commit prompt
 
 **Chad's ask (2026-07-11): vision refresh + 5 fixes. Vision updated (`docs/vision.md` §2 community
 members who bounced off Claude Desktop/Code/OpenClaw + the litmus question; §8 tool is FREE,
