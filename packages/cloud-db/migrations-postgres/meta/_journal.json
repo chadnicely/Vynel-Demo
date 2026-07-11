@@ -29,6 +29,13 @@
       "when": 1783663095682,
       "tag": "0003_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783804173916,
+      "tag": "0004_account_role",
+      "breakpoints": true
     }
   ]
 }

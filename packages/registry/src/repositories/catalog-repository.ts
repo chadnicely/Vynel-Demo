@@ -83,6 +83,42 @@ export async function listPublishedItemsWithPublisher(
   return rows
 }
 
+/** EVERY item joined to its publisher regardless of status — the admin view. */
+export async function listAllItemsWithPublisher(
+  db: CloudDatabase,
+): Promise<CatalogItemWithPublisher[]> {
+  const rows = await db
+    .select({ item: catalogItems, publisher: publishers })
+    .from(catalogItems)
+    .innerJoin(publishers, eq(catalogItems.publisherId, publishers.id))
+    .orderBy(desc(catalogItems.updatedAt))
+  return rows
+}
+
+export interface UpdateCatalogItemMetadataInput {
+  readonly displayName?: string | undefined
+  readonly oneLineDescription?: string | undefined
+  readonly category?: string | undefined
+  readonly iconName?: string | undefined
+  readonly recommendedScope?: string | null | undefined
+  readonly minimumTier?: string | undefined
+}
+
+export async function updateCatalogItemMetadata(
+  db: CloudDatabase,
+  itemId: string,
+  patch: UpdateCatalogItemMetadataInput,
+): Promise<void> {
+  // Drop present-but-undefined keys (zod optionals) — only real changes land.
+  const changes = Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => value !== undefined),
+  )
+  await db
+    .update(catalogItems)
+    .set({ ...changes, updatedAt: new Date() })
+    .where(eq(catalogItems.itemId, itemId))
+}
+
 export async function findItemWithPublisher(
   db: CloudDatabase,
   itemId: string,

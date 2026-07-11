@@ -4,10 +4,39 @@
 plugins, MCPs — so users can browse and install them when they need them. Chad named the app:
 **`apps/cloud-admin-web`**.
 
-**Status: PLANNED — not started.** This doc is the Gate-1 shape. Read `docs/module-notes/cloud-api.md`
-first (the hub discovery doc) — the portal is the "real admin tooling" that the current
-`CLOUD_ADMIN_TOKEN`-guarded `/admin` fallback routes and the `cloud:publish` CLI explicitly stand in
-for.
+**Status: Phase A BUILT (2026-07-12, reviewer-clean) — Phase B next.** Read
+`docs/module-notes/cloud-api.md` first (the hub discovery doc) — the portal is the "real admin
+tooling" that the current `CLOUD_ADMIN_TOKEN`-guarded `/admin` fallback routes and the
+`cloud:publish` CLI explicitly stand in for.
+
+## ✅ Phase A as built (2026-07-12)
+
+Chad's fork answers: **real admin accounts** (role column) · **deprecate-only** (= the existing
+`yanked` status vocabulary; hard purge stays a future confirm-twice CLI action, never a portal
+button, never frees the version number).
+
+- **`accounts.role`** `'member' | 'admin'` (default member) — cloud migration `0004_account_role`
+  (purely additive; the boot migrator applies it to the live docker volume on next hub start) +
+  `setAccountRole` repo fn.
+- **`@vynel/accounts` `roles/`**: `resolveActiveAccountRole` (FRESH per-request authority — the
+  tier-staleness rule applied to admin power) + `assignAccountRole` (404 on unknown account).
+- **Dual-door `requireAdminAccess`** (cloud-api middleware): static `CLOUD_ADMIN_TOKEN`
+  (sha256 + timingSafeEqual) OR a verified access JWT whose account is an active admin, role read
+  fresh. Same 401 for wrong-token and bad-JWT (no door oracle); 403 only for a valid non-admin.
+  `requireAdminToken` deleted (dead after the switch). Reviewer confirmed: no self-grant path —
+  the role route sits behind the same middleware; bootstrap = the static token.
+- **Registry lifecycle**: `listCatalogForAdmin` (ALL statuses + full version history) ·
+  `updateCatalogItemMetadata` (zod patch, empty patch → 400) · `setCatalogItemLifecycleStatus`
+  (draft | published | yanked — yank kills browse AND download instantly, un-yank restores;
+  proven in tests).
+- **Routes**: `/admin` grew `GET /catalog` · `PATCH /catalog/:itemId` · `POST /catalog/:itemId/status`
+  · `POST /accounts/:accountId/role`. Wire DTO: `@vynel/contracts/hub/admin` (`HubAdminCatalogItem`).
+- **Deferred-improves (reviewer nits, next touch):** shared `toHubPublisherTier` mapper (small
+  duplication) · `listCatalogForAdmin` is N+1 on versions (fine at admin scale).
+
+**Bootstrap (Chad, one-time):** restart the hub (applies 0004), then grant your account admin via
+the static door: `curl -X POST $HUB/admin/accounts/<your-account-id>/role -H "Authorization: Bearer
+$CLOUD_ADMIN_TOKEN" -H "content-type: application/json" -d '{"role":"admin"}'`.
 
 ## What already exists (don't rebuild)
 

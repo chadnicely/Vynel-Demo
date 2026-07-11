@@ -6,7 +6,12 @@
 import { eq } from 'drizzle-orm'
 import { NotFoundError } from '@vynel/errors'
 import type { CloudDatabase } from '../../client.js'
-import { accounts, type AccountRow, type AccountStatus } from '../../schema/accounts/accounts.js'
+import {
+  accounts,
+  type AccountRow,
+  type AccountRole,
+  type AccountStatus,
+} from '../../schema/accounts/accounts.js'
 
 export interface InsertAccountInput {
   readonly id: string
@@ -90,6 +95,16 @@ export async function setAccountTier(
   await db
     .update(accounts)
     .set({ tier: input.tier, tierExpiresAt: input.tierExpiresAt, updatedAt: new Date() })
+    .where(eq(accounts.id, input.accountId))
+}
+
+export async function setAccountRole(
+  db: CloudDatabase,
+  input: { readonly accountId: string; readonly role: AccountRole },
+): Promise<void> {
+  await db
+    .update(accounts)
+    .set({ role: input.role, updatedAt: new Date() })
     .where(eq(accounts.id, input.accountId))
 }
 

@@ -1,17 +1,25 @@
-// The /admin fallback surface — manual account provisioning + catalog
-// publishing until real admin tooling lands. Guarded by the CLOUD_ADMIN_TOKEN
-// bearer. Thin: this route only decodes the base64 transport; the publish
-// use-case (size cap, sha256, byte-immutability conflict check, store put,
-// version record) is `@vynel/registry`'s `publishCatalogArtifact`.
+// The /admin surface — accounts provisioning/roles + the catalog lifecycle
+// (cloud-admin-web's backend, also driven by the publish CLI). Guarded by the
+// dual-door `requireAdminAccess` (static CLOUD_ADMIN_TOKEN bearer OR a
+// signed-in admin-role account, role read FRESH). Thin: routes only decode
+// transport; every rule lives in `@vynel/registry` / `@vynel/accounts`.
 
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { createProvisionedAccount } from '@vynel/accounts'
-import { PublishItemSchema, publishCatalogArtifact } from '@vynel/registry'
+import { assignAccountRole, createProvisionedAccount } from '@vynel/accounts'
+import {
+  PublishItemSchema,
+  publishCatalogArtifact,
+  listCatalogForAdmin,
+  updateCatalogItemMetadata,
+  setCatalogItemLifecycleStatus,
+  UpdateCatalogItemMetadataSchema,
+  CatalogItemStatusSchema,
+} from '@vynel/registry'
 import type { CloudAppOptions } from '../cloud-app-options.js'
-import { requireAdminToken } from '../middleware/require-admin.js'
+import { requireAdminAccess } from '../middleware/require-admin.js'
 
 const CreateAccountSchema = z.object({
   email: z.string().email().max(320),
@@ -36,7 +44,14 @@ export function buildAdminRoutes(options: CloudAppOptions) {
     ...(options.now !== undefined ? { now: options.now } : {}),
   }
   return new Hono()
-    .use('*', requireAdminToken(options.adminToken))
+    .use(
+      '*',
+      requireAdminAccess({
+        adminToken: options.adminToken,
+        accessTokenVerifier: options.accessTokenVerifier,
+        db: options.db,
+      }),
+    )
     .post('/accounts', zValidator('json', CreateAccountSchema), async (c) => {
       const body = c.req.valid('json')
       // exactOptionalPropertyTypes: spread the optional only when present.
@@ -51,6 +66,39 @@ export function buildAdminRoutes(options: CloudAppOptions) {
       )
       return c.json({ accountId }, 201)
     })
+    .post(
+      '/accounts/:accountId/role',
+      zValidator('json', z.object({ role: z.enum(['member', 'admin']) })),
+      async (c) => {
+        const accountId = c.req.param('accountId')
+        const { role } = c.req.valid('json')
+        await assignAccountRole(options.db, { accountId, role })
+        return c.json({ accountId, role })
+      },
+    )
+    .get('/catalog', async (c) => {
+      const items = await listCatalogForAdmin(options.db)
+      return c.json({ items })
+    })
+    .patch(
+      '/catalog/:itemId',
+      zValidator('json', UpdateCatalogItemMetadataSchema),
+      async (c) => {
+        const itemId = c.req.param('itemId')
+        await updateCatalogItemMetadata(options.db, itemId, c.req.valid('json'))
+        return c.json({ itemId })
+      },
+    )
+    .post(
+      '/catalog/:itemId/status',
+      zValidator('json', z.object({ status: CatalogItemStatusSchema })),
+      async (c) => {
+        const itemId = c.req.param('itemId')
+        const { status } = c.req.valid('json')
+        await setCatalogItemLifecycleStatus(options.db, { itemId, status })
+        return c.json({ itemId, status })
+      },
+    )
     .post(
       '/catalog/publish',
       bodyLimit({ maxSize: MAX_PUBLISH_BODY_BYTES }),

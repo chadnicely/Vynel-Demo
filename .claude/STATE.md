@@ -3,7 +3,22 @@
 **Updated 2026-07-12.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-12): DISCIPLINE ROUND BUILT (session lift + cloud-api thin routes) — both REVIEWED CLEAN, gate 2172/4-skip, UNCOMMITTED; then arc ③ cloud-admin-web
+## ⏭ NEXT ACTION (2026-07-12b): ADMIN PHASE A BUILT + REVIEWED CLEAN (role column · dual-door · catalog lifecycle) — UNCOMMITTED; next: Phase B the portal app
+
+**Arc ③ Phase A done same day (fork answers: real admin accounts · deprecate-only=yank).** Built to
+`docs/module-notes/cloud-admin-web.md` §"Phase A as built": migration `0004_account_role` (additive,
+boot-migrator applies to the live volume) · `@vynel/accounts` `roles/` (resolve FRESH + assign, 404
+on unknown) · dual-door `requireAdminAccess` (static token OR fresh-read admin account; old
+`requireAdminToken` deleted as dead) · registry `admin-catalog.ts` (list-all w/ versions · zod
+metadata patch · yank/un-yank lifecycle) · `/admin` +4 routes · `contracts/hub/admin.ts`. Tests:
+admin routes (dual door incl. demotion-bites-fresh + member-self-grant-403 + yank kills
+browse/download) + roles leaf tests. **Reviewer: CLEAN, 0 must-fix; should-fix (dead code) + 2 nits
+APPLIED** (deferred: shared toHubPublisherTier, N+1 note). Gate GREEN (2179/4-skip pre-nit; re-run
+pending commit). **⏭ COMMIT: `feat(hub): admin roles + catalog lifecycle (portal phase A)` + docs.
+CHAD BOOTSTRAP: restart hub → curl role-grant (in the module notes). Then Phase B: the
+`apps/cloud-admin-web` Vue portal.**
+
+## (prev) NEXT ACTION (2026-07-12): DISCIPLINE ROUND BUILT (session lift + cloud-api thin routes) — both REVIEWED CLEAN, gate 2172/4-skip, UNCOMMITTED; then arc ③ cloud-admin-web
 
 **Chad's 4-item queue (2026-07-12): ① session discipline ② cloud-api discipline ③ `apps/cloud-admin-web`
 admin portal ④ instructions/notebook.** ①+② BUILT this session, behavior-neutral, full gate GREEN

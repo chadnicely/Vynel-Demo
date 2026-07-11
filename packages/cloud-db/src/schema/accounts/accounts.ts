@@ -31,6 +31,10 @@ export const accounts = pgTable(
     // Null = no expiry (until the platform says otherwise). A lapsed term
     // means the entitlement stamps `basic` regardless of `tier`.
     tierExpiresAt: timestamp({ withTimezone: true, mode: 'date' }),
+    // 'member' | 'admin' — admin unlocks the catalog-management surface
+    // (cloud-admin-web). App-enforced union like `status`; authority is read
+    // FRESH per request, never from the ~7-day token claim.
+    role: text().notNull().default('member'),
     createdAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
@@ -42,3 +46,4 @@ export const accounts = pgTable(
 
 export type AccountRow = typeof accounts.$inferSelect
 export type AccountStatus = 'active' | 'disabled'
+export type AccountRole = 'member' | 'admin'

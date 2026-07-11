@@ -29,3 +29,11 @@ export {
   type AuthorizeCatalogDownloadInput,
   type AuthorizedCatalogDownload,
 } from './catalog-download.js'
+export {
+  listCatalogForAdmin,
+  updateCatalogItemMetadata,
+  setCatalogItemLifecycleStatus,
+  UpdateCatalogItemMetadataSchema,
+  CatalogItemStatusSchema,
+  type UpdateCatalogItemMetadataPatch,
+} from './admin-catalog.js'

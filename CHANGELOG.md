@@ -28,6 +28,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   standing fact instead of piling up duplicates). A memory can also be imported straight **from a
   file** — pick a document and its text is remembered, tags and all.
 
+### Added
+
+- **The marketplace hub now has real admin machinery (the portal's backend).** Hub accounts can
+  carry an admin role — granted once with the server's own key, revocable instantly, and checked
+  fresh on every request so a removed admin loses access immediately. Admins can list the whole
+  catalog including drafts, edit an item's details, and pull an item from distribution ("yank") —
+  which hides it from browsing and blocks new installs on the spot, while people who already
+  installed it keep a working copy. Yanking is reversible; published versions themselves are never
+  altered or deleted, so every install stays verifiable forever.
+
 ### Changed
 
 - **Internal reorganization — nothing changes in how the app behaves.** The session engine's
