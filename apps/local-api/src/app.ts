@@ -42,7 +42,7 @@ import { rootApp } from './routes/root/index.js'
 import { routingApp } from './routes/routing/index.js'
 import { voiceApp } from './routes/voice/index.js'
 import { dashboardApp } from './routes/dashboard/index.js'
-import { TurnEventBroadcaster } from './sessions/turn-event-broadcaster.js'
+import { TurnEventBroadcaster } from '@vynel/session/delegation'
 
 export interface CreateAppOptions {
   readonly db: Database

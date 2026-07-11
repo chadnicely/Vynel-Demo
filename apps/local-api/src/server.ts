@@ -34,7 +34,7 @@ import { startMemoryMaintenanceService } from './services/memory-maintenance-ser
 import { startChannelsService } from './services/channels-service.js'
 import { startDelegationService } from './services/delegation-service.js'
 import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
-import { TurnEventBroadcaster } from './sessions/turn-event-broadcaster.js'
+import { TurnEventBroadcaster } from '@vynel/session/delegation'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 
 export async function boot(): Promise<void> {

@@ -25,9 +25,9 @@ import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { streamGlobalRootTurn } from '../../streams/global-root-turn.js'
-import { resolveGlobalRootTranscript } from '../../sessions/resolve-global-root-transcript.js'
-import { resolveDelegationTrace } from '../../sessions/resolve-delegation-trace.js'
-import { traceChannelKey } from '../../sessions/turn-event-broadcaster.js'
+import { resolveGlobalRootTranscript } from '@vynel/session/runtime'
+import { resolveDelegationTrace } from '@vynel/session/delegation'
+import { traceChannelKey } from '@vynel/session/delegation'
 import {
   StartGlobalRootTurnRequestSchema,
   DelegationTraceParamSchema,

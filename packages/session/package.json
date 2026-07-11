@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./runtime": "./src/runtime/index.ts",
-    "./continuity": "./src/continuity/index.ts"
+    "./continuity": "./src/continuity/index.ts",
+    "./delegation": "./src/delegation/index.ts"
   },
   "scripts": {
     "build": "tsc",
@@ -15,6 +16,7 @@
   },
   "dependencies": {
     "@vynel/capabilities": "workspace:*",
+    "@vynel/channels": "workspace:*",
     "@vynel/chat": "workspace:*",
     "@vynel/contracts": "workspace:*",
     "@vynel/db": "workspace:*",
@@ -23,10 +25,13 @@
     "@vynel/memory": "workspace:*",
     "@vynel/orchestration": "workspace:*",
     "@vynel/providers": "workspace:*",
+    "@vynel/workspaces": "workspace:*",
     "drizzle-orm": "^0.45.0",
     "pino": "^9.5.0"
   },
   "devDependencies": {
+    "@vynel/agents": "workspace:*",
+    "@vynel/approvals": "workspace:*",
     "@vynel/testing": "workspace:*",
     "typescript": "^5.6.0"
   }

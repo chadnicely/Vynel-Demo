@@ -13,7 +13,10 @@ const { tickMock, reclaimMock } = vi.hoisted(() => ({
   reclaimMock: vi.fn(),
 }))
 
-vi.mock('../sessions/run-delegation-claim-and-run-tick.js', () => ({
+// Spread the real barrel so a future VALUE import from it inside this test's
+// module graph never silently resolves to undefined.
+vi.mock('@vynel/session/delegation', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   runDelegationClaimAndRunTick: tickMock,
 }))
 vi.mock('@vynel/orchestration', () => ({

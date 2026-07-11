@@ -22,9 +22,9 @@ import { insertChannel, listOutboundMessagesForChannel } from '@vynel/channels/t
 import {
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
-} from '@vynel/session/continuity'
+} from '../continuity/index.js'
 import { buildNewChatSessionRow } from '@vynel/chat'
-import { FakeAiAgentProvider } from './test-support/fake-ai-agent-provider.js'
+import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
 import { resolveDelegationTrace } from './resolve-delegation-trace.js'
 import { runDelegationClaimAndRunTick } from './run-delegation-claim-and-run-tick.js'
 

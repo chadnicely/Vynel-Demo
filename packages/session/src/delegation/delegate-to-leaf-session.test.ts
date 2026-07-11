@@ -1,6 +1,6 @@
 // S2 fold-in (build brief Slice 3b+4 §2.7): locks the SHIPPED 3a
 // `delegateToLeafSession` composition with the fake provider + a real SQLite DB
-// BEFORE routing wires it live. This is the apps/local-api layer that ties the pure
+// BEFORE routing wires it live. This is the session-tier composition that ties the pure
 // orchestration ops to the chat `chat_sessions` row + the `session.delegated`
 // edge — so the test asserts all three: the leaf runs under the safety backstop,
 // it is recorded as a HIDDEN browsable chat segment (gold §7), and the parent→child
@@ -16,7 +16,7 @@ import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { createAgent } from '@vynel/agents'
 import { SESSION_DELEGATED, type SessionDelegatedPayload } from '@vynel/orchestration'
 import type { StartChatSessionInput } from '@vynel/providers'
-import { FakeAiAgentProvider } from './test-support/fake-ai-agent-provider.js'
+import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
 import { delegateToLeafSession } from './delegate-to-leaf-session.js'
 
 function makeUser(id: string = randomUUID()) {

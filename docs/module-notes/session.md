@@ -141,3 +141,27 @@ stream (SSE sink) or a response (drain sink)*. The layering:
 **Pre-release schema changes fold into the `0000` baseline** (owner's call) rather than accrue incremental
 migrations — valid while zero data / zero deployments exist. Incremental migrations resume once there's a
 deployed schema to preserve.
+
+## ✅ BUILT (2026-07-12) — the delegation lift (Slice-3 payoff, discipline round)
+
+The Slice-3 "app wiring" list above split in two once the api landed: what was genuinely
+Hono/env/factory glue stayed at the edge; what was cross-domain COMPOSITION lifted into the
+package as its own concern folder, **`packages/session/src/delegation/`** (new `./delegation`
+subpath, web-unsafe like `./runtime`):
+
+- **Lifted:** `delegate-to-workspace-root` · `delegate-to-leaf-session` ·
+  `run-delegation-claim-and-run-tick` · `build-routed-approval-handler` ·
+  `resolve-delegation-trace` · `turn-event-broadcaster` (+ all their tests), and
+  `resolve-global-root-transcript` → `runtime/`. Deps grew `@vynel/channels` +
+  `@vynel/workspaces` (prod), `@vynel/agents` + `@vynel/approvals` (dev). No logic changes —
+  a behavior-neutral move; gate stayed 2165/4-skip.
+- **Fake-provider dedup resolved:** the app-tier superset copy (approval park/resolve +
+  unique message ids) replaced the package's private copy at `runtime/test-support/` — ONE
+  home, still package-internal/unexported. The `@vynel/testing` promotion stays deferred
+  until a THIRD consumer appears.
+- **STAYS at the edge (each for a live reason):** `compose-session-mcp-servers` (LOCKED
+  `api-side-turn-execution-with-mcp`; every consumer is app-side) · `run-global-root-turn`
+  (imports `@vynel/mcp` = apps/mcp — a package may never import an app) ·
+  `global-root-workspace` + `resolve-global-root-conversation` (env-coupled `resolveTarget`)
+  · `delegation-{mode,origin}-header` (HTTP wire) · `build-schedule-fire-deps` (factory DI) ·
+  `streams/` · `services/` poll-ticks · `handler-bundles/`.

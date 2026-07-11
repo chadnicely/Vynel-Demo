@@ -6,8 +6,8 @@
 // it; Ch2 builds the correlation + this read.
 //
 // Cross-domain READ for a composed view: it anchors on orchestration's `delegation_jobs`
-// row, then reads chat's messages to assemble the trace. It lives HERE (the app's session
-// tier) rather than in `@vynel/orchestration` per that barrel's locked note — the
+// row, then reads chat's messages to assemble the trace. It lives HERE (the session tier's
+// delegation folder) rather than in `@vynel/orchestration` per that barrel's locked note — the
 // delegation-engine leaf's only cross-dep stays `agents`; the session tier composes both
 // domains. This is a read, not a cross-write — no outbox needed.
 //

@@ -48,3 +48,11 @@ export {
   composeSessionCapabilities,
   type ComposedSessionCapabilities,
 } from './compose-session-capabilities.js'
+
+// The global root's settled-transcript read (`/root/transcript`) — the
+// continuity-anchored sibling of the workspace transcript reads.
+export {
+  resolveGlobalRootTranscript,
+  type GlobalRootTranscript,
+  type GlobalRootTranscriptMessage,
+} from './resolve-global-root-transcript.js'

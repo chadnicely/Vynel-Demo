@@ -1,4 +1,4 @@
-// `delegateToLeafSession` — the apps/local-api composition for by-reference delegation
+// `delegateToLeafSession` — the session-tier composition for by-reference delegation
 // (Slice 3a). It is the ONLY layer that injects BOTH the provider AND the
 // chat-domain recording, tying the pure `@vynel/orchestration` ops to the
 // chat `chat_sessions` row + the `session.delegated` edge — exactly the

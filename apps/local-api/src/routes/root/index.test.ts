@@ -76,7 +76,7 @@ import {
 } from '@vynel/chat/repositories'
 import type { AppEnv } from '../../factory.js'
 import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
-import { TurnEventBroadcaster, traceChannelKey } from '../../sessions/turn-event-broadcaster.js'
+import { TurnEventBroadcaster, traceChannelKey } from '@vynel/session/delegation'
 import { rootApp } from './index.js'
 
 const silentLogger = pino({ level: 'silent' })

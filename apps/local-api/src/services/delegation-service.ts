@@ -18,8 +18,8 @@ import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
 import { failOrphanedClaimedDelegations } from '@vynel/orchestration'
-import { runDelegationClaimAndRunTick } from '../sessions/run-delegation-claim-and-run-tick.js'
-import type { TurnEventBroadcaster } from '../sessions/turn-event-broadcaster.js'
+import { runDelegationClaimAndRunTick } from '@vynel/session/delegation'
+import type { TurnEventBroadcaster } from '@vynel/session/delegation'
 
 const DELEGATION_POLL_INTERVAL_MS = 1_000
 

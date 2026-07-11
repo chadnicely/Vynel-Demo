@@ -154,8 +154,10 @@ Session({
   agent sessions; children report up the monitor tree.
 - **Memory is the durable thread** carried across swaps.
 
-This primitive is the Track-B **B-lead** extraction (today it's spread across a 29-file
-`apps/local-api/src/sessions/` with the runner reimplemented 4–5×). Unifying it is the #1 structural win.
+This primitive is the Track-B **B-lead** extraction — now LIVE as `@vynel/session` (`./runtime` +
+`./continuity` + `./delegation`); `apps/local-api/src/sessions/` keeps only the genuinely edge-coupled
+glue (env-resolved cwd, factory DI, the apps/mcp descriptor imports — see
+`docs/module-notes/session.md` §"the delegation lift").
 
 ---
 

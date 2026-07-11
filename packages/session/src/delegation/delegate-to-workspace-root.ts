@@ -1,4 +1,4 @@
-// `delegateToWorkspaceRoot` — the apps/local-api composition for routing a task INTO a
+// `delegateToWorkspaceRoot` — the session-tier composition for routing a task INTO a
 // workspace's CONTINUING PRIMARY conversation (brain-tree Phase 1). Resumes the
 // workspace's OWN brain (its primary session, with its context), so "hey jarvis, in
 // Acme, summarize the notes" reaches Acme's actual conversation.
@@ -30,8 +30,8 @@ import {
   composeManagerSourceLabel,
   type ChatTurnEvent,
 } from '@vynel/chat'
-import { linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
-import { resolvePrimaryConversationTarget } from '@vynel/session/runtime'
+import { linkPrimarySessionToSdkSession } from '../continuity/index.js'
+import { resolvePrimaryConversationTarget } from '../runtime/index.js'
 import type { Logger } from 'pino'
 import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
 

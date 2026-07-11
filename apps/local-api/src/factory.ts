@@ -22,7 +22,7 @@ import type { FireScheduleDeps } from '@vynel/schedules'
 import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
-import type { TurnEventBroadcaster } from './sessions/turn-event-broadcaster.js'
+import type { TurnEventBroadcaster } from '@vynel/session/delegation'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
 // stashed on `c.var.appRequest` so handlers can re-enter the app (the mcp

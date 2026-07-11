@@ -2,8 +2,8 @@
 // terminal state (brain-tree Chapter 1, async core). The CONSUMER half of the durable
 // queue: the in-process `delegation-service` calls this on a poll; it claims atomically,
 // runs the workspace-root turn, pushes the report UP to the global root, and marks the
-// job done/failed. Mirrors the core precedent `runScheduleClaimAndFireTick`, but lives in
-// apps/local-api because it reuses the api-resident `delegateToWorkspaceRoot`.
+// job done/failed. Mirrors the core precedent `runScheduleClaimAndFireTick`; the
+// apps/local-api `delegation-service` poll loop is its only production caller.
 //
 // REUSES, UNCHANGED, the synchronous delegation path — `routeRequest` (the timeout-raced
 // coordinator) + `delegateToWorkspaceRoot` (run + workspace-side persist). The sync drain
@@ -28,7 +28,7 @@ import {
   type DelegateForRouting,
   type DelegationJob,
 } from '@vynel/orchestration'
-import { findPrimaryConversation } from '@vynel/session/continuity'
+import { findPrimaryConversation } from '../continuity/index.js'
 import { recordPushedReportMessage } from '@vynel/chat'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'

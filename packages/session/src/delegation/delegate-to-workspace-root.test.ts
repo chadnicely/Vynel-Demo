@@ -11,10 +11,10 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findChatSessionById, listChatMessagesForSession } from '@vynel/chat/repositories'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { SESSION_DELEGATED, type SessionDelegatedPayload } from '@vynel/orchestration'
-import { findPrimaryConversation } from '@vynel/session/continuity'
+import { findPrimaryConversation } from '../continuity/index.js'
 import type { AiAgentProvider, NormalizedSessionEvent, StartChatSessionInput } from '@vynel/providers'
 import { ROUTED_LEAF_WRITE_BLOCKED_NOTE } from '@vynel/orchestration'
-import { FakeAiAgentProvider } from './test-support/fake-ai-agent-provider.js'
+import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
 import { delegateToWorkspaceRoot, ROUTED_TASK_INSTRUCTIONS } from './delegate-to-workspace-root.js'
 
 function makeUser(id: string = randomUUID()) {

@@ -16,7 +16,7 @@ import {
   linkPrimarySessionToSdkSession,
   SESSION_SWAPPED_EVENT_TYPE,
   type SessionSwappedEventPayload,
-} from '@vynel/session/continuity'
+} from '../continuity/index.js'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import {
   insertChatSession,
