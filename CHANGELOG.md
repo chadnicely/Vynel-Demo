@@ -28,6 +28,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   standing fact instead of piling up duplicates). A memory can also be imported straight **from a
   file** — pick a document and its text is remembered, tags and all.
 
+### Changed
+
+- **Internal reorganization — nothing changes in how the app behaves.** The session engine's
+  delegation machinery (routing a task into a workspace's brain, running queued delegations,
+  surfacing approval cards, reading a request's trace) moved from the api app into the
+  `@vynel/session` package where the rest of the session engine lives, and the marketplace hub's
+  publish/download rules (the 10MB cap, the tamper-proof version check, the tier gates) moved from
+  its web routes into the registry package. Every behavior was verified unchanged; the upcoming
+  admin portal builds directly on these relocated pieces.
+
 ### Fixed
 
 - **Knowledge folders actually index now — and keep indexing after a restart.** Two invisible gaps
