@@ -129,6 +129,13 @@ describe('GET /chat/sessions/:sessionId/context', () => {
         expect.objectContaining({
           resumeSessionId: session.id,
           workspacePath: workspace.path,
+          // The SAME attachment the chat turn composes — workspace tools AND
+          // the notebook — so the report never undercounts a turn's MCP tools.
+          mcpServers: expect.objectContaining({
+            vynel: expect.anything(),
+            'vynel-notebook': expect.anything(),
+          }),
+          allowedMcpToolPatterns: ['mcp__vynel__*', 'mcp__vynel-notebook__*'],
         }),
       )
     })

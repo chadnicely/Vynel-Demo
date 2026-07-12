@@ -27,10 +27,32 @@ export const CAPABILITY_CATALOG: readonly Capability[] = [
     isFirstParty: true,
     defaultEnabled: true,
   },
+  {
+    id: 'notebook',
+    displayName: 'Notebook',
+    description:
+      'Curated playbooks the assistant consults before multi-step tasks — verified books from the team plus your own.',
+    scope: 'workspace',
+    isFirstParty: true,
+    defaultEnabled: true,
+  },
 ] as const
 
 // `find*` — returns null when the id isn't a known first-party capability
 // (e.g. a marketplace plugin id), per the find/get naming convention.
 export function findCapabilityById(capabilityId: string): Capability | null {
   return CAPABILITY_CATALOG.find((entry) => entry.id === capabilityId) ?? null
+}
+
+// The catalog-default enabled set — what a scope with NO toggle surface (the
+// global root has no workspace, so no `workspace_capabilities` override rows
+// can exist for it) resolves to. Global-root turn composers pass this to
+// `composeSessionMcpServers` so a defaultEnabled capability's gated tools
+// (the notebook's) aren't denied there.
+export function defaultEnabledCapabilityIds(): ReadonlySet<string> {
+  return new Set(
+    CAPABILITY_CATALOG.filter((capability) => capability.defaultEnabled).map(
+      (capability) => capability.id,
+    ),
+  )
 }

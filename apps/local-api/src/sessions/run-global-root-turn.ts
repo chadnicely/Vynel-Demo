@@ -19,6 +19,7 @@
 // scope — no desktop-notification reader is wired at boot in KLONE.
 
 import type { Database } from '@vynel/db'
+import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
 import type { Logger } from 'pino'
 import { runGlobalRootTurnCore, type SessionSink } from '@vynel/session/runtime'
 import type { DelegationOrigin } from '@vynel/orchestration'
@@ -136,14 +137,23 @@ export async function runGlobalRootTurn(
   const appRequest =
     input.origin !== undefined ? wrapAppRequestWithOrigin(deps.appRequest, input.origin) : deps.appRequest
 
-  // Compose the global root's MCP attachment: the routing tools only. No workspaceId
-  // — the global root has none. Dynamic import keeps the heavy SDK out of module load.
+  // Compose the global root's MCP attachment: the routing tools (the root is a
+  // MANAGER — list + delegate + channel-send). No workspaceId — the global root
+  // has none. Dynamic import keeps the heavy SDK out of module load.
   const { vynelRoutingDescriptor } = await import('@vynel/mcp')
-  const composedMcp = composeSessionMcpServers([vynelRoutingDescriptor], {
-    db: deps.db,
-    userId: input.userId,
-    appRequest,
-  })
+  const { notebookFeatureDescriptor } = await import('@vynel/instructions')
+  const composedMcp = composeSessionMcpServers(
+    [vynelRoutingDescriptor, notebookFeatureDescriptor],
+    {
+      db: deps.db,
+      userId: input.userId,
+      appRequest,
+    },
+    // The global root has no workspace, so no capability override rows can
+    // exist for it — the catalog defaults ARE its enabled set (without this,
+    // the notebook's defaultEnabled gated tools would be denied here).
+    { enabledCapabilityIds: defaultEnabledCapabilityIds() },
+  )
 
   const sink = new GlobalRootDrainSink(input.onApprovalRequested)
   await runGlobalRootTurnCore(

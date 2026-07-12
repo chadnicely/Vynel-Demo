@@ -54,15 +54,29 @@ because the injection point lives in `@vynel/session`, and after cloud-admin-web
   DRAFT content in chat today with zero extra work — the user pastes it in.
 - **API/SDK:** standard thin routes + `x-sdk-name` + `api:generate` (the faithful API-port recipe).
 
-## Forks for Chad (answer before the build)
+## ✅ Forks SETTLED (Chad, 2026-07-12)
 
-1. **Can the agent write to the notebook?** v1 recommended: UI-only writes (predictable, no
-   surprise self-modification). Adding `save_playbook`/`update_instructions` as CARDED mutating
-   tools later is additive.
-2. **Seeded playbooks:** ship starter playbooks (web-app scaffold, "how to communicate with me")
-   as bundled content, or leave the notebook empty and distribute curated ones later via the
-   marketplace `rule` kind? Recommended: 2–3 bundled starters (the feature demos itself), rest via
-   marketplace.
-3. **Does `memory`'s `context` tag fold in later?** They overlap at the edges (both inject standing
-   context). Keep separate for now — memory context is agent-saved facts, instructions are
-   user-authored policy; revisit only if users confuse them.
+1. **Claude is READ-ONLY on the notebook** ("claude can make mistakes"): tools = list + read only.
+   SYSTEM (verified) notebooks are immutable everywhere — shipped by the team, never editable in
+   the UI either. USERS create and update their OWN documents via the UI. No agent-write tools,
+   not even carded ones, in v1.
+2. **No marketplace distribution now** (add as a category later). Verified notebooks ship from a
+   REPO DIRECTORY the team drops files into: `packages/instructions/notebooks/*.md` with
+   frontmatter (id/title/one-liner) — loaded at boot like the VERIFIED_SKILL_CATALOG precedent,
+   surfaced read-only alongside the user's DB-backed documents.
+3. **Memory context stays separate** (explained to Chad): memory = Claude-authored FACTS,
+   self-curated; notebook/instructions = human-authored POLICY, Claude read-only. Prompt
+   composition trust order: identity prompts → verified notebooks/instructions → user instructions
+   → memory context — policy outranks recollection, and the split makes the write-permission model
+   structural.
+
+## ⚠ SCOPE CORRECTION (Chad, 2026-07-12, mid-build)
+
+**"Notebooks are BOOKS, not memory."** On-demand reference/helper material Claude opens when a task
+calls for it — curated by the team to carry CURRENT best-practice guidance ("research with latest
+data"). Never injected wholesale into prompts. **The always-on INSTRUCTIONS half is DEFERRED
+entirely** ("we will implement all in instructions later"): this slice touches `packages/session`
+NOT AT ALL — no injection, no trust-order composition, no cap. The schema keeps the
+`mode 'always'|'notebook'` column (reserved, WHY-commented) so the instructions arc needs no
+migration, but every op/list in v1 is notebook-mode only. The trust-order design above stays the
+plan of record FOR THAT LATER ARC.

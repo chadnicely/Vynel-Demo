@@ -45,11 +45,12 @@ export async function streamChatTurn(
   // servers + allow + deny; the system prompt still comes from composeSessionCapabilities
   // below (memory snapshot etc.). Dynamic import keeps the heavy SDK out of module load.
   const { vynelWorkspaceDescriptor } = await import('@vynel/mcp')
+  const { notebookFeatureDescriptor } = await import('@vynel/instructions')
   const enabledCapabilityIds = new Set(
     listEnabledCapabilities(c.var.db, c.var.workspace!.id).map((capability) => capability.id),
   )
   const composedMcp = composeSessionMcpServers(
-    [vynelWorkspaceDescriptor],
+    [vynelWorkspaceDescriptor, notebookFeatureDescriptor],
     {
       db: c.var.db,
       userId: c.var.user.id,

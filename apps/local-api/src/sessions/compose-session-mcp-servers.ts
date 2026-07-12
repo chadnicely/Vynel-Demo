@@ -60,15 +60,25 @@ export function composeSessionMcpServers(
 
     // A core-tier (`alwaysOn`) feature is always-on + no-approval: never
     // capability-denied, never carded — regardless of permission mode.
+    let everyGatedToolDenied = false
     if (descriptor.alwaysOn !== true) {
       mutatingToolNames.push(...descriptor.mutatingToolNames)
       if (descriptor.capabilityGatedTools !== undefined) {
-        for (const [capabilityId, toolNames] of Object.entries(descriptor.capabilityGatedTools)) {
-          if (!enabledCapabilityIds.has(capabilityId)) deniedMcpToolPatterns.push(...toolNames)
-        }
+        const gateEntries = Object.entries(descriptor.capabilityGatedTools)
+        const deniedGateEntries = gateEntries.filter(
+          ([capabilityId]) => !enabledCapabilityIds.has(capabilityId),
+        )
+        for (const [, toolNames] of deniedGateEntries) deniedMcpToolPatterns.push(...toolNames)
+        everyGatedToolDenied = gateEntries.length > 0 && deniedGateEntries.length === gateEntries.length
       }
     }
 
+    // A fully capability-denied feature contributes NO prompt: the notebook is
+    // the first descriptor combining capabilityGatedTools + contributePrompt,
+    // and with its capability toggled OFF the turn would still say "call
+    // list_playbooks…" while every one of those tools is denied — the model
+    // gets steered into calls that can only fail.
+    if (everyGatedToolDenied) continue
     const contribution = descriptor.contributePrompt?.(context)
     if (contribution !== undefined && contribution !== null && contribution !== '') {
       promptSections.push(contribution)

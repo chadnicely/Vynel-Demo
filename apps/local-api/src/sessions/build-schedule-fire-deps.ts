@@ -33,12 +33,13 @@ export async function buildScheduleFireDeps(
   // static graph light. The composer + capability composition close over the
   // in-process `appRequest` dispatcher so each fired turn re-enters the api.
   const { vynelWorkspaceDescriptor } = await import('@vynel/mcp')
+  const { notebookFeatureDescriptor } = await import('@vynel/instructions')
 
   return {
     logger,
     composeWorkspaceMcpServers: ({ db: turnDb, userId, workspaceId }) =>
       composeSessionMcpServers(
-        [vynelWorkspaceDescriptor],
+        [vynelWorkspaceDescriptor, notebookFeatureDescriptor],
         { db: turnDb, userId, workspaceId, appRequest },
         {
           enabledCapabilityIds: new Set(

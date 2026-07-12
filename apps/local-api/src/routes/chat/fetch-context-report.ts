@@ -6,19 +6,29 @@
 import type { Context } from 'hono'
 import { getSessionContextReport } from '@vynel/chat'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
+import { listEnabledCapabilities } from '@vynel/capabilities'
 import type { AppEnv } from '../../factory.js'
 import { composeSessionMcpServers } from '../../sessions/compose-session-mcp-servers.js'
 
 export async function fetchSessionContextReport(c: Context<AppEnv>): Promise<string | null> {
-  // Same MCP attachment the chat turn uses, so the /context report counts the
-  // workspace tools accurately. Dynamic import keeps the SDK out of module load.
+  // Same MCP attachment the chat turn uses (streams/chat-turn.ts — descriptors
+  // AND enabled-capability set), so the /context report counts the workspace +
+  // notebook tools accurately. Dynamic import keeps the SDK out of module load.
   const { vynelWorkspaceDescriptor } = await import('@vynel/mcp')
-  const composedMcp = composeSessionMcpServers([vynelWorkspaceDescriptor], {
-    db: c.var.db,
-    userId: c.var.user.id,
-    workspaceId: c.var.workspace!.id,
-    appRequest: c.var.appRequest,
-  })
+  const { notebookFeatureDescriptor } = await import('@vynel/instructions')
+  const enabledCapabilityIds = new Set(
+    listEnabledCapabilities(c.var.db, c.var.workspace!.id).map((capability) => capability.id),
+  )
+  const composedMcp = composeSessionMcpServers(
+    [vynelWorkspaceDescriptor, notebookFeatureDescriptor],
+    {
+      db: c.var.db,
+      userId: c.var.user.id,
+      workspaceId: c.var.workspace!.id,
+      appRequest: c.var.appRequest,
+    },
+    { enabledCapabilityIds },
+  )
 
   return getSessionContextReport(
     c.var.db,

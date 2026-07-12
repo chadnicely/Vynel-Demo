@@ -42,7 +42,9 @@ describe('listEnabledCapabilities', () => {
     await withTestDatabase((db) => {
       const { workspace } = seedUserWorkspace(db)
       const enabled = listEnabledCapabilities(db, workspace.id)
-      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory'])
+      // test: correct expectation — the catalog grew: 'notebook' joined as a
+      // third defaultEnabled first-party capability (instructions slice).
+      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory', 'notebook'])
     })
   })
 
@@ -55,7 +57,10 @@ describe('listEnabledCapabilities', () => {
         capabilityId: 'knowledge',
         isEnabled: false,
       })
-      expect(listEnabledCapabilities(db, workspace.id).map((c) => c.id)).toEqual(['memory'])
+      expect(listEnabledCapabilities(db, workspace.id).map((c) => c.id).sort()).toEqual([
+        'memory',
+        'notebook',
+      ])
     })
   })
 
@@ -75,7 +80,7 @@ describe('listEnabledCapabilities', () => {
         isEnabled: true,
       })
       const enabled = listEnabledCapabilities(db, workspace.id)
-      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory'])
+      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory', 'notebook'])
       expect(enabled.find((c) => c.id === 'memory')!.displayName).toBe('Memory')
     })
   })
@@ -93,6 +98,7 @@ describe('listEnabledCapabilities', () => {
       expect(listEnabledCapabilities(db, workspace.id).map((c) => c.id).sort()).toEqual([
         'knowledge',
         'memory',
+        'notebook',
       ])
     })
   })

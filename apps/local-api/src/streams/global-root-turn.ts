@@ -21,6 +21,7 @@ import type { Context } from 'hono'
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import type { Logger } from 'pino'
 import type { ChatTurnEvent } from '@vynel/chat'
+import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
 import { toPermissionMode, type SessionPermissionMode } from '@vynel/session'
 import { runGlobalRootTurnCore, type SessionSink } from '@vynel/session/runtime'
 import type { AppEnv, HonoAppRequestFn } from '../factory.js'
@@ -95,11 +96,19 @@ export async function streamGlobalRootTurn(
   // has none. Dynamic import keeps the heavy SDK out of module load (the
   // streamChatTurn precedent).
   const { vynelRoutingDescriptor } = await import('@vynel/mcp')
-  const composedMcp = composeSessionMcpServers([vynelRoutingDescriptor], {
-    db: c.var.db,
-    userId: c.var.user.id,
-    appRequest,
-  })
+  const { notebookFeatureDescriptor } = await import('@vynel/instructions')
+  const composedMcp = composeSessionMcpServers(
+    [vynelRoutingDescriptor, notebookFeatureDescriptor],
+    {
+      db: c.var.db,
+      userId: c.var.user.id,
+      appRequest,
+    },
+    // The global root has no workspace, so no capability override rows can
+    // exist for it — the catalog defaults ARE its enabled set (without this,
+    // the notebook's defaultEnabled gated tools would be denied here).
+    { enabledCapabilityIds: defaultEnabledCapabilityIds() },
+  )
 
   return streamSSE(c, async (stream) => {
     await runGlobalRootTurnCore(

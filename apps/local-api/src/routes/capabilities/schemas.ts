@@ -8,7 +8,7 @@ import { z } from 'zod'
 // The first-party capability ids. Marketplace capability ids (Phase C) widen
 // this when that surface lands. Shared by the param schema below and the
 // response schema's `id` field — one home for the enum.
-const CapabilityIdSchema = z.enum(['memory', 'knowledge'])
+const CapabilityIdSchema = z.enum(['memory', 'knowledge', 'notebook'])
 
 // Path param.
 export const CapabilityIdParamSchema = z.object({

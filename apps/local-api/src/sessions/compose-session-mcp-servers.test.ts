@@ -62,4 +62,44 @@ describe('composeSessionMcpServers', () => {
     const withPrompt = fakeDescriptor({ contributePrompt: () => 'desktop guide' })
     expect(composeSessionMcpServers([withPrompt], context).systemPromptAppend).toBe('desktop guide')
   })
+
+  it('skips the prompt of a descriptor whose gated tools are ALL capability-denied', () => {
+    // The notebook shape: capabilityGatedTools + contributePrompt. Capability
+    // OFF must silence the standing "call list_playbooks…" line too, or the
+    // model is steered into denied tools.
+    const notebookLike = fakeDescriptor({
+      serverName: 'vynel-notebook',
+      capabilityGatedTools: { notebook: ['mcp__vynel-notebook__list_playbooks'] },
+      contributePrompt: () => 'call list_playbooks before multi-step work',
+    })
+    const denied = composeSessionMcpServers([notebookLike], context)
+    expect(denied.systemPromptAppend).toBe('')
+    // The server itself still attaches — only the tools are denied + the prompt dropped.
+    expect(denied.mcpServers).toHaveProperty('vynel-notebook')
+
+    const enabled = composeSessionMcpServers([notebookLike], context, {
+      enabledCapabilityIds: new Set(['notebook']),
+    })
+    expect(enabled.systemPromptAppend).toBe('call list_playbooks before multi-step work')
+  })
+
+  it('a partially-enabled descriptor still contributes its prompt', () => {
+    const partiallyGated = fakeDescriptor({
+      capabilityGatedTools: {
+        memory: ['mcp__vynel__search_memory'],
+        knowledge: ['mcp__vynel__search_knowledge'],
+      },
+      contributePrompt: () => 'feature guide',
+    })
+    const composed = composeSessionMcpServers([partiallyGated], context, {
+      enabledCapabilityIds: new Set(['memory']),
+    })
+    expect(composed.systemPromptAppend).toBe('feature guide')
+    expect(composed.deniedMcpToolPatterns).toEqual(['mcp__vynel__search_knowledge'])
+  })
+
+  it('an ungated descriptor with a prompt contributes regardless of the capability set', () => {
+    const ungated = fakeDescriptor({ contributePrompt: () => 'always here' })
+    expect(composeSessionMcpServers([ungated], context).systemPromptAppend).toBe('always here')
+  })
 })

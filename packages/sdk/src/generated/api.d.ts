@@ -5384,7 +5384,7 @@ export interface operations {
                     "application/json": {
                         capabilities: {
                             /** @enum {string} */
-                            id: "memory" | "knowledge";
+                            id: "memory" | "knowledge" | "notebook";
                             displayName: string;
                             description: string;
                             /** @enum {string} */
@@ -5409,7 +5409,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                capabilityId: "memory" | "knowledge";
+                capabilityId: "memory" | "knowledge" | "notebook";
                 workspaceId: string;
             };
             cookie?: never;
@@ -5430,7 +5430,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        id: "memory" | "knowledge";
+                        id: "memory" | "knowledge" | "notebook";
                         displayName: string;
                         description: string;
                         /** @enum {string} */

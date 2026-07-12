@@ -8312,7 +8312,8 @@
                             "type": "string",
                             "enum": [
                               "memory",
-                              "knowledge"
+                              "knowledge",
+                              "notebook"
                             ]
                           },
                           "displayName": {
@@ -8388,7 +8389,8 @@
                       "type": "string",
                       "enum": [
                         "memory",
-                        "knowledge"
+                        "knowledge",
+                        "notebook"
                       ]
                     },
                     "displayName": {
@@ -8441,7 +8443,8 @@
               "type": "string",
               "enum": [
                 "memory",
-                "knowledge"
+                "knowledge",
+                "notebook"
               ]
             },
             "required": true

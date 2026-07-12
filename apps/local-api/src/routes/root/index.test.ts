@@ -61,6 +61,11 @@ vi.mock('@vynel/providers', async () => {
 vi.mock('@vynel/mcp', () => ({
   vynelRoutingDescriptor: { serverName: 'vynel', build: () => null },
 }))
+// Same treatment for the notebook descriptor (instructions slice) — a null
+// build keeps the SDK out and the composed MCP set empty.
+vi.mock('@vynel/instructions', () => ({
+  notebookFeatureDescriptor: { serverName: 'vynel-notebook', build: () => null },
+}))
 
 import {
   getOrCreatePrimarySession,

@@ -70,7 +70,10 @@ describe('buildScheduleFireDeps (real composition — no mocks)', () => {
 
       expect(composed.mcpServers).toHaveProperty('vynel')
       expect(composed.mcpServers.vynel).toBeDefined()
-      expect(composed.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+      // test: correct expectation — the workspace descriptor list grew: the
+      // notebook feature (instructions slice) now rides every workspace turn.
+      expect(composed.mcpServers).toHaveProperty('vynel-notebook')
+      expect(composed.allowedMcpToolPatterns).toEqual(['mcp__vynel__*', 'mcp__vynel-notebook__*'])
       // fakeAppRequest closes into the tool handlers but is never called at build.
       expect(fakeAppRequest).not.toHaveBeenCalled()
     })

@@ -49,6 +49,7 @@ export default defineConfig({
     './src/schema/capabilities/workspace-capabilities.ts',
     './src/schema/agents/agents.ts',
     './src/schema/agents/agent-skills.ts',
+    '../instructions/src/schema/instruction-documents.ts',
     '../session/src/schema/primary-sessions.ts',
     '../orchestration/src/schema/delegation-jobs.ts',
     './src/schema/_shared/outbox-events.ts',
