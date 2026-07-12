@@ -7,8 +7,10 @@ import {
   listChannelsForUser,
   listAllowedSenders,
 } from '../repositories/index.js'
+import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { makeUser, makeWorkspace } from '../test-support.js'
 import { connectChannel } from './connect-channel.js'
+import { CHANNEL_CONNECTED } from '../channels-events.js'
 
 const { getMe } = vi.hoisted(() => ({ getMe: vi.fn() }))
 vi.mock('telegraf', () => ({ Telegram: vi.fn(() => ({ getMe })) }))
@@ -37,6 +39,20 @@ describe('connectChannel', () => {
       const senders = listAllowedSenders(db, channel.id)
       expect(senders).toHaveLength(1)
       expect(senders[0]?.externalSenderId).toBe('999')
+
+      // Outbox event co-committed with the insert — loose-ref facts
+      // only, exact key set (toEqual rejects extra fields).
+      const events = listOutboxEventsByType(db, CHANNEL_CONNECTED)
+      expect(events).toHaveLength(1)
+      expect(events[0]!.payload).toEqual({
+        channelId: channel.id,
+        userId: user.id,
+        workspaceId: workspace.id,
+        channelKind: 'telegram',
+        connectedAt: channel.createdAt.toISOString(),
+      })
+      // The bot token NEVER enters a payload.
+      expect(JSON.stringify(events[0]!.payload)).not.toContain('good-token')
     })
   })
 
@@ -73,6 +89,8 @@ describe('connectChannel', () => {
         }),
       ).rejects.toThrow(/Could not connect/)
       expect(listChannelsForWorkspace(db, workspace.id)).toHaveLength(0)
+      // Failed connect emits nothing.
+      expect(listOutboxEventsByType(db, CHANNEL_CONNECTED)).toHaveLength(0)
     })
   })
 

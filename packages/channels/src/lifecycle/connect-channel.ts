@@ -1,6 +1,9 @@
 // Core op — connect a channel: verify the bot credentials over the network
 // (via the adapter) BEFORE persisting anything, then insert the channel +
-// optional first allowed sender in one sync transaction.
+// optional first allowed sender + the `channel.connected` outbox event in
+// one sync transaction (invariant: every state change co-commits its
+// outbox event). The event payload is loose-ref facts only — NEVER the
+// bot credentials.
 //
 // async (the credential verify is a network call); the tx callback itself
 // is sync — better-sqlite3 rejects async tx callbacks
@@ -10,8 +13,10 @@
 
 import { randomUUID } from 'node:crypto'
 import { withTransaction, type Database } from '@vynel/db'
+import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import * as channelsRepository from '../repositories/index.js'
 import { ValidationError } from '@vynel/errors'
+import { CHANNEL_CONNECTED, type ChannelConnectedPayload } from '../channels-events.js'
 import { resolveChannelAdapter } from '../adapters/channel-adapter-registry.js'
 import type { Channel, ChannelKind } from '../repositories/index.js'
 import type { BotCredentials, StructuralLogger } from '../channels-types.js'
@@ -72,6 +77,23 @@ export async function connectChannel(
         addedAt: now,
       })
     }
+
+    // Outbox co-commit — same transaction as the insert.
+    const payload: ChannelConnectedPayload = {
+      channelId: inserted.id,
+      userId: inserted.userId,
+      workspaceId: inserted.workspaceId,
+      channelKind: inserted.channelKind,
+      connectedAt: inserted.createdAt.toISOString(),
+    }
+    insertOutboxEvent(tx, {
+      id: randomUUID(),
+      type: CHANNEL_CONNECTED,
+      payload,
+      createdAt: now,
+      processedAt: null,
+    })
+
     return inserted
   })
 

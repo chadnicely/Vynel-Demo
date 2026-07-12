@@ -23,6 +23,19 @@ export type {
 // value they serialize; the ops below return it. Repos + schema stay internal.
 export type { Channel } from './repositories/index.js'
 
+// Outbox event contract — lifecycle event type constants + payloads
+// (future subscribers deserialize against these; Phase 1 consumers: none).
+export {
+  CHANNEL_CONNECTED,
+  CHANNEL_DISCONNECTED,
+  CHANNEL_ENABLED_CHANGED,
+} from './channels-events.js'
+export type {
+  ChannelConnectedPayload,
+  ChannelDisconnectedPayload,
+  ChannelEnabledChangedPayload,
+} from './channels-events.js'
+
 // Connect / list / allowlist / enable ops.
 export { connectChannel, type ConnectChannelInput } from './lifecycle/connect-channel.js'
 export { disconnectChannel } from './lifecycle/disconnect-channel.js'
