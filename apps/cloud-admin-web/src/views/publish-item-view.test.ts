@@ -134,8 +134,11 @@ describe("PublishItemView", () => {
     expect(body.artifactBase64).toBe("UEs=");
     // The success redirect lazy-loads the detail view — poll instead of
     // counting microtask flushes.
-    await vi.waitFor(() =>
-      expect(router.currentRoute.value.name).toBe("catalog-item"),
+    await vi.waitFor(
+      () => expect(router.currentRoute.value.name).toBe("catalog-item"),
+      // Generous under full-suite parallel load — the lazy chunk import can
+      // stall well past waitFor's 1s default (the argon2-flake sibling class).
+      { timeout: 15_000 },
     );
     expect(router.currentRoute.value.params.itemId).toBe("daily-briefing");
   });

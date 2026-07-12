@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import {
   Blocks,
   BookOpen,
@@ -13,13 +13,10 @@ import {
 import { EmptyState } from "@vynel/ui";
 import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
 import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
-import { useMarketplaceItems } from "../../composables/marketplace/use-marketplace-items.js";
-import { useInstallMarketplaceItem } from "../../composables/marketplace/use-install-marketplace-item.js";
-import { useUninstallMarketplaceItem } from "../../composables/marketplace/use-uninstall-marketplace-item.js";
-import { formatSdkError } from "../../utils/format-sdk-error.js";
 import ChannelsSection from "../sections/ChannelsSection.vue";
 import KnowledgeSection from "../sections/KnowledgeSection.vue";
 import LockedFeatureCard from "../sections/LockedFeatureCard.vue";
+import MarketplaceSection from "../sections/MarketplaceSection.vue";
 import MemorySection from "../sections/MemorySection.vue";
 import NotebookSection from "../sections/NotebookSection.vue";
 import SchedulesSection from "../sections/SchedulesSection.vue";
@@ -58,74 +55,16 @@ const sectionMeta = computed(
 
 // Tier gating: a locked section renders the upgrade card in place of its
 // component — the drawer item stays visible, so the lock is discoverable.
-const { isLocked, isPro } = useHubFeatures();
+const { isLocked } = useHubFeatures();
 
-// Each section fetches only while it's the active drawer panel — the composable
-// passes `enabled` through to vue-query, so the four inactive reads stay idle.
-const workspaceId = () => props.workspaceId;
-
+// Skills fetch only while theirs is the active drawer panel — the composable
+// passes `enabled` through to vue-query, so the inactive read stays idle.
 const skillsQuery = useInstalledSkills(
-  workspaceId,
+  () => props.workspaceId,
   computed(() => props.section === "skills"),
-);
-// A locked marketplace never asks for rows the daemon would answer with 403.
-const marketplaceQuery = useMarketplaceItems(
-  workspaceId,
-  computed(() => props.section === "marketplace" && !isLocked("marketplace")),
 );
 
 const skills = computed(() => skillsQuery.data.value ?? []);
-const marketplaceItems = computed(() => marketplaceQuery.data.value ?? []);
-
-// One install mutation drives the whole list; `variables` scopes its pending
-// and error state to the row the user actually clicked (AccountSection idiom).
-const install = useInstallMarketplaceItem();
-
-function isInstalling(itemId: string): boolean {
-  return install.isPending.value && install.variables.value?.itemId === itemId;
-}
-
-function installLabel(itemId: string, isInstalled: boolean): string {
-  if (isInstalled) return "Installed";
-  return isInstalling(itemId) ? "Installing…" : "Get";
-}
-
-function installErrorFor(itemId: string): string | null {
-  return install.isError.value && install.variables.value?.itemId === itemId
-    ? formatSdkError(install.error.value)
-    : null;
-}
-
-// Removing is irreversible (a skill's settings die with the row; a cloud item
-// re-downloads on the next Get) — so, per the AccountDeviceRow / Notebook
-// idiom, Remove arms first and only a second explicit click uninstalls.
-const uninstall = useUninstallMarketplaceItem();
-const armedRemoveItemId = ref<string | null>(null);
-
-function requestRemove(itemId: string) {
-  if (armedRemoveItemId.value !== itemId) {
-    armedRemoveItemId.value = itemId;
-    return;
-  }
-  armedRemoveItemId.value = null;
-  uninstall.mutate({ workspaceId: props.workspaceId, itemId });
-}
-
-function disarmRemove(itemId: string) {
-  if (armedRemoveItemId.value === itemId) armedRemoveItemId.value = null;
-}
-
-function isRemoving(itemId: string): boolean {
-  return (
-    uninstall.isPending.value && uninstall.variables.value?.itemId === itemId
-  );
-}
-
-function removeErrorFor(itemId: string): string | null {
-  return uninstall.isError.value && uninstall.variables.value?.itemId === itemId
-    ? formatSdkError(uninstall.error.value)
-    : null;
-}
 </script>
 
 <template>
@@ -162,10 +101,15 @@ function removeErrorFor(itemId: string): string | null {
     :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
   />
 
-  <LockedFeatureCard
-    v-else-if="props.section === 'marketplace' && isLocked('marketplace')"
-    feature-label="Marketplace"
-  />
+  <template v-else-if="props.section === 'marketplace'">
+    <!-- A locked marketplace never asks for rows the daemon would answer
+         with 403 — the section only mounts once the feature is unlocked. -->
+    <LockedFeatureCard
+      v-if="isLocked('marketplace')"
+      feature-label="Marketplace"
+    />
+    <MarketplaceSection v-else :workspace-id="props.workspaceId" />
+  </template>
 
   <div v-else class="section-panel">
     <header class="section-header">
@@ -197,85 +141,7 @@ function removeErrorFor(itemId: string): string | null {
       </div>
     </div>
 
-    <!-- Marketplace -->
-    <div v-else-if="props.section === 'marketplace'" class="rows">
-      <div v-for="item in marketplaceItems" :key="item.itemId" class="row">
-        <div class="row-main">
-          <p class="row-title">
-            {{ item.displayName }}
-            <!-- What you're getting: a skill (a capability) or an agent
-                 (a persona) — the Get flow is identical for both. -->
-            <span class="scope-chip">{{
-              item.kind === "agent" ? "Agent" : "Skill"
-            }}</span>
-            <span v-if="item.isOfficial" class="scope-chip is-gold"
-              >Official</span
-            >
-            <!-- Display-only: the real install gate is server-side. Shows while
-                 the user can't yet install a pro-only item (not on Pro). -->
-            <span
-              v-if="item.minimumTier === 'pro' && !isPro"
-              class="scope-chip is-pro"
-              >Pro</span
-            >
-          </p>
-          <p class="row-sub">{{ item.oneLineDescription }}</p>
-        </div>
-        <!-- Install dispatches cloud vs. bundled server-side; the button just
-             names the item. Installed stays disabled (no re-install). -->
-        <button
-          type="button"
-          class="pill"
-          :class="item.installStatus.kind === 'installed' ? 'is-on' : 'is-off'"
-          :disabled="
-            item.installStatus.kind === 'installed' || isInstalling(item.itemId)
-          "
-          @click="
-            install.mutate({
-              workspaceId: props.workspaceId,
-              itemId: item.itemId,
-            })
-          "
-        >
-          {{
-            installLabel(item.itemId, item.installStatus.kind === "installed")
-          }}
-        </button>
-        <!-- Removal dispatches by installed kind server-side and flips the
-             card back to Get; the arm-then-confirm two-step guards it. -->
-        <button
-          v-if="item.installStatus.kind === 'installed'"
-          type="button"
-          class="row-action"
-          :class="{ 'is-danger': armedRemoveItemId === item.itemId }"
-          :disabled="isRemoving(item.itemId)"
-          :aria-label="
-            armedRemoveItemId === item.itemId
-              ? `Confirm remove ${item.displayName}`
-              : `Remove ${item.displayName}`
-          "
-          @click="requestRemove(item.itemId)"
-          @blur="disarmRemove(item.itemId)"
-        >
-          {{
-            armedRemoveItemId === item.itemId
-              ? "Sure?"
-              : isRemoving(item.itemId)
-                ? "Removing…"
-                : "Remove"
-          }}
-        </button>
-        <p
-          v-if="installErrorFor(item.itemId) || removeErrorFor(item.itemId)"
-          class="row-error"
-          role="alert"
-        >
-          {{ installErrorFor(item.itemId) ?? removeErrorFor(item.itemId) }}
-        </p>
-      </div>
-    </div>
-
-    <!-- Memory / Agents — arrive with their APIs -->
+    <!-- Agents — arrives with its API -->
     <EmptyState
       v-else
       :title="`${sectionMeta.label} is on its way`"
@@ -321,7 +187,6 @@ function removeErrorFor(itemId: string): string | null {
 
 .row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
@@ -353,30 +218,6 @@ function removeErrorFor(itemId: string): string | null {
   text-overflow: ellipsis;
 }
 
-.scope-chip {
-  color: var(--ink-3);
-  font: 600 9.5px/1.4 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--hair-strong);
-  border-radius: 99px;
-  padding: 0 6px;
-}
-
-.scope-chip.is-gold {
-  color: var(--gold);
-  border-color: var(--gold-soft);
-  background: var(--gold-soft);
-}
-
-/* Distinct from Official's gold (gold is presence-only) — the informational
-   status token reads as "upgrade to reach this". */
-.scope-chip.is-pro {
-  color: var(--info);
-  border-color: color-mix(in srgb, var(--info) 40%, transparent);
-  background: color-mix(in srgb, var(--info) 14%, transparent);
-}
-
 .pill {
   flex: none;
   font: 600 11px/1.6 var(--font-ui);
@@ -392,74 +233,5 @@ function removeErrorFor(itemId: string): string | null {
 .pill.is-off {
   color: var(--ink-3);
   background: var(--row-active);
-}
-
-button.pill {
-  appearance: none;
-  margin: 0;
-  border: none;
-  cursor: default;
-  transition: color var(--t-fast) var(--ease-out);
-}
-
-button.pill.is-off:hover:not(:disabled) {
-  color: var(--ink-1);
-}
-
-button.pill:disabled {
-  opacity: 0.6;
-}
-
-/* The Remove control + its armed "Sure?" step borrow the account section's
-   row-action idiom (AccountDeviceRow). */
-.row-action {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 11px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.row-action:hover:not(:disabled) {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-  background: var(--row-hover);
-}
-
-.row-action:disabled {
-  opacity: 0.55;
-}
-
-.row-action.is-danger {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
-}
-
-.row-action.is-danger:hover {
-  color: var(--danger);
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-}
-
-.row-action:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-/* Wraps to its own line under the row (flex-basis 100%) so an install failure
-   reads clearly without shoving the button. */
-.row-error {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--danger);
-  font: 400 11px/1.5 var(--font-ui);
 }
 </style>

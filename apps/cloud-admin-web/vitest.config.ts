@@ -12,6 +12,10 @@ export default defineConfig({
     },
   },
   test: {
+    // Same rationale as the root node project: DOM tests stall under
+    // full-suite parallel load (lazy imports, happy-dom setup) — seen as
+    // one-off flakes always green in isolation.
+    testTimeout: 20_000,
     name: "cloud-admin-web",
     include: ["src/**/*.test.ts"],
     environment: "happy-dom",

@@ -30,6 +30,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The marketplace is a real storefront now — with search and filters.** Items render as cards
+  (icon tile, kind and Official badges, description, category and version) in a responsive grid,
+  with a search box that matches names, descriptions, and categories, filter tabs by kind, and an
+  Installed toggle. A filtered-empty shelf says "nothing matches" with a one-click clear — never
+  pretending the catalog is empty.
+
 - **Remove what you added — channels and marketplace items.** Every connected channel row now has
   a remove control, and every installed marketplace item (skills and agents alike) has a Remove
   button that flips the card back to "Get". Both use a two-step confirm — the first click arms a
