@@ -1691,7 +1691,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List the agents available in a (user, workspace) session. */
+        /** List agents: user-scope ∪ a workspace, or user-scope only (no workspaceId). */
         get: operations["getAgents"];
         put?: never;
         /** Create an agent (user-built; source "user"). */
@@ -7822,8 +7822,8 @@ export interface operations {
     };
     getAgents: {
         parameters: {
-            query: {
-                workspaceId: string;
+            query?: {
+                workspaceId?: string;
             };
             header?: never;
             path?: never;
@@ -7831,7 +7831,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Array of agents (user-scope ∪ this workspace), newest first. */
+            /** @description Array of agents, newest first (user-scope ∪ the workspace when workspaceId is given; user-scope only when omitted — the global surface). */
             200: {
                 headers: {
                     [name: string]: unknown;

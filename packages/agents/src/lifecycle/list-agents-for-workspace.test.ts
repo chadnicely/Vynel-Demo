@@ -69,4 +69,16 @@ describe('listAgentsForWorkspace', () => {
       expect(list.map((agent) => agent.slug).sort()).toEqual(['global', 'local'])
     })
   })
+
+  it('returns user-scope agents only when workspaceId is null (the global surface)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      await createAgent(db, baseInput(user.id, { slug: 'global', workspaceId: null }))
+      await createAgent(db, baseInput(user.id, { slug: 'local', workspaceId: workspace.id }))
+
+      const list = await listAgentsForWorkspace(db, { userId: user.id, workspaceId: null })
+      expect(list.map((agent) => agent.slug)).toEqual(['global'])
+    })
+  })
 })

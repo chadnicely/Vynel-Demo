@@ -78,6 +78,35 @@ describe('GET /agents', () => {
       expect(res.status).toBe(404)
     })
   })
+
+  it('returns user-scope agents only when workspaceId is omitted (the global surface)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = getOrCreateLocalUser(db, { logger })
+      const workspace = seedWorkspace(db, user.id)
+      const app = createApp({ db, logger })
+
+      const created = await createUserScopeAgent(app, 'inbox-helper')
+      expect(created.status).toBe(201)
+      const workspaceScoped = await app.request('/agents', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          slug: 'room-only',
+          name: 'Room Only',
+          description: 'A workspace-scoped test agent.',
+          prompt: 'You help this room.',
+          scope: 'workspace',
+          workspaceId: workspace.id,
+        }),
+      })
+      expect(workspaceScoped.status).toBe(201)
+
+      const res = await app.request('/agents')
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as Array<{ slug: string }>
+      expect(body.map((agent) => agent.slug)).toEqual(['inbox-helper'])
+    })
+  })
 })
 
 describe('GET /agents/curated', () => {

@@ -14356,7 +14356,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "Array of agents (user-scope ∪ this workspace), newest first.",
+            "description": "Array of agents, newest first (user-scope ∪ the workspace when workspaceId is given; user-scope only when omitted — the global surface).",
             "content": {
               "application/json": {
                 "schema": {
@@ -14521,11 +14521,10 @@
             "schema": {
               "type": "string",
               "minLength": 1
-            },
-            "required": true
+            }
           }
         ],
-        "summary": "List the agents available in a (user, workspace) session.",
+        "summary": "List agents: user-scope ∪ a workspace, or user-scope only (no workspaceId).",
         "x-sdk-name": "agents.list"
       }
     },

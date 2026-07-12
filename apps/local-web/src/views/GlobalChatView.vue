@@ -9,6 +9,7 @@ import AppComposer from "../components/chat/AppComposer.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
 import MenuPanel from "../components/shell/MenuPanel.vue";
 import AccountSection from "../components/sections/AccountSection.vue";
+import AgentsSection from "../components/sections/AgentsSection.vue";
 import ChannelsSection from "../components/sections/ChannelsSection.vue";
 import KnowledgeSection from "../components/sections/KnowledgeSection.vue";
 import LockedFeatureCard from "../components/sections/LockedFeatureCard.vue";
@@ -50,6 +51,7 @@ const GLOBAL_MENU_ITEMS = [
   { id: "memory", label: "Memory", hint: "What Claude remembers" },
   { id: "notebook", label: "Notebook", hint: "Playbooks Claude reads on demand" },
   { id: "marketplace", label: "Marketplace", hint: "Skills and agents to add" },
+  { id: "agents", label: "Agents", hint: "Specialists Claude delegates to" },
   { id: "account", label: "Account", hint: "Your Vynel account" },
   { id: "application", label: "Application", hint: "Global settings" },
 ];
@@ -62,6 +64,7 @@ const GLOBAL_SECTION_IDS = [
   "memory",
   "notebook",
   "marketplace",
+  "agents",
   "account",
 ] as const;
 type GlobalSectionId = (typeof GLOBAL_SECTION_IDS)[number];
@@ -282,6 +285,11 @@ function openContinuous() {
           />
           <MarketplaceSection v-else :scope="{ kind: 'global' }" />
         </template>
+        <!-- Agents (like notebook): core delegation surface — no tier gate. -->
+        <AgentsSection
+          v-else-if="shell.mainView === 'agents'"
+          :scope="{ kind: 'global' }"
+        />
         <LockedFeatureCard
           v-else-if="isLocked('memory')"
           feature-label="Memory"

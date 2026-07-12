@@ -10,9 +10,9 @@ import {
   Radio,
   Sparkles,
 } from "lucide-vue-next";
-import { EmptyState } from "@vynel/ui";
 import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
 import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
+import AgentsSection from "../sections/AgentsSection.vue";
 import ChannelsSection from "../sections/ChannelsSection.vue";
 import KnowledgeSection from "../sections/KnowledgeSection.vue";
 import LockedFeatureCard from "../sections/LockedFeatureCard.vue";
@@ -100,6 +100,11 @@ const skills = computed(() => skillsQuery.data.value ?? []);
     v-else-if="props.section === 'notebook'"
     :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
   />
+  <!-- Agents (like notebook): core delegation surface — no tier gate. -->
+  <AgentsSection
+    v-else-if="props.section === 'agents'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
 
   <template v-else-if="props.section === 'marketplace'">
     <!-- A locked marketplace never asks for rows the daemon would answer
@@ -127,8 +132,8 @@ const skills = computed(() => skillsQuery.data.value ?? []);
       </div>
     </header>
 
-    <!-- Skills -->
-    <div v-if="props.section === 'skills'" class="rows">
+    <!-- Skills — the only section still hosted inline. -->
+    <div class="rows">
       <div v-for="skill in skills" :key="skill.id" class="row">
         <div class="row-main">
           <p class="row-title">
@@ -143,13 +148,6 @@ const skills = computed(() => skillsQuery.data.value ?? []);
         </span>
       </div>
     </div>
-
-    <!-- Agents — arrives with its API -->
-    <EmptyState
-      v-else
-      :title="`${sectionMeta.label} is on its way`"
-      :hint="`${sectionMeta.hint} — this section lights up when its backend lands.`"
-    />
   </div>
 </template>
 

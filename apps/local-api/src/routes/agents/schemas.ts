@@ -97,10 +97,11 @@ export const AgentSlugParamSchema = z.object({
   slug: z.string().min(1),
 })
 
-// `GET /agents` — workspaceId is REQUIRED (the list is always resolved
-// for a (user, workspace) session: user-scope ∪ that workspace's agents).
+// `GET /agents` — workspaceId is OPTIONAL: provide it for the workspace
+// surface (user-scope ∪ that workspace's agents); omit it for the GLOBAL
+// surface (user-scope agents only — there is no workspace to union in).
 export const ListAgentsQuerySchema = z.object({
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(),
 })
 
 // `GET /agents/:slug` — workspaceId is OPTIONAL (omit = look up the

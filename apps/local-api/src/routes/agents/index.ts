@@ -131,11 +131,12 @@ export const agentsApp = factory
     '/',
     describeRoute({
       tags: ['agents'],
-      summary: 'List the agents available in a (user, workspace) session.',
+      summary: 'List agents: user-scope ∪ a workspace, or user-scope only (no workspaceId).',
       'x-sdk-name': 'agents.list',
       responses: {
         200: {
-          description: 'Array of agents (user-scope ∪ this workspace), newest first.',
+          description:
+            'Array of agents, newest first (user-scope ∪ the workspace when workspaceId is given; user-scope only when omitted — the global surface).',
           content: { 'application/json': { schema: resolver(ListAgentsResponseSchema) } },
         },
         404: { description: 'Workspace not found.' },
@@ -146,9 +147,15 @@ export const agentsApp = factory
     async (c) => {
       const { workspaceId } = c.req.valid('query')
       const userId = c.var.user.id
-      // Verify ownership of the workspace before listing.
-      await getWorkspaceById(c.var.db, workspaceId, userId)
-      const agents = await listAgentsForWorkspace(c.var.db, { userId, workspaceId })
+      // Verify ownership of the workspace before listing (global surface
+      // passes no workspaceId — user-scope rows only, nothing to verify).
+      if (workspaceId !== undefined) {
+        await getWorkspaceById(c.var.db, workspaceId, userId)
+      }
+      const agents = await listAgentsForWorkspace(c.var.db, {
+        userId,
+        workspaceId: workspaceId ?? null,
+      })
       return c.json(agents.map(serializeAgent))
     },
   )

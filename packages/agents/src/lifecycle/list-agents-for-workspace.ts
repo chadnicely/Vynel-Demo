@@ -12,7 +12,9 @@ import type { AgentRow } from '@vynel/db/repositories/agents'
 
 export type ListAgentsForWorkspaceInput = {
   userId: string
-  workspaceId: string
+  // null = user-scope agents ONLY — the GLOBAL Agents surface has no
+  // workspace to union in (mirrors the repo's null convention).
+  workspaceId: string | null
 }
 
 export async function listAgentsForWorkspace(

@@ -8,7 +8,8 @@ import { useVynel } from "../use-vynel.js";
  *  vs. agent) by itemId — the UI only names the item. A user-scope install
  *  also flips every workspace shelf's annotation, so BOTH surfaces'
  *  marketplace reads are refreshed (prefix invalidation), along with the
- *  installed-skills panel. */
+ *  installed-skills panel and every Agents shelf (an agent install must
+ *  show up there without a reload). */
 export function useInstallMarketplaceItem() {
   const vynel = useVynel();
   const queryClient = useQueryClient();
@@ -23,6 +24,7 @@ export function useInstallMarketplaceItem() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketplace", "items"] });
       queryClient.invalidateQueries({ queryKey: ["skills", "installed"] });
+      queryClient.invalidateQueries({ queryKey: ["agents"] });
     },
   });
 }

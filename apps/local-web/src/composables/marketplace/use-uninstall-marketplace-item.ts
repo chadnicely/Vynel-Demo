@@ -8,7 +8,8 @@ import { useVynel } from "../use-vynel.js";
  *  agent by the installed kind — the UI only names the item). A user-scope
  *  removal also flips every workspace shelf's annotation, so BOTH
  *  surfaces' marketplace reads are refreshed (prefix invalidation), along
- *  with the installed-skills panel. */
+ *  with the installed-skills panel and every Agents shelf (a removed
+ *  agent must vanish there without a reload). */
 export function useUninstallMarketplaceItem() {
   const vynel = useVynel();
   const queryClient = useQueryClient();
@@ -22,6 +23,7 @@ export function useUninstallMarketplaceItem() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketplace", "items"] });
       queryClient.invalidateQueries({ queryKey: ["skills", "installed"] });
+      queryClient.invalidateQueries({ queryKey: ["agents"] });
     },
   });
 }
