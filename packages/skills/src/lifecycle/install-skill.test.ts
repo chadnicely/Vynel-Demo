@@ -154,6 +154,48 @@ describe('installSkill', () => {
     })
   })
 
+  it('installs at USER scope with no workspace binding (the global marketplace path)', async () => {
+    await withFsAndDb(async (_workspacePath, withDb) => {
+      await withDb(async (db) => {
+        const user = insertUser(db, makeUser())
+        const installed = await installSkill(db, {
+          userId: user.id,
+          workspaceId: null,
+          workspacePath: null,
+          skillId: 'email-drafter',
+          scope: 'user',
+        })
+        expect(installed.scope).toBe('user')
+        expect(installed.workspaceId).toBeNull()
+        // Persisted, not just returned — findable at the user scope.
+        expect(
+          findInstalledSkillByScope(db, {
+            userId: user.id,
+            workspaceId: null,
+            skillId: 'email-drafter',
+          })?.id,
+        ).toBe(installed.id)
+      })
+    })
+  })
+
+  it('throws ValidationError for a workspace-scope install missing its workspace binding', async () => {
+    await withFsAndDb(async (_workspacePath, withDb) => {
+      await withDb(async (db) => {
+        const user = insertUser(db, makeUser())
+        await expect(
+          installSkill(db, {
+            userId: user.id,
+            workspaceId: null,
+            workspacePath: null,
+            skillId: 'email-drafter',
+            scope: 'workspace',
+          }),
+        ).rejects.toBeInstanceOf(ValidationError)
+      })
+    })
+  })
+
   it('throws ValidationError when an initial setting violates its schema', async () => {
     await withFsAndDb(async (workspacePath, withDb) => {
       await withDb(async (db) => {

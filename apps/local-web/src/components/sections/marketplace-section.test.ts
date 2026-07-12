@@ -2,8 +2,10 @@
 // inline block): the display-only Pro badge — the rendered combination
 // `minimumTier === 'pro' && !isPro` (the composable test alone can't catch a
 // template that drops either half) — the kind chips, the install flow, and
-// the irreversible-remove two-step. New here: search + filters compose with
-// AND, and "no results" reads differently from "empty catalog".
+// the irreversible-remove two-step. Search + filters compose with AND, and
+// "no results" reads differently from "empty catalog". The section is
+// scope-aware: the workspace surface drives `marketplace.*`, the GLOBAL
+// surface drives the user-scoped `marketplaceUser.*` endpoints.
 
 import { describe, expect, it, vi } from "vitest";
 import type { Plugin } from "vue";
@@ -29,6 +31,7 @@ function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
     version: "1.0.0",
     releasedAt: "2026-07-01T00:00:00.000Z",
     recommendedScope: "workspace",
+    scope: "both",
     isOfficial: false,
     installStatus: { kind: "not-installed" },
     ...overrides,
@@ -65,6 +68,8 @@ function makeClient(
     items?: MarketplaceItem[];
     install?: (...args: unknown[]) => Promise<unknown>;
     uninstall?: (...args: unknown[]) => Promise<unknown>;
+    userInstall?: (...args: unknown[]) => Promise<unknown>;
+    userUninstall?: (...args: unknown[]) => Promise<unknown>;
   } = {},
 ) {
   const listItems = options.items ?? items;
@@ -75,6 +80,18 @@ function makeClient(
   return {
     hub: { getSession: async () => session },
     marketplace: { listItems: async () => listItems, install, uninstall },
+    // The GLOBAL surface's endpoints — the same shelf, user scope.
+    marketplaceUser: {
+      listItems: async () => listItems,
+      install: options.userInstall ?? (async () => installResult),
+      uninstall:
+        options.userUninstall ??
+        (async () => ({
+          kind: "skill",
+          installedSkillId: "sk1",
+          itemId: "owned",
+        })),
+    },
   };
 }
 
@@ -100,9 +117,13 @@ function mountOptions(client: ReturnType<typeof makeClient>) {
 function mountSection(
   session: Record<string, unknown>,
   options: Parameters<typeof makeClient>[1] = {},
+  scope: { kind: "global" } | { kind: "workspace"; workspaceId: string } = {
+    kind: "workspace",
+    workspaceId: "w1",
+  },
 ) {
   return mount(MarketplaceSection, {
-    props: { workspaceId: "w1" },
+    props: { scope },
     ...mountOptions(makeClient(session, options)),
   });
 }
@@ -396,6 +417,70 @@ describe("MarketplaceSection — search + filters", () => {
     expect(wrapper.text()).toContain("The shelf is empty");
     expect(wrapper.find('input[type="search"]').exists()).toBe(false);
     expect(wrapper.text()).not.toContain("Nothing matches");
+    wrapper.unmount();
+  });
+});
+
+describe("MarketplaceSection — global surface", () => {
+  it("renders the user-level shelf with the global header copy", async () => {
+    const wrapper = mountSection({ kind: "signed-out" }, {}, { kind: "global" });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("ready to add for you");
+    expect(wrapper.findAll(".card-title").length).toBeGreaterThan(0);
+    wrapper.unmount();
+  });
+
+  it("keeps the workspace header copy on the workspace surface", async () => {
+    const wrapper = mountSection({ kind: "signed-out" });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("ready to add to this workspace");
+    wrapper.unmount();
+  });
+
+  it("installs via the USER-scoped endpoint (no workspace, no scope in the body)", async () => {
+    const userInstall = vi.fn(async () => installResult);
+    const install = vi.fn(async () => installResult);
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      {
+        items: [makeItem({ itemId: "free-skill", displayName: "Free Skill" })],
+        install,
+        userInstall,
+      },
+      { kind: "global" },
+    );
+    await flushPromises();
+
+    await wrapper.get("button.pill").trigger("click");
+    await flushPromises();
+
+    expect(userInstall).toHaveBeenCalledWith({ itemId: "free-skill" });
+    expect(install).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it("removes via the USER-scoped endpoint after the armed confirm", async () => {
+    const userUninstall = vi.fn(async () => ({
+      kind: "skill",
+      installedSkillId: "sk1",
+      itemId: "owned",
+    }));
+    const uninstall = vi.fn(async () => ({}));
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      { items: [installedItem()], uninstall, userUninstall },
+      { kind: "global" },
+    );
+    await flushPromises();
+
+    await wrapper.get('[aria-label="Remove Owned"]').trigger("click");
+    await wrapper.get('[aria-label="Confirm remove Owned"]').trigger("click");
+    await flushPromises();
+
+    expect(userUninstall).toHaveBeenCalledWith({ itemId: "owned" });
+    expect(uninstall).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 });

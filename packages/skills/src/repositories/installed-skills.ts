@@ -74,26 +74,28 @@ export function findInstalledSkillByScope(
 
 export type ListInstalledSkillsForUserAndWorkspaceInput = {
   userId: string
-  workspaceId: string
+  // null = user-scope rows ONLY (the global marketplace surface has no
+  // workspace to union in) — mirrors `findInstalledSkillByScope`'s null
+  // convention above.
+  workspaceId: string | null
 }
 
 export function listInstalledSkillsForUserAndWorkspace(
   db: Database,
   input: ListInstalledSkillsForUserAndWorkspaceInput,
 ): InstalledSkillRow[] {
-  // Union of user-scope rows (workspaceId IS NULL) + workspace-scope
-  // rows for THIS workspace. Phase 1 list size is bounded by the
-  // catalog count + any external skills the user installed via raw
-  // Claude Code — small in practice.
+  // With a workspaceId: the union of user-scope rows (workspaceId IS
+  // NULL) + workspace-scope rows for THIS workspace. Phase 1 list size
+  // is bounded by the catalog count + any external skills the user
+  // installed via raw Claude Code — small in practice.
+  const workspaceClause =
+    input.workspaceId === null
+      ? isNull(installedSkills.workspaceId)
+      : or(isNull(installedSkills.workspaceId), eq(installedSkills.workspaceId, input.workspaceId))
   return db
     .select()
     .from(installedSkills)
-    .where(
-      and(
-        eq(installedSkills.userId, input.userId),
-        or(isNull(installedSkills.workspaceId), eq(installedSkills.workspaceId, input.workspaceId)),
-      ),
-    )
+    .where(and(eq(installedSkills.userId, input.userId), workspaceClause))
     .orderBy(desc(installedSkills.installedAt))
     .all()
 }

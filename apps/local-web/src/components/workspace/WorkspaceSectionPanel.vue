@@ -108,7 +108,10 @@ const skills = computed(() => skillsQuery.data.value ?? []);
       v-if="isLocked('marketplace')"
       feature-label="Marketplace"
     />
-    <MarketplaceSection v-else :workspace-id="props.workspaceId" />
+    <MarketplaceSection
+      v-else
+      :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+    />
   </template>
 
   <div v-else class="section-panel">

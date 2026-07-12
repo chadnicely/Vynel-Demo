@@ -42,6 +42,10 @@ export const ItemIdParamSchema = z.object({
 
 const SkillScopeSchema = z.enum(['user', 'workspace'])
 
+// The item's SURFACING scope (which marketplace surface lists it) —
+// distinct from the install scope above.
+const MarketplaceItemScopeSchema = z.enum(['user', 'workspace', 'both'])
+
 export const MarketplaceItemKindSchema = z.enum(['skill', 'agent'])
 
 const MarketplaceItemInstallStatusSchema = z.discriminatedUnion('kind', [
@@ -70,6 +74,7 @@ export const MarketplaceItemSchema = z.object({
   version: z.string(),
   releasedAt: z.string(),
   recommendedScope: SkillScopeSchema,
+  scope: MarketplaceItemScopeSchema,
   isOfficial: z.boolean(),
   installStatus: MarketplaceItemInstallStatusSchema,
   // Cloud items only — the UI's "Pro" badge (display); bundled items omit it.
@@ -81,6 +86,13 @@ export const ListMarketplaceItemsResponseSchema = z.array(MarketplaceItemSchema)
 export const InstallMarketplaceItemBodySchema = z.object({
   itemId: z.string().min(1).max(200),
   scope: SkillScopeSchema,
+})
+
+// The USER-scoped install carries no scope — the global surface always
+// installs at user scope (Chad's rule), so the field would only invite
+// disagreement between the route's path and its body.
+export const InstallUserMarketplaceItemBodySchema = z.object({
+  itemId: z.string().min(1).max(200),
 })
 
 export const UninstallMarketplaceItemBodySchema = z.object({

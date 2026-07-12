@@ -15,6 +15,7 @@ import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findAgentBySlug } from '@vynel/db/repositories/agents'
+import { listInstalledSkillsForUserAndWorkspace } from '@vynel/skills'
 import { syncCloudCatalog } from '@vynel/marketplace'
 import type { HubSession } from '@vynel/hub-account'
 import type { HubCatalogItem } from '@vynel/contracts/hub/catalog'
@@ -187,11 +188,50 @@ describe('POST /marketplace/install', () => {
       const unknownRes = await installReq(app, workspace.id, 'never-published')
       expect(cachedRes.status).toBe(404)
       expect(unknownRes.status).toBe(404)
-      expect(await cachedRes.json()).toEqual({ code: 'not_found', message: 'skill not found: some-mcp' })
+      // test: correct expectation — the shared surface gate now answers BEFORE the
+      // skill dispatch, so the 404 entity is 'marketplace-item' (uniform with
+      // uninstall + the global surface); the guarded property (cached-mcp ≡
+      // unknown id) is unchanged.
+      expect(await cachedRes.json()).toEqual({ code: 'not_found', message: 'marketplace-item not found: some-mcp' })
       expect(await unknownRes.json()).toEqual({
         code: 'not_found',
-        message: 'skill not found: never-published',
+        message: 'marketplace-item not found: never-published',
       })
+    })
+  })
+
+  it('404s a cached USER-only item on the workspace surface — indistinguishable from an unknown id, no row lands', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      syncCloudCatalog(
+        db,
+        [cloudCatalogItem('a'.repeat(64), { itemId: 'user-only-skill', recommendedScope: 'user' })],
+        new Date(),
+      )
+      const downloadArtifact = vi.fn()
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({ downloadArtifact }) })
+
+      const offSurfaceRes = await installReq(app, workspace.id, 'user-only-skill')
+      const unknownRes = await installReq(app, workspace.id, 'never-published')
+      expect(offSurfaceRes.status).toBe(404)
+      expect(unknownRes.status).toBe(404)
+      const offSurfaceBody = (await offSurfaceRes.json()) as { code: string; message: string }
+      const unknownBody = (await unknownRes.json()) as { code: string; message: string }
+      expect(offSurfaceBody.code).toBe('not_found')
+      // No enumeration distinguisher: modulo the id, the off-surface 404
+      // is byte-identical to the unknown-id one.
+      expect(offSurfaceBody.message.replace('user-only-skill', '<id>')).toBe(
+        unknownBody.message.replace('never-published', '<id>'),
+      )
+      // Nothing downloaded, and no row landed at ANY scope — a row here
+      // would be uninstallable from every surface.
+      expect(downloadArtifact).not.toHaveBeenCalled()
+      expect(
+        listInstalledSkillsForUserAndWorkspace(db, { userId: user.id, workspaceId: workspace.id }),
+      ).toHaveLength(0)
+      expect(
+        listInstalledSkillsForUserAndWorkspace(db, { userId: user.id, workspaceId: null }),
+      ).toHaveLength(0)
     })
   })
 

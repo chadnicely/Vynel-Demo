@@ -173,6 +173,21 @@ describe('installed-skills repository', () => {
       })
     })
 
+    it('returns user-scope rows ONLY when workspaceId is null (the global-surface read)', async () => {
+      await withTestDatabase((db) => {
+        const user = insertUser(db, makeUser())
+        const workspace = insertWorkspace(db, makeWorkspace(user.id))
+        insertInstalledSkill(db, makeInstalledSkill(user.id, null, { skillId: 'a' }))
+        insertInstalledSkill(db, makeInstalledSkill(user.id, workspace.id, { skillId: 'b' }))
+
+        const list = listInstalledSkillsForUserAndWorkspace(db, {
+          userId: user.id,
+          workspaceId: null,
+        })
+        expect(list.map((r) => r.skillId)).toEqual(['a'])
+      })
+    })
+
     it('excludes workspace-scope rows from other workspaces', async () => {
       await withTestDatabase((db) => {
         const user = insertUser(db, makeUser())

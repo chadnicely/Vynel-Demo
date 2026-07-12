@@ -17,6 +17,26 @@ export type PublisherTier = 'verified' | 'anthropic-official' | 'community'
  * no update flow in Phase 1). */
 export type MarketplaceSortKey = 'recommended' | 'name-asc' | 'newest'
 
+/** Where a catalog item SURFACES (Chad's rule: any item is user-level,
+ * workspace-level, or both). 'user' shows only on the GLOBAL marketplace
+ * (installs at user scope), 'workspace' only on each workspace's
+ * marketplace, 'both' on the two surfaces alike. Distinct from
+ * `recommendedScope` (the install picker's default) and from
+ * `installStatus.scope` (where an installed row actually lives). */
+export type MarketplaceItemScope = 'user' | 'workspace' | 'both'
+
+/** The marketplace surface a browse/install request comes from: the
+ * GLOBAL menu ('global' — user-scope installs) or one workspace's
+ * drawer ('workspace' — today's behavior). */
+export type MarketplaceSurface = 'global' | 'workspace'
+
+/** The surface selector list/get take — the workspace surface carries
+ * its workspace id, the global surface has none (illegal states
+ * unrepresentable). */
+export type MarketplaceSurfaceSelector =
+  | { surface: 'global' }
+  | { surface: 'workspace'; workspaceId: string }
+
 /** The DESKTOP's item-kind union — only kinds the app can actually
  * install ever reach the wire (mcp/rule/plugin stay filtered at the
  * merge; widening later is additive). The hub-side registry union is
@@ -56,6 +76,8 @@ export type MarketplaceItem = {
   version: string
   releasedAt: string
   recommendedScope: SkillScope
+  /** Surfacing scope — which marketplace surface(s) list this item. */
+  scope: MarketplaceItemScope
   isOfficial: boolean
   installStatus: MarketplaceItemInstallStatus
   /** Cloud items only: the access tier required to INSTALL. The UI shows a
@@ -75,10 +97,9 @@ export type MarketplaceFilterInput = {
 
 export type ListMarketplaceItemsInput = {
   userId: string
-  workspaceId: string
   category?: SkillCategory
   publisherTier?: PublisherTier
   installState?: 'installed' | 'not-installed'
   searchQuery?: string
   sortBy?: MarketplaceSortKey
-}
+} & MarketplaceSurfaceSelector

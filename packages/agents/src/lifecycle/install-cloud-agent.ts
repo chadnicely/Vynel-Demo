@@ -24,7 +24,9 @@ import type { AgentRow, AgentScope, StructuralLogger } from '../agents-types.js'
 
 export type InstallCloudAgentInput = {
   userId: string
-  workspaceId: string
+  // null = a user-scope install with no workspace in play (the GLOBAL
+  // marketplace surface). A 'workspace' scope REQUIRES non-null.
+  workspaceId: string | null
   itemId: string
   scope: AgentScope
   artifactBytes: Buffer
@@ -36,6 +38,15 @@ export async function installCloudAgent(
   input: InstallCloudAgentInput,
   deps: { logger?: StructuralLogger } = {},
 ): Promise<AgentRow> {
+  // 0. A workspace-scope install must carry its workspace id (fail fast —
+  //    createAgent derives scope FROM workspaceId, so a null here would
+  //    silently install at user scope instead).
+  if (input.scope === 'workspace' && input.workspaceId === null) {
+    throw new ValidationError(
+      'A workspace-scope agent install needs its workspace id — pass it, or install at user scope.',
+    )
+  }
+
   // 1. Integrity check FIRST — never parse unverified bytes. Lowercase
   //    both sides: digest('hex') emits lowercase, but a hub record may
   //    carry uppercase hex — casing must never fail a valid hash.

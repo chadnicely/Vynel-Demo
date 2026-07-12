@@ -10,7 +10,10 @@
 export type {
   MarketplaceItem,
   MarketplaceItemKind,
+  MarketplaceItemScope,
   MarketplaceItemInstallStatus,
+  MarketplaceSurface,
+  MarketplaceSurfaceSelector,
   PublisherTier,
   MarketplaceSortKey,
   MarketplaceFilterInput,
@@ -21,7 +24,10 @@ export type {
   InstalledSkillView,
   InstalledAgentView,
   MarketplaceDeps,
+  MarketplaceInstallOwner,
 } from './marketplace-types.js'
+
+export { isItemVisibleOnSurface } from './surface-visibility.js'
 
 export { annotateWithInstallStatus, type AnnotateInput } from './annotate-with-install-status.js'
 

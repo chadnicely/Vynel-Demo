@@ -1357,6 +1357,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/marketplace/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the GLOBAL marketplace (user-level items), annotated with install status. */
+        get: operations["getMarketplaceItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/marketplace/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Install a marketplace item at USER scope (available in every workspace). */
+        post: operations["postMarketplaceInstall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/marketplace/uninstall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Uninstall a marketplace item installed at USER scope. */
+        post: operations["postMarketplaceUninstall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notebook/playbooks": {
         parameters: {
             query?: never;
@@ -2945,6 +2996,8 @@ export interface operations {
                         releasedAt: string;
                         /** @enum {string} */
                         recommendedScope: "user" | "workspace";
+                        /** @enum {string} */
+                        scope: "user" | "workspace" | "both";
                         isOfficial: boolean;
                         installStatus: {
                             /** @constant */
@@ -3007,6 +3060,8 @@ export interface operations {
                         releasedAt: string;
                         /** @enum {string} */
                         recommendedScope: "user" | "workspace";
+                        /** @enum {string} */
+                        scope: "user" | "workspace" | "both";
                         isOfficial: boolean;
                         installStatus: {
                             /** @constant */
@@ -6694,6 +6749,182 @@ export interface operations {
                 };
             };
             /** @description No such schedule owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getMarketplaceItems: {
+        parameters: {
+            query?: {
+                category?: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context";
+                publisherTier?: "verified" | "anthropic-official" | "community";
+                installState?: "installed" | "not-installed";
+                searchQuery?: string;
+                sortBy?: "recommended" | "name-asc" | "newest";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Annotated marketplace items surfaced at the user level. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        itemId: string;
+                        /** @enum {string} */
+                        kind: "skill" | "agent";
+                        skillId: string;
+                        /** @enum {string} */
+                        publisherTier: "verified" | "anthropic-official" | "community";
+                        publisherName: string;
+                        publisherUrl: string | null;
+                        displayName: string;
+                        oneLineDescription: string;
+                        /** @enum {string} */
+                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context";
+                        iconName: string;
+                        version: string;
+                        releasedAt: string;
+                        /** @enum {string} */
+                        recommendedScope: "user" | "workspace";
+                        /** @enum {string} */
+                        scope: "user" | "workspace" | "both";
+                        isOfficial: boolean;
+                        installStatus: {
+                            /** @constant */
+                            kind: "not-installed";
+                        } | {
+                            /** @constant */
+                            kind: "installed";
+                            /** @enum {string} */
+                            scope: "user" | "workspace";
+                            installedId: string;
+                            versionInstalled: string | null;
+                        };
+                        /** @enum {string} */
+                        minimumTier?: "basic" | "pro";
+                    }[];
+                };
+            };
+        };
+    };
+    postMarketplaceInstall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    itemId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The installed item, discriminated by kind. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        kind: "skill";
+                        installedSkillId: string;
+                        itemId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        /** @enum {string} */
+                        source: "verified-catalog" | "marketplace" | "external";
+                        version: string;
+                    } | {
+                        /** @constant */
+                        kind: "agent";
+                        agentId: string;
+                        slug: string;
+                        itemId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        version: string;
+                    };
+                };
+            };
+            /** @description The caller’s tier may not install this item. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Item not in the catalog or not surfaced at the user level. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Already installed at user scope. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postMarketplaceUninstall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    itemId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The removed installation, discriminated by item kind. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        kind: "skill";
+                        installedSkillId: string;
+                        itemId: string;
+                    } | {
+                        /** @constant */
+                        kind: "agent";
+                        agentId: string;
+                        itemId: string;
+                    };
+                };
+            };
+            /** @description The skill is system-installed; uninstall blocked. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Item not in the catalog, not surfaced at the user level, OR not installed at user scope. */
             404: {
                 headers: {
                     [name: string]: unknown;

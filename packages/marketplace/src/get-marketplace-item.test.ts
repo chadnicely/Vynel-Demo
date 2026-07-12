@@ -17,7 +17,7 @@ function depsReturning(installed: InstalledSkillView[]): MarketplaceDeps {
   return { listInstalledSkills: () => installed, listInstalledAgents: () => [] }
 }
 
-const owner = { userId: 'user-1', workspaceId: 'ws-1' }
+const owner = { userId: 'user-1', surface: 'workspace', workspaceId: 'ws-1' } as const
 
 describe('getMarketplaceItem', () => {
   it('returns the annotated item for a known catalog id (email-drafter)', async () => {

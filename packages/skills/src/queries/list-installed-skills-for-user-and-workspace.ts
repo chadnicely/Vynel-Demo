@@ -9,7 +9,9 @@ import { listInstalledSkillsForUserAndWorkspace as listInstalledSkillsForUserAnd
 
 export type ListInstalledSkillsForUserAndWorkspaceInput = {
   userId: string
-  workspaceId: string
+  // null = user-scope rows only — the GLOBAL marketplace surface
+  // annotates against user-scoped installs, never a workspace's.
+  workspaceId: string | null
 }
 
 export function listInstalledSkillsForUserAndWorkspace(

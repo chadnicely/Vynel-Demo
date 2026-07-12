@@ -226,7 +226,12 @@ function openContinuous() {
     />
 
     <div v-if="activeSection" class="canvas section-view">
-      <div class="section-column">
+      <!-- Marketplace runs full-width (Chad's ask — the card grid earns the
+           room); the other sections keep the deliberate narrow column. -->
+      <div
+        class="section-column"
+        :class="{ 'is-wide': activeSection === 'marketplace' }"
+      >
         <WorkspaceSectionPanel
           :section="activeSection"
           :workspace-id="ui.activeWorkspaceId ?? ''"
@@ -351,6 +356,12 @@ function openContinuous() {
   max-width: 720px;
   margin: 0 auto;
   padding: 32px 24px;
+}
+
+/* The marketplace's card grid uses the whole canvas — its siblings stay
+   deliberately narrow (readable single-column sections). */
+.section-column.is-wide {
+  max-width: none;
 }
 
 .composer-dock {

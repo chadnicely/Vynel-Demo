@@ -88,6 +88,14 @@ const EXPECTED_SKILLS_METHODS = [
 // exposed list_available + list_installed tools, redundant for the LLM).
 const EXPECTED_MARKETPLACE_METHODS = ['getItem', 'install', 'listItems', 'uninstall'] as const
 
+// The marketplaceUser namespace's methods, sorted — the USER-scoped
+// `/marketplace` surface (the GLOBAL marketplace, 2026-07-13 — deliberate
+// spec addition): lists user+both items and installs/uninstalls at USER
+// scope. Distinct top namespace from the workspace-scoped `marketplace.*`
+// (the schedulesUser naming precedent). No getItem — the global section
+// renders from the list read alone. None carry x-mcp (D9, as above).
+const EXPECTED_MARKETPLACE_USER_METHODS = ['install', 'listItems', 'uninstall'] as const
+
 // The schedules namespace's methods, sorted. The 3 read GETs (list /
 // listTemplates / listRuns) + the 6 mutating lifecycle routes all carry
 // `x-sdk-name`; x-mcp is the narrower opt-in (only the 3 GETs are exposed).
@@ -186,6 +194,7 @@ describe('makeNamespaced — shape', () => {
       'hub',
       'knowledge',
       'marketplace',
+      'marketplaceUser',
       'memory',
       'notebook',
       'onboarding',
@@ -205,6 +214,7 @@ describe('makeNamespaced — shape', () => {
     expect(Object.keys(sdk.channels).sort()).toEqual([...EXPECTED_CHANNELS_METHODS])
     expect(Object.keys(sdk.channelsUser).sort()).toEqual([...EXPECTED_CHANNELS_USER_METHODS])
     expect(Object.keys(sdk.marketplace).sort()).toEqual([...EXPECTED_MARKETPLACE_METHODS])
+    expect(Object.keys(sdk.marketplaceUser).sort()).toEqual([...EXPECTED_MARKETPLACE_USER_METHODS])
     expect(Object.keys(sdk.schedules).sort()).toEqual([...EXPECTED_SCHEDULES_METHODS])
     expect(Object.keys(sdk.schedulesUser).sort()).toEqual([...EXPECTED_SCHEDULES_USER_METHODS])
     expect(Object.keys(sdk.notebook).sort()).toEqual([...EXPECTED_NOTEBOOK_METHODS])

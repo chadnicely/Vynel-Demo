@@ -17,14 +17,17 @@ import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import * as installedSkillsRepository from '../repositories/index.js'
 import type { InstalledSkillRow, SkillScope } from '../repositories/index.js'
 import { extractSkillMarkdown } from '../internal/extract-skill-markdown.js'
+import { requireWorkspaceInstallBinding } from '../internal/require-workspace-install-binding.js'
 import { writeCloudSkillOnDisk } from '../internal/write-cloud-skill-on-disk.js'
 import type { StructuralLogger } from '../skills-types.js'
 import { SKILL_INSTALLED, type SkillInstalledPayload } from '../skills-events.js'
 
 export type InstallCloudSkillInput = {
   userId: string
-  workspaceId: string
-  workspacePath: string
+  // null = a user-scope install with no workspace in play (the GLOBAL
+  // marketplace surface). A 'workspace' scope REQUIRES both non-null.
+  workspaceId: string | null
+  workspacePath: string | null
   itemId: string
   scope: SkillScope
   artifactBytes: Buffer
@@ -37,6 +40,10 @@ export async function installCloudSkill(
   input: InstallCloudSkillInput,
   deps: { logger?: StructuralLogger } = {},
 ): Promise<InstalledSkillRow> {
+  // 0. A workspace-scope install must carry its workspace binding.
+  const workspaceBinding =
+    input.scope === 'workspace' ? requireWorkspaceInstallBinding(input) : null
+
   // 1. Integrity check FIRST — never parse/write unverified bytes.
   //    Lowercase both sides: digest('hex') emits lowercase, but a hub
   //    record may carry uppercase hex — casing must never fail a valid hash.
@@ -54,7 +61,7 @@ export async function installCloudSkill(
   //    `skillId === itemId` (as bundled items already do).
   const existing = installedSkillsRepository.findInstalledSkillByScope(db, {
     userId: input.userId,
-    workspaceId: input.scope === 'workspace' ? input.workspaceId : null,
+    workspaceId: workspaceBinding?.workspaceId ?? null,
     skillId: input.itemId,
   })
   if (existing) {
@@ -67,7 +74,7 @@ export async function installCloudSkill(
     scope: input.scope,
     markdown,
   }
-  if (input.scope === 'workspace') writeInput.workspacePath = input.workspacePath
+  if (workspaceBinding !== null) writeInput.workspacePath = workspaceBinding.workspacePath
   const { installLocation } = await writeCloudSkillOnDisk(writeInput)
 
   // 5. SYNC tx — row + outbox co-commit.
@@ -76,7 +83,7 @@ export async function installCloudSkill(
     const inserted = installedSkillsRepository.insertInstalledSkill(tx, {
       id: randomUUID(),
       userId: input.userId,
-      workspaceId: input.scope === 'workspace' ? input.workspaceId : null,
+      workspaceId: workspaceBinding?.workspaceId ?? null,
       skillId: input.itemId,
       scope: input.scope,
       installedFromSource: 'marketplace',

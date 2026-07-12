@@ -14,9 +14,19 @@
 
 import { VERIFIED_SKILL_CATALOG } from '../skills/verified-skills/verified-skill-catalog.js'
 import type { VerifiedSkillDefinition } from '../skills/verified-skills/verified-skill-definition.js'
-import type { MarketplaceItem } from './marketplace-item.js'
+import type { MarketplaceItem, MarketplaceItemScope } from './marketplace-item.js'
 
 const VYNEL_TEAM_PUBLISHER_NAME = 'Vynel Team'
+
+// SURFACING scope per bundled item (Chad's rule: user / workspace / both).
+// email-drafter is 'both': it has always shown on the workspace shelf and is
+// equally useful user-wide, so 'both' preserves today's behavior while
+// letting the global marketplace list it too. A future entry missing from
+// this map defaults to 'both' — a bundled item must never silently vanish
+// from a surface because nobody chose for it.
+const BUNDLED_ITEM_SCOPES: Record<string, MarketplaceItemScope> = {
+  'email-drafter': 'both',
+}
 
 // Phase 1 default for the wire-shape `releasedAt` — catalog entries
 // don't yet carry the field (D7 trade-off). Foundation-hardening
@@ -50,6 +60,7 @@ function verifiedSkillToMarketplaceItem(skill: VerifiedSkillDefinition): Marketp
     version: skill.version,
     releasedAt: PHASE_1_RELEASED_AT_DEFAULT,
     recommendedScope: skill.recommendedScope,
+    scope: BUNDLED_ITEM_SCOPES[skill.skillId] ?? 'both',
     isOfficial: true,
     // Annotated downstream by `annotateWithInstallStatus`. The
     // resolver returns the not-installed default so callers can use

@@ -17,6 +17,7 @@ import * as skillSettingsRepository from '../repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import type { InstalledSkillRow, SkillScope } from '../repositories/index.js'
 import { installSkillOnDisk } from '../internal/install-skill-on-disk.js'
+import { requireWorkspaceInstallBinding } from '../internal/require-workspace-install-binding.js'
 import { validateSettingValue } from '../internal/validate-setting-value.js'
 import type { ResolvedSkillSettings } from '../settings/resolve-skill-settings.js'
 import type { StructuralLogger } from '../skills-types.js'
@@ -24,8 +25,10 @@ import { SKILL_INSTALLED, type SkillInstalledPayload } from '../skills-events.js
 
 export type InstallSkillInput = {
   userId: string
-  workspaceId: string
-  workspacePath: string
+  // null = a user-scope install with no workspace in play (the GLOBAL
+  // marketplace surface). A 'workspace' scope REQUIRES both non-null.
+  workspaceId: string | null
+  workspacePath: string | null
   skillId: string
   scope: SkillScope
   initialSettings?: ResolvedSkillSettings
@@ -36,6 +39,10 @@ export async function installSkill(
   input: InstallSkillInput,
   deps: { logger?: StructuralLogger } = {},
 ): Promise<InstalledSkillRow> {
+  // 0. A workspace-scope install must carry its workspace binding.
+  const workspaceBinding =
+    input.scope === 'workspace' ? requireWorkspaceInstallBinding(input) : null
+
   // 1. Validate catalog membership.
   const definition = findVerifiedSkillById(input.skillId)
   if (!definition) throw new NotFoundError('skill', input.skillId)
@@ -51,7 +58,7 @@ export async function installSkill(
   // 3. Detect duplicate at the requested scope.
   const existing = installedSkillsRepository.findInstalledSkillByScope(db, {
     userId: input.userId,
-    workspaceId: input.scope === 'workspace' ? input.workspaceId : null,
+    workspaceId: workspaceBinding?.workspaceId ?? null,
     skillId: input.skillId,
   })
   if (existing) {
@@ -70,7 +77,7 @@ export async function installSkill(
     scope: input.scope,
     resolvedSettings: resolved,
   }
-  if (input.scope === 'workspace') fsInput.workspacePath = input.workspacePath
+  if (workspaceBinding !== null) fsInput.workspacePath = workspaceBinding.workspacePath
   const { installLocation } = await installSkillOnDisk(fsInput)
 
   // 6. SYNC tx — row + settings + outbox event co-commit.
@@ -80,7 +87,7 @@ export async function installSkill(
     const inserted = installedSkillsRepository.insertInstalledSkill(tx, {
       id: installedSkillId,
       userId: input.userId,
-      workspaceId: input.scope === 'workspace' ? input.workspaceId : null,
+      workspaceId: workspaceBinding?.workspaceId ?? null,
       skillId: input.skillId,
       scope: input.scope,
       installedFromSource: 'verified-catalog',

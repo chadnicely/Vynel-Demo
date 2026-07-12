@@ -41,15 +41,17 @@ export type InstalledAgentView = {
 }
 
 // The cross-leaf reads `listMarketplaceItems` / `getMarketplaceItem`
-// need injected. Each reader returns the union of the caller's
-// user-scope + workspace-scope rows for its kind.
+// need injected. With a workspaceId, each reader returns the union of
+// the caller's user-scope + that workspace's rows (the WORKSPACE
+// surface); with `workspaceId: null` it returns user-scope rows ONLY —
+// the GLOBAL surface annotates against user-scoped installs, never a
+// workspace's. Both kernel readers honor the same null convention.
+export type MarketplaceInstallOwner = {
+  userId: string
+  workspaceId: string | null
+}
+
 export type MarketplaceDeps = {
-  listInstalledSkills: (
-    db: Database,
-    input: { userId: string; workspaceId: string },
-  ) => InstalledSkillView[]
-  listInstalledAgents: (
-    db: Database,
-    input: { userId: string; workspaceId: string },
-  ) => InstalledAgentView[]
+  listInstalledSkills: (db: Database, input: MarketplaceInstallOwner) => InstalledSkillView[]
+  listInstalledAgents: (db: Database, input: MarketplaceInstallOwner) => InstalledAgentView[]
 }

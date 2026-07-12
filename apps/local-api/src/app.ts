@@ -20,6 +20,7 @@ import { openApiInfo } from './openapi.js'
 import { knowledgeApp } from './routes/knowledge/index.js'
 import { skillsApp } from './routes/skills/index.js'
 import { marketplaceApp } from './routes/marketplace/index.js'
+import { marketplaceUserApp } from './routes/marketplace/user-scoped.js'
 import { channelsApp } from './routes/channels/index.js'
 import { channelsUserApp } from './routes/channels/user-scoped.js'
 import { schedulesApp } from './routes/schedules/index.js'
@@ -114,6 +115,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.use('/workspaces/:workspaceId/knowledge/*', featureGate('knowledge'))
   app.use('/workspaces/:workspaceId/memory/*', featureGate('memory'))
   app.use('/workspaces/:workspaceId/marketplace/*', featureGate('marketplace'))
+  app.use('/marketplace/*', featureGate('marketplace'))
   app.use('/voice/*', featureGate('voice'))
 
   app.onError((err, c) => {
@@ -149,6 +151,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // surface. These sit alongside the untouched workspace-scoped mounts above.
   app.route('/channels', channelsUserApp)
   app.route('/schedules', schedulesUserApp)
+  // `/marketplace` is the GLOBAL marketplace — user+both items, user-scope
+  // installs (Chad's rule). The workspace surface stays mounted above.
+  app.route('/marketplace', marketplaceUserApp)
   // `/notebook` is user-scoped like `/schedules`: books live at either scope
   // (global or one workspace) and the shelf read takes an optional
   // `workspaceId` for a workspace turn's view.

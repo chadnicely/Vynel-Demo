@@ -12,6 +12,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findAgentBySlug } from '@vynel/db/repositories/agents'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
+import { ValidationError } from '@vynel/errors'
 import type { AgentItemManifest } from '@vynel/contracts/marketplace/agent-item-manifest'
 import { installCloudAgent } from './install-cloud-agent.js'
 import { AGENT_CREATED } from '../agents-events.js'
@@ -117,6 +118,40 @@ describe('installCloudAgent', () => {
       })
       expect(row.scope).toBe('user')
       expect(row.workspaceId).toBeNull()
+    })
+  })
+
+  it('installs at user scope with NO workspace at all (the global marketplace path)', async () => {
+    await withTestDatabase(async (db) => {
+      const { user } = seed(db)
+      const { bytes, sha } = await manifestArtifact(makeManifest())
+      const row = await installCloudAgent(db, {
+        userId: user.id,
+        workspaceId: null,
+        itemId: 'focus-writer',
+        scope: 'user',
+        artifactBytes: bytes,
+        expectedSha256: sha,
+      })
+      expect(row.scope).toBe('user')
+      expect(row.workspaceId).toBeNull()
+    })
+  })
+
+  it('rejects a workspace-scope install missing its workspace id', async () => {
+    await withTestDatabase(async (db) => {
+      const { user } = seed(db)
+      const { bytes, sha } = await manifestArtifact(makeManifest())
+      await expect(
+        installCloudAgent(db, {
+          userId: user.id,
+          workspaceId: null,
+          itemId: 'focus-writer',
+          scope: 'workspace',
+          artifactBytes: bytes,
+          expectedSha256: sha,
+        }),
+      ).rejects.toBeInstanceOf(ValidationError)
     })
   })
 

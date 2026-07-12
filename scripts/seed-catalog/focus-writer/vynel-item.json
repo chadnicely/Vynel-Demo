@@ -7,7 +7,7 @@
     "oneLineDescription": "A writing assistant that turns rough notes into polished prose.",
     "category": "documents",
     "iconName": "pen-line",
-    "recommendedScope": "user",
+    "recommendedScope": "both",
     "minimumTier": "basic",
     "status": "published"
   },

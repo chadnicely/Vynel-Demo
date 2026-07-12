@@ -77,13 +77,21 @@ export function findAgentBySlug(db: Database, input: FindAgentBySlugInput): Agen
 
 export type ListAgentsForUserAndWorkspaceInput = {
   userId: string
-  workspaceId: string
+  // null = user-scope rows ONLY (the global marketplace surface has no
+  // workspace to union in) — mirrors `findAgentBySlug`'s null convention.
+  workspaceId: string | null
 }
 
-// Union of user-scope rows (workspaceId IS NULL — available in every
-// workspace) + workspace-scope rows for THIS workspace. Live rows only,
-// newest first. Phase 1 list size is bounded by the curated catalog +
-// the user's own agents — small in practice.
+// With a workspaceId: the union of user-scope rows (workspaceId IS NULL —
+// available in every workspace) + workspace-scope rows for THIS workspace.
+// Live rows only, newest first. Phase 1 list size is bounded by the curated
+// catalog + the user's own agents — small in practice.
+function workspaceUnionClause(workspaceId: string | null) {
+  return workspaceId === null
+    ? isNull(agents.workspaceId)
+    : or(isNull(agents.workspaceId), eq(agents.workspaceId, workspaceId))
+}
+
 export function listAgentsForUserAndWorkspace(
   db: Database,
   input: ListAgentsForUserAndWorkspaceInput,
@@ -95,7 +103,7 @@ export function listAgentsForUserAndWorkspace(
       and(
         eq(agents.userId, input.userId),
         isNull(agents.deletedAt),
-        or(isNull(agents.workspaceId), eq(agents.workspaceId, input.workspaceId)),
+        workspaceUnionClause(input.workspaceId),
       ),
     )
     .orderBy(desc(agents.createdAt))
@@ -116,7 +124,7 @@ export function listEnabledAgentsForUserAndWorkspace(
         eq(agents.userId, input.userId),
         eq(agents.enabled, true),
         isNull(agents.deletedAt),
-        or(isNull(agents.workspaceId), eq(agents.workspaceId, input.workspaceId)),
+        workspaceUnionClause(input.workspaceId),
       ),
     )
     .orderBy(desc(agents.createdAt))

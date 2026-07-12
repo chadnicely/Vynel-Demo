@@ -22,7 +22,7 @@ function depsReturning(installed: InstalledSkillView[]): MarketplaceDeps {
   return { listInstalledSkills: () => installed, listInstalledAgents: () => [] }
 }
 
-const input = { userId: 'user-1', workspaceId: 'ws-1' }
+const input = { userId: 'user-1', surface: 'workspace', workspaceId: 'ws-1' } as const
 
 describe('listMarketplaceItems', () => {
   it('returns the Phase 1 catalog (1 visible item — email-drafter) annotated not-installed', async () => {
@@ -45,6 +45,21 @@ describe('listMarketplaceItems', () => {
       const listInstalledAgents = vi.fn<MarketplaceDeps['listInstalledAgents']>(() => [])
       listMarketplaceItems(db, input, { listInstalledSkills, listInstalledAgents })
       const owner = { userId: 'user-1', workspaceId: 'ws-1' }
+      expect(listInstalledSkills).toHaveBeenCalledWith(db, owner)
+      expect(listInstalledAgents).toHaveBeenCalledWith(db, owner)
+    })
+  })
+
+  it('passes workspaceId: null to both readers on the GLOBAL surface (user-scope annotation only)', async () => {
+    await withTestDatabase(async (db) => {
+      const listInstalledSkills = vi.fn<MarketplaceDeps['listInstalledSkills']>(() => [])
+      const listInstalledAgents = vi.fn<MarketplaceDeps['listInstalledAgents']>(() => [])
+      listMarketplaceItems(
+        db,
+        { userId: 'user-1', surface: 'global' },
+        { listInstalledSkills, listInstalledAgents },
+      )
+      const owner = { userId: 'user-1', workspaceId: null }
       expect(listInstalledSkills).toHaveBeenCalledWith(db, owner)
       expect(listInstalledAgents).toHaveBeenCalledWith(db, owner)
     })

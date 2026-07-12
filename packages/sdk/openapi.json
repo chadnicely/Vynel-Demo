@@ -2058,6 +2058,14 @@
                           "workspace"
                         ]
                       },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "workspace",
+                          "both"
+                        ]
+                      },
                       "isOfficial": {
                         "type": "boolean"
                       },
@@ -2130,6 +2138,7 @@
                       "version",
                       "releasedAt",
                       "recommendedScope",
+                      "scope",
                       "isOfficial",
                       "installStatus"
                     ]
@@ -2294,6 +2303,14 @@
                         "workspace"
                       ]
                     },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace",
+                        "both"
+                      ]
+                    },
                     "isOfficial": {
                       "type": "boolean"
                     },
@@ -2366,6 +2383,7 @@
                     "version",
                     "releasedAt",
                     "recommendedScope",
+                    "scope",
                     "isOfficial",
                     "installStatus"
                   ]
@@ -11429,6 +11447,460 @@
         ],
         "summary": "List a schedule's run history (owner-scoped, newest first, keyset-paginated).",
         "x-sdk-name": "schedulesUser.listRuns"
+      }
+    },
+    "/marketplace/items": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Annotated marketplace items surfaced at the user level.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "itemId": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "skill",
+                          "agent"
+                        ]
+                      },
+                      "skillId": {
+                        "type": "string"
+                      },
+                      "publisherTier": {
+                        "type": "string",
+                        "enum": [
+                          "verified",
+                          "anthropic-official",
+                          "community"
+                        ]
+                      },
+                      "publisherName": {
+                        "type": "string"
+                      },
+                      "publisherUrl": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "displayName": {
+                        "type": "string"
+                      },
+                      "oneLineDescription": {
+                        "type": "string"
+                      },
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "email",
+                          "documents",
+                          "calendar",
+                          "files",
+                          "research",
+                          "notes",
+                          "context"
+                        ]
+                      },
+                      "iconName": {
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "string"
+                      },
+                      "releasedAt": {
+                        "type": "string"
+                      },
+                      "recommendedScope": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "workspace"
+                        ]
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "workspace",
+                          "both"
+                        ]
+                      },
+                      "isOfficial": {
+                        "type": "boolean"
+                      },
+                      "installStatus": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "not-installed"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "installed"
+                              },
+                              "scope": {
+                                "type": "string",
+                                "enum": [
+                                  "user",
+                                  "workspace"
+                                ]
+                              },
+                              "installedId": {
+                                "type": "string"
+                              },
+                              "versionInstalled": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "scope",
+                              "installedId",
+                              "versionInstalled"
+                            ]
+                          }
+                        ]
+                      },
+                      "minimumTier": {
+                        "type": "string",
+                        "enum": [
+                          "basic",
+                          "pro"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "itemId",
+                      "kind",
+                      "skillId",
+                      "publisherTier",
+                      "publisherName",
+                      "publisherUrl",
+                      "displayName",
+                      "oneLineDescription",
+                      "category",
+                      "iconName",
+                      "version",
+                      "releasedAt",
+                      "recommendedScope",
+                      "scope",
+                      "isOfficial",
+                      "installStatus"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getMarketplaceItems",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "category",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "email",
+                "documents",
+                "calendar",
+                "files",
+                "research",
+                "notes",
+                "context"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "publisherTier",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "anthropic-official",
+                "community"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "installState",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "installed",
+                "not-installed"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "searchQuery",
+            "schema": {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "sortBy",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "recommended",
+                "name-asc",
+                "newest"
+              ]
+            }
+          }
+        ],
+        "summary": "List the GLOBAL marketplace (user-level items), annotated with install status.",
+        "x-sdk-name": "marketplaceUser.listItems"
+      }
+    },
+    "/marketplace/install": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The installed item, discriminated by kind.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "skill"
+                        },
+                        "installedSkillId": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "workspace"
+                          ]
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "verified-catalog",
+                            "marketplace",
+                            "external"
+                          ]
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "installedSkillId",
+                        "itemId",
+                        "scope",
+                        "source",
+                        "version"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "agent"
+                        },
+                        "agentId": {
+                          "type": "string"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "workspace"
+                          ]
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "agentId",
+                        "slug",
+                        "itemId",
+                        "scope",
+                        "version"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller’s tier may not install this item."
+          },
+          "404": {
+            "description": "Item not in the catalog or not surfaced at the user level."
+          },
+          "409": {
+            "description": "Already installed at user scope."
+          }
+        },
+        "operationId": "postMarketplaceInstall",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [],
+        "summary": "Install a marketplace item at USER scope (available in every workspace).",
+        "x-sdk-name": "marketplaceUser.install",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "itemId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "itemId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/marketplace/uninstall": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The removed installation, discriminated by item kind.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "skill"
+                        },
+                        "installedSkillId": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "installedSkillId",
+                        "itemId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "agent"
+                        },
+                        "agentId": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "agentId",
+                        "itemId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The skill is system-installed; uninstall blocked."
+          },
+          "404": {
+            "description": "Item not in the catalog, not surfaced at the user level, OR not installed at user scope."
+          }
+        },
+        "operationId": "postMarketplaceUninstall",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [],
+        "summary": "Uninstall a marketplace item installed at USER scope.",
+        "x-sdk-name": "marketplaceUser.uninstall",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "itemId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "itemId"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "/notebook/playbooks": {

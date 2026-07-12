@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { Blocks, Check, Search, SearchX } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import type { MarketplaceItem } from "@vynel/contracts/marketplace/marketplace-item";
+import type { SectionScope } from "./section-scope.js";
 import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
 import { useMarketplaceItems } from "../../composables/marketplace/use-marketplace-items.js";
 import { useInstallMarketplaceItem } from "../../composables/marketplace/use-install-marketplace-item.js";
@@ -10,16 +11,25 @@ import { useUninstallMarketplaceItem } from "../../composables/marketplace/use-u
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import MarketplaceItemCard from "./MarketplaceItemCard.vue";
 
-// The storefront: curated skills and agents, one Get away. The panel only
-// mounts this section while it's the active drawer panel AND the feature is
-// unlocked (LockedFeatureCard renders in its place otherwise), so the
-// catalog read runs unconditionally here.
+// The storefront: curated skills and agents, one Get away. Scope-aware
+// like its section siblings — the GLOBAL menu shows user-level items and
+// installs at user scope, a workspace drawer shows that workspace's shelf
+// (the composables pick the endpoints per surface). Hosts only mount this
+// section while it's the active panel AND the feature is unlocked
+// (LockedFeatureCard renders in its place otherwise), so the catalog read
+// runs unconditionally here.
 const props = defineProps<{
-  workspaceId: string;
+  scope: SectionScope;
 }>();
 
-const itemsQuery = useMarketplaceItems(() => props.workspaceId, true);
+const itemsQuery = useMarketplaceItems(() => props.scope, true);
 const items = computed(() => itemsQuery.data.value ?? []);
+
+const sectionHint = computed(() =>
+  props.scope.kind === "global"
+    ? "Curated skills and agents, ready to add for you"
+    : "Curated skills and agents, ready to add to this workspace",
+);
 
 const { isPro } = useHubFeatures();
 
@@ -85,7 +95,7 @@ function requestRemove(itemId: string) {
     return;
   }
   armedRemoveItemId.value = null;
-  uninstall.mutate({ workspaceId: props.workspaceId, itemId });
+  uninstall.mutate({ scope: props.scope, itemId });
 }
 
 function disarmRemove(itemId: string) {
@@ -115,9 +125,7 @@ function cardErrorFor(itemId: string): string | null {
       <Blocks :size="15" class="section-icon" />
       <div class="section-text">
         <p class="section-title">Marketplace</p>
-        <p class="section-hint">
-          Curated skills and agents, ready to add to this workspace
-        </p>
+        <p class="section-hint">{{ sectionHint }}</p>
       </div>
     </header>
 
@@ -189,12 +197,7 @@ function cardErrorFor(itemId: string): string | null {
           :is-removing="isRemoving(item.itemId)"
           :is-remove-armed="armedRemoveItemId === item.itemId"
           :error-message="cardErrorFor(item.itemId)"
-          @install="
-            install.mutate({
-              workspaceId: props.workspaceId,
-              itemId: item.itemId,
-            })
-          "
+          @install="install.mutate({ scope: props.scope, itemId: item.itemId })"
           @remove-request="requestRemove(item.itemId)"
           @remove-blur="disarmRemove(item.itemId)"
         />

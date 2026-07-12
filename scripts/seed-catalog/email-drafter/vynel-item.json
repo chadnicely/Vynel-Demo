@@ -7,7 +7,7 @@
     "oneLineDescription": "Drafts clear, on-brand emails from a short prompt.",
     "category": "email",
     "iconName": "mail",
-    "recommendedScope": "user",
+    "recommendedScope": "both",
     "minimumTier": "basic",
     "status": "published"
   },

@@ -1,12 +1,15 @@
-// Top-level marketplace browse: resolve the catalog, read the
-// caller's installed skills (user-scope ∪ workspace-scope for this
-// workspace) via the injected reader, annotate, filter+sort.
-// **Sync** — Phase-1 sync-transactions discipline applies; the one
-// injected read returns `T` (not `Promise<T>`), and the rest of the
-// pipeline is in-memory. Caller can still `await` harmlessly.
+// Top-level marketplace browse: resolve the catalog, keep the items the
+// requested SURFACE lists (global = user+both, workspace = workspace+both),
+// read the caller's installed rows via the injected readers, annotate,
+// filter+sort. The WORKSPACE surface annotates against user-scope ∪ that
+// workspace's rows (D12 preference intact); the GLOBAL surface annotates
+// against USER-scoped installs only (`workspaceId: null` to the readers).
+// **Sync** — Phase-1 sync-transactions discipline applies; the injected
+// reads return `T` (not `Promise<T>`), and the rest of the pipeline is
+// in-memory. Caller can still `await` harmlessly.
 //
-// The installed-skills read is INJECTED (`deps.listInstalledSkills`)
-// so this leaf never imports the `skills` sibling leaf (invariant #2).
+// The installed-rows reads are INJECTED (`MarketplaceDeps`) so this leaf
+// never imports the `skills`/`agents` sibling leaves (invariant #2).
 //
 // Spec: blueprint §5.3 + coding.md §6.2.
 
@@ -19,6 +22,7 @@ import type {
 } from '@vynel/contracts/marketplace/marketplace-item'
 import { annotateWithInstallStatus } from './annotate-with-install-status.js'
 import { filterAndSortMarketplaceItems } from './filter-marketplace-items.js'
+import { isItemVisibleOnSurface } from './surface-visibility.js'
 import type { MarketplaceDeps } from './marketplace-types.js'
 
 export function listMarketplaceItems(
@@ -26,8 +30,13 @@ export function listMarketplaceItems(
   input: ListMarketplaceItemsInput,
   deps: MarketplaceDeps,
 ): MarketplaceItem[] {
-  const catalogItems = resolveMergedCatalog(db)
-  const owner = { userId: input.userId, workspaceId: input.workspaceId }
+  const catalogItems = resolveMergedCatalog(db).filter((item) =>
+    isItemVisibleOnSurface(item, input.surface),
+  )
+  const owner = {
+    userId: input.userId,
+    workspaceId: input.surface === 'workspace' ? input.workspaceId : null,
+  }
   const annotated = annotateWithInstallStatus({
     catalogItems,
     installedSkills: deps.listInstalledSkills(db, owner),

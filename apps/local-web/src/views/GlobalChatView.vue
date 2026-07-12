@@ -12,6 +12,7 @@ import AccountSection from "../components/sections/AccountSection.vue";
 import ChannelsSection from "../components/sections/ChannelsSection.vue";
 import KnowledgeSection from "../components/sections/KnowledgeSection.vue";
 import LockedFeatureCard from "../components/sections/LockedFeatureCard.vue";
+import MarketplaceSection from "../components/sections/MarketplaceSection.vue";
 import MemorySection from "../components/sections/MemorySection.vue";
 import NotebookSection from "../components/sections/NotebookSection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
@@ -48,6 +49,7 @@ const GLOBAL_MENU_ITEMS = [
   { id: "knowledge", label: "Knowledge", hint: "The vault Claude studies" },
   { id: "memory", label: "Memory", hint: "What Claude remembers" },
   { id: "notebook", label: "Notebook", hint: "Playbooks Claude reads on demand" },
+  { id: "marketplace", label: "Marketplace", hint: "Skills and agents to add" },
   { id: "account", label: "Account", hint: "Your Vynel account" },
   { id: "application", label: "Application", hint: "Global settings" },
 ];
@@ -59,6 +61,7 @@ const GLOBAL_SECTION_IDS = [
   "knowledge",
   "memory",
   "notebook",
+  "marketplace",
   "account",
 ] as const;
 type GlobalSectionId = (typeof GLOBAL_SECTION_IDS)[number];
@@ -242,7 +245,12 @@ function openContinuous() {
       v-else-if="isGlobalSection(shell.mainView)"
       class="canvas section-view"
     >
-      <div class="section-column">
+      <!-- Marketplace runs full-width (Chad's ask — the card grid earns the
+           room); the other sections keep the deliberate narrow column. -->
+      <div
+        class="section-column"
+        :class="{ 'is-wide': shell.mainView === 'marketplace' }"
+      >
         <ChannelsSection
           v-if="shell.mainView === 'channels'"
           :scope="{ kind: 'global' }"
@@ -267,6 +275,13 @@ function openContinuous() {
           v-else-if="shell.mainView === 'notebook'"
           :scope="{ kind: 'global' }"
         />
+        <template v-else-if="shell.mainView === 'marketplace'">
+          <LockedFeatureCard
+            v-if="isLocked('marketplace')"
+            feature-label="Marketplace"
+          />
+          <MarketplaceSection v-else :scope="{ kind: 'global' }" />
+        </template>
         <LockedFeatureCard
           v-else-if="isLocked('memory')"
           feature-label="Memory"
@@ -388,6 +403,12 @@ function openContinuous() {
   max-width: 720px;
   margin: 0 auto;
   padding: 32px 24px;
+}
+
+/* The marketplace's card grid uses the whole canvas — its siblings stay
+   deliberately narrow (readable single-column sections). */
+.section-column.is-wide {
+  max-width: none;
 }
 
 .processing-banner {

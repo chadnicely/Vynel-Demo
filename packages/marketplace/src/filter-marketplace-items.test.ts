@@ -20,6 +20,7 @@ function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
     version: '1.0.0',
     releasedAt: '2026-01-01T00:00:00Z',
     recommendedScope: 'user',
+    scope: 'both',
     isOfficial: true,
     installStatus: { kind: 'not-installed' },
     ...overrides,

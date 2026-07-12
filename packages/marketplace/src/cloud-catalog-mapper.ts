@@ -7,6 +7,7 @@
 import type {
   MarketplaceItem,
   MarketplaceItemKind,
+  MarketplaceItemScope,
   PublisherTier,
 } from '@vynel/contracts/marketplace/marketplace-item'
 import type {
@@ -39,6 +40,15 @@ function toItemKind(raw: string): MarketplaceItemKind {
   return raw === 'agent' ? 'agent' : 'skill'
 }
 
+// The cache row's `recommendedScope` text doubles as the hub's SURFACING
+// scope (user/workspace/both after the hub-side scope rollout). A null or
+// unknown value maps to 'both': legacy hub rows predate the scope semantics,
+// and a legacy item must never vanish from either marketplace surface just
+// because its publisher hasn't re-edited it.
+function toItemScope(raw: string | null): MarketplaceItemScope {
+  return raw === 'user' || raw === 'workspace' ? raw : 'both'
+}
+
 export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): MarketplaceItem {
   return {
     itemId: row.itemId,
@@ -53,7 +63,11 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
     iconName: row.iconName,
     version: row.latestVersion,
     releasedAt: row.releasedAt,
+    // The install picker's default only — a 'both' surfacing scope still
+    // needs one concrete SkillScope to suggest, and 'user' matches what a
+    // 'both' item most often is (useful everywhere).
     recommendedScope: (row.recommendedScope === 'workspace' ? 'workspace' : 'user') as SkillScope,
+    scope: toItemScope(row.recommendedScope),
     isOfficial: toPublisherTier(row.publisherTier) === 'verified',
     installStatus: { kind: 'not-installed' },
     minimumTier: row.minimumTier === 'pro' ? 'pro' : 'basic',

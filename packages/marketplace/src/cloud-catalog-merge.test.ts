@@ -20,7 +20,9 @@ function cloudItem(over: Partial<HubCatalogItem> & { itemId: string }): HubCatal
     oneLineDescription: 'x',
     category: 'email',
     iconName: 'mail',
-    recommendedScope: 'user',
+    // 'both' — these tests browse the WORKSPACE surface; the surfacing
+    // matrix itself is covered in surface-visibility.test.ts.
+    recommendedScope: 'both',
     minimumTier: 'basic',
     latestVersion: '1.0.0',
     latestVersionSha256: 'a'.repeat(64),
@@ -67,7 +69,7 @@ describe('cloud catalog merge', () => {
       syncCloudCatalog(db, [cloudItem({ itemId: 'email-drafter' })], new Date())
       const items = listMarketplaceItems(
         db,
-        { userId: 'u', workspaceId: 'w' },
+        { userId: 'u', surface: 'workspace', workspaceId: 'w' },
         {
           listInstalledSkills: () => [
             { id: 'i1', skillId: 'email-drafter', workspaceId: null, scope: 'user', versionInstalled: '1.0.0' },
@@ -86,7 +88,7 @@ describe('cloud catalog merge', () => {
       syncCloudCatalog(db, [cloudItem({ itemId: 'focus-writer', kind: 'agent' })], new Date())
       const items = listMarketplaceItems(
         db,
-        { userId: 'u', workspaceId: 'w' },
+        { userId: 'u', surface: 'workspace', workspaceId: 'w' },
         {
           listInstalledSkills: () => [],
           listInstalledAgents: () => [

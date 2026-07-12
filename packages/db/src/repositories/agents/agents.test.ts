@@ -183,6 +183,21 @@ describe('agents repository', () => {
       })
     })
 
+    it('returns user-scope agents ONLY when workspaceId is null (the global-surface read)', async () => {
+      await withTestDatabase((db) => {
+        const user = insertUser(db, makeUser())
+        const workspace = insertWorkspace(db, makeWorkspace(user.id))
+        insertAgent(db, makeAgent(user.id, null, { slug: 'a' }))
+        insertAgent(db, makeAgent(user.id, workspace.id, { slug: 'b' }))
+
+        const list = listAgentsForUserAndWorkspace(db, {
+          userId: user.id,
+          workspaceId: null,
+        })
+        expect(list.map((r) => r.slug)).toEqual(['a'])
+      })
+    })
+
     it('excludes workspace-scope agents from other workspaces', async () => {
       await withTestDatabase((db) => {
         const user = insertUser(db, makeUser())
