@@ -7,7 +7,7 @@ export interface CatalogItemMetadataPatch {
   oneLineDescription?: string;
   category?: string;
   iconName?: string;
-  recommendedScope?: "user" | "workspace" | null;
+  recommendedScope?: "user" | "workspace" | "both" | null;
   minimumTier?: "basic" | "pro";
 }
 

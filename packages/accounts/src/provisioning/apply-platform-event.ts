@@ -8,12 +8,11 @@ import { ConflictError, ForbiddenError } from '@vynel/errors'
 import type { CloudDatabase } from '@vynel/cloud-db'
 import {
   findAccountByPlatformUserId,
-  setAccountStatus,
   setAccountTier,
   updateAccountDisplayName,
   updateAccountEmail,
 } from '@vynel/cloud-db/repositories/accounts'
-import { revokeAllRefreshTokensForAccount } from '../repositories/refresh-tokens/index.js'
+import { setAccountLifecycleStatus } from '../status/set-account-lifecycle-status.js'
 import { createProvisionedAccount } from './create-account.js'
 import { isUniqueViolation } from './unique-violation.js'
 import type { SetPasswordLinkDeps } from '../credentials/set-password-links.js'
@@ -85,8 +84,7 @@ export async function applyPlatformEvent(
       if (existing === null) return { outcome: 'ignored', accountId: null }
       // Disable + kill every device session: the next boot check locks the
       // desktop (the revocation moment). The row stays for audit/re-grant.
-      await setAccountStatus(db, { accountId: existing.id, status: 'disabled' })
-      await revokeAllRefreshTokensForAccount(db, { accountId: existing.id, revokedAt: now })
+      await setAccountLifecycleStatus(db, { accountId: existing.id, status: 'disabled', now })
       return { outcome: 'removed', accountId: existing.id }
     }
   }

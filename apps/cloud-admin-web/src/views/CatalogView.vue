@@ -42,7 +42,7 @@ function isKind(tab: KindTab): tab is HubItemKind {
         class="button button-primary"
         :to="{ name: 'catalog-publish' }"
       >
-        Publish item
+        Add Marketplace Catalog
       </RouterLink>
     </header>
     <div class="kind-tabs" role="tablist">
@@ -75,8 +75,8 @@ function isKind(tab: KindTab): tab is HubItemKind {
         No {{ activeKind }} items yet.
       </template>
       <template v-else>
-        The catalog is empty — use the "Publish item" button above to publish
-        the first one.
+        The catalog is empty — use the "Add Marketplace Catalog" button above
+        to publish the first one.
       </template>
     </p>
     <table v-else class="catalog-table">

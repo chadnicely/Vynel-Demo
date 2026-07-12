@@ -28,7 +28,7 @@ export const PublishItemSchema = z.object({
     oneLineDescription: z.string().min(1).max(280),
     category: z.string().min(1).max(60),
     iconName: z.string().min(1).max(60),
-    recommendedScope: z.enum(['user', 'workspace']).nullable().optional(),
+    recommendedScope: z.enum(['user', 'workspace', 'both']).nullable().optional(),
     minimumTier: z.enum(['basic', 'pro']).default('basic'),
     status: z.enum(['draft', 'published', 'yanked']).default('published'),
   }),

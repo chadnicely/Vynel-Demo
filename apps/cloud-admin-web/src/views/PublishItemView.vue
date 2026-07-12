@@ -10,7 +10,7 @@ import {
 
 type ItemKind = PublishCatalogVersionInput["item"]["kind"];
 // '' stands in for null in the scope <select> (options can't carry null).
-type ScopeOption = "" | "user" | "workspace";
+type ScopeOption = "" | "user" | "workspace" | "both";
 
 const MANIFEST_PREFILLS: Record<ItemKind, string> = {
   skill: '{"kind":"skill","entryFile":"SKILL.md"}',
@@ -144,7 +144,7 @@ async function handleSubmit() {
 
 <template>
   <section class="publish-view">
-    <h1 class="page-title">Publish new item</h1>
+    <h1 class="page-title">Add Marketplace Catalog</h1>
     <form class="card" @submit.prevent="handleSubmit">
       <div class="field-row">
         <label class="field">
@@ -202,6 +202,7 @@ async function handleSubmit() {
           <select v-model="form.recommendedScope" class="select-input">
             <option value="user">User</option>
             <option value="workspace">Workspace</option>
+            <option value="both">User and workspace</option>
             <option value="">None</option>
           </select>
         </label>

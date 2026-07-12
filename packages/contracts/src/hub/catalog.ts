@@ -11,6 +11,9 @@ import type { HubTier } from './entitlements.js'
 export type HubItemKind = 'skill' | 'agent' | 'mcp' | 'rule' | 'plugin'
 export type HubItemStatus = 'draft' | 'published' | 'yanked'
 export type HubPublisherTier = 'verified' | 'community'
+/** Where the item is meant to live once installed — 'both' means it fits
+ * either level and the installer lets the user pick. */
+export type HubRecommendedScope = 'user' | 'workspace' | 'both'
 
 export interface HubCatalogVersion {
   readonly version: string

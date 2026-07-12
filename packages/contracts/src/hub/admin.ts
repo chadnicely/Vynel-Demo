@@ -5,10 +5,32 @@
 // every version) and never annotates `canInstall`.
 // Consumers import the file directly (`@vynel/contracts/hub/admin`).
 
-import type { HubItemKind, HubItemStatus, HubCatalogVersion, HubPublisherTier } from './catalog.js'
+import type {
+  HubItemKind,
+  HubItemStatus,
+  HubCatalogVersion,
+  HubPublisherTier,
+  HubRecommendedScope,
+} from './catalog.js'
 import type { HubTier } from './entitlements.js'
 
 export type HubAccountRole = 'member' | 'admin'
+export type HubAccountStatus = 'active' | 'disabled'
+
+/** One row of the portal's account-management table. Deliberately NOT the DB
+ * row: no passwordHash, no platform internals — the wire shape is the
+ * allowlist. */
+export interface HubAdminAccount {
+  readonly id: string
+  readonly email: string
+  readonly displayName: string
+  readonly role: HubAccountRole
+  readonly tier: HubTier
+  /** ISO datetime; null = the tier never lapses. */
+  readonly tierExpiresAt: string | null
+  readonly status: HubAccountStatus
+  readonly createdAt: string
+}
 
 export interface HubAdminCatalogItem {
   readonly itemId: string
@@ -21,7 +43,7 @@ export interface HubAdminCatalogItem {
   readonly oneLineDescription: string
   readonly category: string
   readonly iconName: string
-  readonly recommendedScope: 'user' | 'workspace' | null
+  readonly recommendedScope: HubRecommendedScope | null
   readonly minimumTier: HubTier
   readonly createdAt: string
   readonly updatedAt: string

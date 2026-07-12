@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { NotFoundError } from '@vynel/errors'
 import type { CloudDatabase } from '@vynel/cloud-db'
 import type { HubAdminCatalogItem } from '@vynel/contracts/hub/admin'
-import type { HubItemKind, HubItemStatus } from '@vynel/contracts/hub/catalog'
+import type { HubItemKind, HubItemStatus, HubRecommendedScope } from '@vynel/contracts/hub/catalog'
 import {
   findCatalogItemById,
   listAllItemsWithPublisher,
@@ -23,8 +23,8 @@ import type { ItemVersionRow } from './schema/item-versions.js'
 
 // The DB column is plain text; publish validates at write time, but the wire
 // contract promises the enum — coerce legacy/unknown rows here, in one home.
-function normalizeScope(raw: string | null): 'user' | 'workspace' | null {
-  return raw === 'user' || raw === 'workspace' ? raw : null
+function normalizeScope(raw: string | null): HubRecommendedScope | null {
+  return raw === 'user' || raw === 'workspace' || raw === 'both' ? raw : null
 }
 
 function toHubAdminCatalogItem(
@@ -68,7 +68,7 @@ export const UpdateCatalogItemMetadataSchema = z
     oneLineDescription: z.string().min(1).max(280).optional(),
     category: z.string().min(1).max(60).optional(),
     iconName: z.string().min(1).max(60).optional(),
-    recommendedScope: z.enum(['user', 'workspace']).nullable().optional(),
+    recommendedScope: z.enum(['user', 'workspace', 'both']).nullable().optional(),
     minimumTier: z.enum(['basic', 'pro']).optional(),
   })
   // An empty patch is a caller bug, not a no-op success.

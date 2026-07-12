@@ -12,8 +12,10 @@ export {
   type EntitlementTokenIssuer,
 } from './tokens/entitlement-token.js'
 export { resolveActiveAccountTier } from './tiers/resolve-active-account-tier.js'
+export { assignAccountTier } from './tiers/assign-account-tier.js'
 export { resolveActiveAccountRole } from './roles/resolve-active-account-role.js'
 export { assignAccountRole } from './roles/assign-account-role.js'
+export { setAccountLifecycleStatus } from './status/set-account-lifecycle-status.js'
 export {
   applyPlatformEvent,
   type PlatformUserEvent,

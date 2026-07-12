@@ -3,7 +3,7 @@
 // unique index on `email` is case-insensitive in practice — see the schema
 // comment; callers never lowercase themselves.
 
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { NotFoundError } from '@vynel/errors'
 import type { CloudDatabase } from '../../client.js'
 import {
@@ -66,6 +66,36 @@ export async function getAccountByIdOrThrow(
   const account = await findAccountById(db, accountId)
   if (account === null) throw new NotFoundError('account', accountId)
   return account
+}
+
+/** What the admin surface may see of an account. An explicit allowlist —
+ * never the full row, so `passwordHash` and platform internals cannot leak
+ * onto the wire by accident. */
+export interface AccountAdminListRow {
+  readonly id: string
+  readonly email: string
+  readonly displayName: string
+  readonly role: string
+  readonly tier: string
+  readonly tierExpiresAt: Date | null
+  readonly status: string
+  readonly createdAt: Date
+}
+
+export async function listAccountsForAdmin(db: CloudDatabase): Promise<AccountAdminListRow[]> {
+  return db
+    .select({
+      id: accounts.id,
+      email: accounts.email,
+      displayName: accounts.displayName,
+      role: accounts.role,
+      tier: accounts.tier,
+      tierExpiresAt: accounts.tierExpiresAt,
+      status: accounts.status,
+      createdAt: accounts.createdAt,
+    })
+    .from(accounts)
+    .orderBy(desc(accounts.createdAt))
 }
 
 export async function updateAccountPasswordHash(

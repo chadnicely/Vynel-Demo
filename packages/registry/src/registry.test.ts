@@ -90,3 +90,11 @@ describe('PublishItemSchema reserved ids', () => {
     expect(result.success).toBe(false)
   })
 })
+
+describe('PublishItemSchema recommendedScope', () => {
+  it("accepts 'both' — an item can fit the user AND workspace levels", () => {
+    const input = publishInput({ recommendedScope: 'both' })
+    const result = PublishItemSchema.safeParse(input)
+    expect(result.success).toBe(true)
+  })
+})

@@ -10,6 +10,7 @@ import type { Hono } from 'hono'
 import { withTestCloudDatabase } from '@vynel/cloud-db/testing'
 import type { CloudDatabase } from '@vynel/cloud-db'
 import { insertAccount, setAccountRole } from '@vynel/cloud-db/repositories/accounts'
+import type { HubAdminAccount } from '@vynel/contracts/hub/admin'
 import {
   createAccessTokenIssuer,
   createAccessTokenVerifier,
@@ -132,6 +133,93 @@ describe('admin routes — the dual door', () => {
   })
 })
 
+describe('admin routes — account management', () => {
+  it('lists accounts as the allowlisted DTO — no passwordHash, no platform internals', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const app = buildApp(db)
+      await insertAccount(db, {
+        id: 'acct-1',
+        email: 'One@Ex.com',
+        displayName: 'One',
+        platformUserId: 'plat-1',
+        passwordHash: 'super-secret-hash',
+      })
+
+      const response = await app.request('/admin/accounts', auth(ADMIN))
+      expect(response.status).toBe(200)
+      const raw = await response.text()
+      expect(raw).not.toContain('passwordHash')
+      expect(raw).not.toContain('super-secret-hash')
+      expect(raw).not.toContain('platformUserId')
+
+      const { accounts } = JSON.parse(raw) as { accounts: HubAdminAccount[] }
+      expect(accounts).toHaveLength(1)
+      expect(accounts[0]).toMatchObject({
+        id: 'acct-1',
+        email: 'one@ex.com',
+        displayName: 'One',
+        role: 'member',
+        tier: 'basic',
+        tierExpiresAt: null,
+        status: 'active',
+      })
+    })
+  })
+
+  it('changes tier (with optional expiry) and 404s an unknown account', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const app = buildApp(db)
+      await insertAccount(db, { id: 'tier-me', email: 'tier@ex.com', displayName: 'Tier' })
+
+      const upgrade = await app.request(
+        '/admin/accounts/tier-me/tier',
+        jsonInit(ADMIN, { tier: 'pro', tierExpiresAt: '2027-01-01T00:00:00.000Z' }),
+      )
+      expect(upgrade.status).toBe(200)
+
+      const list = await app.request('/admin/accounts', auth(ADMIN))
+      const { accounts } = (await list.json()) as { accounts: HubAdminAccount[] }
+      expect(accounts[0]).toMatchObject({
+        tier: 'pro',
+        tierExpiresAt: '2027-01-01T00:00:00.000Z',
+      })
+
+      expect(
+        (await app.request('/admin/accounts/ghost/tier', jsonInit(ADMIN, { tier: 'pro' }))).status,
+      ).toBe(404)
+    })
+  })
+
+  it('disabling an admin kills their surface on the very next request', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const app = buildApp(db)
+      const adminToken = await seedAccount(db, 'soon-gone')
+      await setAccountRole(db, { accountId: 'soon-gone', role: 'admin' })
+      expect((await app.request('/admin/catalog', auth(adminToken))).status).toBe(200)
+
+      const disable = await app.request(
+        '/admin/accounts/soon-gone/status',
+        jsonInit(ADMIN, { status: 'disabled' }),
+      )
+      expect(disable.status).toBe(200)
+      // The fresh-read rule: the still-valid JWT no longer carries authority.
+      expect((await app.request('/admin/catalog', auth(adminToken))).status).toBe(403)
+
+      const list = await app.request('/admin/accounts', auth(ADMIN))
+      const { accounts } = (await list.json()) as { accounts: HubAdminAccount[] }
+      expect(accounts.find((a) => a.id === 'soon-gone')?.status).toBe('disabled')
+
+      // Re-enable restores the surface — the lifecycle is reversible.
+      await app.request('/admin/accounts/soon-gone/status', jsonInit(ADMIN, { status: 'active' }))
+      expect((await app.request('/admin/catalog', auth(adminToken))).status).toBe(200)
+
+      expect(
+        (await app.request('/admin/accounts/ghost/status', jsonInit(ADMIN, { status: 'disabled' }))).status,
+      ).toBe(404)
+    })
+  })
+})
+
 describe('admin routes — validation envelope', () => {
   it('answers a schema-invalid publish with the {code, message} 400 envelope', async () => {
     await withTestCloudDatabase(async (db) => {
@@ -182,6 +270,19 @@ describe('admin routes — the catalog lifecycle', () => {
       expect(
         (await app.request('/admin/catalog/ghost', jsonInit(ADMIN, { displayName: 'X' }, 'PATCH'))).status,
       ).toBe(404)
+
+      // An item can recommend BOTH scopes — 'both' round-trips patch → list.
+      expect(
+        (
+          await app.request(
+            '/admin/catalog/live-skill',
+            jsonInit(ADMIN, { recommendedScope: 'both' }, 'PATCH'),
+          )
+        ).status,
+      ).toBe(200)
+      const relisted = await app.request('/admin/catalog', auth(ADMIN))
+      const bothItems = (await relisted.json()) as { items: HubAdminCatalogItem[] }
+      expect(bothItems.items.find((i) => i.itemId === 'live-skill')?.recommendedScope).toBe('both')
 
       // Yank: browse loses the item AND the download gate refuses it, instantly.
       const userToken = await seedAccount(db, 'shopper')

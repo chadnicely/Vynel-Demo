@@ -4,6 +4,7 @@ export {
   findAccountById,
   findAccountByPlatformUserId,
   getAccountByIdOrThrow,
+  listAccountsForAdmin,
   updateAccountPasswordHash,
   updateAccountDisplayName,
   updateAccountEmail,
@@ -11,5 +12,6 @@ export {
   setAccountTier,
   setAccountRole,
   type InsertAccountInput,
+  type AccountAdminListRow,
 } from './accounts-repository.js'
 export type { AccountRole, AccountStatus } from '../../schema/accounts/accounts.js'

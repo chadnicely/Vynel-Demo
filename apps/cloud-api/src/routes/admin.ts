@@ -7,7 +7,14 @@
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
-import { assignAccountRole, createProvisionedAccount } from '@vynel/accounts'
+import {
+  assignAccountRole,
+  assignAccountTier,
+  createProvisionedAccount,
+  setAccountLifecycleStatus,
+} from '@vynel/accounts'
+import { listAccountsForAdmin } from '@vynel/cloud-db/repositories/accounts'
+import type { HubAdminAccount } from '@vynel/contracts/hub/admin'
 import {
   PublishItemSchema,
   publishCatalogArtifact,
@@ -66,6 +73,22 @@ export function buildAdminRoutes(options: CloudAppOptions) {
       )
       return c.json({ accountId }, 201)
     })
+    .get('/accounts', async (c) => {
+      const rows = await listAccountsForAdmin(options.db)
+      // The repo already allowlists columns; here we only coerce the plain
+      // text role/tier/status columns onto the wire enums (legacy-safe).
+      const accounts: HubAdminAccount[] = rows.map((row) => ({
+        id: row.id,
+        email: row.email,
+        displayName: row.displayName,
+        role: row.role === 'admin' ? 'admin' : 'member',
+        tier: row.tier === 'pro' ? 'pro' : 'basic',
+        tierExpiresAt: row.tierExpiresAt?.toISOString() ?? null,
+        status: row.status === 'disabled' ? 'disabled' : 'active',
+        createdAt: row.createdAt.toISOString(),
+      }))
+      return c.json({ accounts })
+    })
     .post(
       '/accounts/:accountId/role',
       jsonValidator(z.object({ role: z.enum(['member', 'admin']) })),
@@ -74,6 +97,42 @@ export function buildAdminRoutes(options: CloudAppOptions) {
         const { role } = c.req.valid('json')
         await assignAccountRole(options.db, { accountId, role })
         return c.json({ accountId, role })
+      },
+    )
+    .post(
+      '/accounts/:accountId/tier',
+      jsonValidator(
+        z.object({
+          tier: z.enum(['basic', 'pro']),
+          tierExpiresAt: z.string().datetime().nullable().optional(),
+        }),
+      ),
+      async (c) => {
+        const accountId = c.req.param('accountId')
+        const { tier, tierExpiresAt } = c.req.valid('json')
+        await assignAccountTier(options.db, {
+          accountId,
+          tier,
+          tierExpiresAt:
+            tierExpiresAt === undefined || tierExpiresAt === null
+              ? null
+              : new Date(tierExpiresAt),
+        })
+        return c.json({ accountId, tier })
+      },
+    )
+    .post(
+      '/accounts/:accountId/status',
+      jsonValidator(z.object({ status: z.enum(['active', 'disabled']) })),
+      async (c) => {
+        const accountId = c.req.param('accountId')
+        const { status } = c.req.valid('json')
+        await setAccountLifecycleStatus(options.db, {
+          accountId,
+          status,
+          ...(options.now !== undefined ? { now: options.now() } : {}),
+        })
+        return c.json({ accountId, status })
       },
     )
     .get('/catalog', async (c) => {

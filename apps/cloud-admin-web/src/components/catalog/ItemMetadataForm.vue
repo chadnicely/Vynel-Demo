@@ -12,7 +12,7 @@ const props = defineProps<{ item: HubAdminCatalogItem }>();
 const updateMutation = useUpdateCatalogItem();
 
 // '' stands in for null in the scope <select> (options can't carry null).
-type ScopeOption = "" | "user" | "workspace";
+type ScopeOption = "" | "user" | "workspace" | "both";
 
 function baselineFields(item: HubAdminCatalogItem) {
   // The annotation stops TS widening the literal union to string inside the
@@ -98,6 +98,7 @@ function save() {
           <option value="">None</option>
           <option value="user">User</option>
           <option value="workspace">Workspace</option>
+          <option value="both">User and workspace</option>
         </select>
       </label>
       <label class="field">
