@@ -53,7 +53,8 @@ UI over dead Get buttons:
 - `mcp` kind (two forks above) · `rule` kind (rides arc ④) · `plugin` kind (undefined) ·
   update-flow ("catalog version > installed → Update") · shared artifact-extractor home ·
   bundled agents in the marketplace (curated agents already have their own surface).
-- Slug-collision drift: a USER-created agent whose slug equals a catalog itemId flips that card to
-  "Installed" (install-status keys agents on slug === itemId) — Phase-1 accepted.
+- ~~Slug-collision drift~~ — CLOSED (source-filtered) on 2026-07-12: the annotator now matches
+  agents on slug === itemId AND `source === 'community'`, so a USER-created agent with a colliding
+  slug neither shows "Installed" nor gets soft-deleted by `POST /uninstall`.
 - `createAgent` inserts its row without co-committing an outbox event (invariant 8) — a
   pre-existing gap inherited by this slice, not introduced here; its fix is its own move.

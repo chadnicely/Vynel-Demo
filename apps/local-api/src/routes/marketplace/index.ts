@@ -1,7 +1,7 @@
 // HTTP routes for the `marketplace` domain, mounted under
-// `/workspaces/:workspaceId/marketplace`. Three routes: `GET /items` (list,
+// `/workspaces/:workspaceId/marketplace`. Four routes: `GET /items` (list,
 // annotated with install status) + `GET /items/:itemId` (detail) +
-// `POST /install`. Owner-filtered via `...workspaceScoped`.
+// `POST /install` + `POST /uninstall`. Owner-filtered via `...workspaceScoped`.
 //
 // The install-status annotation is derived from the caller's installed
 // skills. The `@vynel/marketplace` LEAF never imports the `skills`
@@ -31,10 +31,15 @@ import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
-import { ValidationError } from '@vynel/errors'
+import { NotFoundError, ValidationError } from '@vynel/errors'
 import { listMarketplaceItems, getMarketplaceItem, findCachedCloudItem } from '@vynel/marketplace'
-import { listInstalledSkillsForUserAndWorkspace, installSkill, installCloudSkill } from '@vynel/skills'
-import { installCloudAgent } from '@vynel/agents'
+import {
+  listInstalledSkillsForUserAndWorkspace,
+  installSkill,
+  installCloudSkill,
+  uninstallSkill,
+} from '@vynel/skills'
+import { installCloudAgent, softDeleteAgent } from '@vynel/agents'
 import { listAgentsForUserAndWorkspace } from '@vynel/db/repositories/agents'
 import {
   ListMarketplaceItemsQuerySchema,
@@ -43,12 +48,16 @@ import {
   MarketplaceItemSchema,
   InstallMarketplaceItemBodySchema,
   InstallMarketplaceItemResponseSchema,
+  UninstallMarketplaceItemBodySchema,
+  UninstallMarketplaceItemResponseSchema,
 } from './schemas.js'
 import { serializeMarketplaceItem, serializeInstalledSkillResponse } from './serializers.js'
 
 // Agents' install-status reader binds the kernel repo directly — the
 // `@vynel/agents` leaf export (`listAgentsForWorkspace`) is async, and
-// the marketplace pipeline is sync (Phase-1 sync-transactions).
+// the marketplace pipeline is sync (Phase-1 sync-transactions). The
+// row's `source` rides along: the annotator matches marketplace-
+// installed (`source: 'community'`) agents only.
 const marketplaceDeps = {
   listInstalledSkills: listInstalledSkillsForUserAndWorkspace,
   listInstalledAgents: listAgentsForUserAndWorkspace,
@@ -206,5 +215,62 @@ export const marketplaceApp = factory
         { logger: c.var.logger },
       )
       return c.json(serializeInstalledSkillResponse(installed, itemId), 201)
+    },
+  )
+  .post(
+    '/uninstall',
+    describeRoute({
+      tags: ['marketplace'],
+      summary: 'Uninstall a marketplace item (skill hard-delete or agent soft-delete).',
+      'x-sdk-name': 'marketplace.uninstall',
+      responses: {
+        200: {
+          description: 'The removed installation, discriminated by item kind.',
+          content: { 'application/json': { schema: resolver(UninstallMarketplaceItemResponseSchema) } },
+        },
+        403: { description: 'The skill is system-installed; uninstall blocked.' },
+        404: { description: 'Item not in catalog, not installed, OR workspace not found.' },
+      },
+    }),
+    validator('json', UninstallMarketplaceItemBodySchema),
+    ...workspaceScoped,
+    async (c) => {
+      const { itemId } = c.req.valid('json')
+      const workspace = c.var.workspace!
+      // The SAME per-kind resolution the list annotator uses (skills key on
+      // skillId, agents on slug === itemId AND source === 'community',
+      // workspace-scope preferred) — so the row we remove is exactly the one
+      // the card shows as "Installed", and a hand-made agent with a
+      // colliding slug is never soft-deleted here.
+      const item = getMarketplaceItem(
+        c.var.db,
+        { itemId, userId: c.var.user.id, workspaceId: workspace.id },
+        marketplaceDeps,
+      )
+      if (item.installStatus.kind !== 'installed') {
+        throw new NotFoundError('installed-item', itemId)
+      }
+      if (item.kind === 'agent') {
+        await softDeleteAgent(
+          c.var.db,
+          { agentId: item.installStatus.installedId, userId: c.var.user.id },
+          { logger: c.var.logger },
+        )
+        return c.json({ kind: 'agent' as const, agentId: item.installStatus.installedId, itemId })
+      }
+      await uninstallSkill(
+        c.var.db,
+        {
+          userId: c.var.user.id,
+          installedSkillId: item.installStatus.installedId,
+          workspacePath: workspace.path,
+        },
+        { logger: c.var.logger },
+      )
+      return c.json({
+        kind: 'skill' as const,
+        installedSkillId: item.installStatus.installedId,
+        itemId,
+      })
     },
   )

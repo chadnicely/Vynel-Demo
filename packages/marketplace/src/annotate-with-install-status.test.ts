@@ -119,8 +119,18 @@ describe('annotateWithInstallStatus', () => {
 describe('annotateWithInstallStatus — agent items (C-agents)', () => {
   const agentItem = makeItem({ itemId: 'focus-writer', kind: 'agent', skillId: 'focus-writer' })
 
+  function makeAgentView(overrides: Partial<InstalledAgentView> = {}): InstalledAgentView {
+    return {
+      id: 'a1',
+      slug: 'focus-writer',
+      workspaceId: null,
+      source: 'community',
+      ...overrides,
+    }
+  }
+
   it('marks an agent item installed when a matching slug exists (null version)', () => {
-    const [annotated] = annotate([agentItem], [], [{ id: 'a1', slug: 'focus-writer', workspaceId: null }])
+    const [annotated] = annotate([agentItem], [], [makeAgentView()])
     expect(annotated?.installStatus).toEqual({
       kind: 'installed',
       scope: 'user',
@@ -133,10 +143,7 @@ describe('annotateWithInstallStatus — agent items (C-agents)', () => {
     const [annotated] = annotate(
       [agentItem],
       [],
-      [
-        { id: 'a1', slug: 'focus-writer', workspaceId: null },
-        { id: 'a2', slug: 'focus-writer', workspaceId: 'ws1' },
-      ],
+      [makeAgentView({ id: 'a1' }), makeAgentView({ id: 'a2', workspaceId: 'ws1' })],
     )
     expect(annotated?.installStatus).toMatchObject({
       kind: 'installed',
@@ -151,11 +158,28 @@ describe('annotateWithInstallStatus — agent items (C-agents)', () => {
   })
 
   it('never matches a skill item against installed AGENTS with the same id', () => {
-    const [annotated] = annotate(
-      [makeItem()],
-      [],
-      [{ id: 'a1', slug: 'email-drafter', workspaceId: null }],
-    )
+    const [annotated] = annotate([makeItem()], [], [makeAgentView({ slug: 'email-drafter' })])
     expect(annotated?.installStatus).toEqual({ kind: 'not-installed' })
+  })
+
+  it('never matches a HAND-MADE agent (source=user) whose slug collides with an itemId', () => {
+    const [annotated] = annotate([agentItem], [], [makeAgentView({ source: 'user' })])
+    expect(annotated?.installStatus).toEqual({ kind: 'not-installed' })
+  })
+
+  it('still matches the community-sourced agent when a user-sourced one shares the slug', () => {
+    const [annotated] = annotate(
+      [agentItem],
+      [],
+      [
+        makeAgentView({ id: 'handmade', source: 'user', workspaceId: 'ws1' }),
+        makeAgentView({ id: 'installed', source: 'community' }),
+      ],
+    )
+    expect(annotated?.installStatus).toMatchObject({
+      kind: 'installed',
+      scope: 'user',
+      installedId: 'installed',
+    })
   })
 })

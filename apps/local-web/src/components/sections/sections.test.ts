@@ -114,6 +114,63 @@ describe("ChannelsSection", () => {
     expect(wrapper.text()).toContain("vynel");
     expect(wrapper.text()).not.toContain("Other");
   });
+
+  it("disconnects only on the second, armed click (one click never deletes)", async () => {
+    const disconnectCalls: unknown[] = [];
+    const client = {
+      channelsUser: {
+        list: async () => [makeChannel()],
+        disconnect: async (channelId: string) => {
+          disconnectCalls.push(channelId);
+        },
+      },
+      workspaces: { list: async () => [] },
+    } as unknown as VynelClient;
+
+    const wrapper = mountSection(ChannelsSection, { kind: "global" }, client);
+    await flushPromises();
+
+    // First click only arms — the control flips to "Sure?" and nothing fires.
+    const armButton = wrapper.get('[aria-label="Disconnect My Telegram"]');
+    await armButton.trigger("click");
+    await flushPromises();
+    expect(disconnectCalls).toEqual([]);
+
+    const confirmButton = wrapper.get(
+      '[aria-label="Confirm disconnect My Telegram"]',
+    );
+    expect(confirmButton.text()).toBe("Sure?");
+    await confirmButton.trigger("click");
+    await flushPromises();
+    expect(disconnectCalls).toEqual(["c1"]);
+  });
+
+  it("disarms the disconnect confirm on blur instead of firing", async () => {
+    const disconnectCalls: unknown[] = [];
+    const client = {
+      channelsUser: {
+        list: async () => [makeChannel()],
+        disconnect: async (channelId: string) => {
+          disconnectCalls.push(channelId);
+        },
+      },
+      workspaces: { list: async () => [] },
+    } as unknown as VynelClient;
+
+    const wrapper = mountSection(ChannelsSection, { kind: "global" }, client);
+    await flushPromises();
+
+    await wrapper.get('[aria-label="Disconnect My Telegram"]').trigger("click");
+    await wrapper
+      .get('[aria-label="Confirm disconnect My Telegram"]')
+      .trigger("blur");
+    await flushPromises();
+
+    expect(disconnectCalls).toEqual([]);
+    expect(
+      wrapper.find('[aria-label="Disconnect My Telegram"]').exists(),
+    ).toBe(true);
+  });
 });
 
 describe("SchedulesSection", () => {

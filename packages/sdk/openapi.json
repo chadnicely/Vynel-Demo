@@ -2551,6 +2551,104 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/marketplace/uninstall": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The removed installation, discriminated by item kind.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "skill"
+                        },
+                        "installedSkillId": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "installedSkillId",
+                        "itemId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "agent"
+                        },
+                        "agentId": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "agentId",
+                        "itemId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The skill is system-installed; uninstall blocked."
+          },
+          "404": {
+            "description": "Item not in catalog, not installed, OR workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdMarketplaceUninstall",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Uninstall a marketplace item (skill hard-delete or agent soft-delete).",
+        "x-sdk-name": "marketplace.uninstall",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "itemId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "itemId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/channels": {
       "get": {
         "responses": {

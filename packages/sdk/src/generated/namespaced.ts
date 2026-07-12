@@ -573,6 +573,14 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  uninstall: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/marketplace/uninstall"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/marketplace/uninstall"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/marketplace/uninstall", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   },
   memory: {
   create: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/memory/entries"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/memory/entries"]["post"]['requestBody']>['content']['application/json']) => {

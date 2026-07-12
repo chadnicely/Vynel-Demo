@@ -53,10 +53,14 @@ function mountPanel(
   options: {
     items?: MarketplaceItem[];
     install?: (...args: unknown[]) => Promise<unknown>;
+    uninstall?: (...args: unknown[]) => Promise<unknown>;
   } = {},
 ) {
   const listItems = options.items ?? items;
   const install = options.install ?? (async () => installResult);
+  const uninstall =
+    options.uninstall ??
+    (async () => ({ kind: "skill", installedSkillId: "sk1", itemId: "owned" }));
   return mount(WorkspaceSectionPanel, {
     props: { section: "marketplace", workspaceId: "w1" },
     global: {
@@ -73,12 +77,24 @@ function mountPanel(
       provide: {
         [vynelClientKey as symbol]: {
           hub: { getSession: async () => session },
-          marketplace: { listItems: async () => listItems, install },
+          marketplace: { listItems: async () => listItems, install, uninstall },
         },
       },
     },
   });
 }
+
+const installedItem = () =>
+  makeItem({
+    itemId: "owned",
+    displayName: "Owned",
+    installStatus: {
+      kind: "installed",
+      scope: "workspace",
+      installedId: "sk1",
+      versionInstalled: "1.0.0",
+    },
+  });
 
 describe("WorkspaceSectionPanel — marketplace Pro badge", () => {
   it("shows Pro on a pro-only item when the user isn't proven Pro (signed-out)", async () => {
@@ -157,26 +173,75 @@ describe("WorkspaceSectionPanel — marketplace install", () => {
   it("shows an installed item as disabled, not a live Get button", async () => {
     const wrapper = mountPanel(
       { kind: "signed-out" },
-      {
-        items: [
-          makeItem({
-            itemId: "owned",
-            displayName: "Owned",
-            installStatus: {
-              kind: "installed",
-              scope: "workspace",
-              installedId: "sk1",
-              versionInstalled: "1.0.0",
-            },
-          }),
-        ],
-      },
+      { items: [installedItem()] },
     );
     await flushPromises();
 
     const button = wrapper.get("button.pill");
     expect(button.text()).toBe("Installed");
     expect(button.attributes("disabled")).toBeDefined();
+    wrapper.unmount();
+  });
+});
+
+describe("WorkspaceSectionPanel — marketplace uninstall", () => {
+  it("removes only on the second, armed click (one click never uninstalls)", async () => {
+    const uninstall = vi.fn(async () => ({
+      kind: "skill",
+      installedSkillId: "sk1",
+      itemId: "owned",
+    }));
+    const wrapper = mountPanel(
+      { kind: "signed-out" },
+      { items: [installedItem()], uninstall },
+    );
+    await flushPromises();
+
+    // First click only arms — the control flips to "Sure?" and nothing fires.
+    const armButton = wrapper.get('[aria-label="Remove Owned"]');
+    expect(armButton.text()).toBe("Remove");
+    await armButton.trigger("click");
+    await flushPromises();
+    expect(uninstall).not.toHaveBeenCalled();
+
+    const confirmButton = wrapper.get('[aria-label="Confirm remove Owned"]');
+    expect(confirmButton.text()).toBe("Sure?");
+    await confirmButton.trigger("click");
+    await flushPromises();
+
+    expect(uninstall).toHaveBeenCalledWith("w1", { itemId: "owned" });
+    wrapper.unmount();
+  });
+
+  it("disarms the remove confirm on blur instead of firing", async () => {
+    const uninstall = vi.fn(async () => ({
+      kind: "skill",
+      installedSkillId: "sk1",
+      itemId: "owned",
+    }));
+    const wrapper = mountPanel(
+      { kind: "signed-out" },
+      { items: [installedItem()], uninstall },
+    );
+    await flushPromises();
+
+    await wrapper.get('[aria-label="Remove Owned"]').trigger("click");
+    await wrapper.get('[aria-label="Confirm remove Owned"]').trigger("blur");
+    await flushPromises();
+
+    expect(uninstall).not.toHaveBeenCalled();
+    expect(wrapper.find('[aria-label="Remove Owned"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it("offers no Remove control on a not-installed item", async () => {
+    const wrapper = mountPanel(
+      { kind: "signed-out" },
+      { items: [makeItem({ itemId: "free-skill", displayName: "Free" })] },
+    );
+    await flushPromises();
+
+    expect(wrapper.find(".row-action").exists()).toBe(false);
     wrapper.unmount();
   });
 });

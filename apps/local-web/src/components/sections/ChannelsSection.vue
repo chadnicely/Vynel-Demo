@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { MessageSquare, Plus, Radio, Send } from "lucide-vue-next";
+import { MessageSquare, Plus, Radio, Send, X } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import { useChannels } from "../../composables/channels/use-channels.js";
+import { useDisconnectChannel } from "../../composables/channels/use-disconnect-channel.js";
 import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import ConnectChannelDialog from "./ConnectChannelDialog.vue";
 import type { SectionScope } from "./section-scope.js";
@@ -41,6 +42,25 @@ const isConnectOpen = ref(false);
 
 function onConnected() {
   isConnectOpen.value = false;
+}
+
+// Disconnecting is irreversible — the bot token must be re-entered to
+// reconnect — so, per the AccountDeviceRow / Notebook idiom, the X arms
+// first ("Sure?"), only a second explicit click fires, and blur disarms.
+const disconnect = useDisconnectChannel();
+const armedDisconnectId = ref<string | null>(null);
+
+function requestDisconnect(channelId: string) {
+  if (armedDisconnectId.value !== channelId) {
+    armedDisconnectId.value = channelId;
+    return;
+  }
+  armedDisconnectId.value = null;
+  disconnect.mutate({ channelId });
+}
+
+function disarmDisconnect(channelId: string) {
+  if (armedDisconnectId.value === channelId) armedDisconnectId.value = null;
 }
 </script>
 
@@ -81,6 +101,29 @@ function onConnected() {
         >
           {{ channel.connectionStatus === "healthy" ? "Healthy" : "Attention" }}
         </span>
+        <button
+          type="button"
+          :class="
+            armedDisconnectId === channel.id
+              ? 'row-action is-danger'
+              : 'icon-button'
+          "
+          :title="
+            armedDisconnectId === channel.id
+              ? `Confirm disconnect ${channel.displayName}`
+              : `Disconnect ${channel.displayName}`
+          "
+          :aria-label="
+            armedDisconnectId === channel.id
+              ? `Confirm disconnect ${channel.displayName}`
+              : `Disconnect ${channel.displayName}`
+          "
+          @click="requestDisconnect(channel.id)"
+          @blur="disarmDisconnect(channel.id)"
+        >
+          <template v-if="armedDisconnectId === channel.id">Sure?</template>
+          <X v-else :size="13" />
+        </button>
       </div>
     </div>
 
@@ -257,5 +300,60 @@ function onConnected() {
 .pill.is-warn {
   color: var(--gold);
   background: var(--gold-soft);
+}
+
+.icon-button {
+  appearance: none;
+  margin: 0;
+  border: 0;
+  padding: 3px;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: default;
+  flex: none;
+}
+
+.icon-button:hover {
+  color: var(--ink-1);
+  background: var(--row-hover);
+}
+
+.icon-button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+/* The armed "Sure?" step borrows the account section's row-action idiom. */
+.row-action {
+  appearance: none;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 11px;
+  border: 1px solid var(--hair);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--ink-2);
+  font: 600 11.5px/1.6 var(--font-ui);
+  cursor: default;
+  flex: none;
+  transition: border-color var(--t-fast) var(--ease-out);
+}
+
+.row-action.is-danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
+.row-action.is-danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.row-action:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import {
   Blocks,
   BookOpen,
@@ -15,6 +15,7 @@ import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
 import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
 import { useMarketplaceItems } from "../../composables/marketplace/use-marketplace-items.js";
 import { useInstallMarketplaceItem } from "../../composables/marketplace/use-install-marketplace-item.js";
+import { useUninstallMarketplaceItem } from "../../composables/marketplace/use-uninstall-marketplace-item.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import ChannelsSection from "../sections/ChannelsSection.vue";
 import KnowledgeSection from "../sections/KnowledgeSection.vue";
@@ -92,6 +93,37 @@ function installLabel(itemId: string, isInstalled: boolean): string {
 function installErrorFor(itemId: string): string | null {
   return install.isError.value && install.variables.value?.itemId === itemId
     ? formatSdkError(install.error.value)
+    : null;
+}
+
+// Removing is irreversible (a skill's settings die with the row; a cloud item
+// re-downloads on the next Get) — so, per the AccountDeviceRow / Notebook
+// idiom, Remove arms first and only a second explicit click uninstalls.
+const uninstall = useUninstallMarketplaceItem();
+const armedRemoveItemId = ref<string | null>(null);
+
+function requestRemove(itemId: string) {
+  if (armedRemoveItemId.value !== itemId) {
+    armedRemoveItemId.value = itemId;
+    return;
+  }
+  armedRemoveItemId.value = null;
+  uninstall.mutate({ workspaceId: props.workspaceId, itemId });
+}
+
+function disarmRemove(itemId: string) {
+  if (armedRemoveItemId.value === itemId) armedRemoveItemId.value = null;
+}
+
+function isRemoving(itemId: string): boolean {
+  return (
+    uninstall.isPending.value && uninstall.variables.value?.itemId === itemId
+  );
+}
+
+function removeErrorFor(itemId: string): string | null {
+  return uninstall.isError.value && uninstall.variables.value?.itemId === itemId
+    ? formatSdkError(uninstall.error.value)
     : null;
 }
 </script>
@@ -209,12 +241,36 @@ function installErrorFor(itemId: string): string | null {
             installLabel(item.itemId, item.installStatus.kind === "installed")
           }}
         </button>
+        <!-- Removal dispatches by installed kind server-side and flips the
+             card back to Get; the arm-then-confirm two-step guards it. -->
+        <button
+          v-if="item.installStatus.kind === 'installed'"
+          type="button"
+          class="row-action"
+          :class="{ 'is-danger': armedRemoveItemId === item.itemId }"
+          :disabled="isRemoving(item.itemId)"
+          :aria-label="
+            armedRemoveItemId === item.itemId
+              ? `Confirm remove ${item.displayName}`
+              : `Remove ${item.displayName}`
+          "
+          @click="requestRemove(item.itemId)"
+          @blur="disarmRemove(item.itemId)"
+        >
+          {{
+            armedRemoveItemId === item.itemId
+              ? "Sure?"
+              : isRemoving(item.itemId)
+                ? "Removing…"
+                : "Remove"
+          }}
+        </button>
         <p
-          v-if="installErrorFor(item.itemId)"
+          v-if="installErrorFor(item.itemId) || removeErrorFor(item.itemId)"
           class="row-error"
           role="alert"
         >
-          {{ installErrorFor(item.itemId) }}
+          {{ installErrorFor(item.itemId) ?? removeErrorFor(item.itemId) }}
         </p>
       </div>
     </div>
@@ -352,6 +408,50 @@ button.pill.is-off:hover:not(:disabled) {
 
 button.pill:disabled {
   opacity: 0.6;
+}
+
+/* The Remove control + its armed "Sure?" step borrow the account section's
+   row-action idiom (AccountDeviceRow). */
+.row-action {
+  appearance: none;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 11px;
+  border: 1px solid var(--hair);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--ink-2);
+  font: 600 11.5px/1.6 var(--font-ui);
+  cursor: default;
+  flex: none;
+  transition: border-color var(--t-fast) var(--ease-out);
+}
+
+.row-action:hover:not(:disabled) {
+  color: var(--ink-1);
+  border-color: var(--hair-strong);
+  background: var(--row-hover);
+}
+
+.row-action:disabled {
+  opacity: 0.55;
+}
+
+.row-action.is-danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
+.row-action.is-danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.row-action:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
 }
 
 /* Wraps to its own line under the row (flex-basis 100%) so an install failure

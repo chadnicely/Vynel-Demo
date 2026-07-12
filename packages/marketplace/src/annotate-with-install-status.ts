@@ -2,8 +2,9 @@
 // install status. No I/O, no DB; the caller fetches installed
 // skills + agents and passes them in. Matching is per item KIND:
 // skills key on skillId, agents on slug (=== itemId, enforced at
-// install). Workspace-scope match preferred over user-scope when
-// both exist (D12) — for both kinds.
+// install) AND source === 'community' (marketplace-installed only).
+// Workspace-scope match preferred over user-scope when both exist
+// (D12) — for both kinds.
 //
 // Spec: blueprint §5.1 + coding.md §6.1; C-agents extends per kind.
 
@@ -50,7 +51,14 @@ function determineAgentInstallStatus(
   item: MarketplaceItem,
   installedAgents: InstalledAgentView[],
 ): MarketplaceItemInstallStatus {
-  const matches = installedAgents.filter((a) => a.slug === item.itemId)
+  // Marketplace-installed agents only (`installCloudAgent` stamps
+  // `source: 'community'`): a HAND-MADE agent (`source: 'user'`) whose
+  // slug happens to equal a catalog itemId must never flip the card to
+  // "Installed" — the uninstall route resolves through this same match
+  // and would soft-delete the user's own agent.
+  const matches = installedAgents.filter(
+    (a) => a.source === 'community' && a.slug === item.itemId,
+  )
   if (matches.length === 0) return { kind: 'not-installed' }
   const workspaceScoped = matches.find((a) => a.workspaceId !== null)
   const match = workspaceScoped ?? matches[0]!

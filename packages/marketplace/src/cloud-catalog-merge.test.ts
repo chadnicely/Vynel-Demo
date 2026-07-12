@@ -89,7 +89,9 @@ describe('cloud catalog merge', () => {
         { userId: 'u', workspaceId: 'w' },
         {
           listInstalledSkills: () => [],
-          listInstalledAgents: () => [{ id: 'a1', slug: 'focus-writer', workspaceId: 'w' }],
+          listInstalledAgents: () => [
+            { id: 'a1', slug: 'focus-writer', workspaceId: 'w', source: 'community' },
+          ],
         },
       )
       const agent = items.find((i) => i.itemId === 'focus-writer')

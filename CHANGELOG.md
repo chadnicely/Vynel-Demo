@@ -30,6 +30,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Remove what you added — channels and marketplace items.** Every connected channel row now has
+  a remove control, and every installed marketplace item (skills and agents alike) has a Remove
+  button that flips the card back to "Get". Both use a two-step confirm — the first click arms a
+  "Sure?", only the second acts — because disconnecting a channel means re-entering its bot token,
+  and removals aren't undoable. Removing an item only ever touches the marketplace-installed copy:
+  an agent you built yourself can never be swept up by it, even if it shares a name with a catalog
+  item.
+
+### Added
+
 - **The Notebook — curated playbooks Claude reads when the task calls for them.** A new Notebook
   section (global menu and every workspace) holds two shelves: **verified books** shipped with the
   app — starting with a web-app build playbook and a plain-language communication guide — and

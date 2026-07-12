@@ -83,6 +83,25 @@ export const InstallMarketplaceItemBodySchema = z.object({
   scope: SkillScopeSchema,
 })
 
+export const UninstallMarketplaceItemBodySchema = z.object({
+  itemId: z.string().min(1).max(200),
+})
+
+// Mirrors the install response's kind discrimination: the uninstalled
+// row's id in its owning leaf (installed_skills.id / agents.id).
+export const UninstallMarketplaceItemResponseSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('skill'),
+    installedSkillId: z.string(),
+    itemId: z.string(),
+  }),
+  z.object({
+    kind: z.literal('agent'),
+    agentId: z.string(),
+    itemId: z.string(),
+  }),
+])
+
 // Discriminated by item kind (C-agents): a skill install answers with the
 // installed-skill row, an agent install with the created agent row.
 export const InstallMarketplaceItemResponseSchema = z.discriminatedUnion('kind', [

@@ -25,15 +25,19 @@ export type InstalledSkillView = {
   versionInstalled: string
 }
 
-// The three fields `annotateWithInstallStatus` reads off an installed
+// The four fields `annotateWithInstallStatus` reads off an installed
 // AGENT row (`@vynel/agents` is a sibling leaf too — same structural-
 // view rule). Scope is derived: `workspaceId === null` = user-scope.
-// `AgentRow` is assignable here, so the app can bind the kernel's
+// `source` is a plain string (not the agents leaf's `AgentSource`
+// union — no sibling import); the annotator matches only
+// `'community'`, the value `installCloudAgent` stamps. `AgentRow` is
+// assignable here, so the app can bind the kernel's
 // `listAgentsForUserAndWorkspace` directly.
 export type InstalledAgentView = {
   id: string
   slug: string
   workspaceId: string | null
+  source: string
 }
 
 // The cross-leaf reads `listMarketplaceItems` / `getMarketplaceItem`
