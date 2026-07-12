@@ -22,6 +22,11 @@ export default defineConfig({
       "packages/ui/**",
     ],
     environment: "node",
+    // The argon2id + PGlite suites (accounts, cloud-api) exceed the 5s default
+    // under full-suite parallel load — OWASP-parameter hashing is deliberately
+    // slow, and worker contention stacks several hashes into one test. Seen as
+    // recurring single-test flakes (3× on 2026-07-12, always green isolated).
+    testTimeout: 20_000,
     passWithNoTests: true,
     coverage: {
       provider: "v8",

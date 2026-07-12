@@ -3,7 +3,19 @@
 **Updated 2026-07-12.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-12e): ARC ④ NOTEBOOK v1 BUILT (books, not memory) — backend COMMITTED `809a173`, routes+UI slice reviewed CLEAN + nits folding; commit next; OPEN: instructions arc (deferred by Chad) · mcp/plugin kind forks · Chad's live smokes
+## ⏭ NEXT ACTION (2026-07-12f): REMOVAL FLOWS + CHANNELS EVENTS SHIPPED — gate 2303/4-skip; Chad testing everything; OPEN: instructions arc · mcp/plugin forks · channel sender-allowlist events (flagged, unevented) · hub-served portal
+
+**Chad's removal ask, built + reviewed (0 must-fix):** channel row remove (backend pre-existed —
+op+route+cascades D16; UI two-step added + cascade test) · `POST /workspaces/:id/marketplace/
+uninstall` (per-kind dispatch skill→uninstallSkill / agent→softDeleteAgent via the annotator's own
+readers; card flips to Get; SDK +uninstall) · **slug-collision drift CLOSED** (annotator matches
+source==='community' only — a hand-made agent can never be uninstalled by the marketplace; e2e
+test) · **channels leaf outbox pass** (channel.connected/disconnected/enabled-changed co-committed;
+disconnects+toggles gained their missing txs; token-never-in-payload asserted; sender-allowlist ops
+flagged as the remaining unevented pair) · **vitest node testTimeout 20s** (root-cause fix for the
+recurring argon2/PGlite parallel-load flake — 3× today, always green isolated).
+
+## (prev) NEXT ACTION (2026-07-12e): ARC ④ NOTEBOOK v1 BUILT (books, not memory) — backend COMMITTED `809a173`, routes+UI slice reviewed CLEAN + nits folding; commit next; OPEN: instructions arc (deferred by Chad) · mcp/plugin kind forks · Chad's live smokes
 
 **⚠ CONCEPT (Chad, memory [[notebook-is-books-not-memory]]): notebooks are BOOKS — on-demand curated
 reference Claude reads via list/read tools ('research with latest data'); NEVER prompt-injected; the
