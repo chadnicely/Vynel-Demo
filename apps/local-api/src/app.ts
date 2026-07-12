@@ -29,6 +29,7 @@ import { approvalsUserApp } from './routes/approvals/user-scoped.js'
 import { chatApp } from './routes/chat/index.js'
 import { filesApp } from './routes/files/index.js'
 import { memoryApp } from './routes/memory/index.js'
+import { notebookApp } from './routes/notebook/index.js'
 import { capabilitiesApp } from './routes/capabilities/index.js'
 import { usersApp } from './routes/users/index.js'
 import { agentsApp } from './routes/agents/index.js'
@@ -148,6 +149,10 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // surface. These sit alongside the untouched workspace-scoped mounts above.
   app.route('/channels', channelsUserApp)
   app.route('/schedules', schedulesUserApp)
+  // `/notebook` is user-scoped like `/schedules`: books live at either scope
+  // (global or one workspace) and the shelf read takes an optional
+  // `workspaceId` for a workspace turn's view.
+  app.route('/notebook', notebookApp)
   app.route('/approvals', approvalsUserApp)
   app.route('/users', usersApp)
   app.route('/onboarding', onboardingApp)

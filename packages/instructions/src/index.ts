@@ -28,6 +28,7 @@ export {
 export {
   updateInstructionDocument,
   type UpdateInstructionDocumentInput,
+  type InstructionDocumentSelector,
 } from './lifecycle/update-instruction-document.js'
 export { deleteInstructionDocument } from './lifecycle/delete-instruction-document.js'
 
@@ -43,6 +44,16 @@ export {
   findVerifiedNotebookById,
   type VerifiedNotebook,
 } from './notebooks/verified-notebooks.js'
+
+// The merged playbook shelf (verified + the user's enabled notebook docs) —
+// shared by the notebook MCP tools and the HTTP `/notebook/playbooks` routes
+export {
+  listPlaybooks,
+  findPlaybookById,
+  type PlaybookListing,
+  type Playbook,
+  type PlaybookShelfScope,
+} from './mcp/playbook-shelf.js'
 
 // The MCP attachment (read-only list/read tools + the standing prompt line)
 export {

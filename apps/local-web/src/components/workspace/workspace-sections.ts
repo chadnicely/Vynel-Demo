@@ -8,6 +8,7 @@ export type WorkspaceSectionId =
   | "knowledge"
   | "marketplace"
   | "memory"
+  | "notebook"
   | "agents";
 
 export interface WorkspaceSectionMeta {
@@ -39,5 +40,10 @@ export const WORKSPACE_SECTIONS: WorkspaceSectionMeta[] = [
   },
   { id: "marketplace", label: "Marketplace", hint: "Add new curated skills" },
   { id: "memory", label: "Memory", hint: "What it remembers about your work" },
+  {
+    id: "notebook",
+    label: "Notebook",
+    hint: "Playbooks it reads when a task calls for them",
+  },
   { id: "agents", label: "Agents", hint: "Specialists it can delegate to" },
 ];

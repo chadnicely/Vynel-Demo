@@ -35,7 +35,7 @@ describe('deleteInstructionDocument', () => {
   it('hard-deletes the row + publishes an instruction.deleted event', async () => {
     await withTestDatabase((db) => {
       const { user, document } = seedUserAndDocument(db)
-      deleteInstructionDocument(db, document.id)
+      deleteInstructionDocument(db, { documentId: document.id, userId: user.id })
 
       expect(findDocumentById(db, document.id)).toBeNull()
       const events = listOutboxEventsByType(db, INSTRUCTION_DELETED)
@@ -51,8 +51,32 @@ describe('deleteInstructionDocument', () => {
 
   it('throws NotFoundError for an unknown id and publishes nothing', async () => {
     await withTestDatabase((db) => {
-      seedUserAndDocument(db)
-      expect(() => deleteInstructionDocument(db, randomUUID())).toThrow(NotFoundError)
+      const { user } = seedUserAndDocument(db)
+      expect(() =>
+        deleteInstructionDocument(db, { documentId: randomUUID(), userId: user.id }),
+      ).toThrow(NotFoundError)
+      expect(listOutboxEventsByType(db, INSTRUCTION_DELETED)).toHaveLength(0)
+    })
+  })
+
+  it('throws the same NotFoundError when the caller does not own the document (no enumeration leak)', async () => {
+    await withTestDatabase((db) => {
+      const { document } = seedUserAndDocument(db)
+      const now = new Date()
+      const stranger = insertUser(db, {
+        id: randomUUID(),
+        displayName: 'S',
+        emailAddress: null,
+        locale: 'en-US',
+        timezone: 'UTC',
+        hasCompletedOnboarding: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      expect(() =>
+        deleteInstructionDocument(db, { documentId: document.id, userId: stranger.id }),
+      ).toThrow(NotFoundError)
+      expect(findDocumentById(db, document.id)).not.toBeNull()
       expect(listOutboxEventsByType(db, INSTRUCTION_DELETED)).toHaveLength(0)
     })
   })

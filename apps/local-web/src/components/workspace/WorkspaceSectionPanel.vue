@@ -6,6 +6,7 @@ import {
   Bot,
   Brain,
   CalendarClock,
+  NotebookText,
   Radio,
   Sparkles,
 } from "lucide-vue-next";
@@ -19,6 +20,7 @@ import ChannelsSection from "../sections/ChannelsSection.vue";
 import KnowledgeSection from "../sections/KnowledgeSection.vue";
 import LockedFeatureCard from "../sections/LockedFeatureCard.vue";
 import MemorySection from "../sections/MemorySection.vue";
+import NotebookSection from "../sections/NotebookSection.vue";
 import SchedulesSection from "../sections/SchedulesSection.vue";
 import { WORKSPACE_SECTIONS } from "./workspace-sections.js";
 import type {
@@ -38,6 +40,7 @@ const SECTION_ICONS = {
   knowledge: BookOpen,
   marketplace: Blocks,
   memory: Brain,
+  notebook: NotebookText,
   agents: Bot,
 } as const;
 
@@ -121,6 +124,11 @@ function installErrorFor(itemId: string): string | null {
       :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
     />
   </template>
+  <!-- Notebook is core assistant guidance — no tier gate. -->
+  <NotebookSection
+    v-else-if="props.section === 'notebook'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
 
   <LockedFeatureCard
     v-else-if="props.section === 'marketplace' && isLocked('marketplace')"

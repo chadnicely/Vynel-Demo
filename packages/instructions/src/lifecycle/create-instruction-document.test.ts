@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import type { Database } from '@vynel/db'
-import { ValidationError } from '@vynel/errors'
+import { NotFoundError, ValidationError } from '@vynel/errors'
 import { insertUser } from '@vynel/db/repositories/users'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { createInstructionDocument } from './create-instruction-document.js'
@@ -70,6 +70,22 @@ describe('createInstructionDocument', () => {
           body: 'y',
         }),
       ).toThrow(ValidationError)
+    })
+  })
+
+  it('throws NotFoundError for a workspaceId that does not exist (typed 404, not a raw FK violation)', async () => {
+    await withTestDatabase((db) => {
+      const user = seedUser(db)
+      expect(() =>
+        createInstructionDocument(db, {
+          userId: user.id,
+          scope: 'workspace',
+          workspaceId: randomUUID(),
+          title: 'x',
+          body: 'y',
+        }),
+      ).toThrow(NotFoundError)
+      expect(listOutboxEventsByType(db, INSTRUCTION_CREATED)).toHaveLength(0)
     })
   })
 

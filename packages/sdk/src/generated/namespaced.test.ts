@@ -119,6 +119,20 @@ const EXPECTED_SCHEDULES_USER_METHODS = [
   'update',
 ] as const
 
+// The notebook namespace's methods, sorted — the USER-scoped `/notebook`
+// surface (deliberate spec addition, 2026-07-12): the merged playbook shelf
+// (verified books + the user's own) and the own-document CRUD. No route is
+// x-mcp — Claude reads the notebook via the `vynel-notebook` feature
+// descriptor and never writes it.
+const EXPECTED_NOTEBOOK_METHODS = [
+  'createDocument',
+  'deleteDocument',
+  'getPlaybook',
+  'listDocuments',
+  'listPlaybooks',
+  'updateDocument',
+] as const
+
 // Build a client stub whose every verb resolves to one canned
 // openapi-fetch result — drives the generated dispatch's success + error branches.
 function clientReturning(result: {
@@ -172,6 +186,7 @@ describe('makeNamespaced — shape', () => {
       'knowledge',
       'marketplace',
       'memory',
+      'notebook',
       'onboarding',
       'providers',
       'root',
@@ -191,6 +206,7 @@ describe('makeNamespaced — shape', () => {
     expect(Object.keys(sdk.marketplace).sort()).toEqual([...EXPECTED_MARKETPLACE_METHODS])
     expect(Object.keys(sdk.schedules).sort()).toEqual([...EXPECTED_SCHEDULES_METHODS])
     expect(Object.keys(sdk.schedulesUser).sort()).toEqual([...EXPECTED_SCHEDULES_USER_METHODS])
+    expect(Object.keys(sdk.notebook).sort()).toEqual([...EXPECTED_NOTEBOOK_METHODS])
   })
 
   it('every method in every namespace is a function', () => {

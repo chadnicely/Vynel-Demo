@@ -3,7 +3,34 @@
 **Updated 2026-07-12.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-12d): PHASE C "C-AGENTS" BUILT + REVIEWED + FIXED — gate 2212/4-skip, UNCOMMITTED; commit prompt out; next: arc ④ instructions-notebook (rule kind rides it) / mcp-kind forks
+## ⏭ NEXT ACTION (2026-07-12e): ARC ④ NOTEBOOK v1 BUILT (books, not memory) — backend COMMITTED `809a173`, routes+UI slice reviewed CLEAN + nits folding; commit next; OPEN: instructions arc (deferred by Chad) · mcp/plugin kind forks · Chad's live smokes
+
+**⚠ CONCEPT (Chad, memory [[notebook-is-books-not-memory]]): notebooks are BOOKS — on-demand curated
+reference Claude reads via list/read tools ('research with latest data'); NEVER prompt-injected; the
+always-instructions arc is DEFERRED ('implement all in instructions later'; schema reserves
+mode='always').** Built across two slices + two review rounds (both 0-must-fix):
+- **`809a173` backend:** `packages/instructions` leaf (instruction_documents, migration 0005
+INCREMENTAL — dev DBs apply on boot, NO reset; workspaceId = kernel FK cascade after reviewer
+catch) · `notebooks/` verified-books dir (frontmatter loader, README, 2 starters: web-app-scaffold ·
+communicating-with-users) · read-only `vynel-notebook` descriptor (list_playbooks/read_playbook,
+verified WINS collisions, capability 'notebook' defaultEnabled) attached at ALL FOUR turn points ·
+`defaultEnabledCapabilityIds()` for global-root turns · **composer now skips contributePrompt when
+every gated tool is denied** (first gated+prompt descriptor — divergence-class fix) ·
+fetch-context-report attachment drift fixed · outbox events throughout.
+- **Routes+UI slice (committing now):** /notebook route family (merged shelf reads; user-doc CRUD
+with ownership gates IN THE OPS, not-found/not-owned identical 404s; verified ids untouchable by
+construction — UUID row ids can't collide with kebab verified ids) · SDK +notebook namespace ·
+NotebookSection (verified badge read-only · WriteBookDialog · ReadBookDialog via sanitized
+MarkdownText) on global menu + workspace drawer · reviewer nits folding (two-step delete confirm —
+a book body is irrecoverable; keyboard-openable own rows; scoped playbook query key). Gate at
+review time: 433 files / 2284 tests.
+**⏭ CHAD SMOKE (fresh boot, migration 0005 applies itself):** Notebook section shows the 2 verified
+books · write an own book · in a workspace chat ask for a web-app plan — Claude should
+list_playbooks + read the scaffold book (visible as tool cards) · toggle Notebook capability off →
+tools AND the standing line vanish. **Then: mcp/plugin kind forks OR the deferred instructions arc
+(trust-order design parked in the module notes).**
+
+## (prev) NEXT ACTION (2026-07-12d): PHASE C "C-AGENTS" BUILT + REVIEWED + FIXED — gate 2212/4-skip, UNCOMMITTED; commit prompt out; next: arc ④ instructions-notebook (rule kind rides it) / mcp-kind forks
 
 **Phase B COMMITTED `40f8111` (port corrected to 8891 — Chad's serial-from-8890 convention, memory
 saved). Phase C slice C-agents built to `docs/module-notes/marketplace-kinds.md`** (Explore recon →

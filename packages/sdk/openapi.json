@@ -11333,6 +11333,505 @@
         "x-sdk-name": "schedulesUser.listRuns"
       }
     },
+    "/notebook/playbooks": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ playbooks: PlaybookListing[] } — verified books lead; a verified id wins a collision.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "playbooks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "oneLiner": {
+                            "type": "string"
+                          },
+                          "verified": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "oneLiner",
+                          "verified"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "playbooks"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getNotebookPlaybooks",
+        "tags": [
+          "notebook"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "summary": "List the playbook shelf — verified books plus the user's own.",
+        "x-sdk-name": "notebook.listPlaybooks"
+      }
+    },
+    "/notebook/playbooks/{playbookId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Playbook (listing fields + body).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "oneLiner": {
+                      "type": "string"
+                    },
+                    "verified": {
+                      "type": "boolean"
+                    },
+                    "body": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "oneLiner",
+                    "verified",
+                    "body"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such playbook on this shelf."
+          }
+        },
+        "operationId": "getNotebookPlaybooksByPlaybookId",
+        "tags": [
+          "notebook"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "playbookId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "summary": "Read one playbook (verified or the user's own) with its full body.",
+        "x-sdk-name": "notebook.getPlaybook"
+      }
+    },
+    "/notebook/documents": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ documents: NotebookDocument[] }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "documents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "userId": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "global",
+                              "workspace"
+                            ]
+                          },
+                          "workspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "always",
+                              "notebook"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "sortOrder": {
+                            "type": "number"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "userId",
+                          "scope",
+                          "workspaceId",
+                          "mode",
+                          "title",
+                          "body",
+                          "enabled",
+                          "sortOrder",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "documents"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getNotebookDocuments",
+        "tags": [
+          "notebook"
+        ],
+        "parameters": [],
+        "summary": "List every notebook document the user owns (both scopes, disabled included).",
+        "x-sdk-name": "notebook.listDocuments"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "NotebookDocument created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "global",
+                        "workspace"
+                      ]
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "always",
+                        "notebook"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "sortOrder": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "scope",
+                    "workspaceId",
+                    "mode",
+                    "title",
+                    "body",
+                    "enabled",
+                    "sortOrder",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (scope/workspaceId pairing, title, or body)."
+          },
+          "404": {
+            "description": "Workspace not found (or not owned by this user)."
+          }
+        },
+        "operationId": "postNotebookDocuments",
+        "tags": [
+          "notebook"
+        ],
+        "parameters": [],
+        "summary": "Create a notebook document (a user-authored book).",
+        "x-sdk-name": "notebook.createDocument",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "global",
+                      "workspace"
+                    ]
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "scope",
+                  "title",
+                  "body"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notebook/documents/{documentId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "NotebookDocument updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "global",
+                        "workspace"
+                      ]
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "always",
+                        "notebook"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "sortOrder": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "scope",
+                    "workspaceId",
+                    "mode",
+                    "title",
+                    "body",
+                    "enabled",
+                    "sortOrder",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (empty patch, title, or body)."
+          },
+          "404": {
+            "description": "No such document owned by this user (verified books included)."
+          }
+        },
+        "operationId": "patchNotebookDocumentsByDocumentId",
+        "tags": [
+          "notebook"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Update a notebook document the user owns (title, body, enabled).",
+        "x-sdk-name": "notebook.updateDocument",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Deleted (no body)."
+          },
+          "404": {
+            "description": "No such document owned by this user (verified books included)."
+          }
+        },
+        "operationId": "deleteNotebookDocumentsByDocumentId",
+        "tags": [
+          "notebook"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Delete a notebook document the user owns.",
+        "x-sdk-name": "notebook.deleteDocument"
+      }
+    },
     "/approvals/pending": {
       "get": {
         "responses": {

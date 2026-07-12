@@ -1,9 +1,11 @@
 // `updateInstructionDocument` — patches a USER document's mutable fields
 // (title, body, enabled, sortOrder). Scope/mode/owner are immutable after
 // creation (delete + recreate to move a doc). System notebooks are untouchable
-// by construction — they never have a row here. Co-commits an
-// `instruction.updated` outbox event; throws
-// `NotFoundError('instruction-document', id)` when no row matches.
+// by construction — they never have a row here. OWN docs only: the op is the
+// ownership gate (the schedules id-op precedent), so every surface that calls
+// it inherits the tenant boundary; not-found and not-owned throw the identical
+// `NotFoundError('instruction-document', id)` (no enumeration leak).
+// Co-commits an `instruction.updated` outbox event.
 
 import { randomUUID } from 'node:crypto'
 import { NotFoundError, ValidationError } from '@vynel/errors'
@@ -27,11 +29,18 @@ export type UpdateInstructionDocumentInput = {
   sortOrder?: number | undefined
 }
 
+export type InstructionDocumentSelector = {
+  documentId: string
+  /** The caller's user id — the ownership gate. */
+  userId: string
+}
+
 export function updateInstructionDocument(
   db: Database,
-  documentId: string,
+  selector: InstructionDocumentSelector,
   input: UpdateInstructionDocumentInput,
 ): InstructionDocument {
+  const { documentId, userId } = selector
   // A present-but-undefined key is not an update — only real values count, so
   // the event's `updatedFields` never names a field that didn't change. An
   // effectively-empty patch is a caller bug, not a no-op success (the
@@ -54,7 +63,9 @@ export function updateInstructionDocument(
 
   return withTransaction(db, (tx) => {
     const before = findDocumentById(tx, documentId)
-    if (!before) throw new NotFoundError('instruction-document', documentId)
+    if (!before || before.userId !== userId) {
+      throw new NotFoundError('instruction-document', documentId)
+    }
 
     const updated = updateDocument(tx, documentId, patch)
     if (!updated) throw new NotFoundError('instruction-document', documentId)

@@ -30,6 +30,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The Notebook — curated playbooks Claude reads when the task calls for them.** A new Notebook
+  section (global menu and every workspace) holds two shelves: **verified books** shipped with the
+  app — starting with a web-app build playbook and a plain-language communication guide — and
+  **your own books**, written right in the app. When you start a matching task, Claude checks the
+  shelf and follows the book's current guidance instead of guessing from stale training knowledge.
+  Claude can only *read* books, never change them; verified books can't be edited by anyone in the
+  app, and your books are yours alone. Toggling the Notebook capability off removes both the tools
+  and the suggestion to use them.
+
 - **Publish new marketplace items straight from the admin portal.** The catalog page gained a
   "Publish item" button opening a full form — pick the kind (skills and agents install in the app
   today; other kinds publish but stay hidden until supported), fill in the details, attach the zip,

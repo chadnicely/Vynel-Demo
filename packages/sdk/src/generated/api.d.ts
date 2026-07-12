@@ -1340,6 +1340,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notebook/playbooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the playbook shelf — verified books plus the user's own. */
+        get: operations["getNotebookPlaybooks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notebook/playbooks/{playbookId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one playbook (verified or the user's own) with its full body. */
+        get: operations["getNotebookPlaybooksByPlaybookId"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notebook/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every notebook document the user owns (both scopes, disabled included). */
+        get: operations["getNotebookDocuments"];
+        put?: never;
+        /** Create a notebook document (a user-authored book). */
+        post: operations["postNotebookDocuments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notebook/documents/{documentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a notebook document the user owns. */
+        delete: operations["deleteNotebookDocumentsByDocumentId"];
+        options?: never;
+        head?: never;
+        /** Update a notebook document the user owns (title, body, enabled). */
+        patch: operations["patchNotebookDocumentsByDocumentId"];
+        trace?: never;
+    };
     "/approvals/pending": {
         parameters: {
             query?: never;
@@ -6555,6 +6625,252 @@ export interface operations {
                 };
             };
             /** @description No such schedule owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getNotebookPlaybooks: {
+        parameters: {
+            query?: {
+                workspaceId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { playbooks: PlaybookListing[] } — verified books lead; a verified id wins a collision. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        playbooks: {
+                            id: string;
+                            title: string;
+                            oneLiner: string;
+                            verified: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    getNotebookPlaybooksByPlaybookId: {
+        parameters: {
+            query?: {
+                workspaceId?: string;
+            };
+            header?: never;
+            path: {
+                playbookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Playbook (listing fields + body). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        title: string;
+                        oneLiner: string;
+                        verified: boolean;
+                        body: string;
+                    };
+                };
+            };
+            /** @description No such playbook on this shelf. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getNotebookDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { documents: NotebookDocument[] }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        documents: {
+                            id: string;
+                            userId: string;
+                            /** @enum {string} */
+                            scope: "global" | "workspace";
+                            workspaceId: string | null;
+                            /** @enum {string} */
+                            mode: "always" | "notebook";
+                            title: string;
+                            body: string;
+                            enabled: boolean;
+                            sortOrder: number;
+                            createdAt: string;
+                            updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    postNotebookDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    scope: "global" | "workspace";
+                    workspaceId?: string;
+                    title: string;
+                    body: string;
+                    enabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description NotebookDocument created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        /** @enum {string} */
+                        scope: "global" | "workspace";
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        mode: "always" | "notebook";
+                        title: string;
+                        body: string;
+                        enabled: boolean;
+                        sortOrder: number;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error (scope/workspaceId pairing, title, or body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found (or not owned by this user). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteNotebookDocumentsByDocumentId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted (no body). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such document owned by this user (verified books included). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchNotebookDocumentsByDocumentId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    body?: string;
+                    enabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description NotebookDocument updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        /** @enum {string} */
+                        scope: "global" | "workspace";
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        mode: "always" | "notebook";
+                        title: string;
+                        body: string;
+                        enabled: boolean;
+                        sortOrder: number;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error (empty patch, title, or body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such document owned by this user (verified books included). */
             404: {
                 headers: {
                     [name: string]: unknown;

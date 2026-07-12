@@ -13,6 +13,7 @@ import ChannelsSection from "../components/sections/ChannelsSection.vue";
 import KnowledgeSection from "../components/sections/KnowledgeSection.vue";
 import LockedFeatureCard from "../components/sections/LockedFeatureCard.vue";
 import MemorySection from "../components/sections/MemorySection.vue";
+import NotebookSection from "../components/sections/NotebookSection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
 import { useChannels } from "../composables/channels/use-channels.js";
 import { useHubFeatures } from "../composables/hub/use-hub-features.js";
@@ -46,6 +47,7 @@ const GLOBAL_MENU_ITEMS = [
   { id: "schedules", label: "Schedules", hint: "Claude on its own time" },
   { id: "knowledge", label: "Knowledge", hint: "The vault Claude studies" },
   { id: "memory", label: "Memory", hint: "What Claude remembers" },
+  { id: "notebook", label: "Notebook", hint: "Playbooks Claude reads on demand" },
   { id: "account", label: "Account", hint: "Your Vynel account" },
   { id: "application", label: "Application", hint: "Global settings" },
 ];
@@ -56,6 +58,7 @@ const GLOBAL_SECTION_IDS = [
   "schedules",
   "knowledge",
   "memory",
+  "notebook",
   "account",
 ] as const;
 type GlobalSectionId = (typeof GLOBAL_SECTION_IDS)[number];
@@ -259,6 +262,11 @@ function openContinuous() {
           <KnowledgeSection v-else :scope="{ kind: 'global' }" />
         </template>
         <AccountSection v-else-if="shell.mainView === 'account'" />
+        <!-- Notebook is core assistant guidance — no tier gate. -->
+        <NotebookSection
+          v-else-if="shell.mainView === 'notebook'"
+          :scope="{ kind: 'global' }"
+        />
         <LockedFeatureCard
           v-else-if="isLocked('memory')"
           feature-label="Memory"

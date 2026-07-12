@@ -642,6 +642,49 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  notebook: {
+  createDocument: async (input: NonNullable<paths["/notebook/documents"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/notebook/documents", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  deleteDocument: async (documentId: NonNullable<paths["/notebook/documents/{documentId}"]["delete"]['parameters']>['path']["documentId"]) => {
+    const { error, response } = await client["DELETE"]("/notebook/documents/{documentId}", {
+      params: { path: { documentId: documentId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  getPlaybook: async (playbookId: NonNullable<paths["/notebook/playbooks/{playbookId}"]["get"]['parameters']>['path']["playbookId"], options?: NonNullable<paths["/notebook/playbooks/{playbookId}"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/notebook/playbooks/{playbookId}", {
+      params: { path: { playbookId: playbookId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listDocuments: async () => {
+    const { data, error, response } = await client["GET"]("/notebook/documents")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listPlaybooks: async (options?: NonNullable<paths["/notebook/playbooks"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/notebook/playbooks", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  updateDocument: async (documentId: NonNullable<paths["/notebook/documents/{documentId}"]["patch"]['parameters']>['path']["documentId"], input: NonNullable<paths["/notebook/documents/{documentId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/notebook/documents/{documentId}", {
+      params: { path: { documentId: documentId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   onboarding: {
   getNeedsOnboarding: async () => {
     const { data, error, response } = await client["GET"]("/onboarding/status/needs-onboarding")

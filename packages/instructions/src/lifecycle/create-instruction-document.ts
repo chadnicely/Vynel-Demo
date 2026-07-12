@@ -9,9 +9,10 @@
 // migration, but no op in this slice writes it.
 
 import { randomUUID } from 'node:crypto'
-import { ValidationError } from '@vynel/errors'
+import { NotFoundError, ValidationError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
+import { findWorkspaceById } from '@vynel/db/repositories/workspaces'
 import {
   insertDocument,
   type InstructionDocument,
@@ -46,6 +47,15 @@ export function createInstructionDocument(
     throw new ValidationError(
       "A global instruction document must not carry a workspaceId — drop it, or use scope 'workspace'.",
     )
+  }
+  // Fail with a typed 404 instead of the raw FK violation the insert would
+  // raise — and gate on ownership too (the caller can only file books into
+  // their own workspaces; not-found and not-owned look identical).
+  if (input.scope === 'workspace' && input.workspaceId !== undefined) {
+    const workspace = findWorkspaceById(db, input.workspaceId)
+    if (!workspace || workspace.userId !== input.userId) {
+      throw new NotFoundError('workspace', input.workspaceId)
+    }
   }
 
   const now = new Date()
