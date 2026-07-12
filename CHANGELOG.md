@@ -30,6 +30,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The marketplace now lives in two places — and items know where they belong.** A new Marketplace
+  on the main menu shows items meant for YOU (installed once, available everywhere), while each
+  workspace's marketplace shows items meant for that project — and an item can be published for
+  user level, workspace level, or both. The marketplace pages also use the full window width now.
+
+- **Manage hub users from the admin portal.** The Accounts page lists every account with its role,
+  plan tier, and status — change a role or tier from a dropdown, or disable an account (two-step
+  confirm; disabling also signs the account out everywhere, immediately). The catalog page's
+  publish button is now "Add Marketplace Catalog".
+
 - **The marketplace is a real storefront now — with search and filters.** Items render as cards
   (icon tile, kind and Official badges, description, category and version) in a responsive grid,
   with a search box that matches names, descriptions, and categories, filter tabs by kind, and an
