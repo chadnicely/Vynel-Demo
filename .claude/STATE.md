@@ -3,7 +3,26 @@
 **Updated 2026-07-12.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-12f): REMOVAL FLOWS + CHANNELS EVENTS SHIPPED — gate 2303/4-skip; Chad testing everything; OPEN: instructions arc · mcp/plugin forks · channel sender-allowlist events (flagged, unevented) · hub-served portal
+## ⏭ NEXT ACTION (2026-07-12g): MARKETPLACE POLISH ARC SHIPPED (storefront · scopes+global surface · portal user-mgmt · agents shelf · DISK MIRROR) — gate 2384/4-skip, all committed; OPEN: instructions arc · mcp/plugin forks · Chad's smokes
+
+**Since 12f, five commits (all reviewed, 0 unresolved must-fix):** `e525275` storefront cards+search+
+kind filters (panel slimmed 465→237) · `5c071af` item scopes user|workspace|both + the GLOBAL
+marketplace surface (user-scope installs; workspace-install surface gate was the round's must-fix —
+no orphanable rows; legacy null scope → 'both'; Chad's live rows flipped to 'both' via admin API) ·
+`f9799be` portal USER MANAGEMENT (accounts table role/tier/status; disable revokes sessions, shared
+op with the user.removed webhook; 'Add Marketplace Catalog' rename) · `738a248` agents SHELF both
+surfaces (root cause: the panel was a stub + GET /agents required workspaceId + no invalidations —
+installs had worked and reached sessions all along) · `53efe66` **agent DISK MIRROR** (Chad:
+installed things must be visible files): `.claude/agents/<slug>.md` per scope, lifecycle-synced
+(present ⇔ installed AND enabled — SDK loads filesystem agents but programmatic wins collisions,
+so remove-on-disable is load-bearing), marker-guarded BOTH ways (write clobber-guard ConflictError
++ delete marker check), hostile-name frontmatter injection neutralized (TWO independent reviews
+each caught a distinct must-fix). Vitest testTimeout 20s all three projects (argon2/parallel-load
+flake class killed). **Chad expectation RECORDED (module notes): every installable kind lands as a
+visible file — rule/mcp arcs inherit it.** ⏭ Chad smokes with dev stack UP: global Marketplace ·
+Agents shelf · toggle focus-writer Off→On → mirror file appears · portal Accounts page.
+
+## (prev) NEXT ACTION (2026-07-12f): REMOVAL FLOWS + CHANNELS EVENTS SHIPPED — gate 2303/4-skip; Chad testing everything; OPEN: instructions arc · mcp/plugin forks · channel sender-allowlist events (flagged, unevented) · hub-served portal
 
 **Chad's removal ask, built + reviewed (0 must-fix):** channel row remove (backend pre-existed —
 op+route+cascades D16; UI two-step added + cascade test) · `POST /workspaces/:id/marketplace/
