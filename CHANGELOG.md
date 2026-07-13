@@ -30,6 +30,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Installed agents are visible files now — just like skills.** Installing a marketplace or
+  curated agent writes a readable `.claude/agents/<name>.md` file (in the workspace, or your home
+  folder for user-level installs), clearly headed "Managed by Vynel". The file appears on install,
+  disappears on removal or disable, and can never overwrite an agent file you wrote by hand — a
+  name clash refuses the install with a clear message instead. Hostile package names can't forge
+  the file's permissions either; every value is neutralized before it touches disk.
+
 - **The marketplace now lives in two places — and items know where they belong.** A new Marketplace
   on the main menu shows items meant for YOU (installed once, available everywhere), while each
   workspace's marketplace shows items meant for that project — and an item can be published for

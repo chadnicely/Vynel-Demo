@@ -1,6 +1,9 @@
 // Creates a Vynel agent (the agent row + its preloaded-skill rows) in
-// one transaction. The DB row is the source of truth; materialization
-// to the provider's disk (`.claude/agents/<slug>.md`) is a later unit.
+// one transaction. The DB row is the source of truth. Marketplace/
+// curated installs get a disk transparency mirror via
+// `installMarketplaceAgent` (which delegates here); user-built agents
+// created directly through this op deliberately do NOT (recorded
+// follow-up in `docs/module-notes/marketplace-kinds.md`).
 // Spec: `docs/agent-base/agents.md`.
 //
 // Scope is derived from `workspaceId` (null = user-scope). Caller

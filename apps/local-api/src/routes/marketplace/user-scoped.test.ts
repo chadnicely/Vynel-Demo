@@ -1,7 +1,9 @@
 // Integration tests for the USER-scoped `/marketplace/...` routes — the
 // GLOBAL marketplace surface. Full HTTP stack over the product SQLite +
-// real disk (home dir isolated via `withHomeDir` — a user-scope skill
-// install writes under `~/.claude/skills/`).
+// real disk (home dir isolated via BOTH packages' `withHomeDir` seams —
+// a user-scope skill install writes under `~/.claude/skills/`, a
+// user-scope agent install mirrors under `~/.claude/agents/`; the seams
+// are per-domain module state, so each must be wrapped).
 //
 // The matrix under guard (Chad's rule): the global surface lists user+both
 // items only, annotates against USER-scoped installs, and installs/
@@ -21,7 +23,8 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findAgentBySlug } from '@vynel/db/repositories/agents'
 import { listInstalledSkillsForUserAndWorkspace } from '@vynel/skills'
 import { syncCloudCatalog } from '@vynel/marketplace'
-import { withHomeDir } from '@vynel/skills/test-support'
+import { withHomeDir as withSkillsHomeDir } from '@vynel/skills/test-support'
+import { withHomeDir as withAgentsHomeDir } from '@vynel/agents/test-support'
 import type { HubSession } from '@vynel/hub-account'
 import type { HubCatalogItem } from '@vynel/contracts/hub/catalog'
 import { createApp } from '../../app.js'
@@ -80,7 +83,7 @@ function cloudCatalogItem(over: Partial<HubCatalogItem> & { itemId: string }): H
 async function withIsolatedHome<T>(fn: () => Promise<T>): Promise<T> {
   const homeDir = mkdtempSync(join(tmpdir(), 'vynel-marketplace-user-home-'))
   try {
-    return await withHomeDir(homeDir, fn)
+    return await withSkillsHomeDir(homeDir, () => withAgentsHomeDir(homeDir, fn))
   } finally {
     rmSync(homeDir, { recursive: true, force: true })
   }
@@ -193,45 +196,47 @@ describe('POST /marketplace/install (user scope)', () => {
   })
 
   it('installs a cloud AGENT at USER scope (agents row scope user, workspaceId null)', async () => {
-    await withTestDatabase(async (db) => {
-      const user = seedUser(db)
-      const zip = new JSZip()
-      zip.file(
-        'agent.json',
-        JSON.stringify({
-          slug: 'focus-writer',
-          name: 'Focus Writer',
-          description: 'Turns rough notes into polished prose.',
-          prompt: 'You are a focused writing assistant.',
-        }),
-      )
-      const bytes = await zip.generateAsync({ type: 'nodebuffer' })
-      const sha = createHash('sha256').update(bytes).digest('hex')
-      syncCloudCatalog(
-        db,
-        [cloudCatalogItem({ itemId: 'focus-writer', kind: 'agent', latestVersionSha256: sha })],
-        new Date(),
-      )
-      const downloadArtifact = vi.fn().mockResolvedValue(bytes)
-      const app = createApp({
-        db,
-        logger: silentLogger,
-        hubSession: fakeHubSession({ downloadArtifact }),
-      })
+    await withIsolatedHome(async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const zip = new JSZip()
+        zip.file(
+          'agent.json',
+          JSON.stringify({
+            slug: 'focus-writer',
+            name: 'Focus Writer',
+            description: 'Turns rough notes into polished prose.',
+            prompt: 'You are a focused writing assistant.',
+          }),
+        )
+        const bytes = await zip.generateAsync({ type: 'nodebuffer' })
+        const sha = createHash('sha256').update(bytes).digest('hex')
+        syncCloudCatalog(
+          db,
+          [cloudCatalogItem({ itemId: 'focus-writer', kind: 'agent', latestVersionSha256: sha })],
+          new Date(),
+        )
+        const downloadArtifact = vi.fn().mockResolvedValue(bytes)
+        const app = createApp({
+          db,
+          logger: silentLogger,
+          hubSession: fakeHubSession({ downloadArtifact }),
+        })
 
-      const res = await postJson(app, '/marketplace/install', { itemId: 'focus-writer' })
-      expect(res.status).toBe(201)
-      expect(await res.json()).toMatchObject({
-        kind: 'agent',
-        slug: 'focus-writer',
-        scope: 'user',
+        const res = await postJson(app, '/marketplace/install', { itemId: 'focus-writer' })
+        expect(res.status).toBe(201)
+        expect(await res.json()).toMatchObject({
+          kind: 'agent',
+          slug: 'focus-writer',
+          scope: 'user',
+        })
+        const agent = findAgentBySlug(db, {
+          userId: user.id,
+          workspaceId: null,
+          slug: 'focus-writer',
+        })
+        expect(agent).toMatchObject({ scope: 'user', workspaceId: null, source: 'community' })
       })
-      const agent = findAgentBySlug(db, {
-        userId: user.id,
-        workspaceId: null,
-        slug: 'focus-writer',
-      })
-      expect(agent).toMatchObject({ scope: 'user', workspaceId: null, source: 'community' })
     })
   })
 

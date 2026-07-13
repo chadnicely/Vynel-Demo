@@ -7,6 +7,15 @@
 // untouched; when provided, it REPLACES the set (delete-then-insert in
 // the same transaction). This lets thin callers (e.g. the enable
 // toggle) patch a single field without disturbing skills.
+//
+// Marketplace-sourced agents (source `community`/`vynel`) keep a disk
+// transparency mirror (`.claude/agents/<slug>.md`) that must track the
+// row: present exactly while enabled. This is LOAD-BEARING, not
+// cosmetic — the SDK loads filesystem agents, and only a same-named
+// programmatic definition shadows the file; a disabled agent's stale
+// mirror would go LIVE from disk. So after the tx commits: disable
+// removes the file, enable/edit rewrites it, a slug rename drops the
+// old file (best-effort + marker-checked; the row is truth).
 
 import { randomUUID } from 'node:crypto'
 import { withTransaction, type Database } from '@vynel/db'
@@ -20,6 +29,10 @@ import type {
   AgentPermissionMode,
 } from '@vynel/db/repositories/agents'
 import type { StructuralLogger } from '../agents-types.js'
+import {
+  removeAgentMirrorOnDisk,
+  syncAgentMirrorOnDisk,
+} from '../internal/agent-mirror-on-disk.js'
 import { AGENT_UPDATED, type AgentUpdatedPayload } from '../agents-events.js'
 
 export type UpdateAgentInput = {
@@ -114,6 +127,19 @@ export async function updateAgent(
 
     return row
   })
+
+  // Mirror sync AFTER the commit (header note). `source: 'user'` agents
+  // never had a mirror — the disk is not touched for them.
+  if (updated.source !== 'user') {
+    if (updated.slug !== existing.slug) {
+      await removeAgentMirrorOnDisk(
+        db,
+        { scope: existing.scope, workspaceId: existing.workspaceId, slug: existing.slug },
+        deps.logger,
+      )
+    }
+    await syncAgentMirrorOnDisk(db, updated, deps.logger)
+  }
 
   deps.logger?.info({ agentId: input.agentId }, 'agent updated')
   return updated

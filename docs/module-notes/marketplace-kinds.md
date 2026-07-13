@@ -48,6 +48,36 @@ UI over dead Get buttons:
 8. **Seed:** `scripts/seed-catalog/<agent-item>/` with agent.json so Chad can publish an agent from
    the portal and install it in the app — the end-to-end smoke.
 
+## Disk visibility (2026-07-14): installed agents land as files, like skills
+
+**Chad's expectation (recorded here so every kind's arc inherits it): EVERY installable kind lands
+as a visible file the user can see — "an agent md file inside .claude", exactly like skills write
+SKILL.md.** The `rule` (→ notebook target) and `mcp` (→ ownership + carding forks) arcs must plan
+their disk-visible artifact when they land.
+
+**The SDK finding that shaped the design:** `build-claude-sdk-options.ts` passes
+`settingSources: ['user','project','local']`, and the Agent SDK DOES load (and live-watches)
+filesystem agents from `<cwd>/.claude/agents/` + `~/.claude/agents/` — **but a programmatic
+`options.agents` entry takes precedence over a filesystem agent with the same name** (Agent SDK
+subagents doc, verified against the docs 2026-07-14). Vynel resolves every ENABLED agent into
+`options.agents` keyed by slug, so a same-slug file is always shadowed while the agent is enabled —
+no double-registration.
+
+**Design: a lifecycle-synced TRANSPARENCY MIRROR** (`.claude/agents/<slug>.md`; user scope under
+`~`, workspace scope under the workspace — skills' scope-home convention). The DB row stays the
+functional source; the file carries a "Managed by Vynel — edits here are not read back" header.
+The sync is **load-bearing, not cosmetic**: a DISABLED agent leaves `options.agents`, so a leftover
+file would go LIVE from disk. Hence: present ⇔ installed AND enabled —
+- `installCloudAgent` / `installCuratedAgent` → `installMarketplaceAgent` (dup pre-check → mirror
+  write disk-first → `createAgent` tx, mirror removed on a create race).
+- `updateAgent` (source ≠ 'user') → rewrite while enabled / remove on disable / move on rename.
+- `softDeleteAgent` (source ≠ 'user') → best-effort remove. Removal is always MARKER-CHECKED —
+  a hand-authored `.claude/agents/*.md` is never destroyed.
+
+**Deliberate scope:** marketplace/curated installs only. USER-BUILT agents (`createAgent` via
+`POST /agents`) get no mirror yet — wider adoption is a follow-up call for Chad (it would also give
+the in-app builder disk visibility, but needs a story for hand-edited files vs. the row).
+
 ## Deferred (named, not silent)
 
 - `mcp` kind (two forks above) · `rule` kind (rides arc ④) · `plugin` kind (undefined) ·

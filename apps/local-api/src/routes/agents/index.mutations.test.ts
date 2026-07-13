@@ -3,13 +3,28 @@
 // routes are covered in `index.test.ts` (mirrors the skills route-test
 // split for a large route file).
 
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { getOrCreateLocalUser } from '@vynel/core/users'
+import { withHomeDir } from '@vynel/agents/test-support'
 import { createApp } from '../../app.js'
 
 const logger = pino({ level: 'silent' })
+
+// A curated install writes the agent's transparency mirror under
+// `~/.claude/agents/` — isolate the real home to a tmpdir.
+async function withIsolatedHome<T>(fn: () => Promise<T>): Promise<T> {
+  const homeDir = mkdtempSync(join(tmpdir(), 'vynel-agents-route-home-'))
+  try {
+    return await withHomeDir(homeDir, fn)
+  } finally {
+    rmSync(homeDir, { recursive: true, force: true })
+  }
+}
 
 describe('POST /agents', () => {
   it('creates a user-scope agent — 201 with preloaded skillIds', async () => {
@@ -110,19 +125,21 @@ describe('POST /agents', () => {
 
 describe('POST /agents/curated/install', () => {
   it('installs a curated agent at user-scope — 201', async () => {
-    await withTestDatabase(async (db) => {
-      getOrCreateLocalUser(db, { logger })
-      const app = createApp({ db, logger })
-      const res = await app.request('/agents/curated/install', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ slug: 'researcher', scope: 'user' }),
+    await withIsolatedHome(async () => {
+      await withTestDatabase(async (db) => {
+        getOrCreateLocalUser(db, { logger })
+        const app = createApp({ db, logger })
+        const res = await app.request('/agents/curated/install', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ slug: 'researcher', scope: 'user' }),
+        })
+        expect(res.status).toBe(201)
+        const body = (await res.json()) as { slug: string; source: string; trustTier: string }
+        expect(body.slug).toBe('researcher')
+        expect(body.source).toBe('vynel')
+        expect(body.trustTier).toBe('verified')
       })
-      expect(res.status).toBe(201)
-      const body = (await res.json()) as { slug: string; source: string; trustTier: string }
-      expect(body.slug).toBe('researcher')
-      expect(body.source).toBe('vynel')
-      expect(body.trustTier).toBe('verified')
     })
   })
 

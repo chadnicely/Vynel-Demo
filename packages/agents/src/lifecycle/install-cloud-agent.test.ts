@@ -1,12 +1,18 @@
 // The cloud-agent install security core over the real product DB:
 // integrity-verify-first, manifest extraction + zod validation, the
-// slug === itemId anchor, the community source/trust stamp — plus the
-// failure paths (sha mismatch, bad archive, missing/invalid agent.json,
-// slug mismatch, unsafe permissionMode, duplicate).
+// slug === itemId anchor, the community source/trust stamp, the disk
+// transparency mirror — plus the failure paths (sha mismatch, bad
+// archive, missing/invalid agent.json, slug mismatch, unsafe
+// permissionMode, duplicate). Workspace paths are per-test tmpdirs and
+// user-scope installs isolate the host home (installs now write
+// `.claude/agents/<slug>.md` for real).
 
+import path from 'node:path'
+import os from 'node:os'
 import { createHash, randomUUID } from 'node:crypto'
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import JSZip from 'jszip'
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect } from 'vitest'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
@@ -15,7 +21,38 @@ import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { ValidationError } from '@vynel/errors'
 import type { AgentItemManifest } from '@vynel/contracts/marketplace/agent-item-manifest'
 import { installCloudAgent } from './install-cloud-agent.js'
+import { withHomeDir } from '../internal/resolve-host-home-dir.js'
 import { AGENT_CREATED } from '../agents-events.js'
+
+const tempDirs: string[] = []
+
+async function makeTempDir(prefix: string): Promise<string> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), prefix))
+  tempDirs.push(dir)
+  return dir
+}
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+})
+
+async function withIsolatedHome<T>(fn: (homeDir: string) => Promise<T>): Promise<T> {
+  const homeDir = await makeTempDir('vynel-agents-home-')
+  return withHomeDir(homeDir, () => fn(homeDir))
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function mirrorPathIn(rootDir: string, slug: string): string {
+  return path.join(rootDir, '.claude', 'agents', `${slug}.md`)
+}
 
 function makeManifest(overrides: Partial<AgentItemManifest> = {}): AgentItemManifest {
   return {
@@ -38,7 +75,7 @@ async function manifestArtifact(manifest: unknown): Promise<{ bytes: Buffer; sha
   return makeArtifact({ 'agent.json': JSON.stringify(manifest) })
 }
 
-function seed(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
+async function seed(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
   const now = new Date()
   const user = insertUser(db, {
     id: randomUUID(),
@@ -50,12 +87,14 @@ function seed(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
     createdAt: now,
     updatedAt: now,
   })
+  // A REAL per-test tmpdir — workspace-scope installs write the mirror
+  // under `<workspacePath>/.claude/agents/`.
   const workspace = insertWorkspace(db, {
     id: randomUUID(),
     userId: user.id,
     name: 'Acme',
     kind: 'small-business',
-    path: 'C:/tmp/acme',
+    path: await makeTempDir('vynel-agents-ws-'),
     isArchived: false,
     createdAt: now,
     updatedAt: now,
@@ -67,7 +106,7 @@ function seed(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
 describe('installCloudAgent', () => {
   it('verifies, parses agent.json, and creates a community-trust agent row', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seed(db)
+      const { user, workspace } = await seed(db)
       const { bytes, sha } = await manifestArtifact(
         makeManifest({ icon: 'pen-line', model: 'sonnet', effort: 'medium', allowedTools: ['Read'] }),
       )
@@ -94,6 +133,16 @@ describe('installCloudAgent', () => {
         findAgentBySlug(db, { userId: user.id, workspaceId: workspace.id, slug: 'focus-writer' })?.id,
       ).toBe(row.id)
 
+      // The transparency mirror landed in the WORKSPACE's .claude/agents,
+      // and its content matches the row.
+      const mirror = await readFile(mirrorPathIn(workspace.path, 'focus-writer'), 'utf8')
+      expect(mirror).toContain('Managed by Vynel')
+      expect(mirror).toContain('name: "focus-writer"')
+      expect(mirror).toContain(`description: ${JSON.stringify(row.description)}`)
+      expect(mirror).toContain('tools: "Read"')
+      expect(mirror).toContain('model: "sonnet"')
+      expect(mirror).toContain(row.prompt)
+
       // Exactly ONE agent.created — emitted by the delegated createAgent,
       // never doubled by the install wrapper; `source` carries provenance.
       const events = listOutboxEventsByType(db, AGENT_CREATED)
@@ -104,43 +153,52 @@ describe('installCloudAgent', () => {
     })
   })
 
-  it('installs at user scope (workspaceId null) when scope=user', async () => {
+  it('installs at user scope (workspaceId null) when scope=user, mirroring into the home', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seed(db)
-      const { bytes, sha } = await manifestArtifact(makeManifest())
-      const row = await installCloudAgent(db, {
-        userId: user.id,
-        workspaceId: workspace.id,
-        itemId: 'focus-writer',
-        scope: 'user',
-        artifactBytes: bytes,
-        expectedSha256: sha,
+      await withIsolatedHome(async (homeDir) => {
+        const { user, workspace } = await seed(db)
+        const { bytes, sha } = await manifestArtifact(makeManifest())
+        const row = await installCloudAgent(db, {
+          userId: user.id,
+          workspaceId: workspace.id,
+          itemId: 'focus-writer',
+          scope: 'user',
+          artifactBytes: bytes,
+          expectedSha256: sha,
+        })
+        expect(row.scope).toBe('user')
+        expect(row.workspaceId).toBeNull()
+        // User-scope mirrors live under `~/.claude/agents/` — skills'
+        // user home convention, never the workspace dir.
+        expect(await fileExists(mirrorPathIn(homeDir, 'focus-writer'))).toBe(true)
+        expect(await fileExists(mirrorPathIn(workspace.path, 'focus-writer'))).toBe(false)
       })
-      expect(row.scope).toBe('user')
-      expect(row.workspaceId).toBeNull()
     })
   })
 
   it('installs at user scope with NO workspace at all (the global marketplace path)', async () => {
     await withTestDatabase(async (db) => {
-      const { user } = seed(db)
-      const { bytes, sha } = await manifestArtifact(makeManifest())
-      const row = await installCloudAgent(db, {
-        userId: user.id,
-        workspaceId: null,
-        itemId: 'focus-writer',
-        scope: 'user',
-        artifactBytes: bytes,
-        expectedSha256: sha,
+      await withIsolatedHome(async (homeDir) => {
+        const { user } = await seed(db)
+        const { bytes, sha } = await manifestArtifact(makeManifest())
+        const row = await installCloudAgent(db, {
+          userId: user.id,
+          workspaceId: null,
+          itemId: 'focus-writer',
+          scope: 'user',
+          artifactBytes: bytes,
+          expectedSha256: sha,
+        })
+        expect(row.scope).toBe('user')
+        expect(row.workspaceId).toBeNull()
+        expect(await fileExists(mirrorPathIn(homeDir, 'focus-writer'))).toBe(true)
       })
-      expect(row.scope).toBe('user')
-      expect(row.workspaceId).toBeNull()
     })
   })
 
   it('rejects a workspace-scope install missing its workspace id', async () => {
     await withTestDatabase(async (db) => {
-      const { user } = seed(db)
+      const { user } = await seed(db)
       const { bytes, sha } = await manifestArtifact(makeManifest())
       await expect(
         installCloudAgent(db, {
@@ -157,7 +215,7 @@ describe('installCloudAgent', () => {
 
   it('rejects a sha256 mismatch BEFORE parsing anything', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seed(db)
+      const { user, workspace } = await seed(db)
       const { bytes } = await manifestArtifact(makeManifest())
       await expect(
         installCloudAgent(db, {
@@ -174,7 +232,7 @@ describe('installCloudAgent', () => {
 
   it('rejects a non-archive, a missing agent.json, and invalid JSON', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seed(db)
+      const { user, workspace } = await seed(db)
       const base = { userId: user.id, workspaceId: workspace.id, itemId: 'x', scope: 'workspace' as const }
 
       const garbage = Buffer.from('not a zip')
@@ -200,7 +258,7 @@ describe('installCloudAgent', () => {
 
   it('rejects a manifest that fails the schema (empty prompt, unsafe permissionMode)', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seed(db)
+      const { user, workspace } = await seed(db)
       const base = { userId: user.id, workspaceId: workspace.id, itemId: 'focus-writer', scope: 'workspace' as const }
 
       const emptyPrompt = await manifestArtifact({ ...makeManifest(), prompt: '' })
@@ -218,7 +276,7 @@ describe('installCloudAgent', () => {
 
   it('rejects a manifest that out-bounds the user-create caps (prompt length, tool-list size)', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seed(db)
+      const { user, workspace } = await seed(db)
       const base = { userId: user.id, workspaceId: workspace.id, itemId: 'focus-writer', scope: 'workspace' as const }
 
       // prompt cap mirrors the user-create route's 50_000 — a community
@@ -240,7 +298,7 @@ describe('installCloudAgent', () => {
 
   it('installs when the hub records the expected sha256 in uppercase hex', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seed(db)
+      const { user, workspace } = await seed(db)
       const { bytes, sha } = await manifestArtifact(makeManifest())
       const row = await installCloudAgent(db, {
         userId: user.id,
@@ -256,7 +314,7 @@ describe('installCloudAgent', () => {
 
   it('rejects a manifest whose slug does not match the catalog itemId', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seed(db)
+      const { user, workspace } = await seed(db)
       const { bytes, sha } = await manifestArtifact(makeManifest({ slug: 'other-slug' }))
       await expect(
         installCloudAgent(db, {
@@ -273,7 +331,7 @@ describe('installCloudAgent', () => {
 
   it('rejects a duplicate install at the same scope', async () => {
     await withTestDatabase(async (db) => {
-      const { user, workspace } = seed(db)
+      const { user, workspace } = await seed(db)
       const { bytes, sha } = await manifestArtifact(makeManifest())
       const input = {
         userId: user.id,
@@ -284,7 +342,31 @@ describe('installCloudAgent', () => {
         expectedSha256: sha,
       }
       await installCloudAgent(db, input)
+      const mirrorPath = mirrorPathIn(workspace.path, 'focus-writer')
+      const originalMirror = await readFile(mirrorPath, 'utf8')
+
       await expect(installCloudAgent(db, input)).rejects.toMatchObject({ code: 'conflict' })
+      // The duplicate pre-check fires BEFORE any disk touch — the live
+      // agent's mirror is untouched by the failed install.
+      expect(await readFile(mirrorPath, 'utf8')).toBe(originalMirror)
+    })
+  })
+
+  it('leaves no mirror behind when the install is rejected before the row', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = await seed(db)
+      const { bytes } = await manifestArtifact(makeManifest())
+      await expect(
+        installCloudAgent(db, {
+          userId: user.id,
+          workspaceId: workspace.id,
+          itemId: 'focus-writer',
+          scope: 'workspace',
+          artifactBytes: bytes,
+          expectedSha256: 'b'.repeat(64),
+        }),
+      ).rejects.toMatchObject({ code: 'validation_failed' })
+      expect(await fileExists(mirrorPathIn(workspace.path, 'focus-writer'))).toBe(false)
     })
   })
 })

@@ -1,16 +1,39 @@
 // Integration tests for `updateAgent`. Real SQLite via `withTestDatabase`
-// (no mocking). Spec: `docs/agent-base/agents.md`.
+// (no mocking). Includes the disk-mirror sync for marketplace-sourced
+// agents: disable removes `.claude/agents/<slug>.md`, enable/edit
+// rewrites it, a slug rename moves it — LOAD-BEARING, because the SDK
+// loads filesystem agents and only a same-named programmatic definition
+// shadows the file. Spec: `docs/agent-base/agents.md`.
 
-import { describe, expect, it } from 'vitest'
+import path from 'node:path'
+import os from 'node:os'
+import { afterEach, describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { listSkillIdsForAgent } from '@vynel/db/repositories/agents'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { ConflictError, NotFoundError } from '@vynel/errors'
 import { createAgent, type CreateAgentInput } from './create-agent.js'
 import { updateAgent } from './update-agent.js'
 import { AGENT_UPDATED } from '../agents-events.js'
+
+const tempDirs: string[] = []
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+})
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -125,6 +148,103 @@ describe('updateAgent', () => {
       await expect(
         updateAgent(db, { agentId: mover.id, userId: user.id, slug: 'taken' }),
       ).rejects.toBeInstanceOf(ConflictError)
+    })
+  })
+})
+
+describe('updateAgent — disk mirror sync (marketplace-sourced agents)', () => {
+  type TestDatabase = Parameters<Parameters<typeof withTestDatabase>[0]>[0]
+
+  // A community agent in a REAL tmpdir workspace, created through
+  // `createAgent` (rows can predate the mirror feature — the first
+  // update self-heals the file).
+  async function seedCommunityAgent(db: TestDatabase) {
+    const user = insertUser(db, makeUser())
+    const now = new Date()
+    const workspaceDir = await mkdtemp(path.join(os.tmpdir(), 'vynel-agent-update-ws-'))
+    tempDirs.push(workspaceDir)
+    const workspace = insertWorkspace(db, {
+      id: randomUUID(),
+      userId: user.id,
+      name: 'Acme',
+      kind: 'small-business',
+      path: workspaceDir,
+      isArchived: false,
+      createdAt: now,
+      updatedAt: now,
+      lastAccessedAt: now,
+    })
+    const agent = await createAgent(
+      db,
+      baseInput(user.id, { workspaceId: workspace.id, source: 'community' }),
+    )
+    return { user, workspaceDir, agent }
+  }
+
+  function mirrorPathIn(workspaceDir: string, slug: string): string {
+    return path.join(workspaceDir, '.claude', 'agents', `${slug}.md`)
+  }
+
+  it('writes the mirror on update while enabled, and keeps its content matching the row', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspaceDir, agent } = await seedCommunityAgent(db)
+      await updateAgent(db, { agentId: agent.id, userId: user.id, prompt: 'You research deeply.' })
+      const mirror = await readFile(mirrorPathIn(workspaceDir, 'researcher'), 'utf8')
+      expect(mirror).toContain('Managed by Vynel')
+      expect(mirror).toContain('You research deeply.')
+    })
+  })
+
+  it('removes the mirror on disable and restores it on enable (the file must never outlive the toggle)', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspaceDir, agent } = await seedCommunityAgent(db)
+      const mirrorPath = mirrorPathIn(workspaceDir, 'researcher')
+
+      await updateAgent(db, { agentId: agent.id, userId: user.id, enabled: true })
+      expect(await fileExists(mirrorPath)).toBe(true)
+
+      // A disabled agent leaves options.agents — a leftover file would go
+      // LIVE as a filesystem agent. The sync must remove it.
+      await updateAgent(db, { agentId: agent.id, userId: user.id, enabled: false })
+      expect(await fileExists(mirrorPath)).toBe(false)
+
+      await updateAgent(db, { agentId: agent.id, userId: user.id, enabled: true })
+      expect(await fileExists(mirrorPath)).toBe(true)
+    })
+  })
+
+  it('moves the mirror on a slug rename', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspaceDir, agent } = await seedCommunityAgent(db)
+      await updateAgent(db, { agentId: agent.id, userId: user.id, enabled: true })
+      expect(await fileExists(mirrorPathIn(workspaceDir, 'researcher'))).toBe(true)
+
+      await updateAgent(db, { agentId: agent.id, userId: user.id, slug: 'deep-researcher' })
+      expect(await fileExists(mirrorPathIn(workspaceDir, 'researcher'))).toBe(false)
+      expect(await fileExists(mirrorPathIn(workspaceDir, 'deep-researcher'))).toBe(true)
+    })
+  })
+
+  it('never writes a mirror for a user-built agent', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const now = new Date()
+      const workspaceDir = await mkdtemp(path.join(os.tmpdir(), 'vynel-agent-update-user-ws-'))
+      tempDirs.push(workspaceDir)
+      const workspace = insertWorkspace(db, {
+        id: randomUUID(),
+        userId: user.id,
+        name: 'Acme',
+        kind: 'small-business',
+        path: workspaceDir,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+        lastAccessedAt: now,
+      })
+      const agent = await createAgent(db, baseInput(user.id, { workspaceId: workspace.id }))
+      await updateAgent(db, { agentId: agent.id, userId: user.id, prompt: 'Edited.' })
+      expect(await fileExists(mirrorPathIn(workspaceDir, 'researcher'))).toBe(false)
     })
   })
 })
