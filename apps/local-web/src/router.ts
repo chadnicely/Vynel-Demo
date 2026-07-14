@@ -38,6 +38,14 @@ export function createAppRouter() {
         component: () => import("./views/PrimitivesPreview.vue"),
         meta: { bare: true },
       },
+      {
+        // Wave B scaffold — the reinvented shell on placeholder content, for
+        // review before it replaces the real App.vue shell.
+        path: "/shell-preview",
+        name: "shell-preview",
+        component: () => import("./views/ShellPreview.vue"),
+        meta: { bare: true },
+      },
     ],
   });
 }

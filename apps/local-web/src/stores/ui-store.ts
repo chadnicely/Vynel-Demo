@@ -69,10 +69,6 @@ export const useUiStore = defineStore("ui", () => {
   // continuous single conversation unless the user toggles the list open.
   const isSessionListOpen = ref(false);
 
-  // The menu is a persistent panel sitting BEFORE the conversations panel;
-  // its items render their views on the canvas (chat included).
-  const isMenuOpen = ref(false);
-
   const globalChat = reactive<ChatShellState>({
     mainView: "chat",
     target: "continuous",
@@ -95,7 +91,6 @@ export const useUiStore = defineStore("ui", () => {
     toggleTheme,
     activeWorkspaceId,
     isSessionListOpen,
-    isMenuOpen,
     globalChat,
     workspaceChat,
     composerModelId,

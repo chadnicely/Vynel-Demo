@@ -7,7 +7,6 @@ import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
-import MenuPanel from "../components/shell/MenuPanel.vue";
 import AccountSection from "../components/sections/AccountSection.vue";
 import AgentsSection from "../components/sections/AgentsSection.vue";
 import ChannelsSection from "../components/sections/ChannelsSection.vue";
@@ -42,19 +41,6 @@ const GLOBAL_SCOPE = { kind: "global" } as const;
 // Claude — the product never brands over it. One constant today; a
 // configurable persona later.
 const ASSISTANT_NAME = "Claude";
-
-const GLOBAL_MENU_ITEMS = [
-  { id: "chat", label: "Chat", hint: "Your conversation" },
-  { id: "channels", label: "Channels", hint: "Telegram and other ways in" },
-  { id: "schedules", label: "Schedules", hint: "Claude on its own time" },
-  { id: "knowledge", label: "Knowledge", hint: "The vault Claude studies" },
-  { id: "memory", label: "Memory", hint: "What Claude remembers" },
-  { id: "notebook", label: "Notebook", hint: "Playbooks Claude reads on demand" },
-  { id: "marketplace", label: "Marketplace", hint: "Skills and agents to add" },
-  { id: "agents", label: "Agents", hint: "Specialists Claude delegates to" },
-  { id: "account", label: "Account", hint: "Your Vynel account" },
-  { id: "application", label: "Application", hint: "Global settings" },
-];
 
 /** The global menu items that render a feature section on the canvas. */
 const GLOBAL_SECTION_IDS = [
@@ -193,11 +179,6 @@ function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
   });
 }
 
-function onMenuSelect(itemId: string) {
-  shell.mainView =
-    isGlobalSection(itemId) || itemId === "application" ? itemId : "chat";
-}
-
 function openHistorySession(sessionId: string) {
   shell.target = { sessionId };
   shell.mainView = "chat";
@@ -211,14 +192,6 @@ function openContinuous() {
 
 <template>
   <div class="chat-view">
-    <MenuPanel
-      v-if="ui.isMenuOpen"
-      title="Menu"
-      :items="GLOBAL_MENU_ITEMS"
-      :active-id="typeof shell.mainView === 'string' ? shell.mainView : 'chat'"
-      @select="onMenuSelect"
-    />
-
     <SessionsPanel
       v-if="ui.isSessionListOpen"
       :sessions="sessions"

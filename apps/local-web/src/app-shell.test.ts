@@ -80,25 +80,27 @@ async function mountShell(initialPath = "/") {
 }
 
 describe("app shell", () => {
-  it("redirects / to Home and renders the three tabs", async () => {
+  // The shell was reinvented into a desktop layout: the sidebar carries a
+  // Home/Chat mode toggle (no "Workspace" tab — a room is entered via the
+  // title-bar workspace switcher). These tests track that model.
+  it("redirects / to Home and shows the Home/Chat toggle", async () => {
     const { wrapper, router } = await mountShell();
 
     expect(router.currentRoute.value.name).toBe("home");
     const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs.map((tab) => tab.text())).toEqual([
-      "Home",
-      "Chat",
-      "Workspace",
-    ]);
+    expect(tabs.map((tab) => tab.text())).toEqual(["Home", "Chat"]);
     expect(wrapper.text()).toContain(
       "everything your assistant does shows up here",
     );
   });
 
-  it("clicking a tab swaps the routed view", async () => {
+  it("clicking the Chat toggle swaps the routed view", async () => {
     const { wrapper, router } = await mountShell();
 
-    await wrapper.findAll('[role="tab"]')[1]!.trigger("click");
+    const chatTab = wrapper
+      .findAll('[role="tab"]')
+      .find((tab) => tab.text() === "Chat");
+    await chatTab!.trigger("click");
     // The navigation lazy-loads the view chunk — settle the dynamic import first.
     await vi.dynamicImportSettled();
     await flushPromises();
@@ -113,13 +115,22 @@ describe("app shell", () => {
     expect(wrapper.text()).toContain("Reachable on");
   });
 
-  it("marks the tab of the current route as selected", async () => {
-    const { wrapper } = await mountShell("/workspace");
+  it("marks the toggle for the current global surface", async () => {
+    const { wrapper } = await mountShell("/chat");
 
     const selected = wrapper
       .findAll('[role="tab"]')
       .filter((tab) => tab.attributes("aria-selected") === "true");
     expect(selected).toHaveLength(1);
-    expect(selected[0]!.text()).toBe("Workspace");
+    expect(selected[0]!.text()).toBe("Chat");
+  });
+
+  it("selects neither toggle inside a workspace (the switcher carries the scope)", async () => {
+    const { wrapper } = await mountShell("/workspace");
+
+    const selected = wrapper
+      .findAll('[role="tab"]')
+      .filter((tab) => tab.attributes("aria-selected") === "true");
+    expect(selected).toHaveLength(0);
   });
 });

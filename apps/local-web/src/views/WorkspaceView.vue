@@ -5,12 +5,10 @@ import { EmptyState, IconButton } from "@vynel/ui";
 import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
-import MenuPanel from "../components/shell/MenuPanel.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
 import FileEditorView from "../components/workspace/FileEditorView.vue";
 import WorkspaceSectionPanel from "../components/workspace/WorkspaceSectionPanel.vue";
 import WorkspaceWelcomeHero from "../components/workspace/WorkspaceWelcomeHero.vue";
-import { WORKSPACE_SECTIONS } from "../components/workspace/workspace-sections.js";
 import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useSessionList } from "../composables/chat/use-session-list.js";
@@ -30,15 +28,6 @@ import { formatSdkError } from "../utils/format-sdk-error.js";
 const ui = useUiStore();
 const shell = ui.workspaceChat;
 const sessionViewer = useSessionViewerStore();
-
-const WORKSPACE_MENU_ITEMS = [
-  { id: "chat", label: "Chat", hint: "The conversation" },
-  ...WORKSPACE_SECTIONS.map((section) => ({
-    id: section.id,
-    label: section.label,
-    hint: section.hint,
-  })),
-];
 
 const workspacesQuery = useWorkspaceList();
 const workspaces = computed(() => workspacesQuery.data.value ?? []);
@@ -181,10 +170,6 @@ function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
   });
 }
 
-function onMenuSelect(itemId: string) {
-  shell.mainView = itemId === "chat" ? "chat" : (itemId as WorkspaceSectionId);
-}
-
 function openHistorySession(sessionId: string) {
   shell.target = { sessionId };
   shell.mainView = "chat";
@@ -204,14 +189,6 @@ function openContinuous() {
 
 <template>
   <div class="workspace-view">
-    <MenuPanel
-      v-if="ui.isMenuOpen"
-      :title="activeWorkspace?.name ?? 'Workspace'"
-      :items="WORKSPACE_MENU_ITEMS"
-      :active-id="typeof shell.mainView === 'string' ? shell.mainView : ''"
-      @select="onMenuSelect"
-    />
-
     <SessionsPanel
       v-if="ui.isSessionListOpen"
       :sessions="sessions"
