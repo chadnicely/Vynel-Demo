@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ArrowUp, Folder, HardDrive } from "lucide-vue-next";
+import { Modal } from "@vynel/ui";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 import { useDirectoryListing } from "../../composables/workspaces/use-directory-listing.js";
 import { useRegisterWorkspace } from "../../composables/workspaces/use-register-workspace.js";
@@ -66,368 +67,127 @@ function create() {
   );
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    // Claim the key so outer overlays (the Watch panel's document listener)
-    // don't also close on the same press.
-    event.preventDefault();
-    emit("close");
-  }
+// Modal owns Esc / backdrop / focus-trap / scroll-lock; it reports close via
+// update:open, which we forward to the parent as `close`.
+function onOpenChange(open: boolean) {
+  if (!open) emit("close");
 }
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="props.open"
-      class="dialog-backdrop"
-      @pointerdown.self="emit('close')"
-      @keydown="onKeydown"
-    >
-      <div
-        class="dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="New workspace"
-      >
-        <header class="dialog-header">
-          <h2 class="dialog-title">New workspace</h2>
-          <p class="dialog-subtitle">
-            A room for one area of your life or work — its own files, memory,
-            and skills.
-          </p>
-        </header>
+  <Modal
+    :open="props.open"
+    title="New workspace"
+    description="A room for one area of your life or work — its own files, memory, and skills."
+    size="lg"
+    @update:open="onOpenChange"
+  >
+    <div class="flex flex-col gap-3.5 pt-1">
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Name</span>
+        <input
+          v-model="name"
+          type="text"
+          maxlength="120"
+          placeholder="e.g. Bookkeeping"
+          autofocus
+          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
+          @keydown.enter.prevent="create"
+        />
+      </label>
 
-        <label class="field">
-          <span class="field-label">Name</span>
-          <input
-            v-model="name"
-            type="text"
-            maxlength="120"
-            placeholder="e.g. Bookkeeping"
-            autofocus
-            @keydown.enter.prevent="create"
-          />
-        </label>
-
-        <div class="field">
-          <span class="field-label">Folder</span>
-          <div class="picker">
-            <div class="picker-bar">
-              <button
-                type="button"
-                class="up"
-                :disabled="!listing?.parent"
-                title="Up one folder"
-                @click="listing?.parent && (browsePath = listing.parent)"
-              >
-                <ArrowUp :size="13" />
-              </button>
-              <span class="current-path" :title="selectedPath ?? ''">
-                {{ selectedPath ?? "Loading…" }}
-              </span>
-            </div>
-
-            <div v-if="listing?.drives?.length" class="drives">
-              <button
-                v-for="drive in listing.drives"
-                :key="drive"
-                type="button"
-                class="drive"
-                :class="{ 'is-active': selectedPath?.startsWith(drive) }"
-                @click="browsePath = drive"
-              >
-                <HardDrive :size="11" />
-                {{ drive }}
-              </button>
-            </div>
-
-            <div class="entries" :class="{ 'is-loading': listingQuery.isFetching.value }">
-              <button
-                v-for="entry in listing?.entries ?? []"
-                :key="entry.path"
-                type="button"
-                class="entry"
-                @click="browsePath = entry.path"
-              >
-                <Folder :size="13" class="entry-icon" />
-                <span class="entry-name">{{ entry.name }}</span>
-              </button>
-              <p
-                v-if="listing && listing.entries.length === 0"
-                class="empty-note"
-              >
-                No subfolders — this folder itself becomes the workspace.
-              </p>
-            </div>
+      <div class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Folder</span>
+        <div class="overflow-hidden rounded-md border border-hair bg-panel">
+          <div class="flex items-center gap-2 border-b border-hair px-2.5 py-[7px]">
+            <button
+              type="button"
+              class="grid h-[22px] w-6 cursor-default place-items-center rounded-sm border border-hair-strong text-ink-2 enabled:hover:bg-row-hover disabled:opacity-40"
+              :disabled="!listing?.parent"
+              title="Up one folder"
+              @click="listing?.parent && (browsePath = listing.parent)"
+            >
+              <ArrowUp :size="13" />
+            </button>
+            <span
+              class="overflow-hidden text-ellipsis whitespace-nowrap text-left font-mono text-[11.5px] font-medium text-ink-2 [direction:rtl]"
+              :title="selectedPath ?? ''"
+            >
+              {{ selectedPath ?? "Loading…" }}
+            </span>
           </div>
-          <span class="field-hint">
-            The open folder is the one Claude uses. Step into the folder you
-            want, then create.
-          </span>
-        </div>
 
-        <p v-if="errorMessage" class="dialog-error" role="alert">
-          {{ errorMessage }}
-        </p>
+          <div v-if="listing?.drives?.length" class="flex gap-1 px-2.5 pt-1.5">
+            <button
+              v-for="drive in listing.drives"
+              :key="drive"
+              type="button"
+              class="inline-flex cursor-default items-center gap-1 rounded-sm border px-2 py-0.5 text-[10.5px] font-medium"
+              :class="
+                selectedPath?.startsWith(drive)
+                  ? 'border-gold text-ink-1'
+                  : 'border-hair text-ink-3 hover:bg-row-hover hover:text-ink-2'
+              "
+              @click="browsePath = drive"
+            >
+              <HardDrive :size="11" />
+              {{ drive }}
+            </button>
+          </div>
 
-        <footer class="dialog-actions">
-          <button type="button" class="cancel" @click="emit('close')">
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="create"
-            :disabled="!canCreate"
-            @click="create"
+          <div
+            class="grid h-[168px] content-start gap-px overflow-y-auto p-1.5 transition-opacity"
+            :class="listingQuery.isFetching.value && 'opacity-55'"
           >
-            {{
-              registerWorkspace.isPending.value
-                ? "Creating…"
-                : "Create workspace"
-            }}
-          </button>
-        </footer>
+            <button
+              v-for="entry in listing?.entries ?? []"
+              :key="entry.path"
+              type="button"
+              class="entry flex cursor-default items-center gap-2 rounded-sm px-2 py-[5px] text-left hover:bg-row-hover"
+              @click="browsePath = entry.path"
+            >
+              <Folder :size="13" class="shrink-0 text-file-folder" />
+              <span class="overflow-hidden text-ellipsis whitespace-nowrap text-[12.5px] text-ink-1">
+                {{ entry.name }}
+              </span>
+            </button>
+            <p
+              v-if="listing && listing.entries.length === 0"
+              class="m-2 text-[11.5px] text-ink-3"
+            >
+              No subfolders — this folder itself becomes the workspace.
+            </p>
+          </div>
+        </div>
+        <span class="text-[11px] text-ink-3">
+          The open folder is the one Claude uses. Step into the folder you
+          want, then create.
+        </span>
       </div>
+
+      <p v-if="errorMessage" class="m-0 text-xs text-danger" role="alert">
+        {{ errorMessage }}
+      </p>
     </div>
-  </Teleport>
+
+    <template #footer>
+      <button
+        type="button"
+        class="cursor-default rounded-sm border border-hair-strong px-3.5 py-1.5 text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+        @click="emit('close')"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="create cursor-default rounded-sm bg-gold px-4 py-1.5 text-xs font-semibold text-shell transition hover:bg-gold-bright disabled:opacity-55"
+        :disabled="!canCreate"
+        @click="create"
+      >
+        {{
+          registerWorkspace.isPending.value ? "Creating…" : "Create workspace"
+        }}
+      </button>
+    </template>
+  </Modal>
 </template>
-
-<style scoped>
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  background: var(--bg-overlay);
-}
-
-.dialog {
-  width: min(480px, 92vw);
-  background: var(--bg-panel);
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-l);
-  box-shadow: var(--shadow-overlay);
-  padding: 20px 22px 18px;
-  display: grid;
-  gap: 14px;
-}
-
-.dialog-header {
-  display: grid;
-  gap: 2px;
-}
-
-.dialog-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 15px/1.4 var(--font-ui);
-}
-
-.dialog-subtitle {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 12px/1.55 var(--font-ui);
-}
-
-.field {
-  display: grid;
-  gap: 5px;
-}
-
-.field-label {
-  color: var(--ink-2);
-  font: 600 12px/1.5 var(--font-ui);
-}
-
-.field-hint {
-  color: var(--ink-3);
-  font: 400 11px/1.5 var(--font-ui);
-}
-
-.field input {
-  appearance: none;
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: var(--bg-raised);
-  color: var(--ink-1);
-  padding: 8px 10px;
-  font: 400 13px/1.5 var(--font-ui);
-}
-
-.field input:focus-visible {
-  outline: none;
-  border-color: var(--gold);
-}
-
-.picker {
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-m);
-  background: var(--bg-raised);
-  overflow: hidden;
-}
-
-.picker-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--hair);
-}
-
-.up {
-  appearance: none;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-2);
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 22px;
-}
-
-.up:hover:not(:disabled) {
-  background: var(--row-hover);
-}
-
-.up:disabled {
-  opacity: 0.4;
-}
-
-.current-path {
-  color: var(--ink-2);
-  font: 500 11.5px/1.4 var(--font-mono);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  direction: rtl;
-  text-align: left;
-}
-
-.drives {
-  display: flex;
-  gap: 4px;
-  padding: 6px 10px 0;
-}
-
-.drive {
-  appearance: none;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-3);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  font: 500 10.5px/1.6 var(--font-ui);
-}
-
-.drive:hover {
-  background: var(--row-hover);
-  color: var(--ink-2);
-}
-
-.drive.is-active {
-  border-color: var(--gold);
-  color: var(--ink-1);
-}
-
-.entries {
-  height: 168px;
-  overflow-y: auto;
-  padding: 6px;
-  display: grid;
-  gap: 1px;
-  align-content: start;
-  transition: opacity var(--t-fast) var(--ease-out);
-}
-
-.entries.is-loading {
-  opacity: 0.55;
-}
-
-.entry {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: var(--radius-s);
-  text-align: left;
-}
-
-.entry:hover {
-  background: var(--row-hover);
-}
-
-.entry-icon {
-  color: var(--file-folder);
-  flex: none;
-}
-
-.entry-name {
-  color: var(--ink-1);
-  font: 400 12.5px/1.5 var(--font-ui);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.empty-note {
-  margin: 8px;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.dialog-error {
-  margin: 0;
-  color: var(--danger);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.cancel {
-  appearance: none;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-2);
-  padding: 6px 16px;
-  font: 600 12.5px/1.6 var(--font-ui);
-}
-
-.cancel:hover {
-  background: var(--row-hover);
-}
-
-.create {
-  appearance: none;
-  border: 0;
-  border-radius: var(--radius-s);
-  background: var(--gold);
-  color: #14171c;
-  padding: 6px 18px;
-  font: 600 12.5px/1.6 var(--font-ui);
-  transition: background var(--t-fast) var(--ease-out);
-}
-
-.create:hover:not(:disabled) {
-  background: var(--gold-bright);
-}
-
-.create:disabled {
-  opacity: 0.5;
-}
-</style>

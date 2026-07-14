@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ArrowUp, FileText, Folder, HardDrive } from "lucide-vue-next";
+import { Modal } from "@vynel/ui";
 import { useDirectoryListing } from "../../composables/workspaces/use-directory-listing.js";
 import { useAddKnowledgeSource } from "../../composables/knowledge/use-add-knowledge-source.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
@@ -101,377 +102,148 @@ function add() {
   );
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    emit("close");
-  }
+// Modal owns Esc / backdrop / focus-trap / scroll-lock; it reports close via
+// update:open, which we forward to the parent as `close`.
+function onOpenChange(open: boolean) {
+  if (!open) emit("close");
 }
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="props.open"
-      class="dialog-backdrop"
-      @pointerdown.self="emit('close')"
-      @keydown="onKeydown"
-    >
-      <div
-        class="dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Add to knowledge"
-      >
-        <header class="dialog-header">
-          <h2 class="dialog-title">Add a folder or file to knowledge</h2>
-          <p class="dialog-subtitle">
-            Claude studies what you add — searchable in chat the moment it's
-            indexed.
-          </p>
-        </header>
-
-        <div class="field">
-          <span class="field-label">Folder or file</span>
-          <div class="picker">
-            <div class="picker-bar">
-              <button
-                type="button"
-                class="up"
-                :disabled="!listing?.parent"
-                title="Up one folder"
-                @click="listing?.parent && openFolder(listing.parent)"
-              >
-                <ArrowUp :size="13" />
-              </button>
-              <span class="current-path">{{ selectedPath ?? "…" }}</span>
-            </div>
-            <div v-if="listing?.drives?.length" class="drives">
-              <button
-                v-for="drive in listing.drives"
-                :key="drive"
-                type="button"
-                class="drive"
-                @click="openFolder(drive)"
-              >
-                <HardDrive :size="11" />
-                {{ drive }}
-              </button>
-            </div>
-            <div class="entries">
-              <button
-                v-for="entry in listing?.entries ?? []"
-                :key="entry.path"
-                type="button"
-                class="entry"
-                @click="openFolder(entry.path)"
-              >
-                <Folder :size="13" class="entry-icon" />
-                {{ entry.name }}
-              </button>
-              <button
-                v-for="file in listing?.files ?? []"
-                :key="file.path"
-                type="button"
-                class="entry"
-                :class="{ 'is-selected': selectedFilePath === file.path }"
-                @click="pickFile(file.path)"
-              >
-                <FileText :size="13" class="entry-icon file" />
-                {{ file.name }}
-              </button>
-              <p
-                v-if="
-                  listing &&
-                  listing.entries.length === 0 &&
-                  (listing.files?.length ?? 0) === 0
-                "
-                class="empty-note"
-              >
-                Nothing inside — this folder itself becomes the source.
-              </p>
-            </div>
-          </div>
-          <span class="field-hint">
-            Click a file to add just that file — otherwise the open folder is
-            what Claude studies.
-          </span>
-        </div>
-
-        <label class="field">
-          <span class="field-label">Where it lives</span>
-          <select v-model="scopeChoice" class="scope-select">
-            <option value="global">Global — searchable everywhere</option>
-            <option
-              v-for="workspace in workspaces"
-              :key="workspace.id"
-              :value="workspace.id"
+  <Modal
+    :open="props.open"
+    title="Add a folder or file to knowledge"
+    description="Claude studies what you add — searchable in chat the moment it's indexed."
+    size="lg"
+    @update:open="onOpenChange"
+  >
+    <div class="flex flex-col gap-3.5 pt-1">
+      <div class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Folder or file</span>
+        <div class="overflow-hidden rounded-sm border border-hair-strong bg-panel">
+          <div class="flex items-center gap-2 border-b border-hair px-2 py-1.5">
+            <button
+              type="button"
+              class="cursor-default rounded-sm border border-hair px-1.5 py-[3px] text-ink-2 transition hover:enabled:bg-row-hover hover:enabled:text-ink-1 disabled:opacity-40"
+              :disabled="!listing?.parent"
+              title="Up one folder"
+              @click="listing?.parent && openFolder(listing.parent)"
             >
-              {{ workspace.name }} workspace only
-            </option>
-          </select>
-        </label>
-
-        <p v-if="anchorWorkspaceId === null" class="dialog-error" role="alert">
-          Create a workspace first — knowledge indexing anchors on one.
-        </p>
-        <p v-else-if="errorMessage" class="dialog-error" role="alert">
-          {{ errorMessage }}
-        </p>
-
-        <footer class="dialog-actions">
-          <button type="button" class="ghost" @click="emit('close')">
-            Cancel
-          </button>
-          <button type="button" class="primary" :disabled="!canAdd" @click="add">
-            {{ addSource.isPending.value ? "Indexing…" : "Add to knowledge" }}
-          </button>
-        </footer>
+              <ArrowUp :size="13" />
+            </button>
+            <span
+              class="overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11.5px] font-medium text-ink-1"
+              >{{ selectedPath ?? "…" }}</span
+            >
+          </div>
+          <div
+            v-if="listing?.drives?.length"
+            class="flex flex-wrap gap-[5px] border-b border-hair px-2 py-1.5"
+          >
+            <button
+              v-for="drive in listing.drives"
+              :key="drive"
+              type="button"
+              class="inline-flex cursor-default items-center gap-1 rounded-full border border-hair px-2 py-0.5 font-mono text-[10.5px] font-medium text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+              @click="openFolder(drive)"
+            >
+              <HardDrive :size="11" />
+              {{ drive }}
+            </button>
+          </div>
+          <div class="grid max-h-[180px] gap-px overflow-y-auto p-1">
+            <button
+              v-for="entry in listing?.entries ?? []"
+              :key="entry.path"
+              type="button"
+              class="flex cursor-default items-center gap-[7px] rounded-sm px-2 py-[5px] text-left text-xs text-ink-1 transition hover:bg-row-hover"
+              @click="openFolder(entry.path)"
+            >
+              <Folder :size="13" class="shrink-0 text-file-folder" />
+              {{ entry.name }}
+            </button>
+            <button
+              v-for="file in listing?.files ?? []"
+              :key="file.path"
+              type="button"
+              class="flex cursor-default items-center gap-[7px] rounded-sm px-2 py-[5px] text-left text-xs text-ink-1 transition"
+              :class="
+                selectedFilePath === file.path
+                  ? 'bg-row-active'
+                  : 'hover:bg-row-hover'
+              "
+              @click="pickFile(file.path)"
+            >
+              <FileText :size="13" class="shrink-0 text-ink-3" />
+              {{ file.name }}
+            </button>
+            <p
+              v-if="
+                listing &&
+                listing.entries.length === 0 &&
+                (listing.files?.length ?? 0) === 0
+              "
+              class="m-0 px-2 py-1.5 text-[11.5px] text-ink-3"
+            >
+              Nothing inside — this folder itself becomes the source.
+            </p>
+          </div>
+        </div>
+        <span class="text-[11px] text-ink-3">
+          Click a file to add just that file — otherwise the open folder is
+          what Claude studies.
+        </span>
       </div>
+
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Where it lives</span>
+        <select
+          v-model="scopeChoice"
+          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
+        >
+          <option value="global">Global — searchable everywhere</option>
+          <option
+            v-for="workspace in workspaces"
+            :key="workspace.id"
+            :value="workspace.id"
+          >
+            {{ workspace.name }} workspace only
+          </option>
+        </select>
+      </label>
+
+      <p
+        v-if="anchorWorkspaceId === null"
+        class="m-0 text-xs text-danger"
+        role="alert"
+      >
+        Create a workspace first — knowledge indexing anchors on one.
+      </p>
+      <p
+        v-else-if="errorMessage"
+        class="m-0 text-xs text-danger"
+        role="alert"
+      >
+        {{ errorMessage }}
+      </p>
     </div>
-  </Teleport>
+
+    <template #footer>
+      <button
+        type="button"
+        class="cursor-default rounded-sm border border-hair-strong px-3.5 py-1.5 text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+        @click="emit('close')"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="cursor-default rounded-sm bg-gold px-4 py-1.5 text-xs font-semibold text-shell transition hover:bg-gold-bright disabled:opacity-55"
+        :disabled="!canAdd"
+        @click="add"
+      >
+        {{ addSource.isPending.value ? "Indexing…" : "Add to knowledge" }}
+      </button>
+    </template>
+  </Modal>
 </template>
-
-<style scoped>
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  background: var(--bg-overlay);
-}
-
-.dialog {
-  width: min(480px, calc(100vw - 48px));
-  max-height: calc(100vh - 64px);
-  overflow-y: auto;
-  display: grid;
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-l);
-  background: var(--bg-raised);
-  box-shadow: var(--shadow-overlay);
-}
-
-.dialog-header {
-  display: grid;
-  gap: 3px;
-}
-
-.dialog-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 15px/1.4 var(--font-ui);
-}
-
-.dialog-subtitle {
-  margin: 0;
-  color: var(--ink-2);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.field {
-  display: grid;
-  gap: 6px;
-}
-
-.field-label {
-  color: var(--ink-2);
-  font: 600 11.5px/1.5 var(--font-ui);
-}
-
-.picker {
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  overflow: hidden;
-}
-
-.picker-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--hair);
-}
-
-.up {
-  appearance: none;
-  border: 1px solid var(--hair);
-  margin: 0;
-  padding: 3px 6px;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-2);
-  cursor: default;
-}
-
-.up:disabled {
-  opacity: 0.4;
-}
-
-.up:hover:not(:disabled) {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.current-path {
-  color: var(--ink-1);
-  font: 500 11.5px/1.5 var(--font-mono);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.drives {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--hair);
-}
-
-.drive {
-  appearance: none;
-  border: 1px solid var(--hair);
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 500 10.5px/1.5 var(--font-mono);
-  cursor: default;
-}
-
-.drive:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.entries {
-  max-height: 180px;
-  overflow-y: auto;
-  padding: 4px;
-  display: grid;
-  gap: 1px;
-}
-
-.entry {
-  appearance: none;
-  border: 0;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 8px;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-1);
-  font: 400 12px/1.5 var(--font-ui);
-  text-align: left;
-  cursor: default;
-}
-
-.entry:hover {
-  background: var(--row-hover);
-}
-
-.entry.is-selected {
-  background: var(--row-active);
-  color: var(--ink-1);
-}
-
-.entry-icon {
-  color: var(--file-folder);
-  flex: none;
-}
-
-.entry-icon.file {
-  color: var(--ink-3);
-}
-
-.empty-note {
-  margin: 6px 8px;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.field-hint {
-  color: var(--ink-3);
-  font: 400 11px/1.5 var(--font-ui);
-}
-
-.scope-select {
-  appearance: none;
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-1);
-  font: 400 12.5px/1.5 var(--font-ui);
-}
-
-.scope-select:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -1px;
-}
-
-.dialog-error {
-  margin: 0;
-  color: var(--danger);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.ghost,
-.primary {
-  appearance: none;
-  border: 1px solid var(--hair-strong);
-  margin: 0;
-  padding: 6px 14px;
-  border-radius: var(--radius-s);
-  font: 600 12px/1.5 var(--font-ui);
-  cursor: default;
-}
-
-.ghost {
-  background: transparent;
-  color: var(--ink-2);
-}
-
-.ghost:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.primary {
-  border-color: transparent;
-  background: var(--gold);
-  color: #14171c;
-}
-
-.primary:hover:not(:disabled) {
-  background: var(--gold-bright);
-}
-
-.primary:disabled {
-  opacity: 0.55;
-}
-
-.ghost:focus-visible,
-.primary:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-</style>

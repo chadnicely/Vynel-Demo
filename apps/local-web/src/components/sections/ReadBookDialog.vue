@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { BadgeCheck } from "lucide-vue-next";
-import { MarkdownText } from "@vynel/ui";
+import { MarkdownText, Modal } from "@vynel/ui";
 import { usePlaybook } from "../../composables/notebook/use-playbook.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import type { SectionScope } from "./section-scope.js";
@@ -42,155 +42,37 @@ const errorMessage = computed(() =>
     : null,
 );
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    emit("close");
-  }
+// Modal owns Esc / backdrop / focus-trap / scroll-lock; it reports close via
+// update:open, which we forward to the parent as `close`.
+function onOpenChange(open: boolean) {
+  if (!open) emit("close");
 }
 </script>
 
 <template>
-  <Teleport to="body">
+  <Modal :open="props.open" size="lg" @update:open="onOpenChange">
+    <template #title>
+      <span class="flex flex-wrap items-center gap-2">
+        {{ props.book?.title }}
+        <span
+          v-if="props.book?.verified"
+          class="verified-chip inline-flex shrink-0 items-center gap-1 rounded-full border border-gold-soft bg-gold-soft px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-gold"
+        >
+          <BadgeCheck :size="11" />
+          Verified
+        </span>
+      </span>
+    </template>
+
+    <p v-if="errorMessage" class="m-0 text-xs text-danger" role="alert">
+      {{ errorMessage }}
+    </p>
+    <p v-else-if="bodyText === null" class="m-0 text-xs text-ink-3">Opening…</p>
     <div
-      v-if="props.open && props.book !== null"
-      class="dialog-backdrop"
-      @pointerdown.self="emit('close')"
-      @keydown="onKeydown"
+      v-else
+      class="book-body rounded-sm border border-hair bg-panel p-3 text-sm leading-[1.65] text-ink-1 break-words"
     >
-      <div
-        class="dialog"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="props.book.title"
-      >
-        <header class="dialog-header">
-          <h2 class="dialog-title">
-            {{ props.book.title }}
-            <span v-if="props.book.verified" class="verified-chip">
-              <BadgeCheck :size="11" />
-              Verified
-            </span>
-          </h2>
-        </header>
-
-        <p v-if="errorMessage" class="dialog-error" role="alert">
-          {{ errorMessage }}
-        </p>
-        <p v-else-if="bodyText === null" class="dialog-loading">Opening…</p>
-        <div v-else class="book-body">
-          <MarkdownText :source="bodyText" />
-        </div>
-
-        <footer class="dialog-actions">
-          <button type="button" class="ghost" @click="emit('close')">
-            Close
-          </button>
-        </footer>
-      </div>
+      <MarkdownText :source="bodyText" />
     </div>
-  </Teleport>
+  </Modal>
 </template>
-
-<style scoped>
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  background: var(--bg-overlay);
-}
-
-.dialog {
-  width: min(640px, calc(100vw - 48px));
-  max-height: calc(100vh - 64px);
-  overflow-y: auto;
-  display: grid;
-  gap: 12px;
-  padding: 18px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-l);
-  background: var(--bg-raised);
-  box-shadow: var(--shadow-overlay);
-}
-
-.dialog-header {
-  display: grid;
-  gap: 3px;
-}
-
-.dialog-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 15px/1.4 var(--font-ui);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* Gold marks team-shipped presence, matching the marketplace Official chip. */
-.verified-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--gold);
-  font: 600 9.5px/1.4 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--gold-soft);
-  border-radius: 99px;
-  padding: 1px 7px;
-  background: var(--gold-soft);
-}
-
-.book-body {
-  padding: 12px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-1);
-  font: 400 12.5px/1.65 var(--font-ui);
-  overflow-wrap: break-word;
-}
-
-.dialog-loading {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.dialog-error {
-  margin: 0;
-  color: var(--danger);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.ghost {
-  appearance: none;
-  border: 1px solid var(--hair-strong);
-  margin: 0;
-  padding: 6px 14px;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 12px/1.5 var(--font-ui);
-  cursor: default;
-}
-
-.ghost:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.ghost:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-</style>

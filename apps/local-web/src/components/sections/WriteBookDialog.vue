@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { Modal } from "@vynel/ui";
 import { useCreateNotebookDocument } from "../../composables/notebook/use-create-notebook-document.js";
 import { useUpdateNotebookDocument } from "../../composables/notebook/use-update-notebook-document.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
@@ -111,287 +112,131 @@ function submit() {
   );
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    emit("close");
-  }
+// Modal owns Esc / backdrop / focus-trap / scroll-lock; it reports close via
+// update:open, which we forward to the parent as `close`.
+function onOpenChange(open: boolean) {
+  if (!open) emit("close");
 }
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="props.open"
-      class="dialog-backdrop"
-      @pointerdown.self="emit('close')"
-      @keydown="onKeydown"
-    >
-      <div
-        class="dialog"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="props.editing ? 'Edit book' : 'Write a book'"
-      >
-        <header class="dialog-header">
-          <h2 class="dialog-title">
-            {{ props.editing ? "Edit book" : "Write a book" }}
-          </h2>
-          <p class="dialog-subtitle">
-            A playbook Claude opens when a matching task starts — how you like
-            things done, step by step.
-          </p>
-        </header>
+  <Modal
+    :open="props.open"
+    :title="props.editing ? 'Edit book' : 'Write a book'"
+    description="A playbook Claude opens when a matching task starts — how you like things done, step by step."
+    size="lg"
+    @update:open="onOpenChange"
+  >
+    <div class="flex flex-col gap-3.5 pt-1">
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Title</span>
+        <input
+          v-model="title"
+          type="text"
+          maxlength="120"
+          autofocus
+          placeholder="e.g. How we publish the newsletter"
+          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
+        />
+      </label>
 
-        <label class="field">
-          <span class="field-label">Title</span>
-          <input
-            v-model="title"
-            type="text"
-            maxlength="120"
-            autofocus
-            placeholder="e.g. How we publish the newsletter"
-          />
-        </label>
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Content</span>
+        <textarea
+          v-model="body"
+          rows="10"
+          placeholder="Markdown works — headings, lists, steps. Claude reads this when the task calls for it."
+          class="w-full resize-y rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
+        />
+      </label>
 
-        <label class="field">
-          <span class="field-label">Content</span>
-          <textarea
-            v-model="body"
-            rows="10"
-            placeholder="Markdown works — headings, lists, steps. Claude reads this when the task calls for it."
-          />
-        </label>
-
-        <template v-if="!props.editing">
-          <div class="field">
-            <span class="field-label">Where it applies</span>
-            <div class="chips" role="group" aria-label="Where it applies">
-              <button
-                type="button"
-                class="chip"
-                :class="{ 'is-selected': scopeChoice === 'global' }"
-                :aria-pressed="scopeChoice === 'global'"
-                @click="scopeChoice = 'global'"
-              >
-                Everywhere
-              </button>
-              <button
-                type="button"
-                class="chip"
-                :class="{ 'is-selected': scopeChoice === 'workspace' }"
-                :aria-pressed="scopeChoice === 'workspace'"
-                @click="scopeChoice = 'workspace'"
-              >
-                One workspace
-              </button>
-            </div>
-          </div>
-
-          <label v-if="scopeChoice === 'workspace'" class="field">
-            <span class="field-label">Workspace</span>
-            <select v-model="workspaceChoice" class="scope-select">
-              <option
-                v-for="workspace in workspaces"
-                :key="workspace.id"
-                :value="workspace.id"
-              >
-                {{ workspace.name }}
-              </option>
-            </select>
-          </label>
-        </template>
-
-        <p
-          v-if="
-            !props.editing &&
-            scopeChoice === 'workspace' &&
-            workspaces.length === 0 &&
-            !workspacesQuery.isPending.value
-          "
-          class="dialog-error"
-          role="alert"
-        >
-          Create a workspace first — or keep the book global.
-        </p>
-        <p v-else-if="errorMessage" class="dialog-error" role="alert">
-          {{ errorMessage }}
-        </p>
-
-        <footer class="dialog-actions">
-          <button type="button" class="ghost" @click="emit('close')">
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="primary"
-            :disabled="!canSubmit"
-            @click="submit"
+      <template v-if="!props.editing">
+        <div class="grid gap-1.5">
+          <span class="text-[11.5px] font-semibold text-ink-2">Where it applies</span>
+          <div
+            class="flex flex-wrap gap-1.5"
+            role="group"
+            aria-label="Where it applies"
           >
-            {{ isPending ? "Saving…" : "Save book" }}
-          </button>
-        </footer>
-      </div>
+            <button
+              type="button"
+              :class="[
+                'cursor-default rounded-full border px-3 py-1 text-[11.5px] font-medium transition',
+                scopeChoice === 'global'
+                  ? 'border-gold bg-gold-soft text-ink-1'
+                  : 'border-hair bg-panel text-ink-2 hover:border-hair-strong hover:text-ink-1',
+              ]"
+              :aria-pressed="scopeChoice === 'global'"
+              @click="scopeChoice = 'global'"
+            >
+              Everywhere
+            </button>
+            <button
+              type="button"
+              :class="[
+                'cursor-default rounded-full border px-3 py-1 text-[11.5px] font-medium transition',
+                scopeChoice === 'workspace'
+                  ? 'border-gold bg-gold-soft text-ink-1'
+                  : 'border-hair bg-panel text-ink-2 hover:border-hair-strong hover:text-ink-1',
+              ]"
+              :aria-pressed="scopeChoice === 'workspace'"
+              @click="scopeChoice = 'workspace'"
+            >
+              One workspace
+            </button>
+          </div>
+        </div>
+
+        <label v-if="scopeChoice === 'workspace'" class="grid gap-1.5">
+          <span class="text-[11.5px] font-semibold text-ink-2">Workspace</span>
+          <select
+            v-model="workspaceChoice"
+            class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
+          >
+            <option
+              v-for="workspace in workspaces"
+              :key="workspace.id"
+              :value="workspace.id"
+            >
+              {{ workspace.name }}
+            </option>
+          </select>
+        </label>
+      </template>
+
+      <p
+        v-if="
+          !props.editing &&
+          scopeChoice === 'workspace' &&
+          workspaces.length === 0 &&
+          !workspacesQuery.isPending.value
+        "
+        class="m-0 text-xs text-danger"
+        role="alert"
+      >
+        Create a workspace first — or keep the book global.
+      </p>
+      <p v-else-if="errorMessage" class="m-0 text-xs text-danger" role="alert">
+        {{ errorMessage }}
+      </p>
     </div>
-  </Teleport>
+
+    <template #footer>
+      <button
+        type="button"
+        class="cursor-default rounded-sm border border-hair-strong px-3.5 py-1.5 text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+        @click="emit('close')"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="cursor-default rounded-sm bg-gold px-4 py-1.5 text-xs font-semibold text-shell transition hover:bg-gold-bright disabled:opacity-55"
+        :disabled="!canSubmit"
+        @click="submit"
+      >
+        {{ isPending ? "Saving…" : "Save book" }}
+      </button>
+    </template>
+  </Modal>
 </template>
-
-<style scoped>
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  background: var(--bg-overlay);
-}
-
-.dialog {
-  width: min(560px, calc(100vw - 48px));
-  max-height: calc(100vh - 64px);
-  overflow-y: auto;
-  display: grid;
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-l);
-  background: var(--bg-raised);
-  box-shadow: var(--shadow-overlay);
-}
-
-.dialog-header {
-  display: grid;
-  gap: 3px;
-}
-
-.dialog-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 15px/1.4 var(--font-ui);
-}
-
-.dialog-subtitle {
-  margin: 0;
-  color: var(--ink-2);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.field {
-  display: grid;
-  gap: 6px;
-}
-
-.field-label {
-  color: var(--ink-2);
-  font: 600 11.5px/1.5 var(--font-ui);
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chip {
-  appearance: none;
-  margin: 0;
-  padding: 4px 12px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: var(--bg-panel);
-  color: var(--ink-2);
-  font: 500 11.5px/1.5 var(--font-ui);
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.chip:hover {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-}
-
-.chip.is-selected {
-  color: var(--ink-1);
-  border-color: var(--gold);
-  background: var(--gold-soft);
-}
-
-.chip:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.field > textarea,
-.field > input,
-.scope-select {
-  appearance: none;
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-1);
-  font: 400 12.5px/1.55 var(--font-ui);
-  resize: vertical;
-}
-
-.field > textarea:focus-visible,
-.field > input:focus-visible,
-.scope-select:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -1px;
-}
-
-.dialog-error {
-  margin: 0;
-  color: var(--danger);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.ghost,
-.primary {
-  appearance: none;
-  border: 1px solid var(--hair-strong);
-  margin: 0;
-  padding: 6px 14px;
-  border-radius: var(--radius-s);
-  font: 600 12px/1.5 var(--font-ui);
-  cursor: default;
-}
-
-.ghost {
-  background: transparent;
-  color: var(--ink-2);
-}
-
-.ghost:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.primary {
-  border-color: transparent;
-  background: var(--gold);
-  color: #14171c;
-}
-
-.primary:hover:not(:disabled) {
-  background: var(--gold-bright);
-}
-
-.primary:disabled {
-  opacity: 0.55;
-}
-
-.ghost:focus-visible,
-.primary:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-</style>

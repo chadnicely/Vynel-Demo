@@ -70,35 +70,46 @@ function addNewTag() {
 </script>
 
 <template>
-  <div class="field">
-    <span class="field-label">
-      Tags <span class="optional-tag">optional</span>
+  <div class="grid gap-1.5">
+    <span class="text-[11.5px] font-semibold text-ink-2">
+      Tags
+      <span class="text-[10px] font-medium uppercase tracking-wide text-ink-3">optional</span>
     </span>
-    <div class="chips">
+    <div class="flex flex-wrap items-center gap-1.5">
       <button
         v-for="tag in tagChips"
         :key="tag"
         type="button"
-        class="chip"
-        :class="{ 'is-selected': isSelected(tag) }"
+        class="inline-flex cursor-default items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-medium transition"
+        :class="
+          isSelected(tag)
+            ? 'border-gold bg-gold-soft text-ink-1'
+            : 'border-hair bg-panel text-ink-2 hover:border-hair-strong hover:text-ink-1'
+        "
         :aria-pressed="isSelected(tag)"
         @click="toggleTag(tag)"
       >
-        <span v-if="tag === 'context'" class="context-dot" aria-hidden="true" />
+        <span
+          v-if="tag === 'context'"
+          class="size-[5px] shrink-0 rounded-full bg-gold"
+          aria-hidden="true"
+        />
         {{ tag }}
       </button>
-      <span class="new-tag">
+      <span
+        class="inline-flex items-center rounded-full border border-dashed border-hair pl-2.5 pr-1 focus-within:border-solid focus-within:border-hair-strong"
+      >
         <input
           v-model="newTag"
           type="text"
-          class="new-tag-input"
+          class="new-tag-input w-[74px] bg-transparent py-1 text-[11.5px] font-medium text-ink-1"
           placeholder="new tag"
           aria-label="New tag"
           @keydown.enter.prevent="addNewTag"
         />
         <button
           type="button"
-          class="new-tag-add"
+          class="new-tag-add cursor-default px-1.5 text-[13px] font-semibold text-ink-2 hover:text-ink-1"
           aria-label="Add tag"
           @click="addNewTag"
         >
@@ -106,135 +117,10 @@ function addNewTag() {
         </button>
       </span>
     </div>
-    <p v-if="tagError" class="tag-error" role="alert">{{ tagError }}</p>
-    <span class="field-hint">
+    <p v-if="tagError" class="m-0 text-xs text-danger" role="alert">{{ tagError }}</p>
+    <span class="text-[11px] text-ink-3">
       Tag "context" to make this part of what Claude always knows in this
       workspace.
     </span>
   </div>
 </template>
-
-<style scoped>
-.field {
-  display: grid;
-  gap: 6px;
-}
-
-.field-label {
-  color: var(--ink-2);
-  font: 600 11.5px/1.5 var(--font-ui);
-}
-
-.optional-tag {
-  color: var(--ink-3);
-  font: 500 10px/1.5 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.chip {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 12px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: var(--bg-panel);
-  color: var(--ink-2);
-  font: 500 11.5px/1.5 var(--font-ui);
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.chip:hover {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-}
-
-.chip.is-selected {
-  color: var(--ink-1);
-  border-color: var(--gold);
-  background: var(--gold-soft);
-}
-
-.chip:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.context-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 99px;
-  background: var(--gold);
-  flex: none;
-}
-
-.new-tag {
-  display: inline-flex;
-  align-items: center;
-  border: 1px dashed var(--hair);
-  border-radius: 99px;
-  padding: 0 4px 0 10px;
-}
-
-.new-tag:focus-within {
-  border-style: solid;
-  border-color: var(--hair-strong);
-}
-
-.new-tag-input {
-  appearance: none;
-  border: 0;
-  width: 74px;
-  padding: 4px 0;
-  background: transparent;
-  color: var(--ink-1);
-  font: 500 11.5px/1.5 var(--font-ui);
-}
-
-.new-tag-input:focus-visible {
-  outline: none;
-}
-
-.new-tag-add {
-  appearance: none;
-  border: 0;
-  margin: 0;
-  padding: 0 6px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 13px/1.4 var(--font-ui);
-  cursor: default;
-}
-
-.new-tag-add:hover {
-  color: var(--ink-1);
-}
-
-.new-tag-add:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-  border-radius: 99px;
-}
-
-.tag-error {
-  margin: 0;
-  color: var(--danger);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.field-hint {
-  color: var(--ink-3);
-  font: 400 11px/1.5 var(--font-ui);
-}
-</style>

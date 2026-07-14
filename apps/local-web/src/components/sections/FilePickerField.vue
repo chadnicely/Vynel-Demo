@@ -38,191 +38,70 @@ function pickFile(path: string) {
 </script>
 
 <template>
-  <div class="picker">
-    <div class="picker-bar">
+  <div class="overflow-hidden rounded-sm border border-hair-strong bg-panel">
+    <div class="flex items-center gap-2 border-b border-hair px-2 py-1.5">
       <button
         type="button"
-        class="up"
+        class="cursor-default rounded-sm border border-hair px-1.5 py-[3px] text-ink-2 disabled:opacity-40 enabled:hover:bg-row-hover enabled:hover:text-ink-1"
         :disabled="!listing?.parent"
         title="Up one folder"
         @click="listing?.parent && openFolder(listing.parent)"
       >
         <ArrowUp :size="13" />
       </button>
-      <span class="current-path">{{
-        props.modelValue ?? listing?.path ?? "…"
-      }}</span>
+      <span
+        class="overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11.5px] font-medium text-ink-1"
+        >{{ props.modelValue ?? listing?.path ?? "…" }}</span
+      >
     </div>
-    <div v-if="listing?.drives?.length" class="drives">
+    <div
+      v-if="listing?.drives?.length"
+      class="flex flex-wrap gap-[5px] border-b border-hair px-2 py-1.5"
+    >
       <button
         v-for="drive in listing.drives"
         :key="drive"
         type="button"
-        class="drive"
+        class="inline-flex cursor-default items-center gap-1 rounded-full border border-hair px-2 py-0.5 font-mono text-[10.5px] font-medium text-ink-2 hover:bg-row-hover hover:text-ink-1"
         @click="openFolder(drive)"
       >
         <HardDrive :size="11" />
         {{ drive }}
       </button>
     </div>
-    <div class="entries">
+    <div class="grid max-h-[180px] gap-px overflow-y-auto p-1">
       <button
         v-for="entry in listing?.entries ?? []"
         :key="entry.path"
         type="button"
-        class="entry"
+        class="flex cursor-default items-center gap-[7px] rounded-sm px-2 py-[5px] text-left text-[12px] text-ink-1 hover:bg-row-hover"
         @click="openFolder(entry.path)"
       >
-        <Folder :size="13" class="entry-icon" />
+        <Folder :size="13" class="shrink-0 text-file-folder" />
         {{ entry.name }}
       </button>
       <button
         v-for="file in listing?.files ?? []"
         :key="file.path"
         type="button"
-        class="entry"
-        :class="{ 'is-selected': props.modelValue === file.path }"
+        class="flex cursor-default items-center gap-[7px] rounded-sm px-2 py-[5px] text-left text-[12px] text-ink-1"
+        :class="props.modelValue === file.path ? 'bg-row-active' : 'hover:bg-row-hover'"
         @click="pickFile(file.path)"
       >
-        <FileText :size="13" class="entry-icon file" />
+        <FileText :size="13" class="shrink-0 text-ink-3" />
         {{ file.name }}
       </button>
-      <p v-if="listingError" class="empty-note is-error">{{ listingError }}</p>
+      <p v-if="listingError" class="mx-2 my-1.5 text-[11.5px] text-danger">{{ listingError }}</p>
       <p
         v-else-if="
           listing &&
           listing.entries.length === 0 &&
           (listing.files?.length ?? 0) === 0
         "
-        class="empty-note"
+        class="mx-2 my-1.5 text-[11.5px] text-ink-3"
       >
         Nothing inside — go up and open a folder with files.
       </p>
     </div>
   </div>
 </template>
-
-<style scoped>
-.picker {
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  overflow: hidden;
-}
-
-.picker-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--hair);
-}
-
-.up {
-  appearance: none;
-  border: 1px solid var(--hair);
-  margin: 0;
-  padding: 3px 6px;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-2);
-  cursor: default;
-}
-
-.up:disabled {
-  opacity: 0.4;
-}
-
-.up:hover:not(:disabled) {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.current-path {
-  color: var(--ink-1);
-  font: 500 11.5px/1.5 var(--font-mono);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.drives {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--hair);
-}
-
-.drive {
-  appearance: none;
-  border: 1px solid var(--hair);
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 500 10.5px/1.5 var(--font-mono);
-  cursor: default;
-}
-
-.drive:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.entries {
-  max-height: 180px;
-  overflow-y: auto;
-  padding: 4px;
-  display: grid;
-  gap: 1px;
-}
-
-.entry {
-  appearance: none;
-  border: 0;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 8px;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-1);
-  font: 400 12px/1.5 var(--font-ui);
-  text-align: left;
-  cursor: default;
-}
-
-.entry:hover {
-  background: var(--row-hover);
-}
-
-.entry.is-selected {
-  background: var(--row-active);
-  color: var(--ink-1);
-}
-
-.entry-icon {
-  color: var(--file-folder);
-  flex: none;
-}
-
-.entry-icon.file {
-  color: var(--ink-3);
-}
-
-.empty-note {
-  margin: 6px 8px;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.empty-note.is-error {
-  color: var(--danger);
-}
-</style>

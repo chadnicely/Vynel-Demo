@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { Modal } from "@vynel/ui";
 import { useCreateMemoryEntry } from "../../composables/memory/use-create-memory-entry.js";
 import { useImportMemoryFile } from "../../composables/memory/use-import-memory-file.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
@@ -129,370 +130,172 @@ function submit() {
   );
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    emit("close");
-  }
+// Modal owns Esc / backdrop / focus-trap / scroll-lock; it reports close via
+// update:open, which we forward to the parent as `close`.
+function onOpenChange(open: boolean) {
+  if (!open) emit("close");
 }
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="props.open"
-      class="dialog-backdrop"
-      @pointerdown.self="emit('close')"
-      @keydown="onKeydown"
-    >
+  <Modal
+    :open="props.open"
+    title="Add a memory"
+    description="Something Claude should remember — it recalls memories in every conversation where they matter."
+    size="md"
+    @update:open="onOpenChange"
+  >
+    <div class="flex flex-col gap-3.5 pt-1">
       <div
-        class="dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Add a memory"
+        class="inline-flex self-start gap-0.5 rounded-sm border border-hair bg-panel p-0.5"
+        role="group"
+        aria-label="How to add it"
       >
-        <header class="dialog-header">
-          <h2 class="dialog-title">Add a memory</h2>
-          <p class="dialog-subtitle">
-            Something Claude should remember — it recalls memories in every
-            conversation where they matter.
-          </p>
-        </header>
+        <button
+          type="button"
+          class="cursor-default rounded-sm px-3 py-1 text-[11.5px] font-semibold transition"
+          :class="
+            mode === 'write'
+              ? 'bg-raised text-ink-1 shadow-[inset_0_0_0_1px_var(--hair-strong)]'
+              : 'text-ink-2 hover:text-ink-1'
+          "
+          :aria-pressed="mode === 'write'"
+          @click="mode = 'write'"
+        >
+          Write it
+        </button>
+        <button
+          type="button"
+          class="cursor-default rounded-sm px-3 py-1 text-[11.5px] font-semibold transition"
+          :class="
+            mode === 'file'
+              ? 'bg-raised text-ink-1 shadow-[inset_0_0_0_1px_var(--hair-strong)]'
+              : 'text-ink-2 hover:text-ink-1'
+          "
+          :aria-pressed="mode === 'file'"
+          @click="mode = 'file'"
+        >
+          From a file
+        </button>
+      </div>
 
-        <div class="mode-toggle" role="group" aria-label="How to add it">
-          <button
-            type="button"
-            class="mode"
-            :class="{ 'is-active': mode === 'write' }"
-            :aria-pressed="mode === 'write'"
-            @click="mode = 'write'"
-          >
-            Write it
-          </button>
-          <button
-            type="button"
-            class="mode"
-            :class="{ 'is-active': mode === 'file' }"
-            :aria-pressed="mode === 'file'"
-            @click="mode = 'file'"
-          >
-            From a file
-          </button>
-        </div>
-
-        <template v-if="mode === 'write'">
-          <div class="field">
-            <span class="field-label">Kind</span>
-            <div class="chips">
-              <button
-                v-for="option in KINDS"
-                :key="option.id"
-                type="button"
-                class="chip"
-                :class="{ 'is-selected': kind === option.id }"
-                :aria-pressed="kind === option.id"
-                @click="kind = option.id"
-              >
-                {{ option.label }}
-              </button>
-            </div>
-          </div>
-
-          <label class="field">
-            <span class="field-label">What to remember</span>
-            <textarea
-              v-model="body"
-              rows="3"
-              autofocus
-              placeholder="e.g. Invoices are always due on the 15th; remind me two days before."
-            />
-          </label>
-
-          <label class="field">
-            <span class="field-label">
-              Title <span class="optional-tag">optional</span>
-            </span>
-            <input
-              v-model="title"
-              type="text"
-              maxlength="120"
-              placeholder="e.g. Invoice cadence"
-            />
-          </label>
-        </template>
-
-        <div v-else class="field">
-          <span class="field-label">File</span>
-          <FilePickerField v-model="selectedFilePath" />
-          <span class="field-hint">
-            Click a file to import it as a memory — folders just navigate.
-          </span>
-        </div>
-
-        <MemoryTagsField
-          v-model:selected="selectedTags"
-          :workspace-id="workspaceChoice || null"
-        />
-
-        <label class="field">
-          <span class="field-label">Workspace</span>
-          <select v-model="workspaceChoice" class="scope-select">
-            <option
-              v-for="workspace in workspaces"
-              :key="workspace.id"
-              :value="workspace.id"
+      <template v-if="mode === 'write'">
+        <div class="grid gap-1.5">
+          <span class="text-[11.5px] font-semibold text-ink-2">Kind</span>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="option in KINDS"
+              :key="option.id"
+              type="button"
+              class="cursor-default rounded-full border px-3 py-1 text-[11.5px] font-medium transition"
+              :class="
+                kind === option.id
+                  ? 'border-gold bg-gold-soft text-ink-1'
+                  : 'border-hair bg-panel text-ink-2 hover:border-hair-strong hover:text-ink-1'
+              "
+              :aria-pressed="kind === option.id"
+              @click="kind = option.id"
             >
-              {{ workspace.name }}
-            </option>
-          </select>
-          <span class="field-hint">
-            Memories live in a workspace today — global memory is on the
-            roadmap.
-          </span>
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+
+        <label class="grid gap-1.5">
+          <span class="text-[11.5px] font-semibold text-ink-2">What to remember</span>
+          <textarea
+            v-model="body"
+            rows="3"
+            autofocus
+            placeholder="e.g. Invoices are always due on the 15th; remind me two days before."
+            class="w-full resize-y rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
+          />
         </label>
 
-        <p
-          v-if="workspaces.length === 0 && !workspacesQuery.isPending.value"
-          class="dialog-error"
-          role="alert"
-        >
-          Create a workspace first — memories live inside one.
-        </p>
-        <p v-else-if="errorMessage" class="dialog-error" role="alert">
-          {{ errorMessage }}
-        </p>
+        <label class="grid gap-1.5">
+          <span class="text-[11.5px] font-semibold text-ink-2">
+            Title
+            <span class="text-[10px] font-medium uppercase tracking-wide text-ink-3">optional</span>
+          </span>
+          <input
+            v-model="title"
+            type="text"
+            maxlength="120"
+            placeholder="e.g. Invoice cadence"
+            class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
+          />
+        </label>
+      </template>
 
-        <footer class="dialog-actions">
-          <button type="button" class="ghost" @click="emit('close')">
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="primary"
-            :disabled="!canSubmit"
-            @click="submit"
-          >
-            {{
-              mode === "write"
-                ? isPending
-                  ? "Saving…"
-                  : "Save memory"
-                : isPending
-                  ? "Importing…"
-                  : "Import file"
-            }}
-          </button>
-        </footer>
+      <div v-else class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">File</span>
+        <FilePickerField v-model="selectedFilePath" />
+        <span class="text-[11px] text-ink-3">
+          Click a file to import it as a memory — folders just navigate.
+        </span>
       </div>
+
+      <MemoryTagsField
+        v-model:selected="selectedTags"
+        :workspace-id="workspaceChoice || null"
+      />
+
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Workspace</span>
+        <select
+          v-model="workspaceChoice"
+          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
+        >
+          <option
+            v-for="workspace in workspaces"
+            :key="workspace.id"
+            :value="workspace.id"
+          >
+            {{ workspace.name }}
+          </option>
+        </select>
+        <span class="text-[11px] text-ink-3">
+          Memories live in a workspace today — global memory is on the
+          roadmap.
+        </span>
+      </label>
+
+      <p
+        v-if="workspaces.length === 0 && !workspacesQuery.isPending.value"
+        class="m-0 text-xs text-danger"
+        role="alert"
+      >
+        Create a workspace first — memories live inside one.
+      </p>
+      <p v-else-if="errorMessage" class="m-0 text-xs text-danger" role="alert">
+        {{ errorMessage }}
+      </p>
     </div>
-  </Teleport>
+
+    <template #footer>
+      <button
+        type="button"
+        class="cursor-default rounded-sm border border-hair-strong px-3.5 py-1.5 text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+        @click="emit('close')"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="cursor-default rounded-sm bg-gold px-4 py-1.5 text-xs font-semibold text-shell transition hover:bg-gold-bright disabled:opacity-55"
+        :disabled="!canSubmit"
+        @click="submit"
+      >
+        {{
+          mode === "write"
+            ? isPending
+              ? "Saving…"
+              : "Save memory"
+            : isPending
+              ? "Importing…"
+              : "Import file"
+        }}
+      </button>
+    </template>
+  </Modal>
 </template>
-
-<style scoped>
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  background: var(--bg-overlay);
-}
-
-.dialog {
-  width: min(460px, calc(100vw - 48px));
-  max-height: calc(100vh - 64px);
-  overflow-y: auto;
-  display: grid;
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-l);
-  background: var(--bg-raised);
-  box-shadow: var(--shadow-overlay);
-}
-
-.dialog-header {
-  display: grid;
-  gap: 3px;
-}
-
-.dialog-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 15px/1.4 var(--font-ui);
-}
-
-.dialog-subtitle {
-  margin: 0;
-  color: var(--ink-2);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.mode-toggle {
-  justify-self: start;
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-}
-
-.mode {
-  appearance: none;
-  border: 0;
-  margin: 0;
-  padding: 4px 12px;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11.5px/1.5 var(--font-ui);
-  cursor: default;
-}
-
-.mode:hover {
-  color: var(--ink-1);
-}
-
-.mode.is-active {
-  background: var(--bg-raised);
-  color: var(--ink-1);
-  box-shadow: inset 0 0 0 1px var(--hair-strong);
-}
-
-.mode:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.field {
-  display: grid;
-  gap: 6px;
-}
-
-.field-label {
-  color: var(--ink-2);
-  font: 600 11.5px/1.5 var(--font-ui);
-}
-
-.optional-tag {
-  color: var(--ink-3);
-  font: 500 10px/1.5 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chip {
-  appearance: none;
-  margin: 0;
-  padding: 4px 12px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: var(--bg-panel);
-  color: var(--ink-2);
-  font: 500 11.5px/1.5 var(--font-ui);
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.chip:hover {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-}
-
-.chip.is-selected {
-  color: var(--ink-1);
-  border-color: var(--gold);
-  background: var(--gold-soft);
-}
-
-.chip:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.field > textarea,
-.field > input,
-.scope-select {
-  appearance: none;
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-1);
-  font: 400 12.5px/1.55 var(--font-ui);
-  resize: vertical;
-}
-
-.field > textarea:focus-visible,
-.field > input:focus-visible,
-.scope-select:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -1px;
-}
-
-.field-hint {
-  color: var(--ink-3);
-  font: 400 11px/1.5 var(--font-ui);
-}
-
-.dialog-error {
-  margin: 0;
-  color: var(--danger);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.ghost,
-.primary {
-  appearance: none;
-  border: 1px solid var(--hair-strong);
-  margin: 0;
-  padding: 6px 14px;
-  border-radius: var(--radius-s);
-  font: 600 12px/1.5 var(--font-ui);
-  cursor: default;
-}
-
-.ghost {
-  background: transparent;
-  color: var(--ink-2);
-}
-
-.ghost:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.primary {
-  border-color: transparent;
-  background: var(--gold);
-  color: #14171c;
-}
-
-.primary:hover:not(:disabled) {
-  background: var(--gold-bright);
-}
-
-.primary:disabled {
-  opacity: 0.55;
-}
-
-.ghost:focus-visible,
-.primary:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-</style>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { SegmentedTabs } from "@vynel/ui";
+import { Modal, SegmentedTabs } from "@vynel/ui";
 import { useCreateSchedule } from "../../composables/schedules/use-create-schedule.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
@@ -161,402 +161,204 @@ function create() {
   );
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    emit("close");
-  }
+// Modal owns Esc / backdrop / focus-trap / scroll-lock; it reports close via
+// update:open, which we forward to the parent as `close`.
+function onOpenChange(open: boolean) {
+  if (!open) emit("close");
 }
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="props.open"
-      class="dialog-backdrop"
-      @pointerdown.self="emit('close')"
-      @keydown="onKeydown"
-    >
-      <div
-        class="dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="New schedule"
-      >
-        <header class="dialog-header">
-          <h2 class="dialog-title">New schedule</h2>
-          <p class="dialog-subtitle">
-            Claude runs it on time and the result lands in your chat.
-          </p>
-        </header>
+  <Modal
+    :open="props.open"
+    title="New schedule"
+    description="Claude runs it on time and the result lands in your chat."
+    size="md"
+    @update:open="onOpenChange"
+  >
+    <div class="flex flex-col gap-3.5 pt-1">
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">What should Claude do?</span>
+        <textarea
+          v-model="prompt"
+          rows="3"
+          autofocus
+          placeholder="e.g. Summarize my unread messages and what needs attention today."
+          class="w-full resize-y rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
+        />
+      </label>
 
-        <label class="field">
-          <span class="field-label">What should Claude do?</span>
-          <textarea
-            v-model="prompt"
-            rows="3"
-            autofocus
-            placeholder="e.g. Summarize my unread messages and what needs attention today."
-          />
-        </label>
+      <div class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">When</span>
+        <SegmentedTabs
+          :tabs="WHEN_TABS"
+          :model-value="whenMode"
+          @update:model-value="(id) => (whenMode = id as 'once' | 'repeats')"
+        />
 
-        <div class="field">
-          <span class="field-label">When</span>
-          <SegmentedTabs
-            :tabs="WHEN_TABS"
-            :model-value="whenMode"
-            @update:model-value="(id) => (whenMode = id as 'once' | 'repeats')"
-          />
-
-          <div v-if="whenMode === 'once'" class="when-body">
-            <div class="chips">
-              <button
-                v-for="preset in ONE_TIME_PRESETS"
-                :key="preset.id"
-                type="button"
-                class="chip"
-                :class="{ 'is-selected': selectedPreset === preset.id }"
-                :aria-pressed="selectedPreset === preset.id"
-                @click="selectedPreset = preset.id"
-              >
-                {{ preset.label }}
-              </button>
-              <button
-                type="button"
-                class="chip"
-                :class="{ 'is-selected': selectedPreset === 'custom' }"
-                :aria-pressed="selectedPreset === 'custom'"
-                @click="selectedPreset = 'custom'"
-              >
-                Pick a time…
-              </button>
-            </div>
-            <input
-              v-if="selectedPreset === 'custom'"
-              v-model="customFireAt"
-              type="datetime-local"
-              class="datetime-input"
-              aria-label="Fire at"
-            />
-            <p
-              v-if="selectedPreset === 'custom' && customFireAt && !isCustomPickValid"
-              class="field-warn"
+        <div v-if="whenMode === 'once'" class="grid gap-2">
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="preset in ONE_TIME_PRESETS"
+              :key="preset.id"
+              type="button"
+              class="cursor-default rounded-full border px-3 py-1 text-[11.5px] font-medium transition"
+              :class="
+                selectedPreset === preset.id
+                  ? 'border-gold bg-gold-soft text-ink-1'
+                  : 'border-hair bg-panel text-ink-2 hover:border-hair-strong hover:text-ink-1'
+              "
+              :aria-pressed="selectedPreset === preset.id"
+              @click="selectedPreset = preset.id"
             >
-              Pick a moment in the future.
-            </p>
+              {{ preset.label }}
+            </button>
+            <button
+              type="button"
+              class="cursor-default rounded-full border px-3 py-1 text-[11.5px] font-medium transition"
+              :class="
+                selectedPreset === 'custom'
+                  ? 'border-gold bg-gold-soft text-ink-1'
+                  : 'border-hair bg-panel text-ink-2 hover:border-hair-strong hover:text-ink-1'
+              "
+              :aria-pressed="selectedPreset === 'custom'"
+              @click="selectedPreset = 'custom'"
+            >
+              Pick a time…
+            </button>
           </div>
-
-          <div v-else class="when-body">
-            <div class="chips">
-              <button
-                v-for="option in FREQUENCIES"
-                :key="option.id"
-                type="button"
-                class="chip"
-                :class="{ 'is-selected': frequency === option.id }"
-                :aria-pressed="frequency === option.id"
-                @click="frequency = option.id"
-              >
-                {{ option.label }}
-              </button>
-            </div>
-
-            <div class="cadence-row">
-              <label class="inline-field">
-                <span class="inline-label">At</span>
-                <input v-model="time" type="time" class="time-input" />
-              </label>
-
-              <div v-if="frequency === 'weekly'" class="chips">
-                <button
-                  v-for="day in WEEKDAYS"
-                  :key="day.id"
-                  type="button"
-                  class="chip is-compact"
-                  :class="{ 'is-selected': weekday === day.id }"
-                  :aria-pressed="weekday === day.id"
-                  @click="weekday = day.id"
-                >
-                  {{ day.label }}
-                </button>
-              </div>
-
-              <label v-if="frequency === 'monthly'" class="inline-field">
-                <span class="inline-label">on day</span>
-                <input
-                  v-model.number="dayOfMonth"
-                  type="number"
-                  min="1"
-                  max="28"
-                  class="day-input"
-                />
-                <span class="inline-label">(1–28, so it fires every month)</span>
-              </label>
-            </div>
-          </div>
+          <input
+            v-if="selectedPreset === 'custom'"
+            v-model="customFireAt"
+            type="datetime-local"
+            aria-label="Fire at"
+            class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
+          />
+          <p
+            v-if="selectedPreset === 'custom' && customFireAt && !isCustomPickValid"
+            class="m-0 text-[11.5px] text-gold"
+          >
+            Pick a moment in the future.
+          </p>
         </div>
 
-        <label class="field">
-          <span class="field-label">
-            Name <span class="optional-tag">optional</span>
-          </span>
-          <input
-            v-model="displayName"
-            type="text"
-            maxlength="200"
-            placeholder="e.g. Morning digest"
-          />
-        </label>
-
-        <label class="field">
-          <span class="field-label">Where it lives</span>
-          <select v-model="scopeChoice" class="scope-select">
-            <option value="global">Global — Claude everywhere</option>
-            <option
-              v-for="workspace in workspaces"
-              :key="workspace.id"
-              :value="workspace.id"
+        <div v-else class="grid gap-2">
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="option in FREQUENCIES"
+              :key="option.id"
+              type="button"
+              class="cursor-default rounded-full border px-3 py-1 text-[11.5px] font-medium transition"
+              :class="
+                frequency === option.id
+                  ? 'border-gold bg-gold-soft text-ink-1'
+                  : 'border-hair bg-panel text-ink-2 hover:border-hair-strong hover:text-ink-1'
+              "
+              :aria-pressed="frequency === option.id"
+              @click="frequency = option.id"
             >
-              {{ workspace.name }} workspace
-            </option>
-          </select>
-        </label>
+              {{ option.label }}
+            </button>
+          </div>
 
-        <p v-if="errorMessage" class="dialog-error" role="alert">
-          {{ errorMessage }}
-        </p>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <label class="inline-flex items-center gap-[7px]">
+              <span class="text-[11.5px] font-medium text-ink-3">At</span>
+              <input
+                v-model="time"
+                type="time"
+                class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
+              />
+            </label>
 
-        <footer class="dialog-actions">
-          <button type="button" class="ghost" @click="emit('close')">
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="primary"
-            :disabled="!canCreate"
-            @click="create"
-          >
-            {{ createSchedule.isPending.value ? "Creating…" : "Create schedule" }}
-          </button>
-        </footer>
+            <div v-if="frequency === 'weekly'" class="flex flex-wrap gap-1.5">
+              <button
+                v-for="day in WEEKDAYS"
+                :key="day.id"
+                type="button"
+                class="cursor-default rounded-full border px-[9px] py-[3px] text-[10.5px] font-medium transition"
+                :class="
+                  weekday === day.id
+                    ? 'border-gold bg-gold-soft text-ink-1'
+                    : 'border-hair bg-panel text-ink-2 hover:border-hair-strong hover:text-ink-1'
+                "
+                :aria-pressed="weekday === day.id"
+                @click="weekday = day.id"
+              >
+                {{ day.label }}
+              </button>
+            </div>
+
+            <label
+              v-if="frequency === 'monthly'"
+              class="inline-flex items-center gap-[7px]"
+            >
+              <span class="text-[11.5px] font-medium text-ink-3">on day</span>
+              <input
+                v-model.number="dayOfMonth"
+                type="number"
+                min="1"
+                max="28"
+                class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
+              />
+              <span class="text-[11.5px] font-medium text-ink-3">(1–28, so it fires every month)</span>
+            </label>
+          </div>
+        </div>
       </div>
+
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">
+          Name
+          <span class="text-[10px] font-medium uppercase tracking-wide text-ink-3">optional</span>
+        </span>
+        <input
+          v-model="displayName"
+          type="text"
+          maxlength="200"
+          placeholder="e.g. Morning digest"
+          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
+        />
+      </label>
+
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Where it lives</span>
+        <select
+          v-model="scopeChoice"
+          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
+        >
+          <option value="global">Global — Claude everywhere</option>
+          <option
+            v-for="workspace in workspaces"
+            :key="workspace.id"
+            :value="workspace.id"
+          >
+            {{ workspace.name }} workspace
+          </option>
+        </select>
+      </label>
+
+      <p v-if="errorMessage" class="m-0 text-xs text-danger" role="alert">
+        {{ errorMessage }}
+      </p>
     </div>
-  </Teleport>
+
+    <template #footer>
+      <button
+        type="button"
+        class="cursor-default rounded-sm border border-hair-strong px-3.5 py-1.5 text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+        @click="emit('close')"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="cursor-default rounded-sm bg-gold px-4 py-1.5 text-xs font-semibold text-shell transition hover:bg-gold-bright disabled:opacity-55"
+        :disabled="!canCreate"
+        @click="create"
+      >
+        {{ createSchedule.isPending.value ? "Creating…" : "Create schedule" }}
+      </button>
+    </template>
+  </Modal>
 </template>
-
-<style scoped>
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  background: var(--bg-overlay);
-}
-
-.dialog {
-  width: min(480px, calc(100vw - 48px));
-  max-height: calc(100vh - 64px);
-  overflow-y: auto;
-  display: grid;
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-l);
-  background: var(--bg-raised);
-  box-shadow: var(--shadow-overlay);
-}
-
-.dialog-header {
-  display: grid;
-  gap: 3px;
-}
-
-.dialog-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 15px/1.4 var(--font-ui);
-}
-
-.dialog-subtitle {
-  margin: 0;
-  color: var(--ink-2);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.field {
-  display: grid;
-  gap: 6px;
-}
-
-.field-label {
-  color: var(--ink-2);
-  font: 600 11.5px/1.5 var(--font-ui);
-}
-
-.optional-tag {
-  color: var(--ink-3);
-  font: 500 10px/1.5 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.field textarea,
-.field input,
-.scope-select {
-  appearance: none;
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-1);
-  font: 400 12.5px/1.55 var(--font-ui);
-  resize: vertical;
-}
-
-.field textarea:focus-visible,
-.field input:focus-visible,
-.scope-select:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -1px;
-}
-
-.when-body {
-  display: grid;
-  gap: 8px;
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chip {
-  appearance: none;
-  margin: 0;
-  padding: 4px 12px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: var(--bg-panel);
-  color: var(--ink-2);
-  font: 500 11.5px/1.5 var(--font-ui);
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.chip.is-compact {
-  padding: 3px 9px;
-  font-size: 10.5px;
-}
-
-.chip:hover {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-}
-
-.chip.is-selected {
-  color: var(--ink-1);
-  border-color: var(--gold);
-  background: var(--gold-soft);
-}
-
-.chip:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.cadence-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.inline-field {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.inline-label {
-  color: var(--ink-3);
-  font: 500 11.5px/1.5 var(--font-ui);
-}
-
-.time-input,
-.day-input,
-.datetime-input {
-  appearance: none;
-  padding: 5px 9px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-1);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.day-input {
-  width: 64px;
-}
-
-.field-warn {
-  margin: 0;
-  color: var(--gold);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.dialog-error {
-  margin: 0;
-  color: var(--danger);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.ghost,
-.primary {
-  appearance: none;
-  border: 1px solid var(--hair-strong);
-  margin: 0;
-  padding: 6px 14px;
-  border-radius: var(--radius-s);
-  font: 600 12px/1.5 var(--font-ui);
-  cursor: default;
-}
-
-.ghost {
-  background: transparent;
-  color: var(--ink-2);
-}
-
-.ghost:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.primary {
-  border-color: transparent;
-  background: var(--gold);
-  color: #14171c;
-}
-
-.primary:hover:not(:disabled) {
-  background: var(--gold-bright);
-}
-
-.primary:disabled {
-  opacity: 0.55;
-}
-
-.ghost:focus-visible,
-.primary:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-</style>
