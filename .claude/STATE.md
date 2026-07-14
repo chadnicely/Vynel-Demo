@@ -3,7 +3,72 @@
 **Updated 2026-07-14.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-14b): DESKTOP SHELL ADOPTED IN THE REAL APP (Wave B) — gate GREEN 457f/2417t, committed + PUSHED; NEXT: unified right dock (History/Files/Trace tabs) + Chad's live smoke
+## ⏭ NEXT ACTION (2026-07-14c): SECTION BEAUTIFY + PRIMITIVE UNIFICATION — ✅ DONE (gate GREEN 457f/2417t, reviewed, pushed, machine shut down)
+
+**✅ COMPLETED autonomously (Chad away):** all 8 feature sections Tailwind-migrated THEN beautified
+to the Channels card template (rounded-lg cards, tinted icon tiles, hover-reveal actions, elevated
+SectionHeader); ALL 7 dialogs moved onto the `Modal` primitive (+ MemoryTagsField/FilePickerField);
+canvas padding 44/40. Reviewer: 1 must-fix + 1 should-fix APPLIED (marketplace chip `<p>` margin;
+`Modal` now honors `autofocus` via `@open-auto-focus`). Commits `7d0ab22 2348d0f 2608385 6118685
+e510db2 7ed8fcf 2713091` (+docs). Gate GREEN 457f/2417t at each step; verified sections + dialogs in
+Playwright (dark+light). **DELIBERATELY DEFERRED (not done, with reasons):**
+① **ConfirmButton adoption** — the arm-then-confirm confirms (Marketplace remove, Channels/Notebook
+  icon disconnect/delete, Account Keep/Confirm pair) were NOT moved onto the `ConfirmButton`
+  primitive: its fixed styling (rounded-sm/text-sm/bordered, always-label) doesn't fit the inline
+  pill/icon/pair contexts without a look regression + risky logic/test rewrites blind. They already
+  share ONE consistent arm-then-confirm pattern. To adopt later: give `ConfirmButton` a size/variant
+  (+ icon-only) prop, then swap + rewrite those tests.
+② **ReadBookDialog width** shrank 640→512px (`Modal` maxes at `size="lg"`); add a `size="xl"` to Modal.
+③ **CreateScheduleDialog** is 364 lines (>300 house rule); extract a `ScheduleCadenceFields.vue`.
+④ From before: unified right dock (History/Files/Trace tabs) — views still render their own panels.
+**Chad smoke when back:** open each section + each dialog; confirm autofocus lands in the first field.
+
+**⚠ (prev) AUTONOMOUS MANDATE (Chad, 2026-07-14, then unavailable): finish ALL of the below, keep the gate
+green, COMMIT + PUSH, then SHUT THE MACHINE DOWN with `shutdown /s`.** Guardrail: if the gate is red
+or the push fails, DO NOT shut down — leave it on + the work committed locally. Chad chose "unify all
+now, then shut down." Commits go straight to `main` + push (trunk-based); NO AI-identity trailer
+([[no-ai-identity-in-commits]]).
+
+**GOAL:** every section + dialog on ONE beautiful pattern built from the @vynel/ui primitives — not
+just a Tailwind port (Chad: "all our UIs need to be in same pattern" as the /ui-preview demo).
+
+**DONE + committed (local; origin/main is at `b31a26b`, LOCAL IS AHEAD ~3 UNPUSHED — push at the end):**
+- `7d0ab22` marketplace section → Tailwind (the port template) + SectionHeader + canvas padding 44/40.
+- `2348d0f` remaining sections → Tailwind (behavior-neutral port; Channels/Schedules/Knowledge/Memory/
+  Notebook/Agents/Account + AccountDeviceRow/AccountSignInForm + LockedFeatureCard). Gate 457f/2417t.
+- `2608385` **beauty template**: SectionHeader elevated (icon tile + bigger title — all sections inherit)
+  + Channels beautified. THIS IS THE VISUAL REFERENCE Chad approved.
+
+**REMAINING (do these, verify each, then commit+push+shutdown):**
+1. **Beautify 6 sections** to the Channels template: Schedules, Knowledge, Memory, Notebook, Agents,
+   Account(+AccountDeviceRow/AccountSignInForm). Recipe: items→`rounded-lg border border-hair bg-raised
+   p-3` cards, `gap-2`, `hover:border-hair-strong hover:shadow-raised`; icon tiles `size-9 rounded-md`
+   soft-tinted (`bg-info/10 text-info`, memory violet `bg-ws-3/10`, etc.); title `text-sm font-semibold`
+   + sub `text-xs text-ink-3`; hover-reveal secondary actions (`opacity-0 group-hover:opacity-100
+   focus-visible:opacity-100`); GOLD = PRESENCE ONLY; preflight deferred so every `<p>` needs `m-0`.
+   Ref: `components/sections/ChannelsSection.vue` + `SectionHeader.vue`.
+2. **Dialogs → `Modal` primitive** (7): ConnectChannelDialog, AddKnowledgeDialog, AddMemoryDialog,
+   CreateScheduleDialog, ReadBookDialog, WriteBookDialog, CreateWorkspaceDialog. Replace each hand-rolled
+   `<Teleport>`+backdrop with `<Modal v-model:open :title :description>` (body=default slot, actions=
+   `#footer` slot). Behavior-changing → UPDATE each dialog's colocated test to the new structure.
+3. **Confirm idiom → `ConfirmButton` primitive** (4): Channels disconnect, MarketplaceItemCard remove,
+   AccountDeviceRow revoke, NotebookSection delete. `<ConfirmButton label confirmLabel danger @confirm>`.
+   ⚠ This CHANGES the aria-labels/text tests assert (e.g. marketplace "Confirm remove X") → UPDATE those
+   tests to ConfirmButton's output (`aria-pressed` + label/confirmLabel). Deliberate spec change.
+
+**HOW TO VERIFY (critical):** the Claude-Browser `computer` screenshot HANGS (30s timeout) — use the
+**`playwright-cli`** skill instead (global cmd). Dev server = Chad's, http://localhost:8999 (`pnpm dev`;
+local-web + local-api). Reach a section: open /chat → click the sidebar section button. Real data:
+workspaces vynel+letterman, channel "Theris", marketplace Email Drafter+Focus Writer, account kafi Pro
++ KLONE device. Screenshot dark AND light (`document.documentElement.dataset.theme='light'`). Gate =
+`pnpm test` (turbo typecheck + parity + vitest); currently GREEN 457f/2417t. Run code-reviewer on the
+diff before the final commit. Primitives live in `packages/ui/src/components/` (Modal, ConfirmButton,
+DropdownMenu, ContextMenu, Tooltip, CommandPalette, ResizablePanel); demo at `/ui-preview`.
+
+**FINISH LINE:** all 3 items done → full gate GREEN → commit (feat/refactor, no AI trailer) → `git push
+origin main` → confirm pushed → `shutdown /s /t 30`. (Only if green + pushed.)
+
+## (prev) NEXT ACTION (2026-07-14b): DESKTOP SHELL ADOPTED IN THE REAL APP (Wave B) — gate GREEN 457f/2417t, committed + PUSHED; NEXT: unified right dock (History/Files/Trace tabs) + Chad's live smoke
 
 **Wave B shipped (done autonomously per Chad; verified in-browser + gate-green, no live smoke yet).**
 App.vue is now thin (bare-route / onboarding / `<AppShell>`); the reinvented shell lives in

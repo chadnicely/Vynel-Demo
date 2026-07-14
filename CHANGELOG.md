@@ -9,6 +9,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Every feature screen refreshed and consistent.** Channels, Schedules, Knowledge, Memory,
+  Notebook, Agents, Marketplace, and Account are now clean cards with clear hierarchy, roomier
+  spacing, and a tasteful splash of color — and every pop-up (connect a channel, add a memory,
+  create a schedule, write a book, new workspace…) shares one polished dialog that dims the
+  background, traps focus, and closes on Escape or a click outside.
+
 - **A desktop-app shell.** The window now has a proper desktop layout: a title bar with drop-down
   menus (Vynel · Assistant · View · Go) and minimize/maximize/close controls, a Home/Chat toggle with
   a workspace switcher beside it (switch between Global and any workspace, or start a new one), a clean
