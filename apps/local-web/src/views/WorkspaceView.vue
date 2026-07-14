@@ -330,9 +330,9 @@ function openContinuous() {
 }
 
 .section-column {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 32px 24px;
+  padding: 44px 40px;
 }
 
 /* The marketplace's card grid uses the whole canvas — its siblings stay

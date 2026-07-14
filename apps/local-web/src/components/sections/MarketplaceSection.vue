@@ -10,6 +10,7 @@ import { useInstallMarketplaceItem } from "../../composables/marketplace/use-ins
 import { useUninstallMarketplaceItem } from "../../composables/marketplace/use-uninstall-marketplace-item.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import MarketplaceItemCard from "./MarketplaceItemCard.vue";
+import SectionHeader from "./SectionHeader.vue";
 
 // The storefront: curated skills and agents, one Get away. Scope-aware
 // like its section siblings — the GLOBAL menu shows user-level items and
@@ -120,14 +121,8 @@ function cardErrorFor(itemId: string): string | null {
 </script>
 
 <template>
-  <div class="marketplace-section">
-    <header class="section-header">
-      <Blocks :size="15" class="section-icon" />
-      <div class="section-text">
-        <p class="section-title">Marketplace</p>
-        <p class="section-hint">{{ sectionHint }}</p>
-      </div>
-    </header>
+  <div class="flex flex-col gap-3">
+    <SectionHeader :icon="Blocks" title="Marketplace" :subtitle="sectionHint" />
 
     <div v-if="itemsQuery.isError.value" role="alert">
       <EmptyState
@@ -151,33 +146,45 @@ function cardErrorFor(itemId: string): string | null {
     </EmptyState>
 
     <template v-else-if="items.length > 0">
-      <div class="storefront-toolbar">
-        <label class="search-field">
-          <Search :size="13" class="search-icon" />
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="relative min-w-[160px] max-w-[320px] flex-1">
+          <Search
+            :size="13"
+            class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-3"
+          />
           <input
             v-model="searchText"
             type="search"
             placeholder="Search skills and agents"
             aria-label="Search the marketplace"
+            class="w-full rounded-full border border-hair-strong bg-panel py-1 pl-7 pr-3 text-xs text-ink-1 placeholder:text-ink-3"
           />
         </label>
-        <div class="filter-chips" role="group" aria-label="Filter the shelf">
+        <div class="flex flex-wrap items-center gap-1" role="group" aria-label="Filter the shelf">
           <button
             v-for="option in KIND_FILTERS"
             :key="option.value"
             type="button"
-            class="filter-chip"
-            :class="{ 'is-active': kindFilter === option.value }"
+            class="filter-chip inline-flex cursor-default items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition"
+            :class="
+              kindFilter === option.value
+                ? 'border-hair-strong bg-row-active text-ink-1'
+                : 'border-transparent text-ink-3 hover:bg-row-hover hover:text-ink-1'
+            "
             :aria-pressed="kindFilter === option.value"
             @click="kindFilter = option.value"
           >
             {{ option.label }}
           </button>
-          <span class="chip-divider" aria-hidden="true" />
+          <span class="mx-1 h-3.5 w-px bg-hair-strong" aria-hidden="true" />
           <button
             type="button"
-            class="filter-chip"
-            :class="{ 'is-active': showInstalledOnly }"
+            class="filter-chip inline-flex cursor-default items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition"
+            :class="
+              showInstalledOnly
+                ? 'border-hair-strong bg-row-active text-ink-1'
+                : 'border-transparent text-ink-3 hover:bg-row-hover hover:text-ink-1'
+            "
             :aria-pressed="showInstalledOnly"
             @click="showInstalledOnly = !showInstalledOnly"
           >
@@ -187,7 +194,10 @@ function cardErrorFor(itemId: string): string | null {
         </div>
       </div>
 
-      <div v-if="visibleItems.length > 0" class="storefront-grid">
+      <div
+        v-if="visibleItems.length > 0"
+        class="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-2"
+      >
         <MarketplaceItemCard
           v-for="item in visibleItems"
           :key="item.itemId"
@@ -212,7 +222,11 @@ function cardErrorFor(itemId: string): string | null {
           <SearchX :size="22" />
         </template>
         <template #action>
-          <button type="button" class="clear-button" @click="clearFilters">
+          <button
+            type="button"
+            class="inline-flex cursor-default items-center gap-1.5 rounded-full border border-hair-strong bg-raised px-3.5 py-1 text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+            @click="clearFilters"
+          >
             Clear search and filters
           </button>
         </template>
@@ -220,164 +234,3 @@ function cardErrorFor(itemId: string): string | null {
     </template>
   </div>
 </template>
-
-<style scoped>
-.marketplace-section {
-  display: grid;
-  gap: 10px;
-}
-
-.section-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 2px 4px;
-}
-
-.section-icon {
-  color: var(--ink-2);
-  flex: none;
-  margin-top: 2px;
-}
-
-.section-text {
-  min-width: 0;
-  flex: 1;
-}
-
-.section-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 13px/1.5 var(--font-ui);
-}
-
-.section-hint {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.storefront-toolbar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.search-field {
-  position: relative;
-  flex: 1 1 200px;
-  min-width: 160px;
-  max-width: 320px;
-}
-
-.search-icon {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  translate: 0 -50%;
-  color: var(--ink-3);
-  pointer-events: none;
-}
-
-.search-field input {
-  appearance: none;
-  width: 100%;
-  padding: 5px 12px 5px 29px;
-  border: 1px solid var(--hair-strong);
-  border-radius: 99px;
-  background: var(--bg-panel);
-  color: var(--ink-1);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.search-field input::placeholder {
-  color: var(--ink-3);
-}
-
-.search-field input:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -1px;
-}
-
-.filter-chips {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.filter-chip {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 11px;
-  border: 1px solid transparent;
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-3);
-  font: 600 11px/1.6 var(--font-ui);
-  cursor: default;
-  transition:
-    color var(--t-fast) var(--ease-out),
-    background var(--t-fast) var(--ease-out);
-}
-
-.filter-chip:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.filter-chip.is-active {
-  color: var(--ink-1);
-  background: var(--row-active);
-  border-color: var(--hair-strong);
-}
-
-.filter-chip:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.chip-divider {
-  width: 1px;
-  height: 14px;
-  background: var(--hair-strong);
-  margin: 0 4px;
-  flex: none;
-}
-
-.storefront-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 8px;
-}
-
-.clear-button {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 14px;
-  border: 1px solid var(--hair-strong);
-  border-radius: 99px;
-  background: var(--bg-raised);
-  color: var(--ink-2);
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.clear-button:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.clear-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-</style>

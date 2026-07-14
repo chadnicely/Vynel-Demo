@@ -64,43 +64,68 @@ const removeLabel = computed(() => {
 </script>
 
 <template>
-  <article class="item-card">
-    <div class="card-head">
-      <span class="card-tile" aria-hidden="true">
+  <article
+    class="item-card flex flex-col gap-2 rounded-md border border-hair bg-raised p-3 transition hover:-translate-y-px hover:border-hair-strong hover:shadow-raised motion-reduce:hover:translate-y-0"
+  >
+    <div class="flex items-start gap-2.5">
+      <span
+        class="grid size-[34px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+        aria-hidden="true"
+      >
         <component :is="tileIcon" v-if="tileIcon" :size="16" />
-        <span v-else class="tile-monogram">{{ monogram }}</span>
+        <span v-else class="font-display text-xs font-semibold tracking-wide">{{
+          monogram
+        }}</span>
       </span>
-      <div class="card-heading">
-        <p class="card-title">{{ item.displayName }}</p>
-        <p class="card-chips">
+      <div class="min-w-0 flex-1">
+        <p class="card-title m-0 truncate text-sm font-semibold text-ink-1">
+          {{ item.displayName }}
+        </p>
+        <p class="mt-0.5 flex flex-wrap items-center gap-1.5">
           <!-- What you're getting: a skill (a capability) or an agent
                (a persona) — the Get flow is identical for both. -->
-          <span class="scope-chip">{{
-            item.kind === "agent" ? "Agent" : "Skill"
-          }}</span>
-          <span v-if="item.isOfficial" class="scope-chip is-gold">
+          <span
+            class="scope-chip inline-flex items-center gap-0.5 rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+            >{{ item.kind === "agent" ? "Agent" : "Skill" }}</span
+          >
+          <span
+            v-if="item.isOfficial"
+            class="scope-chip is-gold inline-flex items-center gap-0.5 rounded-full border border-gold-soft bg-gold-soft px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-gold"
+          >
             <BadgeCheck :size="10" />
             Official
           </span>
-          <span v-if="showsProBadge" class="scope-chip is-pro">Pro</span>
+          <span
+            v-if="showsProBadge"
+            class="scope-chip is-pro inline-flex items-center rounded-full border border-info/40 bg-info/15 px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-info"
+            >Pro</span
+          >
         </p>
       </div>
     </div>
 
-    <p class="card-description">{{ item.oneLineDescription }}</p>
+    <p
+      class="m-0 line-clamp-2 min-h-[2.15rem] text-xs text-ink-2"
+    >
+      {{ item.oneLineDescription }}
+    </p>
 
-    <footer class="card-foot">
-      <p class="card-meta">
-        <span class="meta-category">{{ item.category }}</span>
+    <footer class="mt-auto flex items-center justify-between gap-2">
+      <p class="m-0 min-w-0 truncate text-2xs text-ink-3">
+        <span class="capitalize">{{ item.category }}</span>
         · v{{ item.version }}
       </p>
-      <div class="card-actions">
+      <div class="flex shrink-0 items-center gap-1.5">
         <!-- Install dispatches cloud vs. bundled server-side; the button just
              names the item. Installed stays disabled (no re-install). -->
         <button
           type="button"
-          class="pill"
-          :class="isInstalled ? 'is-on' : 'is-off'"
+          class="pill inline-flex cursor-default items-center gap-1 rounded-full px-2.5 py-px text-[11px] font-semibold transition disabled:opacity-80"
+          :class="
+            isInstalled
+              ? 'is-on bg-ok/15 text-ok'
+              : 'is-off bg-row-active text-ink-1 hover:bg-row-hover'
+          "
           :disabled="isInstalled || isInstalling"
           @click="emit('install')"
         >
@@ -112,8 +137,12 @@ const removeLabel = computed(() => {
         <button
           v-if="isInstalled"
           type="button"
-          class="row-action"
-          :class="{ 'is-danger': isRemoveArmed }"
+          class="row-action inline-flex shrink-0 cursor-default items-center rounded-full border px-2.5 py-px text-[11px] font-semibold transition disabled:opacity-55"
+          :class="
+            isRemoveArmed
+              ? 'is-danger border-danger/40 text-danger hover:border-danger hover:bg-danger/10'
+              : 'border-hair text-ink-2 hover:border-hair-strong hover:bg-row-hover hover:text-ink-1'
+          "
           :disabled="isRemoving"
           :aria-label="
             isRemoveArmed
@@ -128,239 +157,8 @@ const removeLabel = computed(() => {
       </div>
     </footer>
 
-    <p v-if="errorMessage" class="card-error" role="alert">
+    <p v-if="errorMessage" class="m-0 text-[11px] text-danger" role="alert">
       {{ errorMessage }}
     </p>
   </article>
 </template>
-
-<style scoped>
-.item-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-m);
-  background: var(--bg-raised);
-  transition:
-    border-color var(--t-fast) var(--ease-out),
-    box-shadow var(--t-fast) var(--ease-out),
-    transform var(--t-fast) var(--ease-out);
-}
-
-.item-card:hover {
-  border-color: var(--hair-strong);
-  box-shadow: var(--shadow-raised);
-  transform: translateY(-1px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .item-card,
-  .item-card:hover {
-    transform: none;
-  }
-}
-
-.card-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.card-tile {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-2);
-  flex: none;
-}
-
-.tile-monogram {
-  font: 600 12px/1 var(--font-display);
-  letter-spacing: 0.03em;
-}
-
-.card-heading {
-  min-width: 0;
-  flex: 1;
-}
-
-.card-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 12.5px/1.5 var(--font-ui);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.card-chips {
-  margin: 2px 0 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-
-.scope-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--ink-3);
-  font: 600 9.5px/1.4 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--hair-strong);
-  border-radius: 99px;
-  padding: 0 6px;
-}
-
-/* Gold marks team-shipped presence — only the Official chip may wear it. */
-.scope-chip.is-gold {
-  color: var(--gold);
-  border-color: var(--gold-soft);
-  background: var(--gold-soft);
-}
-
-/* Distinct from Official's gold (gold is presence-only) — the informational
-   status token reads as "upgrade to reach this". */
-.scope-chip.is-pro {
-  color: var(--info);
-  border-color: color-mix(in srgb, var(--info) 40%, transparent);
-  background: color-mix(in srgb, var(--info) 14%, transparent);
-}
-
-.card-description {
-  margin: 0;
-  color: var(--ink-2);
-  font: 400 11.5px/1.5 var(--font-ui);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  /* Two lines of room even for one-liners — grid rows stay even. */
-  min-height: calc(11.5px * 1.5 * 2);
-}
-
-.card-foot {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.card-meta {
-  margin: 0;
-  min-width: 0;
-  color: var(--ink-3);
-  font: 400 10.5px/1.5 var(--font-ui);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Only the category is prose ("email" → "Email") — the version stays as-is. */
-.meta-category {
-  text-transform: capitalize;
-}
-
-.card-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
-}
-
-.pill {
-  appearance: none;
-  margin: 0;
-  border: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font: 600 11px/1.6 var(--font-ui);
-  border-radius: 99px;
-  padding: 1px 10px;
-  cursor: default;
-  transition: color var(--t-fast) var(--ease-out);
-}
-
-.pill.is-on {
-  color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 14%, transparent);
-}
-
-.pill.is-off {
-  color: var(--ink-1);
-  background: var(--row-active);
-}
-
-.pill.is-off:hover:not(:disabled) {
-  background: var(--row-hover);
-}
-
-.pill:disabled {
-  opacity: 0.8;
-}
-
-.pill:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-/* The Remove control + its armed "Sure?" step borrow the account section's
-   row-action idiom (AccountDeviceRow). */
-.row-action {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 10px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.row-action:hover:not(:disabled) {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-  background: var(--row-hover);
-}
-
-.row-action:disabled {
-  opacity: 0.55;
-}
-
-.row-action.is-danger {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
-}
-
-.row-action.is-danger:hover {
-  color: var(--danger);
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-}
-
-.row-action:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.card-error {
-  margin: 0;
-  color: var(--danger);
-  font: 400 11px/1.5 var(--font-ui);
-}
-</style>
