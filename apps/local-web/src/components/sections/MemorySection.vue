@@ -6,6 +6,7 @@ import { useMemoryEntriesInScope } from "../../composables/memory/use-memory-ent
 import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import AddMemoryDialog from "./AddMemoryDialog.vue";
+import SectionHeader from "./SectionHeader.vue";
 import type { SectionScope } from "./section-scope.js";
 
 // What Claude remembers, on either surface: the global menu is the brain's
@@ -39,54 +40,71 @@ function onCreated() {
 </script>
 
 <template>
-  <div class="memory-section">
-    <header class="section-header">
-      <Brain :size="15" class="section-icon" />
-      <div class="section-text">
-        <p class="section-title">Memory</p>
-        <p class="section-hint">
-          What Claude remembers about you and your work
-        </p>
-      </div>
-      <button
-        v-if="entries.length > 0"
-        type="button"
-        class="add-button"
-        @click="isAddOpen = true"
-      >
-        <Plus :size="13" />
-        Add memory
-      </button>
-    </header>
+  <div class="flex flex-col gap-2.5">
+    <SectionHeader
+      :icon="Brain"
+      title="Memory"
+      subtitle="What Claude remembers about you and your work"
+    >
+      <template #actions>
+        <button
+          v-if="entries.length > 0"
+          type="button"
+          class="add-button inline-flex cursor-default items-center gap-1.5 rounded-full border border-hair bg-transparent px-2.5 py-0.5 text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1"
+          @click="isAddOpen = true"
+        >
+          <Plus :size="13" />
+          Add memory
+        </button>
+      </template>
+    </SectionHeader>
 
-    <div v-if="entries.length > 0" class="rows">
-      <div v-for="entry in entries" :key="entry.id" class="row">
-        <div class="row-main">
-          <p class="row-title">
+    <div v-if="entries.length > 0" class="flex flex-col gap-1">
+      <div
+        v-for="entry in entries"
+        :key="entry.id"
+        class="row flex items-start gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2"
+      >
+        <div class="min-w-0 flex-1">
+          <p
+            class="m-0 flex flex-wrap items-center gap-1.5 text-sm font-medium text-ink-1"
+          >
             {{ entry.title }}
-            <span class="kind-chip">{{
-              KIND_LABELS[entry.kind] ?? entry.kind
-            }}</span>
+            <span
+              class="kind-chip inline-flex items-center rounded-full border border-hair bg-panel px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-2"
+              >{{ KIND_LABELS[entry.kind] ?? entry.kind }}</span
+            >
+            <!-- "context" is the always-known marker; gold is the attention accent. -->
             <span
               v-for="tag in entry.tags"
               :key="tag"
-              class="tag-chip"
-              :class="{ 'is-context': tag === 'context' }"
+              class="tag-chip inline-flex items-center gap-1 rounded-full border px-1.5 text-[10px] font-medium"
+              :class="
+                tag === 'context'
+                  ? 'is-context border-gold text-ink-2'
+                  : 'border-hair text-ink-3'
+              "
             >
               <span
                 v-if="tag === 'context'"
-                class="context-dot"
+                class="context-dot size-1 shrink-0 rounded-full bg-gold"
                 aria-hidden="true"
               />
               {{ tag }}
             </span>
-            <span v-if="props.scope.kind === 'global'" class="scope-chip">{{
-              scopeLabel(entry.workspaceId)
-            }}</span>
+            <span
+              v-if="props.scope.kind === 'global'"
+              class="scope-chip inline-flex items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+              >{{ scopeLabel(entry.workspaceId) }}</span
+            >
           </p>
-          <p class="row-sub">{{ entry.body }}</p>
+          <p class="mb-0 mt-px line-clamp-2 text-xs text-ink-3">
+            {{ entry.body }}
+          </p>
         </div>
-        <span class="row-time">{{ formatRelativeTime(entry.updatedAt) }}</span>
+        <span class="shrink-0 text-2xs text-ink-3">{{
+          formatRelativeTime(entry.updatedAt)
+        }}</span>
       </div>
     </div>
 
@@ -99,7 +117,11 @@ function onCreated() {
         <Brain :size="22" />
       </template>
       <template #action>
-        <button type="button" class="invite-button" @click="isAddOpen = true">
+        <button
+          type="button"
+          class="invite-button inline-flex cursor-default items-center gap-1.5 rounded-full border border-hair-strong bg-raised px-3.5 py-1 text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1"
+          @click="isAddOpen = true"
+        >
           <Plus :size="13" />
           Add a memory
         </button>
@@ -115,168 +137,3 @@ function onCreated() {
   </div>
 </template>
 
-<style scoped>
-.memory-section {
-  display: grid;
-  gap: 10px;
-}
-
-.section-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 2px 4px;
-}
-
-.section-icon {
-  color: var(--ink-2);
-  flex: none;
-  margin-top: 2px;
-}
-
-.section-text {
-  min-width: 0;
-  flex: 1;
-}
-
-.section-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 13px/1.5 var(--font-ui);
-}
-
-.section-hint {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.add-button,
-.invite-button {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 11px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.invite-button {
-  border-color: var(--hair-strong);
-  background: var(--bg-raised);
-  padding: 5px 14px;
-}
-
-.add-button:hover,
-.invite-button:hover {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-  background: var(--row-hover);
-}
-
-.add-button:focus-visible,
-.invite-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.rows {
-  display: grid;
-  gap: 4px;
-}
-
-.row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-raised);
-}
-
-.row-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.row-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 500 12.5px/1.5 var(--font-ui);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.row-sub {
-  margin: 1px 0 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.kind-chip {
-  color: var(--ink-2);
-  font: 600 9.5px/1.4 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  padding: 0 6px;
-  background: var(--bg-panel);
-}
-
-.scope-chip {
-  color: var(--ink-3);
-  font: 600 9.5px/1.4 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--hair-strong);
-  border-radius: 99px;
-  padding: 0 6px;
-}
-
-.tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--ink-3);
-  font: 500 10px/1.5 var(--font-ui);
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  padding: 0 6px;
-}
-
-/* "context" is the always-known marker — gold is the attention accent. */
-.tag-chip.is-context {
-  color: var(--ink-2);
-  border-color: var(--gold);
-}
-
-.context-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 99px;
-  background: var(--gold);
-  flex: none;
-}
-
-.row-time {
-  color: var(--ink-3);
-  font: 400 10.5px/1.6 var(--font-ui);
-  flex: none;
-}
-</style>

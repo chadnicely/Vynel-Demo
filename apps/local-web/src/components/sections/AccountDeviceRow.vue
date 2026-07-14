@@ -32,27 +32,40 @@ function confirmRevoke() {
 </script>
 
 <template>
-  <div class="row">
-    <span class="row-icon">
+  <div
+    class="flex items-center gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2"
+  >
+    <span
+      class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+    >
       <MonitorSmartphone :size="14" />
     </span>
-    <div class="row-main">
-      <p class="row-title">
+    <div class="min-w-0 flex-1">
+      <p
+        class="row-title m-0 flex items-center gap-1.5 text-sm font-medium text-ink-1"
+      >
         {{ props.device.deviceName }}
-        <span class="platform-chip">{{ props.device.devicePlatform }}</span>
+        <span
+          class="platform-chip rounded-full border border-hair bg-panel px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-2"
+          >{{ props.device.devicePlatform }}</span
+        >
       </p>
-      <p class="row-sub">
+      <p class="mt-px mb-0 truncate text-xs text-ink-3">
         v{{ props.device.appVersion }} · last used
         {{ formatRelativeTime(props.device.lastUsedAt) }}
       </p>
     </div>
     <template v-if="isArmed">
-      <button type="button" class="row-action" @click="isArmed = false">
+      <button
+        type="button"
+        class="row-action inline-flex shrink-0 cursor-default items-center rounded-full border border-hair px-[11px] py-[3px] text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1"
+        @click="isArmed = false"
+      >
         Keep
       </button>
       <button
         type="button"
-        class="row-action is-danger"
+        class="row-action is-danger inline-flex shrink-0 cursor-default items-center rounded-full border border-danger/40 px-[11px] py-[3px] text-xs font-semibold text-danger transition hover:border-danger hover:bg-danger/10"
         @click="confirmRevoke"
       >
         Confirm
@@ -61,7 +74,7 @@ function confirmRevoke() {
     <button
       v-else
       type="button"
-      class="row-action"
+      class="row-action inline-flex shrink-0 cursor-default items-center rounded-full border border-hair px-[11px] py-[3px] text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1 disabled:opacity-55"
       :disabled="props.isRevoking"
       @click="isArmed = true"
     >
@@ -69,103 +82,3 @@ function confirmRevoke() {
     </button>
   </div>
 </template>
-
-<style scoped>
-.row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-raised);
-}
-
-.row-icon {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-2);
-  flex: none;
-}
-
-.row-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.row-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 500 12.5px/1.5 var(--font-ui);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.row-sub {
-  margin: 1px 0 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.platform-chip {
-  color: var(--ink-2);
-  font: 600 9.5px/1.4 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  padding: 0 6px;
-  background: var(--bg-panel);
-}
-
-.row-action {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 11px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.row-action:hover:not(:disabled) {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-  background: var(--row-hover);
-}
-
-.row-action:disabled {
-  opacity: 0.55;
-}
-
-.row-action.is-danger {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
-}
-
-.row-action.is-danger:hover {
-  color: var(--danger);
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-}
-
-.row-action:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-</style>

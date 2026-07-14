@@ -9,6 +9,7 @@ import { useRevokeHubDevice } from "../../composables/hub/use-revoke-hub-device.
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import AccountSignInForm from "./AccountSignInForm.vue";
 import AccountDeviceRow from "./AccountDeviceRow.vue";
+import SectionHeader from "./SectionHeader.vue";
 
 // The account section — global menu only: the hub link belongs to the app,
 // not to any workspace. Renders the daemon's HubLinkStatus union; a failed
@@ -35,24 +36,24 @@ function tierLabel(tier: string): string {
 </script>
 
 <template>
-  <div class="account-section">
-    <header class="section-header">
-      <UserRound :size="15" class="section-icon" />
-      <div class="section-text">
-        <p class="section-title">Account</p>
-        <p class="section-hint">The Vynel account this app is linked to</p>
-      </div>
-      <button
-        v-if="status?.kind === 'signed-in'"
-        type="button"
-        class="add-button"
-        :disabled="signOut.isPending.value"
-        @click="signOut.mutate()"
-      >
-        <LogOut :size="13" />
-        {{ signOut.isPending.value ? "Signing out…" : "Sign out" }}
-      </button>
-    </header>
+  <div class="flex flex-col gap-2.5">
+    <SectionHeader
+      :icon="UserRound"
+      title="Account"
+      subtitle="The Vynel account this app is linked to"
+    >
+      <template v-if="status?.kind === 'signed-in'" #actions>
+        <button
+          type="button"
+          class="add-button inline-flex shrink-0 cursor-default items-center gap-1.5 rounded-full border border-hair px-[11px] py-[3px] text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1 disabled:opacity-55"
+          :disabled="signOut.isPending.value"
+          @click="signOut.mutate()"
+        >
+          <LogOut :size="13" />
+          {{ signOut.isPending.value ? "Signing out…" : "Sign out" }}
+        </button>
+      </template>
+    </SectionHeader>
 
     <EmptyState
       v-if="status?.kind === 'not-configured'"
@@ -67,29 +68,41 @@ function tierLabel(tier: string): string {
     <AccountSignInForm v-else-if="status?.kind === 'signed-out'" />
 
     <template v-else-if="status?.kind === 'signed-in'">
-      <div class="identity-card">
-        <span class="identity-icon">
+      <div
+        class="identity-card flex items-center gap-2.5 rounded-md border border-hair bg-raised px-3 py-2.5"
+      >
+        <span
+          class="grid size-[30px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+        >
           <UserRound :size="16" />
         </span>
-        <div class="identity-main">
-          <p class="identity-name">
+        <div class="min-w-0 flex-1">
+          <p
+            class="identity-name m-0 flex items-center gap-1.5 text-sm font-semibold text-ink-1"
+          >
             {{ status.displayName }}
             <!-- Absent when the entitlement couldn't be verified (key
                  mismatch): show no tier rather than a wrong one. -->
-            <span v-if="status.tier !== null" class="tier-chip">{{
-              tierLabel(status.tier)
-            }}</span>
+            <span
+              v-if="status.tier !== null"
+              class="tier-chip shrink-0 rounded-full border border-hair-strong px-[7px] text-[10px] font-semibold text-ink-3"
+              >{{ tierLabel(status.tier) }}</span
+            >
           </p>
-          <p class="identity-sub">{{ status.email }}</p>
+          <p class="mt-px mb-0 text-xs text-ink-3">{{ status.email }}</p>
         </div>
-        <span class="identity-time">
+        <span class="shrink-0 text-2xs text-ink-3">
           Checked {{ formatRelativeTime(status.checkedAt) }}
         </span>
       </div>
 
-      <div class="devices-block">
-        <p class="block-label">Devices</p>
-        <div v-if="devices.length > 0" class="rows">
+      <div class="grid gap-1.5">
+        <p
+          class="mx-1 mt-1 mb-0 text-2xs font-semibold uppercase tracking-wider text-ink-2"
+        >
+          Devices
+        </p>
+        <div v-if="devices.length > 0" class="grid gap-1">
           <AccountDeviceRow
             v-for="device in devices"
             :key="device.id"
@@ -98,22 +111,31 @@ function tierLabel(tier: string): string {
             @revoke="revokeDevice.mutate"
           />
         </div>
-        <p v-else class="block-empty">No devices to show.</p>
+        <p v-else class="mx-1 my-0 text-xs text-ink-3">No devices to show.</p>
       </div>
     </template>
 
-    <div v-else-if="status?.kind === 'locked'" class="status-card">
-      <span class="status-icon is-attention">
+    <div
+      v-else-if="status?.kind === 'locked'"
+      class="status-card flex items-center gap-2.5 rounded-md border border-hair bg-raised px-3 py-2.5"
+    >
+      <span
+        class="grid size-[30px] shrink-0 place-items-center rounded-sm border border-transparent bg-gold-soft text-gold"
+      >
         <Lock :size="16" />
       </span>
-      <div class="status-main">
-        <p class="status-title">Account locked</p>
-        <p class="status-sub">{{ status.message }}</p>
+      <div class="min-w-0 flex-1">
+        <p
+          class="status-title m-0 flex items-center gap-1.5 text-sm font-semibold text-ink-1"
+        >
+          Account locked
+        </p>
+        <p class="mt-px mb-0 text-xs text-ink-3">{{ status.message }}</p>
         <!-- The lock verdict is re-checked slowly; a re-enabled user needs a
              way back to the form NOW, not at the next daily check. -->
         <button
           type="button"
-          class="add-button"
+          class="add-button inline-flex shrink-0 cursor-default items-center gap-1.5 rounded-full border border-hair px-[11px] py-[3px] text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1 disabled:opacity-55"
           :disabled="signOut.isPending.value"
           @click="signOut.mutate()"
         >
@@ -122,194 +144,35 @@ function tierLabel(tier: string): string {
       </div>
     </div>
 
-    <div v-else-if="status?.kind === 'offline'" class="status-card">
-      <span class="status-icon">
+    <div
+      v-else-if="status?.kind === 'offline'"
+      class="status-card flex items-center gap-2.5 rounded-md border border-hair bg-raised px-3 py-2.5"
+    >
+      <span
+        class="grid size-[30px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+      >
         <CloudOff :size="16" />
       </span>
-      <div class="status-main">
-        <p class="status-title">
+      <div class="min-w-0 flex-1">
+        <p
+          class="status-title m-0 flex items-center gap-1.5 text-sm font-semibold text-ink-1"
+        >
           {{ status.displayName ?? "Signed in" }}
-          <span v-if="status.tier !== null" class="tier-chip">{{
-            tierLabel(status.tier)
-          }}</span>
-          <span v-if="status.email" class="status-email">{{
-            status.email
-          }}</span>
+          <span
+            v-if="status.tier !== null"
+            class="tier-chip shrink-0 rounded-full border border-hair-strong px-[7px] text-[10px] font-semibold text-ink-3"
+            >{{ tierLabel(status.tier) }}</span
+          >
+          <span
+            v-if="status.email"
+            class="text-[11px] font-normal text-ink-3"
+            >{{ status.email }}</span
+          >
         </p>
-        <p class="status-sub">
+        <p class="mt-px mb-0 text-xs text-ink-3">
           Can't reach the hub — will retry automatically.
         </p>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.account-section {
-  display: grid;
-  gap: 10px;
-}
-
-.section-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 2px 4px;
-}
-
-.section-icon {
-  color: var(--ink-2);
-  flex: none;
-  margin-top: 2px;
-}
-
-.section-text {
-  min-width: 0;
-  flex: 1;
-}
-
-.section-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 13px/1.5 var(--font-ui);
-}
-
-.section-hint {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.add-button {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 11px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.add-button:hover:not(:disabled) {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-  background: var(--row-hover);
-}
-
-.add-button:disabled {
-  opacity: 0.55;
-}
-
-.add-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.identity-card,
-.status-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-m);
-  background: var(--bg-raised);
-}
-
-.identity-icon,
-.status-icon {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-2);
-  flex: none;
-}
-
-/* Locked is an attention state, not an emergency — the house gold "attention"
-   language (Channels' warn pill), never an alarmist red. */
-.status-icon.is-attention {
-  color: var(--gold);
-  background: var(--gold-soft);
-  border-color: transparent;
-}
-
-.identity-main,
-.status-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.identity-name,
-.status-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 12.5px/1.5 var(--font-ui);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.identity-sub,
-.status-sub {
-  margin: 1px 0 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.identity-time {
-  color: var(--ink-3);
-  font: 400 10.5px/1.6 var(--font-ui);
-  flex: none;
-}
-
-.status-email {
-  color: var(--ink-3);
-  font: 400 11px/1.5 var(--font-ui);
-}
-
-/* The plan chip — the sections' scope-chip shape, reading as a word
-   ("Basic" / "Pro"): the tier is a fact, not a status. */
-.tier-chip {
-  color: var(--ink-3);
-  font: 600 10px/1.5 var(--font-ui);
-  border: 1px solid var(--hair-strong);
-  border-radius: 99px;
-  padding: 0 7px;
-  flex: none;
-}
-
-.devices-block {
-  display: grid;
-  gap: 6px;
-}
-
-.block-label {
-  margin: 4px 4px 0;
-  color: var(--ink-2);
-  font: 600 10.5px/1.5 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.rows {
-  display: grid;
-  gap: 4px;
-}
-
-.block-empty {
-  margin: 0 4px;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-</style>

@@ -7,6 +7,7 @@ import { useToggleSchedule } from "../../composables/schedules/use-toggle-schedu
 import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import { describeScheduleCadence } from "../../utils/schedule-cadence.js";
 import CreateScheduleDialog from "./CreateScheduleDialog.vue";
+import SectionHeader from "./SectionHeader.vue";
 import type { SectionScope } from "./section-scope.js";
 
 // The schedules section, on either surface: what Claude does on its own time.
@@ -53,47 +54,62 @@ function onCreated() {
 </script>
 
 <template>
-  <div class="schedules-section">
-    <header class="section-header">
-      <CalendarClock :size="15" class="section-icon" />
-      <div class="section-text">
-        <p class="section-title">Schedules</p>
-        <p class="section-hint">Briefings, reminders, and watches on Claude's own time</p>
-      </div>
-      <button
-        v-if="schedules.length > 0"
-        type="button"
-        class="add-button"
-        @click="isCreateOpen = true"
-      >
-        <Plus :size="13" />
-        New schedule
-      </button>
-    </header>
+  <div class="flex flex-col gap-2.5">
+    <SectionHeader
+      :icon="CalendarClock"
+      title="Schedules"
+      subtitle="Briefings, reminders, and watches on Claude's own time"
+    >
+      <template v-if="schedules.length > 0" #actions>
+        <button
+          type="button"
+          class="inline-flex cursor-default items-center gap-1.5 rounded-full border border-hair px-2.5 py-0.5 text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1"
+          @click="isCreateOpen = true"
+        >
+          <Plus :size="13" />
+          New schedule
+        </button>
+      </template>
+    </SectionHeader>
 
-    <div v-if="schedules.length > 0" class="rows">
-      <div v-for="schedule in schedules" :key="schedule.id" class="row">
-        <span class="row-icon">
+    <div v-if="schedules.length > 0" class="grid gap-1">
+      <div
+        v-for="schedule in schedules"
+        :key="schedule.id"
+        class="row flex items-center gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2"
+      >
+        <span
+          class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+        >
           <Timer v-if="schedule.scheduleKind === 'one-time'" :size="14" />
           <Repeat v-else :size="14" />
         </span>
-        <div class="row-main">
-          <p class="row-title">
+        <div class="min-w-0 flex-1">
+          <p
+            class="row-title m-0 flex items-center gap-1.5 text-sm font-medium text-ink-1"
+          >
             {{ schedule.displayName }}
-            <span class="scope-chip">{{
-              scopeLabel(schedule.workspaceId)
-            }}</span>
+            <span
+              class="scope-chip inline-flex items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+              >{{ scopeLabel(schedule.workspaceId) }}</span
+            >
           </p>
-          <p class="row-sub">
+          <p class="mb-0 mt-px truncate text-xs text-ink-3">
             {{ describeScheduleCadence(schedule) }} ·
             {{ nextFireNote(schedule.nextScheduledFireAt) }}
           </p>
         </div>
         <button
           type="button"
-          class="pill"
-          :class="schedule.isEnabled ? 'is-on' : 'is-off'"
-          :title="schedule.isEnabled ? 'Pause this schedule' : 'Resume this schedule'"
+          class="pill inline-flex shrink-0 cursor-default items-center rounded-full border border-transparent px-2.5 py-px text-[11px] font-semibold transition hover:border-hair-strong"
+          :class="
+            schedule.isEnabled
+              ? 'is-on bg-ok/15 text-ok'
+              : 'is-off bg-row-active text-ink-3'
+          "
+          :title="
+            schedule.isEnabled ? 'Pause this schedule' : 'Resume this schedule'
+          "
           @click="toggle(schedule)"
         >
           {{ schedule.isEnabled ? "On" : "Paused" }}
@@ -110,7 +126,11 @@ function onCreated() {
         <CalendarClock :size="22" />
       </template>
       <template #action>
-        <button type="button" class="invite-button" @click="isCreateOpen = true">
+        <button
+          type="button"
+          class="inline-flex cursor-default items-center gap-1.5 rounded-full border border-hair-strong bg-raised px-3.5 py-1 text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+          @click="isCreateOpen = true"
+        >
           <Plus :size="13" />
           New schedule
         </button>
@@ -125,169 +145,3 @@ function onCreated() {
     />
   </div>
 </template>
-
-<style scoped>
-.schedules-section {
-  display: grid;
-  gap: 10px;
-}
-
-.section-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 2px 4px;
-}
-
-.section-icon {
-  color: var(--ink-2);
-  flex: none;
-  margin-top: 2px;
-}
-
-.section-text {
-  min-width: 0;
-  flex: 1;
-}
-
-.section-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 13px/1.5 var(--font-ui);
-}
-
-.section-hint {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.add-button,
-.invite-button {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 11px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.invite-button {
-  border-color: var(--hair-strong);
-  background: var(--bg-raised);
-  padding: 5px 14px;
-}
-
-.add-button:hover,
-.invite-button:hover {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-  background: var(--row-hover);
-}
-
-.add-button:focus-visible,
-.invite-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.rows {
-  display: grid;
-  gap: 4px;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-raised);
-}
-
-.row-icon {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-2);
-  flex: none;
-}
-
-.row-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.row-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 500 12.5px/1.5 var(--font-ui);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.row-sub {
-  margin: 1px 0 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.scope-chip {
-  color: var(--ink-3);
-  font: 600 9.5px/1.4 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--hair-strong);
-  border-radius: 99px;
-  padding: 0 6px;
-}
-
-/* The pill is the pause/resume control — same state colors as elsewhere. */
-.pill {
-  appearance: none;
-  border: 1px solid transparent;
-  margin: 0;
-  flex: none;
-  font: 600 11px/1.6 var(--font-ui);
-  border-radius: 99px;
-  padding: 1px 10px;
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.pill.is-on {
-  color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 14%, transparent);
-}
-
-.pill.is-off {
-  color: var(--ink-3);
-  background: var(--row-active);
-}
-
-.pill:hover {
-  border-color: var(--hair-strong);
-}
-
-.pill:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-</style>

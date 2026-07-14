@@ -8,6 +8,7 @@ import { useDeleteNotebookDocument } from "../../composables/notebook/use-delete
 import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import ReadBookDialog from "./ReadBookDialog.vue";
 import WriteBookDialog from "./WriteBookDialog.vue";
+import SectionHeader from "./SectionHeader.vue";
 import type { SectionScope } from "./section-scope.js";
 
 // The notebook, on either surface: the playbook shelf Claude opens when a
@@ -105,63 +106,81 @@ function onSaved() {
 </script>
 
 <template>
-  <div class="notebook-section">
-    <header class="section-header">
-      <NotebookText :size="15" class="section-icon" />
-      <div class="section-text">
-        <p class="section-title">Notebook</p>
-        <p class="section-hint">
-          Playbooks Claude opens when a task calls for them
-        </p>
-      </div>
-      <button
-        v-if="ownBooks.length > 0"
-        type="button"
-        class="add-button"
-        @click="startWriting"
-      >
-        <Plus :size="13" />
-        Write a book
-      </button>
-    </header>
+  <div class="flex flex-col gap-2.5">
+    <SectionHeader
+      :icon="NotebookText"
+      title="Notebook"
+      subtitle="Playbooks Claude opens when a task calls for them"
+    >
+      <template v-if="ownBooks.length > 0" #actions>
+        <button
+          type="button"
+          class="inline-flex cursor-default items-center gap-1.5 rounded-full border border-hair px-3 py-0.5 text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1"
+          @click="startWriting"
+        >
+          <Plus :size="13" />
+          Write a book
+        </button>
+      </template>
+    </SectionHeader>
 
-    <div v-if="verifiedBooks.length > 0" class="rows">
+    <div v-if="verifiedBooks.length > 0" class="grid gap-1">
       <button
         v-for="book in verifiedBooks"
         :key="book.id"
         type="button"
-        class="row is-verified"
+        class="row is-verified flex w-full cursor-default items-start gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2 text-left transition hover:border-hair-strong"
         @click="openVerified(book)"
       >
-        <div class="row-main">
-          <p class="row-title">
+        <div class="row-main min-w-0 flex-1">
+          <p
+            class="row-title m-0 flex flex-wrap items-center gap-1.5 text-sm font-medium text-ink-1"
+          >
             {{ book.title }}
-            <span class="verified-chip">
+            <span
+              class="verified-chip inline-flex items-center gap-1 rounded-full border border-gold-soft bg-gold-soft px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-gold"
+            >
               <BadgeCheck :size="11" />
               Verified
             </span>
           </p>
-          <p class="row-sub">{{ book.oneLiner }}</p>
+          <p class="m-0 mt-px line-clamp-2 text-xs text-ink-3">
+            {{ book.oneLiner }}
+          </p>
         </div>
       </button>
     </div>
 
-    <div v-if="ownBooks.length > 0" class="rows">
-      <div v-for="document in ownBooks" :key="document.id" class="row is-own">
-        <button type="button" class="row-open" @click="openOwn(document)">
-          <div class="row-main">
-            <p class="row-title">
+    <div v-if="ownBooks.length > 0" class="grid gap-1">
+      <div
+        v-for="document in ownBooks"
+        :key="document.id"
+        class="row is-own flex items-start gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2 text-left hover:border-hair-strong"
+      >
+        <button
+          type="button"
+          class="row-open min-w-0 flex-1 cursor-default border-0 bg-transparent p-0 text-left"
+          @click="openOwn(document)"
+        >
+          <div class="row-main min-w-0 flex-1">
+            <p
+              class="row-title m-0 flex flex-wrap items-center gap-1.5 text-sm font-medium text-ink-1"
+            >
               {{ document.title }}
-              <span v-if="props.scope.kind === 'global'" class="scope-chip">{{
-                scopeLabel(document.workspaceId)
-              }}</span>
+              <span
+                v-if="props.scope.kind === 'global'"
+                class="scope-chip inline-flex items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+                >{{ scopeLabel(document.workspaceId) }}</span
+              >
             </p>
-            <p class="row-sub">{{ document.body }}</p>
+            <p class="m-0 mt-px line-clamp-2 text-xs text-ink-3">
+              {{ document.body }}
+            </p>
           </div>
         </button>
         <button
           type="button"
-          class="icon-button"
+          class="icon-button shrink-0 cursor-default rounded-sm border-0 bg-transparent p-1 text-ink-3 hover:bg-row-hover hover:text-ink-1"
           :title="`Edit ${document.title}`"
           :aria-label="`Edit ${document.title}`"
           @click="startEditing(document)"
@@ -172,8 +191,8 @@ function onSaved() {
           type="button"
           :class="
             armedDeleteId === document.id
-              ? 'row-action is-danger'
-              : 'icon-button'
+              ? 'row-action is-danger inline-flex shrink-0 cursor-default items-center rounded-full border border-danger/40 px-3 py-0.5 text-xs font-semibold text-danger transition hover:border-danger hover:bg-danger/10'
+              : 'icon-button shrink-0 cursor-default rounded-sm border-0 bg-transparent p-1 text-ink-3 hover:bg-row-hover hover:text-ink-1'
           "
           :title="
             armedDeleteId === document.id
@@ -203,7 +222,11 @@ function onSaved() {
         <NotebookText :size="22" />
       </template>
       <template #action>
-        <button type="button" class="invite-button" @click="startWriting">
+        <button
+          type="button"
+          class="invite-button inline-flex cursor-default items-center gap-1.5 rounded-full border border-hair-strong bg-raised px-3.5 py-1 text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+          @click="startWriting"
+        >
           <Plus :size="13" />
           Write a book
         </button>
@@ -225,236 +248,3 @@ function onSaved() {
     />
   </div>
 </template>
-
-<style scoped>
-.notebook-section {
-  display: grid;
-  gap: 10px;
-}
-
-.section-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 2px 4px;
-}
-
-.section-icon {
-  color: var(--ink-2);
-  flex: none;
-  margin-top: 2px;
-}
-
-.section-text {
-  min-width: 0;
-  flex: 1;
-}
-
-.section-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 13px/1.5 var(--font-ui);
-}
-
-.section-hint {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.add-button,
-.invite-button {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 11px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.invite-button {
-  border-color: var(--hair-strong);
-  background: var(--bg-raised);
-  padding: 5px 14px;
-}
-
-.add-button:hover,
-.invite-button:hover {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-  background: var(--row-hover);
-}
-
-.add-button:focus-visible,
-.invite-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.rows {
-  display: grid;
-  gap: 4px;
-}
-
-.row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-raised);
-  text-align: left;
-}
-
-/* A verified row is one big open-to-read button. */
-button.row {
-  appearance: none;
-  margin: 0;
-  width: 100%;
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-button.row:hover,
-.row.is-own:hover {
-  border-color: var(--hair-strong);
-}
-
-button.row:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-/* An own row's open-to-read surface is a real button (keyboard-openable,
-   like the verified rows) with the edit/delete controls adjacent, not
-   nested — a button may not contain buttons. */
-.row-open {
-  appearance: none;
-  margin: 0;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  text-align: left;
-  min-width: 0;
-  flex: 1;
-  cursor: default;
-}
-
-.row-open:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.row-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.row-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 500 12.5px/1.5 var(--font-ui);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.row-sub {
-  margin: 1px 0 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* Gold marks team-shipped presence (the marketplace Official chip idiom). */
-.verified-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--gold);
-  font: 600 9.5px/1.4 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--gold-soft);
-  border-radius: 99px;
-  padding: 0 6px;
-  background: var(--gold-soft);
-}
-
-.scope-chip {
-  color: var(--ink-3);
-  font: 600 9.5px/1.4 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--hair-strong);
-  border-radius: 99px;
-  padding: 0 6px;
-}
-
-.icon-button {
-  appearance: none;
-  margin: 0;
-  border: 0;
-  padding: 3px;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-3);
-  cursor: default;
-  flex: none;
-}
-
-.icon-button:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.icon-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-/* The armed "Sure?" step borrows the account section's row-action idiom. */
-.row-action {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 11px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: transparent;
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.row-action.is-danger {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
-}
-
-.row-action.is-danger:hover {
-  color: var(--danger);
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-}
-
-.row-action:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-</style>

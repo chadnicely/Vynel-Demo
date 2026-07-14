@@ -8,6 +8,7 @@ import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import AddKnowledgeDialog from "./AddKnowledgeDialog.vue";
+import SectionHeader from "./SectionHeader.vue";
 import type { SectionScope } from "./section-scope.js";
 
 // The knowledge vault, on either surface: the folders Claude studies. Adding
@@ -72,44 +73,51 @@ function onAdded() {
 </script>
 
 <template>
-  <div class="knowledge-section">
-    <header class="section-header">
-      <BookOpen :size="15" class="section-icon" />
-      <div class="section-text">
-        <p class="section-title">Knowledge</p>
-        <p class="section-hint">
-          The vault of folders and files Claude studies and searches
-        </p>
-      </div>
-      <button
-        v-if="sources.length > 0"
-        type="button"
-        class="add-button"
-        @click="isAddOpen = true"
-      >
-        <Plus :size="13" />
-        Add
-      </button>
-    </header>
+  <div class="flex flex-col gap-2.5">
+    <SectionHeader
+      :icon="BookOpen"
+      title="Knowledge"
+      subtitle="The vault of folders and files Claude studies and searches"
+    >
+      <template v-if="sources.length > 0" #actions>
+        <button
+          type="button"
+          class="inline-flex shrink-0 cursor-default items-center gap-1.5 rounded-full border border-hair bg-transparent px-[11px] py-[3px] text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1"
+          @click="isAddOpen = true"
+        >
+          <Plus :size="13" />
+          Add
+        </button>
+      </template>
+    </SectionHeader>
 
-    <div v-if="sources.length > 0" class="rows">
-      <div v-for="source in sources" :key="source.id" class="row">
-        <span class="row-icon">
+    <div v-if="sources.length > 0" class="grid gap-1">
+      <div
+        v-for="source in sources"
+        :key="source.id"
+        class="row flex items-center gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2"
+      >
+        <span
+          class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-file-folder"
+        >
           <FileText v-if="source.sourceKind === 'file'" :size="14" />
           <FolderOpen v-else :size="14" />
         </span>
-        <div class="row-main">
-          <p class="row-title">
+        <div class="min-w-0 flex-1">
+          <p class="m-0 flex items-center gap-1.5 text-sm font-medium text-ink-1">
             {{ folderName(source.absolutePath) }}
-            <span class="scope-chip">{{ scopeLabel(source.workspaceId) }}</span>
+            <span
+              class="scope-chip inline-flex items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+              >{{ scopeLabel(source.workspaceId) }}</span
+            >
           </p>
-          <p class="row-sub">
+          <p class="m-0 mt-px truncate text-xs text-ink-3">
             {{ source.absolutePath }} · {{ indexingSummary(source) }}
           </p>
         </div>
         <button
           type="button"
-          class="remove-button"
+          class="grid shrink-0 cursor-default place-items-center rounded-sm p-1 text-ink-3 hover:bg-row-hover hover:text-danger"
           :title="`Remove ${folderName(source.absolutePath)} from knowledge`"
           :aria-label="`Remove ${folderName(source.absolutePath)} from knowledge`"
           @click="remove(source)"
@@ -128,7 +136,11 @@ function onAdded() {
         <BookOpen :size="22" />
       </template>
       <template #action>
-        <button type="button" class="invite-button" @click="isAddOpen = true">
+        <button
+          type="button"
+          class="invite-button inline-flex shrink-0 cursor-default items-center gap-1.5 rounded-full border border-hair-strong bg-raised px-[14px] py-[5px] text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+          @click="isAddOpen = true"
+        >
           <Plus :size="13" />
           Add a folder or file
         </button>
@@ -143,161 +155,3 @@ function onAdded() {
     />
   </div>
 </template>
-
-<style scoped>
-.knowledge-section {
-  display: grid;
-  gap: 10px;
-}
-
-.section-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 2px 4px;
-}
-
-.section-icon {
-  color: var(--ink-2);
-  flex: none;
-  margin-top: 2px;
-}
-
-.section-text {
-  min-width: 0;
-  flex: 1;
-}
-
-.section-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 13px/1.5 var(--font-ui);
-}
-
-.section-hint {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.add-button,
-.invite-button {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 11px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.invite-button {
-  border-color: var(--hair-strong);
-  background: var(--bg-raised);
-  padding: 5px 14px;
-}
-
-.add-button:hover,
-.invite-button:hover {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-  background: var(--row-hover);
-}
-
-.add-button:focus-visible,
-.invite-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.rows {
-  display: grid;
-  gap: 4px;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-raised);
-}
-
-.row-icon {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--file-folder);
-  flex: none;
-}
-
-.row-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.row-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 500 12.5px/1.5 var(--font-ui);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.row-sub {
-  margin: 1px 0 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.scope-chip {
-  color: var(--ink-3);
-  font: 600 9.5px/1.4 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--hair-strong);
-  border-radius: 99px;
-  padding: 0 6px;
-}
-
-.remove-button {
-  appearance: none;
-  border: 0;
-  margin: 0;
-  padding: 4px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-3);
-  cursor: default;
-  flex: none;
-}
-
-.remove-button:hover {
-  color: var(--danger);
-  background: var(--row-hover);
-}
-
-.remove-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -1px;
-}
-</style>

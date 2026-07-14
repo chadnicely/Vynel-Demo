@@ -33,129 +33,49 @@ function submit() {
 </script>
 
 <template>
-  <form class="sign-in-card" @submit.prevent="submit">
-    <label class="field">
-      <span class="field-label">Email</span>
+  <form
+    class="sign-in-card grid gap-3 rounded-md border border-hair bg-raised p-3.5"
+    @submit.prevent="submit"
+  >
+    <label class="grid gap-1.5">
+      <span class="text-xs font-semibold text-ink-2">Email</span>
       <input
         v-model="email"
         type="email"
         autocomplete="email"
         :disabled="signIn.isPending.value"
+        class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-[7px] text-sm text-ink-1 disabled:opacity-55"
       />
     </label>
 
-    <label class="field">
-      <span class="field-label">Password</span>
+    <label class="grid gap-1.5">
+      <span class="text-xs font-semibold text-ink-2">Password</span>
       <input
         v-model="password"
         type="password"
         autocomplete="current-password"
         :disabled="signIn.isPending.value"
+        class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-[7px] text-sm text-ink-1 disabled:opacity-55"
       />
     </label>
 
-    <p v-if="errorMessage" class="form-error" role="alert">
+    <p v-if="errorMessage" class="m-0 text-[12px] text-danger" role="alert">
       {{ errorMessage }}
     </p>
 
-    <div class="form-actions">
-      <button type="submit" class="invite-button" :disabled="!canSignIn">
+    <div class="flex justify-start">
+      <button
+        type="submit"
+        class="invite-button inline-flex shrink-0 cursor-default items-center gap-1.5 rounded-full border border-hair-strong bg-panel px-3.5 py-[5px] text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1 disabled:opacity-55"
+        :disabled="!canSignIn"
+      >
         <LogIn :size="13" />
         {{ signIn.isPending.value ? "Signing in…" : "Sign in" }}
       </button>
     </div>
 
-    <p class="form-hint">
+    <p class="m-0 text-[11px] text-ink-3">
       Accounts are created by your Vynel provider — there is no sign-up here.
     </p>
   </form>
 </template>
-
-<style scoped>
-.sign-in-card {
-  display: grid;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-m);
-  background: var(--bg-raised);
-}
-
-.field {
-  display: grid;
-  gap: 5px;
-}
-
-.field-label {
-  color: var(--ink-2);
-  font: 600 11.5px/1.5 var(--font-ui);
-}
-
-.field input {
-  appearance: none;
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-1);
-  font: 400 12.5px/1.5 var(--font-ui);
-}
-
-.field input:disabled {
-  opacity: 0.55;
-}
-
-.field input:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -1px;
-}
-
-.form-error {
-  margin: 0;
-  color: var(--danger);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.invite-button {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 14px;
-  border: 1px solid var(--hair-strong);
-  border-radius: 99px;
-  background: var(--bg-panel);
-  color: var(--ink-2);
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.invite-button:hover:not(:disabled) {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.invite-button:disabled {
-  opacity: 0.55;
-}
-
-.invite-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.form-hint {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 11px/1.5 var(--font-ui);
-}
-</style>

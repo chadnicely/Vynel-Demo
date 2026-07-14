@@ -19,15 +19,9 @@ const props = defineProps<{
       <Lock :size="22" />
     </template>
     <template #action>
-      <p class="provider-note">Upgrades are handled by your Vynel provider.</p>
+      <p class="m-0 text-[11px] text-ink-3">
+        Upgrades are handled by your Vynel provider.
+      </p>
     </template>
   </EmptyState>
 </template>
-
-<style scoped>
-.provider-note {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 11px/1.5 var(--font-ui);
-}
-</style>

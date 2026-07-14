@@ -6,6 +6,7 @@ import { useChannels } from "../../composables/channels/use-channels.js";
 import { useDisconnectChannel } from "../../composables/channels/use-disconnect-channel.js";
 import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import ConnectChannelDialog from "./ConnectChannelDialog.vue";
+import SectionHeader from "./SectionHeader.vue";
 import type { SectionScope } from "./section-scope.js";
 
 // The channels section, on either surface: the global menu shows every
@@ -65,39 +66,52 @@ function disarmDisconnect(channelId: string) {
 </script>
 
 <template>
-  <div class="channels-section">
-    <header class="section-header">
-      <Radio :size="15" class="section-icon" />
-      <div class="section-text">
-        <p class="section-title">Channels</p>
-        <p class="section-hint">Telegram and other ways to reach Claude</p>
-      </div>
-      <button
-        v-if="channels.length > 0"
-        type="button"
-        class="add-button"
-        @click="isConnectOpen = true"
-      >
-        <Plus :size="13" />
-        Connect
-      </button>
-    </header>
+  <div class="channels-section flex flex-col gap-2.5">
+    <SectionHeader
+      :icon="Radio"
+      title="Channels"
+      subtitle="Telegram and other ways to reach Claude"
+    >
+      <template v-if="channels.length > 0" #actions>
+        <button
+          type="button"
+          class="add-button inline-flex shrink-0 cursor-default items-center gap-1.5 rounded-full border border-hair px-[11px] py-[3px] text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1"
+          @click="isConnectOpen = true"
+        >
+          <Plus :size="13" />
+          Connect
+        </button>
+      </template>
+    </SectionHeader>
 
-    <div v-if="channels.length > 0" class="rows">
-      <div v-for="channel in channels" :key="channel.id" class="row">
-        <span class="row-icon">
+    <div v-if="channels.length > 0" class="rows grid gap-1">
+      <div
+        v-for="channel in channels"
+        :key="channel.id"
+        class="row flex items-center gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2"
+      >
+        <span
+          class="row-icon grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+        >
           <component :is="KIND_ICONS[channel.channelKind]" :size="14" />
         </span>
-        <div class="row-main">
-          <p class="row-title">
+        <div class="row-main min-w-0 flex-1">
+          <p class="row-title m-0 flex items-center gap-1.5 text-sm font-medium text-ink-1">
             {{ channel.displayName }}
-            <span class="scope-chip">{{ scopeLabel(channel.workspaceId) }}</span>
+            <span
+              class="scope-chip inline-flex items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+              >{{ scopeLabel(channel.workspaceId) }}</span
+            >
           </p>
-          <p class="row-sub">{{ statusNote(channel) }}</p>
+          <p class="row-sub mt-px truncate text-xs text-ink-3">{{ statusNote(channel) }}</p>
         </div>
         <span
-          class="pill"
-          :class="channel.connectionStatus === 'healthy' ? 'is-on' : 'is-warn'"
+          class="pill shrink-0 rounded-full px-2.5 py-px text-[11px] font-semibold"
+          :class="
+            channel.connectionStatus === 'healthy'
+              ? 'is-on bg-ok/15 text-ok'
+              : 'is-warn bg-gold-soft text-gold'
+          "
         >
           {{ channel.connectionStatus === "healthy" ? "Healthy" : "Attention" }}
         </span>
@@ -105,8 +119,8 @@ function disarmDisconnect(channelId: string) {
           type="button"
           :class="
             armedDisconnectId === channel.id
-              ? 'row-action is-danger'
-              : 'icon-button'
+              ? 'row-action is-danger inline-flex shrink-0 cursor-default items-center rounded-full border border-danger/40 px-[11px] py-[3px] text-xs font-semibold text-danger transition hover:border-danger hover:bg-danger/10'
+              : 'icon-button shrink-0 cursor-default rounded-sm p-[3px] text-ink-3 hover:bg-row-hover hover:text-ink-1'
           "
           :title="
             armedDisconnectId === channel.id
@@ -136,7 +150,11 @@ function disarmDisconnect(channelId: string) {
         <Radio :size="22" />
       </template>
       <template #action>
-        <button type="button" class="invite-button" @click="isConnectOpen = true">
+        <button
+          type="button"
+          class="invite-button inline-flex shrink-0 cursor-default items-center gap-1.5 rounded-full border border-hair-strong bg-raised px-3.5 py-[5px] text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+          @click="isConnectOpen = true"
+        >
           <Plus :size="13" />
           Connect Telegram
         </button>
@@ -151,209 +169,3 @@ function disarmDisconnect(channelId: string) {
     />
   </div>
 </template>
-
-<style scoped>
-.channels-section {
-  display: grid;
-  gap: 10px;
-}
-
-.section-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 2px 4px;
-}
-
-.section-icon {
-  color: var(--ink-2);
-  flex: none;
-  margin-top: 2px;
-}
-
-.section-text {
-  min-width: 0;
-  flex: 1;
-}
-
-.section-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 13px/1.5 var(--font-ui);
-}
-
-.section-hint {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.add-button,
-.invite-button {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 11px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.invite-button {
-  border-color: var(--hair-strong);
-  background: var(--bg-raised);
-  padding: 5px 14px;
-}
-
-.add-button:hover,
-.invite-button:hover {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-  background: var(--row-hover);
-}
-
-.add-button:focus-visible,
-.invite-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.rows {
-  display: grid;
-  gap: 4px;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-raised);
-}
-
-.row-icon {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-2);
-  flex: none;
-}
-
-.row-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.row-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 500 12.5px/1.5 var(--font-ui);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.row-sub {
-  margin: 1px 0 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.scope-chip {
-  color: var(--ink-3);
-  font: 600 9.5px/1.4 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--hair-strong);
-  border-radius: 99px;
-  padding: 0 6px;
-}
-
-.pill {
-  flex: none;
-  font: 600 11px/1.6 var(--font-ui);
-  border-radius: 99px;
-  padding: 1px 10px;
-}
-
-.pill.is-on {
-  color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 14%, transparent);
-}
-
-.pill.is-warn {
-  color: var(--gold);
-  background: var(--gold-soft);
-}
-
-.icon-button {
-  appearance: none;
-  margin: 0;
-  border: 0;
-  padding: 3px;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-3);
-  cursor: default;
-  flex: none;
-}
-
-.icon-button:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.icon-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-/* The armed "Sure?" step borrows the account section's row-action idiom. */
-.row-action {
-  appearance: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 11px;
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11.5px/1.6 var(--font-ui);
-  cursor: default;
-  flex: none;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.row-action.is-danger {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
-}
-
-.row-action.is-danger:hover {
-  color: var(--danger);
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-}
-
-.row-action:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-</style>
