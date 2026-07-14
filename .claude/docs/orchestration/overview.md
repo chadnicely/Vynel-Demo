@@ -2,7 +2,7 @@
 
 > The delegation engine: how Vynel's one "brain" hands work down to many "hands" — resolving who a task is for, running that work in its own session, queueing it durably when it must run in the background, and reporting the outcome back up.
 >
-> **Status:** shipped · **Depends on:** [db](../db/overview.md) (kernel), [agents](../agents/overview.md), [providers](../providers/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [db](../_platform/database/overview.md) (kernel), [agents](../agents/overview.md), [providers](../providers/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -36,7 +36,7 @@ Two things distinguish it from plain plumbing. First, delegation can be **asynch
 - the background worker's timer and the concrete workspace-root delegate that routing calls — both are wired and injected by the app tier ([local-api](../_apps/local-api/overview.md));
 - the session-level delegation continuity that ties these run-ops to chat persistence — [session](../session/overview.md);
 - the consumer of its lifecycle events — the future monitor;
-- users and workspaces — the shared [db](../db/overview.md) kernel.
+- users and workspaces — the shared [db](../_platform/database/overview.md) kernel.
 
 ## Concepts & vocabulary
 

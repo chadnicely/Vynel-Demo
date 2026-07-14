@@ -99,8 +99,8 @@ The code carries explicit `D2:` markers for what's deferred:
 
 | Unit | Direction | Mechanism | What crosses |
 |---|---|---|---|
-| [local-api](../../local-api/overview.md) | out | spawned child process | `node --import tsx src/server.ts`; probes/serves `127.0.0.1:8998` (see `gateway.ts`) |
-| [local-web](../../local-web/overview.md) | out | webview URL load | `main`→`/`, `jarvis`→`/jarvis`; overlay control via `composables/voice/tauri-overlay-window.ts` |
+| [local-api](../local-api/overview.md) | out | spawned child process | `node --import tsx src/server.ts`; probes/serves `127.0.0.1:8998` (see `gateway.ts`) |
+| [local-web](../local-web/overview.md) | out | webview URL load | `main`→`/`, `jarvis`→`/jarvis`; overlay control via `composables/voice/tauri-overlay-window.ts` |
 | [voice](../../voice/overview.md) | in | process launch | `jarvis-window.ts` runs this exe `--jarvis-only` on wake |
 | Tauri v2 runtime | out | crate dep | `tauri = "2"` — `Builder`, `WebviewWindowBuilder`, `AppHandle`, capability system |
 

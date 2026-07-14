@@ -2,7 +2,7 @@
 
 > The desktop's own half of "my Vynel account on this device": it signs the user in to the Vynel hub, keeps the long-lived secret in the OS credential store, and proves the account's tier and features even when the hub is unreachable.
 >
-> **Status:** shipped (identity + entitlement proof land; feature *enforcement* is wired but deliberately permissive until the entitlements milestone) · **Depends on:** shared plumbing only — [contracts](../contracts/overview.md), errors, logger, the OS keyring, and offline JWT verification; no `db` kernel · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped (identity + entitlement proof land; feature *enforcement* is wired but deliberately permissive until the entitlements milestone) · **Depends on:** shared plumbing only — [contracts](../_platform/contracts-and-sdk/overview.md), errors, logger, the OS keyring, and offline JWT verification; no `db` kernel · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -29,7 +29,7 @@ What makes it a genuine product surface rather than pure plumbing is **offline d
 
 **Does not own** —
 - issuing tokens, storing accounts, or the authentication and catalog endpoints themselves — that's the hub server side (`accounts` / `registry` / the cloud API), which lives outside this desktop docs book;
-- the wire shapes and the tier-to-feature matrix — those are shared in [contracts](../contracts/overview.md) so both sides can't drift;
+- the wire shapes and the tier-to-feature matrix — those are shared in [contracts](../_platform/contracts-and-sdk/overview.md) so both sides can't drift;
 - deciding *whether a feature is on* for a workspace, and the routes that expose sign-in / status to the UI — the [local-api](../_apps/local-api/overview.md) app and its feature gate own that, reading hub-account's entitlement;
 - what the catalog is *for* and installing from it — [marketplace](../marketplace/overview.md) consumes the fetch/download calls;
 - scheduling the boot and daily restore ticks — the hosting app wires the interval; hub-account only exposes the operation.
@@ -81,7 +81,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Hub-account is a leaf with an unusually small footprint: it depends on no feature siblings and no `db` kernel — only the shared contracts, error, and logger packages, plus the OS keyring and offline JWT verification. It is the desktop mirror of a system that mostly lives elsewhere: the hub server (the `accounts` / `registry` services behind the cloud API) issues the tokens this leaf only *consumes and verifies*, and the two halves share their wire shapes and tier matrix through [contracts](../contracts/overview.md) precisely so they can't drift.
+Hub-account is a leaf with an unusually small footprint: it depends on no feature siblings and no `db` kernel — only the shared contracts, error, and logger packages, plus the OS keyring and offline JWT verification. It is the desktop mirror of a system that mostly lives elsewhere: the hub server (the `accounts` / `registry` services behind the cloud API) issues the tokens this leaf only *consumes and verifies*, and the two halves share their wire shapes and tier matrix through [contracts](../_platform/contracts-and-sdk/overview.md) precisely so they can't drift.
 
 On the desktop side, the [local-api](../_apps/local-api/overview.md) app hosts the one hub session, exposes it through its hub routes to the [local-web](../_apps/local-web/overview.md) UI, and schedules the boot and daily restore ticks; its feature gate reads this leaf's entitlement to decide what a tier unlocks. [Marketplace](../marketplace/overview.md) rides the same session to fetch the cloud catalog and download artifacts. Everything the user sees about their account — the signed-in badge, the tier, the device list, the "you're offline" notice — traces back here.
 

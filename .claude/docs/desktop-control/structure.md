@@ -137,7 +137,7 @@ The wake subscription is **held** (Chromium drops the woken tree once no UIA cli
 | `@vynel/mcp-contract` | out | import (type) | `McpFeatureDescriptor`, `SessionToolContext`, `SessionMcpServer` |
 | `@vynel/logger` | out | import (type) | `StructuralLogger` |
 | Windows PowerShell 5.1 / WinRT | out | `spawn` / `execFile` | notification NDJSON; `Get-Process`; `AppActivate` |
-| [mcp-contract](../mcp-contract/overview.md) | in (pre-cut seam) | contract fields | `SessionToolContext.desktopReader?: unknown` + `enableDesktopActions?` already declared ahead of the wiring |
+| [mcp-contract](../_platform/contracts-and-sdk/overview.md) | in (pre-cut seam) | contract fields | `SessionToolContext.desktopReader?: unknown` + `enableDesktopActions?` already declared ahead of the wiring |
 | local-api env | in (pre-cut seam) | env var | `VYNEL_DESKTOP_ACT_ENABLED` declared + Zod-validated in `apps/local-api/src/env.ts:55` — **consumed nowhere yet** |
 | [session](../session/overview.md) global-root | in (**pending**) | descriptor in a composer list | the desktop prompt guide *moved out of* `packages/session/src/runtime/global-root-instructions.ts` into this package (C4); the descriptor is not yet added to any `composeSessionMcpServers([...])` call |
 | local-api global-root turn | in (**pending**) | boot wiring | `global-root-turn.ts:15-18` documents the wait: the reader must return to `AppEnv` + the dependency land in local-api, "it joins the descriptor list then" |

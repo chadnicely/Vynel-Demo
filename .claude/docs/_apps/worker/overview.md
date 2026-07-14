@@ -2,7 +2,7 @@
 
 > A standalone background process that runs Vynel's scheduled maintenance jobs on a cron clock — built and green, but on the desktop it is never launched: its one job runs in-process inside the api instead.
 >
-> **Status:** shipped (built + tested) — but **not launched on the desktop**; its embeddings tick runs in-process in [local-api](../local-api/overview.md) · **Depends on:** [db](../../db/overview.md) (kernel), [embeddings](../../embeddings/overview.md), [knowledge](../../knowledge/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped (built + tested) — but **not launched on the desktop**; its embeddings tick runs in-process in [local-api](../local-api/overview.md) · **Depends on:** [db](../../_platform/database/overview.md) (kernel), [embeddings](../../_platform/embeddings-and-indexing/overview.md), [knowledge](../../knowledge/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -24,7 +24,7 @@ The honest caveat sits at the front of this doc for a reason. On the desktop —
 **Does not own** —
 - **the actual running of the embeddings tick on the desktop** — that happens in-process in [local-api](../local-api/overview.md), which is the process the desktop launches; the worker is its dormant twin.
 - **the embedding logic itself** — the loop, the per-chunk transactions, the vector writes all live in [knowledge](../../knowledge/overview.md); the worker's job is a thin delegator.
-- **the embedding model** — shared infrastructure ([embeddings](../../embeddings/overview.md)); the worker only points the model's cache at the right on-disk location before the first tick.
+- **the embedding model** — shared infrastructure ([embeddings](../../_platform/embeddings-and-indexing/overview.md)); the worker only points the model's cache at the right on-disk location before the first tick.
 - **database migrations** — the api runs them at its own boot; the worker assumes they've already run and never migrates.
 - **the other in-process background ticks** — memory maintenance, schedules, channels, delegation and the rest all run inside [local-api](../local-api/overview.md); the worker mirrors only the knowledge-embeddings one.
 
@@ -64,7 +64,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-The worker is a sibling process to [local-api](../local-api/overview.md), not a dependency of anything else. In Vynel's current desktop deployment the api is the one process that runs, and it carries the background ticks — including the knowledge-embeddings tick this worker was built for — in-process. So the worker sits to the side: a complete, tested engine importing the same kernel [db](../../db/overview.md), the same [embeddings](../../embeddings/overview.md) model, and delegating to the same [knowledge](../../knowledge/overview.md) core op as its in-process twin, waiting for the day the deployment splits background work out of the api and into its own process. Until then it is Vynel's background engine on standby.
+The worker is a sibling process to [local-api](../local-api/overview.md), not a dependency of anything else. In Vynel's current desktop deployment the api is the one process that runs, and it carries the background ticks — including the knowledge-embeddings tick this worker was built for — in-process. So the worker sits to the side: a complete, tested engine importing the same kernel [db](../../_platform/database/overview.md), the same [embeddings](../../_platform/embeddings-and-indexing/overview.md) model, and delegating to the same [knowledge](../../knowledge/overview.md) core op as its in-process twin, waiting for the day the deployment splits background work out of the api and into its own process. Until then it is Vynel's background engine on standby.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

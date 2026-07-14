@@ -2,7 +2,7 @@
 
 > Vynel's clock: the recurring and one-time triggers that wake the assistant on a schedule — a morning briefing, a weekly summary, an email watch, a plain reminder — run the work, and can hand the result to a connected channel.
 >
-> **Status:** shipped · **Depends on:** [db](../db/overview.md) (kernel), [contracts](../contracts/overview.md), [providers](../providers/overview.md), [errors](../errors/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [db](../_platform/database/overview.md) (kernel), [contracts](../_platform/contracts-and-sdk/overview.md), [providers](../providers/overview.md), [errors](../_platform/primitives/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -34,8 +34,8 @@ The second idea is the **reminder** shortcut. Most schedules run a full AI turn,
 - **actually delivering the result to Telegram or another channel** — [channels](../channels/overview.md) consumes the delivery event and sends the message;
 - **the once-a-minute timer that drives the sweep** — the [local-api](../_apps/local-api/overview.md) app owns the interval and binds the injected fire dependencies (the desktop runs no separate worker);
 - **the underlying AI runtime** — reached only through [providers](../providers/overview.md);
-- **the user and workspace rows** a firing reads for its prompt — the [db](../db/overview.md) kernel;
-- **the shared template definitions** — those constants live in [contracts](../contracts/overview.md) so the web panel and the api agree on them; this leaf just serves and applies them.
+- **the user and workspace rows** a firing reads for its prompt — the [db](../_platform/database/overview.md) kernel;
+- **the shared template definitions** — those constants live in [contracts](../_platform/contracts-and-sdk/overview.md) so the web panel and the api agree on them; this leaf just serves and applies them.
 
 ## Concepts & vocabulary
 
@@ -85,7 +85,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Schedules is Vynel's initiative engine, and it leans on almost every conversational part of the system without importing any of them. When a schedule fires, the [local-api](../_apps/local-api/overview.md) app — which owns the once-a-minute timer — hands the leaf a bound assistant turn from [chat](../chat/overview.md), a tool surface from [mcp](../_apps/mcp/overview.md), and a capability prompt from [capabilities](../capabilities/overview.md), all injected so the leaf itself stays a testable island over the [db](../db/overview.md) kernel. The turn reaches the model only through [providers](../providers/overview.md). When the result is meant for a channel, schedules announces a single delivery event and [channels](../channels/overview.md) picks it up and sends the message to Telegram or wherever the user pointed it. The shared template catalog lives in [contracts](../contracts/overview.md) so the [local-web](../_apps/local-web/overview.md) panel and the api describe schedules the same way. In short: schedules decides *when* and *what to say*; the rest of Vynel decides *how to run it* and *where it lands*.
+Schedules is Vynel's initiative engine, and it leans on almost every conversational part of the system without importing any of them. When a schedule fires, the [local-api](../_apps/local-api/overview.md) app — which owns the once-a-minute timer — hands the leaf a bound assistant turn from [chat](../chat/overview.md), a tool surface from [mcp](../_apps/mcp/overview.md), and a capability prompt from [capabilities](../capabilities/overview.md), all injected so the leaf itself stays a testable island over the [db](../_platform/database/overview.md) kernel. The turn reaches the model only through [providers](../providers/overview.md). When the result is meant for a channel, schedules announces a single delivery event and [channels](../channels/overview.md) picks it up and sends the message to Telegram or wherever the user pointed it. The shared template catalog lives in [contracts](../_platform/contracts-and-sdk/overview.md) so the [local-web](../_apps/local-web/overview.md) panel and the api describe schedules the same way. In short: schedules decides *when* and *what to say*; the rest of Vynel decides *how to run it* and *where it lands*.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

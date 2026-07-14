@@ -2,7 +2,7 @@
 
 > The cloud-side system of record for Vynel's marketplace: who publishes, what's on the shelf, every immutable version of it, and the tier-gated door through which the desktop downloads it.
 >
-> **Status:** shipped · **Depends on:** [cloud-db](../cloud-db/overview.md) (cloud kernel), [contracts](../contracts/overview.md) (hub wire shapes + the shared tier rule) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [cloud-db](../_platform/database/overview.md) (cloud kernel), [contracts](../_platform/contracts-and-sdk/overview.md) (hub wire shapes + the shared tier rule) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -27,8 +27,8 @@ The registry is deliberately **kind-agnostic**. A catalog item can be a skill, a
 
 **Does not own** —
 - **who the caller is and what plan they're on** — the registry is *told* a caller's live tier; establishing it belongs to the hub's account/entitlements side ([accounts](../accounts/overview.md), [hub-account](../hub-account/overview.md));
-- **the wire contract and the single tier-comparison rule** — the DTO shapes and the shared "does this tier meet the minimum" function live in [contracts](../contracts/overview.md);
-- **the cloud database itself** — the connection and dialect are the [cloud-db](../cloud-db/overview.md) kernel's;
+- **the wire contract and the single tier-comparison rule** — the DTO shapes and the shared "does this tier meet the minimum" function live in [contracts](../_platform/contracts-and-sdk/overview.md);
+- **the cloud database itself** — the connection and dialect are the [cloud-db](../_platform/database/overview.md) kernel's;
 - **routing, auth, transport decoding, and which artifact backend to wire** — the [cloud-api](../_apps/cloud-api/overview.md) hub app does that; it decodes uploads, resolves the caller's tier, and injects the artifact store, then calls into here;
 - **the admin UI** — [cloud-admin-web](../_apps/cloud-admin-web/overview.md) drives the curation operations;
 - **the desktop side of "install"** — verifying the hash, reading the manifest, and actually placing an item on a machine is the [marketplace](../marketplace/overview.md) package's job; the registry only serves the bytes and the facts to verify them against.
@@ -77,7 +77,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Registry is the cloud counterpart to the desktop's marketplace experience. The [cloud-api](../_apps/cloud-api/overview.md) hub app is its only caller: it authenticates requests, resolves the caller's live tier from the account/entitlements side ([accounts](../accounts/overview.md), [hub-account](../hub-account/overview.md)), decodes uploaded content, wires the artifact backend, and turns the registry's results into HTTP. Operators curate the shelf through [cloud-admin-web](../_apps/cloud-admin-web/overview.md), which drives the admin lifecycle here. On the other end of the wire, the desktop's [marketplace](../marketplace/overview.md) package browses this catalog and installs from it — downloading a version's bytes, verifying them against the sha256 the registry recorded, and reading the manifest the registry kept opaque. The shared [contracts](../contracts/overview.md) package holds the wire shapes both sides speak and the one tier-comparison rule that drives both the browse annotation and the download gate, and everything persists in the [cloud-db](../cloud-db/overview.md) kernel — distinct from the desktop's local database.
+Registry is the cloud counterpart to the desktop's marketplace experience. The [cloud-api](../_apps/cloud-api/overview.md) hub app is its only caller: it authenticates requests, resolves the caller's live tier from the account/entitlements side ([accounts](../accounts/overview.md), [hub-account](../hub-account/overview.md)), decodes uploaded content, wires the artifact backend, and turns the registry's results into HTTP. Operators curate the shelf through [cloud-admin-web](../_apps/cloud-admin-web/overview.md), which drives the admin lifecycle here. On the other end of the wire, the desktop's [marketplace](../marketplace/overview.md) package browses this catalog and installs from it — downloading a version's bytes, verifying them against the sha256 the registry recorded, and reading the manifest the registry kept opaque. The shared [contracts](../_platform/contracts-and-sdk/overview.md) package holds the wire shapes both sides speak and the one tier-comparison rule that drives both the browse annotation and the download gate, and everything persists in the [cloud-db](../_platform/database/overview.md) kernel — distinct from the desktop's local database.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

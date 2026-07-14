@@ -2,7 +2,7 @@
 
 > The keystone tier where *everything is a session*: one durable-identity primitive underlies the global brain, each workspace's conversation, and voice — and every conversational turn is run from here, reaching the AI runtime only through the sacred provider seam.
 >
-> **Status:** shipped · **Depends on:** [chat](../chat/overview.md) (persistence), [orchestration](../orchestration/overview.md) (delegation queue), [providers](../providers/overview.md) (AI runtime), [capabilities](../capabilities/overview.md), [memory](../memory/overview.md), [channels](../channels/overview.md), [workspaces](../workspaces/overview.md), [db](../db/overview.md) (kernel) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [chat](../chat/overview.md) (persistence), [orchestration](../orchestration/overview.md) (delegation queue), [providers](../providers/overview.md) (AI runtime), [capabilities](../capabilities/overview.md), [memory](../memory/overview.md), [channels](../channels/overview.md), [workspaces](../workspaces/overview.md), [db](../_platform/database/overview.md) (kernel) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 

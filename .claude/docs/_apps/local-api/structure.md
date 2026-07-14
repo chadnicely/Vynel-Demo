@@ -105,7 +105,7 @@ Mounts are declared in `app.ts:136–173`. This table points at feature docs; th
 | `/marketplace` | `marketplaceUserApp` | `featureGate('marketplace')` | GLOBAL marketplace (user + both items) |
 | `/notebook` | `notebookApp` | — | [notebook](../../notebook/overview.md) — user-scoped, optional `workspaceId` |
 | `/approvals` | `approvalsUserApp` | — | global approval queue (spans every workspace + brain) |
-| `/users` | `usersApp` | — | [users](../../users/overview.md) |
+| `/users` | `usersApp` | — | [users](../../core/overview.md) |
 | `/onboarding` | `onboardingApp` | — | [onboarding](../../onboarding/overview.md) |
 | `/providers` | `providersApp` | — | [providers](../../providers/overview.md) |
 | `/agents` | `agentsApp` | — | [agents](../../agents/overview.md) |

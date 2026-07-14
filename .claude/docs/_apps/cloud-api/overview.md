@@ -2,7 +2,7 @@
 
 > The hosted server the Vynel desktop app signs in to: it owns accounts and access tiers, provisions users on behalf of Chad's platform, and holds the curated marketplace catalog the app browses and installs from.
 >
-> **Status:** partial (auth · tiers · webhooks · catalog shipped; app-release/auto-update surface not yet mounted) · **Depends on:** [cloud-db](../../cloud-db/overview.md) (its own Postgres kernel), [accounts](../../accounts/overview.md), [registry](../../registry/overview.md), [contracts](../../contracts/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** partial (auth · tiers · webhooks · catalog shipped; app-release/auto-update surface not yet mounted) · **Depends on:** [cloud-db](../../_platform/database/overview.md) (its own Postgres kernel), [accounts](../../accounts/overview.md), [registry](../../registry/overview.md), [contracts](../../_platform/contracts-and-sdk/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -32,8 +32,8 @@ Everything the hub does is a thin HTTP surface over two domain leaves. It parses
 **Does not own** —
 - **the account and session mechanics** — password hashing, sign-in, session rotation, device records, provisioning, tier and role resolution, and the token issuers all live in [accounts](../../accounts/overview.md); the hub only exposes them;
 - **the catalog and artifact logic** — listing, publish validation, tier-authorization, and artifact storage all live in [registry](../../registry/overview.md);
-- **the database schema and repositories** — the hub's own Postgres kernel is [cloud-db](../../cloud-db/overview.md); the product's shared SQLite `@vynel/db` is **never** imported here;
-- **the wire shapes** the desktop and hub both speak — the DTOs live once in [contracts](../../contracts/overview.md) so the client and the routes can't drift;
+- **the database schema and repositories** — the hub's own Postgres kernel is [cloud-db](../../_platform/database/overview.md); the product's shared SQLite `@vynel/db` is **never** imported here;
+- **the wire shapes** the desktop and hub both speak — the DTOs live once in [contracts](../../_platform/contracts-and-sdk/overview.md) so the client and the routes can't drift;
 - **the admin portal's UI** — that is a separate app, [cloud-admin-web](../cloud-admin-web/overview.md); the hub *backs* it (serves the admin API it calls), it does **not** serve the portal's assets — despite the module notes' "serving the admin portal" phrasing, no static portal serving exists here;
 - **the desktop client** — [desktop](../desktop/overview.md) and its daemon are the callers; nothing under the hub app is imported by them, they meet only over HTTP.
 
@@ -81,7 +81,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-The hub is the one Vynel process that does not run on the user's machine. It is a hosted Hono service over its own Postgres kernel ([cloud-db](../../cloud-db/overview.md)), exposing thin surfaces over two leaves — [accounts](../../accounts/overview.md) and [registry](../../registry/overview.md) — and speaking to the outside world only through DTOs shared in [contracts](../../contracts/overview.md).
+The hub is the one Vynel process that does not run on the user's machine. It is a hosted Hono service over its own Postgres kernel ([cloud-db](../../_platform/database/overview.md)), exposing thin surfaces over two leaves — [accounts](../../accounts/overview.md) and [registry](../../registry/overview.md) — and speaking to the outside world only through DTOs shared in [contracts](../../_platform/contracts-and-sdk/overview.md).
 
 Three parties talk to it. **Chad's platform** pushes provisioning and tier events in through signed webhooks — the hub never touches money, it only reacts to what the platform decides. The **[desktop](../desktop/overview.md) app** signs in, refreshes, and syncs the catalog across HTTP; it imports nothing from this app, and the hub imports nothing from it — the wire is the only seam. And the separate **[cloud-admin-web](../cloud-admin-web/overview.md)** portal calls the hub's admin surface to manage accounts and curate the catalog — the hub backs that portal's API but does not serve its pages. Alongside those, a publish command in [cli](../cli/overview.md) drives the same admin publish path to load the catalog. Not yet built: the app-release / auto-update manifest surface the module notes anticipate — the hub is ready to grow it, but it is not mounted today.
 

@@ -2,7 +2,7 @@
 
 > Vynel's browse-and-install surface over the curated catalog: the shelf where a user finds a skill or an agent and adds it to their global brain or to one workspace.
 >
-> **Status:** shipped · **Depends on:** [db](../db/overview.md) (kernel — now hosts its catalog-cache table), [contracts](../contracts/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [db](../_platform/database/overview.md) (kernel — now hosts its catalog-cache table), [contracts](../_platform/contracts-and-sdk/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 

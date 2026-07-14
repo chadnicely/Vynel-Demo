@@ -2,7 +2,7 @@
 
 > Vynel's desktop face: the Vue 3 single-page app that non-technical people actually look at and touch — one flowing conversation with an assistant called Claude, wrapped in a dense, native-feeling window.
 >
-> **Status:** shipped · **Depends on:** [ui](../../ui/overview.md) (components + design tokens), [sdk](../../sdk/overview.md) (typed API client), [session](../../session/overview.md) (mode vocabulary), [voice](../../voice/overview.md), [contracts](../../contracts/overview.md), [approvals](../../approvals/overview.md) · talks to [local-api](../local-api/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [ui](../../_platform/primitives/overview.md) (components + design tokens), [sdk](../../_platform/contracts-and-sdk/overview.md) (typed API client), [session](../../session/overview.md) (mode vocabulary), [voice](../../voice/overview.md), [contracts](../../_platform/contracts-and-sdk/overview.md), [approvals](../../approvals/overview.md) · talks to [local-api](../local-api/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -32,8 +32,8 @@ The core experience is deliberately **chrome-light**. There is no dashboard of b
 
 **Does not own** —
 - any business logic, schema, or persistence — those live in the feature packages and are reached only over the API ([local-api](../local-api/overview.md));
-- the actual reusable components and design tokens it renders — the shared component library ([ui](../../ui/overview.md));
-- the typed calls it makes — the generated client ([sdk](../../sdk/overview.md)), regenerated from the API's contracts ([contracts](../../contracts/overview.md));
+- the actual reusable components and design tokens it renders — the shared component library ([ui](../../_platform/primitives/overview.md));
+- the typed calls it makes — the generated client ([sdk](../../_platform/contracts-and-sdk/overview.md)), regenerated from the API's contracts ([contracts](../../_platform/contracts-and-sdk/overview.md));
 - the meaning of any feature panel it opens — each is owned by its feature package ([memory](../../memory/overview.md), [knowledge](../../knowledge/overview.md), [skills](../../skills/overview.md), [agents](../../agents/overview.md), [marketplace](../../marketplace/overview.md), [schedules](../../schedules/overview.md), [channels](../../channels/overview.md), [notebook](../../notebook/overview.md));
 - the approval decisions themselves — it only surfaces and forwards them ([approvals](../../approvals/overview.md));
 - the voice engine and wake logic — the app only hosts the overlay ([voice](../../voice/overview.md));
@@ -89,7 +89,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-local-web is the top of the stack and imports downward only — it never appears in any package. It renders the shared component library ([ui](../../ui/overview.md)) into a live app, and reaches the entire backend through one typed client ([sdk](../../sdk/overview.md)) generated from the API's contracts ([contracts](../../contracts/overview.md)), speaking only to the local API on loopback ([local-api](../local-api/overview.md)). It shows the user's [memory](../../memory/overview.md), [knowledge](../../knowledge/overview.md), [skills](../../skills/overview.md), [agents](../../agents/overview.md), [marketplace](../../marketplace/overview.md), [schedules](../../schedules/overview.md), [channels](../../channels/overview.md), and [notebook](../../notebook/overview.md) — but owns none of them; each is a feature package it merely opens a window onto. It surfaces [approvals](../../approvals/overview.md) and hosts the [voice](../../voice/overview.md) overlay without owning their logic, borrows the mode vocabulary from [session](../../session/overview.md), and is itself wrapped by the native [desktop](../desktop/overview.md) shell that gives it a frameless window, the Jarvis overlay, and its background processes. In one line: local-web is where Vynel becomes something a person can see and trust — every other module is what it makes visible.
+local-web is the top of the stack and imports downward only — it never appears in any package. It renders the shared component library ([ui](../../_platform/primitives/overview.md)) into a live app, and reaches the entire backend through one typed client ([sdk](../../_platform/contracts-and-sdk/overview.md)) generated from the API's contracts ([contracts](../../_platform/contracts-and-sdk/overview.md)), speaking only to the local API on loopback ([local-api](../local-api/overview.md)). It shows the user's [memory](../../memory/overview.md), [knowledge](../../knowledge/overview.md), [skills](../../skills/overview.md), [agents](../../agents/overview.md), [marketplace](../../marketplace/overview.md), [schedules](../../schedules/overview.md), [channels](../../channels/overview.md), and [notebook](../../notebook/overview.md) — but owns none of them; each is a feature package it merely opens a window onto. It surfaces [approvals](../../approvals/overview.md) and hosts the [voice](../../voice/overview.md) overlay without owning their logic, borrows the mode vocabulary from [session](../../session/overview.md), and is itself wrapped by the native [desktop](../desktop/overview.md) shell that gives it a frameless window, the Jarvis overlay, and its background processes. In one line: local-web is where Vynel becomes something a person can see and trust — every other module is what it makes visible.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

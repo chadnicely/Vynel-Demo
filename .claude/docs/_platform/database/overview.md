@@ -2,7 +2,7 @@
 
 > Vynel's two data kernels: the desktop's local SQLite store that holds *your* data, and the hub's Postgres store that holds *ours* — same house style, kept deliberately apart.
 >
-> **Status:** shipped · **Depends on:** nothing but shared [errors](../../errors/overview.md) — this is the floor of the import graph · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** nothing but shared [errors](../primitives/overview.md) — this is the floor of the import graph · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -34,7 +34,7 @@ This is infrastructure, so there are no user-facing actions — only what the ke
 - **any feature's own tables or business logic** — the kernels supply the substrate and the pattern; each feature ships its own schema and data functions on top (e.g. [memory](../../memory/overview.md), [chat](../../chat/overview.md), [workspaces](../../workspaces/overview.md), [knowledge](../../knowledge/overview.md), [agents](../../agents/overview.md));
 - **when migrations run and when connections close** — each app's boot and shutdown path calls the runner and the close helper ([local-api](../../_apps/local-api/overview.md) for the desktop, the hub app for Postgres);
 - **environment configuration** — no kernel reads process configuration itself; the validated database path or URL is passed in from each app's own settings boundary;
-- **the embedding vectors themselves and how they're computed** — the desktop kernel only makes the vector-search extension *available*; producing embeddings belongs to [embeddings](../../embeddings/overview.md);
+- **the embedding vectors themselves and how they're computed** — the desktop kernel only makes the vector-search extension *available*; producing embeddings belongs to [embeddings](../embeddings-and-indexing/overview.md);
 - **who provisions accounts** — the hub kernel stores account rows, but they are created by Vynel's provisioning platform over webhooks, not self-serve; the desktop app only signs in.
 
 ## Concepts & vocabulary

@@ -2,7 +2,7 @@
 
 > The `vynel` command-line surface: a thin terminal client over the *same* generated, typed SDK the desktop web app uses, driving the running local-api daemon over HTTP so you can search, inspect, and safely manage a workspace from a shell or a script.
 >
-> **Status:** partial — real and tested, but a deliberately narrow, read-focused slice of the API (version `0.0.0`, private, unpublished, Phase-1 no-auth). **Depends on:** [sdk](../../sdk/overview.md), [local-api](../local-api/overview.md) (the daemon it calls) · **Code map:** [structure.md](./structure.md)
+> **Status:** partial — real and tested, but a deliberately narrow, read-focused slice of the API (version `0.0.0`, private, unpublished, Phase-1 no-auth). **Depends on:** [sdk](../../_platform/contracts-and-sdk/overview.md), [local-api](../local-api/overview.md) (the daemon it calls) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -30,7 +30,7 @@ Two cross-cutting conveniences: `--help` and `--version` work with no daemon run
 
 **Does not own** —
 - the API endpoints, request handling, and any real work — the [local-api](../local-api/overview.md) daemon;
-- the typed client, the generated types, and the namespaced facade it calls through — the [sdk](../../sdk/overview.md) package, regenerated from the API's OpenAPI snapshot;
+- the typed client, the generated types, and the namespaced facade it calls through — the [sdk](../../_platform/contracts-and-sdk/overview.md) package, regenerated from the API's OpenAPI snapshot;
 - every feature's actual behavior (searching, installing, scheduling, disconnecting) — the feature packages behind the API, reached only over HTTP;
 - authentication — Phase 1 has none, so neither does the CLI; it lands with the Phase-2 auth work.
 
@@ -59,7 +59,7 @@ Two cross-cutting conveniences: `--help` and `--version` work with no daemon run
 
 ## Where it sits in the bigger picture
 
-The CLI is a leaf at the very edge of the system, one of the thin app surfaces that never get imported by anything else. It sits beside [local-web](../local-web/overview.md) as a peer consumer of the [sdk](../../sdk/overview.md): the web app injects the client into Vue composables, the CLI wraps the same client in commander subcommands, and both bottom out at the [local-api](../local-api/overview.md) daemon that holds the real logic. Where [mcp](../mcp/overview.md) exposes Vynel's features to the *assistant* as tools and [voice](../voice/overview.md) exposes them to speech, the CLI exposes them to a *shell* — the same capabilities, a different mouth. It is the developer's and the script's door into a workspace, and it stays honest by design: a narrow, tested slice today, widening only as the SDK it mirrors does.
+The CLI is a leaf at the very edge of the system, one of the thin app surfaces that never get imported by anything else. It sits beside [local-web](../local-web/overview.md) as a peer consumer of the [sdk](../../_platform/contracts-and-sdk/overview.md): the web app injects the client into Vue composables, the CLI wraps the same client in commander subcommands, and both bottom out at the [local-api](../local-api/overview.md) daemon that holds the real logic. Where [mcp](../mcp/overview.md) exposes Vynel's features to the *assistant* as tools and [voice](../voice/overview.md) exposes them to speech, the CLI exposes them to a *shell* — the same capabilities, a different mouth. It is the developer's and the script's door into a workspace, and it stays honest by design: a narrow, tested slice today, widening only as the SDK it mirrors does.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

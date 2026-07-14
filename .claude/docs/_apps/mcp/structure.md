@@ -116,13 +116,13 @@ flowchart TD
 
 | Unit | Direction | Mechanism | What crosses |
 |---|---|---|---|
-| [contracts-and-sdk](../contracts-and-sdk/overview.md) (`@vynel/mcp-contract`) | out | import (type) | `McpFeatureDescriptor`, `SessionToolContext`, `SessionMcpServer` |
+| [contracts-and-sdk](../../_platform/contracts-and-sdk/overview.md) (`@vynel/mcp-contract`) | out | import (type) | `McpFeatureDescriptor`, `SessionToolContext`, `SessionMcpServer` |
 | `@vynel/sdk` | out | import (JSON) | the committed `openapi.json` the external server reads |
 | db kernel (`@vynel/db`) | out | import (type) | `Database` — the one producer-boundary cast in `toMcpScope` |
 | `@anthropic-ai/claude-agent-sdk` | out | SDK **builder** | `tool`, `createSdkMcpServer`, `SdkMcpToolDefinition` — permitted **only here** and `packages/instructions`/`desktop-control` MCP layers; the runtime stays in `packages/providers` |
 | `@modelcontextprotocol/sdk` | out | import | `McpServer`, `StdioServerTransport` for the external server |
-| [session](../session/overview.md) / local-api turn composer | in | dynamic `import('@vynel/mcp')` | the two descriptors, deferred until a turn runs |
-| [capabilities](../capabilities/overview.md) | in | id strings | `'knowledge'` / `'memory'` keys of the capability gate |
+| [session](../../session/overview.md) / local-api turn composer | in | dynamic `import('@vynel/mcp')` | the two descriptors, deferred until a turn runs |
+| [capabilities](../../capabilities/overview.md) | in | id strings | `'knowledge'` / `'memory'` keys of the capability gate |
 | local-api HTTP routes | both | `app.request` | every tool call re-enters the api's own routes |
 | external MCP hosts | in | stdio (bin) | the generic OpenAPI-derived tool set |
 

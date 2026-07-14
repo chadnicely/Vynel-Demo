@@ -217,10 +217,10 @@ flowchart TD
 | `@vynel/errors` | out | import | `NotFoundError`, `ConflictError` |
 | `@vynel/logger` | out | import (type) | `StructuralLogger` |
 | [chat](../chat/overview.md) | in (caller) | **lazy** import | `handle-approval-requested` calls `recordApprovalRequest`; chat's outbox consumer reads `approval.*` to mirror onto `chat_tool_calls.approvalStatus` |
-| [local-api](../local-api/overview.md) | in | route mount + service | 7 routes across 3 sub-apps; `approvals-recovery-service` wires the reaper |
+| [local-api](../_apps/local-api/overview.md) | in | route mount + service | 7 routes across 3 sub-apps; `approvals-recovery-service` wires the reaper |
 | [session](../session/overview.md) | in | import | `listPendingApprovalsForUser` (delegation-tick test only, today) |
 | `@vynel/contracts` | out | cast target | serializers cast rows to `ApprovalRequestResponse` / `ApprovalRuleResponse` (`approvals/approval-http`) |
-| [local-web](../local-web/overview.md) | in | SDK + shared card | `ApprovalNotifier` + 3 composables (poll/decide) via the generated SDK; `ApprovalCard` from `@vynel/ui` |
+| [local-web](../_apps/local-web/overview.md) | in | SDK + shared card | `ApprovalNotifier` + 3 composables (poll/decide) via the generated SDK; `ApprovalCard` from `@vynel/ui` |
 
 **Events published** (all co-committed in the same tx as their state change):
 - `approval.requested` — `recordApprovalRequest` Tx 1

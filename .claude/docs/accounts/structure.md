@@ -187,7 +187,7 @@ flowchart TD
 | contracts (`@vynel/contracts/hub/*`) | out | import | `HubTier`, `TIER_FEATURES`, `HUB_TOKEN_ISSUER`, `HUB_ACCESS_TOKEN_USE`, `HUB_ENTITLEMENT_TOKEN_USE` |
 | errors / logger | out | import / type-only | `Unauthorized/Forbidden/Conflict/NotFound/ValidationError`, `StructuralLogger` |
 | `@node-rs/argon2` · `jose` | out | import | argon2id hashing · EdDSA JWT sign/verify |
-| [cloud-api](../cloud-api/overview.md) routes | in | import | `signInWithPassword`, `rotateSession`, devices, set-password flow, `applyPlatformEvent`, `createProvisionedAccount`, `assignAccountRole/Tier`, `setAccountLifecycleStatus`, `resolveActiveAccountTier/Role` |
+| [cloud-api](../_apps/cloud-api/overview.md) routes | in | import | `signInWithPassword`, `rotateSession`, devices, set-password flow, `applyPlatformEvent`, `createProvisionedAccount`, `assignAccountRole/Tier`, `setAccountLifecycleStatus`, `resolveActiveAccountTier/Role` |
 | cloud-api middleware | in | import | `AccessTokenVerifier`/`AccessTokenClaims` (`require-account`); `resolveActiveAccountRole` (`require-admin`) |
 | cloud-api boot | in | import | `createAccessTokenIssuer/Verifier`, `createEntitlementTokenIssuer`, `createLoggingAccountMailSender` (`server.ts`, `cloud-app-options.ts`) |
 | platform (Chad's external system) | in (loose) | webhook + HMAC | `PlatformUserEvent` — contract WE author; joined by `platformUserId` |

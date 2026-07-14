@@ -209,7 +209,7 @@ flowchart TD
 | Unit | Direction | Mechanism | What crosses |
 |---|---|---|---|
 | `@anthropic-ai/claude-agent-sdk` | out | import (only in `claude/base/claude-agent-sdk.ts`) | `query()`, `SDKMessage`, `Options`, hook/`CanUseTool` types |
-| [errors](../errors/overview.md) | out | import | `NotFoundError`, `ValidationError` |
+| [errors](../_platform/primitives/overview.md) | out | import | `NotFoundError`, `ValidationError` |
 | [session](../session/overview.md) | in | import | `resolveAiAgentProvider`, `AiAgentProvider`, `NormalizedSessionEvent`, `StartChatSessionInput`, `DEFAULT_PROVIDER_ID`, `ClaudePermissionMode` |
 | [orchestration](../orchestration/overview.md) | in | import | `AiAgentProvider`, `NormalizedSessionEvent`, `StartChatSessionInput` (leaf turn drain) |
 | [chat](../chat/overview.md) | in | import | `resolveAiAgentProvider`, `NormalizedSessionEvent`, `AiAgentProviderId`, `PersistedSessionRecord`, `ApprovalDecision` |

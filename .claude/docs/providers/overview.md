@@ -33,7 +33,7 @@ Providers is plumbing, not a product surface. It owns no user-facing screen; its
 - the **chat session row** and its persistence — that's [chat](../chat/overview.md), the seam's primary consumer;
 - the **approval card UI and its lifecycle** — that's [approvals](../approvals/overview.md); providers only pauses the stream and accepts the decision;
 - the user's **default-provider preference** and its storage — that split off into a separate provider-preferences feature over the database kernel; providers here is preference-free;
-- the **MCP server construction** — that's [MCP](../mcp/overview.md); the caller builds the server and passes it through, and providers forwards it to the runtime verbatim;
+- the **MCP server construction** — that's [MCP](../_apps/mcp/overview.md); the caller builds the server and passes it through, and providers forwards it to the runtime verbatim;
 - the **system-prompt append** and the **enabled subagents** — those are composed upstream (the capability composer and [session](../session/overview.md)/orchestration) and forwarded verbatim;
 - **skill installation** — that's [skills](../skills/overview.md); providers only *discovers* what the runtime already sees on disk;
 - the **database client and migrations** — providers touches no database at all.
@@ -89,7 +89,7 @@ The terminal event is always the last event in the stream, and cleanup of the in
 
 ## Where it sits in the bigger picture
 
-Providers is the backbone of every AI turn and a leaf that sits directly on the shared error kernel — nothing but errors and the Agent SDK beneath it. [Chat](../chat/overview.md) is its primary consumer, piping the normalized event stream into its live streaming layer; [session](../session/overview.md) drives it for root and delegated turns; [approvals](../approvals/overview.md) routes user decisions back into a paused session; [capabilities](../capabilities/overview.md) and [MCP](../mcp/overview.md) hand it the system-prompt append and the pre-built servers to forward; [skills](../skills/overview.md) and [onboarding](../onboarding/overview.md) ask it what the runtime sees on disk. There is no dedicated web view — a runtime's status surfaces inline where the user needs it, such as the chat composer and onboarding.
+Providers is the backbone of every AI turn and a leaf that sits directly on the shared error kernel — nothing but errors and the Agent SDK beneath it. [Chat](../chat/overview.md) is its primary consumer, piping the normalized event stream into its live streaming layer; [session](../session/overview.md) drives it for root and delegated turns; [approvals](../approvals/overview.md) routes user decisions back into a paused session; [capabilities](../capabilities/overview.md) and [MCP](../_apps/mcp/overview.md) hand it the system-prompt append and the pre-built servers to forward; [skills](../skills/overview.md) and [onboarding](../onboarding/overview.md) ask it what the runtime sees on disk. There is no dedicated web view — a runtime's status surfaces inline where the user needs it, such as the chat composer and onboarding.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

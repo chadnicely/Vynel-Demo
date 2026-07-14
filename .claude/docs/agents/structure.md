@@ -169,7 +169,7 @@ flowchart TD
 | Unit | Direction | Mechanism | What crosses |
 |---|---|---|---|
 | db kernel (`@vynel/db`) | out | import | `Database`, `withTransaction`, the `agents`/`agent_skills` schema + repos, `insertOutboxEvent`, `findWorkspaceById` (mirror path) |
-| [contracts](../contracts/overview.md) | out | import | `CURATED_AGENT_CATALOG`/`findCuratedAgentBySlug`, `AgentItemManifestSchema` |
+| [contracts](../_platform/contracts-and-sdk/overview.md) | out | import | `CURATED_AGENT_CATALOG`/`findCuratedAgentBySlug`, `AgentItemManifestSchema` |
 | claude-agent-sdk | out | **SDK type only** | `AgentDefinition` shape (`import type` — no runtime) |
 | errors / logger | out | import / type-only | `ConflictError`, `NotFoundError`, `ValidationError`, `StructuralLogger` |
 | jszip | out | import | agent artifact extraction |

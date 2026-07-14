@@ -108,7 +108,7 @@ flowchart LR
 
 | Unit | Direction | Mechanism | What crosses |
 |---|---|---|---|
-| [`@vynel/sdk`](../../sdk/overview.md) | out | import | `createVynelClient`, `VynelClient` type, `SdkError`, all namespaced method calls |
+| [`@vynel/sdk`](../../_platform/contracts-and-sdk/overview.md) | out | import | `createVynelClient`, `VynelClient` type, `SdkError`, all namespaced method calls |
 | `commander` | out | import (npm) | `Command`, `Option`, `InvalidArgumentError` — parsing + dispatch |
 | `zod` | out | import (npm) | env validation |
 | `apps/local-api` | out | **HTTP** (runtime dep) | every command call hits `${VYNEL_API_URL}/api/…`; the daemon must be running |

@@ -119,8 +119,8 @@ flowchart TD
 |---|---|---|---|
 | [cloud-api](../cloud-api/overview.md) `/admin` + `/auth` | out | HTTP over `/api` (dev proxy → :8890) | sign-in, catalog CRUD + publish, account provision/role/tier/status |
 | `@vynel/contracts/hub/*` | out | import (types only) | `HubSessionResponse`, `HubAdminCatalogItem`, `HubAdminAccount`, `HubAccountRole`, `HubItemKind`, `HubTier` |
-| [registry](../registry/overview.md) | out (indirect) | via cloud-api | publish/lifecycle handled hub-side; portal is a face |
-| [accounts](../accounts/overview.md) | out (indirect) | via cloud-api | provision/role/tier/status handled hub-side |
+| [registry](../../registry/overview.md) | out (indirect) | via cloud-api | publish/lifecycle handled hub-side; portal is a face |
+| [accounts](../../accounts/overview.md) | out (indirect) | via cloud-api | provision/role/tier/status handled hub-side |
 | root vitest workspace | in | test project registration | `cloud-admin-web` happy-dom project in `vitest.workspace.ts` |
 
 **Events published / consumed:** none — this app has no outbox; it is a browser client.

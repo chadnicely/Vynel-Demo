@@ -2,7 +2,7 @@
 
 > Vynel's outside door: the messaging surfaces (Telegram now, Discord next) through which a user reaches the assistant — and Vynel reaches back — without opening the desktop app.
 >
-> **Status:** shipped (Telegram; Discord stubbed for Phase 1.5) · **Depends on:** [db](../db/overview.md) (kernel), [providers](../providers/overview.md) (adapter precedent + default provider id) · injected at runtime: [chat](../chat/overview.md) / orchestration (the turn), [approvals](../approvals/overview.md) (resolution) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped (Telegram; Discord stubbed for Phase 1.5) · **Depends on:** [db](../_platform/database/overview.md) (kernel), [providers](../providers/overview.md) (adapter precedent + default provider id) · injected at runtime: [chat](../chat/overview.md) / orchestration (the turn), [approvals](../approvals/overview.md) (resolution) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -35,7 +35,7 @@ The other defining idea is where an inbound message *goes*. A channel message do
 - resolving an approval — the [approvals](../approvals/overview.md) domain; channels parses the sender's reply and calls an injected resolver, never writing approval rows itself;
 - producing schedules — the schedules domain publishes a run-completed event; channels only *consumes* it into an outbound row ([schedules](../schedules/overview.md));
 - the timers that drive the poll and delivery ticks — the [local-api](../_apps/local-api/overview.md) app owns the loop cadence; the leaf just exposes the tick functions;
-- users and workspaces — the shared kernel ([db](../db/overview.md)); channels carries them as scope, not as its own tables;
+- users and workspaces — the shared kernel ([db](../_platform/database/overview.md)); channels carries them as scope, not as its own tables;
 - chat sessions and approval requests it points at — referenced only loosely, by id, never by foreign key.
 
 ## Concepts & vocabulary
@@ -89,7 +89,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Channels is the seam between Vynel and the messaging world. It leans *down* only on the [db](../db/overview.md) kernel and borrows the adapter pattern (and the default provider id) from [providers](../providers/overview.md). Everything cross-feature reaches it through injection or the outbox: the global-root turn is handed in by the [chat](../chat/overview.md) / orchestration layer so the leaf never imports the turn code; approval resolution is handed in by [approvals](../approvals/overview.md); [schedules](../schedules/overview.md) delivers a fired reminder by publishing an event this domain consumes into an outbound row. The [local-api](../_apps/local-api/overview.md) app hosts the `/channels` HTTP surface and owns the timers that drive the poll and delivery ticks, and the [local-web](../_apps/local-web/overview.md) surface is where a user connects a bot and curates its allowlist. Where [memory](../memory/overview.md) and [knowledge](../knowledge/overview.md) shape *what* the assistant knows, channels shapes *where the user can reach it from*.
+Channels is the seam between Vynel and the messaging world. It leans *down* only on the [db](../_platform/database/overview.md) kernel and borrows the adapter pattern (and the default provider id) from [providers](../providers/overview.md). Everything cross-feature reaches it through injection or the outbox: the global-root turn is handed in by the [chat](../chat/overview.md) / orchestration layer so the leaf never imports the turn code; approval resolution is handed in by [approvals](../approvals/overview.md); [schedules](../schedules/overview.md) delivers a fired reminder by publishing an event this domain consumes into an outbound row. The [local-api](../_apps/local-api/overview.md) app hosts the `/channels` HTTP surface and owns the timers that drive the poll and delivery ticks, and the [local-web](../_apps/local-web/overview.md) surface is where a user connects a bot and curates its allowlist. Where [memory](../memory/overview.md) and [knowledge](../knowledge/overview.md) shape *what* the assistant knows, channels shapes *where the user can reach it from*.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

@@ -2,7 +2,7 @@
 
 > Which AI provider a user has chosen to run by default — the one editable preference behind "who answers when you talk to Vynel," with a safe fallback when the user has never picked.
 >
-> **Status:** shipped (landed green, no wired consumers yet) · **Depends on:** [db](../db/overview.md) (kernel), [providers](../providers/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped (landed green, no wired consumers yet) · **Depends on:** [db](../_platform/database/overview.md) (kernel), [providers](../providers/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -25,7 +25,7 @@ There is no operation to *change* a preference's settings after the row exists, 
 **Owns** — the default-provider *logic* and its guarantees: the null-returning raw read, the never-null effective read with its "Claude is the default" fallback, and the atomic set that flips the default flag across a user's rows so exactly one stays true. It owns the invariant, not the storage.
 
 **Does not own** —
-- the `provider_preferences` table itself, its columns, indices, and repository reads/writes — those live in the **kernel** ([db](../db/overview.md)), because the row foreign-keys to the users hub and so its schema and repos must stay down there;
+- the `provider_preferences` table itself, its columns, indices, and repository reads/writes — those live in the **kernel** ([db](../_platform/database/overview.md)), because the row foreign-keys to the users hub and so its schema and repos must stay down there;
 - the set of valid provider ids and the default-provider constant — borrowed from the provider seam ([providers](../providers/overview.md));
 - whether a provider is actually **installed or authenticated** — a separate *provider-status* concern, not yet pulled;
 - what each provider **can do** (skills) — a separate *skills discovery* concern, not yet pulled;
@@ -63,7 +63,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Provider preferences is a small leaf that answers one question for the rest of Vynel: *which provider do we run for this user?* It reads its data from the kernel ([db](../db/overview.md), which owns the table because it links to users) and borrows the set of valid providers and the default constant from the provider seam ([providers](../providers/overview.md)) — the same neighbour that actually runs a provider once the choice is known. A settings surface in [local-api](../_apps/local-api/overview.md) / [local-web](../_apps/local-web/overview.md) is the natural place to expose reading and flipping the default, and any turn that needs to pick a provider is a natural caller of the effective read; those wirings are the next step rather than something in place today. Its two deliberately-excluded siblings — provider *status* and *skills discovery* — will land as their own concerns, keeping this leaf about preference alone.
+Provider preferences is a small leaf that answers one question for the rest of Vynel: *which provider do we run for this user?* It reads its data from the kernel ([db](../_platform/database/overview.md), which owns the table because it links to users) and borrows the set of valid providers and the default constant from the provider seam ([providers](../providers/overview.md)) — the same neighbour that actually runs a provider once the choice is known. A settings surface in [local-api](../_apps/local-api/overview.md) / [local-web](../_apps/local-web/overview.md) is the natural place to expose reading and flipping the default, and any turn that needs to pick a provider is a natural caller of the effective read; those wirings are the next step rather than something in place today. Its two deliberately-excluded siblings — provider *status* and *skills discovery* — will land as their own concerns, keeping this leaf about preference alone.
 
 > **Note on intent vs. code:** this module is sometimes described as storing "which provider *and model* a *user or workspace* prefers." The code on disk stores neither a model nor a workspace scope — it is provider-only and user-only. This overview follows the code.
 

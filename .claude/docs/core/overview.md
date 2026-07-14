@@ -2,7 +2,7 @@
 
 > The kernel-core layer just above the database: it owns the single local user everything else is tagged to, and holds the generic relay that turns committed outbox events into side effects.
 >
-> **Status:** partial — the user domain is shipped and tested; the outbox relay is built and tested but dormant (empty consumer registry, no runtime caller yet) · **Depends on:** [db](../db/overview.md) (kernel), [errors](../errors/overview.md), [logger](../logger/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** partial — the user domain is shipped and tested; the outbox relay is built and tested but dormant (empty consumer registry, no runtime caller yet) · **Depends on:** [db](../_platform/database/overview.md) (kernel), [errors](../_platform/primitives/overview.md), [logger](../_platform/primitives/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -28,7 +28,7 @@ The second is pure plumbing: the generic **outbox relay**. Features never call e
 **Owns** — the single local user and everything attached to it: creating it on first boot, reading and updating its profile, the onboarding-complete flag, the preferences store together with its default values and typed resolution (defaults live here, not in the database), and best-effort OS detection of a new user's defaults. It also owns the *generic* outbox relay — the drain-and-dispatch mechanism and the (presently empty) map of event type to consumer.
 
 **Does not own** —
-- the user and preference tables and their SQL — the kernel ([db](../db/overview.md));
+- the user and preference tables and their SQL — the kernel ([db](../_platform/database/overview.md));
 - *who* is allowed to create the local user — that boundary (first-boot and the per-request resolver) lives in the API app ([local-api](../_apps/local-api/overview.md)); everywhere else takes a user id as input;
 - the first-launch wizard that decides when onboarding is done — [onboarding](../onboarding/overview.md); core just flips the flag;
 - *publishing* outbox events — every feature co-commits its own events in its own transaction; core only relays them;
@@ -76,7 +76,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Core is the floor every feature stands on. It imports down only into the kernel ([db](../db/overview.md)) and the shared [errors](../errors/overview.md) and [logger](../logger/overview.md) packages, and it is imported by nearly everything above it whenever they need the user behind a request. [Onboarding](../onboarding/overview.md) drives the user through first launch and asks core to flip the completed flag; the [local-api](../_apps/local-api/overview.md) app creates the local user at boot, resolves it on every request, and hosts the routes that edit profile and preferences. The outbox relay that also lives here is the quiet delivery seam meant for [schedules](../schedules/overview.md) and [channels](../channels/overview.md) — real code, tested, but waiting on those features and an app-level timer before it carries a single event.
+Core is the floor every feature stands on. It imports down only into the kernel ([db](../_platform/database/overview.md)) and the shared [errors](../_platform/primitives/overview.md) and [logger](../_platform/primitives/overview.md) packages, and it is imported by nearly everything above it whenever they need the user behind a request. [Onboarding](../onboarding/overview.md) drives the user through first launch and asks core to flip the completed flag; the [local-api](../_apps/local-api/overview.md) app creates the local user at boot, resolves it on every request, and hosts the routes that edit profile and preferences. The outbox relay that also lives here is the quiet delivery seam meant for [schedules](../schedules/overview.md) and [channels](../channels/overview.md) — real code, tested, but waiting on those features and an app-level timer before it carries a single event.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

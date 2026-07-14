@@ -2,7 +2,7 @@
 
 > The workspace file manager: browse, preview, edit, and reorganize the files inside a workspace's folder — and a running audit log of every change, whoever made it — all fenced strictly inside that one directory.
 >
-> **Status:** shipped · **Depends on:** [db](../db/overview.md) (kernel), errors · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [db](../_platform/database/overview.md) (kernel), errors · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 

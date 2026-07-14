@@ -2,7 +2,7 @@
 
 > Vynel's visible, persistent memory: the tagged facts the assistant holds about you and your work across every session — that *you* can open, read, edit, and delete.
 >
-> **Status:** shipped · **Depends on:** [db](../db/overview.md) (kernel), [embeddings](../embeddings/overview.md), [indexer](../indexer/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [db](../_platform/database/overview.md) (kernel), [embeddings](../_platform/embeddings-and-indexing/overview.md), [indexer](../_platform/embeddings-and-indexing/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -29,8 +29,8 @@ The tag `context` is the module's second big idea: it turns memory from a passiv
 **Owns** — the entries and their whole lifecycle: three tables (entries, mentions, tags), both search indices (keyword + vector), the tag vocabulary and its normalization rules (the reserved `context` tag included), create / read / update / soft-delete / purge, hybrid search, file import, mention bookkeeping, the session-start snapshot and its agent instructions, and the four lifecycle events it announces through the outbox.
 
 **Does not own** —
-- the embedding *model* — shared infrastructure ([embeddings](../embeddings/overview.md)), the same engine [knowledge](../knowledge/overview.md) uses;
-- document parsing for file import — the shared parser stack ([indexer](../indexer/overview.md));
+- the embedding *model* — shared infrastructure ([embeddings](../_platform/embeddings-and-indexing/overview.md)), the same engine [knowledge](../knowledge/overview.md) uses;
+- document parsing for file import — the shared parser stack ([indexer](../_platform/embeddings-and-indexing/overview.md));
 - whether memory is switched *on* for a workspace, and the prompt composition that injects its snapshot — [capabilities](../capabilities/overview.md) and [session](../session/overview.md);
 - the timers that run its background jobs — the [local-api](../_apps/local-api/overview.md) app schedules them (the desktop runs no separate worker);
 - chat sessions and messages — memory only points at them loosely, by id ([chat](../chat/overview.md));

@@ -202,11 +202,11 @@ flowchart TD
 | Unit | Direction | Mechanism | What crosses |
 |---|---|---|---|
 | db kernel (`@vynel/db`) | out | import | `Database`, `withTransaction`, `users`/`workspaces` FKs, `findUserById`/`findWorkspaceById`, `insertOutboxEvent` |
-| [contracts](../contracts/overview.md) | out | import | the template catalog, `isOneTimeSchedule`, the wire types (`schedule-http`), `ChatTurnEvent` |
+| [contracts](../_platform/contracts-and-sdk/overview.md) | out | import | the template catalog, `isOneTimeSchedule`, the wire types (`schedule-http`), `ChatTurnEvent` |
 | providers (`@vynel/providers`) | out | import | `DEFAULT_PROVIDER_ID` |
 | errors | out | import | `NotFoundError`, `ValidationError`, `ConflictError` |
 | [chat / session](../session/overview.md) | out (loose) | **injected dep + loose ids** | `startChatTurn` supplied via `FireScheduleDeps`; `chatSessionId` stored as loose `text()` — no import |
-| [mcp](../mcp/overview.md) | out (loose) | **injected dep** | `composeWorkspaceMcpServers` / capability composition supplied via `FireScheduleDeps` (bound in `build-schedule-fire-deps.ts`, dynamic `@vynel/mcp` import) |
+| [mcp](../_apps/mcp/overview.md) | out (loose) | **injected dep** | `composeWorkspaceMcpServers` / capability composition supplied via `FireScheduleDeps` (bound in `build-schedule-fire-deps.ts`, dynamic `@vynel/mcp` import) |
 | local-api routes | in | import | the CRUD/list/fire ops; `workspaceScoped`/`userScoped` + `featureGate` enforce access |
 | local-api poll service | in | import | `runScheduleClaimAndFireTick` on the 60 s tick |
 | [onboarding](../onboarding/overview.md) | in | **injected dep** | `createSchedule` bound into `OnboardingDeps` (`routes/onboarding/build-onboarding-deps.ts`) — the leaf never imports `@vynel/schedules` |

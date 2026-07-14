@@ -2,7 +2,7 @@
 
 > Vynel's search index over the documents on a user's disk: it watches the directories (and single files) a user has registered, parses and chunks each document, embeds the chunks, and lets the user or the assistant search that content by keyword, by meaning, or by both at once.
 >
-> **Status:** shipped (core package landed green; app-level wiring of the workspace-lifecycle consumers and the mutating add-to-knowledge tool is deferred) · **Depends on:** [workspaces](../workspaces/overview.md), [users](../users/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped (core package landed green; app-level wiring of the workspace-lifecycle consumers and the mutating add-to-knowledge tool is deferred) · **Depends on:** [workspaces](../workspaces/overview.md), [users](../core/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -33,7 +33,7 @@ Two boundaries matter most. First, knowledge is the *search index*, not the file
 - the *parsing and chunking algorithms* — those are pure, database-free helpers in the shared indexer package;
 - the *embedding model itself* — that is a shared infrastructure package, also used by [memory](../memory/overview.md); knowledge is simply its first real consumer;
 - workspace creation, archival, and hard-delete — that is [workspaces](../workspaces/overview.md); knowledge only *reacts* to those events;
-- the user and tenancy model — that is [users](../users/overview.md);
+- the user and tenancy model — that is [users](../core/overview.md);
 - the periodic scheduler that fires the embedding worker pass — that belongs to the worker app;
 - exposing its capabilities to the assistant as tools, and putting an approval card in front of the mutating add action — that is the MCP and approvals layers wiring the core in.
 

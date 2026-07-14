@@ -2,7 +2,7 @@
 
 > Vynel's named, reusable sub-assistants — a curated "hand" the root brain can invoke — each one visible to the user as a real file on disk, kept in step with whether it is actually installed and switched on.
 >
-> **Status:** shipped core, named edges · **Depends on:** [db](../db/overview.md) (kernel), [contracts](../contracts/overview.md) (curated catalog) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped core, named edges · **Depends on:** [db](../_platform/database/overview.md) (kernel), [contracts](../_platform/contracts-and-sdk/overview.md) (curated catalog) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -80,7 +80,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Agents is a specialist supplier to the conversational core. Each turn, [session / orchestration](../session/overview.md) asks this module for the enabled agent set and hands the resulting map to the runtime; the runtime reaches its model only through the provider seam, and this module only ever borrows the SDK's *data* shape, never its runtime. An agent's tool reach is decided by [capabilities](../capabilities/overview.md); the skills it preloads live in [skills](../skills/overview.md), referenced by loose id. Curated agents come from a compiled-in catalog in [contracts](../contracts/overview.md); community agents arrive as verified artifacts from [marketplace](../marketplace/overview.md). It shares the "make it visible on disk" instinct with [skills](../skills/overview.md) and the "the user can open the drawer" instinct with [memory](../memory/overview.md): between them, memory holds what the assistant knows, skills hold what it can do, and agents hold the specialists it can become.
+Agents is a specialist supplier to the conversational core. Each turn, [session / orchestration](../session/overview.md) asks this module for the enabled agent set and hands the resulting map to the runtime; the runtime reaches its model only through the provider seam, and this module only ever borrows the SDK's *data* shape, never its runtime. An agent's tool reach is decided by [capabilities](../capabilities/overview.md); the skills it preloads live in [skills](../skills/overview.md), referenced by loose id. Curated agents come from a compiled-in catalog in [contracts](../_platform/contracts-and-sdk/overview.md); community agents arrive as verified artifacts from [marketplace](../marketplace/overview.md). It shares the "make it visible on disk" instinct with [skills](../skills/overview.md) and the "the user can open the drawer" instinct with [memory](../memory/overview.md): between them, memory holds what the assistant knows, skills hold what it can do, and agents hold the specialists it can become.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

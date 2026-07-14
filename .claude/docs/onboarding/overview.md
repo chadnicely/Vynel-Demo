@@ -2,7 +2,7 @@
 
 > Vynel's first-launch wizard: a short, ordered set of steps that turns a blank install into a ready workspace — a named workspace, a filled-in profile, the assistant's first memories about you, and a starter skill — then opens the door to the app.
 >
-> **Status:** shipped · **Depends on:** [db](../db/overview.md) (kernel), [contracts](../contracts/overview.md), [errors](../errors/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [db](../_platform/database/overview.md) (kernel), [contracts](../_platform/contracts-and-sdk/overview.md), [errors](../_platform/primitives/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -41,7 +41,7 @@ The seven steps, in order:
 - installing a skill — [skills](../skills/overview.md);
 - connecting a channel — [channels](../channels/overview.md);
 - creating a schedule — [schedules](../schedules/overview.md);
-- the step catalog, per-step input schemas, and suggested-skill resolution — shared definitions in [contracts](../contracts/overview.md).
+- the step catalog, per-step input schemas, and suggested-skill resolution — shared definitions in [contracts](../_platform/contracts-and-sdk/overview.md).
 
 ## Concepts & vocabulary
 
@@ -85,7 +85,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Onboarding is the seam between "just installed" and "using the app." The [local-api](../_apps/local-api/overview.md) app hosts its routes and — crucially — is the composition point that binds onboarding's injected operations to the real sibling modules, so the leaf itself stays import-clean. The wizard screens live in [local-web](../_apps/local-web/overview.md), driven by the shared step catalog and per-step schemas in [contracts](../contracts/overview.md). Downstream, onboarding is the first writer into most of the product: it stands up a [workspace](../workspaces/overview.md), fills in the [user](../core/overview.md), seeds the assistant's first [memories](../memory/overview.md), installs a starter [skill](../skills/overview.md), and optionally wires a [channel](../channels/overview.md) and a [schedule](../schedules/overview.md). It touches all of them and owns none of them — the clearest example in the codebase of a coordinator that composes features through injection rather than dependency.
+Onboarding is the seam between "just installed" and "using the app." The [local-api](../_apps/local-api/overview.md) app hosts its routes and — crucially — is the composition point that binds onboarding's injected operations to the real sibling modules, so the leaf itself stays import-clean. The wizard screens live in [local-web](../_apps/local-web/overview.md), driven by the shared step catalog and per-step schemas in [contracts](../_platform/contracts-and-sdk/overview.md). Downstream, onboarding is the first writer into most of the product: it stands up a [workspace](../workspaces/overview.md), fills in the [user](../core/overview.md), seeds the assistant's first [memories](../memory/overview.md), installs a starter [skill](../skills/overview.md), and optionally wires a [channel](../channels/overview.md) and a [schedule](../schedules/overview.md). It touches all of them and owns none of them — the clearest example in the codebase of a coordinator that composes features through injection rather than dependency.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

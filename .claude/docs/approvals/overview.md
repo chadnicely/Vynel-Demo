@@ -2,7 +2,7 @@
 
 > The consent gate for agentic tool use — when the agent wants to do something irreversible, the turn pauses, a request is recorded, and it surfaces as a notification the user can answer from any screen before anything is written, sent, or deleted.
 >
-> **Status:** shipped (backend + HTTP surfaces + web notifier live end-to-end; channel push and routed-task surface-up are planned) · **Depends on:** [providers](../providers/overview.md), [chat](../chat/overview.md), [workspaces](../workspaces/overview.md), [users](../users/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped (backend + HTTP surfaces + web notifier live end-to-end; channel push and routed-task surface-up are planned) · **Depends on:** [providers](../providers/overview.md), [chat](../chat/overview.md), [workspaces](../workspaces/overview.md), [users](../core/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -31,8 +31,8 @@ The defining design choice in this repo is **notification, not inline card**. A 
 **Does not own** —
 - the agent runtime and the paused tool-call promise it unblocks — that is [providers](../providers/overview.md); this module calls into the provider to resolve a request, never the reverse, and resolves the provider by id so it stays provider-agnostic;
 - the session that raises the request — that is [chat](../chat/overview.md), whose stream consumer records the request as a side effect of processing a turn, and whose own outbox consumer mirrors each decision back onto its tool-call records;
-- the shared outbox machinery the events ride on — that belongs to the [db](../db/overview.md) kernel; this module only appends events, never consumes them;
-- the visual approval card component — that is shared [ui](../ui/overview.md); the web notifier composes it;
+- the shared outbox machinery the events ride on — that belongs to the [db](../_platform/database/overview.md) kernel; this module only appends events, never consumes them;
+- the visual approval card component — that is shared [ui](../_platform/primitives/overview.md); the web notifier composes it;
 - pushing an approval to an origin channel like Telegram, and turning a routed/delegated task's request into a park-and-notify — those are future consumers ([channels](../channels/overview.md), [orchestration](../orchestration/overview.md)); this module already persists and resolves such requests, but the producer side that fans them out is not yet wired here.
 
 ## Concepts & vocabulary

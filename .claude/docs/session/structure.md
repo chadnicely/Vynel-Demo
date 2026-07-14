@@ -221,7 +221,7 @@ flowchart TD
 | [providers](../providers/overview.md) | out | import (+ injected) | `resolveAiAgentProvider`, `AiAgentProvider`; swap deps injected |
 | [capabilities](../capabilities/overview.md) · [memory](../memory/overview.md) | out | import | `listEnabledCapabilities`; `buildMemorySessionContribution` |
 | [channels](../channels/overview.md) · [workspaces](../workspaces/overview.md) | out | import | approval/report delivery; `findWorkspaceById`/`resolveManagerName` |
-| [contracts](../contracts/overview.md) · errors · logger | out | import / type-only | `resolveContextWindow`; typed errors; `StructuralLogger` |
+| [contracts](../_platform/contracts-and-sdk/overview.md) · errors · logger | out | import / type-only | `resolveContextWindow`; typed errors; `StructuralLogger` |
 | local-api (app, routes, streams, services, `sessions/` edge) | in | import (all 4 subpaths) | drives every runner + resolver; injects `resolveTarget`/MCP/DI |
 | local-web | in | SDK / `.` barrel | `SessionMode` / `SESSION_MODES` only |
 

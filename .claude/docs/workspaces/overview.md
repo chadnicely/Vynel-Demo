@@ -2,7 +2,7 @@
 
 > A workspace is an existing folder on the user's disk that they register with Vynel; it becomes the named, manager-led scope every other feature hangs its rows off.
 >
-> **Status:** shipped · **Depends on:** [users](../users/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [users](../core/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -64,7 +64,7 @@ feature composes, and the web UI for all of the above.
 - workspace *content* — files, chat sessions, memory, knowledge — owned by
   [files](../files/overview.md), [chat](../chat/overview.md), [memory](../memory/overview.md),
   [knowledge](../knowledge/overview.md);
-- user identity and the multi-tenancy boundary — that's [users](../users/overview.md);
+- user identity and the multi-tenancy boundary — that's [users](../core/overview.md);
 - per-workspace capability settings — that's [capabilities](../capabilities/overview.md);
 - workspace-scoped channels and schedules — those are [channels](../channels/overview.md) and
   [schedules](../schedules/overview.md);
@@ -136,7 +136,7 @@ Workspaces is the scope rail every other feature rides on. When [memory](../memo
 [chat](../chat/overview.md), [files](../files/overview.md), [knowledge](../knowledge/overview.md), or
 [capabilities](../capabilities/overview.md) act on tenant data, they do it under a workspace, and
 every one of them composes this module's ownership-checking route bundle to resolve and guard that
-workspace before running. Its only upstream dependency is [users](../users/overview.md), so it sits
+workspace before running. Its only upstream dependency is [users](../core/overview.md), so it sits
 close to the root of the dependency tree. [Onboarding](../onboarding/overview.md) leans on this
 module to create the user's first workspace during first-run, so by the time a user reaches the main
 UI they always have at least one.

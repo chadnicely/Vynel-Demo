@@ -2,7 +2,7 @@
 
 > Vynel's notebook: a shelf of curated *playbooks* — books of current, task-specific guidance — that the assistant opens on demand when a matching job starts, plus the reserved seam for always-on user instructions that comes later.
 >
-> **Status:** shipped (the notebook half — reading verified books *and* authoring your own — is landed end-to-end with routes and UI; only the always-on instructions half is deferred, its column reserved in the schema) · **Depends on:** [db](../db/overview.md) (kernel) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped (the notebook half — reading verified books *and* authoring your own — is landed end-to-end with routes and UI; only the always-on instructions half is deferred, its column reserved in the schema) · **Depends on:** [db](../_platform/database/overview.md) (kernel) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -34,7 +34,7 @@ What makes the notebook a product surface rather than plumbing is *trust and fre
 - the always-on *injection* of standing instructions into every turn — that arc lives in [session](../session/overview.md) and is deferred, untouched by this slice;
 - the self-curated *facts* the assistant writes about you — that's [memory](../memory/overview.md), a different primitive (assistant-authored recollection vs. human-authored policy);
 - the large searchable document corpus — [knowledge](../knowledge/overview.md);
-- the workspaces a document may point at — kernel hub tables in [db](../db/overview.md).
+- the workspaces a document may point at — kernel hub tables in [db](../_platform/database/overview.md).
 
 ## Concepts & vocabulary
 

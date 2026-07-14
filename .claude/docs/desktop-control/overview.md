@@ -2,7 +2,7 @@
 
 > Vynel's desktop senses: the assistant can see what's happening on your computer — the notifications you got, the apps you have open, what's on a given app's screen — and, when explicitly switched on, act on it by clicking and typing.
 >
-> **Status:** partial · **Depends on:** [logger](../logger/overview.md), [mcp-contract](../mcp-contract/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** partial · **Depends on:** [logger](../_platform/primitives/overview.md), [mcp-contract](../_platform/contracts-and-sdk/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -29,7 +29,7 @@ Four tools make up the surface: three read-only, one mutating. The mutating one 
 **Does not own** —
 - whether the notification watcher is running and where its read interface is injected — the [local-api](../_apps/local-api/overview.md) app creates one process-wide watcher at boot and stops it at shutdown;
 - whether desktop *actions* are enabled — that comes from an environment flag read in [local-api](../_apps/local-api/overview.md)'s config, not here;
-- attaching the tool set to a conversation turn and assembling the system prompt — the session composer in [local-api](../_apps/local-api/overview.md), driven by the shared descriptor contract ([mcp-contract](../mcp-contract/overview.md));
+- attaching the tool set to a conversation turn and assembling the system prompt — the session composer in [local-api](../_apps/local-api/overview.md), driven by the shared descriptor contract ([mcp-contract](../_platform/contracts-and-sdk/overview.md));
 - the hard approval-card gate that should front every irreversible desktop action — that safety step is specified but not yet built; the interim guard is the off-by-default flag plus an isolated environment.
 
 ## Concepts & vocabulary
@@ -76,7 +76,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Desktop control is the assistant's reach beyond Vynel's own world into the machine it runs on. It is one of the tool-bearing features the [local-api](../_apps/local-api/overview.md) session composer attaches to a conversation, alongside the route-derived Vynel tools — declared once through the shared [mcp-contract](../mcp-contract/overview.md) descriptor so its senses ride along on every channel (web, messaging, voice) uniformly, rather than being hand-wired into one turn. Unlike almost every other feature, it touches no shared database and persists nothing: notifications are held only in memory, and the accessibility bridge reads the live OS through a third-party engine. Its nearest conceptual sibling is the voice surface — both are always-on senses of the whole computer, both modeled on a "visibly listening, user-controllable" posture rather than a silent background tap.
+Desktop control is the assistant's reach beyond Vynel's own world into the machine it runs on. It is one of the tool-bearing features the [local-api](../_apps/local-api/overview.md) session composer attaches to a conversation, alongside the route-derived Vynel tools — declared once through the shared [mcp-contract](../_platform/contracts-and-sdk/overview.md) descriptor so its senses ride along on every channel (web, messaging, voice) uniformly, rather than being hand-wired into one turn. Unlike almost every other feature, it touches no shared database and persists nothing: notifications are held only in memory, and the accessibility bridge reads the live OS through a third-party engine. Its nearest conceptual sibling is the voice surface — both are always-on senses of the whole computer, both modeled on a "visibly listening, user-controllable" posture rather than a silent background tap.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

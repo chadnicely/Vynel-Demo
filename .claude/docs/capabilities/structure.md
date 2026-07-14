@@ -129,7 +129,7 @@ flowchart TD
 | [session](../session/structure.md) | in | import | `composeSessionCapabilities` calls `listEnabledCapabilities` for the prompt append |
 | local-api sessions/streams | in | import | `listEnabledCapabilities` / `defaultEnabledCapabilityIds` feed `composeSessionMcpServers` on every turn |
 | local-api routes (`capabilities`, `chat/fetch-context-report`) | in | import | the 2 routes + the context-report tool count |
-| [mcp](../mcp/structure.md) (`apps/mcp` descriptor) | in | id string | `memory` / `knowledge` in `VYNEL_CAPABILITY_GATED_TOOLS` — the gate keys |
+| [mcp](../_apps/mcp/structure.md) (`apps/mcp` descriptor) | in | id string | `memory` / `knowledge` in `VYNEL_CAPABILITY_GATED_TOOLS` — the gate keys |
 | [instructions](../instructions/structure.md) (notebook descriptor) | in | id string | `notebook` in `capabilityGatedTools` |
 | [memory](../memory/structure.md) | in (as gated feature) | id string | `'memory'` gate → its 6 tools + prompt contribution |
 | local-web | — | — | no consumer yet (UI unbuilt) |

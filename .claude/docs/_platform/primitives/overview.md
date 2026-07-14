@@ -2,7 +2,7 @@
 
 > The four leaf packages the whole monolith stands on: a shared error vocabulary, a logging contract, the test-database seam, and the design-system components. They own no domain and depend on almost nothing — everyone imports *down* into them.
 >
-> **Status:** shipped · logger is contract-only (partial) · **Depends on:** nothing above them; the test seam alone leans on [db](../../db/overview.md) (kernel) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · logger is contract-only (partial) · **Depends on:** nothing above them; the test seam alone leans on [db](../database/overview.md) (kernel) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -31,7 +31,7 @@ Three of the four are genuinely tiny by line count — the error taxonomy, the l
 - **any business logic or domain data** — the feature packages own that; a primitive never reaches up into a feature;
 - **the error-to-HTTP switch itself** — the primitives define the error classes, but the [local-api](../../_apps/local-api/overview.md) app owns the single error-to-HTTP boundary that reads them;
 - **the concrete logger** (pino wiring, levels, transports) — instantiated at each app's boundary, injected in as the structural shape; the primitive publishes only the contract today;
-- **the database, schema, and migrations** — the [db](../../db/overview.md) kernel; the test seam only *drives* db's migrations, it doesn't define them;
+- **the database, schema, and migrations** — the [db](../database/overview.md) kernel; the test seam only *drives* db's migrations, it doesn't define them;
 - **screens, routing, and state** — the [local-web](../../_apps/local-web/overview.md) app assembles the shared components into an actual product; the primitive ships the parts, not the app;
 - **the meaning of a tool call or an action's risk** — the presenters and the approval card *render* what [chat](../../chat/overview.md) and [approvals](../../approvals/overview.md) decide.
 
@@ -71,7 +71,7 @@ Three of the four are genuinely tiny by line count — the error taxonomy, the l
 
 ## Where it sits in the bigger picture
 
-Primitives are the floor of the modular monolith — the layer everything else rests on and nothing rests below (only the [db](../../db/overview.md) kernel sits alongside them, and only the test seam reaches into it). The [core](../../core/overview.md) and [providers](../../providers/overview.md) layers and every feature package throw the shared errors and accept the shared logger. The [local-api](../../_apps/local-api/overview.md) app owns the one boundary that turns those errors into HTTP and injects the concrete logger. The [local-web](../../_apps/local-web/overview.md) app composes the shared UI components — the approval card fed by [approvals](../../approvals/overview.md), the tool-call cards and presenters fed by [chat](../../chat/overview.md) — into the actual product screens. And every test in the repo, in every package, reaches its database through the one test seam. Small packages, maximal reach.
+Primitives are the floor of the modular monolith — the layer everything else rests on and nothing rests below (only the [db](../database/overview.md) kernel sits alongside them, and only the test seam reaches into it). The [core](../../core/overview.md) and [providers](../../providers/overview.md) layers and every feature package throw the shared errors and accept the shared logger. The [local-api](../../_apps/local-api/overview.md) app owns the one boundary that turns those errors into HTTP and injects the concrete logger. The [local-web](../../_apps/local-web/overview.md) app composes the shared UI components — the approval card fed by [approvals](../../approvals/overview.md), the tool-call cards and presenters fed by [chat](../../chat/overview.md) — into the actual product screens. And every test in the repo, in every package, reaches its database through the one test seam. Small packages, maximal reach.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change any of these packages, update this file and [structure.md](./structure.md).*

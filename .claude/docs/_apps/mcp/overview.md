@@ -2,7 +2,7 @@
 
 > The seam that turns Vynel's HTTP capabilities into tools the assistant can call — one route definition surfacing both as an in-process tool for the live session and as a standalone server for outside MCP clients.
 >
-> **Status:** partial · **Depends on:** [db](../../db/overview.md) (kernel), [mcp-contract](../../mcp-contract/overview.md), [sdk](../../sdk/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** partial · **Depends on:** [db](../../_platform/database/overview.md) (kernel), [mcp-contract](../../_platform/contracts-and-sdk/overview.md), [sdk](../../_platform/contracts-and-sdk/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -33,8 +33,8 @@ It is plumbing more than a product surface, but two of its rules are felt direct
 
 - the routes and their business logic — each feature owns its own ([memory](../../memory/overview.md), [knowledge](../../knowledge/overview.md), and the rest), and the [local-api](../local-api/overview.md) app hosts them;
 - the code generator and parity guards that emit the registry from the API description — the shared generator scripts;
-- the published API description and typed client it reads — [sdk](../../sdk/overview.md);
-- the descriptor *contract* every tool surface implements, and the composition that attaches descriptors to a turn, applies the capability gate, and unions the mutating tools into the approval backstop — [mcp-contract](../../mcp-contract/overview.md) defines the shape; the [local-api](../local-api/overview.md) composer runs it;
+- the published API description and typed client it reads — [sdk](../../_platform/contracts-and-sdk/overview.md);
+- the descriptor *contract* every tool surface implements, and the composition that attaches descriptors to a turn, applies the capability gate, and unions the mutating tools into the approval backstop — [mcp-contract](../../_platform/contracts-and-sdk/overview.md) defines the shape; the [local-api](../local-api/overview.md) composer runs it;
 - the AI *runtime* that actually invokes the tools — quarantined in [providers](../../providers/overview.md); only the runtime-free tool-builder primitives live here;
 - the desktop tools — a separate, core-free descriptor ([desktop-control](../../desktop-control/overview.md)) plugs into the same composition.
 
@@ -65,7 +65,7 @@ It is plumbing more than a product surface, but two of its rules are felt direct
 
 ## Where it sits in the bigger picture
 
-MCP is the bridge between Vynel's routes and the model that drives a conversation. Every feature — [memory](../../memory/overview.md), [knowledge](../../knowledge/overview.md), and the others — defines routes; this app turns the annotated ones into tools. On a live turn, the [local-api](../local-api/overview.md) composer pulls this app's descriptors, applies the capability gate, folds the mutating tools into the approval backstop, and hands the assembled tool server to the [providers](../../providers/overview.md) runtime, which is the only place allowed to actually run the model. The descriptor *shape* both this app and [desktop-control](../../desktop-control/overview.md) implement comes from [mcp-contract](../../mcp-contract/overview.md); the API description the tools are generated from and the stdio server reads comes from [sdk](../../sdk/overview.md). The external stdio server is the one surface facing *outward* — the same tools, offered to any MCP client, dispatched over HTTP to the daemon. The status is *partial* because the everyday workspace surface and the external server are live and tested while the global-root routing surface is wired but still empty, awaiting its routing routes.
+MCP is the bridge between Vynel's routes and the model that drives a conversation. Every feature — [memory](../../memory/overview.md), [knowledge](../../knowledge/overview.md), and the others — defines routes; this app turns the annotated ones into tools. On a live turn, the [local-api](../local-api/overview.md) composer pulls this app's descriptors, applies the capability gate, folds the mutating tools into the approval backstop, and hands the assembled tool server to the [providers](../../providers/overview.md) runtime, which is the only place allowed to actually run the model. The descriptor *shape* both this app and [desktop-control](../../desktop-control/overview.md) implement comes from [mcp-contract](../../_platform/contracts-and-sdk/overview.md); the API description the tools are generated from and the stdio server reads comes from [sdk](../../_platform/contracts-and-sdk/overview.md). The external stdio server is the one surface facing *outward* — the same tools, offered to any MCP client, dispatched over HTTP to the daemon. The status is *partial* because the everyday workspace surface and the external server are live and tested while the global-root routing surface is wired but still empty, awaiting its routing routes.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

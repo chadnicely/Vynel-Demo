@@ -2,7 +2,7 @@
 
 > Vynel's layer for installing, configuring, and bridging agent capabilities onto the AI provider's native on-disk skill system. The domain behind the agent knowing how to draft an email in your voice.
 >
-> **Status:** shipped · **Phase:** 1 (with a Phase 1.5 cloud-install path already landed) · **Depends on:** [users](../users/overview.md), [workspaces](../workspaces/overview.md), [providers](../providers/overview.md), [contracts](../contracts/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Phase:** 1 (with a Phase 1.5 cloud-install path already landed) · **Depends on:** [users](../core/overview.md), [workspaces](../workspaces/overview.md), [providers](../providers/overview.md), [contracts](../_platform/contracts-and-sdk/overview.md) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -25,7 +25,7 @@ This leaf owns the *Vynel side* of that story: the database record of what a use
 **Owns** — the two database tables (installed skills and skill settings) and their repositories; the disk bridge (the SKILL.md writer, the cloud-artifact writer, the MCP-config patcher, and path resolution for each scope); the pure settings resolver (defaults merged with per-installation overrides); the sync reconciler; the six lifecycle operations (bundled install, cloud install, uninstall, enable, disable, settings-update) and the read queries; and the four lifecycle outbox events.
 
 **Does not own** —
-- **the verified-skill catalog** — the compiled-in list of skills Vynel ships, their templates, settings schemas, and required-MCP specs live in the [contracts](../contracts/overview.md) kernel; this leaf reads it but does not define it;
+- **the verified-skill catalog** — the compiled-in list of skills Vynel ships, their templates, settings schemas, and required-MCP specs live in the [contracts](../_platform/contracts-and-sdk/overview.md) kernel; this leaf reads it but does not define it;
 - **the provider's skill *runtime*** — this leaf writes the files, the [providers](../providers/overview.md) layer's provider reads them and, via its skill-discovery method, is what surfaces external installs to the sync;
 - **the HTTP surface** — the routes that expose these operations live in the local-api app, not the package (apps are thin adapters over this core);
 - **the [marketplace](../marketplace/overview.md) storefront** — marketplace is a read-only annotation layer over the catalog and install state; when a user installs from it, it calls back into this leaf's own install operations, so there is one install code path and this leaf owns it;

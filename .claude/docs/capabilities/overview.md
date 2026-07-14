@@ -2,7 +2,7 @@
 
 > The per-workspace on/off switches that decide which parts of Vynel the assistant may use in a given room — the spine that gates memory, knowledge, and the notebook.
 >
-> **Status:** shipped · **Depends on:** [db](../db/overview.md) (kernel) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [db](../_platform/database/overview.md) (kernel) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -73,7 +73,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Capabilities is a quiet gate that most of Vynel's powers pass through. It sits directly on the [db](../db/overview.md) kernel and imports nothing sideways — a true leaf. On the way in, the [local-api](../_apps/local-api/overview.md) app hosts the toggle routes that the settings panel drives. On the way out, the [session](../session/overview.md) build and the local-api turn assembly read its enabled set each turn: enabled capabilities get their MCP tools granted and their prompt contributions injected, disabled ones get their tools denied and their instructions withheld. The capabilities it gates — [memory](../memory/overview.md), [knowledge](../knowledge/overview.md), and the notebook — own everything they *do*; capabilities owns only the switch. A later marketplace phase will let third-party plugins register as capabilities too, identified by open-text ids this first-party catalog leaves room for.
+Capabilities is a quiet gate that most of Vynel's powers pass through. It sits directly on the [db](../_platform/database/overview.md) kernel and imports nothing sideways — a true leaf. On the way in, the [local-api](../_apps/local-api/overview.md) app hosts the toggle routes that the settings panel drives. On the way out, the [session](../session/overview.md) build and the local-api turn assembly read its enabled set each turn: enabled capabilities get their MCP tools granted and their prompt contributions injected, disabled ones get their tools denied and their instructions withheld. The capabilities it gates — [memory](../memory/overview.md), [knowledge](../knowledge/overview.md), and the notebook — own everything they *do*; capabilities owns only the switch. A later marketplace phase will let third-party plugins register as capabilities too, identified by open-text ids this first-party catalog leaves room for.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

@@ -2,7 +2,7 @@
 
 > The hub's identity core: it provisions cloud accounts, proves who someone is at sign-in, keeps a "log in once" session alive across devices, and mints the signed tokens that tell the desktop what a person is allowed to do.
 >
-> **Status:** shipped · **Depends on:** [cloud-db](../cloud-db/overview.md) (Postgres kernel), [contracts](../contracts/overview.md) (hub entitlement vocabulary), errors, logger · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [cloud-db](../_platform/database/overview.md) (Postgres kernel), [contracts](../_platform/contracts-and-sdk/overview.md) (hub entitlement vocabulary), errors, logger · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -29,10 +29,10 @@ The second deliberate choice is that **accounts are never self-serve**. Nobody s
 **Owns** — everything about proving and managing hub identity that is *not* the raw account row: password hashing and verification, the whole sign-in flow with its anti-enumeration timing defence, the refresh-token session mechanism (families, rotation, reuse detection, expiry) and the two tables behind it — refresh tokens and single-use email-link tokens; the devices surface (list / revoke / sign-out); the set-password link lifecycle for both invite and reset; account provisioning and the idempotent application of platform webhook events; the enable/disable rule and its session teardown; role and tier assignment plus their *live* resolution; and the minting of both signed tokens (access + entitlement) and the verification of the access token.
 
 **Does not own** —
-- the **account record itself** — email, display name, password hash, status, role, tier, expiry, and the platform-join key all live in the shared kernel and are read/written through its repositories ([cloud-db](../cloud-db/overview.md));
+- the **account record itself** — email, display name, password hash, status, role, tier, expiry, and the platform-join key all live in the shared kernel and are read/written through its repositories ([cloud-db](../_platform/database/overview.md));
 - the **HTTP routes, auth middleware, and static admin-token door** that expose all of this over the wire — the hub app ([cloud-api](../_apps/cloud-api/overview.md));
 - **verifying the entitlement token** — that half lives on the desktop leaf that pins the public key ([hub-account](../hub-account/overview.md)); issue and verify are deliberately different systems with different key material;
-- the **tier → feature catalog** and the definition of the tier vocabulary itself ([contracts](../contracts/overview.md));
+- the **tier → feature catalog** and the definition of the tier vocabulary itself ([contracts](../_platform/contracts-and-sdk/overview.md));
 - **sending real email** — a production provider implements the mail seam at deploy time; this package ships only a dev-only logging stub.
 
 ## Concepts & vocabulary
@@ -88,7 +88,7 @@ Underneath, each signed-in device runs its own smaller machine: a refresh token 
 
 ## Where it sits in the bigger picture
 
-Accounts is the identity foundation the rest of the hub stands on. The [cloud-api](../_apps/cloud-api/overview.md) app is its only caller: it wires the routes, the auth middleware, and the static admin-token bootstrap door, and hands every request down to this package. It reads and writes the account row through the [cloud-db](../cloud-db/overview.md) kernel and borrows the tier/feature vocabulary from [contracts](../contracts/overview.md). The tokens it mints flow out to the desktop, where the [hub-account](../hub-account/overview.md) leaf pins the public key and verifies the entitlement token offline — the far end of a split that lets a laptop stay signed in for a week without the network while the hub keeps the last word on who's still allowed in. Set against the desktop's own [db](../db/overview.md)-backed features, Accounts is a different world: a separate Postgres kernel, a separate app, invite-only identity rather than local memory.
+Accounts is the identity foundation the rest of the hub stands on. The [cloud-api](../_apps/cloud-api/overview.md) app is its only caller: it wires the routes, the auth middleware, and the static admin-token bootstrap door, and hands every request down to this package. It reads and writes the account row through the [cloud-db](../_platform/database/overview.md) kernel and borrows the tier/feature vocabulary from [contracts](../_platform/contracts-and-sdk/overview.md). The tokens it mints flow out to the desktop, where the [hub-account](../hub-account/overview.md) leaf pins the public key and verifies the entitlement token offline — the far end of a split that lets a laptop stay signed in for a week without the network while the hub keeps the last word on who's still allowed in. Set against the desktop's own [db](../_platform/database/overview.md)-backed features, Accounts is a different world: a separate Postgres kernel, a separate app, invite-only identity rather than local memory.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*
