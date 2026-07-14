@@ -59,19 +59,24 @@ function onCreated() {
       </template>
     </SectionHeader>
 
-    <div v-if="entries.length > 0" class="flex flex-col gap-1">
+    <div v-if="entries.length > 0" class="flex flex-col gap-2">
       <div
         v-for="entry in entries"
         :key="entry.id"
-        class="row flex items-start gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2"
+        class="row group flex items-start gap-3 rounded-lg border border-hair bg-raised p-3 transition hover:border-hair-strong hover:shadow-raised"
       >
+        <span
+          class="grid size-9 shrink-0 place-items-center rounded-md bg-ws-3/12 text-ws-3"
+        >
+          <Brain :size="17" />
+        </span>
         <div class="min-w-0 flex-1">
           <p
-            class="m-0 flex flex-wrap items-center gap-1.5 text-sm font-medium text-ink-1"
+            class="m-0 flex flex-wrap items-center gap-1.5 text-sm font-semibold text-ink-1"
           >
             {{ entry.title }}
             <span
-              class="kind-chip inline-flex items-center rounded-full border border-hair bg-panel px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-2"
+              class="kind-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
               >{{ KIND_LABELS[entry.kind] ?? entry.kind }}</span
             >
             <!-- "context" is the always-known marker; gold is the attention accent. -->
@@ -94,15 +99,15 @@ function onCreated() {
             </span>
             <span
               v-if="props.scope.kind === 'global'"
-              class="scope-chip inline-flex items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+              class="scope-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
               >{{ scopeLabel(entry.workspaceId) }}</span
             >
           </p>
-          <p class="mb-0 mt-px line-clamp-2 text-xs text-ink-3">
+          <p class="m-0 mt-0.5 line-clamp-2 text-sm text-ink-1">
             {{ entry.body }}
           </p>
         </div>
-        <span class="shrink-0 text-2xs text-ink-3">{{
+        <span class="shrink-0 text-xs text-ink-3">{{
           formatRelativeTime(entry.updatedAt)
         }}</span>
       </div>

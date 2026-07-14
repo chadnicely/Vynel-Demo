@@ -33,24 +33,24 @@ function confirmRevoke() {
 
 <template>
   <div
-    class="flex items-center gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2"
+    class="group flex items-center gap-3 rounded-lg border border-hair bg-raised p-3 transition hover:border-hair-strong hover:shadow-raised"
   >
     <span
-      class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+      class="grid size-9 shrink-0 place-items-center rounded-md bg-info/10 text-info"
     >
-      <MonitorSmartphone :size="14" />
+      <MonitorSmartphone :size="17" />
     </span>
     <div class="min-w-0 flex-1">
       <p
-        class="row-title m-0 flex items-center gap-1.5 text-sm font-medium text-ink-1"
+        class="row-title m-0 flex items-center gap-1.5 text-sm font-semibold text-ink-1"
       >
         {{ props.device.deviceName }}
         <span
-          class="platform-chip rounded-full border border-hair bg-panel px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-2"
+          class="platform-chip shrink-0 rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
           >{{ props.device.devicePlatform }}</span
         >
       </p>
-      <p class="mt-px mb-0 truncate text-xs text-ink-3">
+      <p class="m-0 mt-0.5 truncate text-xs text-ink-3">
         v{{ props.device.appVersion }} · last used
         {{ formatRelativeTime(props.device.lastUsedAt) }}
       </p>
@@ -58,14 +58,14 @@ function confirmRevoke() {
     <template v-if="isArmed">
       <button
         type="button"
-        class="row-action inline-flex shrink-0 cursor-default items-center rounded-full border border-hair px-[11px] py-[3px] text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1"
+        class="row-action inline-flex shrink-0 cursor-default items-center rounded-full border border-hair-strong px-2.5 py-0.5 text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1"
         @click="isArmed = false"
       >
         Keep
       </button>
       <button
         type="button"
-        class="row-action is-danger inline-flex shrink-0 cursor-default items-center rounded-full border border-danger/40 px-[11px] py-[3px] text-xs font-semibold text-danger transition hover:border-danger hover:bg-danger/10"
+        class="row-action is-danger inline-flex shrink-0 cursor-default items-center rounded-full border border-danger/40 px-2.5 py-0.5 text-xs font-semibold text-danger transition hover:border-danger hover:bg-danger/10"
         @click="confirmRevoke"
       >
         Confirm
@@ -74,7 +74,7 @@ function confirmRevoke() {
     <button
       v-else
       type="button"
-      class="row-action inline-flex shrink-0 cursor-default items-center rounded-full border border-hair px-[11px] py-[3px] text-xs font-semibold text-ink-2 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1 disabled:opacity-55"
+      class="row-action inline-flex shrink-0 cursor-default items-center rounded-full border border-hair px-2.5 py-0.5 text-xs font-semibold text-ink-2 opacity-0 transition hover:border-hair-strong hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 disabled:opacity-55 group-hover:opacity-100"
       :disabled="props.isRevoking"
       @click="isArmed = true"
     >

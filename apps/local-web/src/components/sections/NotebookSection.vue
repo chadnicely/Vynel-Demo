@@ -124,63 +124,73 @@ function onSaved() {
       </template>
     </SectionHeader>
 
-    <div v-if="verifiedBooks.length > 0" class="grid gap-1">
+    <div v-if="verifiedBooks.length > 0" class="rows flex flex-col gap-2">
       <button
         v-for="book in verifiedBooks"
         :key="book.id"
         type="button"
-        class="row is-verified flex w-full cursor-default items-start gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2 text-left transition hover:border-hair-strong"
+        class="row is-verified group flex w-full cursor-default items-center gap-3 rounded-lg border border-hair bg-raised p-3 text-left transition hover:border-hair-strong hover:shadow-raised"
         @click="openVerified(book)"
       >
+        <span
+          class="row-icon grid size-9 shrink-0 place-items-center rounded-md bg-ws-2/12 text-ws-2"
+        >
+          <NotebookText :size="17" />
+        </span>
         <div class="row-main min-w-0 flex-1">
-          <p
-            class="row-title m-0 flex flex-wrap items-center gap-1.5 text-sm font-medium text-ink-1"
-          >
-            {{ book.title }}
+          <div class="flex items-center gap-2">
+            <p class="row-title m-0 truncate text-sm font-semibold text-ink-1">
+              {{ book.title }}
+            </p>
             <span
-              class="verified-chip inline-flex items-center gap-1 rounded-full border border-gold-soft bg-gold-soft px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-gold"
+              class="verified-chip inline-flex shrink-0 items-center gap-1 rounded-full border border-gold-soft bg-gold-soft px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-gold"
             >
               <BadgeCheck :size="11" />
               Verified
             </span>
-          </p>
-          <p class="m-0 mt-px line-clamp-2 text-xs text-ink-3">
+          </div>
+          <p class="row-sub m-0 mt-0.5 line-clamp-2 text-xs text-ink-3">
             {{ book.oneLiner }}
           </p>
         </div>
       </button>
     </div>
 
-    <div v-if="ownBooks.length > 0" class="grid gap-1">
+    <div v-if="ownBooks.length > 0" class="rows flex flex-col gap-2">
       <div
         v-for="document in ownBooks"
         :key="document.id"
-        class="row is-own flex items-start gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2 text-left hover:border-hair-strong"
+        class="row is-own group flex items-center gap-3 rounded-lg border border-hair bg-raised p-3 transition hover:border-hair-strong hover:shadow-raised"
       >
         <button
           type="button"
-          class="row-open min-w-0 flex-1 cursor-default border-0 bg-transparent p-0 text-left"
+          class="row-open flex min-w-0 flex-1 cursor-default items-center gap-3 border-0 bg-transparent p-0 text-left"
           @click="openOwn(document)"
         >
+          <span
+            class="row-icon grid size-9 shrink-0 place-items-center rounded-md bg-ws-2/12 text-ws-2"
+          >
+            <NotebookText :size="17" />
+          </span>
           <div class="row-main min-w-0 flex-1">
-            <p
-              class="row-title m-0 flex flex-wrap items-center gap-1.5 text-sm font-medium text-ink-1"
-            >
-              {{ document.title }}
+            <div class="flex items-center gap-2">
+              <p class="row-title m-0 truncate text-sm font-semibold text-ink-1">
+                {{ document.title }}
+              </p>
               <span
                 v-if="props.scope.kind === 'global'"
-                class="scope-chip inline-flex items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+                class="scope-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
                 >{{ scopeLabel(document.workspaceId) }}</span
               >
-            </p>
-            <p class="m-0 mt-px line-clamp-2 text-xs text-ink-3">
+            </div>
+            <p class="row-sub m-0 mt-0.5 line-clamp-2 text-xs text-ink-3">
               {{ document.body }}
             </p>
           </div>
         </button>
         <button
           type="button"
-          class="icon-button shrink-0 cursor-default rounded-sm border-0 bg-transparent p-1 text-ink-3 hover:bg-row-hover hover:text-ink-1"
+          class="icon-button shrink-0 cursor-default rounded-md p-1 text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100"
           :title="`Edit ${document.title}`"
           :aria-label="`Edit ${document.title}`"
           @click="startEditing(document)"
@@ -192,7 +202,7 @@ function onSaved() {
           :class="
             armedDeleteId === document.id
               ? 'row-action is-danger inline-flex shrink-0 cursor-default items-center rounded-full border border-danger/40 px-3 py-0.5 text-xs font-semibold text-danger transition hover:border-danger hover:bg-danger/10'
-              : 'icon-button shrink-0 cursor-default rounded-sm border-0 bg-transparent p-1 text-ink-3 hover:bg-row-hover hover:text-ink-1'
+              : 'icon-button shrink-0 cursor-default rounded-md p-1 text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100'
           "
           :title="
             armedDeleteId === document.id

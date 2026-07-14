@@ -91,38 +91,40 @@ function onAdded() {
       </template>
     </SectionHeader>
 
-    <div v-if="sources.length > 0" class="grid gap-1">
+    <div v-if="sources.length > 0" class="rows flex flex-col gap-2">
       <div
         v-for="source in sources"
         :key="source.id"
-        class="row flex items-center gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2"
+        class="row group flex items-center gap-3 rounded-lg border border-hair bg-raised p-3 transition hover:border-hair-strong hover:shadow-raised"
       >
         <span
-          class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-file-folder"
+          class="row-icon grid size-9 shrink-0 place-items-center rounded-md bg-file-folder/12 text-file-folder"
         >
-          <FileText v-if="source.sourceKind === 'file'" :size="14" />
-          <FolderOpen v-else :size="14" />
+          <FileText v-if="source.sourceKind === 'file'" :size="17" />
+          <FolderOpen v-else :size="17" />
         </span>
-        <div class="min-w-0 flex-1">
-          <p class="m-0 flex items-center gap-1.5 text-sm font-medium text-ink-1">
-            {{ folderName(source.absolutePath) }}
+        <div class="row-main min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <p class="row-title m-0 truncate text-sm font-semibold text-ink-1">
+              {{ folderName(source.absolutePath) }}
+            </p>
             <span
-              class="scope-chip inline-flex items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+              class="scope-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
               >{{ scopeLabel(source.workspaceId) }}</span
             >
-          </p>
-          <p class="m-0 mt-px truncate text-xs text-ink-3">
+          </div>
+          <p class="row-sub m-0 mt-0.5 truncate text-xs text-ink-3">
             {{ source.absolutePath }} · {{ indexingSummary(source) }}
           </p>
         </div>
         <button
           type="button"
-          class="grid shrink-0 cursor-default place-items-center rounded-sm p-1 text-ink-3 hover:bg-row-hover hover:text-danger"
+          class="icon-button shrink-0 cursor-default rounded-md p-1 text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
           :title="`Remove ${folderName(source.absolutePath)} from knowledge`"
           :aria-label="`Remove ${folderName(source.absolutePath)} from knowledge`"
           @click="remove(source)"
         >
-          <X :size="13" />
+          <X :size="14" />
         </button>
       </div>
     </div>

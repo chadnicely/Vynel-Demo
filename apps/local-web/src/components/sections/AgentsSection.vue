@@ -46,40 +46,40 @@ const sectionHint = computed(() =>
   <div class="agents-section flex flex-col gap-2.5">
     <SectionHeader :icon="Bot" title="Agents" :subtitle="sectionHint" />
 
-    <div v-if="agents.length > 0" class="rows flex flex-col gap-1">
+    <div v-if="agents.length > 0" class="rows flex flex-col gap-2">
       <div
         v-for="agent in agents"
         :key="agent.id"
-        class="row flex items-center gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2"
+        class="row group flex items-center gap-3 rounded-lg border border-hair bg-raised p-3 transition hover:border-hair-strong hover:shadow-raised"
       >
         <span
-          class="row-icon grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+          class="row-icon grid size-9 shrink-0 place-items-center rounded-md bg-ok/10 text-ok"
         >
-          <Bot :size="14" />
+          <Bot :size="17" />
         </span>
         <div class="row-main min-w-0 flex-1">
-          <p
-            class="row-title m-0 flex items-center gap-1.5 text-sm font-medium text-ink-1"
-          >
-            {{ agent.name }}
+          <div class="flex items-center gap-2">
+            <p class="row-title m-0 truncate text-sm font-semibold text-ink-1">
+              {{ agent.name }}
+            </p>
             <span
               v-if="SOURCE_LABELS[agent.source]"
-              class="scope-chip inline-flex items-center gap-0.5 rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+              class="scope-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
             >
               {{ SOURCE_LABELS[agent.source] }}
             </span>
             <span
-              class="scope-chip inline-flex items-center gap-0.5 rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+              class="scope-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
               >{{ scopeLabel(agent.workspaceId) }}</span
             >
-          </p>
-          <p class="row-sub m-0 mt-px truncate text-xs text-ink-3">
+          </div>
+          <p class="row-sub m-0 mt-0.5 truncate text-xs text-ink-3">
             {{ agent.description }}
           </p>
         </div>
         <button
           type="button"
-          class="pill shrink-0 cursor-default rounded-full px-2.5 py-px text-[11px] font-semibold"
+          class="pill shrink-0 cursor-default rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
           :class="
             agent.enabled
               ? 'is-on bg-ok/15 text-ok'

@@ -72,36 +72,36 @@ function onCreated() {
       </template>
     </SectionHeader>
 
-    <div v-if="schedules.length > 0" class="grid gap-1">
+    <div v-if="schedules.length > 0" class="rows flex flex-col gap-2">
       <div
         v-for="schedule in schedules"
         :key="schedule.id"
-        class="row flex items-center gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2"
+        class="row group flex items-center gap-3 rounded-lg border border-hair bg-raised p-3 transition hover:border-hair-strong hover:shadow-raised"
       >
         <span
-          class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+          class="row-icon grid size-9 shrink-0 place-items-center rounded-md bg-info/10 text-info"
         >
-          <Timer v-if="schedule.scheduleKind === 'one-time'" :size="14" />
-          <Repeat v-else :size="14" />
+          <Timer v-if="schedule.scheduleKind === 'one-time'" :size="17" />
+          <Repeat v-else :size="17" />
         </span>
-        <div class="min-w-0 flex-1">
-          <p
-            class="row-title m-0 flex items-center gap-1.5 text-sm font-medium text-ink-1"
-          >
-            {{ schedule.displayName }}
+        <div class="row-main min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <p class="row-title m-0 truncate text-sm font-semibold text-ink-1">
+              {{ schedule.displayName }}
+            </p>
             <span
-              class="scope-chip inline-flex items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+              class="scope-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
               >{{ scopeLabel(schedule.workspaceId) }}</span
             >
-          </p>
-          <p class="mb-0 mt-px truncate text-xs text-ink-3">
+          </div>
+          <p class="row-sub m-0 mt-0.5 truncate text-xs text-ink-3">
             {{ describeScheduleCadence(schedule) }} ·
             {{ nextFireNote(schedule.nextScheduledFireAt) }}
           </p>
         </div>
         <button
           type="button"
-          class="pill inline-flex shrink-0 cursor-default items-center rounded-full border border-transparent px-2.5 py-px text-[11px] font-semibold transition hover:border-hair-strong"
+          class="pill inline-flex shrink-0 cursor-default items-center rounded-full border border-transparent px-2.5 py-0.5 text-[11px] font-semibold transition hover:border-hair-strong"
           :class="
             schedule.isEnabled
               ? 'is-on bg-ok/15 text-ok'

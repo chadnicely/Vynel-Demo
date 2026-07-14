@@ -69,12 +69,12 @@ function tierLabel(tier: string): string {
 
     <template v-else-if="status?.kind === 'signed-in'">
       <div
-        class="identity-card flex items-center gap-2.5 rounded-md border border-hair bg-raised px-3 py-2.5"
+        class="identity-card group flex items-center gap-3 rounded-lg border border-hair bg-raised p-3 transition hover:border-hair-strong hover:shadow-raised"
       >
         <span
-          class="grid size-[30px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+          class="grid size-9 shrink-0 place-items-center rounded-md bg-claude-soft text-sm font-semibold uppercase text-claude"
         >
-          <UserRound :size="16" />
+          {{ status.displayName.charAt(0) }}
         </span>
         <div class="min-w-0 flex-1">
           <p
@@ -89,7 +89,7 @@ function tierLabel(tier: string): string {
               >{{ tierLabel(status.tier) }}</span
             >
           </p>
-          <p class="mt-px mb-0 text-xs text-ink-3">{{ status.email }}</p>
+          <p class="m-0 mt-0.5 text-xs text-ink-3">{{ status.email }}</p>
         </div>
         <span class="shrink-0 text-2xs text-ink-3">
           Checked {{ formatRelativeTime(status.checkedAt) }}
@@ -102,7 +102,7 @@ function tierLabel(tier: string): string {
         >
           Devices
         </p>
-        <div v-if="devices.length > 0" class="grid gap-1">
+        <div v-if="devices.length > 0" class="flex flex-col gap-2">
           <AccountDeviceRow
             v-for="device in devices"
             :key="device.id"
@@ -117,12 +117,12 @@ function tierLabel(tier: string): string {
 
     <div
       v-else-if="status?.kind === 'locked'"
-      class="status-card flex items-center gap-2.5 rounded-md border border-hair bg-raised px-3 py-2.5"
+      class="status-card flex items-center gap-3 rounded-lg border border-hair bg-raised p-3 transition hover:border-hair-strong hover:shadow-raised"
     >
       <span
-        class="grid size-[30px] shrink-0 place-items-center rounded-sm border border-transparent bg-gold-soft text-gold"
+        class="grid size-9 shrink-0 place-items-center rounded-md bg-gold-soft text-gold"
       >
-        <Lock :size="16" />
+        <Lock :size="17" />
       </span>
       <div class="min-w-0 flex-1">
         <p
@@ -146,12 +146,12 @@ function tierLabel(tier: string): string {
 
     <div
       v-else-if="status?.kind === 'offline'"
-      class="status-card flex items-center gap-2.5 rounded-md border border-hair bg-raised px-3 py-2.5"
+      class="status-card flex items-center gap-3 rounded-lg border border-hair bg-raised p-3 transition hover:border-hair-strong hover:shadow-raised"
     >
       <span
-        class="grid size-[30px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+        class="grid size-9 shrink-0 place-items-center rounded-md bg-panel text-ink-3"
       >
-        <CloudOff :size="16" />
+        <CloudOff :size="17" />
       </span>
       <div class="min-w-0 flex-1">
         <p

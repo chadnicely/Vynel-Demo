@@ -34,7 +34,7 @@ function submit() {
 
 <template>
   <form
-    class="sign-in-card grid gap-3 rounded-md border border-hair bg-raised p-3.5"
+    class="sign-in-card grid gap-3 rounded-lg border border-hair bg-raised p-3.5"
     @submit.prevent="submit"
   >
     <label class="grid gap-1.5">
