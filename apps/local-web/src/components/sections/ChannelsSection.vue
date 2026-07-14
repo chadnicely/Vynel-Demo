@@ -84,29 +84,33 @@ function disarmDisconnect(channelId: string) {
       </template>
     </SectionHeader>
 
-    <div v-if="channels.length > 0" class="rows grid gap-1">
+    <div v-if="channels.length > 0" class="rows flex flex-col gap-2">
       <div
         v-for="channel in channels"
         :key="channel.id"
-        class="row flex items-center gap-2.5 rounded-sm border border-hair bg-raised px-2.5 py-2"
+        class="row group flex items-center gap-3 rounded-lg border border-hair bg-raised p-3 transition hover:border-hair-strong hover:shadow-raised"
       >
         <span
-          class="row-icon grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-panel text-ink-2"
+          class="row-icon grid size-9 shrink-0 place-items-center rounded-md bg-info/10 text-info"
         >
-          <component :is="KIND_ICONS[channel.channelKind]" :size="14" />
+          <component :is="KIND_ICONS[channel.channelKind]" :size="17" />
         </span>
         <div class="row-main min-w-0 flex-1">
-          <p class="row-title m-0 flex items-center gap-1.5 text-sm font-medium text-ink-1">
-            {{ channel.displayName }}
+          <div class="flex items-center gap-2">
+            <p class="row-title m-0 truncate text-sm font-semibold text-ink-1">
+              {{ channel.displayName }}
+            </p>
             <span
-              class="scope-chip inline-flex items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+              class="scope-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
               >{{ scopeLabel(channel.workspaceId) }}</span
             >
+          </div>
+          <p class="row-sub m-0 mt-0.5 truncate text-xs text-ink-3">
+            {{ statusNote(channel) }}
           </p>
-          <p class="row-sub mt-px truncate text-xs text-ink-3">{{ statusNote(channel) }}</p>
         </div>
         <span
-          class="pill shrink-0 rounded-full px-2.5 py-px text-[11px] font-semibold"
+          class="pill shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
           :class="
             channel.connectionStatus === 'healthy'
               ? 'is-on bg-ok/15 text-ok'
@@ -119,8 +123,8 @@ function disarmDisconnect(channelId: string) {
           type="button"
           :class="
             armedDisconnectId === channel.id
-              ? 'row-action is-danger inline-flex shrink-0 cursor-default items-center rounded-full border border-danger/40 px-[11px] py-[3px] text-xs font-semibold text-danger transition hover:border-danger hover:bg-danger/10'
-              : 'icon-button shrink-0 cursor-default rounded-sm p-[3px] text-ink-3 hover:bg-row-hover hover:text-ink-1'
+              ? 'row-action is-danger inline-flex shrink-0 cursor-default items-center rounded-full border border-danger/40 px-2.5 py-0.5 text-xs font-semibold text-danger transition hover:border-danger hover:bg-danger/10'
+              : 'icon-button shrink-0 cursor-default rounded-md p-1 text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100'
           "
           :title="
             armedDisconnectId === channel.id
@@ -136,7 +140,7 @@ function disarmDisconnect(channelId: string) {
           @blur="disarmDisconnect(channel.id)"
         >
           <template v-if="armedDisconnectId === channel.id">Sure?</template>
-          <X v-else :size="13" />
+          <X v-else :size="14" />
         </button>
       </div>
     </div>

@@ -12,18 +12,22 @@ defineProps<{
 </script>
 
 <template>
-  <header class="flex items-start gap-2.5 px-1 pb-1">
-    <component
-      :is="icon"
+  <header class="flex items-start gap-3 px-0.5 pb-3">
+    <span
       v-if="icon"
-      :size="15"
-      class="mt-0.5 shrink-0 text-ink-2"
-    />
+      class="grid size-9 shrink-0 place-items-center rounded-lg border border-hair bg-panel text-ink-2"
+    >
+      <component :is="icon" :size="17" />
+    </span>
     <div class="min-w-0 flex-1">
-      <p class="m-0 text-sm font-semibold text-ink-1">{{ title }}</p>
-      <p v-if="subtitle" class="m-0 text-xs text-ink-3">{{ subtitle }}</p>
+      <p class="m-0 text-base font-semibold tracking-tight text-ink-1">
+        {{ title }}
+      </p>
+      <p v-if="subtitle" class="m-0 mt-0.5 text-xs text-ink-2">
+        {{ subtitle }}
+      </p>
     </div>
-    <div v-if="$slots.actions" class="shrink-0">
+    <div v-if="$slots.actions" class="shrink-0 self-center">
       <slot name="actions" />
     </div>
   </header>
