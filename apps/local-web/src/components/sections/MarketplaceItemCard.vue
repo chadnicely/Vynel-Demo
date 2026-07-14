@@ -81,7 +81,7 @@ const removeLabel = computed(() => {
         <p class="card-title m-0 truncate text-sm font-semibold text-ink-1">
           {{ item.displayName }}
         </p>
-        <p class="mt-0.5 flex flex-wrap items-center gap-1.5">
+        <p class="m-0 mt-0.5 flex flex-wrap items-center gap-1.5">
           <!-- What you're getting: a skill (a capability) or an agent
                (a persona) — the Get flow is identical for both. -->
           <span

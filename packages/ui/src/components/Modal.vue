@@ -30,6 +30,19 @@ const sizeClass: Record<NonNullable<typeof props.size>, string> = {
   md: "max-w-md",
   lg: "max-w-lg",
 };
+
+// Reka's focus scope moves focus to the first tabbable element on open, which
+// ignores native `autofocus`. Honor it so a dialog's marked field (a search
+// box, the first input) gets the caret instead of whatever happens to be first.
+function onOpenAutoFocus(event: Event) {
+  const marked = (event.target as HTMLElement | null)?.querySelector<HTMLElement>(
+    "[autofocus]",
+  );
+  if (marked) {
+    event.preventDefault();
+    marked.focus();
+  }
+}
 </script>
 
 <template>
@@ -41,6 +54,7 @@ const sizeClass: Record<NonNullable<typeof props.size>, string> = {
           'fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[92vw] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-hair-strong bg-raised text-ink-1 shadow-overlay outline-none animate-pop-in',
           sizeClass[props.size],
         ]"
+        @open-auto-focus="onOpenAutoFocus"
       >
         <header
           v-if="props.title || props.description || $slots.title"
