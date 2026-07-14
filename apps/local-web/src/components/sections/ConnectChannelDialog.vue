@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { MessageSquare, Send } from "lucide-vue-next";
+import { Modal } from "@vynel/ui";
 import { useConnectChannel } from "../../composables/channels/use-connect-channel.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
@@ -83,313 +84,126 @@ function connect() {
   );
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    // Claim the key so outer overlays don't also close on the same press.
-    event.preventDefault();
-    emit("close");
-  }
+// Modal owns Esc / backdrop / focus-trap / scroll-lock; it reports close via
+// update:open, which we forward to the parent as `close`.
+function onOpenChange(open: boolean) {
+  if (!open) emit("close");
 }
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="props.open"
-      class="dialog-backdrop"
-      @pointerdown.self="emit('close')"
-      @keydown="onKeydown"
-    >
-      <div
-        class="dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Connect a channel"
-      >
-        <header class="dialog-header">
-          <h2 class="dialog-title">Connect a channel</h2>
-          <p class="dialog-subtitle">
-            Message Claude from your phone — same brain, same memory, approvals
-            included.
-          </p>
-        </header>
-
-        <div class="kind-cards">
-          <div class="kind-card is-selected">
-            <span class="kind-icon"><Send :size="15" /></span>
-            <span class="kind-text">
-              <span class="kind-name">Telegram</span>
-              <span class="kind-note">Two minutes with @BotFather</span>
-            </span>
-          </div>
-          <div class="kind-card is-disabled" aria-disabled="true">
-            <span class="kind-icon"><MessageSquare :size="15" /></span>
-            <span class="kind-text">
-              <span class="kind-name">Discord</span>
-              <span class="kind-note">Coming soon</span>
-            </span>
-          </div>
+  <Modal
+    :open="props.open"
+    title="Connect a channel"
+    description="Message Claude from your phone — same brain, same memory, approvals included."
+    @update:open="onOpenChange"
+  >
+    <div class="flex flex-col gap-3.5 pt-1">
+      <div class="grid grid-cols-2 gap-2">
+        <div class="flex items-center gap-2.5 rounded-md border border-gold bg-gold-soft p-2.5">
+          <span class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-raised text-ink-2">
+            <Send :size="15" />
+          </span>
+          <span class="grid min-w-0 gap-px">
+            <span class="text-[12.5px] font-semibold text-ink-1">Telegram</span>
+            <span class="text-[10.5px] text-ink-3">Two minutes with @BotFather</span>
+          </span>
         </div>
-
-        <label class="field">
-          <span class="field-label">Name</span>
-          <input
-            v-model="displayName"
-            type="text"
-            maxlength="120"
-            autofocus
-            @keydown.enter.prevent="connect"
-          />
-        </label>
-
-        <label class="field">
-          <span class="field-label">Bot token</span>
-          <input
-            v-model="botToken"
-            type="password"
-            placeholder="123456:ABC-…"
-            autocomplete="new-password"
-            @keydown.enter.prevent="connect"
-          />
-          <span class="field-hint">
-            In Telegram, message @BotFather → /newbot → paste the token it
-            gives you. It stays on this computer.
+        <div class="flex items-center gap-2.5 rounded-md border border-hair bg-panel p-2.5 opacity-55" aria-disabled="true">
+          <span class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-raised text-ink-2">
+            <MessageSquare :size="15" />
           </span>
-        </label>
-
-        <label class="field">
-          <span class="field-label">
-            Your Telegram user ID <span class="optional-tag">optional</span>
+          <span class="grid min-w-0 gap-px">
+            <span class="text-[12.5px] font-semibold text-ink-1">Discord</span>
+            <span class="text-[10.5px] text-ink-3">Coming soon</span>
           </span>
-          <input
-            v-model="allowedSenderId"
-            type="text"
-            placeholder="e.g. 123456789"
-            @keydown.enter.prevent="connect"
-          />
-          <span class="field-hint">
-            Only allowed senders can talk to Claude. Add yourself now (ask
-            @userinfobot for your ID) or approve senders later.
-          </span>
-        </label>
-
-        <label class="field">
-          <span class="field-label">Where it lives</span>
-          <select v-model="scopeChoice" class="scope-select">
-            <option value="global">Global — Claude everywhere</option>
-            <option
-              v-for="workspace in workspaces"
-              :key="workspace.id"
-              :value="workspace.id"
-            >
-              {{ workspace.name }} workspace
-            </option>
-          </select>
-        </label>
-
-        <p v-if="errorMessage" class="dialog-error" role="alert">
-          {{ errorMessage }}
-        </p>
-
-        <footer class="dialog-actions">
-          <button type="button" class="ghost" @click="emit('close')">
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="primary"
-            :disabled="!canConnect"
-            @click="connect"
-          >
-            {{ connectChannel.isPending.value ? "Connecting…" : "Connect" }}
-          </button>
-        </footer>
+        </div>
       </div>
+
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Name</span>
+        <input
+          v-model="displayName"
+          type="text"
+          maxlength="120"
+          autofocus
+          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
+          @keydown.enter.prevent="connect"
+        />
+      </label>
+
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Bot token</span>
+        <input
+          v-model="botToken"
+          type="password"
+          placeholder="123456:ABC-…"
+          autocomplete="new-password"
+          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
+          @keydown.enter.prevent="connect"
+        />
+        <span class="text-[11px] text-ink-3">
+          In Telegram, message @BotFather → /newbot → paste the token it gives
+          you. It stays on this computer.
+        </span>
+      </label>
+
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">
+          Your Telegram user ID
+          <span class="text-[10px] font-medium uppercase tracking-wide text-ink-3">optional</span>
+        </span>
+        <input
+          v-model="allowedSenderId"
+          type="text"
+          placeholder="e.g. 123456789"
+          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
+          @keydown.enter.prevent="connect"
+        />
+        <span class="text-[11px] text-ink-3">
+          Only allowed senders can talk to Claude. Add yourself now (ask
+          @userinfobot for your ID) or approve senders later.
+        </span>
+      </label>
+
+      <label class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Where it lives</span>
+        <select
+          v-model="scopeChoice"
+          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
+        >
+          <option value="global">Global — Claude everywhere</option>
+          <option
+            v-for="workspace in workspaces"
+            :key="workspace.id"
+            :value="workspace.id"
+          >
+            {{ workspace.name }} workspace
+          </option>
+        </select>
+      </label>
+
+      <p v-if="errorMessage" class="m-0 text-xs text-danger" role="alert">
+        {{ errorMessage }}
+      </p>
     </div>
-  </Teleport>
+
+    <template #footer>
+      <button
+        type="button"
+        class="cursor-default rounded-sm border border-hair-strong px-3.5 py-1.5 text-xs font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+        @click="emit('close')"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="cursor-default rounded-sm bg-gold px-4 py-1.5 text-xs font-semibold text-shell transition hover:bg-gold-bright disabled:opacity-55"
+        :disabled="!canConnect"
+        @click="connect"
+      >
+        {{ connectChannel.isPending.value ? "Connecting…" : "Connect" }}
+      </button>
+    </template>
+  </Modal>
 </template>
-
-<style scoped>
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  background: var(--bg-overlay);
-}
-
-.dialog {
-  width: min(460px, calc(100vw - 48px));
-  display: grid;
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-l);
-  background: var(--bg-raised);
-  box-shadow: var(--shadow-overlay);
-}
-
-.dialog-header {
-  display: grid;
-  gap: 3px;
-}
-
-.dialog-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 15px/1.4 var(--font-ui);
-}
-
-.dialog-subtitle {
-  margin: 0;
-  color: var(--ink-2);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.kind-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.kind-card {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 11px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-m);
-  background: var(--bg-panel);
-}
-
-.kind-card.is-selected {
-  border-color: var(--gold);
-  background: var(--gold-soft);
-}
-
-.kind-card.is-disabled {
-  opacity: 0.55;
-}
-
-.kind-icon {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-raised);
-  color: var(--ink-2);
-  flex: none;
-}
-
-.kind-text {
-  display: grid;
-  gap: 1px;
-  min-width: 0;
-}
-
-.kind-name {
-  color: var(--ink-1);
-  font: 600 12.5px/1.4 var(--font-ui);
-}
-
-.kind-note {
-  color: var(--ink-3);
-  font: 400 10.5px/1.4 var(--font-ui);
-}
-
-.field {
-  display: grid;
-  gap: 5px;
-}
-
-.field-label {
-  color: var(--ink-2);
-  font: 600 11.5px/1.5 var(--font-ui);
-}
-
-.optional-tag {
-  color: var(--ink-3);
-  font: 500 10px/1.5 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.field input,
-.scope-select {
-  appearance: none;
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius-s);
-  background: var(--bg-panel);
-  color: var(--ink-1);
-  font: 400 12.5px/1.5 var(--font-ui);
-}
-
-.field input:focus-visible,
-.scope-select:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -1px;
-}
-
-.field-hint {
-  color: var(--ink-3);
-  font: 400 11px/1.5 var(--font-ui);
-}
-
-.dialog-error {
-  margin: 0;
-  color: var(--danger);
-  font: 400 12px/1.5 var(--font-ui);
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.ghost,
-.primary {
-  appearance: none;
-  border: 1px solid var(--hair-strong);
-  margin: 0;
-  padding: 6px 14px;
-  border-radius: var(--radius-s);
-  font: 600 12px/1.5 var(--font-ui);
-  cursor: default;
-}
-
-.ghost {
-  background: transparent;
-  color: var(--ink-2);
-}
-
-.ghost:hover {
-  color: var(--ink-1);
-  background: var(--row-hover);
-}
-
-.primary {
-  border-color: transparent;
-  background: var(--gold);
-  color: #14171c;
-}
-
-.primary:hover:not(:disabled) {
-  background: var(--gold-bright);
-}
-
-.primary:disabled {
-  opacity: 0.55;
-}
-
-.ghost:focus-visible,
-.primary:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-</style>
