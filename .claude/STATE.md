@@ -1,9 +1,34 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-12.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-14.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-12g): MARKETPLACE POLISH ARC SHIPPED (storefront · scopes+global surface · portal user-mgmt · agents shelf · DISK MIRROR) — gate 2384/4-skip, all committed; OPEN: instructions arc · mcp/plugin forks · Chad's smokes
+## ⏭ NEXT ACTION (2026-07-14): DESKTOP-SHELL REINVENTION — PHASE 3A (Tailwind bridge + primitives) BUILT + GATE-GREEN (453f/2403t), UNCOMMITTED; NEXT: Wave B = the new shell wired to existing views
+
+**Chad reopened two LOCKED UI calls (memory [[desktop-shell-reinvention-tailwind]]): full Tailwind
+migration + reinvent the 3-tab shell into a real desktop app (title bar · menu bar · resizable panes ·
+command palette · context menus · tooltips), window target = simulate + Tauri-aware.** Docs:
+`docs/desktop-shell-inventory.md` (Phase 1 map) · `docs/desktop-shell-design-spec.md` (Phase 2 spec).
+**Phase 3A built (Chad chose "token bridge + primitives first, then the shell"):**
+- **Tailwind v4 bridge** (`@tailwindcss/vite` in local-web; `@theme inline` in `app.css` maps
+  `tokens.css` → utilities; preflight deliberately OFF for now so nothing regresses; keyframes +
+  reduced-motion + overscroll-none added). VERIFIED live in browser: `bg-gold`→#d9a03f, `bg-panel`
+  flips #14171c↔#f7f8fa on `[data-theme]` toggle. Utilities are theme-reactive.
+- **Reka UI** (`reka-ui` in `@vynel/ui`) as the headless behavior layer. **7 primitives** built +
+  exported + tested (80 ui tests): `Tooltip · DropdownMenu · ContextMenu · Modal · CommandPalette
+  (⌘K, hand-rolled combobox in a Reka Dialog) · ResizablePanel (hand-rolled, persisted, the
+  signature) · ConfirmButton`. Shared `menu-shared.ts` (item model + token classes). vitest.setup.ts
+  polyfills (ResizeObserver/matchMedia/pointer-capture) for Reka in happy-dom.
+- **Preview gallery:** bare route `/ui-preview` (`views/PrimitivesPreview.vue`) — living component
+  gallery + bridge proof. ⚠ Screenshots hung (browser-pane issue); verified via computed-styles + JS.
+  **⏭ CHAD SMOKE: open http://localhost:8999/ui-preview — menu bar dropdowns, ⌘K palette, drag the
+  panel dividers (widths persist on reload), right-click the dashed box, toggle theme.**
+**⏭ COMMIT (prompt out; suggest `feat(ui): tailwind token bridge + reka-ui desktop primitives` +
+`docs`): existing scoped-CSS components UNTOUCHED (incremental). Then Wave B: build the shell
+(title+menu bar, left nav, split panes, right dock, status bar) and wire the existing views into it,
+per the design spec.** OPEN from before: instructions arc · mcp/plugin forks · Chad's marketplace smokes.
+
+## (prev) NEXT ACTION (2026-07-12g): MARKETPLACE POLISH ARC SHIPPED (storefront · scopes+global surface · portal user-mgmt · agents shelf · DISK MIRROR) — gate 2384/4-skip, all committed; OPEN: instructions arc · mcp/plugin forks · Chad's smokes
 
 **Since 12f, five commits (all reviewed, 0 unresolved must-fix):** `e525275` storefront cards+search+
 kind filters (panel slimmed 465→237) · `5c071af` item scopes user|workspace|both + the GLOBAL

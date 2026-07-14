@@ -46,8 +46,14 @@
   from ANY view (badge + actionable toast stack in the shell), and via OS notifications once the
   Tauri shell lands (M6). The global chat view is the single control surface where a non-technical
   user tracks every task — approvals never hide inside one thread.
-- **No Tailwind** — the design system is CSS custom properties + scoped SFC styles only (one
-  styling idiom, zero extra deps). Revisit only if utility sprawl appears.
+- ~~**No Tailwind**~~ — **REVERSED 2026-07-14 (Chad): full Tailwind migration + shell reinvention**
+  (memory [[desktop-shell-reinvention-tailwind]]; Phase-1 inventory `docs/desktop-shell-inventory.md`;
+  design spec `docs/desktop-shell-design-spec.md`). The token *values* stay in `tokens.css`; Tailwind
+  v4 (`@tailwindcss/vite`) turns them into utilities via `@theme inline` in `apps/local-web/src/styles/
+  app.css` (dark/light stays reactive through the `[data-theme]` vars). Migration is INCREMENTAL —
+  bridge → primitives → shell → convert folder-by-folder; scoped SFC styles are retired as each
+  component is converted, not big-bang. **Reka UI** (`reka-ui`, in `@vynel/ui`) is the headless
+  behavior layer for overlays.
 
 ## Known deviations (deliberate, with WHY)
 
