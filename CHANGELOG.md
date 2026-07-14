@@ -7,6 +7,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Changed
+
+- **A desktop-app shell.** The window now has a proper desktop layout: a title bar with drop-down
+  menus (Vynel · Assistant · View · Go) and minimize/maximize/close controls, a Home/Chat toggle with
+  a workspace switcher beside it (switch between Global and any workspace, or start a new one), a clean
+  left navigation you can drag to resize (its width is remembered), a status line along the bottom, and
+  a **⌘K command palette** to jump anywhere or run an action by typing. Feature sections
+  (Channels, Schedules, Knowledge, Memory, Notebook, Marketplace, Agents) now live in the sidebar
+  rather than a hidden drawer.
+
 ### Fixed
 
 - **Dialogs and overlays no longer wash out in light mode.** Modal and overlay backdrops now dim the

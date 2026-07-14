@@ -3,7 +3,31 @@
 **Updated 2026-07-14.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-14): DESKTOP-SHELL REINVENTION — PHASE 3A (Tailwind bridge + primitives) BUILT + GATE-GREEN (453f/2403t), UNCOMMITTED; NEXT: Wave B = the new shell wired to existing views
+## ⏭ NEXT ACTION (2026-07-14b): DESKTOP SHELL ADOPTED IN THE REAL APP (Wave B) — gate GREEN 457f/2417t, committed + PUSHED; NEXT: unified right dock (History/Files/Trace tabs) + Chad's live smoke
+
+**Wave B shipped (done autonomously per Chad; verified in-browser + gate-green, no live smoke yet).**
+App.vue is now thin (bare-route / onboarding / `<AppShell>`); the reinvented shell lives in
+`components/shell/AppShell.vue` — `AppTitleBar` (menu bar Vynel/Assistant/View/Go + workspace switcher
+[Global + workspaces + New] + Tauri-aware window controls via the `__TAURI__` global + presence),
+resizable `AppSidebar` (Home/Chat segmented toggle + contextual sections + account row), the routed
+view as canvas, `AppStatusBar`, ⌘K `CommandPalette`, plus the existing overlays. **Nav model (Chad):
+no Workspace tab — Home/Chat toggle + the title-bar switcher enters a room; sidebar owns the feature
+sections (drove ui-store `mainView`).** The two chat views only lost their `MenuPanel` (all chat/
+session logic untouched); HomeView untouched. **Deleted (orphaned):** `TitleBar.vue`, `MenuPanel.vue`,
+`WorkspaceSwitcher.vue` + ui-store `isMenuOpen`. Reviewer: 0 must-fix; 3 should-fixes APPLIED (①
+Settings/Application no longer misroutes to the chat thread inside a workspace — non-workspace sections
+route to global; ② dead menu items removed, Quit wired to `controls.close()`; ③ shell + its data hooks
+[incl. the 5s approvals poll] lifted into `AppShell` so the `/jarvis` bare overlay doesn't run them).
+New tests: AppSidebar/AppStatusBar/AppTitleBar/use-window-controls; app-shell.test updated to the 2-tab
+model. **LIVE-VERIFIED in-browser (real API, tab reload): Home/Chat/sections/workspace-switcher [real
+workspaces vynel+letterman]/⌘K all work, theme+light-mode clean, console clean, Application-in-workspace
+fix confirmed.** ⚠ Screenshots hung (browser-pane glitch) — verified via computed styles + JS + get_page_text.
+**⏭ DEFERRED (documented): the unified tabbed right dock (History/Files/Trace) — the views still render
+their own SessionsPanel/FilesPanel; Trace stays the floating SessionViewerPanel. Also: quick-access
+voice/theme icons dropped from the title bar (now in menus + ⌘K) — re-add if Chad wants. `/shell-preview`
++ `/ui-preview` dev galleries kept. CHAD SMOKE: run the app, drive the shell, then decide on the dock.**
+
+## (prev) NEXT ACTION (2026-07-14): DESKTOP-SHELL REINVENTION — PHASE 3A (Tailwind bridge + primitives) BUILT + GATE-GREEN (453f/2403t), COMMITTED (`12eeea9`+`4b50ce1`); Wave B = the new shell wired to existing views
 
 **Chad reopened two LOCKED UI calls (memory [[desktop-shell-reinvention-tailwind]]): full Tailwind
 migration + reinvent the 3-tab shell into a real desktop app (title bar · menu bar · resizable panes ·
