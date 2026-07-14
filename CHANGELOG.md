@@ -7,6 +7,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dialogs and overlays no longer wash out in light mode.** Modal and overlay backdrops now dim the
+  page behind them in light theme — they previously used a near-white scrim that bleached everything,
+  leaving pop-ups looking flat and low-contrast.
+
 ### Added
 
 - **Paste or attach files and images in chat — and Claude actually receives them.** Paste a

@@ -9,6 +9,7 @@ export default defineConfig({
     name: "ui",
     include: ["src/**/*.test.ts"],
     environment: "happy-dom",
+    setupFiles: ["./vitest.setup.ts"],
     passWithNoTests: true,
   },
 });

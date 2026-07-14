@@ -1,5 +1,179 @@
-/* App-level base styles. Design tokens come from @vynel/ui/styles/tokens.css. */
+/*
+ * App-level styles + the Tailwind bridge.
+ *
+ * The design tokens (raw CSS custom properties, dark default + [data-theme]
+ * light) still live in @vynel/ui/styles/tokens.css, imported first in main.ts.
+ * This file turns those tokens into Tailwind utilities via `@theme inline`, so
+ * `bg-panel text-ink-1 border-hair rounded-md shadow-overlay` all resolve to the
+ * runtime variables and keep responding to the light/dark toggle for free.
+ *
+ * Preflight (Tailwind's global reset) is deliberately NOT imported yet — the
+ * existing scoped-CSS components own their resets, so utilities are added
+ * without disturbing anything. Preflight lands in the full-conversion step.
+ */
+@layer theme, base, components, utilities;
 
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* @vynel/ui is reached through a node_modules symlink, which Tailwind's content
+   auto-detection skips — point it at the library source explicitly so utility
+   classes used inside shared components are generated. */
+@source "../../../../packages/ui/src";
+
+@theme inline {
+  /* Surfaces → bg-shell / bg-panel / bg-raised / bg-overlay */
+  --color-shell: var(--bg-shell);
+  --color-panel: var(--bg-panel);
+  --color-raised: var(--bg-raised);
+  --color-overlay: var(--bg-overlay);
+
+  /* Ink ladder → text-ink-1 / text-ink-2 / text-ink-3 */
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+
+  /* Hairlines + row states → border-hair / bg-row-hover / … */
+  --color-hair: var(--hair);
+  --color-hair-strong: var(--hair-strong);
+  --color-row-hover: var(--row-hover);
+  --color-row-active: var(--row-active);
+
+  /* Presence — assistant activity/attention ONLY → text-gold / bg-gold-soft */
+  --color-gold: var(--gold);
+  --color-gold-bright: var(--gold-bright);
+  --color-gold-soft: var(--gold-soft);
+
+  /* Identity — Claude's coral spark → text-claude */
+  --color-claude: var(--claude-mark);
+  --color-claude-soft: var(--claude-mark-soft);
+
+  /* Status */
+  --color-ok: var(--ok);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+
+  /* File-type colors → text-file-doc / … */
+  --color-file-folder: var(--file-folder);
+  --color-file-doc: var(--file-doc);
+  --color-file-data: var(--file-data);
+  --color-file-image: var(--file-image);
+  --color-file-code: var(--file-code);
+
+  /* Workspace accents → bg-ws-1 / text-ws-3 / … */
+  --color-ws-1: var(--ws-1);
+  --color-ws-2: var(--ws-2);
+  --color-ws-3: var(--ws-3);
+  --color-ws-4: var(--ws-4);
+  --color-ws-5: var(--ws-5);
+  --color-ws-6: var(--ws-6);
+
+  /* Type — native system stack; the display face is hero-scale only */
+  --font-sans: var(--font-ui);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+
+  /* Compact desktop type scale → text-2xs … text-display */
+  --text-2xs: 0.656rem; /* ~10.5px — meta / eyebrows */
+  --text-xs: 0.719rem; /* ~11.5px — hints, chips */
+  --text-sm: 0.781rem; /* ~12.5px — labels, rows */
+  --text-base: 0.844rem; /* ~13.5px — body (matches today) */
+  --text-lg: 1rem; /* 16px */
+  --text-xl: 1.25rem; /* 20px */
+  --text-2xl: 1.5rem; /* 24px */
+  --text-display: 1.75rem; /* 28px — the welcome greeting only */
+
+  /* Shape → rounded-sm / rounded-md / rounded-lg (bridged, not duplicated) */
+  --radius-sm: var(--radius-s);
+  --radius-md: var(--radius-m);
+  --radius-lg: var(--radius-l);
+
+  /* Elevation → shadow-raised / shadow-overlay. Bridged via var() so the
+     lighter light-theme shadows in tokens.css reach the utilities too. */
+  --shadow-raised: var(--shadow-raised);
+  --shadow-overlay: var(--shadow-overlay);
+
+  /* Motion — the brief's 100–150ms, applied to bare `transition` utilities */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Overlay entrances → animate-overlay-in / animate-pop-in */
+  --animate-overlay-in: overlay-in 120ms var(--ease-out);
+  --animate-pop-in: pop-in 130ms var(--ease-out);
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Preflight is deferred, but utility-only components (the new primitives) still
+   need buttons stripped of native UA chrome. Scoped in @layer base so any
+   utility (bg-*, text-*, font-*, cursor-*) still wins, and so existing scoped
+   SFC styles (unlayered) stay authoritative. */
+@layer base {
+  /* Strip native UA chrome from form controls (the border/bg/font a text input
+     or button ships with by default), since preflight is deferred. In @layer
+     base, so scoped SFC styles (unlayered) and utilities both still win. */
+  button,
+  input,
+  textarea,
+  select {
+    background-color: transparent;
+    border: 0;
+    font: inherit;
+    color: inherit;
+  }
+  button {
+    appearance: none;
+    padding: 0;
+    cursor: default;
+  }
+  /* Flatten text-like fields; checkboxes/radios keep their native rendering
+     (onboarding uses them). */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    appearance: none;
+  }
+
+  /* The default focus ring (gold). In @layer base so a utility like
+     focus-visible:outline-none can override it where a ring is noise — e.g. the
+     always-focused command-palette input. Components with their own scoped
+     :focus-visible (unlayered) still win locally. */
+  :focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: -2px;
+  }
+}
+
+/* ── Base element styles (unchanged; kept unlayered so they stay authoritative
+   over any accidental utility on html/body). ── */
 * {
   box-sizing: border-box;
 }
@@ -17,6 +191,7 @@ body {
   font: 400 13.5px/1.6 var(--font-ui);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 #app {
@@ -25,11 +200,6 @@ body {
 
 ::selection {
   background: var(--gold-soft);
-}
-
-:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -2px;
 }
 
 /* Quiet desktop scrollbars */

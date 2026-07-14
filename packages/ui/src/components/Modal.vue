@@ -1,0 +1,95 @@
+<script setup lang="ts">
+import {
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal,
+  DialogRoot,
+  DialogTitle,
+  VisuallyHidden,
+} from "reka-ui";
+
+// One accessible modal base (focus-trap, Esc, scroll-lock, backdrop — all from
+// Reka's Dialog). Replaces the per-dialog Teleport/backdrop copy-paste. Body is
+// the default slot; actions go in the `footer` slot.
+const props = withDefaults(
+  defineProps<{
+    title?: string;
+    description?: string;
+    size?: "sm" | "md" | "lg";
+    hideClose?: boolean;
+  }>(),
+  { size: "md", hideClose: false },
+);
+
+const open = defineModel<boolean>("open", { required: true });
+
+const sizeClass: Record<NonNullable<typeof props.size>, string> = {
+  sm: "max-w-sm",
+  md: "max-w-md",
+  lg: "max-w-lg",
+};
+</script>
+
+<template>
+  <DialogRoot v-model:open="open">
+    <DialogPortal>
+      <DialogOverlay class="fixed inset-0 z-40 bg-overlay animate-overlay-in" />
+      <DialogContent
+        :class="[
+          'fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[92vw] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-hair-strong bg-raised text-ink-1 shadow-overlay outline-none animate-pop-in',
+          sizeClass[props.size],
+        ]"
+      >
+        <header
+          v-if="props.title || props.description || $slots.title"
+          class="px-4 pb-2 pt-4"
+        >
+          <DialogTitle class="m-0 text-lg font-semibold text-ink-1">
+            <slot name="title">{{ props.title }}</slot>
+          </DialogTitle>
+          <DialogDescription
+            v-if="props.description"
+            class="mt-1 text-sm text-ink-2"
+          >
+            {{ props.description }}
+          </DialogDescription>
+        </header>
+        <VisuallyHidden v-else as-child>
+          <DialogTitle>{{ props.title ?? "Dialog" }}</DialogTitle>
+        </VisuallyHidden>
+
+        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-1">
+          <slot />
+        </div>
+
+        <footer
+          v-if="$slots.footer"
+          class="flex justify-end gap-2 px-4 pb-4 pt-3"
+        >
+          <slot name="footer" />
+        </footer>
+
+        <DialogClose
+          v-if="!props.hideClose"
+          aria-label="Close"
+          class="absolute right-3 top-3 grid size-7 place-items-center rounded-sm text-ink-3 outline-none transition hover:bg-row-hover hover:text-ink-1 focus-visible:outline-2 focus-visible:outline-gold"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </DialogClose>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
+</template>

@@ -30,6 +30,14 @@ export function createAppRouter() {
         component: () => import("./views/JarvisView.vue"),
         meta: { bare: true },
       },
+      {
+        // Dev gallery for the reinvented desktop primitives (Tailwind + Reka UI).
+        // `bare` renders it standalone, outside the shell + onboarding gate.
+        path: "/ui-preview",
+        name: "ui-preview",
+        component: () => import("./views/PrimitivesPreview.vue"),
+        meta: { bare: true },
+      },
     ],
   });
 }

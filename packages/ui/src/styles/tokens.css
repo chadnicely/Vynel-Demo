@@ -96,7 +96,9 @@
   --bg-shell: #eef0f3;
   --bg-panel: #f7f8fa;
   --bg-raised: #ffffff;
-  --bg-overlay: rgba(238, 240, 243, 0.78);
+  /* A modal scrim must DIM, not bleach — a dark translucent wash in light mode
+     too, so dialogs/overlays read as raised above a dimmed page. */
+  --bg-overlay: rgba(17, 22, 30, 0.4);
 
   --ink-1: #1b1e24;
   --ink-2: #565c66;
