@@ -1,13 +1,17 @@
 # Build journal
 
-One short entry per module move — this is the "learn and re-correct" loop, on disk.
+The "learn and re-correct" loop, on disk — one entry per module move.
 
-Format:
+**One file per day: `YYYY-MM-DD.md`.** Each day file opens with a `# YYYY-MM-DD` heading, then each
+move that day is an `## ` section beneath it (its own sub-headings nested under that). Append the
+day's next move as a new `## ` section; start a new dated file when the day rolls over.
+
+Entry shape (terse and honest):
 
 ```
-YYYY-MM-DD — <module>: what moved · what changed/improved (dedupe, rewire, tighten) ·
-             what we learned · gate result (pnpm test / code-reviewer).
+## <module> — what moved · what changed/improved (dedupe, rewire, tighten) ·
+   what we learned · gate result (pnpm test / code-reviewer).
 ```
 
-Keep it terse and honest. If a move revealed a wrong heading or a duplication worth extracting, that
-belongs here so the next move starts smarter.
+If a move revealed a wrong heading or a duplication worth extracting, that belongs here so the next
+move starts smarter.
