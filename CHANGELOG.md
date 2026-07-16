@@ -31,6 +31,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A task list Claude keeps for you.** Ask for anything with more than one step and Claude now
+  tracks it as tasks you can see: what's planned, what it's working on right now, and what's done.
+  Every workspace has its own Tasks section (plus a global list), a checklist icon in the title bar
+  opens a slide-in panel with a badge counting what's open, and the Home dashboard shows the list
+  with everything recently completed. You can add, check off, reopen, or remove tasks yourself too —
+  and turn the whole thing off per workspace from Capabilities. Also available from the command line
+  (`vynel tasks`).
+
 - **Paste or attach files and images in chat — and Claude actually receives them.** Paste a
   screenshot, drop a PDF onto the message box, or pick files with the attach button; they ride the
   message in the main chat and in every workspace room (images, PDF, Word, Excel, PowerPoint, text,

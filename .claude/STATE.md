@@ -1,9 +1,58 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-14.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-17.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-14c): SECTION BEAUTIFY + PRIMITIVE UNIFICATION — ✅ DONE (gate GREEN 457f/2417t, reviewed, pushed, machine shut down)
+## ⏭ NEXT ACTION (2026-07-17): TASKS MODULE BUILT + REVIEWED CLEAN (arc ① of Tasks → Ask → Apps → SSH) — gate GREEN 466f/2457t, 0 must-fix, should-fixes FOLDED; commit prompt out; next arc: ASK
+
+**Reviewer: CLEAN, 0 must-fix. 2 should-fixes APPLIED (stray `_tmp_*` root files deleted; the
+real vynel descriptor's tasks gate list + capability-aware contributePrompt now pinned by tests)
++ badge 9+ cap nit applied. Deferred nits (recorded, non-blocking): Home Tasks card open-list
+uncapped (house-consistent w/ upcomingSchedules — cap + "view all" when lists grow) ·
+dashboard completed-tail derives from the newest-100-by-createdAt window (fine at personal
+scale) · schedulesUser/tasksUser create don't pre-verify a workspace-scope workspaceId (FK →
+500 not 400; pre-existing schedules pattern, codebase-wide sweep candidate).**
+
+**Chad's 4-feature arc (2026-07-17, memory [[tasks-apps-ssh-feature-arc]]): ① Tasks ② Ask (form-
+wizard user input via a blocking `ask_user` tool — one question per step + "view as full form"
+switch) ③ Apps (register/run/monitor workspace apps; net-new process-runner) ④ SSH servers
+(DB-ENCRYPTED creds + a library so Claude drives ssh blind; verified notebook BOOK teaching
+Claude server work; approval-card granularity still open). Tiers: Tasks FREE; Apps+SSH pro.
+Order Chad-approved. Design per module: `docs/module-notes/<module>.md` BEFORE building.**
+
+**① TASKS BUILT (this session, `docs/module-notes/tasks.md` = as-built):**
+- **Leaf `packages/tasks`**: `tasks` table (migration `0006_tasks`; userId + nullable workspaceId
+  NULL=global; status open|in-progress|done; source assistant|user; sessionId LOOSE ref;
+  completedAt) · functional repos · create/update/delete ops, outbox co-commits
+  (task.created/updated/completed/deleted; →done emits task.completed + stamps completedAt,
+  leaving done clears it, already-done→done keeps the original stamp).
+- **Routes = the TWO-DOOR provenance model**: workspace-scoped `/workspaces/:id/tasks` is the
+  AGENT's door (source='assistant' HARD-CODED, x-mcp tools list_tasks/create_task/update_task/
+  complete_task, mutatingApproved = UNCARDED like memory writes, NO delete tool); user-scoped
+  `/tasks` is the USER's door (source='user', panel/CLI, owns DELETE, x-mcp list_my_tasks only).
+  Unspoofable by construction. NOT featureGated (free tier).
+- **Capability `tasks`** (defaultEnabled) gates all 5 tools on vynelWorkspaceDescriptor.
+  **CONTRACT CHANGE (additive): `contributePrompt` gained optional 2nd param
+  `enabledCapabilityIds`** — the multi-capability vynel descriptor drops ONE capability's prompt
+  section (TASKS_PROMPT_INSTRUCTIONS) while others' tools stay live; composer passes it + spec
+  test. Global root: NO task tools v1 (router; global rows come via tasksUser).
+- **Dashboard** getOverview += openTasks + recentlyCompletedTasks(≤5, by completion time).
+- **UI (subagent-built, reviewed green)**: TasksSection+TaskRow+TaskStatusControl (Channels
+  beauty template, inline composer, collapsed Done group) on BOTH surfaces · TasksPanel right
+  dock (SessionsPanel pattern; ui-store isTasksPanelOpen; AppTitleBar ListChecks icon + count
+  badge + View-menu toggle + `toggle-tasks` command) · HomeView span-2 Tasks card ·
+  composables/tasks/* (shared invalidateTaskViews → tasks list + dashboard overview).
+- **CLI**: `vynel tasks list|add|done|reopen|delete` over tasksUser (user door only).
+- **Spec growth folded**: api-tools + namespaced spec tests, capability leaf/route tests.
+- **⚠ ENVIRONMENT (this box): WSL-side pnpm is BROKEN on the drvfs mount (EPERM futime) — run
+  ALL pnpm/vitest through Windows: `cmd.exe /c "pnpm test"` from the repo root.** sed -i leaves
+  zero-byte `sedXXXXXX`/`_tmp_*` files at root — clean them before committing.
+**⏭ NEXT: fold reviewer findings → commit (feat(tasks) + docs; standing commit authorization,
+NO AI trailer) + CHANGELOG → Chad smoke (ask for multi-step work in a workspace chat → tasks
+appear as tool cards + in the panel/badge/dashboard; toggle Tasks capability off → tools + prompt
+vanish) → write `docs/module-notes/ask.md` and start arc ② ASK.**
+
+## (prev) NEXT ACTION (2026-07-14c): SECTION BEAUTIFY + PRIMITIVE UNIFICATION — ✅ DONE (gate GREEN 457f/2417t, reviewed, pushed, machine shut down)
 
 **✅ COMPLETED autonomously (Chad away):** all 8 feature sections Tailwind-migrated THEN beautified
 to the Channels card template (rounded-lg cards, tinted icon tiles, hover-reveal actions, elevated
