@@ -27,6 +27,8 @@ import { schedulesApp } from './routes/schedules/index.js'
 import { schedulesUserApp } from './routes/schedules/user-scoped.js'
 import { tasksApp } from './routes/tasks/index.js'
 import { tasksUserApp } from './routes/tasks/user-scoped.js'
+import { asksApp } from './routes/asks/index.js'
+import { PendingAskRegistry } from '@vynel/asks'
 import { approvalsApp, approvalRulesApp } from './routes/approvals/index.js'
 import { approvalsUserApp } from './routes/approvals/user-scoped.js'
 import { chatApp } from './routes/chat/index.js'
@@ -77,6 +79,10 @@ export interface CreateAppOptions {
   // The daemon's hub-account session — present only when VYNEL_HUB_URL is
   // configured (server.ts); the /hub routes answer `not-configured` without it.
   readonly hubSession?: HubSession
+  // The `ask_user` waiter registry — one per process. Injectable so a test can
+  // park/resolve waiters around a route call; production omits it and gets a
+  // fresh instance.
+  readonly askWaiters?: PendingAskRegistry
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -92,6 +98,8 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   const aiProvider = options.aiProvider ?? resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
   // The turn-event pub/sub — one per process (see CreateAppOptions).
   const turnEvents = options.turnEvents ?? new TurnEventBroadcaster()
+  // The ask blocking bridge's in-memory half — one per process, like fileWatcher.
+  const askWaiters = options.askWaiters ?? new PendingAskRegistry()
 
   app.use('*', async (c, next) => {
     c.set('db', options.db)
@@ -100,6 +108,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('fileWatcher', fileWatcher)
     c.set('aiProvider', aiProvider)
     c.set('turnEvents', turnEvents)
+    c.set('askWaiters', askWaiters)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
     if (options.hubSession !== undefined) c.set('hubSession', options.hubSession)
     await next()
@@ -159,6 +168,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // `/tasks` spans a user's whole set (both scopes) — the panel + dashboard +
   // CLI surface; global tasks are creatable, listable, and manageable here.
   app.route('/tasks', tasksUserApp)
+  // `/asks` — the ask_user answering surface (always the user; the agent's
+  // surface is the `vynel-ask` descriptor tool). Core plumbing, not gated.
+  app.route('/asks', asksApp)
   // `/marketplace` is the GLOBAL marketplace — user+both items, user-scope
   // installs (Chad's rule). The workspace surface stays mounted above.
   app.route('/marketplace', marketplaceUserApp)

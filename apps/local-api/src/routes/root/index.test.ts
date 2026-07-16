@@ -376,11 +376,14 @@ describe('POST /root/turn (SSE)', () => {
       const primary = findPrimaryConversation(db, { userId: user.id })
       expect(primary?.currentSdkSessionId).toBe(nextSdkSessionId)
 
-      // Routing-only compose with a null build → an empty MCP set reached the
+      // Routing-only compose with a null build → no routing tools reach the
       // provider, and the brain ran on the hidden user-data cwd.
+      // test: correct expectation — the interactive global chat now ALSO
+      // carries the `vynel-ask` server (ask_user attaches to interactive app
+      // turns; ask module 2026-07-17); was: empty.
       expect(startChatSessionInputs).toHaveLength(1)
       const input = startChatSessionInputs[0]!
-      expect(input.allowedMcpToolPatterns).toEqual([])
+      expect(input.allowedMcpToolPatterns).toEqual(['mcp__vynel-ask__*'])
       expect(input.workspacePath).toBe(path.join(dataDir, 'global-root'))
 
       // The transcript now hydrates the turn's messages (cold-start read).

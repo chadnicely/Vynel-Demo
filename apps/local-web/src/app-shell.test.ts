@@ -16,6 +16,8 @@ function makeFakeVynelClient(): VynelClient {
   });
   return {
     approvals: { listPending: async () => [] },
+    // The ask notifier polls alongside approvals from the shell.
+    asks: { listPending: async () => [] },
     workspaces: { list: async () => [] },
     channelsUser: { list: async () => [] },
     // The shell reads the tasks list for the title-bar badge.

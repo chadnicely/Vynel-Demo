@@ -21,6 +21,7 @@ import AppSidebar from "./AppSidebar.vue";
 import type { SidebarItem } from "./AppSidebar.vue";
 import AppStatusBar from "./AppStatusBar.vue";
 import ApprovalNotifier from "./ApprovalNotifier.vue";
+import AskNotifier from "../asks/AskNotifier.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import SessionViewerPanel from "../session-viewer/SessionViewerPanel.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
@@ -336,6 +337,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 
     <SessionViewerPanel />
     <ApprovalNotifier />
+    <AskNotifier />
     <VoiceOverlay />
     <CreateWorkspaceDialog
       :open="isCreateWorkspaceOpen"

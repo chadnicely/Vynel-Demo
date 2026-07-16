@@ -182,6 +182,9 @@ importers:
       '@vynel/approvals':
         specifier: workspace:*
         version: link:../../packages/approvals
+      '@vynel/asks':
+        specifier: workspace:*
+        version: link:../../packages/asks
       '@vynel/capabilities':
         specifier: workspace:*
         version: link:../../packages/capabilities
@@ -546,6 +549,37 @@ importers:
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.2(@electric-sql/pglite@0.2.17)(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)(postgres@3.4.9)
+    devDependencies:
+      '@vynel/testing':
+        specifier: workspace:*
+        version: link:../testing
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/asks:
+    dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.3.181
+        version: 0.3.197(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@vynel/db':
+        specifier: workspace:*
+        version: link:../db
+      '@vynel/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@vynel/mcp-contract':
+        specifier: workspace:*
+        version: link:../mcp-contract
+      drizzle-orm:
+        specifier: ^0.45.0
+        version: 0.45.2(@electric-sql/pglite@0.2.17)(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)(postgres@3.4.9)
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       '@vynel/testing':
         specifier: workspace:*

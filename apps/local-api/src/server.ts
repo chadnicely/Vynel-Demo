@@ -13,6 +13,7 @@ import pino from 'pino'
 import { createDatabase, closeDatabase, runMigrations, sqliteMigrationsFolder } from '@vynel/db'
 import { getOrCreateLocalUser } from '@vynel/core/users'
 import { configureEmbeddingsCacheDir } from '@vynel/embeddings'
+import { expireAskRequests } from '@vynel/asks'
 import { FileWatcherService } from '@vynel/knowledge'
 import { hostname } from 'node:os'
 import {
@@ -127,6 +128,10 @@ export async function boot(): Promise<void> {
   // The stale-approval reaper (surface-up's unanswered bound) — denies the provider
   // approval so a parked turn resumes, then marks the row timed-out.
   const approvalsRecoveryService = startApprovalsRecoveryService({ db, logger, provider })
+  // Boot recovery for asks: the ask_user waiter registry died with the previous
+  // process, so every still-pending ask row is unanswerable — expire them once
+  // at boot so the UI never shows a zombie wizard (docs/module-notes/ask.md).
+  expireAskRequests(db, {}, { logger })
 
   // The gateway fronts the api: /api mount, /voice daemon proxy, and — when a
   // built local-web dist exists — the whole desktop UI (sidecar mode, the Tauri

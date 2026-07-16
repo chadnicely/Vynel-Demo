@@ -133,6 +133,28 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  asks: {
+  answer: async (askId: NonNullable<paths["/asks/{askId}/answer"]["post"]['parameters']>['path']["askId"], input: NonNullable<paths["/asks/{askId}/answer"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/asks/{askId}/answer", {
+      params: { path: { askId: askId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  dismiss: async (askId: NonNullable<paths["/asks/{askId}/dismiss"]["post"]['parameters']>['path']["askId"]) => {
+    const { data, error, response } = await client["POST"]("/asks/{askId}/dismiss", {
+      params: { path: { askId: askId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listPending: async () => {
+    const { data, error, response } = await client["GET"]("/asks/pending")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   capabilities: {
   list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/capabilities"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/capabilities", {

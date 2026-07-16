@@ -19,6 +19,7 @@ import type { User } from '@vynel/core/users'
 import type { Workspace } from '@vynel/workspaces'
 import type { FileWatcherService } from '@vynel/knowledge'
 import type { FireScheduleDeps } from '@vynel/schedules'
+import type { PendingAskRegistry } from '@vynel/asks'
 import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
@@ -67,6 +68,11 @@ export interface AppEnv {
     // when VYNEL_HUB_URL is configured; the /hub routes answer
     // `not-configured` without it.
     hubSession?: HubSession
+    // The process-wide map of `ask_user` tool calls awaiting the user's answer
+    // (the blocking bridge's in-memory half). Set once at construction
+    // (`app.ts`), like `fileWatcher` — the turn streams park waiters on it and
+    // the /asks answer/dismiss routes resolve them.
+    askWaiters: PendingAskRegistry
   }
 }
 

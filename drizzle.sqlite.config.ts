@@ -46,6 +46,7 @@ export default defineConfig({
     '../schedules/src/schema/schedules.ts',
     '../schedules/src/schema/schedule-runs.ts',
     '../tasks/src/schema/tasks.ts',
+    '../asks/src/schema/ask-requests.ts',
     './src/schema/onboarding/onboarding-runs.ts',
     './src/schema/capabilities/workspace-capabilities.ts',
     './src/schema/agents/agents.ts',

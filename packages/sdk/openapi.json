@@ -12420,6 +12420,560 @@
         "x-sdk-name": "tasksUser.delete"
       }
     },
+    "/asks/pending": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of AskRequest (pending only, newest first).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "questions": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9][a-z0-9-]*$",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "hint": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "text",
+                                "choice",
+                                "multi-choice",
+                                "yes-no",
+                                "number"
+                              ]
+                            },
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "options": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 120
+                              },
+                              "minItems": 2,
+                              "maxItems": 12
+                            },
+                            "placeholder": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "label",
+                            "type"
+                          ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 10
+                      },
+                      "answers": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "additionalProperties": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 4000
+                            },
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 120
+                              },
+                              "maxItems": 12
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "boolean"
+                            }
+                          ]
+                        }
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "answered",
+                          "dismissed",
+                          "expired"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "resolvedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "sessionId",
+                      "questions",
+                      "answers",
+                      "status",
+                      "createdAt",
+                      "resolvedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getAsksPending",
+        "tags": [
+          "asks"
+        ],
+        "parameters": [],
+        "summary": "List the user's pending asks (forms Claude is waiting on).",
+        "x-sdk-name": "asks.listPending"
+      }
+    },
+    "/asks/{askId}/answer": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "AskRequest (answered).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9-]*$",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "hint": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "text",
+                              "choice",
+                              "multi-choice",
+                              "yes-no",
+                              "number"
+                            ]
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "options": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "minItems": 2,
+                            "maxItems": 12
+                          },
+                          "placeholder": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "type"
+                        ]
+                      },
+                      "minItems": 1,
+                      "maxItems": 10
+                    },
+                    "answers": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 4000
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "maxLength": 120
+                            },
+                            "maxItems": 12
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          }
+                        ]
+                      }
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "answered",
+                        "dismissed",
+                        "expired"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "resolvedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "sessionId",
+                    "questions",
+                    "answers",
+                    "status",
+                    "createdAt",
+                    "resolvedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The answers don't fit the form."
+          },
+          "404": {
+            "description": "No such pending ask owned by this user."
+          },
+          "409": {
+            "description": "The ask was already resolved."
+          }
+        },
+        "operationId": "postAsksByAskIdAnswer",
+        "tags": [
+          "asks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "askId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Answer a pending ask (unblocks the waiting turn).",
+        "x-sdk-name": "asks.answer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "answers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 120
+                          },
+                          "maxItems": 12
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "answers"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/asks/{askId}/dismiss": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "AskRequest (dismissed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9-]*$",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "hint": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "text",
+                              "choice",
+                              "multi-choice",
+                              "yes-no",
+                              "number"
+                            ]
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "options": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "minItems": 2,
+                            "maxItems": 12
+                          },
+                          "placeholder": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "type"
+                        ]
+                      },
+                      "minItems": 1,
+                      "maxItems": 10
+                    },
+                    "answers": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 4000
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "maxLength": 120
+                            },
+                            "maxItems": 12
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          }
+                        ]
+                      }
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "answered",
+                        "dismissed",
+                        "expired"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "resolvedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "sessionId",
+                    "questions",
+                    "answers",
+                    "status",
+                    "createdAt",
+                    "resolvedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such pending ask owned by this user."
+          },
+          "409": {
+            "description": "The ask was already resolved."
+          }
+        },
+        "operationId": "postAsksByAskIdDismiss",
+        "tags": [
+          "asks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "askId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Dismiss a pending ask (the turn proceeds without the answers).",
+        "x-sdk-name": "asks.dismiss"
+      }
+    },
     "/marketplace/items": {
       "get": {
         "responses": {

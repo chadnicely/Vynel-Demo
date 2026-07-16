@@ -46,11 +46,23 @@ export async function streamChatTurn(
   // below (memory snapshot etc.). Dynamic import keeps the heavy SDK out of module load.
   const { vynelWorkspaceDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
+  // ask_user attaches to INTERACTIVE app turns only (this stream + the global
+  // chat stream) — never schedule fires or channel turns, where nobody is
+  // looking at the app to answer (docs/module-notes/ask.md fork #2).
+  const { buildAskFeatureDescriptor } = await import('@vynel/asks/mcp')
+  // This turn's key — turn-end cleanup cancels exactly the asks THIS turn
+  // parked (never a concurrent sibling turn's in the same workspace).
+  const askTurnKey = crypto.randomUUID()
+  const askFeatureDescriptor = buildAskFeatureDescriptor({
+    waiters: c.var.askWaiters,
+    turnKey: askTurnKey,
+    logger: c.var.logger,
+  })
   const enabledCapabilityIds = new Set(
     listEnabledCapabilities(c.var.db, c.var.workspace!.id).map((capability) => capability.id),
   )
   const composedMcp = composeSessionMcpServers(
-    [vynelWorkspaceDescriptor, notebookFeatureDescriptor],
+    [vynelWorkspaceDescriptor, notebookFeatureDescriptor, askFeatureDescriptor],
     {
       db: c.var.db,
       userId: c.var.user.id,
@@ -132,10 +144,15 @@ export async function streamChatTurn(
         mcpServers: composedMcp.mcpServers,
         allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
         // Deny a disabled capability's tools (from the composer); the system prompt
-        // (Vynel operating-rules + each enabled capability's contribution — memory
-        // snapshot etc.) comes from composeSessionCapabilities.
+        // joins composeSessionCapabilities (Vynel operating-rules + memory snapshot
+        // etc.) with the MCP composer's per-feature prompt sections (notebook /
+        // tasks / ask standing lines). The MCP half used to be dropped here — a
+        // silent divergence from the global-root stream (found in the ask build;
+        // the notebook's standing line never reached workspace turns).
         deniedToolNames: composedMcp.deniedMcpToolPatterns,
-        systemPromptAppend: composed.systemPromptAppend,
+        systemPromptAppend: [composed.systemPromptAppend, composedMcp.systemPromptAppend]
+          .filter((section) => section !== '')
+          .join('\n\n'),
         // A feature's declared mutating tools card even under bypass (additive to
         // the provider's static floor).
         ...(composedMcp.mutatingToolNames.length > 0
@@ -162,6 +179,19 @@ export async function streamChatTurn(
       await stream.writeSSE({ event: 'turn-stream-ended', data: '{}' })
     } finally {
       // Fires even on client disconnect (generator cleanup). Best-effort.
+      // An ask still parked when the turn ends (interrupt/disconnect — a
+      // normal completion can't end with one open, the tool blocks the turn)
+      // is unanswerable: cancel its waiter + expire its row so the UI never
+      // shows a zombie wizard.
+      const cancelledAskIds = c.var.askWaiters.cancelForTurn(askTurnKey)
+      if (cancelledAskIds.length > 0) {
+        try {
+          const { expireAskRequests } = await import('@vynel/asks')
+          expireAskRequests(c.var.db, { askIds: cancelledAskIds }, { logger: c.var.logger })
+        } catch (err) {
+          c.var.logger.warn({ err }, 'failed to expire cancelled asks after turn end')
+        }
+      }
       if (agentRunId) {
         try {
           await recordAgentRunCompleted(c.var.db, {

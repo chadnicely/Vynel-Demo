@@ -1445,6 +1445,57 @@ export interface paths {
         patch: operations["patchTasksByTaskId"];
         trace?: never;
     };
+    "/asks/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's pending asks (forms Claude is waiting on). */
+        get: operations["getAsksPending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/asks/{askId}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Answer a pending ask (unblocks the waiting turn). */
+        post: operations["postAsksByAskIdAnswer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/asks/{askId}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss a pending ask (the turn proceeds without the answers). */
+        post: operations["postAsksByAskIdDismiss"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/marketplace/items": {
         parameters: {
             query?: never;
@@ -7223,6 +7274,179 @@ export interface operations {
             };
             /** @description No such task owned by this user. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAsksPending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of AskRequest (pending only, newest first). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        sessionId: string | null;
+                        questions: {
+                            id: string;
+                            label: string;
+                            hint?: string;
+                            /** @enum {string} */
+                            type: "text" | "choice" | "multi-choice" | "yes-no" | "number";
+                            required?: boolean;
+                            options?: string[];
+                            placeholder?: string;
+                        }[];
+                        answers: {
+                            [key: string]: string | string[] | number | boolean;
+                        } | null;
+                        /** @enum {string} */
+                        status: "pending" | "answered" | "dismissed" | "expired";
+                        createdAt: string;
+                        resolvedAt: string | null;
+                    }[];
+                };
+            };
+        };
+    };
+    postAsksByAskIdAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                askId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    answers: {
+                        [key: string]: string | string[] | number | boolean;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description AskRequest (answered). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        sessionId: string | null;
+                        questions: {
+                            id: string;
+                            label: string;
+                            hint?: string;
+                            /** @enum {string} */
+                            type: "text" | "choice" | "multi-choice" | "yes-no" | "number";
+                            required?: boolean;
+                            options?: string[];
+                            placeholder?: string;
+                        }[];
+                        answers: {
+                            [key: string]: string | string[] | number | boolean;
+                        } | null;
+                        /** @enum {string} */
+                        status: "pending" | "answered" | "dismissed" | "expired";
+                        createdAt: string;
+                        resolvedAt: string | null;
+                    };
+                };
+            };
+            /** @description The answers don't fit the form. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such pending ask owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The ask was already resolved. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postAsksByAskIdDismiss: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                askId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description AskRequest (dismissed). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        sessionId: string | null;
+                        questions: {
+                            id: string;
+                            label: string;
+                            hint?: string;
+                            /** @enum {string} */
+                            type: "text" | "choice" | "multi-choice" | "yes-no" | "number";
+                            required?: boolean;
+                            options?: string[];
+                            placeholder?: string;
+                        }[];
+                        answers: {
+                            [key: string]: string | string[] | number | boolean;
+                        } | null;
+                        /** @enum {string} */
+                        status: "pending" | "answered" | "dismissed" | "expired";
+                        createdAt: string;
+                        resolvedAt: string | null;
+                    };
+                };
+            };
+            /** @description No such pending ask owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The ask was already resolved. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

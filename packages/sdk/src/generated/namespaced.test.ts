@@ -128,6 +128,11 @@ const EXPECTED_SCHEDULES_USER_METHODS = [
   'update',
 ] as const
 
+// The asks namespace, sorted (ask module, 2026-07-17) — the ask_user
+// answering surface (USER-scoped only; the agent's surface is the
+// `vynel-ask` descriptor tool, so no route is x-mcp).
+const EXPECTED_ASKS_METHODS = ['answer', 'dismiss', 'listPending'] as const
+
 // The tasks namespaces, sorted (tasks module, 2026-07-17). Workspace-scoped
 // `tasks.*` is the AGENT's surface (create stamps source='assistant'; no
 // delete — removal is the user's call); user-scoped `tasksUser.*` is the
@@ -193,6 +198,7 @@ describe('makeNamespaced — shape', () => {
       'approvalRules',
       'approvals',
       'approvalsWorkspace',
+      'asks',
       'capabilities',
       'channels',
       'channelsUser',
@@ -229,6 +235,7 @@ describe('makeNamespaced — shape', () => {
     expect(Object.keys(sdk.schedulesUser).sort()).toEqual([...EXPECTED_SCHEDULES_USER_METHODS])
     expect(Object.keys(sdk.tasks).sort()).toEqual([...EXPECTED_TASKS_METHODS])
     expect(Object.keys(sdk.tasksUser).sort()).toEqual([...EXPECTED_TASKS_USER_METHODS])
+    expect(Object.keys(sdk.asks).sort()).toEqual([...EXPECTED_ASKS_METHODS])
     expect(Object.keys(sdk.notebook).sort()).toEqual([...EXPECTED_NOTEBOOK_METHODS])
   })
 

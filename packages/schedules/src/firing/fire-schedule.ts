@@ -137,7 +137,11 @@ export async function fireSchedule(
           mcpServers: composedMcp.mcpServers,
           allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
           deniedToolNames: composedMcp.deniedMcpToolPatterns,
-          systemPromptAppend: composed.systemPromptAppend,
+          // Capability prompt + the MCP composer's per-feature prompt sections
+          // (the chat-turn join; the MCP half used to be dropped here too).
+          systemPromptAppend: [composed.systemPromptAppend, composedMcp.systemPromptAppend]
+            .filter((section) => section !== '')
+            .join('\n\n'),
           // A feature's declared mutating tools card even under bypass (additive to
           // the static floor).
           ...(composedMcp.mutatingToolNames.length > 0

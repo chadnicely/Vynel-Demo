@@ -62,7 +62,10 @@ describe('fireSchedule', () => {
       expect(callInput.resumeSessionId).toBeUndefined() // always a fresh session (D3)
       // The composed prompt (capabilities stub) + the disabled-capability tool
       // gate (MCP composer stub) both reached the turn — schedules turns are gated too.
-      expect(callInput.systemPromptAppend).toBe('STUB_CAPABILITIES_APPEND')
+      // test: correct expectation — the fired turn now ALSO joins the MCP
+      // composer's per-feature prompt sections (the chat-turn divergence fix,
+      // ask build 2026-07-17); was: capabilities prompt only.
+      expect(callInput.systemPromptAppend).toBe('STUB_CAPABILITIES_APPEND\n\nSTUB_MCP_PROMPT_APPEND')
       expect(callInput.deniedToolNames).toEqual(['mcp__vynel__search_knowledge'])
       // The feature mutating set auto-feeds the approval backstop (additive).
       expect(callInput.alwaysRequireApprovalToolNames).toEqual(['mcp__vynel__create_memory_entry'])

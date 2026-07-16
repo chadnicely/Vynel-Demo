@@ -168,6 +168,7 @@ export function stubFireDeps(): StubFireDeps {
         allowedMcpToolPatterns: ['mcp__vynel__*'],
         deniedMcpToolPatterns: ['mcp__vynel__search_knowledge'],
         mutatingToolNames: ['mcp__vynel__create_memory_entry'],
+        systemPromptAppend: 'STUB_MCP_PROMPT_APPEND',
       }
     },
     composeSessionCapabilities: () => ({ systemPromptAppend: 'STUB_CAPABILITIES_APPEND' }),

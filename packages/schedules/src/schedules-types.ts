@@ -60,6 +60,11 @@ export interface FireScheduleDeps {
     // The feature mutating tools to card even under bypass (additive to the
     // provider's static floor) — forwarded to startChatTurn's alwaysRequireApprovalToolNames.
     mutatingToolNames: string[]
+    // The MCP composer's per-feature prompt sections (the notebook/tasks
+    // standing lines). Joined with composeSessionCapabilities' prompt in the
+    // fired turn — previously dropped (the chat-turn divergence, fixed in the
+    // ask build).
+    systemPromptAppend: string
   }
   // The per-workspace capability PROMPT composition (Vynel rules + enabled-capability
   // contributions like the memory snapshot). The tool-deny gate moved to

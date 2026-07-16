@@ -97,8 +97,19 @@ export async function streamGlobalRootTurn(
   // streamChatTurn precedent).
   const { vynelRoutingDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
+  // ask_user attaches to INTERACTIVE app turns only — this stream is the app's
+  // global chat; the background channel runner (`runGlobalRootTurn`) stays
+  // ask-free (docs/module-notes/ask.md fork #2).
+  const { buildAskFeatureDescriptor } = await import('@vynel/asks/mcp')
+  // This turn's key — turn-end cleanup cancels exactly the asks THIS turn parked.
+  const askTurnKey = crypto.randomUUID()
+  const askFeatureDescriptor = buildAskFeatureDescriptor({
+    waiters: c.var.askWaiters,
+    turnKey: askTurnKey,
+    logger: c.var.logger,
+  })
   const composedMcp = composeSessionMcpServers(
-    [vynelRoutingDescriptor, notebookFeatureDescriptor],
+    [vynelRoutingDescriptor, notebookFeatureDescriptor, askFeatureDescriptor],
     {
       db: c.var.db,
       userId: c.var.user.id,
@@ -111,36 +122,51 @@ export async function streamGlobalRootTurn(
   )
 
   return streamSSE(c, async (stream) => {
-    await runGlobalRootTurnCore(
-      {
-        db: c.var.db,
-        logger: c.var.logger,
-        // Resolve the global root + ensure its hidden cwd, INSIDE the lock (the
-        // runner calls this) — apps/local-api owns the env-coupled user-data-dir read.
-        resolveTarget: async () => {
-          const target = await resolveGlobalRootConversationTarget(c.var.db, {
-            userId: c.var.user.id,
-          })
-          ensureGlobalRootWorkspaceDir()
-          return target
+    try {
+      await runGlobalRootTurnCore(
+        {
+          db: c.var.db,
+          logger: c.var.logger,
+          // Resolve the global root + ensure its hidden cwd, INSIDE the lock (the
+          // runner calls this) — apps/local-api owns the env-coupled user-data-dir read.
+          resolveTarget: async () => {
+            const target = await resolveGlobalRootConversationTarget(c.var.db, {
+              userId: c.var.user.id,
+            })
+            ensureGlobalRootWorkspaceDir()
+            return target
+          },
         },
-      },
-      {
-        userId: c.var.user.id,
-        userMessageText: input.userMessageText,
-        ...(input.attachedImages !== undefined && input.attachedImages.length > 0
-          ? { attachedImages: input.attachedImages }
-          : {}),
-        ...(input.model !== undefined ? { model: input.model } : {}),
-        ...(permissionMode !== undefined ? { permissionMode } : {}),
-        // A voice turn also RECORDS its origin — the transcript shows "via Voice".
-        ...(input.voice === true ? { voice: true, originChannel: 'voice' as const } : {}),
-        mcpServers: composedMcp.mcpServers,
-        allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
-        mutatingToolNames: composedMcp.mutatingToolNames,
-        mcpSystemPromptAppend: composedMcp.systemPromptAppend,
-      },
-      new GlobalRootSseSink(stream, c.var.logger),
-    )
+        {
+          userId: c.var.user.id,
+          userMessageText: input.userMessageText,
+          ...(input.attachedImages !== undefined && input.attachedImages.length > 0
+            ? { attachedImages: input.attachedImages }
+            : {}),
+          ...(input.model !== undefined ? { model: input.model } : {}),
+          ...(permissionMode !== undefined ? { permissionMode } : {}),
+          // A voice turn also RECORDS its origin — the transcript shows "via Voice".
+          ...(input.voice === true ? { voice: true, originChannel: 'voice' as const } : {}),
+          mcpServers: composedMcp.mcpServers,
+          allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
+          mutatingToolNames: composedMcp.mutatingToolNames,
+          mcpSystemPromptAppend: composedMcp.systemPromptAppend,
+        },
+        new GlobalRootSseSink(stream, c.var.logger),
+      )
+    } finally {
+      // An ask still parked when the turn ends (interrupt/disconnect) is
+      // unanswerable — cancel + expire so the UI never shows a zombie wizard
+      // (the streamChatTurn finally precedent).
+      const cancelledAskIds = c.var.askWaiters.cancelForTurn(askTurnKey)
+      if (cancelledAskIds.length > 0) {
+        try {
+          const { expireAskRequests } = await import('@vynel/asks')
+          expireAskRequests(c.var.db, { askIds: cancelledAskIds }, { logger: c.var.logger })
+        } catch (err) {
+          c.var.logger.warn({ err }, 'failed to expire cancelled asks after global turn end')
+        }
+      }
+    }
   })
 }
