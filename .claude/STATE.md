@@ -3,7 +3,40 @@
 **Updated 2026-07-17.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-17): TASKS MODULE BUILT + REVIEWED CLEAN (arc ① of Tasks → Ask → Apps → SSH) — gate GREEN 466f/2457t, 0 must-fix, should-fixes FOLDED; commit prompt out; next arc: ASK
+## ⏭ NEXT ACTION (2026-07-17b): ASK MODULE BUILT (arc ②) — gate GREEN 2492t, reviewer running; then commit; next arc: APPS
+
+**② ASK BUILT (docs/module-notes/ask.md = as-built; fork answers: NO auto-timeout — an ask
+WAITS, dismiss is the only proceed-without-me; interactive app turns ONLY; notifier + Modal
+wizard):**
+- **Contracts** `contracts/src/asks/` — question/answer zod schemas + PURE validateAskAnswers
+  (type-aware: required/optional, off-menu + unknown-key rejection), AskRequestResponse.
+- **Leaf `packages/asks`** — ask_requests (migration `0007_ask_requests`), repos, create/resolve/
+  expire ops (outbox ask.created [firstQuestionLabel+count for the future nudge] / ask.resolved;
+  answers NEVER in payloads), **PendingAskRegistry** (in-memory waiter map; cancelForScope) +
+  **ask_user tool** (parks on the registry, NO timeout) + descriptor FACTORY on the SDK-free-
+  barrel-split `@vynel/asks/mcp` subpath.
+- **local-api** — /asks routes (pending/answer/dismiss; DB-commits-BEFORE-waiter-resolve; failed
+  answer consumes NEITHER the ask nor the waiter), askWaiters DI (createApp option + c.var),
+  descriptor attached to the TWO interactive streams only (chat-turn + global-root-turn), turn-end
+  cancelForScope+expire in both finallys, boot expiry beside the approvals reaper.
+- **⚠ PRE-EXISTING BUG FOUND+FIXED+SWEPT: workspace turns DROPPED composedMcp.systemPromptAppend**
+  (notebook's standing line + the new tasks/ask lines never reached workspace chats or fired
+  schedules; only the global stream passed it). Both sites now join capability+MCP prompts;
+  FireScheduleDeps grew systemPromptAppend (stub + fire-schedule test updated).
+- **UI (subagent)** — AskNotifier toast (beside ApprovalNotifier, collision-shift) +
+  AskWizardDialog (Modal; one-question-per-step, progress dots, Next-gated, "View as form"
+  switch, only-answered-keys submit, inline 400 surfacing, "I'll decide later") + composables
+  (5s poll like approvals). 202 local-web tests.
+- **DEFERRED (next-slice candidate): the Telegram nudge — the generic outbox relay
+  (dispatchOutboxEvents + OUTBOX_CONSUMERS) is WIRED NOWHERE (registry empty, no service drives
+  it; the schedules→channels delivery consumer is dormant too). Wiring it activates dormant
+  machinery → its own reviewed slice. ask.created already carries what the nudge needs.**
+**⏭ NEXT: fold reviewer findings → commit + push (standing auth, NO AI trailer) → Chad smoke
+(in a chat ask Claude something that needs your input → notifier card → wizard → answers reach
+Claude; dismiss → Claude proceeds; interrupt a turn mid-ask → wizard vanishes) → arc ③ APPS
+(docs/module-notes/apps.md first; remember the outbox-relay slice decision).**
+
+## (prev) NEXT ACTION (2026-07-17): TASKS MODULE BUILT + REVIEWED CLEAN (arc ① of Tasks → Ask → Apps → SSH) — SHIPPED `9a4ac69`+`b2a3cfb`, pushed
 
 **Reviewer: CLEAN, 0 must-fix. 2 should-fixes APPLIED (stray `_tmp_*` root files deleted; the
 real vynel descriptor's tasks gate list + capability-aware contributePrompt now pinned by tests)

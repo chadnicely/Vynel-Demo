@@ -31,6 +31,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude can now ask you things with a proper form.** When Claude genuinely needs your
+  preference or details mid-task — which tone, which server, how many — it no longer buries
+  questions in chat text. A gentle "Claude needs your input" card appears, and answering opens a
+  step-by-step wizard: one question at a time with progress dots, or flip the "View as form"
+  switch to see everything on one page. Claude patiently waits for your answers before
+  continuing; "I'll decide later" lets it carry on without them. (Also fixed along the way:
+  the standing guidance for features like the Notebook never actually reached workspace
+  conversations — now it does.)
+
 - **A task list Claude keeps for you.** Ask for anything with more than one step and Claude now
   tracks it as tasks you can see: what's planned, what it's working on right now, and what's done.
   Every workspace has its own Tasks section (plus a global list), a checklist icon in the title bar
