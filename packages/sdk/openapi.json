@@ -4895,6 +4895,541 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/tasks": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of Task.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "detail": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "in-progress",
+                          "done"
+                        ]
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "assistant",
+                          "user"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "completedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "title",
+                      "detail",
+                      "status",
+                      "source",
+                      "sessionId",
+                      "completedAt",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdTasks",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "in-progress",
+                "done"
+              ]
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List tasks for the active workspace (owner-scoped).",
+        "x-sdk-name": "tasks.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_tasks",
+          "description": "List the active workspace's task list (owner-scoped). Each task has a title, optional detail, status (open / in-progress / done), and who created it (assistant or user). Optional `status` query filters to one status. Check this at the start of multi-step work to see what is already tracked. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Task created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "detail",
+                    "status",
+                    "source",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdTasks",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Create a task on the active workspace's list (assistant provenance).",
+        "x-sdk-name": "tasks.create",
+        "x-mcp": {
+          "exposed": true,
+          "name": "create_task",
+          "description": "Add a task to the workspace's task list. Use this when the user asks for work with more than one step, or agrees to something you will do later — one task per distinct piece of work, phrased in plain language the user recognizes (e.g. \"Write the spring newsletter draft\"), never technical mechanics. `title` is the short label (≤200 chars); `detail` is optional context. New tasks start as status \"open\"; move them with update_task / complete_task as you work. Do not narrate the bookkeeping — just keep the list current. Side effect: the task appears in the user's task panel and dashboard.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "detail": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "title"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/tasks/{taskId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Task updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "detail",
+                    "status",
+                    "source",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "No such task owned by this user."
+          }
+        },
+        "operationId": "patchWorkspacesByWorkspaceIdTasksByTaskId",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Update a task (title, detail, or status).",
+        "x-sdk-name": "tasks.update",
+        "x-mcp": {
+          "exposed": true,
+          "name": "update_task",
+          "description": "Update a task on the workspace's list. Set status \"in-progress\" when you start working on it, back to \"open\" if you stop, or \"done\" when finished (complete_task is the shortcut for that). Title/detail edits keep the wording current if the work changes shape. Statuses: open / in-progress / done.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "detail": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 4000
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "in-progress",
+                      "done"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/tasks/{taskId}/complete": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Task completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "detail",
+                    "status",
+                    "source",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such task owned by this user."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdTasksByTaskIdComplete",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Mark a task done.",
+        "x-sdk-name": "tasks.complete",
+        "x-mcp": {
+          "exposed": true,
+          "name": "complete_task",
+          "description": "Mark a task done the moment its work is finished and verified — not before. The user sees completed tasks on their dashboard as the record of what you've delivered.",
+          "mutatingApproved": true
+        }
+      }
+    },
     "/workspaces/{workspaceId}/chat/sessions": {
       "get": {
         "responses": {
@@ -8429,7 +8964,8 @@
                             "enum": [
                               "memory",
                               "knowledge",
-                              "notebook"
+                              "notebook",
+                              "tasks"
                             ]
                           },
                           "displayName": {
@@ -8506,7 +9042,8 @@
                       "enum": [
                         "memory",
                         "knowledge",
-                        "notebook"
+                        "notebook",
+                        "tasks"
                       ]
                     },
                     "displayName": {
@@ -8560,7 +9097,8 @@
               "enum": [
                 "memory",
                 "knowledge",
-                "notebook"
+                "notebook",
+                "tasks"
               ]
             },
             "required": true
@@ -11447,6 +11985,439 @@
         ],
         "summary": "List a schedule's run history (owner-scoped, newest first, keyset-paginated).",
         "x-sdk-name": "schedulesUser.listRuns"
+      }
+    },
+    "/tasks": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of Task.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "detail": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "in-progress",
+                          "done"
+                        ]
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "assistant",
+                          "user"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "completedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "title",
+                      "detail",
+                      "status",
+                      "source",
+                      "sessionId",
+                      "completedAt",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getTasks",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "in-progress",
+                "done"
+              ]
+            }
+          }
+        ],
+        "summary": "List every task the user owns — global + workspace.",
+        "x-sdk-name": "tasksUser.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_my_tasks",
+          "description": "List every task the user owns — both global (no workspace) and workspace-scoped. Each has a title, optional detail, status (open / in-progress / done), and who created it. Optional `status` query filters to one status. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Task created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "detail",
+                    "status",
+                    "source",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or workspaceId missing for a workspace scope."
+          }
+        },
+        "operationId": "postTasks",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [],
+        "summary": "Create a global or workspace task (user provenance).",
+        "x-sdk-name": "tasksUser.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "global"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "detail": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4000
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "title"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "workspace"
+                      },
+                      "workspaceId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "detail": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4000
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "workspaceId",
+                      "title"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{taskId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Task updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "detail",
+                    "status",
+                    "source",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "No such task owned by this user."
+          }
+        },
+        "operationId": "patchTasksByTaskId",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Update a task the user owns (title, detail, or status).",
+        "x-sdk-name": "tasksUser.update",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "detail": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 4000
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "in-progress",
+                      "done"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Task deleted."
+          },
+          "404": {
+            "description": "No such task owned by this user."
+          }
+        },
+        "operationId": "deleteTasksByTaskId",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Delete a task the user owns (hard delete).",
+        "x-sdk-name": "tasksUser.delete"
       }
     },
     "/marketplace/items": {
@@ -16839,7 +17810,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "{ workspaces, recentSessions, upcomingSchedules }.",
+            "description": "{ workspaces, recentSessions, upcomingSchedules, openTasks, recentlyCompletedTasks }.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17121,12 +18092,164 @@
                           "updatedAt"
                         ]
                       }
+                    },
+                    "openTasks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "userId": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "detail": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "in-progress",
+                              "done"
+                            ]
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "assistant",
+                              "user"
+                            ]
+                          },
+                          "sessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "completedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "userId",
+                          "workspaceId",
+                          "title",
+                          "detail",
+                          "status",
+                          "source",
+                          "sessionId",
+                          "completedAt",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "recentlyCompletedTasks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "userId": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "detail": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "in-progress",
+                              "done"
+                            ]
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "assistant",
+                              "user"
+                            ]
+                          },
+                          "sessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "completedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "userId",
+                          "workspaceId",
+                          "title",
+                          "detail",
+                          "status",
+                          "source",
+                          "sessionId",
+                          "completedAt",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
                     }
                   },
                   "required": [
                     "workspaces",
                     "recentSessions",
-                    "upcomingSchedules"
+                    "upcomingSchedules",
+                    "openTasks",
+                    "recentlyCompletedTasks"
                   ]
                 }
               }
@@ -17138,7 +18261,7 @@
           "dashboard"
         ],
         "parameters": [],
-        "summary": "Get the Home dashboard's aggregate read (workspaces + recent chat activity + upcoming schedules).",
+        "summary": "Get the Home dashboard's aggregate read (workspaces + recent chat activity + upcoming schedules + tasks).",
         "x-sdk-name": "dashboard.getOverview"
       }
     },

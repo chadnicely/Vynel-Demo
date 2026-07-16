@@ -112,6 +112,41 @@ export const addToKnowledge: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const completeTask: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'complete_task',
+    "Mark a task done the moment its work is finished and verified — not before. The user sees completed tasks on their dashboard as the record of what you've delivered.",
+    {
+    taskId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/tasks/{taskId}/complete'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{taskId}', encodeURIComponent(String(args['taskId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const createMemoryEntry: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_memory_entry',
@@ -132,6 +167,46 @@ export const createMemoryEntry: McpToolFactory = (scope, app) =>
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
         for (const k of ['kind', 'title', 'body', 'category', 'section', 'tags']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const createTask: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'create_task',
+    "Add a task to the workspace's task list. Use this when the user asks for work with more than one step, or agrees to something you will do later — one task per distinct piece of work, phrased in plain language the user recognizes (e.g. \"Write the spring newsletter draft\"), never technical mechanics. `title` is the short label (≤200 chars); `detail` is optional context. New tasks start as status \"open\"; move them with update_task / complete_task as you work. Do not narrate the bookkeeping — just keep the list current. Side effect: the task appears in the user's task panel and dashboard.",
+    {
+    workspaceId: z.string(),
+    title: z.string(),
+    detail: z.string().optional(),
+    sessionId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/tasks'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['title', 'detail', 'sessionId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -839,6 +914,43 @@ export const listMySchedules: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listMyTasks: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_my_tasks',
+    "List every task the user owns — both global (no workspace) and workspace-scoped. Each has a title, optional detail, status (open / in-progress / done), and who created it. Optional `status` query filters to one status. Read-only.",
+    {
+    status: z.enum(['open', 'in-progress', 'done']).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/tasks'
+        const queryParams = new URLSearchParams()
+        for (const k of ['status']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const listRoutingChannels: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_routing_channels',
@@ -987,6 +1099,45 @@ export const listSchedules: McpToolFactory = (scope, app) =>
         let pathStr = '/workspaces/{workspaceId}/schedules'
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listTasks: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_tasks',
+    "List the active workspace's task list (owner-scoped). Each task has a title, optional detail, status (open / in-progress / done), and who created it (assistant or user). Optional `status` query filters to one status. Check this at the start of multi-step work to see what is already tracked. Read-only.",
+    {
+    workspaceId: z.string(),
+    status: z.enum(['open', 'in-progress', 'done']).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/tasks'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['status']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'GET' })
@@ -1396,11 +1547,55 @@ export const updateMemoryEntry: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const updateTask: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'update_task',
+    "Update a task on the workspace's list. Set status \"in-progress\" when you start working on it, back to \"open\" if you stop, or \"done\" when finished (complete_task is the shortcut for that). Title/detail edits keep the wording current if the work changes shape. Statuses: open / in-progress / done.",
+    {
+    taskId: z.string(),
+    workspaceId: z.string(),
+    title: z.string().optional(),
+    detail: z.string().nullable().optional(),
+    status: z.enum(['open', 'in-progress', 'done']).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/tasks/{taskId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{taskId}', encodeURIComponent(String(args['taskId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['title', 'detail', 'status']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 // Workspace-scoped tools — the normal chat turn's in-process server.
 export const generatedMcpTools: McpToolFactory[] = [
   addMemoryFromFile,
   addToKnowledge,
+  completeTask,
   createMemoryEntry,
+  createTask,
   discoverInstalledSkillsForProvider,
   getAiAgentProviderAuthStatus,
   getChatSession,
@@ -1421,15 +1616,18 @@ export const generatedMcpTools: McpToolFactory[] = [
   listMemoryTags,
   listMyChannels,
   listMySchedules,
+  listMyTasks,
   listScheduleRuns,
   listScheduleTemplates,
   listSchedules,
+  listTasks,
   listWorkspaces,
   removeKnowledgeSource,
   searchChatMessages,
   searchKnowledge,
   searchMemory,
   updateMemoryEntry,
+  updateTask,
 ]
 
 // Routing tools (agent-base Slice 4) — the GLOBAL-ROOT turn's server ONLY.

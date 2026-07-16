@@ -581,6 +581,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List tasks for the active workspace (owner-scoped). */
+        get: operations["getWorkspacesByWorkspaceIdTasks"];
+        put?: never;
+        /** Create a task on the active workspace's list (assistant provenance). */
+        post: operations["postWorkspacesByWorkspaceIdTasks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a task (title, detail, or status). */
+        patch: operations["patchWorkspacesByWorkspaceIdTasksByTaskId"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/{taskId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a task done. */
+        post: operations["postWorkspacesByWorkspaceIdTasksByTaskIdComplete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/chat/sessions": {
         parameters: {
             query?: never;
@@ -1357,6 +1409,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every task the user owns — global + workspace. */
+        get: operations["getTasks"];
+        put?: never;
+        /** Create a global or workspace task (user provenance). */
+        post: operations["postTasks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a task the user owns (hard delete). */
+        delete: operations["deleteTasksByTaskId"];
+        options?: never;
+        head?: never;
+        /** Update a task the user owns (title, detail, or status). */
+        patch: operations["patchTasksByTaskId"];
+        trace?: never;
+    };
     "/marketplace/items": {
         parameters: {
             query?: never;
@@ -1999,7 +2087,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get the Home dashboard's aggregate read (workspaces + recent chat activity + upcoming schedules). */
+        /** Get the Home dashboard's aggregate read (workspaces + recent chat activity + upcoming schedules + tasks). */
         get: operations["getDashboardOverview"];
         put?: never;
         post?: never;
@@ -4069,6 +4157,213 @@ export interface operations {
             };
         };
     };
+    getWorkspacesByWorkspaceIdTasks: {
+        parameters: {
+            query?: {
+                status?: "open" | "in-progress" | "done";
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of Task. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title: string;
+                    detail?: string;
+                    sessionId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Task created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchWorkspacesByWorkspaceIdTasksByTaskId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    detail?: string | null;
+                    /** @enum {string} */
+                    status?: "open" | "in-progress" | "done";
+                };
+            };
+        };
+        responses: {
+            /** @description Task updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such task owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdTasksByTaskIdComplete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Task completed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description No such task owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getWorkspacesByWorkspaceIdChatSessions: {
         parameters: {
             query?: {
@@ -5578,7 +5873,7 @@ export interface operations {
                     "application/json": {
                         capabilities: {
                             /** @enum {string} */
-                            id: "memory" | "knowledge" | "notebook";
+                            id: "memory" | "knowledge" | "notebook" | "tasks";
                             displayName: string;
                             description: string;
                             /** @enum {string} */
@@ -5603,7 +5898,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                capabilityId: "memory" | "knowledge" | "notebook";
+                capabilityId: "memory" | "knowledge" | "notebook" | "tasks";
                 workspaceId: string;
             };
             cookie?: never;
@@ -5624,7 +5919,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        id: "memory" | "knowledge" | "notebook";
+                        id: "memory" | "knowledge" | "notebook" | "tasks";
                         displayName: string;
                         description: string;
                         /** @enum {string} */
@@ -6749,6 +7044,184 @@ export interface operations {
                 };
             };
             /** @description No such schedule owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getTasks: {
+        parameters: {
+            query?: {
+                status?: "open" | "in-progress" | "done";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of Task. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+        };
+    };
+    postTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    scope: "global";
+                    title: string;
+                    detail?: string;
+                } | {
+                    /** @constant */
+                    scope: "workspace";
+                    workspaceId: string;
+                    title: string;
+                    detail?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Task created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error, or workspaceId missing for a workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteTasksByTaskId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Task deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such task owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchTasksByTaskId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    detail?: string | null;
+                    /** @enum {string} */
+                    status?: "open" | "in-progress" | "done";
+                };
+            };
+        };
+        responses: {
+            /** @description Task updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such task owned by this user. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8794,7 +9267,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description { workspaces, recentSessions, upcomingSchedules }. */
+            /** @description { workspaces, recentSessions, upcomingSchedules, openTasks, recentlyCompletedTasks }. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8856,6 +9329,36 @@ export interface operations {
                             approvalTimeoutMsOverride: number | null;
                             lastFiredAt: string | null;
                             nextScheduledFireAt: string | null;
+                            createdAt: string;
+                            updatedAt: string;
+                        }[];
+                        openTasks: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string | null;
+                            title: string;
+                            detail: string | null;
+                            /** @enum {string} */
+                            status: "open" | "in-progress" | "done";
+                            /** @enum {string} */
+                            source: "assistant" | "user";
+                            sessionId: string | null;
+                            completedAt: string | null;
+                            createdAt: string;
+                            updatedAt: string;
+                        }[];
+                        recentlyCompletedTasks: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string | null;
+                            title: string;
+                            detail: string | null;
+                            /** @enum {string} */
+                            status: "open" | "in-progress" | "done";
+                            /** @enum {string} */
+                            source: "assistant" | "user";
+                            sessionId: string | null;
+                            completedAt: string | null;
                             createdAt: string;
                             updatedAt: string;
                         }[];

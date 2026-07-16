@@ -25,6 +25,8 @@ import { channelsApp } from './routes/channels/index.js'
 import { channelsUserApp } from './routes/channels/user-scoped.js'
 import { schedulesApp } from './routes/schedules/index.js'
 import { schedulesUserApp } from './routes/schedules/user-scoped.js'
+import { tasksApp } from './routes/tasks/index.js'
+import { tasksUserApp } from './routes/tasks/user-scoped.js'
 import { approvalsApp, approvalRulesApp } from './routes/approvals/index.js'
 import { approvalsUserApp } from './routes/approvals/user-scoped.js'
 import { chatApp } from './routes/chat/index.js'
@@ -138,6 +140,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/workspaces/:workspaceId/marketplace', marketplaceApp)
   app.route('/workspaces/:workspaceId/channels', channelsApp)
   app.route('/workspaces/:workspaceId/schedules', schedulesApp)
+  // Tasks are NOT feature-gated — the task list is part of the core "one
+  // brain you can trust" experience, like chat and workspaces.
+  app.route('/workspaces/:workspaceId/tasks', tasksApp)
   app.route('/workspaces/:workspaceId/chat', chatApp)
   app.route('/workspaces/:workspaceId/files', filesApp)
   app.route('/workspaces/:workspaceId/memory', memoryApp)
@@ -151,6 +156,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // surface. These sit alongside the untouched workspace-scoped mounts above.
   app.route('/channels', channelsUserApp)
   app.route('/schedules', schedulesUserApp)
+  // `/tasks` spans a user's whole set (both scopes) — the panel + dashboard +
+  // CLI surface; global tasks are creatable, listable, and manageable here.
+  app.route('/tasks', tasksUserApp)
   // `/marketplace` is the GLOBAL marketplace — user+both items, user-scope
   // installs (Chad's rule). The workspace surface stays mounted above.
   app.route('/marketplace', marketplaceUserApp)

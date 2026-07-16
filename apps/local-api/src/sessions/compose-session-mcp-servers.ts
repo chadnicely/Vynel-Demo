@@ -79,7 +79,7 @@ export function composeSessionMcpServers(
     // list_playbooks…" while every one of those tools is denied — the model
     // gets steered into calls that can only fail.
     if (everyGatedToolDenied) continue
-    const contribution = descriptor.contributePrompt?.(context)
+    const contribution = descriptor.contributePrompt?.(context, enabledCapabilityIds)
     if (contribution !== undefined && contribution !== null && contribution !== '') {
       promptSections.push(contribution)
     }

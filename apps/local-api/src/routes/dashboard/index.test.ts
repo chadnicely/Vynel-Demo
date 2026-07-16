@@ -17,6 +17,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { insertChatSession, type NewChatSession } from '@vynel/chat/repositories'
 import { insertSchedule, type NewSchedule } from '@vynel/schedules/test-support'
+import { insertTask, makeTask } from '@vynel/tasks/test-support'
 import type { Database } from '@vynel/db'
 import type { AppEnv } from '../../factory.js'
 import { dashboardApp } from './index.js'
@@ -193,6 +194,25 @@ describe('GET /dashboard/overview', () => {
         nextScheduledFireAt: null,
       })
 
+      // Tasks: open + in-progress land in openTasks (both scopes); the done
+      // tail is capped at 5 and ordered by completion time, newest first.
+      insertTask(db, makeTask(user.id, workspaceA.id, { id: 'task-open', title: 'Open' }))
+      insertTask(
+        db,
+        makeTask(user.id, null, { id: 'task-doing', title: 'Doing', status: 'in-progress' }),
+      )
+      for (let i = 0; i < 6; i += 1) {
+        insertTask(
+          db,
+          makeTask(user.id, workspaceA.id, {
+            id: `task-done-${i}`,
+            title: `Done ${i}`,
+            status: 'done',
+            completedAt: new Date(Date.UTC(2026, 5, 1 + i)),
+          }),
+        )
+      }
+
       const app = makeHarness(db)
       const res = await app.request('/dashboard/overview')
       expect(res.status).toBe(200)
@@ -200,6 +220,8 @@ describe('GET /dashboard/overview', () => {
         workspaces: { id: string }[]
         recentSessions: { id: string }[]
         upcomingSchedules: { id: string }[]
+        openTasks: { id: string }[]
+        recentlyCompletedTasks: { id: string }[]
       }
 
       expect(body.workspaces.map((w) => w.id).sort()).toEqual([workspaceA.id, workspaceB.id].sort())
@@ -213,6 +235,15 @@ describe('GET /dashboard/overview', () => {
       ])
 
       expect(body.upcomingSchedules.map((s) => s.id)).toEqual(['schedule-soon', 'schedule-later'])
+
+      expect(body.openTasks.map((t) => t.id).sort()).toEqual(['task-doing', 'task-open'])
+      expect(body.recentlyCompletedTasks.map((t) => t.id)).toEqual([
+        'task-done-5',
+        'task-done-4',
+        'task-done-3',
+        'task-done-2',
+        'task-done-1',
+      ])
     })
   })
 })

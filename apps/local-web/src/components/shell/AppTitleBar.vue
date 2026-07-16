@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ChevronsUpDown } from "lucide-vue-next";
+import { ChevronsUpDown, ListChecks } from "lucide-vue-next";
 import {
   DropdownMenu,
   PresenceDot,
@@ -22,6 +22,8 @@ const props = defineProps<{
   theme: "dark" | "light";
   sidebarOpen: boolean;
   dockOpen: boolean;
+  tasksOpen: boolean;
+  openTaskCount: number;
   workspaces: { id: string; name: string }[];
   activeWorkspaceId: string | null;
 }>();
@@ -84,6 +86,7 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
     items: [
       { id: "toggle-sidebar", kind: "checkbox", label: "Show navigation", checked: props.sidebarOpen },
       { id: "toggle-dock", kind: "checkbox", label: "Show side panel", checked: props.dockOpen },
+      { id: "toggle-tasks", kind: "checkbox", label: "Show tasks", checked: props.tasksOpen },
       { id: "sep-4", kind: "separator" },
       { id: "toggle-theme", label: props.theme === "dark" ? "Light theme" : "Dark theme" },
       { id: "sep-5", kind: "separator" },
@@ -184,6 +187,24 @@ function onMenuCommand(id: string) {
       <PresenceDot :state="props.presenceState" :label="props.presenceLabel" />
       <span class="truncate text-xs text-ink-2">{{ props.title }}</span>
     </div>
+
+    <!-- The tasks dock toggle (Chad's right-side icon) — badge counts open work. -->
+    <button
+      type="button"
+      aria-label="Toggle tasks"
+      class="relative mr-1 grid size-7 shrink-0 place-items-center self-center rounded-sm transition hover:bg-row-hover hover:text-ink-1"
+      :class="props.tasksOpen ? 'bg-row-active text-ink-1' : 'text-ink-3'"
+      title="Show tasks"
+      @click="emit('command', 'toggle-tasks')"
+    >
+      <ListChecks :size="15" />
+      <span
+        v-if="props.openTaskCount > 0"
+        class="task-count-badge absolute -right-0.5 -top-0.5 grid min-w-[14px] place-items-center rounded-full bg-info px-1 text-[9px] font-bold leading-[14px] text-white"
+      >
+        {{ props.openTaskCount > 9 ? "9+" : props.openTaskCount }}
+      </span>
+    </button>
 
     <!-- Window controls (frameless Tauri; simulated in the browser) -->
     <div class="flex h-full items-stretch">

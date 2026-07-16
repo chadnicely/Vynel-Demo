@@ -1024,6 +1024,69 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  tasks: {
+  complete: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}/complete"]["post"]['parameters']>['path']["workspaceId"], taskId: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}/complete"]["post"]['parameters']>['path']["taskId"]) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/tasks/{taskId}/complete", {
+      params: { path: { workspaceId: workspaceId, taskId: taskId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  create: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/tasks"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/tasks"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/tasks", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/tasks"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/tasks"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/tasks", {
+      params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  update: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}"]["patch"]['parameters']>['path']["workspaceId"], taskId: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}"]["patch"]['parameters']>['path']["taskId"], input: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/workspaces/{workspaceId}/tasks/{taskId}", {
+      params: { path: { workspaceId: workspaceId, taskId: taskId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  tasksUser: {
+  create: async (input: NonNullable<paths["/tasks"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/tasks", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  delete: async (taskId: NonNullable<paths["/tasks/{taskId}"]["delete"]['parameters']>['path']["taskId"]) => {
+    const { error, response } = await client["DELETE"]("/tasks/{taskId}", {
+      params: { path: { taskId: taskId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  list: async (options?: NonNullable<paths["/tasks"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/tasks", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  update: async (taskId: NonNullable<paths["/tasks/{taskId}"]["patch"]['parameters']>['path']["taskId"], input: NonNullable<paths["/tasks/{taskId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/tasks/{taskId}", {
+      params: { path: { taskId: taskId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   users: {
   getMe: async () => {
     const { data, error, response } = await client["GET"]("/users/me")

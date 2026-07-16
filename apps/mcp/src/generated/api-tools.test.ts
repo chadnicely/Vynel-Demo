@@ -41,10 +41,17 @@ import { generatedMcpTools, generatedRoutingMcpTools } from './api-tools.js'
 //   - the 2026-07-11 memory-tags round: +list_memory_tags (read) +
 //     add_memory_from_file + update_memory_entry (both mutatingApproved — the
 //     latter so the agent KEEPS context-tagged entries current).
+//   - the tasks module (2026-07-17): list_tasks + list_my_tasks (reads) +
+//     create_task / update_task / complete_task (mutatingApproved — the agent
+//     SDK has no built-in task feature; these are how Claude keeps the user's
+//     visible task list current). The user-scoped mutations (create/delete)
+//     are NOT exposed — the agent creates through its workspace door only.
 const EXPECTED_TOOL_NAMES = [
   'add_memory_from_file',
   'add_to_knowledge',
+  'complete_task',
   'create_memory_entry',
+  'create_task',
   'discover_installed_skills_for_provider',
   'get_ai_agent_provider_auth_status',
   'get_chat_session',
@@ -65,15 +72,18 @@ const EXPECTED_TOOL_NAMES = [
   'list_memory_tags',
   'list_my_channels',
   'list_my_schedules',
+  'list_my_tasks',
   'list_schedule_runs',
   'list_schedule_templates',
   'list_schedules',
+  'list_tasks',
   'list_workspaces',
   'remove_knowledge_source',
   'search_chat_messages',
   'search_knowledge',
   'search_memory',
   'update_memory_entry',
+  'update_task',
 ] as const
 
 // The ROUTING (brain) tools live in a SEPARATE array — only the global-root

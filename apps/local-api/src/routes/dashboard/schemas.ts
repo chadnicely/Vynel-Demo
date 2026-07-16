@@ -10,9 +10,14 @@ import { z } from 'zod'
 import { WorkspaceResponseSchema } from '../workspaces/schemas.js'
 import { ChatSessionListItemSchema } from '../chat/schemas.js'
 import { ScheduleResponseSchema } from '../schedules/schemas.js'
+import { TaskResponseSchema } from '../tasks/schemas.js'
 
 export const DashboardOverviewResponseSchema = z.object({
   workspaces: z.array(WorkspaceResponseSchema),
   recentSessions: z.array(ChatSessionListItemSchema),
   upcomingSchedules: z.array(ScheduleResponseSchema),
+  // The task-list card: everything still open/in-progress (newest first)
+  // + the recently completed tail ("what Claude delivered").
+  openTasks: z.array(TaskResponseSchema),
+  recentlyCompletedTasks: z.array(TaskResponseSchema),
 })

@@ -102,4 +102,31 @@ describe('composeSessionMcpServers', () => {
     const ungated = fakeDescriptor({ contributePrompt: () => 'always here' })
     expect(composeSessionMcpServers([ungated], context).systemPromptAppend).toBe('always here')
   })
+
+  it('passes the enabled-capability set into contributePrompt (multi-capability descriptor)', () => {
+    // The vynel-workspace shape: one descriptor gating several capabilities.
+    // The composer's own skip is all-or-nothing per descriptor, so a
+    // per-capability prompt section (the tasks discipline) reads the set
+    // itself — the second contributePrompt argument.
+    const vynelLike = fakeDescriptor({
+      capabilityGatedTools: {
+        memory: ['mcp__vynel__search_memory'],
+        tasks: ['mcp__vynel__create_task'],
+      },
+      contributePrompt: (_context, enabledCapabilityIds) =>
+        enabledCapabilityIds?.has('tasks') === true ? 'keep the task list current' : null,
+    })
+
+    const tasksOff = composeSessionMcpServers([vynelLike], context, {
+      enabledCapabilityIds: new Set(['memory']),
+    })
+    expect(tasksOff.systemPromptAppend).toBe('')
+    expect(tasksOff.deniedMcpToolPatterns).toEqual(['mcp__vynel__create_task'])
+
+    const tasksOn = composeSessionMcpServers([vynelLike], context, {
+      enabledCapabilityIds: new Set(['memory', 'tasks']),
+    })
+    expect(tasksOn.systemPromptAppend).toBe('keep the task list current')
+    expect(tasksOn.deniedMcpToolPatterns).toEqual([])
+  })
 })

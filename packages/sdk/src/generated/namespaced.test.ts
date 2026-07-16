@@ -128,6 +128,14 @@ const EXPECTED_SCHEDULES_USER_METHODS = [
   'update',
 ] as const
 
+// The tasks namespaces, sorted (tasks module, 2026-07-17). Workspace-scoped
+// `tasks.*` is the AGENT's surface (create stamps source='assistant'; no
+// delete — removal is the user's call); user-scoped `tasksUser.*` is the
+// panel/dashboard/CLI surface (create stamps source='user', spans both
+// scopes, owns delete).
+const EXPECTED_TASKS_METHODS = ['complete', 'create', 'list', 'update'] as const
+const EXPECTED_TASKS_USER_METHODS = ['create', 'delete', 'list', 'update'] as const
+
 // The notebook namespace's methods, sorted — the USER-scoped `/notebook`
 // surface (deliberate spec addition, 2026-07-12): the merged playbook shelf
 // (verified books + the user's own) and the own-document CRUD. No route is
@@ -204,6 +212,8 @@ describe('makeNamespaced — shape', () => {
       'schedules',
       'schedulesUser',
       'skills',
+      'tasks',
+      'tasksUser',
       'users',
       'voice',
       'workspaces',
@@ -217,6 +227,8 @@ describe('makeNamespaced — shape', () => {
     expect(Object.keys(sdk.marketplaceUser).sort()).toEqual([...EXPECTED_MARKETPLACE_USER_METHODS])
     expect(Object.keys(sdk.schedules).sort()).toEqual([...EXPECTED_SCHEDULES_METHODS])
     expect(Object.keys(sdk.schedulesUser).sort()).toEqual([...EXPECTED_SCHEDULES_USER_METHODS])
+    expect(Object.keys(sdk.tasks).sort()).toEqual([...EXPECTED_TASKS_METHODS])
+    expect(Object.keys(sdk.tasksUser).sort()).toEqual([...EXPECTED_TASKS_USER_METHODS])
     expect(Object.keys(sdk.notebook).sort()).toEqual([...EXPECTED_NOTEBOOK_METHODS])
   })
 

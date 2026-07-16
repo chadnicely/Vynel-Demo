@@ -50,6 +50,27 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__update_memory_entry',
       'mcp__vynel__add_memory_from_file',
     ])
+    // `tasks` gates all five task tools (tasks module, 2026-07-17). The exact
+    // list is pinned so a typo'd gate name can't silently leave a tool ungated
+    // (the composer spec-tests the mechanism with fakes only).
+    expect(vynelWorkspaceDescriptor.capabilityGatedTools?.tasks).toEqual([
+      'mcp__vynel__list_tasks',
+      'mcp__vynel__create_task',
+      'mcp__vynel__update_task',
+      'mcp__vynel__complete_task',
+      'mcp__vynel__list_my_tasks',
+    ])
+  })
+
+  it('contributes the task discipline ONLY when the tasks capability is enabled', () => {
+    const context = fakeContext()
+    const withTasks = vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['tasks']))
+    expect(withTasks).toContain('list_tasks')
+    expect(withTasks).toContain('complete_task')
+    // Tasks off (other capabilities on) → no standing line steering the model
+    // into denied tools. An undefined set (no capability info) also drops it.
+    expect(vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['memory']))).toBeNull()
+    expect(vynelWorkspaceDescriptor.contributePrompt?.(context)).toBeNull()
   })
 
   it('build() returns a live server for a workspace context', () => {

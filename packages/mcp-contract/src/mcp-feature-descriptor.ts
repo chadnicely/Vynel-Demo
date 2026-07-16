@@ -83,7 +83,16 @@ export interface McpFeatureDescriptor {
   // Concatenated into the composed `systemPromptAppend`. NOT for the global root's
   // own base prompt or memory's snapshot — those stay with their owners (avoids
   // coupling a feature package to apps/local-api concepts / memory-core).
-  contributePrompt?(context: SessionToolContext): string | null
+  //
+  // `enabledCapabilityIds` is the turn's enabled-capability set (the same one
+  // the composer gates tools with). A MULTI-capability descriptor (the `vynel`
+  // server) needs it to drop one capability's prompt section while another's
+  // tools stay live — the composer's own skip is all-or-nothing per descriptor,
+  // so it can't express that. Single-capability descriptors just ignore it.
+  contributePrompt?(
+    context: SessionToolContext,
+    enabledCapabilityIds?: ReadonlySet<string>,
+  ): string | null
 
   // Defense-in-depth predicate — when it returns `false` the feature is skipped
   // entirely (a cheap pre-check that avoids building a server that won't be used).

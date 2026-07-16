@@ -42,9 +42,9 @@ describe('listEnabledCapabilities', () => {
     await withTestDatabase((db) => {
       const { workspace } = seedUserWorkspace(db)
       const enabled = listEnabledCapabilities(db, workspace.id)
-      // test: correct expectation — the catalog grew: 'notebook' joined as a
-      // third defaultEnabled first-party capability (instructions slice).
-      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory', 'notebook'])
+      // test: correct expectation — the catalog grew: 'tasks' joined as a
+      // fourth defaultEnabled first-party capability (tasks module).
+      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory', 'notebook', 'tasks'])
     })
   })
 
@@ -60,6 +60,7 @@ describe('listEnabledCapabilities', () => {
       expect(listEnabledCapabilities(db, workspace.id).map((c) => c.id).sort()).toEqual([
         'memory',
         'notebook',
+        'tasks',
       ])
     })
   })
@@ -80,7 +81,7 @@ describe('listEnabledCapabilities', () => {
         isEnabled: true,
       })
       const enabled = listEnabledCapabilities(db, workspace.id)
-      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory', 'notebook'])
+      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory', 'notebook', 'tasks'])
       expect(enabled.find((c) => c.id === 'memory')!.displayName).toBe('Memory')
     })
   })
@@ -99,6 +100,7 @@ describe('listEnabledCapabilities', () => {
         'knowledge',
         'memory',
         'notebook',
+        'tasks',
       ])
     })
   })

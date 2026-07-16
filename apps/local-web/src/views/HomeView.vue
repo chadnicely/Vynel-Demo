@@ -5,6 +5,7 @@ import {
   Activity,
   CalendarClock,
   FolderOpen,
+  ListChecks,
   MessagesSquare,
 } from "lucide-vue-next";
 import { EmptyState, PresenceDot } from "@vynel/ui";
@@ -58,6 +59,18 @@ function openWorkspace(workspaceId: string) {
   ui.activeWorkspaceId = workspaceId;
   void router.push({ name: "workspace" });
 }
+
+// In-progress work leads the tasks card — it's what the assistant has in hand.
+const openTasks = computed(() => {
+  const rows = overview.value?.openTasks ?? [];
+  return [
+    ...rows.filter((row) => row.status === "in-progress"),
+    ...rows.filter((row) => row.status !== "in-progress"),
+  ];
+});
+const recentlyCompletedTasks = computed(
+  () => overview.value?.recentlyCompletedTasks ?? [],
+);
 
 function scheduleTiming(nextFireAt: string | null): string {
   if (!nextFireAt) return "not scheduled";
@@ -158,6 +171,42 @@ function scheduleTiming(nextFireAt: string | null): string {
           <span class="row-meta">
             {{ scheduleTiming(schedule.nextScheduledFireAt) }} ·
             {{ schedule.scheduleKind === "one-time" ? "one time" : "repeats" }}
+          </span>
+        </div>
+      </section>
+
+      <section class="card span-2">
+        <header class="card-header">
+          <ListChecks :size="14" class="card-icon" />
+          <p class="card-title">Tasks</p>
+        </header>
+        <EmptyState
+          v-if="openTasks.length === 0 && recentlyCompletedTasks.length === 0"
+          title="Nothing on the list"
+          hint="Ask Claude for something and it'll track the steps here."
+        />
+        <div
+          v-for="task in openTasks"
+          :key="task.id"
+          class="list-row is-static task-row"
+        >
+          <span class="row-title">{{ task.title }}</span>
+          <span
+            class="task-pill"
+            :class="{ 'is-in-progress': task.status === 'in-progress' }"
+          >
+            {{ task.status === "in-progress" ? "In progress" : "Open" }}
+          </span>
+        </div>
+        <div
+          v-for="task in recentlyCompletedTasks"
+          :key="task.id"
+          class="list-row is-static task-row is-completed"
+        >
+          <span class="row-title">{{ task.title }}</span>
+          <span class="row-meta">
+            done
+            {{ task.completedAt ? formatRelativeTime(task.completedAt) : "" }}
           </span>
         </div>
       </section>
@@ -294,6 +343,37 @@ function scheduleTiming(nextFireAt: string | null): string {
 .row-meta {
   color: var(--ink-3);
   font: 400 10.5px/1.5 var(--font-ui);
+}
+
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-row .row-title {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The completed tail reads as a quiet log under the live list. */
+.task-row.is-completed .row-title {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.task-pill {
+  flex: none;
+  color: var(--ink-3);
+  background: var(--row-active);
+  font: 600 10.5px/1.6 var(--font-ui);
+  border-radius: 99px;
+  padding: 1px 8px;
+}
+
+.task-pill.is-in-progress {
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 12%, transparent);
 }
 
 @media (max-width: 860px) {

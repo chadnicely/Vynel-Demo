@@ -7,6 +7,7 @@ import {
   Brain,
   CalendarClock,
   FolderTree,
+  ListChecks,
   Radio,
   Settings2,
   Store,
@@ -29,6 +30,7 @@ import { useActivityStore } from "../../stores/activity-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
+import { useTasks } from "../../composables/tasks/use-tasks.js";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 
 // The reinvented desktop shell — mounted only for real surfaces (App.vue keeps
@@ -96,11 +98,21 @@ const accountName = computed(
   () => currentUserQuery.data.value?.displayName ?? "Your account",
 );
 
+// Open work feeds the title bar's tasks-toggle badge (the same list every
+// tasks surface reads — vue-query dedupes the fetch).
+const tasksQuery = useTasks(true);
+const openTaskCount = computed(
+  () =>
+    (tasksQuery.data.value ?? []).filter((row) => row.status !== "done")
+      .length,
+);
+
 // ── Sidebar sections (contextual to the scope). Icons come from the app so
 // @vynel/ui stays icon-set-free. ──
 const GLOBAL_SECTIONS: SidebarItem[] = [
   { id: "channels", label: "Channels", icon: Radio },
   { id: "schedules", label: "Schedules", icon: CalendarClock },
+  { id: "tasks", label: "Tasks", icon: ListChecks },
   { id: "knowledge", label: "Knowledge", icon: FolderTree },
   { id: "memory", label: "Memory", icon: Brain },
   { id: "notebook", label: "Notebook", icon: BookOpen },
@@ -113,6 +125,7 @@ const WORKSPACE_SECTION_ICONS: Record<string, SidebarItem["icon"]> = {
   skills: Wrench,
   channels: Radio,
   schedules: CalendarClock,
+  tasks: ListChecks,
   knowledge: FolderTree,
   marketplace: Store,
   memory: Brain,
@@ -200,6 +213,9 @@ function runCommand(id: string) {
     case "toggle-dock":
       ui.isSessionListOpen = !ui.isSessionListOpen;
       break;
+    case "toggle-tasks":
+      ui.isTasksPanelOpen = !ui.isTasksPanelOpen;
+      break;
     case "go-home":
       void router.push({ name: "home" });
       break;
@@ -275,6 +291,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :theme="ui.theme"
       :sidebar-open="isSidebarOpen"
       :dock-open="ui.isSessionListOpen"
+      :tasks-open="ui.isTasksPanelOpen"
+      :open-task-count="openTaskCount"
       :workspaces="switcherWorkspaces"
       :active-workspace-id="barWorkspaceId"
       @command="runCommand"

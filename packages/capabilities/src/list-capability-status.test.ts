@@ -41,12 +41,13 @@ describe('listCapabilityStatusForWorkspace', () => {
     await withTestDatabase((db) => {
       const { workspace } = seed(db)
       const statuses = listCapabilityStatusForWorkspace(db, workspace.id)
-      // test: correct expectation — the catalog grew: 'notebook' joined as a
-      // third defaultEnabled first-party capability (instructions slice).
+      // test: correct expectation — the catalog grew: 'tasks' joined as a
+      // fourth defaultEnabled first-party capability (tasks module).
       expect(statuses.map((s) => s.capability.id).sort()).toEqual([
         'knowledge',
         'memory',
         'notebook',
+        'tasks',
       ])
       expect(statuses.every((s) => s.isEnabled)).toBe(true)
     })

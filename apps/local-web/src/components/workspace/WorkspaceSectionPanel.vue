@@ -6,6 +6,7 @@ import {
   Bot,
   Brain,
   CalendarClock,
+  ListChecks,
   NotebookText,
   Radio,
   Sparkles,
@@ -20,6 +21,7 @@ import MarketplaceSection from "../sections/MarketplaceSection.vue";
 import MemorySection from "../sections/MemorySection.vue";
 import NotebookSection from "../sections/NotebookSection.vue";
 import SchedulesSection from "../sections/SchedulesSection.vue";
+import TasksSection from "../sections/TasksSection.vue";
 import { WORKSPACE_SECTIONS } from "./workspace-sections.js";
 import type {
   WorkspaceSectionId,
@@ -35,6 +37,7 @@ const SECTION_ICONS = {
   skills: Sparkles,
   channels: Radio,
   schedules: CalendarClock,
+  tasks: ListChecks,
   knowledge: BookOpen,
   marketplace: Blocks,
   memory: Brain,
@@ -81,6 +84,11 @@ const skills = computed(() => skillsQuery.data.value ?? []);
       :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
     />
   </template>
+  <!-- Tasks is core assistant plumbing (like notebook) — no tier gate. -->
+  <TasksSection
+    v-else-if="props.section === 'tasks'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
   <template v-else-if="props.section === 'knowledge'">
     <LockedFeatureCard v-if="isLocked('knowledge')" feature-label="Knowledge" />
     <KnowledgeSection

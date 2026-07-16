@@ -16,6 +16,8 @@ import MarketplaceSection from "../components/sections/MarketplaceSection.vue";
 import MemorySection from "../components/sections/MemorySection.vue";
 import NotebookSection from "../components/sections/NotebookSection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
+import TasksSection from "../components/sections/TasksSection.vue";
+import TasksPanel from "../components/tasks/TasksPanel.vue";
 import { useChannels } from "../composables/channels/use-channels.js";
 import { useHubFeatures } from "../composables/hub/use-hub-features.js";
 import { useSessionList } from "../composables/chat/use-session-list.js";
@@ -46,6 +48,7 @@ const ASSISTANT_NAME = "Claude";
 const GLOBAL_SECTION_IDS = [
   "channels",
   "schedules",
+  "tasks",
   "knowledge",
   "memory",
   "notebook",
@@ -238,6 +241,11 @@ function openContinuous() {
           />
           <SchedulesSection v-else :scope="{ kind: 'global' }" />
         </template>
+        <!-- Tasks is core assistant plumbing (like notebook) — no tier gate. -->
+        <TasksSection
+          v-else-if="shell.mainView === 'tasks'"
+          :scope="{ kind: 'global' }"
+        />
         <template v-else-if="shell.mainView === 'knowledge'">
           <LockedFeatureCard
             v-if="isLocked('knowledge')"
@@ -326,6 +334,8 @@ function openContinuous() {
         />
       </footer>
     </section>
+
+    <TasksPanel v-if="ui.isTasksPanelOpen" />
   </div>
 </template>
 

@@ -11,6 +11,8 @@ function mountTitleBar(overrides: Record<string, unknown> = {}) {
       theme: "dark",
       sidebarOpen: true,
       dockOpen: false,
+      tasksOpen: false,
+      openTaskCount: 0,
       workspaces: [{ id: "w1", name: "vynel" }],
       activeWorkspaceId: null,
       ...overrides,

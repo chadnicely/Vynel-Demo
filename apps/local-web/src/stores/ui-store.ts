@@ -69,6 +69,10 @@ export const useUiStore = defineStore("ui", () => {
   // continuous single conversation unless the user toggles the list open.
   const isSessionListOpen = ref(false);
 
+  // The tasks dock mirrors it on the other side of the canvas: opt-in, off by
+  // default — chat stays the whole story until the user asks for the list.
+  const isTasksPanelOpen = ref(false);
+
   const globalChat = reactive<ChatShellState>({
     mainView: "chat",
     target: "continuous",
@@ -91,6 +95,7 @@ export const useUiStore = defineStore("ui", () => {
     toggleTheme,
     activeWorkspaceId,
     isSessionListOpen,
+    isTasksPanelOpen,
     globalChat,
     workspaceChat,
     composerModelId,

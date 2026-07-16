@@ -41,7 +41,29 @@ const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly string[]>> 
     'mcp__vynel__update_memory_entry',
     'mcp__vynel__add_memory_from_file',
   ],
+  tasks: [
+    'mcp__vynel__list_tasks',
+    'mcp__vynel__create_task',
+    'mcp__vynel__update_task',
+    'mcp__vynel__complete_task',
+    'mcp__vynel__list_my_tasks',
+  ],
 }
+
+// The standing task-list discipline for a workspace turn. Self-contained (the
+// tools it names are this descriptor's own) and dropped when the `tasks`
+// capability is off — the capability-aware contributePrompt below reads the
+// same enabled-set the composer gates the tools with, so the prompt and the
+// tools can never disagree.
+const TASKS_PROMPT_INSTRUCTIONS = [
+  '## Task list',
+  'The user sees a task list you maintain (create_task / update_task / complete_task / ' +
+    'list_tasks). When work has more than one step — or the user asks for something you will do ' +
+    'later — track it: check list_tasks first, create one task per distinct piece of work in ' +
+    'plain language the user recognizes, set it in-progress when you start, and complete it the ' +
+    'moment it is finished and verified. Keep the list current as you go; never narrate the ' +
+    'bookkeeping.',
+].join('\n')
 
 function toMcpScope(context: SessionToolContext): McpScope {
   return {
@@ -62,6 +84,8 @@ export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
   build: (context) => buildInProcessMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
   capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
+  contributePrompt: (_context, enabledCapabilityIds) =>
+    enabledCapabilityIds?.has('tasks') === true ? TASKS_PROMPT_INSTRUCTIONS : null,
 }
 
 // The brain's tools for a GLOBAL-ROOT turn: the routing tools (SEE workspaces +

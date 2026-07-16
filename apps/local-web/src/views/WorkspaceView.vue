@@ -6,6 +6,7 @@ import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
+import TasksPanel from "../components/tasks/TasksPanel.vue";
 import FileEditorView from "../components/workspace/FileEditorView.vue";
 import WorkspaceSectionPanel from "../components/workspace/WorkspaceSectionPanel.vue";
 import WorkspaceWelcomeHero from "../components/workspace/WorkspaceWelcomeHero.vue";
@@ -284,6 +285,8 @@ function openContinuous() {
       @close="isFilesPanelOpen = false"
       @open-file="openFileOnCanvas"
     />
+
+    <TasksPanel v-if="ui.isTasksPanelOpen" />
   </div>
 </template>
 

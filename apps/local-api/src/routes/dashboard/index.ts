@@ -21,14 +21,20 @@ import { listWorkspacesForUser } from '@vynel/workspaces'
 import { listRecentChatSessionsForUser } from '@vynel/chat'
 import { listSchedulesForUser } from '@vynel/schedules'
 import type { Schedule } from '@vynel/schedules'
+import { listTasksForUser } from '@vynel/tasks'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { serializeScheduleForResponse } from '../schedules/serializers.js'
+import { serializeTaskForResponse } from '../tasks/serializers.js'
 import { DashboardOverviewResponseSchema } from './schemas.js'
 
 // The recent-activity feed size — mirrors the demo's `listRecentSessions(5)`.
 const RECENT_SESSIONS_LIMIT = 5
+
+// The completed tail on the Tasks card — enough to show "what Claude
+// delivered" without the card scrolling forever.
+const RECENTLY_COMPLETED_TASKS_LIMIT = 5
 
 export const dashboardApp = factory
   .createApp()
@@ -37,11 +43,12 @@ export const dashboardApp = factory
     describeRoute({
       tags: ['dashboard'],
       summary:
-        "Get the Home dashboard's aggregate read (workspaces + recent chat activity + upcoming schedules).",
+        "Get the Home dashboard's aggregate read (workspaces + recent chat activity + upcoming schedules + tasks).",
       'x-sdk-name': 'dashboard.getOverview',
       responses: {
         200: {
-          description: '{ workspaces, recentSessions, upcomingSchedules }.',
+          description:
+            '{ workspaces, recentSessions, upcomingSchedules, openTasks, recentlyCompletedTasks }.',
           content: { 'application/json': { schema: resolver(DashboardOverviewResponseSchema) } },
         },
       },
@@ -60,7 +67,25 @@ export const dashboardApp = factory
         .sort((a, b) => a.nextScheduledFireAt.getTime() - b.nextScheduledFireAt.getTime())
         .map(serializeScheduleForResponse)
 
-      return c.json({ workspaces, recentSessions, upcomingSchedules })
+      // Tasks span both scopes (the user-scoped read). Open + in-progress are
+      // the live list (repo order: newest first); the completed tail is
+      // re-sorted by completion time so "what Claude delivered" reads
+      // most-recent-first regardless of when the task was created.
+      const tasks = listTasksForUser(c.var.db, { userId: c.var.user.id })
+      const openTasks = tasks.filter((t) => t.status !== 'done').map(serializeTaskForResponse)
+      const recentlyCompletedTasks = tasks
+        .filter((t) => t.status === 'done' && t.completedAt !== null)
+        .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime())
+        .slice(0, RECENTLY_COMPLETED_TASKS_LIMIT)
+        .map(serializeTaskForResponse)
+
+      return c.json({
+        workspaces,
+        recentSessions,
+        upcomingSchedules,
+        openTasks,
+        recentlyCompletedTasks,
+      })
     },
   )
 

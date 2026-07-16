@@ -18,6 +18,8 @@ function makeFakeVynelClient(): VynelClient {
     approvals: { listPending: async () => [] },
     workspaces: { list: async () => [] },
     channelsUser: { list: async () => [] },
+    // The shell reads the tasks list for the title-bar badge.
+    tasksUser: { list: async () => [] },
     chat: {
       listSessions: async () => [],
       getContinuing: noConversation,
@@ -49,6 +51,8 @@ function makeFakeVynelClient(): VynelClient {
         workspaces: [],
         recentSessions: [],
         upcomingSchedules: [],
+        openTasks: [],
+        recentlyCompletedTasks: [],
       }),
     },
   } as unknown as VynelClient;
