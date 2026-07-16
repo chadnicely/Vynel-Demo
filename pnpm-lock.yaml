@@ -691,6 +691,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@vynel/channels':
+        specifier: workspace:*
+        version: link:../channels
       '@vynel/db':
         specifier: workspace:*
         version: link:../db
