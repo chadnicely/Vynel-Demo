@@ -3,7 +3,37 @@
 **Updated 2026-07-17.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-17d): APPS MODULE BUILT (arc ③) — gate GREEN 485f/2536t, reviewer running; then commit; LAST arc: SSH
+## ⏭ NEXT ACTION (2026-07-17e): SSH MODULE BUILT (arc ④ — THE ARC IS COMPLETE) — gate GREEN 492f/2573t, security reviewer running; then commit + Chad's big smoke
+
+**④ SSH BUILT (docs/module-notes/ssh.md; Chad's forks: master key in the OS KEYRING; NO cards on
+run_ssh_command — like Apps, vision tension RECORDED with mitigations):**
+- **Leaf `packages/ssh-servers`** — ssh_servers (migration `0009_ssh_servers`; nullable
+  workspaceId=global) · `encryptedCredentials` = AES-256-GCM sealed blob (per-secret nonce; key
+  32B from the keyring vault, quarantined `./keyring` subpath; NO read-credential surface —
+  rotation = remove+re-add) · connect-per-command ssh2 exec (60s timeout, output caps, TOFU
+  hostVerifier → SshHostKeyMismatchError pre-auth) · runServerCommand opens the secret ONLY
+  inside the exec path; outbox ssh.command-executed carries the plain-language description,
+  NEVER the raw command or secret · `vynel-ssh` descriptor factory (list_ssh_servers +
+  run_ssh_command w/ REQUIRED description; mutatingToolNames [] per Chad) attached to the two
+  interactive streams only-when-key-exists (typeof guard fails closed). Leaf+route tests run a
+  REAL loopback ssh2 Server (password dana/sourdough) — handshake, TOFU pin+bite, no-secret
+  assertions everywhere.
+- **Wiring (subagent)** — routes /ssh-servers (list/add/delete/test-connection; featureGate('ssh')
+  pro key; no-master-key → 409 ConflictError, documented deviation — taxonomy has no 5xx) ·
+  server.ts resolves the master key from the keyring at boot · CLI `vynel ssh list|test|remove`
+  (NO add — secrets never on CLI flags) · **verified book `working-with-servers.md`** (3rd book;
+  shelf pins updated).
+- **UI (subagent, 230 local-web tests)** — SshServersSection both scopes + LockedFeatureCard('ssh'),
+  arm-then-confirm remove, Test button (✓ / plain failure / DISTINCT 409 identity-changed
+  warning), AddServerDialog (password|private-key tabs, "encrypted and never shown again — not
+  even to Claude", credential cleared from refs on success).
+- pnpm-workspace.yaml allowBuilds += ssh2/cpu-features (placeholders pnpm scaffolded — set true).
+**⏭ NEXT: fold security-review findings → commit+push (feat(ssh) + docs) → CHAD'S BIG 4-ARC
+SMOKE (migrations 0006-0009 apply on boot): tasks in a workspace chat · an ask wizard + its
+Telegram nudge · "run my app" end-to-end · add a real server, "check disk space on my server" →
+watch the Servers history line appear. THE TASKS→ASK→APPS→SSH ARC IS THEN DONE.**
+
+## (prev) NEXT ACTION (2026-07-17d): APPS MODULE BUILT (arc ③) — SHIPPED `d0c78f0`+`9584d8e`, pushed; reviewer 1 must-fix (spawn-failure ghost) FOLDED pre-commit
 
 **③ APPS BUILT (docs/module-notes/apps.md; Chad: NO cards anywhere, Claude adds/runs freely,
 live ring-buffer logs only, pro tier):**

@@ -31,6 +31,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude can manage your servers — without ever seeing your passwords.** Add a server
+  (Vynel Pro) in Settings-style form — name, address, how to sign in — and your password or key
+  is encrypted on the spot and never shown again, not even to Claude. From then on you can just
+  ask: "check how much disk space is left on my server", "restart the website" — Claude runs the
+  commands through Vynel's own secure connection, and your Servers section keeps a plain-language
+  history of what happened ("Checked disk space"). If a server's identity ever changes (a classic
+  warning sign), Vynel refuses to connect and tells you. Claude also gets a built-in playbook on
+  careful server work: check before changing, prefer reversible steps, verify after.
+
 - **Run your apps from Vynel — and let Claude run them for you.** Each workspace now has an
   Apps section (Vynel Pro): register the things your project can run — a web app, an API — and
   start or stop them with one click. A green dot shows what's running, "Open in browser" jumps

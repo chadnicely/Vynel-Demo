@@ -1,7 +1,33 @@
 # SSH servers — module notes
 
-**Status:** design DRAFT 2026-07-17 — two forks below still need Chad; do not build past Gate 1
-until they're answered. Arc ④ (final) of Tasks → Ask → Apps → SSH.
+**Status:** design agreed 2026-07-17 (fork answers below) · arc ④ (final) of
+Tasks → Ask → Apps → SSH.
+
+## Chad's fork answers (2026-07-17)
+
+1. **Master key: OS keyring** (Windows Credential Manager via `@napi-rs/keyring`, the
+   hub-account precedent — quarantined to one file behind a vault interface). The SQLite file
+   alone is useless ciphertext.
+2. **NO approval cards on `run_ssh_command` — like Apps.** Chad's explicit product call.
+   ⚠ Recorded tension: the vision's "every irreversible action passes one approval card" line
+   — remote servers are less reversible than local dev apps. Deliberately accepted; the
+   mitigations are the REQUIRED plain-language `description` on every command (readable
+   history in the section), the verified notebook book steering Claude to check-first/
+   reversible steps, and TOFU host-key pinning. Revisit if real use shows scares.
+
+## Scope narrowings taken while building (v1)
+
+- **Connect-per-command** (no persistent pool) — ~1s per command is fine for occasional
+  server work; a reuse pool is a later optimization, not a correctness need.
+- **Descriptor tools ride the interactive streams only** (like ask) — unattended scheduled
+  SSH is a later, deliberate decision.
+- **No credential update op** — rotating a credential = remove + re-add (there is NO
+  read-credential surface anywhere, by construction).
+- **Tier gating at the ROUTES** (featureGate('ssh'), new pro key). The descriptor tools have
+  no HTTP gate — harmless for a basic user (no registered servers = list empty / run 404s);
+  registration itself is the locked door.
+- **CLI**: list + test-connection + remove only — `add` needs the secret and a CLI flag is
+  bad secret hygiene; adding happens in the app form.
 
 ## Chad's advice so far (binding)
 
@@ -54,6 +80,16 @@ until they're answered. Arc ④ (final) of Tasks → Ask → Apps → SSH.
    cards-on; a loosened dev box runs free). (c) Card only a deny-list of dangerous patterns —
    NOT recommended (pattern lists lie). Recommendation: (a) to start, (b) as a fast follow if
    card fatigue shows up in real use.
+
+## Review outcome (2026-07-17)
+
+Security review: CLEAN, 0 must-fix — credential lifecycle verified tight end-to-end, sealing
+crypto correct, TOFU pre-auth ordering confirmed, no-cards stance honestly recorded. Folded:
+exitCode `?? null` normalization + `connection.destroy()` on the timeout path + dropped an
+unused dep. **Recorded for the codebase-wide sweep** (with tasksUser/schedulesUser create):
+scope:'workspace' create routes don't pre-validate workspaceId ownership → FK failure surfaces
+as a 500 instead of a typed 400/404. Untested-by-design: the 60s-timeout and output-cap branches
+need an artificially slow server; noted here rather than in a skipped test.
 
 ## Deferred (deliberate, regardless of forks)
 
