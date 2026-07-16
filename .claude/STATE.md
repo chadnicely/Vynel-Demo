@@ -3,7 +3,31 @@
 **Updated 2026-07-17.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-17b): ASK MODULE BUILT (arc ②) — gate GREEN 2492t, reviewer running; then commit; next arc: APPS
+## ⏭ NEXT ACTION (2026-07-17c): OUTBOX RELAY WIRED (the ask-nudge slice) — gate GREEN 478f/2502t, reviewed CLEAN 0-must-fix (nits folded); commit+push next; then arc ③ APPS
+
+**The generic outbox relay is LIVE (was wired nowhere since it landed):** `OUTBOX_CONSUMERS`
+now carries 'schedule.run-completed' → the (formerly dormant) channels delivery consumer and
+'ask.created' → the NEW ask-nudge consumer (`packages/channels/src/delivery/
+consume-ask-created-event.ts`; channel fallback ask-workspace → global → any-enabled → drop;
+payloadKind 'ask-nudge'; body "🙋 Claude needs your input: <label> (+N more) — open Vynel").
+`services/outbox-relay-service.ts` drives dispatch every 5s. **Flood guard:**
+`skipStaleOutboxEvents` at service boot marks >10-min-old registered events processed
+UNDELIVERED (months of pre-relay backlog on live dev DBs must not spray stale Telegram
+messages) — and `ask.created` skips REGARDLESS of age at boot (boot recovery just expired every
+pending ask, so a post-boot nudge always points at nothing). Core gained @vynel/channels (spine
+composes leaves — sanctioned). Reviewer: CLEAN 0-must-fix; 3 nits folded (Claude-vs-Vynel
+naming reconciled to "Claude", ask.created zero-cutoff, fallback-priority test).
+
+**APPS DECISIONS (Chad, 2026-07-17): Claude manages apps freely — new workspace, needs to run
+an app → adds it and runs it, NO permission/card (users can also start from UI) · logs = live
+in-memory ring buffer only (~2000 lines, nothing on disk) · discovery = Claude adds what it
+needs when it needs it (no background scanner).** Apps is PRO-tier (featureGate + entitlement
+key). Workspace-scoped v1 (an app needs a cwd; global has no path). Next: write
+`docs/module-notes/apps.md` → leaf `packages/apps` (workspace_apps table, migration 0008) +
+process supervisor (node:child_process, ring buffer, Windows-aware kill) + routes/tools
+(list_apps/add_app/start_app/stop_app/get_app_logs, all uncarded) + AppsSection UI + CLI.
+
+## (prev) NEXT ACTION (2026-07-17b): ASK MODULE BUILT (arc ②) — SHIPPED `35e5759`+`2c693b1`, pushed; reviewed CLEAN (turnKey fix folded)
 
 **② ASK BUILT (docs/module-notes/ask.md = as-built; fork answers: NO auto-timeout — an ask
 WAITS, dismiss is the only proceed-without-me; interactive app turns ONLY; notifier + Modal

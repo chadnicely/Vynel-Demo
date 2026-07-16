@@ -31,6 +31,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Telegram now hears about things that happen while you're away.** Scheduled routines that
+  deliver to a channel actually arrive there now, and when Claude is waiting on your input a
+  short nudge ("Claude needs your input: …") reaches your Telegram so you know to open the app.
+  Old, long-stale messages from before this landed are quietly skipped — nothing floods in on
+  first start.
+
 - **Claude can now ask you things with a proper form.** When Claude genuinely needs your
   preference or details mid-task — which tone, which server, how many — it no longer buries
   questions in chat text. A gentle "Claude needs your input" card appears, and answering opens a
