@@ -52,6 +52,9 @@ describe('featureGate', () => {
         // test: correct expectation — 'apps' joined the gated set (apps module,
         // 2026-07-17; pro tier per the arc decisions).
         '/workspaces/w1/apps',
+        // test: correct expectation — 'ssh' joined the gated set (ssh module,
+        // 2026-07-17; pro tier per docs/module-notes/ssh.md).
+        '/ssh-servers',
         '/voice',
       ]) {
         const response = await app.request(path)

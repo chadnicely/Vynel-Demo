@@ -72,8 +72,10 @@ describe('the tool responses', () => {
         count: number
         playbooks: Array<{ id: string; verified: boolean }>
       }
-      expect(parsed.count).toBe(3)
-      expect(parsed.playbooks.filter((p) => p.verified)).toHaveLength(2)
+      // test: correct expectation — was 2 verified books, now 3: the
+      // server-work playbook joined the shipped shelf (ssh module, 2026-07-17).
+      expect(parsed.count).toBe(4)
+      expect(parsed.playbooks.filter((p) => p.verified)).toHaveLength(3)
       expect(parsed.playbooks.filter((p) => !p.verified)).toHaveLength(1)
     })
   })

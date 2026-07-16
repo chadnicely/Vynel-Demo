@@ -7,6 +7,7 @@ export type WorkspaceSectionId =
   | "schedules"
   | "tasks"
   | "apps"
+  | "ssh-servers"
   | "knowledge"
   | "marketplace"
   | "memory"
@@ -44,6 +45,11 @@ export const WORKSPACE_SECTIONS: WorkspaceSectionMeta[] = [
     id: "apps",
     label: "Apps",
     hint: "The apps this project runs — start, stop, watch",
+  },
+  {
+    id: "ssh-servers",
+    label: "Servers",
+    hint: "The machines it can reach and manage over SSH",
   },
   {
     id: "knowledge",

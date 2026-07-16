@@ -41,6 +41,7 @@
     "@vynel/schedules": "workspace:*",
     "@vynel/session": "workspace:*",
     "@vynel/skills": "workspace:*",
+    "@vynel/ssh-servers": "workspace:*",
     "@vynel/tasks": "workspace:*",
     "@vynel/workspaces": "workspace:*",
     "hono": "^4.6.0",

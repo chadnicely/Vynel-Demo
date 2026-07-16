@@ -1046,6 +1046,34 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  sshServers: {
+  add: async (input: NonNullable<paths["/ssh-servers"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/ssh-servers", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/ssh-servers")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  remove: async (serverId: NonNullable<paths["/ssh-servers/{serverId}"]["delete"]['parameters']>['path']["serverId"]) => {
+    const { error, response } = await client["DELETE"]("/ssh-servers/{serverId}", {
+      params: { path: { serverId: serverId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  testConnection: async (serverId: NonNullable<paths["/ssh-servers/{serverId}/test-connection"]["post"]['parameters']>['path']["serverId"]) => {
+    const { data, error, response } = await client["POST"]("/ssh-servers/{serverId}/test-connection", {
+      params: { path: { serverId: serverId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   tasks: {
   complete: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}/complete"]["post"]['parameters']>['path']["workspaceId"], taskId: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}/complete"]["post"]['parameters']>['path']["taskId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/tasks/{taskId}/complete", {

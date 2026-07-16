@@ -13800,6 +13800,444 @@
         "x-sdk-name": "asks.dismiss"
       }
     },
+    "/ssh-servers": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of SshServer (never includes credentials).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "host": {
+                        "type": "string"
+                      },
+                      "port": {
+                        "type": "number"
+                      },
+                      "username": {
+                        "type": "string"
+                      },
+                      "authKind": {
+                        "type": "string",
+                        "enum": [
+                          "password",
+                          "private-key"
+                        ]
+                      },
+                      "hostKeyFingerprint": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "lastConnectedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "name",
+                      "host",
+                      "port",
+                      "username",
+                      "authKind",
+                      "hostKeyFingerprint",
+                      "lastConnectedAt",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getSsh-servers",
+        "tags": [
+          "ssh-servers"
+        ],
+        "parameters": [],
+        "summary": "List the user's registered SSH servers — global + workspace.",
+        "x-sdk-name": "sshServers.list"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "SshServer registered (no credentials in the response).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": "number"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "authKind": {
+                      "type": "string",
+                      "enum": [
+                        "password",
+                        "private-key"
+                      ]
+                    },
+                    "hostKeyFingerprint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lastConnectedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "name",
+                    "host",
+                    "port",
+                    "username",
+                    "authKind",
+                    "hostKeyFingerprint",
+                    "lastConnectedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or workspaceId missing for a workspace scope."
+          },
+          "409": {
+            "description": "Duplicate server name, or the sealing key is unavailable."
+          }
+        },
+        "operationId": "postSsh-servers",
+        "tags": [
+          "ssh-servers"
+        ],
+        "parameters": [],
+        "summary": "Register an SSH server (the credential is sealed and never returned).",
+        "x-sdk-name": "sshServers.add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "global"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 60
+                      },
+                      "host": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 253
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "username": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "credentials": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "authKind": {
+                                "type": "string",
+                                "const": "password"
+                              },
+                              "password": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "authKind",
+                              "password"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "authKind": {
+                                "type": "string",
+                                "const": "private-key"
+                              },
+                              "privateKey": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "passphrase": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "authKind",
+                              "privateKey"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "name",
+                      "host",
+                      "username",
+                      "credentials"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "workspace"
+                      },
+                      "workspaceId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 60
+                      },
+                      "host": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 253
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "username": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "credentials": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "authKind": {
+                                "type": "string",
+                                "const": "password"
+                              },
+                              "password": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "authKind",
+                              "password"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "authKind": {
+                                "type": "string",
+                                "const": "private-key"
+                              },
+                              "privateKey": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "passphrase": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "authKind",
+                              "privateKey"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "workspaceId",
+                      "name",
+                      "host",
+                      "username",
+                      "credentials"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ssh-servers/{serverId}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Server removed."
+          },
+          "404": {
+            "description": "No such server owned by this user."
+          }
+        },
+        "operationId": "deleteSsh-serversByServerId",
+        "tags": [
+          "ssh-servers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serverId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Remove an SSH server the user owns (hard delete).",
+        "x-sdk-name": "sshServers.remove"
+      }
+    },
+    "/ssh-servers/{serverId}/test-connection": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Connected and authenticated; the observed host-key fingerprint.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "hostKeyFingerprint": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "hostKeyFingerprint"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Could not connect (unreachable, auth failed, or timed out)."
+          },
+          "404": {
+            "description": "No such server owned by this user."
+          },
+          "409": {
+            "description": "The server's host key changed, or the sealing key is unavailable."
+          }
+        },
+        "operationId": "postSsh-serversByServerIdTest-connection",
+        "tags": [
+          "ssh-servers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serverId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Test the connection to a registered server (pins the host key on first use).",
+        "x-sdk-name": "sshServers.testConnection"
+      }
+    },
     "/marketplace/items": {
       "get": {
         "responses": {

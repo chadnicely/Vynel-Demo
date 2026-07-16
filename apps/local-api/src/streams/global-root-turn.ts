@@ -108,8 +108,23 @@ export async function streamGlobalRootTurn(
     turnKey: askTurnKey,
     logger: c.var.logger,
   })
+  // The ssh tools ride interactive streams only (module notes) and need the
+  // sealing master key — no key resolved at boot means the sealed credentials
+  // are unopenable, so the tools would only error: attach nothing instead.
+  // Fail-closed on the TYPE too (a partial test harness leaves the var unset).
+  const { buildSshFeatureDescriptor } = await import('@vynel/ssh-servers/mcp')
+  const sshMasterKey = c.var.sshMasterKey
+  const sshFeatureDescriptors =
+    typeof sshMasterKey === 'string'
+      ? [buildSshFeatureDescriptor({ masterKeyBase64: sshMasterKey, logger: c.var.logger })]
+      : []
   const composedMcp = composeSessionMcpServers(
-    [vynelRoutingDescriptor, notebookFeatureDescriptor, askFeatureDescriptor],
+    [
+      vynelRoutingDescriptor,
+      notebookFeatureDescriptor,
+      askFeatureDescriptor,
+      ...sshFeatureDescriptors,
+    ],
     {
       db: c.var.db,
       userId: c.var.user.id,

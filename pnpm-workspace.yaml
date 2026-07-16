@@ -10,9 +10,11 @@ packages:
 # The native prebuilts (onnxruntime/sharp) are one-time, cached, and harmless.
 allowBuilds:
   better-sqlite3: true # SQLite bindings — @vynel/db
+  cpu-features: true # optional ssh2 speedup — native prebuilt, harmless
   esbuild: true # bundler used by vitest
   onnxruntime-node: true # native ONNX runtime (real embeddings backend) — prebuilt binaries
   protobufjs: true # transitive via @huggingface/transformers
   sharp: true # image processing — prebuilt
+  ssh2: true # ssh client bindings — @vynel/ssh-servers
   unrs-resolver: true # eslint resolver speedup — prebuilt
   vue-demi: true # vue2/3 compat shim — postinstall picks the vue-3 build (@tanstack/vue-query)

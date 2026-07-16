@@ -48,6 +48,7 @@ export default defineConfig({
     '../tasks/src/schema/tasks.ts',
     '../asks/src/schema/ask-requests.ts',
     '../apps/src/schema/workspace-apps.ts',
+    '../ssh-servers/src/schema/ssh-servers.ts',
     './src/schema/onboarding/onboarding-runs.ts',
     './src/schema/capabilities/workspace-capabilities.ts',
     './src/schema/agents/agents.ts',

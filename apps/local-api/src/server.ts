@@ -16,6 +16,8 @@ import { configureEmbeddingsCacheDir } from '@vynel/embeddings'
 import { expireAskRequests } from '@vynel/asks'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
 import { FileWatcherService } from '@vynel/knowledge'
+import { resolveMasterKey } from '@vynel/ssh-servers'
+import { createKeyringMasterKeyVault } from '@vynel/ssh-servers/keyring'
 import { hostname } from 'node:os'
 import {
   createEntitlementVerifier,
@@ -67,6 +69,10 @@ export async function boot(): Promise<void> {
   // indexing service (below) restores watchers for already-registered sources.
   const fileWatcher = new FileWatcherService(db, logger)
 
+  // The ssh sealing master key, from the OS keyring (minted on first boot —
+  // the SQLite file alone is useless ciphertext without this machine's store).
+  const sshMasterKey = resolveMasterKey(createKeyringMasterKeyVault())
+
   // Boot-owned so shutdown can stopAll() — quitting Vynel never orphans a dev
   // server. A SELF-exit publishes its runtime fact through the leaf op.
   const appSupervisor = new AppProcessSupervisor({
@@ -108,6 +114,7 @@ export async function boot(): Promise<void> {
     turnEvents,
     appSupervisor,
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
+    sshMasterKeyBase64: sshMasterKey,
     ...(hubSession !== undefined ? { hubSession } : {}),
   })
 

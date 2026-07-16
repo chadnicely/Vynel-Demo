@@ -61,6 +61,9 @@ describe('listPlaybooks', () => {
       expect(globalShelf.filter((p) => p.verified).map((p) => p.id)).toEqual([
         'communicating-with-users',
         'web-app-scaffold',
+        // test: correct expectation — the server-work playbook joined the
+        // shipped shelf (ssh module, 2026-07-17).
+        'working-with-servers',
       ])
       expect(globalShelf.filter((p) => !p.verified).map((p) => p.title)).toEqual([
         'My global book',

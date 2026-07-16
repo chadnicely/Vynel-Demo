@@ -78,6 +78,10 @@ export interface AppEnv {
     // Set once at construction (`app.ts`); `server.ts` stopAll()s it on
     // shutdown so quitting Vynel never orphans a dev server.
     appSupervisor: AppProcessSupervisor
+    // The ssh sealing master key (base64, 32 bytes) — resolved from the OS
+    // keyring at boot by server.ts; null in generator/test contexts that
+    // don't pass one (the ssh routes then refuse to seal/open credentials).
+    sshMasterKey: string | null
   }
 }
 

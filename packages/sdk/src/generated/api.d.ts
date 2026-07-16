@@ -1583,6 +1583,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ssh-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's registered SSH servers — global + workspace. */
+        get: operations["getSsh-servers"];
+        put?: never;
+        /** Register an SSH server (the credential is sealed and never returned). */
+        post: operations["postSsh-servers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ssh-servers/{serverId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an SSH server the user owns (hard delete). */
+        delete: operations["deleteSsh-serversByServerId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ssh-servers/{serverId}/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test the connection to a registered server (pins the host key on first use). */
+        post: operations["postSsh-serversByServerIdTest-connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/marketplace/items": {
         parameters: {
             query?: never;
@@ -7888,6 +7940,201 @@ export interface operations {
                 content?: never;
             };
             /** @description The ask was already resolved. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "getSsh-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of SshServer (never includes credentials). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        name: string;
+                        host: string;
+                        port: number;
+                        username: string;
+                        /** @enum {string} */
+                        authKind: "password" | "private-key";
+                        hostKeyFingerprint: string | null;
+                        lastConnectedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+        };
+    };
+    "postSsh-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    scope: "global";
+                    name: string;
+                    host: string;
+                    port?: number;
+                    username: string;
+                    credentials: {
+                        /** @constant */
+                        authKind: "password";
+                        password: string;
+                    } | {
+                        /** @constant */
+                        authKind: "private-key";
+                        privateKey: string;
+                        passphrase?: string;
+                    };
+                } | {
+                    /** @constant */
+                    scope: "workspace";
+                    workspaceId: string;
+                    name: string;
+                    host: string;
+                    port?: number;
+                    username: string;
+                    credentials: {
+                        /** @constant */
+                        authKind: "password";
+                        password: string;
+                    } | {
+                        /** @constant */
+                        authKind: "private-key";
+                        privateKey: string;
+                        passphrase?: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description SshServer registered (no credentials in the response). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        name: string;
+                        host: string;
+                        port: number;
+                        username: string;
+                        /** @enum {string} */
+                        authKind: "password" | "private-key";
+                        hostKeyFingerprint: string | null;
+                        lastConnectedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error, or workspaceId missing for a workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Duplicate server name, or the sealing key is unavailable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "deleteSsh-serversByServerId": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such server owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postSsh-serversByServerIdTest-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connected and authenticated; the observed host-key fingerprint. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        ok: true;
+                        hostKeyFingerprint: string;
+                    };
+                };
+            };
+            /** @description Could not connect (unreachable, auth failed, or timed out). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such server owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The server's host key changed, or the sealing key is unavailable. */
             409: {
                 headers: {
                     [name: string]: unknown;

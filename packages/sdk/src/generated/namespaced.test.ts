@@ -145,6 +145,12 @@ const EXPECTED_WORKSPACE_APPS_METHODS = [
 // `vynel-ask` descriptor tool, so no route is x-mcp).
 const EXPECTED_ASKS_METHODS = ['answer', 'dismiss', 'listPending'] as const
 
+// The sshServers namespace, sorted (ssh module, 2026-07-17) — the USER-scoped
+// registration surface. The credential goes IN through `add` and never comes
+// back out anywhere; the agent's surface is the `vynel-ssh` descriptor, so no
+// route is x-mcp.
+const EXPECTED_SSH_SERVERS_METHODS = ['add', 'list', 'remove', 'testConnection'] as const
+
 // The tasks namespaces, sorted (tasks module, 2026-07-17). Workspace-scoped
 // `tasks.*` is the AGENT's surface (create stamps source='assistant'; no
 // delete — removal is the user's call); user-scoped `tasksUser.*` is the
@@ -230,6 +236,7 @@ describe('makeNamespaced — shape', () => {
       'schedules',
       'schedulesUser',
       'skills',
+      'sshServers',
       'tasks',
       'tasksUser',
       'users',
@@ -249,6 +256,7 @@ describe('makeNamespaced — shape', () => {
     expect(Object.keys(sdk.tasks).sort()).toEqual([...EXPECTED_TASKS_METHODS])
     expect(Object.keys(sdk.tasksUser).sort()).toEqual([...EXPECTED_TASKS_USER_METHODS])
     expect(Object.keys(sdk.asks).sort()).toEqual([...EXPECTED_ASKS_METHODS])
+    expect(Object.keys(sdk.sshServers).sort()).toEqual([...EXPECTED_SSH_SERVERS_METHODS])
     expect(Object.keys(sdk.workspaceApps).sort()).toEqual([...EXPECTED_WORKSPACE_APPS_METHODS])
     expect(Object.keys(sdk.notebook).sort()).toEqual([...EXPECTED_NOTEBOOK_METHODS])
   })

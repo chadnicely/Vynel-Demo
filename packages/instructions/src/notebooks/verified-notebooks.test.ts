@@ -83,10 +83,13 @@ describe('loadVerifiedNotebooksFromDirectory', () => {
 })
 
 describe('the shipped shelf', () => {
-  it('loads the two starter books', () => {
+  // test: correct expectation — the shelf grew from two starter books to
+  // three with the server-work playbook (ssh module, 2026-07-17).
+  it('loads the shipped books', () => {
     const ids = listVerifiedNotebooks().map((n) => n.id)
     expect(ids).toContain('web-app-scaffold')
     expect(ids).toContain('communicating-with-users')
+    expect(ids).toContain('working-with-servers')
   })
 
   it('findVerifiedNotebookById returns the book or null', () => {

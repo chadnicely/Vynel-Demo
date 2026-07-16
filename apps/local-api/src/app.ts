@@ -28,6 +28,7 @@ import { schedulesUserApp } from './routes/schedules/user-scoped.js'
 import { tasksApp } from './routes/tasks/index.js'
 import { tasksUserApp } from './routes/tasks/user-scoped.js'
 import { asksApp } from './routes/asks/index.js'
+import { sshServersApp } from './routes/ssh-servers/index.js'
 import { PendingAskRegistry } from '@vynel/asks'
 import { workspaceAppsApp } from './routes/workspace-apps/index.js'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
@@ -88,6 +89,10 @@ export interface CreateAppOptions {
   // The workspace-app process supervisor — one per process. Injectable so a
   // test can inspect/stop the processes a route started; production omits it.
   readonly appSupervisor?: AppProcessSupervisor
+  // The ssh sealing master key (base64, 32 bytes) — `server.ts` resolves it
+  // from the OS keyring at boot; omitted by generators/tests that don't need
+  // ssh (the routes then answer that ssh is unavailable).
+  readonly sshMasterKeyBase64?: string
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -123,6 +128,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('turnEvents', turnEvents)
     c.set('askWaiters', askWaiters)
     c.set('appSupervisor', appSupervisor)
+    c.set('sshMasterKey', options.sshMasterKeyBase64 ?? null)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
     if (options.hubSession !== undefined) c.set('hubSession', options.hubSession)
     await next()
@@ -138,6 +144,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.use('/workspaces/:workspaceId/schedules/*', featureGate('schedules'))
   app.use('/schedules/*', featureGate('schedules'))
   app.use('/workspaces/:workspaceId/apps/*', featureGate('apps'))
+  app.use('/ssh-servers/*', featureGate('ssh'))
   app.use('/workspaces/:workspaceId/knowledge/*', featureGate('knowledge'))
   app.use('/workspaces/:workspaceId/memory/*', featureGate('memory'))
   app.use('/workspaces/:workspaceId/marketplace/*', featureGate('marketplace'))
@@ -187,6 +194,10 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // `/asks` — the ask_user answering surface (always the user; the agent's
   // surface is the `vynel-ask` descriptor tool). Core plumbing, not gated.
   app.route('/asks', asksApp)
+  // `/ssh-servers` — USER-scoped only (servers live at global or workspace
+  // scope but registration/removal is always the user's door; the agent's
+  // surface is the `vynel-ssh` descriptor). Gated pro above.
+  app.route('/ssh-servers', sshServersApp)
   // `/marketplace` is the GLOBAL marketplace — user+both items, user-scope
   // installs (Chad's rule). The workspace surface stays mounted above.
   app.route('/marketplace', marketplaceUserApp)

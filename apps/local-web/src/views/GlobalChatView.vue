@@ -16,6 +16,7 @@ import MarketplaceSection from "../components/sections/MarketplaceSection.vue";
 import MemorySection from "../components/sections/MemorySection.vue";
 import NotebookSection from "../components/sections/NotebookSection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
+import SshServersSection from "../components/sections/SshServersSection.vue";
 import TasksSection from "../components/sections/TasksSection.vue";
 import TasksPanel from "../components/tasks/TasksPanel.vue";
 import { useChannels } from "../composables/channels/use-channels.js";
@@ -49,6 +50,7 @@ const GLOBAL_SECTION_IDS = [
   "channels",
   "schedules",
   "tasks",
+  "ssh-servers",
   "knowledge",
   "memory",
   "notebook",
@@ -246,6 +248,13 @@ function openContinuous() {
           v-else-if="shell.mainView === 'tasks'"
           :scope="{ kind: 'global' }"
         />
+        <template v-else-if="shell.mainView === 'ssh-servers'">
+          <LockedFeatureCard
+            v-if="isLocked('ssh')"
+            feature-label="Servers"
+          />
+          <SshServersSection v-else :scope="{ kind: 'global' }" />
+        </template>
         <template v-else-if="shell.mainView === 'knowledge'">
           <LockedFeatureCard
             v-if="isLocked('knowledge')"
