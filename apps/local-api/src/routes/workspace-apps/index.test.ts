@@ -1,0 +1,208 @@
+// Integration tests for the `/workspaces/:workspaceId/apps` routes. Full HTTP
+// stack + the REAL process supervisor (injected so the test can inspect it and
+// stop everything after) spawning real `node -e` children — no mocks.
+//
+// TENANT-ISOLATION ordering invariant: the Phase-1 resolver returns the FIRST
+// user row, so the "attacker" is `insertUser`'d BEFORE the victim's rows.
+
+import { describe, expect, it, afterEach } from 'vitest'
+import { randomUUID } from 'node:crypto'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import pino from 'pino'
+import { withTestDatabase } from '@vynel/testing'
+import { insertUser } from '@vynel/db/repositories/users'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
+import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
+import { AppProcessSupervisor } from '@vynel/apps'
+import { insertApp, makeApp, seedUserWorkspace } from '@vynel/apps/test-support'
+import { createApp } from '../../app.js'
+import type { Database } from '@vynel/db'
+
+const silentLogger = pino({ level: 'silent' })
+
+function jsonBody(method: string, payload: unknown): RequestInit {
+  return { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }
+}
+
+function makeUser() {
+  const now = new Date()
+  return {
+    id: randomUUID(),
+    displayName: 'Dana',
+    emailAddress: null,
+    locale: 'en-US',
+    timezone: 'UTC',
+    hasCompletedOnboarding: false,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+// A real on-disk workspace dir — the supervisor spawns with it as cwd.
+function seedWorkspace(db: Database, userId: string) {
+  const now = new Date()
+  return insertWorkspace(db, {
+    id: randomUUID(),
+    userId,
+    name: 'Bakery',
+    kind: 'small-business',
+    path: mkdtempSync(join(tmpdir(), 'vynel-apps-route-')),
+    isArchived: false,
+    createdAt: now,
+    updatedAt: now,
+    lastAccessedAt: now,
+  })
+}
+
+const supervisors: AppProcessSupervisor[] = []
+function makeSupervisor(): AppProcessSupervisor {
+  const supervisor = new AppProcessSupervisor()
+  supervisors.push(supervisor)
+  return supervisor
+}
+afterEach(async () => {
+  await Promise.all(supervisors.splice(0).map((s) => s.stopAll()))
+})
+
+function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {
+  return new Promise((resolvePoll, rejectPoll) => {
+    const startedAt = Date.now()
+    const timer = setInterval(() => {
+      if (predicate()) {
+        clearInterval(timer)
+        resolvePoll()
+      } else if (Date.now() - startedAt > timeoutMs) {
+        clearInterval(timer)
+        rejectPoll(new Error('waitFor timed out'))
+      }
+    }, 50)
+  })
+}
+
+describe('workspace-apps routes', () => {
+  it('POST / registers; GET / lists with null runtime before any run', async () => {
+    await withTestDatabase(async (db) => {
+      const app = createApp({ db, logger: silentLogger, appSupervisor: makeSupervisor() })
+      const user = insertUser(db, makeUser())
+      const workspace = seedWorkspace(db, user.id)
+
+      const res = await app.request(
+        `/workspaces/${workspace.id}/apps`,
+        jsonBody('POST', { name: 'Echo', command: 'node -e ""', port: 8999 }),
+      )
+      expect(res.status).toBe(201)
+
+      const list = (await (
+        await app.request(`/workspaces/${workspace.id}/apps`)
+      ).json()) as { name: string; runtime: unknown }[]
+      expect(list).toHaveLength(1)
+      expect(list[0]!.name).toBe('Echo')
+      expect(list[0]!.runtime).toBeNull()
+    })
+  })
+
+  it('start → logs → stop drives a REAL process and publishes runtime events', async () => {
+    await withTestDatabase(async (db) => {
+      const supervisor = makeSupervisor()
+      const app = createApp({ db, logger: silentLogger, appSupervisor: supervisor })
+      const user = insertUser(db, makeUser())
+      const workspace = seedWorkspace(db, user.id)
+      const row = insertApp(
+        db,
+        makeApp(user.id, workspace.id, {
+          name: 'Server',
+          command: `node -e "console.log('server up'); setInterval(() => {}, 1000)"`,
+          cwdRelative: '',
+        }),
+      )
+
+      const started = await app.request(`/workspaces/${workspace.id}/apps/${row.id}/start`, {
+        method: 'POST',
+      })
+      expect(started.status).toBe(200)
+      expect(
+        ((await started.json()) as { runtime: { status: string } }).runtime.status,
+      ).toBe('running')
+      expect(listOutboxEventsByType(db, 'app.started')).toHaveLength(1)
+
+      // A second start conflicts while running.
+      const again = await app.request(`/workspaces/${workspace.id}/apps/${row.id}/start`, {
+        method: 'POST',
+      })
+      expect(again.status).toBe(409)
+
+      await waitFor(() => supervisor.logsOf(row.id).join('\n').includes('server up'))
+      const logs = (await (
+        await app.request(`/workspaces/${workspace.id}/apps/${row.id}/logs?tail=50`)
+      ).json()) as { lines: string[] }
+      expect(logs.lines.join('\n')).toContain('server up')
+
+      const stopped = await app.request(`/workspaces/${workspace.id}/apps/${row.id}/stop`, {
+        method: 'POST',
+      })
+      expect(stopped.status).toBe(200)
+      expect(
+        ((await stopped.json()) as { runtime: { status: string } }).runtime.status,
+      ).toBe('exited')
+      expect(listOutboxEventsByType(db, 'app.stopped')).toHaveLength(1)
+
+      // Stopping again is a harmless no-op — no second event.
+      await app.request(`/workspaces/${workspace.id}/apps/${row.id}/stop`, { method: 'POST' })
+      expect(listOutboxEventsByType(db, 'app.stopped')).toHaveLength(1)
+    })
+  })
+
+  it('DELETE stops a running app first, then removes the row', async () => {
+    await withTestDatabase(async (db) => {
+      const supervisor = makeSupervisor()
+      const app = createApp({ db, logger: silentLogger, appSupervisor: supervisor })
+      const user = insertUser(db, makeUser())
+      const workspace = seedWorkspace(db, user.id)
+      const row = insertApp(
+        db,
+        makeApp(user.id, workspace.id, {
+          command: `node -e "setInterval(() => {}, 1000)"`,
+          cwdRelative: '',
+        }),
+      )
+
+      await app.request(`/workspaces/${workspace.id}/apps/${row.id}/start`, { method: 'POST' })
+      expect(supervisor.isRunning(row.id)).toBe(true)
+
+      const removed = await app.request(`/workspaces/${workspace.id}/apps/${row.id}`, {
+        method: 'DELETE',
+      })
+      expect(removed.status).toBe(204)
+      expect(supervisor.isRunning(row.id)).toBe(false)
+      const list = (await (await app.request(`/workspaces/${workspace.id}/apps`)).json()) as unknown[]
+      expect(list).toHaveLength(0)
+    })
+  })
+
+  it("404s on another user's app and on a same-user app through the WRONG workspace", async () => {
+    await withTestDatabase(async (db) => {
+      const app = createApp({ db, logger: silentLogger, appSupervisor: makeSupervisor() })
+      const attacker = insertUser(db, makeUser())
+      const attackerWorkspaceA = seedWorkspace(db, attacker.id)
+      const attackerWorkspaceB = seedWorkspace(db, attacker.id)
+      const victim = seedUserWorkspace(db)
+      const victimApp = insertApp(db, makeApp(victim.userId, victim.workspaceId))
+      const ownApp = insertApp(db, makeApp(attacker.id, attackerWorkspaceA.id))
+
+      const foreign = await app.request(
+        `/workspaces/${attackerWorkspaceA.id}/apps/${victimApp.id}/start`,
+        { method: 'POST' },
+      )
+      expect(foreign.status).toBe(404)
+
+      // Workspace binding: the attacker's OWN app through the wrong workspace URL.
+      const crossWorkspace = await app.request(
+        `/workspaces/${attackerWorkspaceB.id}/apps/${ownApp.id}/start`,
+        { method: 'POST' },
+      )
+      expect(crossWorkspace.status).toBe(404)
+    })
+  })
+})

@@ -14,6 +14,7 @@ import { createDatabase, closeDatabase, runMigrations, sqliteMigrationsFolder } 
 import { getOrCreateLocalUser } from '@vynel/core/users'
 import { configureEmbeddingsCacheDir } from '@vynel/embeddings'
 import { expireAskRequests } from '@vynel/asks'
+import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
 import { FileWatcherService } from '@vynel/knowledge'
 import { hostname } from 'node:os'
 import {
@@ -66,6 +67,13 @@ export async function boot(): Promise<void> {
   // indexing service (below) restores watchers for already-registered sources.
   const fileWatcher = new FileWatcherService(db, logger)
 
+  // Boot-owned so shutdown can stopAll() — quitting Vynel never orphans a dev
+  // server. A SELF-exit publishes its runtime fact through the leaf op.
+  const appSupervisor = new AppProcessSupervisor({
+    logger,
+    onExit: (appId, outcome) => publishAppExitOutcome(db, { appId, ...outcome }),
+  })
+
   // ONE turn-event pub/sub per process — the delegation service publishes a routed
   // turn's live events; the SSE observe route streams them to the Watch panel.
   const turnEvents = new TurnEventBroadcaster()
@@ -98,6 +106,7 @@ export async function boot(): Promise<void> {
     logger,
     fileWatcher,
     turnEvents,
+    appSupervisor,
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
     ...(hubSession !== undefined ? { hubSession } : {}),
   })
@@ -175,6 +184,8 @@ export async function boot(): Promise<void> {
       delegationService.stop()
       approvalsRecoveryService.stop()
       outboxRelayService.stop()
+      // Quitting Vynel never orphans a dev server (docs/module-notes/apps.md).
+      void appSupervisor.stopAll()
       hubSessionService?.stop()
       catalogSyncService?.stop()
       void fileWatcher.stopAll()

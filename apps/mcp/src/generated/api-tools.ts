@@ -34,6 +34,47 @@ type McpToolFn = (
   },
 ) => unknown
 
+export const addApp: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'add_app',
+    "Register a runnable app on the workspace so it can be started, stopped, and monitored. Derive the right `command` by inspecting the workspace first (package.json scripts, monorepo layout) — never guess. `name` is plain language the user recognizes (\"Web app\", \"API server\"). `cwdRelative` is the folder under the workspace root the command runs in (\"\" = root). Set `port` when you know it — it powers the \"open in browser\" link. Add an app once and reuse it; check list_apps before adding.",
+    {
+    workspaceId: z.string(),
+    name: z.string(),
+    command: z.string(),
+    cwdRelative: z.string().optional(),
+    port: z.number().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/apps'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['name', 'command', 'cwdRelative', 'port']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const addMemoryFromFile: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'add_memory_from_file',
@@ -302,6 +343,47 @@ export const getAiAgentProviderAuthStatus: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const getAppLogs: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'get_app_logs',
+    "Read an app's recent output (up to the last 2000 lines, in-memory — empty if it has not run since Vynel started). Use after start_app to confirm health, or to diagnose a crash (the exit line is appended). Optional `tail` limits the line count. Read-only.",
+    {
+    appId: z.string(),
+    workspaceId: z.string(),
+    tail: z.number().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/apps/{appId}/logs'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{appId}', encodeURIComponent(String(args['appId'] ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['tail']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const getChatSession: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'get_chat_session',
@@ -541,6 +623,39 @@ export const listAllowedSenders: McpToolFactory = (scope, app) =>
         let pathStr = '/workspaces/{workspaceId}/channels/{channelId}/allowed-senders'
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         pathStr = pathStr.replace('{channelId}', encodeURIComponent(String(args['channelId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listApps: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_apps',
+    "List the workspace's registered runnable apps (dev servers, builds) with live status: running / exited / crashed (with exit code), pid, and the port when known. Check this before adding or starting anything. Read-only.",
+    {
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/apps'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
@@ -1503,6 +1618,119 @@ export const speak: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const startApp: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'start_app',
+    "Start a registered app. The user sees it go green in their Apps section. After starting, give it a moment and check get_app_logs to confirm it came up healthy (port conflicts and missing installs show up there).",
+    {
+    appId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/apps/{appId}/start'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{appId}', encodeURIComponent(String(args['appId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const stopApp: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'stop_app',
+    "Stop a running app (the whole process tree, so its port frees up). Stopping an app that is not running is a harmless no-op.",
+    {
+    appId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/apps/{appId}/stop'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{appId}', encodeURIComponent(String(args['appId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const updateApp: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'update_app',
+    "Update a registered app's name, command, folder, or port. A running app keeps its current process — the change applies on the next start (stop_app then start_app to restart with the new command).",
+    {
+    appId: z.string(),
+    workspaceId: z.string(),
+    name: z.string().optional(),
+    command: z.string().optional(),
+    cwdRelative: z.string().optional(),
+    port: z.number().nullable().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/apps/{appId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{appId}', encodeURIComponent(String(args['appId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['name', 'command', 'cwdRelative', 'port']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const updateMemoryEntry: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'update_memory_entry',
@@ -1591,6 +1819,7 @@ export const updateTask: McpToolFactory = (scope, app) =>
 
 // Workspace-scoped tools — the normal chat turn's in-process server.
 export const generatedMcpTools: McpToolFactory[] = [
+  addApp,
   addMemoryFromFile,
   addToKnowledge,
   completeTask,
@@ -1598,6 +1827,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   createTask,
   discoverInstalledSkillsForProvider,
   getAiAgentProviderAuthStatus,
+  getAppLogs,
   getChatSession,
   getCurrentUser,
   getIndexerStatus,
@@ -1606,6 +1836,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   getWorkspace,
   listAiAgentProviders,
   listAllowedSenders,
+  listApps,
   listAvailableSkills,
   listChannels,
   listChatSessions,
@@ -1626,6 +1857,9 @@ export const generatedMcpTools: McpToolFactory[] = [
   searchChatMessages,
   searchKnowledge,
   searchMemory,
+  startApp,
+  stopApp,
+  updateApp,
   updateMemoryEntry,
   updateTask,
 ]

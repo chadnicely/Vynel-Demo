@@ -29,6 +29,8 @@ import { tasksApp } from './routes/tasks/index.js'
 import { tasksUserApp } from './routes/tasks/user-scoped.js'
 import { asksApp } from './routes/asks/index.js'
 import { PendingAskRegistry } from '@vynel/asks'
+import { workspaceAppsApp } from './routes/workspace-apps/index.js'
+import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
 import { approvalsApp, approvalRulesApp } from './routes/approvals/index.js'
 import { approvalsUserApp } from './routes/approvals/user-scoped.js'
 import { chatApp } from './routes/chat/index.js'
@@ -83,6 +85,9 @@ export interface CreateAppOptions {
   // park/resolve waiters around a route call; production omits it and gets a
   // fresh instance.
   readonly askWaiters?: PendingAskRegistry
+  // The workspace-app process supervisor — one per process. Injectable so a
+  // test can inspect/stop the processes a route started; production omits it.
+  readonly appSupervisor?: AppProcessSupervisor
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -100,6 +105,14 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   const turnEvents = options.turnEvents ?? new TurnEventBroadcaster()
   // The ask blocking bridge's in-memory half — one per process, like fileWatcher.
   const askWaiters = options.askWaiters ?? new PendingAskRegistry()
+  // The app supervisor — one per process; a SELF-exit publishes its runtime
+  // fact (app.crashed / clean app.stopped) through the leaf op.
+  const appSupervisor =
+    options.appSupervisor ??
+    new AppProcessSupervisor({
+      logger: options.logger,
+      onExit: (appId, outcome) => publishAppExitOutcome(options.db, { appId, ...outcome }),
+    })
 
   app.use('*', async (c, next) => {
     c.set('db', options.db)
@@ -109,6 +122,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('aiProvider', aiProvider)
     c.set('turnEvents', turnEvents)
     c.set('askWaiters', askWaiters)
+    c.set('appSupervisor', appSupervisor)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
     if (options.hubSession !== undefined) c.set('hubSession', options.hubSession)
     await next()
@@ -123,6 +137,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // Channels + chat + workspaces + skills stay ungated (core assistant).
   app.use('/workspaces/:workspaceId/schedules/*', featureGate('schedules'))
   app.use('/schedules/*', featureGate('schedules'))
+  app.use('/workspaces/:workspaceId/apps/*', featureGate('apps'))
   app.use('/workspaces/:workspaceId/knowledge/*', featureGate('knowledge'))
   app.use('/workspaces/:workspaceId/memory/*', featureGate('memory'))
   app.use('/workspaces/:workspaceId/marketplace/*', featureGate('marketplace'))
@@ -152,6 +167,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // Tasks are NOT feature-gated — the task list is part of the core "one
   // brain you can trust" experience, like chat and workspaces.
   app.route('/workspaces/:workspaceId/tasks', tasksApp)
+  app.route('/workspaces/:workspaceId/apps', workspaceAppsApp)
   app.route('/workspaces/:workspaceId/chat', chatApp)
   app.route('/workspaces/:workspaceId/files', filesApp)
   app.route('/workspaces/:workspaceId/memory', memoryApp)

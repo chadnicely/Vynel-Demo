@@ -49,6 +49,9 @@ describe('featureGate', () => {
         '/workspaces/w1/knowledge',
         '/workspaces/w1/memory',
         '/workspaces/w1/marketplace',
+        // test: correct expectation — 'apps' joined the gated set (apps module,
+        // 2026-07-17; pro tier per the arc decisions).
+        '/workspaces/w1/apps',
         '/voice',
       ]) {
         const response = await app.request(path)

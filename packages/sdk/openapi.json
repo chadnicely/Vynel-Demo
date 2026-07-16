@@ -5430,6 +5430,832 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/apps": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of WorkspaceApp (runtime merged).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "command": {
+                        "type": "string"
+                      },
+                      "cwdRelative": {
+                        "type": "string"
+                      },
+                      "port": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "runtime": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "running",
+                              "exited",
+                              "crashed"
+                            ]
+                          },
+                          "pid": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "exitCode": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "pid",
+                          "startedAt",
+                          "exitCode"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "name",
+                      "command",
+                      "cwdRelative",
+                      "port",
+                      "runtime",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdApps",
+        "tags": [
+          "apps"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List the workspace's apps with live run status.",
+        "x-sdk-name": "workspaceApps.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_apps",
+          "description": "List the workspace's registered runnable apps (dev servers, builds) with live status: running / exited / crashed (with exit code), pid, and the port when known. Check this before adding or starting anything. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "App registered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "cwdRelative": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "runtime": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "running",
+                            "exited",
+                            "crashed"
+                          ]
+                        },
+                        "pid": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "startedAt": {
+                          "type": "string"
+                        },
+                        "exitCode": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "pid",
+                        "startedAt",
+                        "exitCode"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "name",
+                    "command",
+                    "cwdRelative",
+                    "port",
+                    "runtime",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "Workspace not found."
+          },
+          "409": {
+            "description": "An app with this name already exists here."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdApps",
+        "tags": [
+          "apps"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Register a runnable app on the workspace.",
+        "x-sdk-name": "workspaceApps.add",
+        "x-mcp": {
+          "exposed": true,
+          "name": "add_app",
+          "description": "Register a runnable app on the workspace so it can be started, stopped, and monitored. Derive the right `command` by inspecting the workspace first (package.json scripts, monorepo layout) — never guess. `name` is plain language the user recognizes (\"Web app\", \"API server\"). `cwdRelative` is the folder under the workspace root the command runs in (\"\" = root). Set `port` when you know it — it powers the \"open in browser\" link. Add an app once and reuse it; check list_apps before adding.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "command": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "cwdRelative": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  }
+                },
+                "required": [
+                  "name",
+                  "command"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/apps/{appId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "App updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "cwdRelative": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "runtime": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "running",
+                            "exited",
+                            "crashed"
+                          ]
+                        },
+                        "pid": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "startedAt": {
+                          "type": "string"
+                        },
+                        "exitCode": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "pid",
+                        "startedAt",
+                        "exitCode"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "name",
+                    "command",
+                    "cwdRelative",
+                    "port",
+                    "runtime",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "No such app in this workspace."
+          },
+          "409": {
+            "description": "An app with this name already exists here."
+          }
+        },
+        "operationId": "patchWorkspacesByWorkspaceIdAppsByAppId",
+        "tags": [
+          "apps"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Update an app (name, command, folder, port). Applies on the next start.",
+        "x-sdk-name": "workspaceApps.update",
+        "x-mcp": {
+          "exposed": true,
+          "name": "update_app",
+          "description": "Update a registered app's name, command, folder, or port. A running app keeps its current process — the change applies on the next start (stop_app then start_app to restart with the new command).",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "command": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "cwdRelative": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "port": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1,
+                    "maximum": 65535
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "App removed."
+          },
+          "404": {
+            "description": "No such app in this workspace."
+          }
+        },
+        "operationId": "deleteWorkspacesByWorkspaceIdAppsByAppId",
+        "tags": [
+          "apps"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Remove an app (stops it first if running).",
+        "x-sdk-name": "workspaceApps.remove"
+      }
+    },
+    "/workspaces/{workspaceId}/apps/{appId}/start": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "App started (runtime merged).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "cwdRelative": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "runtime": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "running",
+                            "exited",
+                            "crashed"
+                          ]
+                        },
+                        "pid": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "startedAt": {
+                          "type": "string"
+                        },
+                        "exitCode": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "pid",
+                        "startedAt",
+                        "exitCode"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "name",
+                    "command",
+                    "cwdRelative",
+                    "port",
+                    "runtime",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The app's folder escapes the workspace."
+          },
+          "404": {
+            "description": "No such app in this workspace."
+          },
+          "409": {
+            "description": "The app is already running."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdAppsByAppIdStart",
+        "tags": [
+          "apps"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Start an app.",
+        "x-sdk-name": "workspaceApps.start",
+        "x-mcp": {
+          "exposed": true,
+          "name": "start_app",
+          "description": "Start a registered app. The user sees it go green in their Apps section. After starting, give it a moment and check get_app_logs to confirm it came up healthy (port conflicts and missing installs show up there).",
+          "mutatingApproved": true
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/apps/{appId}/stop": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "App stopped (runtime merged).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "cwdRelative": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "runtime": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "running",
+                            "exited",
+                            "crashed"
+                          ]
+                        },
+                        "pid": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "startedAt": {
+                          "type": "string"
+                        },
+                        "exitCode": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "pid",
+                        "startedAt",
+                        "exitCode"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "name",
+                    "command",
+                    "cwdRelative",
+                    "port",
+                    "runtime",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such app in this workspace."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdAppsByAppIdStop",
+        "tags": [
+          "apps"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Stop a running app.",
+        "x-sdk-name": "workspaceApps.stop",
+        "x-mcp": {
+          "exposed": true,
+          "name": "stop_app",
+          "description": "Stop a running app (the whole process tree, so its port frees up). Stopping an app that is not running is a harmless no-op.",
+          "mutatingApproved": true
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/apps/{appId}/logs": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ lines } — the most recent output lines.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "lines"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such app in this workspace."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdAppsByAppIdLogs",
+        "tags": [
+          "apps"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "tail",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2000
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Read an app's recent output (live ring buffer).",
+        "x-sdk-name": "workspaceApps.logs",
+        "x-mcp": {
+          "exposed": true,
+          "name": "get_app_logs",
+          "description": "Read an app's recent output (up to the last 2000 lines, in-memory — empty if it has not run since Vynel started). Use after start_app to confirm health, or to diagnose a crash (the exit line is appended). Optional `tail` limits the line count. Read-only."
+        }
+      }
+    },
     "/workspaces/{workspaceId}/chat/sessions": {
       "get": {
         "responses": {

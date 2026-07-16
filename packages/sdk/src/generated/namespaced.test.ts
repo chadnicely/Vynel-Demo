@@ -128,6 +128,18 @@ const EXPECTED_SCHEDULES_USER_METHODS = [
   'update',
 ] as const
 
+// The workspaceApps namespace, sorted (apps module, 2026-07-17) — register +
+// run + monitor a workspace's apps. `remove` is user-only (no x-mcp).
+const EXPECTED_WORKSPACE_APPS_METHODS = [
+  'add',
+  'list',
+  'logs',
+  'remove',
+  'start',
+  'stop',
+  'update',
+] as const
+
 // The asks namespace, sorted (ask module, 2026-07-17) — the ask_user
 // answering surface (USER-scoped only; the agent's surface is the
 // `vynel-ask` descriptor tool, so no route is x-mcp).
@@ -222,6 +234,7 @@ describe('makeNamespaced — shape', () => {
       'tasksUser',
       'users',
       'voice',
+      'workspaceApps',
       'workspaces',
     ])
     expect(Object.keys(sdk.knowledge).sort()).toEqual([...EXPECTED_KNOWLEDGE_METHODS])
@@ -236,6 +249,7 @@ describe('makeNamespaced — shape', () => {
     expect(Object.keys(sdk.tasks).sort()).toEqual([...EXPECTED_TASKS_METHODS])
     expect(Object.keys(sdk.tasksUser).sort()).toEqual([...EXPECTED_TASKS_USER_METHODS])
     expect(Object.keys(sdk.asks).sort()).toEqual([...EXPECTED_ASKS_METHODS])
+    expect(Object.keys(sdk.workspaceApps).sort()).toEqual([...EXPECTED_WORKSPACE_APPS_METHODS])
     expect(Object.keys(sdk.notebook).sort()).toEqual([...EXPECTED_NOTEBOOK_METHODS])
   })
 

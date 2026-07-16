@@ -11,13 +11,14 @@ import { registerChannelsCommands } from './channels-commands.js'
 import { registerSchedulesCommands } from './schedules-commands.js'
 import { registerMarketplaceCommands } from './marketplace-commands.js'
 import { registerTasksCommands } from './tasks-commands.js'
+import { registerAppsCommands } from './apps-commands.js'
 
 export function buildProgram(getClient: () => VynelClient): Command {
   const program = new Command()
   program
     .name('vynel')
     .description(
-      'Vynel CLI — knowledge, skills, channels, schedules, tasks + marketplace over the local API.',
+      'Vynel CLI — knowledge, skills, channels, schedules, tasks, apps + marketplace over the local API.',
     )
     .version('0.0.0')
   registerKnowledgeCommands(program, getClient)
@@ -26,5 +27,6 @@ export function buildProgram(getClient: () => VynelClient): Command {
   registerSchedulesCommands(program, getClient)
   registerMarketplaceCommands(program, getClient)
   registerTasksCommands(program, getClient)
+  registerAppsCommands(program, getClient)
   return program
 }

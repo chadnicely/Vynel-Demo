@@ -20,6 +20,7 @@ import type { Workspace } from '@vynel/workspaces'
 import type { FileWatcherService } from '@vynel/knowledge'
 import type { FireScheduleDeps } from '@vynel/schedules'
 import type { PendingAskRegistry } from '@vynel/asks'
+import type { AppProcessSupervisor } from '@vynel/apps'
 import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
@@ -73,6 +74,10 @@ export interface AppEnv {
     // (`app.ts`), like `fileWatcher` — the turn streams park waiters on it and
     // the /asks answer/dismiss routes resolve them.
     askWaiters: PendingAskRegistry
+    // The process-wide supervisor of running workspace apps (dev servers etc.).
+    // Set once at construction (`app.ts`); `server.ts` stopAll()s it on
+    // shutdown so quitting Vynel never orphans a dev server.
+    appSupervisor: AppProcessSupervisor
   }
 }
 

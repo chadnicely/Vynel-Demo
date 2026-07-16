@@ -28,6 +28,7 @@ export type HubFeatureKey =
   | 'knowledge'
   | 'memory'
   | 'marketplace'
+  | 'apps'
 
 export const ALL_FEATURE_KEYS: readonly HubFeatureKey[] = [
   'channels',
@@ -36,6 +37,8 @@ export const ALL_FEATURE_KEYS: readonly HubFeatureKey[] = [
   'knowledge',
   'memory',
   'marketplace',
+  // Run + monitor workspace apps (pro, Chad 2026-07-17 — the tasks/ask/apps/ssh arc).
+  'apps',
 ]
 
 export const TIER_FEATURES: Readonly<Record<HubTier, readonly HubFeatureKey[]>> = {

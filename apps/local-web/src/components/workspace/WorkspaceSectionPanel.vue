@@ -10,10 +10,12 @@ import {
   NotebookText,
   Radio,
   Sparkles,
+  SquarePlay,
 } from "lucide-vue-next";
 import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
 import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
 import AgentsSection from "../sections/AgentsSection.vue";
+import AppsSection from "../sections/AppsSection.vue";
 import ChannelsSection from "../sections/ChannelsSection.vue";
 import KnowledgeSection from "../sections/KnowledgeSection.vue";
 import LockedFeatureCard from "../sections/LockedFeatureCard.vue";
@@ -38,6 +40,7 @@ const SECTION_ICONS = {
   channels: Radio,
   schedules: CalendarClock,
   tasks: ListChecks,
+  apps: SquarePlay,
   knowledge: BookOpen,
   marketplace: Blocks,
   memory: Brain,
@@ -89,6 +92,10 @@ const skills = computed(() => skillsQuery.data.value ?? []);
     v-else-if="props.section === 'tasks'"
     :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
   />
+  <template v-else-if="props.section === 'apps'">
+    <LockedFeatureCard v-if="isLocked('apps')" feature-label="Apps" />
+    <AppsSection v-else :workspace-id="props.workspaceId" />
+  </template>
   <template v-else-if="props.section === 'knowledge'">
     <LockedFeatureCard v-if="isLocked('knowledge')" feature-label="Knowledge" />
     <KnowledgeSection

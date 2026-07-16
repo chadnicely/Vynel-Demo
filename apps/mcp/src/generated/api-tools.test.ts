@@ -46,7 +46,12 @@ import { generatedMcpTools, generatedRoutingMcpTools } from './api-tools.js'
 //     SDK has no built-in task feature; these are how Claude keeps the user's
 //     visible task list current). The user-scoped mutations (create/delete)
 //     are NOT exposed — the agent creates through its workspace door only.
+//   - the apps module (2026-07-17): list_apps + get_app_logs (reads) +
+//     add_app / update_app / start_app / stop_app (mutatingApproved — NO
+//     approval cards by design, Chad; the safety story is visibility +
+//     the supervisor's cwd containment). DELETE stays user-only.
 const EXPECTED_TOOL_NAMES = [
+  'add_app',
   'add_memory_from_file',
   'add_to_knowledge',
   'complete_task',
@@ -54,6 +59,7 @@ const EXPECTED_TOOL_NAMES = [
   'create_task',
   'discover_installed_skills_for_provider',
   'get_ai_agent_provider_auth_status',
+  'get_app_logs',
   'get_chat_session',
   'get_current_user',
   'get_indexer_status',
@@ -62,6 +68,7 @@ const EXPECTED_TOOL_NAMES = [
   'get_workspace',
   'list_ai_agent_providers',
   'list_allowed_senders',
+  'list_apps',
   'list_available_skills',
   'list_channels',
   'list_chat_sessions',
@@ -82,6 +89,9 @@ const EXPECTED_TOOL_NAMES = [
   'search_chat_messages',
   'search_knowledge',
   'search_memory',
+  'start_app',
+  'stop_app',
+  'update_app',
   'update_memory_entry',
   'update_task',
 ] as const

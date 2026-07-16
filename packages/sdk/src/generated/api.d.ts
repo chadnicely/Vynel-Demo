@@ -633,6 +633,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the workspace's apps with live run status. */
+        get: operations["getWorkspacesByWorkspaceIdApps"];
+        put?: never;
+        /** Register a runnable app on the workspace. */
+        post: operations["postWorkspacesByWorkspaceIdApps"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/apps/{appId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an app (stops it first if running). */
+        delete: operations["deleteWorkspacesByWorkspaceIdAppsByAppId"];
+        options?: never;
+        head?: never;
+        /** Update an app (name, command, folder, port). Applies on the next start. */
+        patch: operations["patchWorkspacesByWorkspaceIdAppsByAppId"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/apps/{appId}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start an app. */
+        post: operations["postWorkspacesByWorkspaceIdAppsByAppIdStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/apps/{appId}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop a running app. */
+        post: operations["postWorkspacesByWorkspaceIdAppsByAppIdStop"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/apps/{appId}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read an app's recent output (live ring buffer). */
+        get: operations["getWorkspacesByWorkspaceIdAppsByAppIdLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/chat/sessions": {
         parameters: {
             query?: never;
@@ -4407,6 +4494,361 @@ export interface operations {
                 };
             };
             /** @description No such task owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdApps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of WorkspaceApp (runtime merged). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        name: string;
+                        command: string;
+                        cwdRelative: string;
+                        port: number | null;
+                        runtime: {
+                            /** @enum {string} */
+                            status: "running" | "exited" | "crashed";
+                            pid: number | null;
+                            startedAt: string;
+                            exitCode: number | null;
+                        } | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdApps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name: string;
+                    command: string;
+                    cwdRelative?: string;
+                    port?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description App registered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        name: string;
+                        command: string;
+                        cwdRelative: string;
+                        port: number | null;
+                        runtime: {
+                            /** @enum {string} */
+                            status: "running" | "exited" | "crashed";
+                            pid: number | null;
+                            startedAt: string;
+                            exitCode: number | null;
+                        } | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An app with this name already exists here. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteWorkspacesByWorkspaceIdAppsByAppId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description App removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such app in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchWorkspacesByWorkspaceIdAppsByAppId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    command?: string;
+                    cwdRelative?: string;
+                    port?: number | null;
+                };
+            };
+        };
+        responses: {
+            /** @description App updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        name: string;
+                        command: string;
+                        cwdRelative: string;
+                        port: number | null;
+                        runtime: {
+                            /** @enum {string} */
+                            status: "running" | "exited" | "crashed";
+                            pid: number | null;
+                            startedAt: string;
+                            exitCode: number | null;
+                        } | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such app in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An app with this name already exists here. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdAppsByAppIdStart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description App started (runtime merged). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        name: string;
+                        command: string;
+                        cwdRelative: string;
+                        port: number | null;
+                        runtime: {
+                            /** @enum {string} */
+                            status: "running" | "exited" | "crashed";
+                            pid: number | null;
+                            startedAt: string;
+                            exitCode: number | null;
+                        } | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description The app's folder escapes the workspace. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such app in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The app is already running. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdAppsByAppIdStop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description App stopped (runtime merged). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        name: string;
+                        command: string;
+                        cwdRelative: string;
+                        port: number | null;
+                        runtime: {
+                            /** @enum {string} */
+                            status: "running" | "exited" | "crashed";
+                            pid: number | null;
+                            startedAt: string;
+                            exitCode: number | null;
+                        } | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description No such app in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdAppsByAppIdLogs: {
+        parameters: {
+            query?: {
+                tail?: number;
+            };
+            header?: never;
+            path: {
+                appId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { lines } — the most recent output lines. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        lines: string[];
+                    };
+                };
+            };
+            /** @description No such app in this workspace. */
             404: {
                 headers: {
                     [name: string]: unknown;
