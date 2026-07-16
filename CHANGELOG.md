@@ -31,6 +31,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Run your apps from Vynel — and let Claude run them for you.** Each workspace now has an
+  Apps section (Vynel Pro): register the things your project can run — a web app, an API — and
+  start or stop them with one click. A green dot shows what's running, "Open in browser" jumps
+  straight to it, and a live log view shows what the app is saying (crashes are called out with
+  why). Claude can set these up itself: ask it to run your project and it figures out the right
+  command, registers the app, starts it, and checks the logs to confirm it came up healthy.
+  Quitting Vynel cleanly stops anything it started. Also on the command line (`vynel apps`).
+
 - **Telegram now hears about things that happen while you're away.** Scheduled routines that
   deliver to a channel actually arrive there now, and when Claude is waiting on your input a
   short nudge ("Claude needs your input: …") reaches your Telegram so you know to open the app.

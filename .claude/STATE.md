@@ -3,7 +3,34 @@
 **Updated 2026-07-17.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-17c): OUTBOX RELAY WIRED (the ask-nudge slice) — gate GREEN 478f/2502t, reviewed CLEAN 0-must-fix (nits folded); commit+push next; then arc ③ APPS
+## ⏭ NEXT ACTION (2026-07-17d): APPS MODULE BUILT (arc ③) — gate GREEN 485f/2536t, reviewer running; then commit; LAST arc: SSH
+
+**③ APPS BUILT (docs/module-notes/apps.md; Chad: NO cards anywhere, Claude adds/runs freely,
+live ring-buffer logs only, pro tier):**
+- **Leaf `packages/apps`** — `workspace_apps` (migration `0008_workspace_apps`; WORKSPACE-scoped
+  NOT-NULL workspaceId — deliberate narrowing, an app needs a cwd) · case-insensitive per-
+  workspace name uniqueness · register/update/remove ops (outbox app.registered/updated/removed)
+  + runtime facts app.started/stopped/crashed (own-tx, the relay delivers them someday) ·
+  **AppProcessSupervisor** (spawn shell:true; `resolveContainedCwd` refuses workspace escapes;
+  2000-line ring buffer; win32 `taskkill /T /F` tree-kill vs SIGTERM→SIGKILL-3s; crash-vs-
+  requested-stop; onExit→publishAppExitOutcome; stopAll on shutdown — no orphaned dev servers).
+  Leaf tests spawn REAL `node -e` processes.
+- **Routes** `/workspaces/:id/apps` behind `featureGate('apps')` (entitlements grew the `apps`
+  pro key): list(+live runtime merged)/add/update/delete(user-only, stops first)/start/stop/
+  logs. 6 x-mcp tools ALL uncarded (list_apps/add_app/update_app/start_app/stop_app/
+  get_app_logs; add_app teaches derive-the-command-by-inspecting; start_app teaches
+  check-logs-after). Supervisor DI'd (createApp option; server.ts constructs w/ onExit).
+  Route tests drive REAL processes end-to-end incl. cross-workspace-URL 404 binding.
+- **UI (subagent, 215 local-web tests)** — AppsSection+AppRow+AppFormDialog (status dots,
+  Start/Stop pill, open-in-browser, 2s log tail auto-scroll, LockedFeatureCard('apps'),
+  workspace-only registration). **CLI** `vynel apps list|add|start|stop|logs|remove`.
+**⏭ NEXT: fold reviewer findings → commit+push → Chad smoke (in a workspace with a runnable
+project: "run my app" → Claude list_apps→add_app→start_app→logs; Apps section dots/logs/
+browser-link; stop from UI; quit Vynel → nothing orphaned; basic-tier account sees the Pro
+lock) → arc ④ SSH (module notes first: DB-encrypted creds + key-location design, ssh2 exec
+tool, verified notebook book, plain-language cards — the deferred approval-granularity call).**
+
+## (prev) NEXT ACTION (2026-07-17c): OUTBOX RELAY WIRED (the ask-nudge slice) — SHIPPED `0e1174d`+`6585125`+`7829401`, pushed; reviewed CLEAN
 
 **The generic outbox relay is LIVE (was wired nowhere since it landed):** `OUTBOX_CONSUMERS`
 now carries 'schedule.run-completed' → the (formerly dormant) channels delivery consumer and
