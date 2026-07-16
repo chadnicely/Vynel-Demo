@@ -101,10 +101,14 @@ export {
   type PurgeTerminalChannelRowsResult,
 } from './lifecycle/purge-terminal-channel-rows.js'
 
-// Cross-domain: the schedules ↔ channels outbox consumer (§9). Consumer
-// function + payload shape only — the generic outbox relay is wired by the
-// schedules build (OQ-5 / D19).
+// Cross-domain: the outbox consumers (consumer function + payload shape only;
+// the generic relay lives in core and is driven by the api's relay service —
+// wired 2026-07-17 with the ask-nudge slice).
 export {
   consumeScheduleRunCompletedEvent,
   type ScheduleRunCompletedPayload,
 } from './delivery/consume-schedule-run-completed-event.js'
+export {
+  consumeAskCreatedEvent,
+  type AskCreatedPayload,
+} from './delivery/consume-ask-created-event.js'

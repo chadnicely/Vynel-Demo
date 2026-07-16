@@ -33,6 +33,7 @@ import { startSchedulesService } from './services/schedules-service.js'
 import { startKnowledgeIndexingService } from './services/knowledge-indexing-service.js'
 import { startMemoryMaintenanceService } from './services/memory-maintenance-service.js'
 import { startChannelsService } from './services/channels-service.js'
+import { startOutboxRelayService } from './services/outbox-relay-service.js'
 import { startDelegationService } from './services/delegation-service.js'
 import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
 import { TurnEventBroadcaster } from '@vynel/session/delegation'
@@ -132,6 +133,9 @@ export async function boot(): Promise<void> {
   // process, so every still-pending ask row is unanswerable — expire them once
   // at boot so the UI never shows a zombie wizard (docs/module-notes/ask.md).
   expireAskRequests(db, {}, { logger })
+  // The outbox relay — dispatches published cross-domain events to their
+  // registered consumers (schedules→channel delivery, the ask nudge).
+  const outboxRelayService = startOutboxRelayService({ db, logger })
 
   // The gateway fronts the api: /api mount, /voice daemon proxy, and — when a
   // built local-web dist exists — the whole desktop UI (sidecar mode, the Tauri
@@ -170,6 +174,7 @@ export async function boot(): Promise<void> {
       channelsService.stop()
       delegationService.stop()
       approvalsRecoveryService.stop()
+      outboxRelayService.stop()
       hubSessionService?.stop()
       catalogSyncService?.stop()
       void fileWatcher.stopAll()

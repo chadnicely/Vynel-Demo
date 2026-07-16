@@ -79,7 +79,7 @@ dismissing, or ignoring (timeout).
    Consequences:
    - **Telegram nudge:** when an ask goes pending, notify the user through their connected
      channel — an outbox consumer in the channels leaf on `ask.created` (the
-     schedule.run-completed delivery precedent) sends "Vynel needs your input: <first
+     schedule.run-completed delivery precedent) sends "Claude needs your input: <first
      question label> — open the app to answer." Nudge only; answering stays in the app (v1).
    - **Boot recovery:** a pending ask whose awaiting process died is unanswerable — on boot,
      mark stale pending rows `expired` (the approvals recover precedent) so the UI never shows

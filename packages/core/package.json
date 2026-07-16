@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@vynel/channels": "workspace:*",
     "@vynel/db": "workspace:*",
     "@vynel/errors": "workspace:*",
     "@vynel/logger": "workspace:*"

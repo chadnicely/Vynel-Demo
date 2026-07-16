@@ -4,6 +4,10 @@
 
 export { dispatchOutboxEvents } from './dispatch-outbox-events.js'
 export { OUTBOX_CONSUMERS, type OutboxConsumer } from './outbox-consumer-registry.js'
+export {
+  skipStaleOutboxEvents,
+  STALE_OUTBOX_EVENT_CUTOFF_MS,
+} from './skip-stale-outbox-events.js'
 
 // Re-export the structural logger so the worker delegator imports it from the
 // same package as the op (the channels barrel precedent).

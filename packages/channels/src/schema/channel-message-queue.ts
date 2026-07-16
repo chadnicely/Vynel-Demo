@@ -18,6 +18,7 @@ export type OutboundPayloadKind =
   | 'approval-resolved' // post-resolution confirmation
   | 'status-update' // error / "timed out" notices
   | 'scheduled-message' // a fired schedule's rendered output (schedules contract, §9)
+  | 'ask-nudge' // "Claude needs your input" — an ask went pending (asks contract; answer stays in-app)
 
 export type OutboundMessageStatus =
   | 'pending' // not yet attempted

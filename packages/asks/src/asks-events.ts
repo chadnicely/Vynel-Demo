@@ -3,10 +3,10 @@
 // `withTransaction` block as the state change (architecture invariant).
 //
 // `ask.created` carries the FIRST question's label + the count so the
-// channels leaf can send a plain-language nudge ("Vynel needs your input:
-// …") without importing this leaf — the schedule.run-completed delivery
-// precedent. Answers NEVER enter a payload (they may hold anything the user
-// typed).
+// channels leaf can send a plain-language nudge ("Claude needs your input:
+// …" — matching the in-app notifier's voice) without importing this leaf —
+// the schedule.run-completed delivery precedent. Answers NEVER enter a
+// payload (they may hold anything the user typed).
 
 import type { AskRequestStatus } from './repositories/index.js'
 
