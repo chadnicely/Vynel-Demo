@@ -18,7 +18,7 @@ type FakeClaudeQueryOptions = {
   canUseTool?: (
     toolName: string,
     toolInput: Record<string, unknown>,
-    callbackOptions: { signal: AbortSignal; toolUseID: string },
+    callbackOptions: { signal: AbortSignal; toolUseID: string; requestId: string },
   ) => Promise<unknown>
 }
 
@@ -46,6 +46,10 @@ export function createFakeClaudeQuery(script: FakeClaudeQueryStep[]): typeof que
           await options.canUseTool(step.toolName, step.toolInput, {
             signal: options.abortController?.signal ?? new AbortController().signal,
             toolUseID: 'tu_fake',
+            // Required since SDK 0.3.213 — the fake must stay honest to the
+            // real callback type, or a callback reading it sees undefined
+            // only under the fake.
+            requestId: 'req_fake',
           })
         }
       }

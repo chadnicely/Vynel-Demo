@@ -10,9 +10,13 @@ import { SyntheticEventQueue } from '../session/synthetic-event-queue.js'
 import { PendingApprovalRegistry } from '../../shared/pending-approval-registry.js'
 import type { NormalizedSessionEvent } from '../../shared/normalized-session-event.js'
 
-// The SDK's `canUseTool` third argument — only `signal` + `toolUseID` are
-// required; the callback under test does not read it.
-const TOOL_OPTIONS = { signal: new AbortController().signal, toolUseID: 'tu_test' }
+// The SDK's `canUseTool` third argument — `signal` + `toolUseID` + (since SDK
+// 0.3.213) `requestId` are required; the callback under test does not read it.
+const TOOL_OPTIONS = {
+  signal: new AbortController().signal,
+  toolUseID: 'tu_test',
+  requestId: 'req_test',
+}
 
 function setup(
   permissionMode: 'ask' | 'auto' | 'bypass-with-behavior-gate' | 'plan-only',
@@ -63,7 +67,7 @@ describe('buildClaudeCanUseToolCallback', () => {
     if (requested.kind !== 'approval-requested') throw new Error('expected approval-requested')
     expect(requested.toolName).toBe('Read')
     pendingApprovalRegistry.resolve(requested.approvalRequestId, { kind: 'approved' })
-    expect((await resultPromise).behavior).toBe('allow')
+    expect((await resultPromise)?.behavior).toBe('allow')
   })
 
   it('behavior gate: the memory-write tool requires approval under bypass mode (approval default true)', async () => {
@@ -81,7 +85,7 @@ describe('buildClaudeCanUseToolCallback', () => {
     expect(requested.toolName).toBe('mcp__vynel__create_memory_entry')
 
     pendingApprovalRegistry.resolve(requested.approvalRequestId, { kind: 'approved' })
-    expect((await resultPromise).behavior).toBe('allow')
+    expect((await resultPromise)?.behavior).toBe('allow')
   })
 
   it('behavior gate: a per-turn feature mutating tool (act_on_app) requires approval under bypass', async () => {
@@ -96,7 +100,7 @@ describe('buildClaudeCanUseToolCallback', () => {
     expect(requested.toolName).toBe('mcp__desktop__act_on_app')
 
     pendingApprovalRegistry.resolve(requested.approvalRequestId, { kind: 'approved' })
-    expect((await resultPromise).behavior).toBe('allow')
+    expect((await resultPromise)?.behavior).toBe('allow')
   })
 
   it('behavior gate: act_on_app runs silently under bypass when NOT in the per-turn set (additive)', async () => {
@@ -120,7 +124,7 @@ describe('buildClaudeCanUseToolCallback', () => {
     expect(requested.toolName).toBe('Bash')
 
     pendingApprovalRegistry.resolve(requested.approvalRequestId, { kind: 'approved' })
-    expect((await resultPromise).behavior).toBe('allow')
+    expect((await resultPromise)?.behavior).toBe('allow')
   })
 
   it('ask mode: every tool requires approval, even a read-only one', async () => {
@@ -132,7 +136,7 @@ describe('buildClaudeCanUseToolCallback', () => {
     if (requested.kind !== 'approval-requested') throw new Error('expected approval-requested')
 
     pendingApprovalRegistry.resolve(requested.approvalRequestId, { kind: 'approved' })
-    expect((await resultPromise).behavior).toBe('allow')
+    expect((await resultPromise)?.behavior).toBe('allow')
   })
 
   it('approved with updatedInput substitutes the edited input', async () => {
@@ -171,7 +175,7 @@ describe('buildClaudeCanUseToolCallback', () => {
       const requested = await syntheticEventQueue.dequeue()
       if (requested.kind !== 'approval-requested') throw new Error('expected approval-requested')
       pendingApprovalRegistry.resolve(requested.approvalRequestId, decision)
-      expect((await resultPromise).behavior).toBe('deny')
+      expect((await resultPromise)?.behavior).toBe('deny')
     }
   })
 

@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.181",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.213",
     "@napi-rs/keyring": "^1.1.0",
     "@vynel/db": "workspace:*",
     "@vynel/errors": "workspace:*",
