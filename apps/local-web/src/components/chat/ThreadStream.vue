@@ -51,13 +51,26 @@ const isPinnedToBottom = ref(true);
 // (which would stale the jump's target height).
 const isAutoScrolling = ref(false);
 
+// While a turn streams, its rows ALREADY persist (user message at start,
+// assistant text per chunk) — so any history refetch mid-turn (the delegation
+// or background-turn poll, the settle refetch racing the overlay teardown)
+// would render the same message twice: once settled, once in the live
+// overlay. The overlay owns its own rows; drop them from history.
+const settledMessages = computed(() => {
+  const turn = props.activeTurn;
+  if (turn === null) return props.messages;
+  const overlayIds = new Set(turn.assistantMessageIds);
+  if (turn.userMessage) overlayIds.add(turn.userMessage.id);
+  return props.messages.filter((message) => !overlayIds.has(message.id));
+});
+
 const visibleMessages = computed(() =>
-  props.messages.length > visibleCount.value
-    ? props.messages.slice(-visibleCount.value)
-    : props.messages,
+  settledMessages.value.length > visibleCount.value
+    ? settledMessages.value.slice(-visibleCount.value)
+    : settledMessages.value,
 );
 const hiddenOlderCount = computed(() =>
-  Math.max(0, props.messages.length - visibleCount.value),
+  Math.max(0, settledMessages.value.length - visibleCount.value),
 );
 
 function scrollToBottom(behavior: ScrollBehavior = "auto") {

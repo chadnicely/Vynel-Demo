@@ -20,6 +20,13 @@ import type { paths } from './api.js'
 
 export function makeNamespaced(client: Client<paths>) {
   return {
+  activity: {
+  stream: async () => {
+    const { data, error, response } = await client["GET"]("/activity/stream")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   agents: {
   create: async (input: NonNullable<paths["/agents"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/agents", {

@@ -2253,6 +2253,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/activity/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Subscribe to the session-activity feed (SSE turn liveness, snapshot + live). */
+        get: operations["getActivityStream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/voice/speak": {
         parameters: {
             query?: never;
@@ -10135,6 +10152,24 @@ export interface operations {
             };
             /** @description Channel not found or not owned. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getActivityStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream of SessionActivityEvents (turn-started / turn-updated / turn-ended). Long-lived; ends only when the client disconnects. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

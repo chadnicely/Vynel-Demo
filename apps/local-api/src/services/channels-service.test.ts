@@ -29,12 +29,14 @@ vi.mock('@vynel/channels', () => ({
 vi.mock('../sessions/run-global-root-turn.js', () => ({ runGlobalRootTurn: vi.fn() }))
 
 import { startChannelsService } from './channels-service.js'
+import { SessionActivityFeed } from '@vynel/session/runtime'
 
 function fakeOptions() {
   return {
     db: {} as unknown as Database,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as Logger,
     appRequest: vi.fn(),
+    activityFeed: new SessionActivityFeed(),
   }
 }
 

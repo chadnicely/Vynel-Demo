@@ -20,12 +20,14 @@ vi.mock('@vynel/mcp', () => ({
 }))
 
 import { startSchedulesService } from './schedules-service.js'
+import { SessionActivityFeed } from '@vynel/session/runtime'
 
 function fakeOptions() {
   return {
     db: {} as unknown as Database,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as Logger,
     appRequest: vi.fn() as unknown as HonoAppRequestFn,
+    activityFeed: new SessionActivityFeed(),
   }
 }
 

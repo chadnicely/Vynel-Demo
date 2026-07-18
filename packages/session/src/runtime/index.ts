@@ -56,3 +56,13 @@ export {
   type GlobalRootTranscript,
   type GlobalRootTranscriptMessage,
 } from './resolve-global-root-transcript.js'
+
+// The per-user turn-liveness registry behind `GET /activity/stream` — every
+// turn producer begins/ends here so any open UI surface learns a turn is
+// running (channel turns, another tab's turns, schedule fires).
+export {
+  SessionActivityFeed,
+  activityChannelKey,
+  type BeginTurnActivityInput,
+  type SessionTurnActivityHandle,
+} from './session-activity-feed.js'

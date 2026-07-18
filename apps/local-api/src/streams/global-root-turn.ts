@@ -42,9 +42,16 @@ class GlobalRootSseSink implements SessionSink {
   constructor(
     private readonly stream: SSEStreamingApi,
     private readonly logger: Logger,
+    /** Called when the turn's session identity is learned (activity feed). */
+    private readonly onSessionResolved?: (sessionId: string) => void,
   ) {}
 
   async onEvent(event: ChatTurnEvent): Promise<void> {
+    // `user-message-persisted` fires on new AND resumed turns; `session-created`
+    // only on a new/swapped segment — tap both so every turn resolves.
+    if (event.kind === 'session-created') this.onSessionResolved?.(event.session.id)
+    else if (event.kind === 'user-message-persisted')
+      this.onSessionResolved?.(event.message.sessionId)
     await this.stream.writeSSE({ event: event.kind, data: JSON.stringify(event) })
   }
 
@@ -137,6 +144,13 @@ export async function streamGlobalRootTurn(
   )
 
   return streamSSE(c, async (stream) => {
+    // Announce on the session-activity feed so other surfaces go live while
+    // this turn runs (begun inside the SSE callback — the finally ends it).
+    const activity = c.var.activityFeed.begin({
+      userId: c.var.user.id,
+      scopeKind: 'global',
+      origin: input.voice === true ? 'voice' : 'web',
+    })
     try {
       await runGlobalRootTurnCore(
         {
@@ -167,9 +181,10 @@ export async function streamGlobalRootTurn(
           mutatingToolNames: composedMcp.mutatingToolNames,
           mcpSystemPromptAppend: composedMcp.systemPromptAppend,
         },
-        new GlobalRootSseSink(stream, c.var.logger),
+        new GlobalRootSseSink(stream, c.var.logger, activity.sessionResolved),
       )
     } finally {
+      activity.end()
       // An ask still parked when the turn ends (interrupt/disconnect) is
       // unanswerable — cancel + expire so the UI never shows a zombie wizard
       // (the streamChatTurn finally precedent).

@@ -18,17 +18,20 @@ export function traceChannelKey(partialSessionId: string): string {
   return `trace:${partialSessionId}`
 }
 
-export interface TurnEventSubscriber {
-  onEvent: (event: ChatTurnEvent) => void
+export interface TurnEventSubscriber<TEvent = ChatTurnEvent> {
+  onEvent: (event: TEvent) => void
   /** The producer's turn finished (drained OR threw) — the observe stream closes. */
   onEnd: () => void
 }
 
-export class TurnEventBroadcaster {
-  private readonly channels = new Map<string, Set<TurnEventSubscriber>>()
+// Generic over the event payload: the delegation trace publishes ChatTurnEvents
+// (the default); the session-activity feed reuses the same fan-out with its own
+// vocabulary.
+export class TurnEventBroadcaster<TEvent = ChatTurnEvent> {
+  private readonly channels = new Map<string, Set<TurnEventSubscriber<TEvent>>>()
 
   /** Attach to a channel. Returns the unsubscribe (idempotent — call on abort). */
-  subscribe(channelKey: string, subscriber: TurnEventSubscriber): () => void {
+  subscribe(channelKey: string, subscriber: TurnEventSubscriber<TEvent>): () => void {
     const existing = this.channels.get(channelKey)
     if (existing !== undefined) {
       existing.add(subscriber)
@@ -45,7 +48,7 @@ export class TurnEventBroadcaster {
 
   /** Fan an event out to the channel's current subscribers. A listener throw is
    *  contained — one broken observer must never break the producing turn. */
-  publish(channelKey: string, event: ChatTurnEvent): void {
+  publish(channelKey: string, event: TEvent): void {
     const subscribers = this.channels.get(channelKey)
     if (subscribers === undefined) return
     for (const subscriber of subscribers) {

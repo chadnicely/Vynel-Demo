@@ -19564,6 +19564,22 @@
         }
       }
     },
+    "/activity/stream": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "SSE stream of SessionActivityEvents (turn-started / turn-updated / turn-ended). Long-lived; ends only when the client disconnects."
+          }
+        },
+        "operationId": "getActivityStream",
+        "tags": [
+          "activity"
+        ],
+        "parameters": [],
+        "summary": "Subscribe to the session-activity feed (SSE turn liveness, snapshot + live).",
+        "x-sdk-name": "activity.stream"
+      }
+    },
     "/voice/speak": {
       "post": {
         "responses": {

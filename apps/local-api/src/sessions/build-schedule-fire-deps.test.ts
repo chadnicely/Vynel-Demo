@@ -16,6 +16,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import type { Database } from '@vynel/db'
 import type { HonoAppRequestFn } from '../factory.js'
+import { SessionActivityFeed } from '@vynel/session/runtime'
 import { buildScheduleFireDeps } from './build-schedule-fire-deps.js'
 
 const silentLogger = pino({ level: 'silent' })
@@ -54,7 +55,7 @@ function seedWorkspace(db: Database): {
 describe('buildScheduleFireDeps (real composition — no mocks)', () => {
   it('binds startChatTurn + the capability/MCP composition', async () => {
     await withTestDatabase(async (db) => {
-      const deps = await buildScheduleFireDeps(db, fakeAppRequest, silentLogger)
+      const deps = await buildScheduleFireDeps(db, fakeAppRequest, silentLogger, new SessionActivityFeed())
       expect(typeof deps.startChatTurn).toBe('function')
       expect(typeof deps.composeWorkspaceMcpServers).toBe('function')
       expect(typeof deps.composeSessionCapabilities).toBe('function')
@@ -64,7 +65,7 @@ describe('buildScheduleFireDeps (real composition — no mocks)', () => {
   it('composeWorkspaceMcpServers builds the live vynel server from the generated registry', async () => {
     await withTestDatabase(async (db) => {
       const { userId, workspaceId } = seedWorkspace(db)
-      const deps = await buildScheduleFireDeps(db, fakeAppRequest, silentLogger)
+      const deps = await buildScheduleFireDeps(db, fakeAppRequest, silentLogger, new SessionActivityFeed())
 
       const composed = deps.composeWorkspaceMcpServers({ db, userId, workspaceId })
 
@@ -82,7 +83,7 @@ describe('buildScheduleFireDeps (real composition — no mocks)', () => {
   it('composeSessionCapabilities returns the composed system-prompt append', async () => {
     await withTestDatabase(async (db) => {
       const { workspaceId } = seedWorkspace(db)
-      const deps = await buildScheduleFireDeps(db, fakeAppRequest, silentLogger)
+      const deps = await buildScheduleFireDeps(db, fakeAppRequest, silentLogger, new SessionActivityFeed())
 
       const composed = deps.composeSessionCapabilities(db, { workspaceId })
 

@@ -31,6 +31,7 @@ import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.j
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../composables/users/use-current-user.js";
 import { useUiStore } from "../stores/ui-store.js";
+import { useActivityStore } from "../stores/activity-store.js";
 import { useSessionViewerStore } from "../stores/session-viewer-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 import { firstNameOf } from "../utils/greeting.js";
@@ -128,22 +129,42 @@ const inFlightQuery = useInFlightDelegations();
 const inFlightDelegations = computed(() => inFlightQuery.data.value ?? []);
 const isProcessing = computed(() => inFlightDelegations.value.length > 0);
 
-const detailQuery = useSessionDetail(
-  () => GLOBAL_SCOPE,
-  () => activeSessionId.value,
-  () => (isProcessing.value ? 4000 : false),
-);
-const messages = computed(() => detailQuery.data.value?.messages ?? []);
-const toolCallsByMessageId = computed(
-  () => detailQuery.data.value?.toolCallsByMessageId ?? {},
-);
-
 const chatTurn = useChatTurn({
   scope: () => GLOBAL_SCOPE,
   onSessionCreated: (session) => {
     shell.target = { sessionId: session.id };
   },
 });
+
+// A global turn running OUTSIDE this view's own stream — a Telegram/voice
+// turn, another tab — reported by the activity feed. While one runs, the
+// thread polls live below (rows persist per chunk) and the banner names the
+// origin. This view's own turn renders through its stream, so it never
+// counts here.
+const activity = useActivityStore();
+const backgroundTurnLabel = computed(() => {
+  if (!activity.hasGlobalServerTurn || chatTurn.isStreaming.value) return null;
+  switch (activity.globalServerTurnOrigin) {
+    case "telegram":
+      return "Replying on Telegram…";
+    case "discord":
+      return "Replying on Discord…";
+    case "voice":
+      return "Answering by voice…";
+    default:
+      return "Working…";
+  }
+});
+
+const detailQuery = useSessionDetail(
+  () => GLOBAL_SCOPE,
+  () => activeSessionId.value,
+  () => (isProcessing.value || backgroundTurnLabel.value !== null ? 4000 : false),
+);
+const messages = computed(() => detailQuery.data.value?.messages ?? []);
+const toolCallsByMessageId = computed(
+  () => detailQuery.data.value?.toolCallsByMessageId ?? {},
+);
 
 const decideApproval = useDecideApproval();
 
@@ -309,7 +330,14 @@ function openContinuous() {
         @open-session="sessionViewer.open"
       />
 
-      <div v-if="isProcessing" class="processing-banner">
+      <div
+        v-if="isProcessing || backgroundTurnLabel"
+        class="processing-banner"
+      >
+        <span v-if="backgroundTurnLabel" class="processing-chip is-static">
+          <PresenceDot state="live" />
+          <span>{{ backgroundTurnLabel }}</span>
+        </span>
         <template
           v-for="(delegation, index) in inFlightDelegations"
           :key="delegation.partialSessionId ?? `in-flight-${index}`"

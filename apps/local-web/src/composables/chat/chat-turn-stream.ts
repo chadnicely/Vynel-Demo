@@ -7,6 +7,7 @@ import {
   frameToChatTurnEvent,
   parseSseFrame,
   splitSseFrames,
+  type SseFrame,
 } from "./sse-frames.js";
 
 // The real live-turn transport. The generated `startTurn` methods buffer the
@@ -76,11 +77,12 @@ export async function* streamChatTurnEvents(
   yield* readChatTurnEvents(data);
 }
 
-/** Drive a raw SSE ReadableStream through the pure frame decoder. Shared with the
- *  delegation observe stream (use-delegation-trace-live) — one reader, one decoder. */
-export async function* readChatTurnEvents(
+/** Drive a raw SSE ReadableStream through the pure frame decoder — the shared
+ *  reader loop. The chat-turn and activity-feed streams both ride this; each
+ *  maps the decoded frames into its own event vocabulary. */
+export async function* readSseFrames(
   stream: ReadableStream<Uint8Array>,
-): AsyncGenerator<ChatTurnEvent> {
+): AsyncGenerator<SseFrame> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -91,13 +93,22 @@ export async function* readChatTurnEvents(
       buffer += decoder.decode(value, { stream: true });
       const { frames, rest } = splitSseFrames(buffer);
       buffer = rest;
-      for (const frame of frames)
-        yield frameToChatTurnEvent(parseSseFrame(frame));
+      for (const frame of frames) yield parseSseFrame(frame);
     }
     // A final frame with no trailing blank line (EOF-terminated) still counts.
     const tail = buffer.trim();
-    if (tail) yield frameToChatTurnEvent(parseSseFrame(tail));
+    if (tail) yield parseSseFrame(tail);
   } finally {
     reader.releaseLock();
+  }
+}
+
+/** The chat-turn event stream. Shared with the delegation observe stream
+ *  (use-delegation-trace-live) — one reader, one decoder. */
+export async function* readChatTurnEvents(
+  stream: ReadableStream<Uint8Array>,
+): AsyncGenerator<ChatTurnEvent> {
+  for await (const frame of readSseFrames(stream)) {
+    yield frameToChatTurnEvent(frame);
   }
 }

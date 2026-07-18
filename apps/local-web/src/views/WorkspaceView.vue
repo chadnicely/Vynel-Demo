@@ -21,6 +21,7 @@ import { useDecideApproval } from "../composables/approvals/use-decide-approval.
 import type { SessionScope } from "../composables/chat/session-scope.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import { useUiStore } from "../stores/ui-store.js";
+import { useActivityStore } from "../stores/activity-store.js";
 import { useSessionViewerStore } from "../stores/session-viewer-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 
@@ -96,22 +97,37 @@ const hasInFlightDelegationHere = computed(() =>
   ),
 );
 
-const detailQuery = useSessionDetail(
-  () => scope.value,
-  () => activeSessionId.value,
-  () => (hasInFlightDelegationHere.value ? 4000 : false),
-);
-const messages = computed(() => detailQuery.data.value?.messages ?? []);
-const toolCallsByMessageId = computed(
-  () => detailQuery.data.value?.toolCallsByMessageId ?? {},
-);
-
 const chatTurn = useChatTurn({
   scope: () => scope.value,
   onSessionCreated: (session) => {
     shell.target = { sessionId: session.id };
   },
 });
+
+// A turn running in THIS workspace outside this view's own stream — another
+// tab's turn or a schedule fire — reported by the activity feed. Poll the
+// open thread while one runs (same liveness rule as the delegation poll);
+// this view's own turn renders through its stream, so it never counts.
+const activity = useActivityStore();
+const hasBackgroundTurnHere = computed(
+  () =>
+    !chatTurn.isStreaming.value &&
+    ui.activeWorkspaceId !== null &&
+    activity.hasServerTurnInWorkspace(ui.activeWorkspaceId),
+);
+
+const detailQuery = useSessionDetail(
+  () => scope.value,
+  () => activeSessionId.value,
+  () =>
+    hasInFlightDelegationHere.value || hasBackgroundTurnHere.value
+      ? 4000
+      : false,
+);
+const messages = computed(() => detailQuery.data.value?.messages ?? []);
+const toolCallsByMessageId = computed(
+  () => detailQuery.data.value?.toolCallsByMessageId ?? {},
+);
 
 const decideApproval = useDecideApproval();
 

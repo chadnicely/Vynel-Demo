@@ -211,7 +211,10 @@ describe('makeNamespaced — shape', () => {
     // The full namespace list as of the 2026-07-05 API-completion waves. A
     // namespace appearing/disappearing here means a route group (or its
     // x-sdk-name prefix) changed — deliberate changes update this list.
+    // test: correct expectation — the realtime slice added `activity`
+    // (GET /activity/stream, the session-activity SSE feed).
     expect(Object.keys(sdk).sort()).toEqual([
+      'activity',
       'agents',
       'approvalRules',
       'approvals',

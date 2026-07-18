@@ -18,6 +18,7 @@
 import { runScheduleClaimAndFireTick } from '@vynel/schedules'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
+import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { HonoAppRequestFn } from '../factory.js'
 import { buildScheduleFireDeps } from '../sessions/build-schedule-fire-deps.js'
 
@@ -27,14 +28,15 @@ export interface SchedulesServiceOptions {
   db: Database
   logger: Logger
   appRequest: HonoAppRequestFn // from createApp(...) in server.ts (app.request.bind(app))
+  activityFeed: SessionActivityFeed // shared turn-liveness registry (server.ts)
 }
 
 export async function startSchedulesService(
   options: SchedulesServiceOptions,
 ): Promise<{ stop: () => void }> {
-  const { db, logger, appRequest } = options
+  const { db, logger, appRequest, activityFeed } = options
 
-  const fireDeps = await buildScheduleFireDeps(db, appRequest, logger)
+  const fireDeps = await buildScheduleFireDeps(db, appRequest, logger, activityFeed)
 
   const pollTimer = setInterval(() => {
     runScheduleClaimAndFireTick(db, fireDeps).catch((err) =>

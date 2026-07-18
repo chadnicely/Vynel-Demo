@@ -21,7 +21,11 @@
 import type { Database } from '@vynel/db'
 import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
 import type { Logger } from 'pino'
-import { runGlobalRootTurnCore, type SessionSink } from '@vynel/session/runtime'
+import {
+  runGlobalRootTurnCore,
+  type SessionActivityFeed,
+  type SessionSink,
+} from '@vynel/session/runtime'
 import type { DelegationOrigin } from '@vynel/orchestration'
 import type { HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
@@ -38,6 +42,9 @@ export interface RunGlobalRootTurnDeps {
   logger: Logger
   /** The in-process API dispatcher (`c.var.appRequest`) — the routing MCP tools dispatch through it. */
   appRequest: HonoAppRequestFn
+  /** The turn-liveness registry — a background channel turn must announce
+   *  itself so the open app surfaces it live (the web has no other signal). */
+  activityFeed: SessionActivityFeed
 }
 
 export interface RunGlobalRootTurnInput {
@@ -89,6 +96,8 @@ class GlobalRootDrainSink implements SessionSink {
 
   constructor(
     private readonly onApprovalRequested?: RunGlobalRootTurnInput['onApprovalRequested'],
+    /** Called when the turn's session identity is learned (activity feed). */
+    private readonly onSessionResolved?: (sessionId: string) => void,
   ) {}
 
   onEvent(event: SessionEvent): void {
@@ -98,6 +107,7 @@ class GlobalRootDrainSink implements SessionSink {
       // `session-created` fires only on a new/swapped segment, so it would leave a
       // resumed turn without a session id and `requireResult` would throw.
       this.sessionId = event.message.sessionId
+      this.onSessionResolved?.(event.message.sessionId)
     } else if (event.kind === 'text-chunk') {
       this.resultText += event.textDelta
     } else if (event.kind === 'approval-requested') {
@@ -155,30 +165,44 @@ export async function runGlobalRootTurn(
     { enabledCapabilityIds: defaultEnabledCapabilityIds() },
   )
 
-  const sink = new GlobalRootDrainSink(input.onApprovalRequested)
-  await runGlobalRootTurnCore(
-    {
-      db: deps.db,
-      logger: deps.logger,
-      // Resolve the global root + ensure its hidden cwd, INSIDE the lock (the runner
-      // calls this) — apps/local-api owns the env-coupled user-data-dir read.
-      resolveTarget: async () => {
-        const target = await resolveGlobalRootConversationTarget(deps.db, { userId: input.userId })
-        ensureGlobalRootWorkspaceDir()
-        return target
+  // Announce on the session-activity feed — this background turn is invisible
+  // to the app otherwise (the whole reason a Telegram reply never surfaced
+  // without a reload). Ended in the finally even when the turn throws.
+  const activity = deps.activityFeed.begin({
+    userId: input.userId,
+    scopeKind: 'global',
+    // The channels service (the only caller) always sets originChannel;
+    // 'web' is the defensive fallback, not an expected path.
+    origin: input.originChannel ?? 'web',
+  })
+  const sink = new GlobalRootDrainSink(input.onApprovalRequested, activity.sessionResolved)
+  try {
+    await runGlobalRootTurnCore(
+      {
+        db: deps.db,
+        logger: deps.logger,
+        // Resolve the global root + ensure its hidden cwd, INSIDE the lock (the runner
+        // calls this) — apps/local-api owns the env-coupled user-data-dir read.
+        resolveTarget: async () => {
+          const target = await resolveGlobalRootConversationTarget(deps.db, { userId: input.userId })
+          ensureGlobalRootWorkspaceDir()
+          return target
+        },
       },
-    },
-    {
-      userId: input.userId,
-      userMessageText: input.userMessageText,
-      ...(input.model !== undefined ? { model: input.model } : {}),
-      ...(input.originChannel !== undefined ? { originChannel: input.originChannel } : {}),
-      mcpServers: composedMcp.mcpServers,
-      allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
-      mutatingToolNames: composedMcp.mutatingToolNames,
-      mcpSystemPromptAppend: composedMcp.systemPromptAppend,
-    },
-    sink,
-  )
+      {
+        userId: input.userId,
+        userMessageText: input.userMessageText,
+        ...(input.model !== undefined ? { model: input.model } : {}),
+        ...(input.originChannel !== undefined ? { originChannel: input.originChannel } : {}),
+        mcpServers: composedMcp.mcpServers,
+        allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
+        mutatingToolNames: composedMcp.mutatingToolNames,
+        mcpSystemPromptAppend: composedMcp.systemPromptAppend,
+      },
+      sink,
+    )
+  } finally {
+    activity.end()
+  }
   return sink.requireResult()
 }

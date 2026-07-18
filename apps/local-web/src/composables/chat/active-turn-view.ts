@@ -33,6 +33,10 @@ export interface ActiveTurnView {
   session: ChatSessionResponse | null;
   userMessage: ChatMessageResponse | null;
   assistantMessageId: string | null;
+  /** EVERY assistant message id this turn touched (a turn with tool calls
+   *  spans several) — the thread hides these persisted rows while the live
+   *  overlay renders them, so a mid-turn refetch never doubles a message. */
+  assistantMessageIds: string[];
   text: string;
   thinking: string;
   isThinkingLive: boolean;
@@ -49,6 +53,7 @@ export function createActiveTurnView(): ActiveTurnView {
     session: null,
     userMessage: null,
     assistantMessageId: null,
+    assistantMessageIds: [],
     text: "",
     thinking: "",
     isThinkingLive: false,
@@ -71,6 +76,13 @@ function upsertToolCall(
   return next;
 }
 
+function withAssistantMessageId(
+  ids: string[],
+  messageId: string,
+): string[] {
+  return ids.includes(messageId) ? ids : [...ids, messageId];
+}
+
 export function applyChatTurnEvent(
   view: ActiveTurnView,
   event: ChatTurnEvent,
@@ -88,6 +100,10 @@ export function applyChatTurnEvent(
       return {
         ...view,
         assistantMessageId: event.messageId,
+        assistantMessageIds: withAssistantMessageId(
+          view.assistantMessageIds,
+          event.messageId,
+        ),
         text: view.text + event.textDelta,
         isThinkingLive: false,
       };
@@ -95,6 +111,10 @@ export function applyChatTurnEvent(
       return {
         ...view,
         assistantMessageId: event.messageId,
+        assistantMessageIds: withAssistantMessageId(
+          view.assistantMessageIds,
+          event.messageId,
+        ),
         thinking: view.thinking + event.thinkingDelta,
         isThinkingLive: true,
       };
@@ -103,6 +123,12 @@ export function applyChatTurnEvent(
       return {
         ...view,
         toolCalls: upsertToolCall(view.toolCalls, event.toolCall),
+        // A tool-only assistant message never streams text — its parent row
+        // still belongs to this turn's overlay.
+        assistantMessageIds: withAssistantMessageId(
+          view.assistantMessageIds,
+          event.toolCall.parentMessageId,
+        ),
         isThinkingLive: false,
       };
     case "approval-requested":

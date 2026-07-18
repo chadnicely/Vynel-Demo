@@ -179,12 +179,29 @@ export async function streamChatTurn(
       },
       { logger: c.var.logger },
     )
+    // Announce this turn on the session-activity feed so OTHER surfaces (a
+    // second tab, the workspace thread elsewhere) go live while it runs.
+    // Begun IMMEDIATELY before the try — nothing throwable may sit between
+    // begin and the finally's end, or a composition failure leaks a
+    // process-lifetime zombie turn (the feed replays in-flight turns to every
+    // subscriber). The generator call above is lazy, so begin sits after it.
+    const activity = c.var.activityFeed.begin({
+      userId: c.var.user.id,
+      scopeKind: 'workspace',
+      workspaceId: c.var.workspace!.id,
+      ...(resumeSessionId !== undefined ? { sessionId: resumeSessionId } : {}),
+      origin: 'web',
+    })
     try {
       for await (const event of turnStream) {
         // Track the session the turn ran on (a NEW session's id is only known
         // at session-created) + the latest context occupancy (last usage wins).
         if (event.kind === 'session-created') {
           effectiveSdkSessionId = event.session.id
+          activity.sessionResolved(event.session.id)
+        } else if (event.kind === 'user-message-persisted') {
+          // A resumed turn never emits session-created — this is its identity.
+          activity.sessionResolved(event.message.sessionId)
         } else if (event.kind === 'usage-reported') {
           occupancyTokens =
             event.inputTokens + event.cacheReadInputTokens + event.cacheCreationInputTokens
@@ -194,6 +211,7 @@ export async function streamChatTurn(
       await stream.writeSSE({ event: 'turn-stream-ended', data: '{}' })
     } finally {
       // Fires even on client disconnect (generator cleanup). Best-effort.
+      activity.end()
       // An ask still parked when the turn ends (interrupt/disconnect — a
       // normal completion can't end with one open, the tool blocks the turn)
       // is unanswerable: cancel its waiter + expire its row so the UI never

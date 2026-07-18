@@ -52,6 +52,8 @@ import { routingApp } from './routes/routing/index.js'
 import { voiceApp } from './routes/voice/index.js'
 import { dashboardApp } from './routes/dashboard/index.js'
 import { TurnEventBroadcaster } from '@vynel/session/delegation'
+import { SessionActivityFeed } from '@vynel/session/runtime'
+import { activityApp } from './routes/activity/index.js'
 
 export interface CreateAppOptions {
   readonly db: Database
@@ -79,6 +81,9 @@ export interface CreateAppOptions {
   // creates ONE instance and hands it to both; omitted (tests / generators) →
   // createApp makes its own (routes still work, nothing publishes).
   readonly turnEvents?: TurnEventBroadcaster
+  // The turn-liveness registry shared with the channels service (its background
+  // root turns must announce themselves too). Same wiring shape as `turnEvents`.
+  readonly activityFeed?: SessionActivityFeed
   // The daemon's hub-account session — present only when VYNEL_HUB_URL is
   // configured (server.ts); the /hub routes answer `not-configured` without it.
   readonly hubSession?: HubSession
@@ -108,6 +113,8 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   const aiProvider = options.aiProvider ?? resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
   // The turn-event pub/sub — one per process (see CreateAppOptions).
   const turnEvents = options.turnEvents ?? new TurnEventBroadcaster()
+  // The turn-liveness registry — one per process (see CreateAppOptions).
+  const activityFeed = options.activityFeed ?? new SessionActivityFeed()
   // The ask blocking bridge's in-memory half — one per process, like fileWatcher.
   const askWaiters = options.askWaiters ?? new PendingAskRegistry()
   // The app supervisor — one per process; a SELF-exit publishes its runtime
@@ -126,6 +133,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('fileWatcher', fileWatcher)
     c.set('aiProvider', aiProvider)
     c.set('turnEvents', turnEvents)
+    c.set('activityFeed', activityFeed)
     c.set('askWaiters', askWaiters)
     c.set('appSupervisor', appSupervisor)
     c.set('sshMasterKey', options.sshMasterKeyBase64 ?? null)
@@ -212,6 +220,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/agents', agentsApp)
   app.route('/root', rootApp)
   app.route('/routing', routingApp)
+  // `/activity` — the per-user session-activity SSE feed (turn liveness across
+  // every surface: web tabs, voice, channel turns, schedule fires).
+  app.route('/activity', activityApp)
   app.route('/voice', voiceApp)
   app.route('/dashboard', dashboardApp)
   app.route('/hub', hubApp)

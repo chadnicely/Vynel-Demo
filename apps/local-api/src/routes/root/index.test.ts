@@ -82,6 +82,8 @@ import {
 import type { AppEnv } from '../../factory.js'
 import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
 import { TurnEventBroadcaster, traceChannelKey } from '@vynel/session/delegation'
+import { SessionActivityFeed } from '@vynel/session/runtime'
+import { PendingAskRegistry } from '@vynel/asks'
 import { rootApp } from './index.js'
 
 const silentLogger = pino({ level: 'silent' })
@@ -93,12 +95,18 @@ beforeEach(() => {
 
 // Mirrors createApp's DI middleware + onError for the not-yet-mounted sub-app.
 function makeHarness(db: Database, turnEvents: TurnEventBroadcaster = new TurnEventBroadcaster()) {
+  const activityFeed = new SessionActivityFeed()
+  // Without a waiter registry the stream's turn-end ask cleanup throws into
+  // hono's swallowed streaming error path (noisy stderr, silently skipped).
+  const askWaiters = new PendingAskRegistry()
   const app = new Hono<AppEnv>()
   app.use('*', async (c, next) => {
     c.set('db', db)
     c.set('logger', silentLogger)
     c.set('appRequest', app.request.bind(app))
     c.set('turnEvents', turnEvents)
+    c.set('activityFeed', activityFeed)
+    c.set('askWaiters', askWaiters)
     await next()
   })
   app.onError((err, c) => {

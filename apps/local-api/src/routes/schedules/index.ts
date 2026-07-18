@@ -279,7 +279,7 @@ export const schedulesApp = factory
       // boot seam). No logic in the route — build deps + call core + serialize.
       const fireDeps =
         c.var.scheduleFireDeps ??
-        (await buildScheduleFireDeps(c.var.db, c.var.appRequest, c.var.logger))
+        (await buildScheduleFireDeps(c.var.db, c.var.appRequest, c.var.logger, c.var.activityFeed))
       const run = await manualFireSchedule(
         c.var.db,
         { scheduleId: c.req.valid('param').scheduleId, userId: c.var.user.id },

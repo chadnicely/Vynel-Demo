@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
+import { createActiveTurnView } from "../../composables/chat/active-turn-view.js";
+import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
 import ThreadStream from "./ThreadStream.vue";
 
 function makeMessage(index: number): ChatMessageResponse {
@@ -58,5 +60,29 @@ describe("ThreadStream", () => {
     const wrapper = mountStream(5);
 
     expect(wrapper.find(".jump-to-latest").exists()).toBe(false);
+  });
+
+  it("hides persisted rows the live overlay already renders (mid-turn refetch dedupe)", () => {
+    // Rows persist per chunk, so a refetch during a turn returns the very
+    // messages the overlay is streaming — they must not double-render.
+    const history = [makeMessage(0), makeMessage(1), makeMessage(2), makeMessage(3)];
+    const activeTurn: ActiveTurnView = {
+      ...createActiveTurnView(),
+      userMessage: history[2]!, // the turn's own user message, already persisted
+      assistantMessageId: "m3",
+      assistantMessageIds: ["m3"],
+      text: "streaming reply…",
+    };
+    const wrapper = mount(ThreadStream, {
+      props: { messages: history, toolCallsByMessageId: {}, activeTurn },
+      global: { plugins: [createPinia()] },
+    });
+
+    // Settled rows m0+m1 render from history; m2 (user) renders once via the
+    // overlay; m3 renders only as the live turn.
+    const rowTexts = wrapper.findAll(".message-row").map((row) => row.text());
+    expect(rowTexts.filter((text) => text.includes("message 2"))).toHaveLength(1);
+    expect(rowTexts.some((text) => text.includes("message 3"))).toBe(false);
+    expect(wrapper.text()).toContain("streaming reply…");
   });
 });

@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
-import type { SessionSink } from '@vynel/session/runtime'
+import type { SessionActivityFeed, SessionSink } from '@vynel/session/runtime'
 
 const { coreMock } = vi.hoisted(() => ({ coreMock: vi.fn() }))
 
@@ -31,11 +31,21 @@ import { DELEGATION_ORIGIN_HEADER, serializeDelegationOrigin } from './delegatio
 
 type SinkEvent = Parameters<SessionSink['onEvent']>[0]
 
-function fakeDeps() {
+// `@vynel/session/runtime` is mocked above, so the real feed class is
+// unavailable — a recording fake stands in (and lets tests assert the
+// begin/end announcement wiring).
+function fakeActivityFeed() {
+  const handle = { turnId: 'turn-1', sessionResolved: vi.fn(), end: vi.fn() }
+  const begin = vi.fn(() => handle)
+  return { feed: { begin } as unknown as SessionActivityFeed, begin, handle }
+}
+
+function fakeDeps(activityFeed: SessionActivityFeed = fakeActivityFeed().feed) {
   return {
     db: {} as unknown as Database,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as Logger,
     appRequest: vi.fn(),
+    activityFeed,
   }
 }
 
@@ -96,6 +106,41 @@ describe('runGlobalRootTurn', () => {
     expect(approvals).toEqual([
       { approvalRequestId: 'appr-brain-1', toolName: 'register_workspace', toolInput: { name: 'acme' } },
     ])
+  })
+
+  it('announces the turn on the activity feed: begin with the channel origin, session resolved, end', async () => {
+    coreMock.mockImplementation(async (_deps: unknown, _input: unknown, sink: SessionSink) => {
+      await sink.onEvent({
+        kind: 'user-message-persisted',
+        message: { sessionId: 'sess-1' },
+      } as SinkEvent)
+      await sink.onEnd?.()
+    })
+
+    const activity = fakeActivityFeed()
+    await runGlobalRootTurn(fakeDeps(activity.feed), {
+      userId: 'u1',
+      userMessageText: 'hi',
+      originChannel: 'telegram',
+    })
+
+    expect(activity.begin).toHaveBeenCalledWith({
+      userId: 'u1',
+      scopeKind: 'global',
+      origin: 'telegram',
+    })
+    expect(activity.handle.sessionResolved).toHaveBeenCalledWith('sess-1')
+    expect(activity.handle.end).toHaveBeenCalledTimes(1)
+  })
+
+  it('ends the activity turn even when the core throws', async () => {
+    coreMock.mockRejectedValue(new Error('provider down'))
+
+    const activity = fakeActivityFeed()
+    await expect(
+      runGlobalRootTurn(fakeDeps(activity.feed), { userId: 'u1', userMessageText: 'hi' }),
+    ).rejects.toThrow('provider down')
+    expect(activity.handle.end).toHaveBeenCalledTimes(1)
   })
 
   it('throws when the turn produced no session id (no user-message-persisted)', async () => {

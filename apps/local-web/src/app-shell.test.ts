@@ -15,6 +15,9 @@ function makeFakeVynelClient(): VynelClient {
     currentSdkSessionId: null,
   });
   return {
+    // The activity feed opens one long-lived SSE request at mount — park it
+    // forever (no frames, no reconnect churn) so shell tests stay quiet.
+    GET: () => new Promise(() => {}),
     approvals: { listPending: async () => [] },
     // The ask notifier polls alongside approvals from the shell.
     asks: { listPending: async () => [] },

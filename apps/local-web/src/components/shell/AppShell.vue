@@ -33,6 +33,7 @@ import { useActivityStore } from "../../stores/activity-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
+import { useSessionActivityFeed } from "../../composables/activity/use-session-activity-feed.js";
 import { useTasks } from "../../composables/tasks/use-tasks.js";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 
@@ -48,6 +49,10 @@ const activity = useActivityStore();
 const workspacesQuery = useWorkspaceList();
 const currentUserQuery = useCurrentUser();
 const pendingApprovalsQuery = usePendingApprovals();
+// The app's single /activity/stream subscription — server-reported turns
+// (Telegram, another tab, schedule fires) fold into the activity store so the
+// chat views go live and the presence dot lights for background work.
+useSessionActivityFeed();
 
 const surface = computed<"home" | "chat" | "workspace">(() => {
   const name = route.name;

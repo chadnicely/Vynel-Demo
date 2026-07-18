@@ -25,6 +25,7 @@ import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
 import type { TurnEventBroadcaster } from '@vynel/session/delegation'
+import type { SessionActivityFeed } from '@vynel/session/runtime'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
 // stashed on `c.var.appRequest` so handlers can re-enter the app (the mcp
@@ -61,6 +62,10 @@ export interface AppEnv {
     // tick) publishes; the SSE observe routes subscribe. One instance per
     // process, shared with the delegation service via `server.ts`.
     turnEvents: TurnEventBroadcaster
+    // The per-user turn-liveness registry — every turn producer begins/ends a
+    // turn here; `GET /activity/stream` subscribes. One instance per process,
+    // shared with the channels service via `server.ts`.
+    activityFeed: SessionActivityFeed
     // Set by the chat-session-resolver middleware (the session-scoped handler
     // bundle's triple-check) — present only inside `/chat/sessions/:sessionId`
     // routes, absent everywhere else.
