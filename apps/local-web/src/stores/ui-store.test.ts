@@ -71,3 +71,38 @@ describe("ui-store active workspace", () => {
     expect(localStorage.getItem("vynel.active-workspace")).toBeNull();
   });
 });
+
+describe("ui-store composer selections", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setActivePinia(createPinia());
+  });
+
+  it("persists the session mode and restores it on a fresh store", async () => {
+    const ui = useUiStore();
+    ui.composerMode = "bypass";
+    await nextTick();
+    expect(localStorage.getItem("vynel.composer-mode")).toBe("bypass");
+
+    setActivePinia(createPinia());
+    expect(useUiStore().composerMode).toBe("bypass");
+  });
+
+  it("falls back to the default for an unknown stored mode or model", () => {
+    localStorage.setItem("vynel.composer-mode", "yolo");
+    localStorage.setItem("vynel.composer-model", "gpt-99");
+    const ui = useUiStore();
+    expect(ui.composerMode).toBe("ask");
+    expect(ui.composerModelId).toBe("claude-opus-4-8");
+  });
+
+  it("persists the model selection", async () => {
+    const ui = useUiStore();
+    ui.composerModelId = "claude-haiku-4-5";
+    await nextTick();
+    expect(localStorage.getItem("vynel.composer-model")).toBe("claude-haiku-4-5");
+
+    setActivePinia(createPinia());
+    expect(useUiStore().composerModelId).toBe("claude-haiku-4-5");
+  });
+});

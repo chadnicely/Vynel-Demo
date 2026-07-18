@@ -20,6 +20,11 @@
 
 import type { Database } from '@vynel/db'
 import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
+import {
+  composeSessionAgents,
+  recordAgentRunStarted,
+  recordAgentRunCompleted,
+} from '@vynel/orchestration'
 import type { Logger } from 'pino'
 import {
   runGlobalRootTurnCore,
@@ -165,6 +170,28 @@ export async function runGlobalRootTurn(
     { enabledCapabilityIds: defaultEnabledCapabilityIds() },
   )
 
+  // USER-scope agents ride channel turns too — a Telegram ask can spawn the
+  // same subagents the app chats can (agents parity, one lifecycle).
+  const sessionAgents = await composeSessionAgents(deps.db, {
+    userId: input.userId,
+    workspaceId: null,
+  })
+  const agentSlugs = Object.keys(sessionAgents)
+  const agentRunId = agentSlugs.length > 0 ? crypto.randomUUID() : null
+  if (agentRunId) {
+    try {
+      await recordAgentRunStarted(deps.db, {
+        runId: agentRunId,
+        userId: input.userId,
+        workspaceId: null,
+        agentSlugs,
+        startedAt: new Date().toISOString(),
+      })
+    } catch (err) {
+      deps.logger.warn({ err }, 'failed to record agent.run-started')
+    }
+  }
+
   // Announce on the session-activity feed — this background turn is invisible
   // to the app otherwise (the whole reason a Telegram reply never surfaced
   // without a reload). Ended in the finally even when the turn throws.
@@ -198,11 +225,24 @@ export async function runGlobalRootTurn(
         allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
         mutatingToolNames: composedMcp.mutatingToolNames,
         mcpSystemPromptAppend: composedMcp.systemPromptAppend,
+        ...(agentSlugs.length > 0 ? { agents: sessionAgents } : {}),
       },
       sink,
     )
   } finally {
     activity.end()
+    if (agentRunId) {
+      try {
+        await recordAgentRunCompleted(deps.db, {
+          runId: agentRunId,
+          userId: input.userId,
+          workspaceId: null,
+          completedAt: new Date().toISOString(),
+        })
+      } catch (err) {
+        deps.logger.warn({ err }, 'failed to record agent.run-completed')
+      }
+    }
   }
   return sink.requireResult()
 }

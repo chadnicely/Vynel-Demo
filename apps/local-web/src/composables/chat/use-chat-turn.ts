@@ -127,16 +127,18 @@ export function useChatTurn(options: {
 
   function interrupt() {
     abortController?.abort();
-    // Actively stop the server-side turn where an endpoint exists (workspace);
-    // the global root has none, so the abort above is the only lever. Best-
-    // effort — the abort already stopped the UI stream, and the server sees the
-    // client disconnect, so a failed interrupt call is safe to ignore here.
+    // Actively stop the server-side turn on BOTH scopes — without the server
+    // call the abort only tears down this client's stream while the turn runs
+    // on detached to completion. Best-effort — a failed interrupt call is
+    // safe to ignore here (the abort already settled the UI).
     const scope = options.scope();
     const sessionId = activeSessionId.value;
     if (scope.kind === "workspace" && sessionId !== null) {
       void vynel.chat
         .interruptSession(scope.workspaceId, sessionId)
         .catch(() => undefined);
+    } else if (scope.kind === "global") {
+      void vynel.root.interruptTurn().catch(() => undefined);
     }
   }
 

@@ -139,6 +139,26 @@ export function failDelegationJob(
   return updated
 }
 
+/** Fail a job ONLY while it is still `pending` — the user-stop path's CAS.
+ *  Unlike `failDelegationJob` (the tick's terminal write on a job it OWNS),
+ *  this guards against the claim race: a stop landing after the tick claimed
+ *  the row must not flip a RUNNING job to failed under it (the claimed path
+ *  stops via the cancel registry instead). Returns false when the guard bit. */
+export function failPendingDelegationJob(
+  db: Database,
+  id: string,
+  errorMessage: string,
+  completedAt: Date,
+): boolean {
+  const updated = db
+    .update(delegationJobs)
+    .set({ status: 'failed', errorMessage, completedAt })
+    .where(and(eq(delegationJobs.id, id), eq(delegationJobs.status, 'pending')))
+    .returning()
+    .all()
+  return updated.length > 0
+}
+
 export function listPendingDelegationJobsForUser(
   db: Database,
   userId: string,

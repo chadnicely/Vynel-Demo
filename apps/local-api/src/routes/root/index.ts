@@ -18,9 +18,14 @@
 import { resolver, validator } from 'hono-openapi/zod'
 import { streamSSE } from 'hono/streaming'
 import { findPrimaryConversation } from '@vynel/session/continuity'
-import { listInFlightDelegations, findDelegationJobByPartialSessionId } from '@vynel/orchestration'
+import {
+  listInFlightDelegations,
+  findDelegationJobByPartialSessionId,
+  failPendingDelegationJob,
+} from '@vynel/orchestration'
 import { NotFoundError } from '@vynel/errors'
-import { getChatSessionDetail } from '@vynel/chat'
+import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
+import { getChatSessionDetail, interruptChatSession } from '@vynel/chat'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -37,6 +42,8 @@ import {
   DelegationTraceResponseSchema,
   ChatSessionDetailResponseSchema,
   ListInFlightDelegationsResponseSchema,
+  StopDelegationResponseSchema,
+  InterruptGlobalTurnResponseSchema,
 } from './schemas.js'
 
 export const rootApp = factory
@@ -257,6 +264,59 @@ export const rootApp = factory
     (c) => c.json({ delegations: listInFlightDelegations(c.var.db, { userId: c.var.user.id }) }),
   )
   // ──────────────────────────────────────────────────────────────────
+  // POST /delegations/:partialSessionId/stop — the user's Stop on a routed
+  // task. Pending → fail before claim (CAS). Claimed → flag the run on the
+  // cancel bridge + interrupt its SDK session; the tick records the stop at
+  // terminal time (fails the job, never pushes the partial as a report).
+  // ──────────────────────────────────────────────────────────────────
+  .post(
+    '/delegations/:partialSessionId/stop',
+    describeRoute({
+      tags: ['root'],
+      summary: 'Stop a delegation — fail it before claim, or cancel + interrupt its running turn.',
+      'x-sdk-name': 'root.stopDelegation',
+      responses: {
+        200: {
+          description: "{ result: 'stopped' | 'stopping' | 'already-finished' }",
+          content: {
+            'application/json': { schema: resolver(StopDelegationResponseSchema) },
+          },
+        },
+        404: { description: 'Unknown delegation, or not owned.' },
+      },
+      // No x-mcp — a human stop control, never an agent tool.
+    }),
+    validator('param', DelegationTraceParamSchema),
+    ...userScoped,
+    async (c) => {
+      const { partialSessionId } = c.req.valid('param')
+      // Ownership via the job anchor — unknown and not-owned get the same 404
+      // (the trace read's gate; no enumeration leak).
+      const job = findDelegationJobByPartialSessionId(c.var.db, partialSessionId)
+      if (job === null || job.userId !== c.var.user.id) {
+        throw new NotFoundError('delegation', partialSessionId)
+      }
+      if (job.status !== 'pending' && job.status !== 'claimed') {
+        return c.json({ result: 'already-finished' as const })
+      }
+      if (
+        job.status === 'pending' &&
+        failPendingDelegationJob(c.var.db, job.id, 'stopped by the user', new Date())
+      ) {
+        return c.json({ result: 'stopped' as const })
+      }
+      // Claimed — or a pending row the tick claimed under us (the CAS bit):
+      // flag the run so the tick fails it, and interrupt the session it has
+      // learned. A not-yet-started turn has no session yet — the flag alone
+      // still stops it at terminal time.
+      const cancel = c.var.delegationCancels.requestCancel(partialSessionId)
+      if (cancel.sdkSessionId !== null) {
+        await interruptChatSession(DEFAULT_PROVIDER_ID, cancel.sdkSessionId)
+      }
+      return c.json({ result: 'stopping' as const })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
   // POST /turn — start a global-root turn; SSE stream (LLM-native routing)
   // ──────────────────────────────────────────────────────────────────
   .post(
@@ -274,4 +334,36 @@ export const rootApp = factory
     validator('json', StartGlobalRootTurnRequestSchema),
     ...userScoped,
     async (c) => streamGlobalRootTurn(c, c.req.valid('json')),
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // POST /turn/interrupt — stop the global root's RUNNING turn server-side.
+  // The composer's Stop used to only abort the client stream: the server-side
+  // turn kept running detached to completion (and could keep delegating).
+  // This is the missing lever — resolve the brain's current SDK session and
+  // interrupt it through the provider (the workspace interrupt's sibling).
+  // ──────────────────────────────────────────────────────────────────
+  .post(
+    '/turn/interrupt',
+    describeRoute({
+      tags: ['root'],
+      summary: "Interrupt the global root's running turn (the workspace interrupt's sibling).",
+      'x-sdk-name': 'root.interruptTurn',
+      responses: {
+        200: {
+          description: '{ interrupted } — false when no global-root session exists yet.',
+          content: {
+            'application/json': { schema: resolver(InterruptGlobalTurnResponseSchema) },
+          },
+        },
+      },
+      // No x-mcp — a human stop control, never an agent tool.
+    }),
+    ...userScoped,
+    async (c) => {
+      const primary = findPrimaryConversation(c.var.db, { userId: c.var.user.id })
+      const sessionId = primary?.currentSdkSessionId ?? null
+      if (sessionId === null) return c.json({ interrupted: false })
+      await interruptChatSession(DEFAULT_PROVIDER_ID, sessionId)
+      return c.json({ interrupted: true })
+    },
   )

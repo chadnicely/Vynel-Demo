@@ -164,6 +164,21 @@ describe('POST /chat/sessions/turn (SSE)', () => {
     })
   })
 
+  it('maps the session mode to the provider permission mode (default ask when absent)', async () => {
+    // Closes the workspace-route half of the mode-forwarding pin — the global
+    // route has had this end-to-end assertion since surface-up step 1.
+    await withTestDatabase(async (db) => {
+      const { workspace } = seedWorld(db)
+      const app = createApp({ db, logger: silentLogger })
+
+      await (await postTurn(app, workspace.id, { userMessageText: 'hi', mode: 'bypass' })).text()
+      expect(startChatSessionInputs[0]!.permissionMode).toBe('bypass-with-behavior-gate')
+
+      await (await postTurn(app, workspace.id, { userMessageText: 'hi again' })).text()
+      expect(startChatSessionInputs[1]!.permissionMode).toBe('ask')
+    })
+  })
+
   it('400s on a model outside the curated allowlist', async () => {
     await withTestDatabase(async (db) => {
       const { workspace } = seedWorld(db)

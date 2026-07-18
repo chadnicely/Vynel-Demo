@@ -9,7 +9,7 @@ import { withTestDatabase } from '@vynel/testing'
 import { listPendingApprovalsForUser } from '@vynel/approvals'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
-import type { StartChatSessionInput } from '@vynel/providers'
+import type { NormalizedSessionEvent, StartChatSessionInput } from '@vynel/providers'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
@@ -26,6 +26,7 @@ import {
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
 import { resolveDelegationTrace } from './resolve-delegation-trace.js'
+import { DelegationCancelRegistry } from './delegation-cancel-registry.js'
 import { runDelegationClaimAndRunTick } from './run-delegation-claim-and-run-tick.js'
 
 // The tick only calls warn/error/info — a no-op stub satisfies pino's Logger (the
@@ -240,6 +241,118 @@ describe('runDelegationClaimAndRunTick', () => {
       expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
       // The workspace transcript still received the exchange.
       expect(listChatMessagesForSession(db, 'ws-root-2')).toHaveLength(2)
+    })
+  })
+
+  it('a user Stop mid-run fails the job "stopped by the user" and never pushes a partial report', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+
+      const jobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'a long task the user cancels',
+      })
+      const partialSessionId = findDelegationJobById(db, jobId)!.partialSessionId!
+
+      // The stop route's two moves, replayed mid-stream: flag the run on the
+      // registry, then the provider interrupt lands as `session-interrupted`.
+      const cancelRegistry = new DelegationCancelRegistry()
+      class InterruptedMidRunProvider extends FakeAiAgentProvider {
+        override startChatSession(): AsyncIterable<NormalizedSessionEvent> {
+          async function* events(): AsyncIterable<NormalizedSessionEvent> {
+            yield {
+              kind: 'session-started',
+              sessionId: 'ws-root-stop',
+              resumedFromExisting: false,
+              startedAt: new Date(),
+            }
+            yield {
+              kind: 'text-chunk',
+              sessionId: 'ws-root-stop',
+              messageId: 'm-stop-1',
+              textDelta: 'partial work…',
+              isFinalChunk: false,
+            }
+            cancelRegistry.requestCancel(partialSessionId) // the user hits Stop
+            yield {
+              kind: 'session-interrupted',
+              sessionId: 'ws-root-stop',
+              interruptedAt: new Date(),
+            }
+          }
+          return events()
+        }
+      }
+
+      const processed = await runDelegationClaimAndRunTick(db, {
+        provider: new InterruptedMidRunProvider(),
+        logger: silentLogger,
+        cancelRegistry,
+      })
+      expect(processed).toBe(true)
+
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.status).toBe('failed')
+      expect(job?.errorMessage).toBe('stopped by the user')
+
+      // The partial text must NOT surface as a green report in the global thread.
+      const globalMessages = listChatMessagesForSession(db, globalSessionId)
+      expect(globalMessages.some((m) => m.body.includes('partial work'))).toBe(false)
+
+      // The run deregistered — a later stop for the same key finds nothing.
+      expect(cancelRegistry.requestCancel(partialSessionId).found).toBe(false)
+    })
+  })
+
+  it('a flag-only Stop (no interrupt landed) still fails the job at terminal time', async () => {
+    // The flag-only window: Stop arrives before the turn has a session id, so
+    // no interrupt fires and the stream completes normally — the flag alone
+    // must stop it (fail, suppress the report), as the route promised.
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+
+      const jobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'stopped before the turn even started',
+      })
+      const partialSessionId = findDelegationJobById(db, jobId)!.partialSessionId!
+
+      const cancelRegistry = new DelegationCancelRegistry()
+      // The Stop lands the instant the run registers — before any session id.
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: 'ws-root-outran',
+        resultText: 'finished anyway',
+      })
+      const originalBegin = cancelRegistry.begin.bind(cancelRegistry)
+      cancelRegistry.begin = (key) => {
+        const handle = originalBegin(key)
+        cancelRegistry.requestCancel(key)
+        return handle
+      }
+
+      await runDelegationClaimAndRunTick(db, {
+        provider,
+        logger: silentLogger,
+        cancelRegistry,
+      })
+
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.status).toBe('failed')
+      expect(job?.errorMessage).toBe('stopped by the user')
+      const globalMessages = listChatMessagesForSession(db, globalSessionId)
+      expect(globalMessages.some((m) => m.body.includes('finished anyway'))).toBe(false)
     })
   })
 

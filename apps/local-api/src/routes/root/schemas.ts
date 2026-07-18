@@ -127,3 +127,16 @@ export const InFlightDelegationSchema = z.object({
 export const ListInFlightDelegationsResponseSchema = z.object({
   delegations: z.array(InFlightDelegationSchema),
 })
+
+export const StopDelegationResponseSchema = z.object({
+  // 'stopped' — a pending job failed before claim. 'stopping' — the running
+  // turn was flagged + interrupted; the tick records the stop at terminal
+  // time. 'already-finished' — nothing left to stop.
+  result: z.enum(['stopped', 'stopping', 'already-finished']),
+})
+
+export const InterruptGlobalTurnResponseSchema = z.object({
+  // True = an interrupt was REQUESTED for the linked session (an idle session
+  // makes it a provider no-op); false = no global-root session exists yet.
+  interrupted: z.boolean(),
+})

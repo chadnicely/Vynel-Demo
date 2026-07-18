@@ -74,6 +74,7 @@ export {
   claimNextPendingDelegationJob,
   completeDelegationJob,
   failDelegationJob,
+  failPendingDelegationJob,
   failOrphanedClaimedDelegations,
   findDelegationJobById,
   type DelegationJob,

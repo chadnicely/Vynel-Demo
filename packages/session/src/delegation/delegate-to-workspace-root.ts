@@ -82,6 +82,10 @@ export type DelegateToWorkspaceRootInput = {
     onTurnEvent: (event: ChatTurnEvent) => void
     onTurnEnded: () => void
   }
+  /** The RUNNING SDK session id, as learned (and re-learned on a mid-turn swap) —
+   *  the tick feeds the cancel registry with it so a user Stop can interrupt
+   *  exactly this session. */
+  onSessionResolved?: (sdkSessionId: string) => void
   logger?: Logger
 }
 
@@ -153,6 +157,7 @@ export async function delegateToWorkspaceRoot(
   let resultText = ''
   let cardedDenials = 0
   let trippedBreaker = false
+  let wasInterrupted = false
   let streamError: { code: string; message: string } | null = null
 
   try {
@@ -168,6 +173,7 @@ export async function delegateToWorkspaceRoot(
         case 'user-message-persisted':
           // Fires on BOTH the new and resumed branches — every turn sets it.
           sessionId = event.message.sessionId
+          input.onSessionResolved?.(event.message.sessionId)
           break
         case 'session-created':
           // A fresh root OR a compaction swap — advance the primary's link so the
@@ -178,6 +184,14 @@ export async function delegateToWorkspaceRoot(
             userId: input.userId,
             sdkSessionId: event.session.id,
           })
+          input.onSessionResolved?.(event.session.id)
+          break
+        case 'session-interrupted':
+          // An EXTERNAL interrupt (the user's Stop) — remembered so the drain
+          // below fails the turn instead of returning the partial text as a
+          // clean result (an interrupted stream otherwise drains "normally").
+          // The denial breaker's own interrupt is excluded at the check site.
+          wasInterrupted = true
           break
         case 'text-chunk':
           resultText += event.textDelta
@@ -248,6 +262,12 @@ export async function delegateToWorkspaceRoot(
     throw new Error(
       `delegateToWorkspaceRoot: the routed turn errored (${streamError.code}): ${streamError.message}`,
     )
+  }
+  // An external interrupt is a STOP, not a result — throw so the tick fails
+  // the job and never pushes the partial text as a green report. The denial
+  // breaker's own interrupt keeps its existing blocked-note return below.
+  if (wasInterrupted && !trippedBreaker) {
+    throw new Error('delegateToWorkspaceRoot: the routed turn was interrupted')
   }
 
   // 5. The parent→child tree edge (global root → workspace root) for the monitor.

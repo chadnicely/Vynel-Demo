@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from "vue";
-import { X } from "lucide-vue-next";
+import { Square, X } from "lucide-vue-next";
 import { IconButton, MarkdownText, PresenceDot, ToolCallList } from "@vynel/ui";
 import { useDelegationTraceLive } from "../../composables/delegations/use-delegation-trace-live.js";
+import { useStopDelegation } from "../../composables/delegations/use-stop-delegation.js";
 import { collapseTraceEcho } from "../../composables/delegations/collapse-trace-echo.js";
 import { useSessionViewerStore } from "../../stores/session-viewer-store.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
@@ -27,6 +28,16 @@ const status = computed(() => traceQuery.data.value?.status ?? null);
 const isWorking = computed(
   () => status.value === "pending" || status.value === "claimed",
 );
+
+// The user's Stop for the watched task — visible only while it runs. The
+// route fails a queued job outright and interrupts a running one; the trace
+// poll then settles the panel to "Failed (stopped by the user)".
+const stopDelegation = useStopDelegation();
+function stopWatchedTask() {
+  if (viewer.currentSessionId !== null) {
+    stopDelegation.mutate(viewer.currentSessionId);
+  }
+}
 
 const errorText = computed(() =>
   traceQuery.isError.value ? formatSdkError(traceQuery.error.value) : null,
@@ -113,6 +124,13 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
                 up here.
               </p>
             </div>
+            <IconButton
+              v-if="isWorking"
+              label="Stop this task"
+              @click="stopWatchedTask"
+            >
+              <Square :size="13" />
+            </IconButton>
             <IconButton label="Close" @click="viewer.close()">
               <X :size="15" />
             </IconButton>

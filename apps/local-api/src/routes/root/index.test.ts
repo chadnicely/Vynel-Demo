@@ -18,6 +18,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { withTestDatabase } from '@vynel/testing'
 import { VynelError } from '@vynel/errors'
 import { insertUser } from '@vynel/db/repositories/users'
+import { insertAgent } from '@vynel/db/repositories/agents'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import type { Database } from '@vynel/db'
 import type { NormalizedSessionEvent, StartChatSessionInput } from '@vynel/providers'
@@ -48,11 +49,18 @@ function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<Norma
   return events()
 }
 
+const { interruptChatSessionMock } = vi.hoisted(() => ({
+  interruptChatSessionMock: vi.fn(async () => undefined),
+}))
+
 vi.mock('@vynel/providers', async () => {
   const actual = await vi.importActual<typeof import('@vynel/providers')>('@vynel/providers')
   return {
     ...actual,
-    resolveAiAgentProvider: () => ({ startChatSession: fakeStartChatSession }),
+    resolveAiAgentProvider: () => ({
+      startChatSession: fakeStartChatSession,
+      interruptChatSession: interruptChatSessionMock,
+    }),
   }
 })
 
@@ -72,7 +80,12 @@ import {
   linkPrimarySessionToSdkSession,
   findPrimaryConversation,
 } from '@vynel/session/continuity'
-import { enqueueWorkspaceDelegation, findDelegationJobById, failDelegationJob } from '@vynel/orchestration'
+import {
+  enqueueWorkspaceDelegation,
+  findDelegationJobById,
+  failDelegationJob,
+  claimNextPendingDelegationJob,
+} from '@vynel/orchestration'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import {
   insertChatSession,
@@ -81,7 +94,11 @@ import {
 } from '@vynel/chat/repositories'
 import type { AppEnv } from '../../factory.js'
 import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
-import { TurnEventBroadcaster, traceChannelKey } from '@vynel/session/delegation'
+import {
+  TurnEventBroadcaster,
+  traceChannelKey,
+  DelegationCancelRegistry,
+} from '@vynel/session/delegation'
 import { SessionActivityFeed } from '@vynel/session/runtime'
 import { PendingAskRegistry } from '@vynel/asks'
 import { rootApp } from './index.js'
@@ -91,10 +108,15 @@ const silentLogger = pino({ level: 'silent' })
 beforeEach(() => {
   nextSdkSessionId = `sdk-${randomUUID()}`
   startChatSessionInputs.length = 0
+  interruptChatSessionMock.mockClear()
 })
 
 // Mirrors createApp's DI middleware + onError for the not-yet-mounted sub-app.
-function makeHarness(db: Database, turnEvents: TurnEventBroadcaster = new TurnEventBroadcaster()) {
+function makeHarness(
+  db: Database,
+  turnEvents: TurnEventBroadcaster = new TurnEventBroadcaster(),
+  delegationCancels: DelegationCancelRegistry = new DelegationCancelRegistry(),
+) {
   const activityFeed = new SessionActivityFeed()
   // Without a waiter registry the stream's turn-end ask cleanup throws into
   // hono's swallowed streaming error path (noisy stderr, silently skipped).
@@ -106,6 +128,7 @@ function makeHarness(db: Database, turnEvents: TurnEventBroadcaster = new TurnEv
     c.set('appRequest', app.request.bind(app))
     c.set('turnEvents', turnEvents)
     c.set('activityFeed', activityFeed)
+    c.set('delegationCancels', delegationCancels)
     c.set('askWaiters', askWaiters)
     await next()
   })
@@ -477,6 +500,51 @@ describe('POST /root/turn (SSE)', () => {
     })
   })
 
+  it('composes USER-scope agents onto the global turn (agents parity with the workspace chat)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const now = new Date()
+      insertAgent(db, {
+        id: randomUUID(),
+        userId: user.id,
+        workspaceId: null, // user scope — available to the global brain
+        slug: 'researcher',
+        name: 'Researcher',
+        description: 'Researches topics.',
+        icon: null,
+        prompt: 'You are a careful researcher.',
+        model: null,
+        effort: null,
+        permissionMode: null,
+        background: false,
+        allowedTools: null,
+        disallowedTools: null,
+        scope: 'user',
+        source: 'vynel',
+        trustTier: 'verified',
+        enabled: true,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      })
+      const app = makeHarness(db)
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-root-'))
+
+      await withVynelUserDataDir(dataDir, async () => {
+        const res = await app.request('/root/turn', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userMessageText: 'research something' }),
+        })
+        expect(res.status).toBe(200)
+        await res.text()
+      })
+
+      const input = startChatSessionInputs[0] as { agents?: Record<string, unknown> }
+      expect(Object.keys(input.agents ?? {})).toEqual(['researcher'])
+    })
+  })
+
   it('400s on a mode outside the session-mode catalog', async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)
@@ -488,6 +556,121 @@ describe('POST /root/turn (SSE)', () => {
       })
       expect(res.status).toBe(400)
       expect(startChatSessionInputs).toHaveLength(0)
+    })
+  })
+})
+
+describe('POST /root/delegations/:partialSessionId/stop', () => {
+  function seedStopJob(db: Database, userId: string) {
+    const workspace = insertWorkspace(db, {
+      id: randomUUID(),
+      userId,
+      name: 'Acme',
+      kind: 'personal',
+      path: `/tmp/vynel/${randomUUID()}`,
+      isArchived: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastAccessedAt: new Date(),
+    })
+    const jobId = enqueueWorkspaceDelegation(db, {
+      userId,
+      parentSessionId: 'g-parent',
+      workspaceId: workspace.id,
+      workspacePath: workspace.path,
+      workspaceName: workspace.name,
+      taskText: 'a task the user stops',
+    })
+    return { jobId, partialSessionId: findDelegationJobById(db, jobId)!.partialSessionId! }
+  }
+
+  it('fails a PENDING job before claim', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const { jobId, partialSessionId } = seedStopJob(db, user.id)
+      const app = makeHarness(db)
+
+      const res = await app.request(`/root/delegations/${partialSessionId}/stop`, {
+        method: 'POST',
+      })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ result: 'stopped' })
+
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.status).toBe('failed')
+      expect(job?.errorMessage).toBe('stopped by the user')
+      expect(interruptChatSessionMock).not.toHaveBeenCalled()
+    })
+  })
+
+  it('flags a CLAIMED run on the cancel bridge and interrupts its learned session', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const { partialSessionId } = seedStopJob(db, user.id)
+      claimNextPendingDelegationJob(db, new Date())
+
+      // The tick's half, replayed: the run registered + learned its session.
+      const delegationCancels = new DelegationCancelRegistry()
+      const handle = delegationCancels.begin(partialSessionId)
+      handle.sessionResolved('sdk-run-1')
+
+      const app = makeHarness(db, new TurnEventBroadcaster(), delegationCancels)
+      const res = await app.request(`/root/delegations/${partialSessionId}/stop`, {
+        method: 'POST',
+      })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ result: 'stopping' })
+      expect(handle.isCancelRequested()).toBe(true)
+      expect(interruptChatSessionMock).toHaveBeenCalledWith('sdk-run-1')
+    })
+  })
+
+  it('answers already-finished for a terminal job, 404 for unknown or not-owned', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db) // the resolver's local user (first row wins)
+      const { jobId, partialSessionId } = seedStopJob(db, user.id)
+      failDelegationJob(db, jobId, 'done elsewhere', new Date())
+      const app = makeHarness(db)
+
+      const finished = await app.request(`/root/delegations/${partialSessionId}/stop`, {
+        method: 'POST',
+      })
+      expect(await finished.json()).toEqual({ result: 'already-finished' })
+
+      const unknown = await app.request('/root/delegations/no-such-key/stop', { method: 'POST' })
+      expect(unknown.status).toBe(404)
+
+      const stranger = seedUser(db)
+      const theirs = seedStopJob(db, stranger.id)
+      const notOwned = await app.request(`/root/delegations/${theirs.partialSessionId}/stop`, {
+        method: 'POST',
+      })
+      expect(notOwned.status).toBe(404)
+    })
+  })
+})
+
+describe('POST /root/turn/interrupt', () => {
+  it('interrupts the linked global-root session; no-ops before one exists', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const app = makeHarness(db)
+
+      const before = await app.request('/root/turn/interrupt', { method: 'POST' })
+      expect(await before.json()).toEqual({ interrupted: false })
+      expect(interruptChatSessionMock).not.toHaveBeenCalled()
+
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id })
+      seedGlobalSession(db, user.id, 'g-run-1')
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        sdkSessionId: 'g-run-1',
+      })
+
+      const after = await app.request('/root/turn/interrupt', { method: 'POST' })
+      expect(await after.json()).toEqual({ interrupted: true })
+      expect(interruptChatSessionMock).toHaveBeenCalledWith('g-run-1')
     })
   })
 })

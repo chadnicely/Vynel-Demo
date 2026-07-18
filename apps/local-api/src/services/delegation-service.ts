@@ -19,7 +19,7 @@ import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
 import { failOrphanedClaimedDelegations } from '@vynel/orchestration'
 import { runDelegationClaimAndRunTick } from '@vynel/session/delegation'
-import type { TurnEventBroadcaster } from '@vynel/session/delegation'
+import type { TurnEventBroadcaster, DelegationCancelRegistry } from '@vynel/session/delegation'
 
 const DELEGATION_POLL_INTERVAL_MS = 1_000
 
@@ -30,10 +30,13 @@ export interface DelegationServiceOptions {
   /** The turn-event pub/sub shared with the api routes — routed turns publish
    *  their live events for the SSE observe stream. */
   turnEvents?: TurnEventBroadcaster
+  /** The stop bridge shared with the api routes — each claimed run registers
+   *  so the stop route can cancel it. */
+  cancelRegistry?: DelegationCancelRegistry
 }
 
 export function startDelegationService(options: DelegationServiceOptions): { stop: () => void } {
-  const { db, logger, provider, turnEvents } = options
+  const { db, logger, provider, turnEvents, cancelRegistry } = options
 
   // Reclaim jobs orphaned in `claimed` by a prior crash/restart mid-run: mark them FAILED — NOT
   // re-run (exactly-once preserved; the Ch1 decision was no-RE-EXECUTE, not no-cleanup). At
@@ -52,7 +55,12 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
   const pollTimer = setInterval(() => {
     if (inFlight) return
     inFlight = true
-    runDelegationClaimAndRunTick(db, { provider, logger, ...(turnEvents !== undefined ? { turnEvents } : {}) })
+    runDelegationClaimAndRunTick(db, {
+      provider,
+      logger,
+      ...(turnEvents !== undefined ? { turnEvents } : {}),
+      ...(cancelRegistry !== undefined ? { cancelRegistry } : {}),
+    })
       .catch((err) => logger.error({ err }, 'delegation claim-and-run tick failed'))
       .finally(() => {
         inFlight = false

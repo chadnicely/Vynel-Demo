@@ -39,7 +39,7 @@ import { startChannelsService } from './services/channels-service.js'
 import { startOutboxRelayService } from './services/outbox-relay-service.js'
 import { startDelegationService } from './services/delegation-service.js'
 import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
-import { TurnEventBroadcaster } from '@vynel/session/delegation'
+import { TurnEventBroadcaster, DelegationCancelRegistry } from '@vynel/session/delegation'
 import { SessionActivityFeed } from '@vynel/session/runtime'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 
@@ -88,6 +88,9 @@ export async function boot(): Promise<void> {
   // streams, channel turns, schedule fires) announces here; /activity/stream
   // subscribes. Shared with the channels service below.
   const activityFeed = new SessionActivityFeed()
+  // ONE delegation stop bridge per process — the delegation tick registers each
+  // claimed run; the /root delegation-stop route cancels through it.
+  const delegationCancels = new DelegationCancelRegistry()
 
   // The hub link (accounts) — only when a hub is configured; the refresh
   // token lives in the OS credential store, never a file.
@@ -118,6 +121,7 @@ export async function boot(): Promise<void> {
     fileWatcher,
     turnEvents,
     activityFeed,
+    delegationCancels,
     appSupervisor,
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
     sshMasterKeyBase64: sshMasterKey,
@@ -147,7 +151,13 @@ export async function boot(): Promise<void> {
   // runs it as a workspace turn, records the terminal state; at startup it fails
   // the jobs a crash left stuck `claimed`. Same api-process reasoning as above.
   const provider = resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
-  const delegationService = startDelegationService({ db, logger, provider, turnEvents })
+  const delegationService = startDelegationService({
+    db,
+    logger,
+    provider,
+    turnEvents,
+    cancelRegistry: delegationCancels,
+  })
   // The stale-approval reaper (surface-up's unanswered bound) — denies the provider
   // approval so a parked turn resumes, then marks the row timed-out.
   const approvalsRecoveryService = startApprovalsRecoveryService({ db, logger, provider })

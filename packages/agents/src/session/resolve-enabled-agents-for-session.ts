@@ -20,7 +20,9 @@ import { mapAgentToDefinition } from '../internal/map-agent-to-definition.js'
 
 export type ResolveEnabledAgentsForSessionInput = {
   userId: string
-  workspaceId: string
+  // null = a GLOBAL session — user-scope agents only (there is no workspace
+  // to union in); mirrors the kernel repo's null convention.
+  workspaceId: string | null
 }
 
 export async function resolveEnabledAgentsForSession(

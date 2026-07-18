@@ -19248,6 +19248,55 @@
         "x-sdk-name": "root.listDelegations"
       }
     },
+    "/root/delegations/{partialSessionId}/stop": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ result: 'stopped' | 'stopping' | 'already-finished' }",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "stopped",
+                        "stopping",
+                        "already-finished"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "result"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown delegation, or not owned."
+          }
+        },
+        "operationId": "postRootDelegationsByPartialSessionIdStop",
+        "tags": [
+          "root"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "partialSessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Stop a delegation — fail it before claim, or cancel + interrupt its running turn.",
+        "x-sdk-name": "root.stopDelegation"
+      }
+    },
     "/root/turn": {
       "post": {
         "responses": {
@@ -19336,6 +19385,37 @@
             }
           }
         }
+      }
+    },
+    "/root/turn/interrupt": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ interrupted } — false when no global-root session exists yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "interrupted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "interrupted"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postRootTurnInterrupt",
+        "tags": [
+          "root"
+        ],
+        "parameters": [],
+        "summary": "Interrupt the global root's running turn (the workspace interrupt's sibling).",
+        "x-sdk-name": "root.interruptTurn"
       }
     },
     "/routing/workspaces": {

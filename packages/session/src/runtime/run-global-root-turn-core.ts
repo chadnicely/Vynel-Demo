@@ -83,6 +83,11 @@ export interface RunGlobalRootTurnCoreInput {
   mutatingToolNames: string[]
   /** The MCP/feature system-prompt contribution; the core prepends GLOBAL_ROOT_INSTRUCTIONS. */
   mcpSystemPromptAppend: string
+  /** Enabled USER-scope agents (subagents) for this global session, composed at
+   *  the api edge (`composeSessionAgents` with a null workspaceId) — same
+   *  spawn lifecycle the workspace turn gets. Opaque here; the provider casts
+   *  at the SDK edge (the `mcpServers` precedent). */
+  agents?: Record<string, unknown>
   /** This turn arrived by VOICE — append the directive that makes the brain reply
    *  by CALLING the `speak` tool (the single voice) instead of writing prose. */
   voice?: boolean
@@ -167,6 +172,9 @@ export async function runGlobalRootTurnCore(
         // the static floor) — what makes the desktop act_on_app card once enabled.
         ...(input.mutatingToolNames.length > 0
           ? { alwaysRequireApprovalToolNames: input.mutatingToolNames }
+          : {}),
+        ...(input.agents !== undefined && Object.keys(input.agents).length > 0
+          ? { agents: input.agents }
           : {}),
         systemPromptAppend: buildSystemPromptAppend(input),
         logger: deps.logger,

@@ -823,6 +823,11 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  interruptTurn: async () => {
+    const { data, error, response } = await client["POST"]("/root/turn/interrupt")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   listDelegations: async () => {
     const { data, error, response } = await client["GET"]("/root/delegations")
     if (error || data === undefined) throw new SdkError(response, error ?? data)
@@ -831,6 +836,13 @@ export function makeNamespaced(client: Client<paths>) {
   startTurn: async (input: NonNullable<paths["/root/turn"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/root/turn", {
       body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  stopDelegation: async (partialSessionId: NonNullable<paths["/root/delegations/{partialSessionId}/stop"]["post"]['parameters']>['path']["partialSessionId"]) => {
+    const { data, error, response } = await client["POST"]("/root/delegations/{partialSessionId}/stop", {
+      params: { path: { partialSessionId: partialSessionId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data

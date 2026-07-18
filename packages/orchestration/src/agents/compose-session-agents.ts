@@ -15,7 +15,8 @@ import { resolveEnabledAgentsForSession } from '@vynel/agents'
 
 export type ComposeSessionAgentsInput = {
   userId: string
-  workspaceId: string
+  /** null = the GLOBAL root session — user-scope agents only. */
+  workspaceId: string | null
 }
 
 export async function composeSessionAgents(

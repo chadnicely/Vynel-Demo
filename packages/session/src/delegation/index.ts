@@ -44,3 +44,8 @@ export {
   type TurnEventSubscriber,
 } from './turn-event-broadcaster.js'
 export { attachDelegationTaskLabels } from './attach-delegation-task-labels.js'
+export {
+  DelegationCancelRegistry,
+  type DelegationCancelHandle,
+  type RequestCancelResult,
+} from './delegation-cancel-registry.js'

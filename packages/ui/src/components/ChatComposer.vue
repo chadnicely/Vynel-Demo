@@ -56,8 +56,9 @@ watch(draft, () => void nextTick(autoGrow));
 
 function submit() {
   const text = draft.value.trim();
-  if ((text.length === 0 && attachments.value.length === 0) || props.streaming)
-    return;
+  if (text.length === 0 && attachments.value.length === 0) return;
+  // Streaming no longer blocks a send — the host QUEUES it for when the
+  // current reply finishes (the old composer silently refused mid-turn sends).
   emit("send", text, attachments.value);
   draft.value = "";
   attachments.value = [];
@@ -269,12 +270,17 @@ function onDrop(event: DragEvent) {
           />
         </svg>
       </button>
+      <!-- The send button STAYS while streaming (beside Stop) — a mid-turn
+           send queues for when the reply finishes. -->
       <button
-        v-else
         type="button"
         class="send-button"
         :disabled="draft.trim().length === 0 && attachments.length === 0"
-        aria-label="Send message"
+        :aria-label="
+          props.streaming
+            ? 'Queue message — sends when the current reply finishes'
+            : 'Send message'
+        "
         @click="submit()"
       >
         <svg

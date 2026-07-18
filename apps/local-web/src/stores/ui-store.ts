@@ -1,8 +1,8 @@
 import { reactive, ref, watch } from "vue";
 import { defineStore } from "pinia";
-import { DEFAULT_SESSION_MODE } from "@vynel/session";
+import { DEFAULT_SESSION_MODE, SESSION_MODES } from "@vynel/session";
 import type { SessionMode } from "@vynel/session";
-import { DEFAULT_CHAT_MODEL } from "@vynel/contracts/chat/chat-models";
+import { CHAT_MODELS, DEFAULT_CHAT_MODEL } from "@vynel/contracts/chat/chat-models";
 import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
 
 export type Theme = "dark" | "light";
@@ -27,10 +27,28 @@ export interface ChatShellState {
 
 const THEME_STORAGE_KEY = "vynel.theme";
 const WORKSPACE_STORAGE_KEY = "vynel.active-workspace";
+const COMPOSER_MODE_STORAGE_KEY = "vynel.composer-mode";
+const COMPOSER_MODEL_STORAGE_KEY = "vynel.composer-model";
 
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY);
   return stored === "light" ? "light" : "dark";
+}
+
+// Fail-closed restores: an unknown stored value (a renamed mode, a retired
+// model id) falls back to the default instead of poisoning the composer.
+function readStoredComposerMode(): SessionMode {
+  const stored = localStorage.getItem(COMPOSER_MODE_STORAGE_KEY);
+  return SESSION_MODES.some((mode) => mode.mode === stored)
+    ? (stored as SessionMode)
+    : DEFAULT_SESSION_MODE;
+}
+
+function readStoredComposerModel(): string {
+  const stored = localStorage.getItem(COMPOSER_MODEL_STORAGE_KEY);
+  return CHAT_MODELS.some((model) => model.id === stored)
+    ? (stored as string)
+    : DEFAULT_CHAT_MODEL;
 }
 
 // Shell UI state only (server state lives in vue-query). One home for how the
@@ -84,8 +102,17 @@ export const useUiStore = defineStore("ui", () => {
 
   // Composer selections, shared by every chat surface — both the model
   // allowlist and the mode vocabulary are the real contract/session ones.
-  const composerModelId = ref<string>(DEFAULT_CHAT_MODEL);
-  const composerMode = ref<SessionMode>(DEFAULT_SESSION_MODE);
+  // PERSISTED: a chosen mode silently reverting to 'ask' on reload read as
+  // "modes don't work" — the selection must survive like the theme does.
+  const composerModelId = ref<string>(readStoredComposerModel());
+  const composerMode = ref<SessionMode>(readStoredComposerMode());
+
+  watch(composerMode, (value) =>
+    localStorage.setItem(COMPOSER_MODE_STORAGE_KEY, value),
+  );
+  watch(composerModelId, (value) =>
+    localStorage.setItem(COMPOSER_MODEL_STORAGE_KEY, value),
+  );
 
   // The Jarvis voice overlay — opens on the daemon's wake event or the mic button.
   const isVoiceOverlayOpen = ref(false);

@@ -40,6 +40,7 @@ import {
   type RoutedApprovalOrigin,
 } from './build-routed-approval-handler.js'
 import { traceChannelKey, type TurnEventBroadcaster } from './turn-event-broadcaster.js'
+import type { DelegationCancelRegistry } from './delegation-cancel-registry.js'
 
 // Generous — the bound is on WAITING, not the turn (which keeps running in its own SDK
 // session). 120s was sized for an HTTP request waiting on a result; a background job
@@ -52,6 +53,9 @@ export interface RunDelegationTickDeps {
   /** The in-process turn-event pub/sub — the routed turn publishes to its trace
    *  channel so the SSE observe route streams it live. Omit → no observers. */
   turnEvents?: TurnEventBroadcaster
+  /** The user-stop bridge: each claimed run registers here so the stop route
+   *  can flag it cancelled + interrupt its session. Omit → no stop reach. */
+  cancelRegistry?: DelegationCancelRegistry
   /** Wait budget for one job's turn (ms). Defaults to DELEGATION_RUN_BUDGET_MS. */
   budgetMs?: number
 }
@@ -93,6 +97,14 @@ export async function runDelegationClaimAndRunTick(
   // spreads (exactOptionalPropertyTypes: absent, not present-with-undefined).
   const partialSessionId = claimed.partialSessionId ?? undefined
   const turnEvents = deps.turnEvents
+
+  // Register with the stop bridge for the run's whole life — a user Stop flags
+  // this handle + interrupts the session it has learned. Ended in the OUTER
+  // finally so no terminal path (complete/fail/throw) leaks the entry.
+  const cancelHandle =
+    deps.cancelRegistry !== undefined && partialSessionId !== undefined
+      ? deps.cancelRegistry.begin(partialSessionId)
+      : null
 
   // Lifecycle visibility (Ch3.5 diagnostics): a delegation runs a full provider turn that
   // can take a while — and may PARK on a human approval (surface-up); log the claim + the
@@ -152,6 +164,9 @@ export async function runDelegationClaimAndRunTick(
               },
             }
           : {}),
+        // The stop bridge learns the RUNNING session id so a user Stop can
+        // interrupt exactly this turn.
+        ...(cancelHandle !== null ? { onSessionResolved: cancelHandle.sessionResolved } : {}),
         logger: deps.logger,
       })
 
@@ -167,7 +182,18 @@ export async function runDelegationClaimAndRunTick(
       { delegate, logger: deps.logger, waitGate },
     )
 
-    if (outcome.status === 'completed') {
+    if (outcome.status === 'completed' && cancelHandle?.isCancelRequested()) {
+      // Stop always wins at terminal time — the route already told the user
+      // 'stopping', so a turn that outran its interrupt (the flag-only window
+      // before a session id exists, a mid-swap miss) must NOT go green or push
+      // its report. Coherent policy over an undetectable three-way race.
+      await approvalHandler.abandonParked()
+      failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
+      deps.logger.info(
+        { jobId: claimed.id },
+        'delegation: stopped by the user at terminal time (report suppressed)',
+      )
+    } else if (outcome.status === 'completed') {
       // Swap-safe: re-resolve the CURRENT global root at push time (it may have swapped
       // between enqueue and now) — NOT the job's enqueue-time parentSessionId.
       const globalSessionId = findPrimaryConversation(db, {
@@ -240,8 +266,13 @@ export async function runDelegationClaimAndRunTick(
       // The turn threw mid-run — deny anything still parked so the SDK agent isn't
       // left hanging on an unanswerable Promise (best-effort; reaper-backed).
       await approvalHandler.abandonParked()
-      failDelegationJob(db, claimed.id, outcome.message, new Date())
-      deps.logger.warn({ jobId: claimed.id, message: outcome.message }, 'delegation job failed')
+      // A user Stop lands here (the interrupted turn throws by design) — record
+      // it as the user's action, not a provider failure.
+      const reason = cancelHandle?.isCancelRequested()
+        ? 'stopped by the user'
+        : outcome.message
+      failDelegationJob(db, claimed.id, reason, new Date())
+      deps.logger.warn({ jobId: claimed.id, message: reason }, 'delegation job failed')
     }
     return true
   } catch (err) {
@@ -251,5 +282,7 @@ export async function runDelegationClaimAndRunTick(
     failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
     deps.logger.error({ err, jobId: claimed.id }, 'delegation job run threw unexpectedly')
     return true
+  } finally {
+    cancelHandle?.end()
   }
 }

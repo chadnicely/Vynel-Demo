@@ -5,6 +5,7 @@ import { EmptyState, IconButton } from "@vynel/ui";
 import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
+import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
 import TasksPanel from "../components/tasks/TasksPanel.vue";
 import FileEditorView from "../components/workspace/FileEditorView.vue";
@@ -17,6 +18,7 @@ import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
+import { useQueuedSend } from "../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import type { SessionScope } from "../composables/chat/session-scope.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
@@ -187,6 +189,11 @@ function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
   });
 }
 
+// Mid-turn sends queue and fire in order as each turn settles; the drain calls
+// sendMessage fresh, so a queued follow-up continues the session the first
+// turn just created.
+const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
+
 function openHistorySession(sessionId: string) {
   shell.target = { sessionId };
   shell.mainView = "chat";
@@ -280,6 +287,10 @@ function openContinuous() {
       />
 
       <footer class="composer-dock">
+        <QueuedMessageChips
+          :queued="queuedSend.queued.value"
+          @remove="queuedSend.removeQueued"
+        />
         <AppComposer
           :streaming="chatTurn.isStreaming.value"
           :placeholder="
@@ -287,7 +298,7 @@ function openContinuous() {
               ? `Ask ${activeWorkspace.managerName} for anything…`
               : `Ask about ${activeWorkspace?.name ?? 'this workspace'}…`
           "
-          @send="sendMessage"
+          @send="queuedSend.submit"
           @interrupt="chatTurn.interrupt"
         />
       </footer>

@@ -6,6 +6,7 @@ import { EmptyState, PresenceDot, workspaceAccentVar } from "@vynel/ui";
 import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
+import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
 import AccountSection from "../components/sections/AccountSection.vue";
 import AgentsSection from "../components/sections/AgentsSection.vue";
@@ -25,8 +26,10 @@ import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
+import { useQueuedSend } from "../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
+import { useStopDelegation } from "../composables/delegations/use-stop-delegation.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../composables/users/use-current-user.js";
@@ -128,6 +131,7 @@ const sessionsErrorText = computed(() =>
 const inFlightQuery = useInFlightDelegations();
 const inFlightDelegations = computed(() => inFlightQuery.data.value ?? []);
 const isProcessing = computed(() => inFlightDelegations.value.length > 0);
+const stopDelegation = useStopDelegation();
 
 /** The banner chip names the actual work — "vynel · Set up the login page" —
  *  falling back to the old generic line when the task text was empty. */
@@ -215,6 +219,11 @@ function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
     ...(attachments.length > 0 ? { attachments } : {}),
   });
 }
+
+// Mid-turn sends queue and fire in order as each turn settles; the drain calls
+// sendMessage fresh, so a queued follow-up continues the session the first
+// turn just created.
+const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
 
 function openHistorySession(sessionId: string) {
   shell.target = { sessionId };
@@ -353,21 +362,35 @@ function openContinuous() {
           v-for="(delegation, index) in inFlightDelegations"
           :key="delegation.partialSessionId ?? `in-flight-${index}`"
         >
-          <button
+          <span
             v-if="delegation.partialSessionId"
-            type="button"
             class="processing-chip"
             :style="{
               '--accent': workspaceAccentVar(delegation.workspaceName),
             }"
-            @click="sessionViewer.open(delegation.partialSessionId)"
           >
-            <PresenceDot state="live" />
-            <span class="processing-chip-label">{{
-              delegationChipLabel(delegation)
-            }}</span>
-            <span class="processing-chip-cta">Watch</span>
-          </button>
+            <button
+              type="button"
+              class="processing-chip-main"
+              @click="sessionViewer.open(delegation.partialSessionId)"
+            >
+              <PresenceDot state="live" />
+              <span class="processing-chip-label">{{
+                delegationChipLabel(delegation)
+              }}</span>
+              <span class="processing-chip-cta">Watch</span>
+            </button>
+            <button
+              type="button"
+              class="processing-chip-stop"
+              :aria-label="`Stop: ${delegationChipLabel(delegation)}`"
+              @click="stopDelegation.mutate(delegation.partialSessionId)"
+            >
+              <svg width="9" height="9" viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor" />
+              </svg>
+            </button>
+          </span>
           <span v-else class="processing-chip is-static">
             <PresenceDot state="live" />
             <span class="processing-chip-label">{{
@@ -378,10 +401,14 @@ function openContinuous() {
       </div>
 
       <footer class="composer-dock">
+        <QueuedMessageChips
+          :queued="queuedSend.queued.value"
+          @remove="queuedSend.removeQueued"
+        />
         <AppComposer
           :streaming="chatTurn.isStreaming.value"
           :placeholder="`Ask ${ASSISTANT_NAME} for anything…`"
-          @send="sendMessage"
+          @send="queuedSend.submit"
           @interrupt="chatTurn.interrupt"
         />
       </footer>
@@ -491,6 +518,47 @@ function openContinuous() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The chip splits into Watch (the body) + Stop (the square) — both plain
+   buttons inside the pill so no button ever nests in a button. */
+.processing-chip-main {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+
+.processing-chip-stop {
+  appearance: none;
+  border: none;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 99px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.processing-chip-stop:hover {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}
+
+.processing-chip-stop:focus-visible {
+  outline: 2px solid var(--accent, var(--gold));
+  outline-offset: 1px;
 }
 
 .processing-chip:not(.is-static):hover {

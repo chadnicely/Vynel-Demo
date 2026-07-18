@@ -21,6 +21,11 @@ import type { Context } from 'hono'
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import type { Logger } from 'pino'
 import type { ChatTurnEvent } from '@vynel/chat'
+import {
+  composeSessionAgents,
+  recordAgentRunStarted,
+  recordAgentRunCompleted,
+} from '@vynel/orchestration'
 import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
 import { toPermissionMode, type SessionPermissionMode } from '@vynel/session'
 import { runGlobalRootTurnCore, type SessionSink } from '@vynel/session/runtime'
@@ -144,6 +149,28 @@ export async function streamGlobalRootTurn(
   )
 
   return streamSSE(c, async (stream) => {
+    // USER-scope agents ride the global chat too — the same spawn lifecycle
+    // the workspace turn gets (agents parity; workspace-scope agents stay in
+    // their rooms). Composed inside the SSE callback like the rest.
+    const sessionAgents = await composeSessionAgents(c.var.db, {
+      userId: c.var.user.id,
+      workspaceId: null,
+    })
+    const agentSlugs = Object.keys(sessionAgents)
+    const agentRunId = agentSlugs.length > 0 ? crypto.randomUUID() : null
+    if (agentRunId) {
+      try {
+        await recordAgentRunStarted(c.var.db, {
+          runId: agentRunId,
+          userId: c.var.user.id,
+          workspaceId: null,
+          agentSlugs,
+          startedAt: new Date().toISOString(),
+        })
+      } catch (err) {
+        c.var.logger.warn({ err }, 'failed to record agent.run-started')
+      }
+    }
     // Announce on the session-activity feed so other surfaces go live while
     // this turn runs (begun inside the SSE callback — the finally ends it).
     const activity = c.var.activityFeed.begin({
@@ -180,11 +207,24 @@ export async function streamGlobalRootTurn(
           allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
           mutatingToolNames: composedMcp.mutatingToolNames,
           mcpSystemPromptAppend: composedMcp.systemPromptAppend,
+          ...(agentSlugs.length > 0 ? { agents: sessionAgents } : {}),
         },
         new GlobalRootSseSink(stream, c.var.logger, activity.sessionResolved),
       )
     } finally {
       activity.end()
+      if (agentRunId) {
+        try {
+          await recordAgentRunCompleted(c.var.db, {
+            runId: agentRunId,
+            userId: c.var.user.id,
+            workspaceId: null,
+            completedAt: new Date().toISOString(),
+          })
+        } catch (err) {
+          c.var.logger.warn({ err }, 'failed to record agent.run-completed')
+        }
+      }
       // An ask still parked when the turn ends (interrupt/disconnect) is
       // unanswerable — cancel + expire so the UI never shows a zombie wizard
       // (the streamChatTurn finally precedent).

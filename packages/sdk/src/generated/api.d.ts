@@ -2168,6 +2168,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/root/delegations/{partialSessionId}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop a delegation — fail it before claim, or cancel + interrupt its running turn. */
+        post: operations["postRootDelegationsByPartialSessionIdStop"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/root/turn": {
         parameters: {
             query?: never;
@@ -2179,6 +2196,23 @@ export interface paths {
         put?: never;
         /** Start a global-root turn (LLM-native routing); streams normalized session events via SSE. */
         post: operations["postRootTurn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/root/turn/interrupt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Interrupt the global root's running turn (the workspace interrupt's sibling). */
+        post: operations["postRootTurnInterrupt"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9989,6 +10023,38 @@ export interface operations {
             };
         };
     };
+    postRootDelegationsByPartialSessionIdStop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                partialSessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { result: 'stopped' | 'stopping' | 'already-finished' } */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        result: "stopped" | "stopping" | "already-finished";
+                    };
+                };
+            };
+            /** @description Unknown delegation, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     postRootTurn: {
         parameters: {
             query?: never;
@@ -10020,6 +10086,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    postRootTurnInterrupt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { interrupted } — false when no global-root session exists yet. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        interrupted: boolean;
+                    };
+                };
             };
         };
     };

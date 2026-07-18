@@ -48,7 +48,8 @@ export type AgentRunStartedPayload = {
   /** Correlation id pairing this `started` with its `completed`. */
   runId: string
   userId: string
-  workspaceId: string
+  /** null = the GLOBAL root session (user-scope agents, no workspace). */
+  workspaceId: string | null
   /** Slugs of the agents made available to the root for this turn. */
   agentSlugs: string[]
   startedAt: string
@@ -57,6 +58,6 @@ export type AgentRunStartedPayload = {
 export type AgentRunCompletedPayload = {
   runId: string
   userId: string
-  workspaceId: string
+  workspaceId: string | null
   completedAt: string
 }

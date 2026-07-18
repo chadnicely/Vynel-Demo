@@ -25,6 +25,13 @@ vi.mock('@vynel/mcp', () => ({
 vi.mock('@vynel/instructions', () => ({
   notebookFeatureDescriptor: { serverName: 'vynel-notebook', build: () => null },
 }))
+// The runner composes user-scope agents against the real db — these tests
+// drive a stub `{}` db, so the composition (and its lifecycle records, which
+// only fire when agents exist) is stubbed empty.
+vi.mock('@vynel/orchestration', async () => {
+  const actual = await vi.importActual<typeof import('@vynel/orchestration')>('@vynel/orchestration')
+  return { ...actual, composeSessionAgents: async () => ({}) }
+})
 
 import { runGlobalRootTurn, wrapAppRequestWithOrigin } from './run-global-root-turn.js'
 import { DELEGATION_ORIGIN_HEADER, serializeDelegationOrigin } from './delegation-origin-header.js'
