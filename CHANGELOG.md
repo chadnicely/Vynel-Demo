@@ -7,7 +7,37 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Added
+
+- **Queue messages while Claude works.** Typing mid-reply no longer bounces — Enter (or the send
+  arrow, now sitting beside Stop) queues your message, visible as removable chips above the
+  composer, and each one sends automatically as the previous reply finishes. A queued follow-up
+  lands in the same conversation the first message just started. After you press Stop (or a turn
+  fails), the queue parks instead of blindly firing.
+
+- **You can actually stop things now.** A hand-off to a workspace shows a stop square on its
+  working chip and a Stop button in its live view — a queued task is cancelled outright, a running
+  one is interrupted and recorded as "stopped by the user" (its half-finished answer is never
+  passed off as a completed report). The global chat's Stop button now also stops the work
+  server-side — before, it only hid the reply while Claude kept running (and could keep handing
+  off tasks) behind the scenes.
+
+- **Your agents now ride every conversation.** User-level agents (installed or hand-made) were
+  only available inside workspace chats; the global chat — and Telegram — now spawn them too,
+  with the same lifecycle.
+
+### Changed
+
+- **Engine updated.** The Claude Agent SDK moved forward 16 releases (0.3.197 → 0.3.213). Also
+  verified end-to-end: workspace chats load your project's CLAUDE.md, skills, agents, rules, and
+  settings from disk exactly like Claude Code does.
+
 ### Fixed
+
+- **Your chosen mode and model stick.** The composer's session mode (Ask / Auto / Bypass) and
+  model silently reset to defaults on every reload — they now persist, which is why "bypass"
+  sometimes seemed not to work after a restart.
+
 
 - **Claude's replies keep their shape while streaming.** A response that uses tools now renders
   live exactly as it will read afterwards — each part of the answer with its tool activity

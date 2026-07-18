@@ -3,6 +3,51 @@
 **Updated 2026-07-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## ⏭ NEXT ACTION (2026-07-19c): CHAT-CONTROL ROUND (queue · stop · agents parity · modes · SDK bump) — gate GREEN 502f/2624t, reviewed (1 must-fix + 2 should-fixes folded), committed; NEXT: Chad's smoke
+
+**Chad's 4 asks, all landed (3 recon subagents mapped the ground first — reports summarized here):**
+- **① AUDIT: workspace turns DO load Claude content** — provider hard-codes
+  `settingSources: ['user','project','local']` (build-claude-sdk-options.ts:86) + preset
+  claude_code systemPrompt: CLAUDE.md/skills/agents/rules/settings all load like real Claude
+  Code. Global root = user-level only (hidden empty cwd, by design). ⚠ INVARIANT: the agent
+  disk-mirror's remove-on-disable is load-bearing BECAUSE settingSources loads `.claude/agents`
+  — never narrow it casually. **SDK BUMPED 0.3.197 → 0.3.213** (all 9 consumers, ranges now
+  ^0.3.213). Only breaks: canUseTool options gained REQUIRED `requestId` + CanUseTool result
+  now nullable — test fixtures + fake-claude-query updated; no production change. ⚠ Behavioral
+  risk is invisible (bundled CLI 2.1.x does the filesystem loading) — Chad's live smoke is the
+  real validation.
+- **② QUEUE + AGENTS PARITY** — ChatComposer no longer blocks mid-stream sends (send stays
+  beside Stop); `useQueuedSend` (busy = view!==null, NOT isStreaming — the settle race; drains
+  ONE per COMPLETED settle; interrupt/error PARKS the queue) + QueuedMessageChips in both
+  views. Agents: workspaceId widened `string|null` down the resolve chain; global SSE stream +
+  channel runner compose USER-scope agents + record agent.run-started/completed
+  (payload workspaceId now nullable). Task tool availability: allowedTools is a skip-prompt
+  list, not an availability gate — no allowlist change needed.
+- **③ STOP** — `DelegationCancelRegistry` (session/delegation; tick begins/ends each claimed
+  run keyed by partialSessionId, learns the RUNNING sdk session id via new
+  delegate `onSessionResolved`) · delegate-to-workspace-root treats an external
+  `session-interrupted` as a THROW (was: drained "clean" → green job + partial report — the
+  recon's killer finding); breaker interrupt keeps its blocked-note return · tick fails a
+  cancel-requested job 'stopped by the user' EVEN IF the turn completed (reviewer must-fix:
+  Stop wins at terminal time; report suppressed) · `failPendingDelegationJob` CAS (pending-only
+  guard) · routes: POST /root/delegations/:key/stop (pending→stopped, claimed→flag+interrupt,
+  terminal→already-finished, 404 not-owned) + POST /root/turn/interrupt (primary's
+  currentSdkSessionId → provider interrupt; the global Stop was CLIENT-ONLY before — server
+  turn ran detached to completion) · UI: chip stop-square + viewer Stop button +
+  use-chat-turn global interrupt. KNOWN LIMIT (recorded): a timed-out job's detached turn has
+  no stop lever (registry entry ends at tick terminal); pre-existing doctrine.
+- **④ MODES: VERIFIED WORKING end-to-end** (recon: every hop intact; table in the journal).
+  Root cause of "modes don't work": composerMode was NEVER persisted — reset to 'ask' every
+  reload. ui-store now persists mode+model (fail-closed against the catalogs) + the
+  workspace-route mode→permissionMode pin test (was global-only). Background turns stay
+  deliberately bypass (channel/schedule/subagent) — the floor still cards.
+**⏭ CHAD SMOKE: send 2-3 messages while Claude replies → chips queue + fire in order · delegate
+a task → stop it from the chip AND from the watch panel (job reads "stopped by the user", no
+report lands) · Stop in the global chat mid-reply → reply actually halts (check Telegram isn't
+still typing) · set bypass, restart the app → still bypass · in the GLOBAL chat ask for
+something an installed user agent handles → it spawns · confirm a workspace chat still picks up
+the workspace's CLAUDE.md/skills after the SDK bump (the invisible-risk check).**
+
 ## ⏭ NEXT ACTION (2026-07-19b): LIVE-TURN LAYOUT PARITY + DYNAMIC TASK CHIPS — gate GREEN 500f/2605t, reviewed CLEAN (2 should-fixes folded), committed; Chad CONFIRMED the realtime fix live
 
 **Round 2 (same session, Chad's follow-ups): ① the live turn rendered ONE flat block (all text,
