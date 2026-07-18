@@ -121,3 +121,71 @@ describe('buildClaudePreToolUseHook', () => {
     })
   })
 })
+
+describe('forced-synchronous subagents (the Agent/Task run_in_background rewrite)', () => {
+  const hook = buildClaudePreToolUseHook('bypass-with-behavior-gate')
+
+  function makeAgentInput(toolInput: Record<string, unknown>, toolName = 'Agent'): HookInput {
+    return {
+      hook_event_name: 'PreToolUse',
+      tool_name: toolName,
+      tool_input: toolInput,
+      tool_use_id: 'tool-agent-1',
+      session_id: 'sess-1',
+      transcript_path: '/tmp/t.jsonl',
+      cwd: '/tmp/ws',
+    } as unknown as HookInput
+  }
+
+  it('rewrites an Agent spawn to run_in_background: false (background default would outlive the turn)', async () => {
+    const result = await hook(
+      makeAgentInput({ description: 'sweep', prompt: 'go' }),
+      undefined,
+      hookOptions,
+    )
+    expect(result).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        updatedInput: { description: 'sweep', prompt: 'go', run_in_background: false },
+      },
+    })
+  })
+
+  it('rewrites an explicit run_in_background: true (and the classic Task tool too)', async () => {
+    const result = await hook(
+      makeAgentInput({ prompt: 'go', run_in_background: true }, 'Task'),
+      undefined,
+      hookOptions,
+    )
+    expect(result).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        updatedInput: { prompt: 'go', run_in_background: false },
+      },
+    })
+  })
+
+  it('leaves an already-synchronous spawn untouched (no needless rewrite)', async () => {
+    const result = await hook(
+      makeAgentInput({ prompt: 'go', run_in_background: false }),
+      undefined,
+      hookOptions,
+    )
+    expect(result).toEqual({})
+  })
+
+  it('forces sync even for the auto MAIN session (the stand-down is approval policy, not spawn policy)', async () => {
+    const autoHook = buildClaudePreToolUseHook('auto')
+    const result = await autoHook(
+      makeAgentInput({ prompt: 'go' }),
+      undefined,
+      hookOptions,
+    )
+    expect(result).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        updatedInput: { prompt: 'go', run_in_background: false },
+      },
+    })
+  })
+})

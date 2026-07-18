@@ -31,6 +31,10 @@ export type TextChunkEvent = {
   messageId: string
   textDelta: string
   isFinalChunk: boolean
+  /** Set when a SUBAGENT streamed this (the spawning Agent tool call's
+   *  tool_use_id, the SDK's `parent_tool_use_id`) — consumers render it under
+   *  that card, never in the main transcript. Absent = the main thread. */
+  parentToolUseId?: string
 }
 
 /** A streamed delta of assistant extended-thinking text. */
@@ -40,6 +44,8 @@ export type ThinkingChunkEvent = {
   messageId: string
   textDelta: string
   isFinalChunk: boolean
+  /** See TextChunkEvent — subagent-attributed thinking. */
+  parentToolUseId?: string
 }
 
 /** The agent has started a tool call. `toolInput` is `unknown` — the SDK's
@@ -52,6 +58,8 @@ export type ToolUseStartedEvent = {
   toolName: string
   toolInput: unknown
   startedAt: Date
+  /** See TextChunkEvent — a tool call made BY a subagent. */
+  parentToolUseId?: string
 }
 
 /** A tool call has finished. `output` is `unknown` — opaque to this contract. */
@@ -63,6 +71,8 @@ export type ToolUseCompletedEvent = {
   output: unknown
   isError: boolean
   completedAt: Date
+  /** See TextChunkEvent — a subagent tool call's completion. */
+  parentToolUseId?: string
 }
 
 /** The agent is paused awaiting a tool-approval decision. */

@@ -75,6 +75,7 @@ const lastSegmentId = computed(
       <ToolCallList
         v-if="segment.toolCalls.length > 0"
         :tool-calls="segment.toolCalls"
+        :agent-activity="props.view.agentActivity"
       />
     </div>
 

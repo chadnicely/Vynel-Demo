@@ -21,6 +21,11 @@ export { default as SelectChip } from "./components/SelectChip.vue";
 export { default as ThinkingBlock } from "./components/ThinkingBlock.vue";
 export { default as ToolCallCard } from "./components/ToolCallCard.vue";
 export { default as ToolCallList } from "./components/ToolCallList.vue";
+export { default as AgentActivityPane } from "./components/AgentActivityPane.vue";
+export type {
+  AgentActivityLike,
+  AgentActivityToolCallLike,
+} from "./components/AgentActivityPane.vue";
 export { default as Tooltip } from "./components/Tooltip.vue";
 export { default as VoiceOrb } from "./components/VoiceOrb.vue";
 export {

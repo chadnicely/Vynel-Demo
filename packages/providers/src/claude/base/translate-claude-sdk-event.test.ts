@@ -326,6 +326,87 @@ const testCases: TestCase[] = [
     sdkEvent: 'not an object',
     expected: [],
   },
+  // ── Subagent traffic (top-level parent_tool_use_id set) ─────────────────
+  {
+    name: 'SUBAGENT stream text_delta -> TextChunkEvent marked with parentToolUseId',
+    sdkEvent: {
+      type: 'stream_event',
+      event: {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'agent says' },
+      },
+      parent_tool_use_id: 'tu_agent_1',
+      uuid: 'evt-sub-1',
+      session_id: SESSION_ID,
+    },
+    expected: [
+      {
+        kind: 'text-chunk',
+        sessionId: SESSION_ID,
+        messageId: ASSISTANT_MESSAGE_ID,
+        textDelta: 'agent says',
+        isFinalChunk: false,
+        parentToolUseId: 'tu_agent_1',
+      },
+    ],
+  },
+  {
+    name: 'SUBAGENT assistant tool_use -> marked tool-use-started, usage SKIPPED (own context window)',
+    sdkEvent: {
+      type: 'assistant',
+      message: {
+        id: 'msg_sub_1',
+        content: [
+          { type: 'tool_use', id: 'tu_sub_read', name: 'Read', input: { file_path: 'a.md' } },
+        ],
+        usage: { input_tokens: 999, output_tokens: 9 },
+      },
+      parent_tool_use_id: 'tu_agent_1',
+      uuid: 'evt-sub-2',
+      session_id: SESSION_ID,
+    },
+    expected: [
+      {
+        kind: 'tool-use-started',
+        sessionId: SESSION_ID,
+        parentMessageId: 'msg_sub_1',
+        toolUseId: 'tu_sub_read',
+        toolName: 'Read',
+        toolInput: { file_path: 'a.md' },
+        startedAt: expect.any(Date),
+        parentToolUseId: 'tu_agent_1',
+      },
+      // NO usage-reported — a subagent's usage would overwrite the main
+      // session's occupancy under the consumer's keep-the-last rule.
+    ],
+  },
+  {
+    name: 'SUBAGENT user tool_result -> marked tool-use-completed',
+    sdkEvent: {
+      type: 'user',
+      message: {
+        content: [
+          { type: 'tool_result', tool_use_id: 'tu_sub_read', content: 'file body', is_error: false },
+        ],
+      },
+      parent_tool_use_id: 'tu_agent_1',
+      uuid: 'evt-sub-3',
+      session_id: SESSION_ID,
+    },
+    expected: [
+      {
+        kind: 'tool-use-completed',
+        sessionId: SESSION_ID,
+        parentMessageId: ASSISTANT_MESSAGE_ID,
+        toolUseId: 'tu_sub_read',
+        output: 'file body',
+        isError: false,
+        completedAt: expect.any(Date),
+        parentToolUseId: 'tu_agent_1',
+      },
+    ],
+  },
 ]
 
 describe('translateClaudeSdkEvent', () => {

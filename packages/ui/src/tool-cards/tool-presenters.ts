@@ -194,6 +194,22 @@ export function presentToolCall(
     };
   }
 
+  // A spawned subagent: name the agent, show the task as the subtitle, and
+  // render the result (its final report) as text — never the raw payload pane.
+  if (toolName === "Agent" || toolName === "Task") {
+    const agentName =
+      inputField(toolInput, "name") ??
+      inputField(toolInput, "subagent_type") ??
+      "agent";
+    return {
+      verb: "Agent",
+      argument: agentName,
+      subtitle: inputField(toolInput, "description"),
+      stats: null,
+      body: { kind: "text", text: asDisplayString(toolOutput) },
+    };
+  }
+
   // An unknown tool whose input is a single string field ("speak" → {text})
   // reads best as that text itself — when the result adds nothing: either the
   // tool returned no output, or it's `speak`, whose result is always a

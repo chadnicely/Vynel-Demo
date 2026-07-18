@@ -76,6 +76,48 @@ describe("applyChatTurnEvent", () => {
     expect(view.segments[0]!.toolCalls[0]!.status).toBe("completed");
   });
 
+  it("folds a subagent's activity under its Agent card key — never into segments", () => {
+    const view = fold([
+      { kind: "text-chunk", messageId: "m1", textDelta: "Spawning an agent…" },
+      {
+        kind: "agent-tool-started",
+        parentToolUseId: "tu_agent_1",
+        toolUseId: "tu_sub_read",
+        toolName: "Read",
+        toolInput: { file_path: "a.md" },
+        startedAt: "2026-07-19T10:00:00.000Z",
+      },
+      {
+        kind: "agent-text-chunk",
+        parentToolUseId: "tu_agent_1",
+        textDelta: "found it",
+      },
+      {
+        kind: "agent-tool-completed",
+        parentToolUseId: "tu_agent_1",
+        toolUseId: "tu_sub_read",
+        toolOutput: "file body",
+        isError: false,
+        completedAt: "2026-07-19T10:00:02.000Z",
+      },
+    ]);
+
+    expect(view.segments).toHaveLength(1); // the agent never minted a segment
+    const activity = view.agentActivity["tu_agent_1"]!;
+    expect(activity.text).toBe("found it");
+    expect(activity.toolCalls).toEqual([
+      {
+        toolUseId: "tu_sub_read",
+        toolName: "Read",
+        toolInput: { file_path: "a.md" },
+        toolOutput: "file body",
+        status: "completed",
+        startedAt: "2026-07-19T10:00:00.000Z",
+        completedAt: "2026-07-19T10:00:02.000Z",
+      },
+    ]);
+  });
+
   it("tracks an approval from requested to resolved", () => {
     const view = fold([
       {

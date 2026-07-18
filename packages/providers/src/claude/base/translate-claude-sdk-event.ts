@@ -42,6 +42,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+/** The SDK stamps subagent traffic with the spawning Agent tool call's id at
+ *  the top level of the message. Non-string (absent/null) = the main thread. */
+function readParentToolUseId(message: Record<string, unknown>): string | undefined {
+  const value = message['parent_tool_use_id']
+  return typeof value === 'string' ? value : undefined
+}
+
 export function translateClaudeSdkEvent(
   input: TranslateClaudeSdkEventInput,
 ): NormalizedSessionEvent[] {
@@ -79,6 +86,7 @@ function translateStreamEvent(
   if (!isRecord(delta)) {
     return []
   }
+  const parentToolUseId = readParentToolUseId(message)
 
   if (delta['type'] === 'text_delta' && typeof delta['text'] === 'string') {
     return [
@@ -88,6 +96,7 @@ function translateStreamEvent(
         messageId: messageId ?? '',
         textDelta: delta['text'],
         isFinalChunk: false,
+        ...(parentToolUseId !== undefined ? { parentToolUseId } : {}),
       },
     ]
   }
@@ -99,6 +108,7 @@ function translateStreamEvent(
         messageId: messageId ?? '',
         textDelta: delta['thinking'],
         isFinalChunk: false,
+        ...(parentToolUseId !== undefined ? { parentToolUseId } : {}),
       },
     ]
   }
@@ -116,6 +126,7 @@ function translateAssistantMessage(
     return []
   }
   const messageId = typeof apiMessage['id'] === 'string' ? apiMessage['id'] : ''
+  const parentToolUseId = readParentToolUseId(message)
 
   const events: NormalizedSessionEvent[] = []
   for (const block of apiMessage['content']) {
@@ -133,6 +144,7 @@ function translateAssistantMessage(
       toolName: block['name'],
       toolInput: block['input'],
       startedAt: new Date(),
+      ...(parentToolUseId !== undefined ? { parentToolUseId } : {}),
     })
   }
 
@@ -141,8 +153,11 @@ function translateAssistantMessage(
   // at THIS request; the consumer keeps the last per turn. (The `result`
   // message's usage is cumulative across the turn's tool loop — over-counts on a
   // multi-tool-call turn — so it is no longer the occupancy source.)
+  // A SUBAGENT's usage is its OWN context window — reporting it here would let
+  // the consumer's keep-the-last rule overwrite the main session's occupancy
+  // with the subagent's, corrupting the pressure-swap signal. Skip it.
   const usage = apiMessage['usage']
-  if (isRecord(usage)) {
+  if (isRecord(usage) && parentToolUseId === undefined) {
     const usageEvent: UsageReportedEvent = {
       kind: 'usage-reported',
       sessionId,
@@ -178,6 +193,7 @@ function translateUserMessage(
     return []
   }
 
+  const parentToolUseId = readParentToolUseId(message)
   const events: NormalizedSessionEvent[] = []
   for (const block of apiMessage['content']) {
     if (!isRecord(block) || block['type'] !== 'tool_result') {
@@ -194,6 +210,7 @@ function translateUserMessage(
       output: block['content'],
       isError: block['is_error'] === true,
       completedAt: new Date(),
+      ...(parentToolUseId !== undefined ? { parentToolUseId } : {}),
     })
   }
   return events

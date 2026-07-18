@@ -509,3 +509,93 @@ describe('consumeSessionEventStream — chunks + tool use + usage', () => {
     })
   })
 })
+
+describe('consumeSessionEventStream — SUBAGENT activity (parentToolUseId-marked events)', () => {
+  it('yields live-only agent-* events and persists NOTHING for a subagent stream', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+
+      const startedAt = new Date()
+      const completedAt = new Date()
+      const events = await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-agent',
+              resumedFromExisting: false,
+              startedAt: new Date(),
+            },
+            // The subagent narrates, runs a tool, and its thinking is dropped.
+            {
+              kind: 'text-chunk',
+              sessionId: 'session-agent',
+              messageId: 'msg-sub-1',
+              textDelta: 'reading the file…',
+              isFinalChunk: false,
+              parentToolUseId: 'tu_agent_1',
+            },
+            {
+              kind: 'thinking-chunk',
+              sessionId: 'session-agent',
+              messageId: 'msg-sub-1',
+              textDelta: 'hmm',
+              isFinalChunk: false,
+              parentToolUseId: 'tu_agent_1',
+            },
+            {
+              kind: 'tool-use-started',
+              sessionId: 'session-agent',
+              parentMessageId: 'msg-sub-1',
+              toolUseId: 'tu_sub_read',
+              toolName: 'Read',
+              toolInput: { file_path: 'a.md' },
+              startedAt,
+              parentToolUseId: 'tu_agent_1',
+            },
+            {
+              kind: 'tool-use-completed',
+              sessionId: 'session-agent',
+              parentMessageId: 'msg-sub-1',
+              toolUseId: 'tu_sub_read',
+              output: 'file body',
+              isError: false,
+              completedAt,
+              parentToolUseId: 'tu_agent_1',
+            },
+          ]),
+          userMessageInput: makeUserMessageInput('spawn an agent'),
+          userId: user.id,
+          workspaceId: ws.id,
+          workspacePath: ws.path,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      const kinds = events.map((event) => event.kind)
+      expect(kinds).toContain('agent-text-chunk')
+      expect(kinds).toContain('agent-tool-started')
+      expect(kinds).toContain('agent-tool-completed')
+      // Subagent thinking is dropped, and NO main-transcript events leaked.
+      expect(kinds).not.toContain('text-chunk')
+      expect(kinds).not.toContain('thinking-chunk')
+      expect(kinds).not.toContain('tool-call-started')
+
+      const agentText = events.find((event) => event.kind === 'agent-text-chunk')
+      expect(agentText).toEqual({
+        kind: 'agent-text-chunk',
+        parentToolUseId: 'tu_agent_1',
+        textDelta: 'reading the file…',
+      })
+
+      // Live-only: the subagent's message row and tool-call row must NOT exist.
+      expect(findChatMessageById(db, 'msg-sub-1')).toBeNull()
+      expect(findChatToolCallByToolUseId(db, 'tu_sub_read')).toBeNull()
+    })
+  })
+})

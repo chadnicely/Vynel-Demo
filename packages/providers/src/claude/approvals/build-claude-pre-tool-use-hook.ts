@@ -41,6 +41,10 @@ import type { HookCallback } from '../base/claude-agent-sdk.js'
 import type { ClaudePermissionMode } from '../../shared/start-chat-session-input.js'
 import { TOOLS_ALWAYS_REQUIRING_APPROVAL } from './tools-always-requiring-approval.js'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 export function buildClaudePreToolUseHook(
   permissionMode: ClaudePermissionMode,
   alwaysRequireApprovalToolNames?: ReadonlySet<string>,
@@ -49,29 +53,49 @@ export function buildClaudePreToolUseHook(
     if (input.hook_event_name !== 'PreToolUse') {
       return {}
     }
+    // Force subagents SYNCHRONOUS. Since SDK 0.3.2xx the Agent tool launches
+    // in the BACKGROUND by default — but Vynel's one-shot turn model tears the
+    // query down when the main turn ends, silently killing a background agent
+    // mid-run (and its activity could never be traced to a finished turn).
+    // Synchronous keeps the agent's whole run inside the turn, where its
+    // marked events render live under the Agent card. Every mode, main or sub
+    // — spawn policy, independent of the approval policy below, and COMPOSED
+    // with it (a decision must never be shadowed by the rewrite).
+    const forcedSyncInput =
+      (input.tool_name === 'Agent' || input.tool_name === 'Task') &&
+      isRecord(input.tool_input) &&
+      input.tool_input['run_in_background'] !== false
+        ? { ...input.tool_input, run_in_background: false }
+        : undefined
+
     // The auto MAIN session defers entirely to Anthropic's classifier — the
     // hardcoded floor must not pre-empt it (the user's directive). A SUBAGENT
     // (`agent_id` present) keeps its own mode — the SDK does NOT clamp it to the
     // parent's `auto` — so the floor still backstops it here, even under auto.
-    if (permissionMode === 'auto' && input.agent_id === undefined) {
+    const floorStandsDown = permissionMode === 'auto' && input.agent_id === undefined
+    const requiresApprovalCard =
+      !floorStandsDown &&
+      (TOOLS_ALWAYS_REQUIRING_APPROVAL.has(input.tool_name) ||
+        (alwaysRequireApprovalToolNames?.has(input.tool_name) ?? false))
+
+    if (forcedSyncInput === undefined && !requiresApprovalCard) {
+      // No opinion — let the normal permission flow + canUseTool gate decide.
       return {}
     }
-    if (
-      TOOLS_ALWAYS_REQUIRING_APPROVAL.has(input.tool_name) ||
-      (alwaysRequireApprovalToolNames?.has(input.tool_name) ?? false)
-    ) {
-      return {
-        hookSpecificOutput: {
-          hookEventName: 'PreToolUse',
-          // Force the call into Vynel's canUseTool approval card even when
-          // the (sub)agent's permission mode would otherwise skip it.
-          permissionDecision: 'ask',
-          permissionDecisionReason:
-            'Vynel requires an approval card for this tool, even for agents configured to skip permission prompts.',
-        },
-      }
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        ...(requiresApprovalCard
+          ? {
+              // Force the call into Vynel's canUseTool approval card even when
+              // the (sub)agent's permission mode would otherwise skip it.
+              permissionDecision: 'ask' as const,
+              permissionDecisionReason:
+                'Vynel requires an approval card for this tool, even for agents configured to skip permission prompts.',
+            }
+          : {}),
+        ...(forcedSyncInput !== undefined ? { updatedInput: forcedSyncInput } : {}),
+      },
     }
-    // No opinion — let the normal permission flow + canUseTool gate decide.
-    return {}
   }
 }

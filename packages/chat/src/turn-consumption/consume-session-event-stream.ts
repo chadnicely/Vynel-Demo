@@ -166,6 +166,17 @@ export async function* consumeSessionEventStream(
       }
 
       case 'text-chunk': {
+        // A SUBAGENT's stream never touches the main transcript's rows — it
+        // renders live, nested under its spawning Agent card, and the card's
+        // settled toolOutput carries the final report (live-only by design).
+        if (event.parentToolUseId !== undefined) {
+          yield {
+            kind: 'agent-text-chunk',
+            parentToolUseId: event.parentToolUseId,
+            textDelta: event.textDelta,
+          }
+          break
+        }
         const assistantMessage = ensureAssistantMessageRow(
           db,
           event.messageId,
@@ -182,6 +193,9 @@ export async function* consumeSessionEventStream(
       }
 
       case 'thinking-chunk': {
+        // Subagent thinking is dropped — even nested it is noise at this
+        // altitude; the agent's text + tool cards are the trace.
+        if (event.parentToolUseId !== undefined) break
         const assistantMessage = ensureAssistantMessageRow(
           db,
           event.messageId,
@@ -201,6 +215,19 @@ export async function* consumeSessionEventStream(
       }
 
       case 'tool-use-started': {
+        // A subagent's tool call: live-only, keyed to its Agent card — never a
+        // top-level row (it used to flood the thread as the manager's own work).
+        if (event.parentToolUseId !== undefined) {
+          yield {
+            kind: 'agent-tool-started',
+            parentToolUseId: event.parentToolUseId,
+            toolUseId: event.toolUseId,
+            toolName: event.toolName,
+            toolInput: event.toolInput,
+            startedAt: event.startedAt,
+          }
+          break
+        }
         const parentMessage = ensureAssistantMessageRow(
           db,
           event.parentMessageId,
@@ -227,6 +254,17 @@ export async function* consumeSessionEventStream(
       }
 
       case 'tool-use-completed': {
+        if (event.parentToolUseId !== undefined) {
+          yield {
+            kind: 'agent-tool-completed',
+            parentToolUseId: event.parentToolUseId,
+            toolUseId: event.toolUseId,
+            toolOutput: event.output,
+            isError: event.isError,
+            completedAt: event.completedAt,
+          }
+          break
+        }
         const dbId = toolCallByToolUseId.get(event.toolUseId)
         if (!dbId) {
           logger?.warn(

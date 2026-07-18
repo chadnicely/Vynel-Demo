@@ -53,3 +53,35 @@ validation, not the typecheck.
 Gate GREEN 502f/2624t (from 500/2605). Reviewer: 1 must-fix + 2 should-fixes, all folded
 (+ the flag-only stop test and the parked-queue test); nits recorded (queued chips are
 view-local; a timed-out job's detached turn still has no stop lever — pre-existing doctrine).
+
+---
+
+# Round 2 (same day) — the agent-activity trace
+
+Chad spawned an agent from a delegated workspace turn and got a blank "Agent · 15ms" card while
+the agent's tool calls flooded the thread as the manager's own work. Three compounding causes:
+
+1. **`forwardSubagentText` defaults false** — a subagent's text never leaves the CLI. Tool
+   events DO arrive by default, but unmarked-by-Vynel: the translator never read
+   `parent_tool_use_id`, so they merged into the main transcript.
+2. **SDK 0.3.2xx backgrounds agents by default** (`run_in_background: true`); the "15ms" was
+   the async-launch ack, and Vynel's one-shot turn teardown kills a background agent when the
+   main reply ends. The PreToolUse backstop now rewrites Agent/Task spawns synchronous — spawn
+   policy composed with (never shadowing) the approval floor.
+3. **No nested rendering existed.** Now: marked events divert into three live-only wire kinds,
+   fold into `agentActivity` keyed by the spawning call's toolUseId, and render as
+   `AgentActivityPane` nested under the Agent card (status-lit tool rows + streaming
+   narrative). Nothing persists — settled truth is the card's toolOutput, which is the real
+   report now that agents run synchronously.
+
+Learnings: an SDK minor can flip a lifecycle default (background agents) that silently breaks a
+host's process model — the bump itself typechecked clean; only a user's screenshot surfaced it.
+And a subagent's `usage` would have overwritten the main session's context-occupancy under the
+keep-the-last rule — found only because the recon read the translator with the question "what
+else rides these messages?".
+
+Gate GREEN 503f/2636t. Reviewer APPROVE (2 hardening should-fixes folded: floor-composition in
+the hook; subagent message_start guard). Smoke items: spawn under `auto` mode (possible
+classifier-interaction via updatedInput), settled card body shape. Recorded: the Watch panel
+ignores agent-* events by design — a delegated turn's spawned agents trace in the workspace
+thread, not the panel.

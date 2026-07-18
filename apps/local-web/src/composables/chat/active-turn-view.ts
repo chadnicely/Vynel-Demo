@@ -40,6 +40,25 @@ export interface ActiveTurnSegment {
   toolCalls: ChatToolCallResponse[];
 }
 
+/** One nested tool call a SUBAGENT made — live-only (nothing persists; the
+ *  Agent card's settled toolOutput carries the final report). */
+export interface AgentActivityToolCall {
+  toolUseId: string;
+  toolName: string;
+  toolInput: unknown;
+  toolOutput: unknown;
+  status: "started" | "completed" | "failed";
+  startedAt: string;
+  completedAt: string | null;
+}
+
+/** A running subagent's live activity, keyed by its spawning Agent tool
+ *  call's toolUseId — rendered nested under that card. */
+export interface AgentActivityView {
+  text: string;
+  toolCalls: AgentActivityToolCall[];
+}
+
 export type ActiveTurnStatus =
   "streaming" | "completed" | "interrupted" | "errored";
 
@@ -51,6 +70,8 @@ export interface ActiveTurnView {
    *  dedupe set — the thread hides these persisted rows while the overlay
    *  renders them (rows persist per chunk, so they exist mid-turn). */
   segments: ActiveTurnSegment[];
+  /** Subagent activity by the spawning Agent tool call's toolUseId. */
+  agentActivity: Record<string, AgentActivityView>;
   isThinkingLive: boolean;
   approvals: ActiveTurnApproval[];
   usage: ActiveTurnUsage | null;
@@ -64,6 +85,7 @@ export function createActiveTurnView(): ActiveTurnView {
     session: null,
     userMessage: null,
     segments: [],
+    agentActivity: {},
     isThinkingLive: false,
     approvals: [],
     usage: null,
@@ -81,6 +103,16 @@ function upsertToolCall(
   const next = [...toolCalls];
   next[index] = incoming;
   return next;
+}
+
+/** Apply `patch` to a subagent's activity, creating it on first sight. */
+function patchAgentActivity(
+  activity: Record<string, AgentActivityView>,
+  parentToolUseId: string,
+  patch: (entry: AgentActivityView) => AgentActivityView,
+): Record<string, AgentActivityView> {
+  const current = activity[parentToolUseId] ?? { text: "", toolCalls: [] };
+  return { ...activity, [parentToolUseId]: patch(current) };
 }
 
 /** Apply `patch` to the message's segment, creating it (in arrival order) on
@@ -174,6 +206,59 @@ export function applyChatTurnEvent(
           approval.approvalRequestId === event.approvalRequestId
             ? { ...approval, isResolved: true }
             : approval,
+        ),
+      };
+    case "agent-text-chunk":
+      return {
+        ...view,
+        agentActivity: patchAgentActivity(
+          view.agentActivity,
+          event.parentToolUseId,
+          (entry) => ({ ...entry, text: entry.text + event.textDelta }),
+        ),
+      };
+    case "agent-tool-started":
+      return {
+        ...view,
+        agentActivity: patchAgentActivity(
+          view.agentActivity,
+          event.parentToolUseId,
+          (entry) => ({
+            ...entry,
+            toolCalls: [
+              ...entry.toolCalls,
+              {
+                toolUseId: event.toolUseId,
+                toolName: event.toolName,
+                toolInput: event.toolInput,
+                toolOutput: null,
+                status: "started",
+                startedAt: event.startedAt,
+                completedAt: null,
+              },
+            ],
+          }),
+        ),
+      };
+    case "agent-tool-completed":
+      return {
+        ...view,
+        agentActivity: patchAgentActivity(
+          view.agentActivity,
+          event.parentToolUseId,
+          (entry) => ({
+            ...entry,
+            toolCalls: entry.toolCalls.map((call) =>
+              call.toolUseId === event.toolUseId
+                ? {
+                    ...call,
+                    toolOutput: event.toolOutput,
+                    status: event.isError ? ("failed" as const) : ("completed" as const),
+                    completedAt: event.completedAt,
+                  }
+                : call,
+            ),
+          }),
         ),
       };
     case "usage-reported":

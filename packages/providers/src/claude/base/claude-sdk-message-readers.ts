@@ -15,6 +15,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // The SDK's raw-event shape is not Vynel's contract; access defensively.
 export function readAssistantMessageIdFromStreamStart(sdkMessage: SDKMessage): string | null {
   if (sdkMessage.type !== 'stream_event') return null
+  // A SUBAGENT's message_start (forwardSubagentText) must not poison the MAIN
+  // session's id tracking — its marked events never read messageId, but the
+  // main stream's next deltas would inherit the subagent's id otherwise.
+  if (typeof (sdkMessage as { parent_tool_use_id?: unknown }).parent_tool_use_id === 'string') {
+    return null
+  }
   const rawEvent: unknown = sdkMessage.event
   if (!isRecord(rawEvent) || rawEvent['type'] !== 'message_start') return null
   const startedMessage = rawEvent['message']

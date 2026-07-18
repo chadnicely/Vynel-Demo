@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Watch your agents work.** When Claude spawns an agent (in any chat), the agent's activity now
+  shows up live, nested under its card — each tool it runs with a status light, plus its running
+  narrative. Before, the agent was a blank "Agent · 15ms" card while its tool calls flooded the
+  chat as if Claude itself ran them and its words never appeared at all. Agents also now run to
+  completion inside the reply — the engine's new background default could leave them silently
+  killed mid-task when the reply finished.
+
 - **Queue messages while Claude works.** Typing mid-reply no longer bounces — Enter (or the send
   arrow, now sitting beside Stop) queues your message, visible as removable chips above the
   composer, and each one sends automatically as the previous reply finishes. A queued follow-up

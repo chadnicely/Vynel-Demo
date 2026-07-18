@@ -16,6 +16,9 @@ describe('buildClaudeSdkOptions', () => {
     expect(options.permissionMode).toBe('default')
     expect(options.cwd).toBe('/tmp/ws')
     expect(options.includePartialMessages).toBe(true)
+    // Without this a subagent's streamed text never leaves the CLI — the
+    // agent-activity trace depends on it.
+    expect(options.forwardSubagentText).toBe(true)
   })
 
   it('maps "bypass-with-behavior-gate" to bypassPermissions + the acknowledgement flag', () => {

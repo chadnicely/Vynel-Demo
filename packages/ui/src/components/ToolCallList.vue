@@ -4,11 +4,22 @@ import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import { groupConsecutiveToolCalls } from "../tool-cards/group-tool-calls.js";
 import { describeToolCallGroup } from "../tool-cards/tool-presenters.js";
 import ToolCallCard from "./ToolCallCard.vue";
+import AgentActivityPane from "./AgentActivityPane.vue";
+import type { AgentActivityLike } from "./AgentActivityPane.vue";
 import PresenceDot from "./PresenceDot.vue";
 
 // Renders a message's tool activity: consecutive same-tool runs collapse
 // under one header ("Read 2 files"), single calls render as plain cards.
-const props = defineProps<{ toolCalls: ChatToolCallResponse[] }>();
+// A spawning Agent card additionally nests its subagent's LIVE activity when
+// the host supplies it (keyed by the Agent call's toolUseId; live turns only).
+const props = defineProps<{
+  toolCalls: ChatToolCallResponse[];
+  agentActivity?: Record<string, AgentActivityLike> | undefined;
+}>();
+
+function activityFor(toolCall: ChatToolCallResponse): AgentActivityLike | null {
+  return props.agentActivity?.[toolCall.toolUseId] ?? null;
+}
 
 const groups = computed(() => groupConsecutiveToolCalls(props.toolCalls));
 
@@ -35,7 +46,13 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
 <template>
   <div class="tool-call-list">
     <template v-for="group in groups" :key="group[0]!.id">
-      <ToolCallCard v-if="group.length === 1" :tool-call="group[0]!" />
+      <template v-if="group.length === 1">
+        <ToolCallCard :tool-call="group[0]!" />
+        <AgentActivityPane
+          v-if="activityFor(group[0]!)"
+          :activity="activityFor(group[0]!)!"
+        />
+      </template>
 
       <div v-else class="tool-group">
         <button
@@ -72,11 +89,13 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
           />
         </button>
         <div v-if="isGroupOpen(group)" class="group-body">
-          <ToolCallCard
-            v-for="toolCall in group"
-            :key="toolCall.id"
-            :tool-call="toolCall"
-          />
+          <template v-for="toolCall in group" :key="toolCall.id">
+            <ToolCallCard :tool-call="toolCall" />
+            <AgentActivityPane
+              v-if="activityFor(toolCall)"
+              :activity="activityFor(toolCall)!"
+            />
+          </template>
         </div>
       </div>
     </template>

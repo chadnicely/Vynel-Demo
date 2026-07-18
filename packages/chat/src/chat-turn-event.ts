@@ -19,6 +19,27 @@ export type ChatTurnEvent =
   | { kind: 'thinking-chunk'; messageId: string; thinkingDelta: string }
   | { kind: 'tool-call-started'; toolCall: ChatToolCall }
   | { kind: 'tool-call-completed'; toolCall: ChatToolCall }
+  // A SUBAGENT's live activity, keyed by the spawning Agent tool call's
+  // toolUseId. LIVE-ONLY by design: nothing persists (the Agent card's settled
+  // toolOutput carries the final report) — the UI nests these under the card
+  // while the turn streams, never in the main transcript.
+  | { kind: 'agent-text-chunk'; parentToolUseId: string; textDelta: string }
+  | {
+      kind: 'agent-tool-started'
+      parentToolUseId: string
+      toolUseId: string
+      toolName: string
+      toolInput: unknown
+      startedAt: Date
+    }
+  | {
+      kind: 'agent-tool-completed'
+      parentToolUseId: string
+      toolUseId: string
+      toolOutput: unknown
+      isError: boolean
+      completedAt: Date
+    }
   | {
       kind: 'approval-requested'
       approvalRequestId: string

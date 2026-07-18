@@ -80,6 +80,12 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
     // Streaming deltas are required — `translateClaudeSdkEvent` maps
     // `SDKPartialAssistantMessage` events into text/thinking chunks.
     includePartialMessages: true,
+    // Without this the SDK forwards only a subagent's tool_use/tool_result;
+    // its streamed TEXT never leaves the CLI — the reason an agent's work was
+    // invisible beyond a bare tool card. The translator marks every subagent
+    // event with `parentToolUseId` so it renders nested under the spawning
+    // Agent card, never merged into the main transcript.
+    forwardSubagentText: true,
     // Load the workspace's own settings + CLAUDE.md so Vynel wraps Claude
     // Code as the user experiences it (Implement decision — blueprint §11.5
     // gave only the input shape).

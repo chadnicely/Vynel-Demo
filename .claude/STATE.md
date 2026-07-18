@@ -3,7 +3,37 @@
 **Updated 2026-07-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-19c): CHAT-CONTROL ROUND (queue · stop · agents parity · modes · SDK bump) — gate GREEN 502f/2624t, reviewed (1 must-fix + 2 should-fixes folded), committed; NEXT: Chad's smoke
+## ⏭ NEXT ACTION (2026-07-19d): AGENT-ACTIVITY TRACE — gate GREEN 503f/2636t, reviewed APPROVE (2 hardening should-fixes folded); NEXT: Chad's smoke (spawn an agent, watch it nested)
+
+**Chad's report: a workspace-spawned agent showed only "Agent · 15ms" while its tool calls
+flooded the main thread unmarked and its text was invisible. Three root causes, one slice:**
+- **`forwardSubagentText: true`** (SDK default forwards only subagent tool_use/result — text
+  never left the CLI) + pin test.
+- **Agents forced SYNCHRONOUS** via the PreToolUse backstop rewriting Agent/Task
+  `run_in_background: false` (SDK 0.3.2xx backgrounds by default; Vynel's one-shot turn
+  teardown killed them mid-run — the "15ms" was the async-launch ack). Rewrite COMPOSES with
+  the approval floor (reviewer: never shadow a decision) + subagent `message_start` no longer
+  poisons main-session id tracking (readers guard). ⚠ SMOKE ITEM: spawn under `auto` mode —
+  exe strings hint `updatedInput` may satisfy a permission interaction in one branch.
+- **Marked events, live-only rendering:** translator threads top-level `parent_tool_use_id` →
+  optional `parentToolUseId` on text/thinking/tool events (+ SKIPS subagent usage — it was
+  poised to overwrite the main session's occupancy) · consumer DIVERTS marked events into 3 new
+  wire kinds (agent-text-chunk / agent-tool-started / agent-tool-completed), persisting NOTHING
+  (the Agent card's settled toolOutput = the final report, real now that agents are sync) ·
+  ActiveTurnView grew `agentActivity` keyed by the Agent call's toolUseId · NEW
+  `AgentActivityPane` (@vynel/ui) nests under the card via ToolCallList's optional prop ·
+  Agent/Task presenter ("Agent researcher · <description>", text body). Every other
+  ChatTurnEvent consumer verified tolerant (no exhaustive switch anywhere).
+- **Recorded (reviewer nits):** Watch panel drops agent-* by design (a routed turn's spawned
+  agents show no nested trace THERE — module-notes note, future arc) · settled Agent card body
+  could JSON-dump if the SDK returns block-array content (check on smoke) ·
+  consume-session-event-stream at 369 lines (split next touch).
+**⏭ CHAD SMOKE: any chat → ask for something an agent handles → the Agent card shows name +
+task, activity nested live (tools + narrative), and the settled card carries the report after
+reload · repeat under `auto` mode (the classifier-interaction question) · confirm no more
+agent tool-calls rendered as the manager's own.**
+
+## (prev) NEXT ACTION (2026-07-19c): CHAT-CONTROL ROUND (queue · stop · agents parity · modes · SDK bump) — gate GREEN 502f/2624t, reviewed (1 must-fix + 2 should-fixes folded), committed; NEXT: Chad's smoke
 
 **Chad's 4 asks, all landed (3 recon subagents mapped the ground first — reports summarized here):**
 - **① AUDIT: workspace turns DO load Claude content** — provider hard-codes
