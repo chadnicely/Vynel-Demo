@@ -5,7 +5,10 @@ import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
 import PresenceDot from "./PresenceDot.vue";
 import AttachmentChips from "./AttachmentChips.vue";
-import { workspaceAccentVar } from "../lib/workspace-color.js";
+import {
+  workspaceAccentVar,
+  workspaceNameFromLabel,
+} from "../lib/workspace-color.js";
 
 const props = withDefaults(
   defineProps<{
@@ -75,6 +78,24 @@ const originBadge = computed(() => {
 const linkedSessionId = computed(() =>
   props.showWatchChip ? (props.message.partialSessionId ?? null) : null,
 );
+
+// The chip names the actual work when the serve-time enrichment carried the
+// delegated task ("vynel · Set up the login page"); the persona-first
+// sourceLabel keeps only its workspace segment — the persona already speaks
+// in the row's author line. Fallbacks keep the old labels for rows without
+// a task (job pruned, pre-enrichment history).
+const watchChipLabel = computed(() => {
+  const task = props.message.delegationTaskLabel;
+  if (task) {
+    const workspace = props.message.sourceLabel
+      ? workspaceNameFromLabel(props.message.sourceLabel)
+      : null;
+    return workspace ? `${workspace} · ${task}` : task;
+  }
+  return props.message.sourceLabel
+    ? `Watch ${props.message.sourceLabel}`
+    : "Watch this session";
+});
 
 // A report bubbled up from a workspace/agent wears that workspace's stable
 // accent (left bar + chip tint) so it reads as belonging to it. Gated on the
@@ -168,13 +189,7 @@ const accentVar = computed(() => {
       @click="emit('openSession', linkedSessionId)"
     >
       <PresenceDot :state="props.linkedSessionLive ? 'live' : 'idle'" />
-      <span class="session-link-label">
-        {{
-          props.message.sourceLabel
-            ? `Watch ${props.message.sourceLabel}`
-            : "Watch this session"
-        }}
-      </span>
+      <span class="session-link-label">{{ watchChipLabel }}</span>
       <svg
         width="11"
         height="11"
@@ -298,6 +313,15 @@ const accentVar = computed(() => {
 
 .session-link svg {
   color: var(--ink-3);
+  flex: none;
+}
+
+/* Task labels can run long — the chip stays one line and ellipsizes. */
+.session-link-label {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .error-note {

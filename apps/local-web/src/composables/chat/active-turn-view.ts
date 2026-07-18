@@ -8,6 +8,12 @@ import type {
 // Folds the raw ChatTurnEvent stream into one renderable view of the turn in
 // flight. Pure — transport-blind and framework-blind — so the demo player and
 // the future SSE reader feed the exact same logic.
+//
+// The turn is SEGMENTED by assistant message, in arrival order — a turn with
+// tool calls spans several assistant messages (text → tools → text), and the
+// settled thread renders each as its own block with its tool calls attached.
+// The live overlay mirrors that structure exactly, so nothing reflows when
+// the turn settles (or the page reloads).
 
 export interface ActiveTurnApproval {
   approvalRequestId: string;
@@ -25,6 +31,15 @@ export interface ActiveTurnUsage {
   cacheCreationInputTokens: number;
 }
 
+/** One assistant message of the in-flight turn — the live mirror of a settled
+ *  MessageRow: its thinking, its text, and the tool calls it made. */
+export interface ActiveTurnSegment {
+  messageId: string;
+  text: string;
+  thinking: string;
+  toolCalls: ChatToolCallResponse[];
+}
+
 export type ActiveTurnStatus =
   "streaming" | "completed" | "interrupted" | "errored";
 
@@ -32,15 +47,11 @@ export interface ActiveTurnView {
   status: ActiveTurnStatus;
   session: ChatSessionResponse | null;
   userMessage: ChatMessageResponse | null;
-  assistantMessageId: string | null;
-  /** EVERY assistant message id this turn touched (a turn with tool calls
-   *  spans several) — the thread hides these persisted rows while the live
-   *  overlay renders them, so a mid-turn refetch never doubles a message. */
-  assistantMessageIds: string[];
-  text: string;
-  thinking: string;
+  /** The turn's assistant messages in arrival order. Their ids double as the
+   *  dedupe set — the thread hides these persisted rows while the overlay
+   *  renders them (rows persist per chunk, so they exist mid-turn). */
+  segments: ActiveTurnSegment[];
   isThinkingLive: boolean;
-  toolCalls: ChatToolCallResponse[];
   approvals: ActiveTurnApproval[];
   usage: ActiveTurnUsage | null;
   error: { code: string; message: string; isRecoverable: boolean } | null;
@@ -52,12 +63,8 @@ export function createActiveTurnView(): ActiveTurnView {
     status: "streaming",
     session: null,
     userMessage: null,
-    assistantMessageId: null,
-    assistantMessageIds: [],
-    text: "",
-    thinking: "",
+    segments: [],
     isThinkingLive: false,
-    toolCalls: [],
     approvals: [],
     usage: null,
     error: null,
@@ -76,11 +83,25 @@ function upsertToolCall(
   return next;
 }
 
-function withAssistantMessageId(
-  ids: string[],
+/** Apply `patch` to the message's segment, creating it (in arrival order) on
+ *  first sight. Pure — returns a new array. */
+function patchSegment(
+  segments: ActiveTurnSegment[],
   messageId: string,
-): string[] {
-  return ids.includes(messageId) ? ids : [...ids, messageId];
+  patch: (segment: ActiveTurnSegment) => ActiveTurnSegment,
+): ActiveTurnSegment[] {
+  const index = segments.findIndex(
+    (segment) => segment.messageId === messageId,
+  );
+  if (index === -1) {
+    return [
+      ...segments,
+      patch({ messageId, text: "", thinking: "", toolCalls: [] }),
+    ];
+  }
+  const next = [...segments];
+  next[index] = patch(next[index]!);
+  return next;
 }
 
 export function applyChatTurnEvent(
@@ -99,35 +120,34 @@ export function applyChatTurnEvent(
     case "text-chunk":
       return {
         ...view,
-        assistantMessageId: event.messageId,
-        assistantMessageIds: withAssistantMessageId(
-          view.assistantMessageIds,
-          event.messageId,
-        ),
-        text: view.text + event.textDelta,
+        segments: patchSegment(view.segments, event.messageId, (segment) => ({
+          ...segment,
+          text: segment.text + event.textDelta,
+        })),
         isThinkingLive: false,
       };
     case "thinking-chunk":
       return {
         ...view,
-        assistantMessageId: event.messageId,
-        assistantMessageIds: withAssistantMessageId(
-          view.assistantMessageIds,
-          event.messageId,
-        ),
-        thinking: view.thinking + event.thinkingDelta,
+        segments: patchSegment(view.segments, event.messageId, (segment) => ({
+          ...segment,
+          thinking: segment.thinking + event.thinkingDelta,
+        })),
         isThinkingLive: true,
       };
     case "tool-call-started":
     case "tool-call-completed":
       return {
         ...view,
-        toolCalls: upsertToolCall(view.toolCalls, event.toolCall),
-        // A tool-only assistant message never streams text — its parent row
-        // still belongs to this turn's overlay.
-        assistantMessageIds: withAssistantMessageId(
-          view.assistantMessageIds,
+        // A tool-only assistant message never streams text — the tool call's
+        // parent id still creates its segment (and the dedupe entry).
+        segments: patchSegment(
+          view.segments,
           event.toolCall.parentMessageId,
+          (segment) => ({
+            ...segment,
+            toolCalls: upsertToolCall(segment.toolCalls, event.toolCall),
+          }),
         ),
         isThinkingLive: false,
       };

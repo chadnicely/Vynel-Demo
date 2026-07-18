@@ -43,3 +43,4 @@ export {
   traceChannelKey,
   type TurnEventSubscriber,
 } from './turn-event-broadcaster.js'
+export { attachDelegationTaskLabels } from './attach-delegation-task-labels.js'

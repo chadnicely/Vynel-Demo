@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import {
   ApprovalCard,
   ThinkingBlock,
@@ -25,6 +26,13 @@ const props = withDefaults(
 const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
 }>();
+
+// The live edge — only the LAST segment is still being written, so only it
+// wears the cursor and a live thinking shimmer. Earlier segments are done and
+// render exactly like their settled MessageRow will.
+const lastSegmentId = computed(
+  () => props.view.segments.at(-1)?.messageId ?? null,
+);
 </script>
 
 <template>
@@ -36,25 +44,39 @@ const emit = defineEmits<{
       >
     </p>
 
-    <ThinkingBlock
-      v-if="props.view.thinking"
-      :text="props.view.thinking"
-      :streaming="props.view.isThinkingLive"
-    />
+    <!-- One block per assistant message, in arrival order — the SAME
+         thinking → text → tool-calls shape MessageRow gives the settled row,
+         so the thread never reformats when the turn completes. -->
+    <div
+      v-for="segment in props.view.segments"
+      :key="segment.messageId"
+      class="segment"
+    >
+      <ThinkingBlock
+        v-if="segment.thinking"
+        :text="segment.thinking"
+        :streaming="
+          props.view.isThinkingLive && segment.messageId === lastSegmentId
+        "
+      />
 
-    <div v-if="props.view.text" class="answer">
-      <MarkdownText :source="props.view.text" />
-      <span
-        v-if="props.view.status === 'streaming'"
-        class="stream-cursor"
-        aria-hidden="true"
+      <div v-if="segment.text" class="answer">
+        <MarkdownText :source="segment.text" />
+        <span
+          v-if="
+            props.view.status === 'streaming' &&
+            segment.messageId === lastSegmentId
+          "
+          class="stream-cursor"
+          aria-hidden="true"
+        />
+      </div>
+
+      <ToolCallList
+        v-if="segment.toolCalls.length > 0"
+        :tool-calls="segment.toolCalls"
       />
     </div>
-
-    <ToolCallList
-      v-if="props.view.toolCalls.length > 0"
-      :tool-calls="props.view.toolCalls"
-    />
 
     <template
       v-for="approval in props.view.approvals"
@@ -83,6 +105,11 @@ const emit = defineEmits<{
 
 <style scoped>
 .live-turn {
+  display: grid;
+  gap: 8px;
+}
+
+.segment {
   display: grid;
   gap: 8px;
 }

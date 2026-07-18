@@ -17,10 +17,16 @@
 const WORKSPACE_ACCENT_SLOTS = 6;
 
 /** Extract the workspace name from `sourceLabel` (its LAST " · " segment — the
- *  label is "<manager> · <workspace>") and fold case/whitespace, so the report
- *  row ("Noah · vynel") and the banner ("vynel") resolve to the same color. */
+ *  label is "<manager> · <workspace>"), display case preserved. The one home
+ *  for that parse — the Watch chip's label and the color slots both use it. */
+export function workspaceNameFromLabel(label: string): string {
+  return label.split(" · ").at(-1)!.trim();
+}
+
+/** Case/whitespace-folded name, so the report row ("Noah · vynel") and the
+ *  banner ("vynel") resolve to the same color. */
 function normalizeWorkspaceName(label: string): string {
-  return label.split(" · ").at(-1)!.trim().toLowerCase();
+  return workspaceNameFromLabel(label).toLowerCase();
 }
 
 /** Deterministic 1..N slot for a workspace name (djb2 — stable, well-spread). */

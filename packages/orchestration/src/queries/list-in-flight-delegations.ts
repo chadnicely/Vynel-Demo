@@ -5,6 +5,7 @@
 // name (the label), and the status. Tenant-scoped by `userId`.
 
 import type { Database } from '@vynel/db'
+import { deriveDelegationTaskLabel } from '@vynel/contracts/chat/delegation-task-label'
 import { listInFlightDelegationsForUser } from '../repositories/index.js'
 
 export interface InFlightDelegation {
@@ -16,6 +17,9 @@ export interface InFlightDelegation {
   workspaceId: string
   /** The target workspace's name — the indicator label. */
   workspaceName: string
+  /** The task, as a short human label — the indicator names the actual work
+   *  ("vynel · Set up the login page"), never a canned "Working…". */
+  taskLabel: string
   status: 'pending' | 'claimed'
 }
 
@@ -30,6 +34,7 @@ export function listInFlightDelegations(
     partialSessionId: job.partialSessionId,
     workspaceId: job.workspaceId,
     workspaceName: job.workspaceName,
+    taskLabel: deriveDelegationTaskLabel(job.taskText),
     status: job.status as 'pending' | 'claimed',
   }))
 }

@@ -5142,6 +5142,7 @@ export interface operations {
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | null;
                             partialSessionId: string | null;
+                            delegationTaskLabel?: string | null;
                             thinkingBody: string | null;
                             inputTokens: number | null;
                             outputTokens: number | null;
@@ -9915,6 +9916,7 @@ export interface operations {
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | null;
                             partialSessionId: string | null;
+                            delegationTaskLabel?: string | null;
                             thinkingBody: string | null;
                             inputTokens: number | null;
                             outputTokens: number | null;
@@ -9967,7 +9969,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description { delegations: [{ partialSessionId, workspaceName, status }] } — empty when idle. */
+            /** @description { delegations: [{ partialSessionId, workspaceName, taskLabel, status }] } — empty when idle. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -9978,6 +9980,7 @@ export interface operations {
                             partialSessionId: string | null;
                             workspaceId: string;
                             workspaceName: string;
+                            taskLabel: string;
                             /** @enum {string} */
                             status: "pending" | "claimed";
                         }[];

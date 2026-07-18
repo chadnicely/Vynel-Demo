@@ -59,7 +59,7 @@ const isAutoScrolling = ref(false);
 const settledMessages = computed(() => {
   const turn = props.activeTurn;
   if (turn === null) return props.messages;
-  const overlayIds = new Set(turn.assistantMessageIds);
+  const overlayIds = new Set(turn.segments.map((segment) => segment.messageId));
   if (turn.userMessage) overlayIds.add(turn.userMessage.id);
   return props.messages.filter((message) => !overlayIds.has(message.id));
 });
@@ -125,8 +125,10 @@ onMounted(async () => {
 watch(
   () => [
     props.messages.length,
-    props.activeTurn?.text.length ?? 0,
-    props.activeTurn?.toolCalls.length ?? 0,
+    props.activeTurn?.segments.reduce(
+      (size, segment) => size + segment.text.length + segment.toolCalls.length,
+      0,
+    ) ?? 0,
   ],
   async () => {
     if (!isPinnedToBottom.value) return;

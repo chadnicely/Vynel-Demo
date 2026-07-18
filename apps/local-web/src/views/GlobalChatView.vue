@@ -129,6 +129,17 @@ const inFlightQuery = useInFlightDelegations();
 const inFlightDelegations = computed(() => inFlightQuery.data.value ?? []);
 const isProcessing = computed(() => inFlightDelegations.value.length > 0);
 
+/** The banner chip names the actual work — "vynel · Set up the login page" —
+ *  falling back to the old generic line when the task text was empty. */
+function delegationChipLabel(delegation: {
+  workspaceName: string;
+  taskLabel: string;
+}): string {
+  return delegation.taskLabel
+    ? `${delegation.workspaceName} · ${delegation.taskLabel}`
+    : `Working in ${delegation.workspaceName}…`;
+}
+
 const chatTurn = useChatTurn({
   scope: () => GLOBAL_SCOPE,
   onSessionCreated: (session) => {
@@ -352,12 +363,16 @@ function openContinuous() {
             @click="sessionViewer.open(delegation.partialSessionId)"
           >
             <PresenceDot state="live" />
-            <span>Working in {{ delegation.workspaceName }}…</span>
+            <span class="processing-chip-label">{{
+              delegationChipLabel(delegation)
+            }}</span>
             <span class="processing-chip-cta">Watch</span>
           </button>
           <span v-else class="processing-chip is-static">
             <PresenceDot state="live" />
-            <span>Working in {{ delegation.workspaceName }}…</span>
+            <span class="processing-chip-label">{{
+              delegationChipLabel(delegation)
+            }}</span>
           </span>
         </template>
       </div>
@@ -468,6 +483,14 @@ function openContinuous() {
   font: 600 11.5px/1.5 var(--font-ui);
   cursor: default;
   transition: border-color var(--t-fast) var(--ease-out);
+}
+
+/* Task labels can run long — the chip stays one line and ellipsizes. */
+.processing-chip-label {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .processing-chip:not(.is-static):hover {

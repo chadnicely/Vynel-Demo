@@ -119,6 +119,8 @@ export const InFlightDelegationSchema = z.object({
   // The target workspace — the workspace chat polls its transcript while this runs.
   workspaceId: z.string(),
   workspaceName: z.string(),
+  // The task as a short label — the indicator names the actual work.
+  taskLabel: z.string(),
   status: z.enum(['pending', 'claimed']),
 })
 

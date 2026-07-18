@@ -69,9 +69,9 @@ describe("ThreadStream", () => {
     const activeTurn: ActiveTurnView = {
       ...createActiveTurnView(),
       userMessage: history[2]!, // the turn's own user message, already persisted
-      assistantMessageId: "m3",
-      assistantMessageIds: ["m3"],
-      text: "streaming reply…",
+      segments: [
+        { messageId: "m3", text: "streaming reply…", thinking: "", toolCalls: [] },
+      ],
     };
     const wrapper = mount(ThreadStream, {
       props: { messages: history, toolCallsByMessageId: {}, activeTurn },

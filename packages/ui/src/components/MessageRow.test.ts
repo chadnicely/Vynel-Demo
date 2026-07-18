@@ -30,13 +30,34 @@ describe("MessageRow", () => {
       props: {
         message: makeMessage({
           partialSessionId: "child-session",
-          sourceLabel: "Marketing site · Mara",
+          // Persona-FIRST ("<manager> · <workspace>") — the one real form; a
+          // workspace-first fixture here once defended the inverted parse.
+          sourceLabel: "Mara · Marketing site",
         }),
       },
     });
 
     const chip = wrapper.find(".session-link");
-    expect(chip.text()).toContain("Watch Marketing site · Mara");
+    expect(chip.text()).toContain("Watch Mara · Marketing site");
+    await chip.trigger("click");
+    expect(wrapper.emitted("openSession")).toBeTruthy();
+  });
+
+  it("names the actual work when the row carries the delegated task label", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          partialSessionId: "child-session",
+          // Persona-FIRST label — the workspace is the LAST segment.
+          sourceLabel: "Noah · vynel",
+          delegationTaskLabel: "Set up the login page",
+        }),
+      },
+    });
+
+    const chip = wrapper.find(".session-link");
+    expect(chip.text()).toContain("vynel · Set up the login page");
+    expect(chip.text()).not.toContain("Noah");
 
     await chip.trigger("click");
     expect(wrapper.emitted("openSession")).toEqual([["child-session"]]);

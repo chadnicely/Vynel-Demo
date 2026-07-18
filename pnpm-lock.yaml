@@ -1027,6 +1027,9 @@ importers:
       '@vynel/agents':
         specifier: workspace:*
         version: link:../agents
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@vynel/db':
         specifier: workspace:*
         version: link:../db

@@ -88,6 +88,10 @@ export interface ChatMessageResponse {
   /** Brain-tree delegation correlation key (Ch3) — present on a bubbled-up report row so
    *  the surface can open its condensed trace; null/absent on ordinary rows. */
   partialSessionId?: string | null
+  /** The delegated task as a short label ("Set up the login page") — enriched at serve
+   *  time from the job the `partialSessionId` names, so the Watch chip can say what the
+   *  work IS. Absent on ordinary rows and when the job is gone. */
+  delegationTaskLabel?: string | null
   body: string
   thinkingBody: string | null
   inputTokens: number | null

@@ -27,7 +27,7 @@ import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { streamGlobalRootTurn } from '../../streams/global-root-turn.js'
 import { resolveGlobalRootTranscript } from '@vynel/session/runtime'
 import { resolveDelegationTrace } from '@vynel/session/delegation'
-import { traceChannelKey } from '@vynel/session/delegation'
+import { traceChannelKey, attachDelegationTaskLabels } from '@vynel/session/delegation'
 import {
   StartGlobalRootTurnRequestSchema,
   DelegationTraceParamSchema,
@@ -221,8 +221,15 @@ export const rootApp = factory
     validator('param', RootSessionParamSchema),
     ...userScoped,
     (c) => {
-      const { sessionId } = c.req.valid('param')
-      return c.json(getChatSessionDetail(c.var.db, sessionId, { ownerUserId: c.var.user.id }))
+      const detail = getChatSessionDetail(c.var.db, c.req.valid('param').sessionId, {
+        ownerUserId: c.var.user.id,
+      })
+      // Report rows gain the delegated task's label — the Watch chip names the
+      // actual work instead of a canned "Watch <persona>".
+      return c.json({
+        ...detail,
+        messages: attachDelegationTaskLabels(c.var.db, detail.messages),
+      })
     },
   )
   // ──────────────────────────────────────────────────────────────────
@@ -238,7 +245,7 @@ export const rootApp = factory
       responses: {
         200: {
           description:
-            '{ delegations: [{ partialSessionId, workspaceName, status }] } — empty when idle.',
+            '{ delegations: [{ partialSessionId, workspaceName, taskLabel, status }] } — empty when idle.',
           content: {
             'application/json': { schema: resolver(ListInFlightDelegationsResponseSchema) },
           },

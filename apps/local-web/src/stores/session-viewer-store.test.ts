@@ -42,7 +42,9 @@ describe("live-sessions store", () => {
       textDelta: "there",
     });
 
-    expect(live.liveFor("s1")?.text).toBe("hi there");
+    // test: correct expectation — the view is segmented by assistant message
+    // now (live/settled layout parity); the fold lands in m1's segment.
+    expect(live.liveFor("s1")?.segments[0]?.text).toBe("hi there");
 
     live.end("s1");
     expect(live.liveFor("s1")).toBeNull();

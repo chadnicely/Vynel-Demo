@@ -27,7 +27,7 @@ const startedCall: ChatToolCallResponse = {
 };
 
 describe("applyChatTurnEvent", () => {
-  it("accumulates text and thinking deltas separately", () => {
+  it("accumulates text and thinking deltas into the message's segment", () => {
     const view = fold([
       { kind: "thinking-chunk", messageId: "m1", thinkingDelta: "Let me " },
       { kind: "thinking-chunk", messageId: "m1", thinkingDelta: "check." },
@@ -35,9 +35,28 @@ describe("applyChatTurnEvent", () => {
       { kind: "text-chunk", messageId: "m1", textDelta: "Reading now." },
     ]);
 
-    expect(view.thinking).toBe("Let me check.");
-    expect(view.text).toBe("On it. Reading now.");
+    expect(view.segments).toHaveLength(1);
+    expect(view.segments[0]!.thinking).toBe("Let me check.");
+    expect(view.segments[0]!.text).toBe("On it. Reading now.");
     expect(view.isThinkingLive).toBe(false);
+  });
+
+  it("segments a multi-message turn in arrival order, tools attached to their parent", () => {
+    // The settled thread renders text → tools → text as separate assistant
+    // rows — the live fold must mirror that structure exactly.
+    const view = fold([
+      { kind: "text-chunk", messageId: "m1", textDelta: "Reading the file…" },
+      { kind: "tool-call-started", toolCall: startedCall },
+      { kind: "text-chunk", messageId: "m2", textDelta: "Here's the answer." },
+    ]);
+
+    expect(view.segments.map((segment) => segment.messageId)).toEqual([
+      "m1",
+      "m2",
+    ]);
+    expect(view.segments[0]!.toolCalls).toHaveLength(1);
+    expect(view.segments[1]!.text).toBe("Here's the answer.");
+    expect(view.segments[1]!.toolCalls).toHaveLength(0);
   });
 
   it("upserts tool calls by id so started → completed is one card", () => {
@@ -52,8 +71,9 @@ describe("applyChatTurnEvent", () => {
       { kind: "tool-call-completed", toolCall: completedCall },
     ]);
 
-    expect(view.toolCalls).toHaveLength(1);
-    expect(view.toolCalls[0]!.status).toBe("completed");
+    expect(view.segments).toHaveLength(1); // a tool-only message still segments
+    expect(view.segments[0]!.toolCalls).toHaveLength(1);
+    expect(view.segments[0]!.toolCalls[0]!.status).toBe("completed");
   });
 
   it("tracks an approval from requested to resolved", () => {

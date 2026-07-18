@@ -6807,6 +6807,12 @@
                               "null"
                             ]
                           },
+                          "delegationTaskLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "thinkingBody": {
                             "type": [
                               "string",
@@ -18978,6 +18984,12 @@
                               "null"
                             ]
                           },
+                          "delegationTaskLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "thinkingBody": {
                             "type": [
                               "string",
@@ -19175,7 +19187,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "{ delegations: [{ partialSessionId, workspaceName, status }] } — empty when idle.",
+            "description": "{ delegations: [{ partialSessionId, workspaceName, taskLabel, status }] } — empty when idle.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19198,6 +19210,9 @@
                           "workspaceName": {
                             "type": "string"
                           },
+                          "taskLabel": {
+                            "type": "string"
+                          },
                           "status": {
                             "type": "string",
                             "enum": [
@@ -19210,6 +19225,7 @@
                           "partialSessionId",
                           "workspaceId",
                           "workspaceName",
+                          "taskLabel",
                           "status"
                         ]
                       }

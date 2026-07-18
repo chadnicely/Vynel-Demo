@@ -163,6 +163,9 @@ export const ChatMessageSchema = z.object({
   // The inbound channel a USER row arrived through; null = the app composer.
   originChannel: z.enum(['voice', 'telegram', 'discord']).nullable(),
   partialSessionId: z.string().nullable(),
+  // Serve-time enrichment (root reads): the delegated task's short label for
+  // the Watch chip. Optional — ordinary rows and unenriched routes omit it.
+  delegationTaskLabel: z.string().nullable().optional(),
   thinkingBody: z.string().nullable(),
   inputTokens: z.number().nullable(),
   outputTokens: z.number().nullable(),
