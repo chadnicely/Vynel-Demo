@@ -7,6 +7,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Fixed
+
+- **The chat now updates in real time, wherever a conversation happens.** Message Claude from
+  Telegram and the reply appears in the open app as it's written — no reload. Open a second
+  window or tab and both stay live: whichever one starts a conversation, the other follows along.
+  Scheduled runs that write into a workspace thread now show up live too. While Claude is busy
+  answering somewhere else, the chat says so ("Replying on Telegram…") instead of silently
+  making you wait. Under the hood this is a new always-on activity feed from the Vynel engine to
+  the app — the first real server push — plus a fix for a glitch where a response could briefly
+  appear twice while streaming.
+
 ### Changed
 
 - **Every feature screen refreshed and consistent.** Channels, Schedules, Knowledge, Memory,

@@ -1,9 +1,50 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-17.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-17e): SSH MODULE BUILT (arc ④ — THE ARC IS COMPLETE) — gate GREEN 492f/2573t, security reviewer running; then commit + Chad's big smoke
+## ⏭ NEXT ACTION (2026-07-19): REALTIME CHAT FIXED (the session-activity feed) — gate GREEN 498f/2597t, reviewed (1 must-fix folded), committed; NEXT: Chad's live smoke (Telegram → open app, two tabs)
+
+**Chad's 3 symptoms, root-caused: ① Telegram replies never surfaced without reload (NO server→UI
+push existed anywhere — channel turns run `runGlobalRootTurn` invisibly; the 4s thread poll only
+armed while a DELEGATION was in flight) ② duplicated tab = stale + dead (same gap) ③ "response
+starts again" = ThreadStream rendered persisted rows + the live overlay with NO dedupe while rows
+persist per text-chunk (any mid-turn refetch doubled the reply). Also named: the per-user root-turn
+lock makes a web turn silently queue behind an invisible Telegram turn — now visible, not silent.**
+
+**THE FIX — one mechanism, `GET /activity/stream` (per-user SSE session-activity feed):**
+- **Contract** `contracts/chat/session-activity.ts` — turn-started/updated/ended, origin
+  web|voice|telegram|discord|schedule. **`TurnEventBroadcaster` genericized** (type-only).
+- **`SessionActivityFeed`** (`@vynel/session/runtime`) — stateful registry + fan-out; subscribe
+  REPLAYS the in-flight snapshot (a tab opened mid-turn learns immediately). One per process
+  (AppEnv `activityFeed`; server.ts shares it with channels + schedules services).
+- **ALL FOUR producers announce begin/sessionResolved/end:** streamChatTurn (workspace web),
+  streamGlobalRootTurn (global web/voice), runGlobalRootTurn (channel background; deps grew
+  REQUIRED activityFeed), buildScheduleFireDeps (wraps injected startChatTurn generator —
+  schedule fires announce too). ⚠ begin() sits IMMEDIATELY before each try/finally — the
+  reviewer's must-fix: anything throwable between begin and finally leaks a process-lifetime
+  zombie turn (feed replays it forever). Route `routes/activity/` + SDK regen (`activity` ns
+  pinned in namespaced.test).
+- **Web:** activity-store grew the server-turn map (presence dot now lights for background
+  turns); `composables/activity/` feed reader (heartbeat-skip decode over the extracted shared
+  `readSseFrames`) + `useSessionActivityFeed` (ONE subscription in AppShell; reconnect w/
+  backoff; resets map on drop; settle-invalidates sessionKeys.all at turn boundaries +
+  workspaces on end). GlobalChatView/WorkspaceView poll their thread 4s while a background turn
+  runs in-scope (NEVER during their own stream) + "Replying on Telegram…" banner chip.
+- **The dedupe fix:** ActiveTurnView grew `assistantMessageIds` (EVERY assistant message the
+  turn touched incl. tool parents); ThreadStream filters those + the turn's user message out of
+  persisted history while the overlay renders — kills the double-response glitch (incl. the
+  settle-refetch flash after every own turn).
+- **Sweeps:** root test harness gained askWaiters (pre-existing swallowed TypeError in every
+  streamed root test) + activityFeed. Deferred nits (recorded): backoff sleep not abortable
+  (≤15s lingering closure post-dispose, benign) · ms-scale "Working…" flash after own global
+  turn · delegation turns deliberately NOT on the feed (in-flight poll already covers them
+  symmetrically).
+**⏭ CHAD SMOKE: app open on global chat → message the Telegram bot → user msg + reply grow into
+the thread live (+ banner chip + presence dot) · duplicate the tab mid-answer → both live ·
+web turn while Telegram turn runs → banner explains the wait. Then the SSH big smoke below.**
+
+## (prev) NEXT ACTION (2026-07-17e): SSH MODULE BUILT (arc ④ — THE ARC IS COMPLETE) — gate GREEN 492f/2573t, security reviewer running; then commit + Chad's big smoke
 
 **④ SSH BUILT (docs/module-notes/ssh.md; Chad's forks: master key in the OS KEYRING; NO cards on
 run_ssh_command — like Apps, vision tension RECORDED with mitigations):**
