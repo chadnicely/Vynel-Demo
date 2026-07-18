@@ -52,3 +52,26 @@ subscribe, which is what makes a mid-turn duplicated tab work.
 Gate GREEN 498f/2597t (from 492/2573). Reviewer: 1 must-fix (folded), 2 should-fix tests (added),
 3 nits (1 folded, 2 recorded). Chad's live smoke pending: Telegram → open app, duplicated tab,
 web-turn-during-Telegram-turn banner.
+
+---
+
+# Round 2 (same day) — live-turn layout parity + dynamic task chips
+
+Chad confirmed the realtime fix, then reported two more: the live turn rendered as one flat
+block (all text, then all tool cards) that reformatted into per-message blocks after reload,
+and the delegation chips were canned ("Watch <persona>", "Working in <ws>…").
+
+- **The fold now mirrors persistence.** `ActiveTurnView.segments[]` — one entry per assistant
+  message, tool calls attached to their parent — is the whole model; the flat fields are gone
+  and the ThreadStream dedupe derives from segments. Lesson: when a live view and a settled
+  view render the same data differently, the fix is to make the LIVE MODEL isomorphic to the
+  persisted one, not to patch the renderer.
+- **Task labels have one home.** `deriveDelegationTaskLabel` (contracts) feeds both the
+  in-flight banner (orchestration DTO `taskLabel`) and the settled Watch chip
+  (`attachDelegationTaskLabels` in session/delegation — serve-time loose-ref join, jobs are
+  never pruned so history enriches too). The persona-first `sourceLabel` parse got its one
+  exported home (`workspaceNameFromLabel`) and the old inverted test fixture was flipped.
+
+Gate GREEN 500f/2605t. Reviewer CLEAN (0 must-fix; 2 should-fixes folded: the inverted
+fixture + a stale route description). Confirmed-intended nit: a tool-only live edge shows no
+text cursor — the "working" chip and the tool card's spinner carry liveness.

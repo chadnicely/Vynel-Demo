@@ -3,7 +3,31 @@
 **Updated 2026-07-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-19): REALTIME CHAT FIXED (the session-activity feed) — gate GREEN 498f/2597t, reviewed (1 must-fix folded), committed; NEXT: Chad's live smoke (Telegram → open app, two tabs)
+## ⏭ NEXT ACTION (2026-07-19b): LIVE-TURN LAYOUT PARITY + DYNAMIC TASK CHIPS — gate GREEN 500f/2605t, reviewed CLEAN (2 should-fixes folded), committed; Chad CONFIRMED the realtime fix live
+
+**Round 2 (same session, Chad's follow-ups): ① the live turn rendered ONE flat block (all text,
+then all tool cards) that silently reformatted into per-message blocks on reload ② the Watch
+chips said canned "Watch <persona>" / "Working in <ws>…" instead of naming the task.**
+- **① ActiveTurnView is now SEGMENTED by assistant message** (`segments[]`, arrival order; tool
+  calls attach by parentMessageId; flat text/toolCalls/assistantMessageIds fields REMOVED —
+  segments are the one truth, the ThreadStream dedupe derives from them). LiveTurn renders one
+  thinking→text→tools block per segment (the settled MessageRow shape — nothing reflows on
+  settle); cursor/shimmer only on the last segment. Only 6 files ever consumed the view (fold,
+  LiveTurn, ThreadStream, 2 pass-throughs, tests) — verified no dangling flat-field consumer.
+- **② `deriveDelegationTaskLabel`** (contracts, one home: first line, collapsed, ≤120) →
+  in-flight DTO grew `taskLabel` (orchestration + route schema + SDK) → banner chips say
+  "<workspace> · <task>" · **`attachDelegationTaskLabels`** (session/delegation — the
+  composition tier) enriches root.getSession report rows with `delegationTaskLabel` (optional
+  in ChatMessageSchema — unenriched routes stay type-safe) → Watch chip says
+  "<workspace> · <task>" (persona dropped — the author line already names it; fallbacks intact
+  for pruned jobs). `workspaceNameFromLabel` exported from workspace-color (one home for the
+  persona-first LAST-segment parse); the inverted "Marketing site · Mara" test fixture FLIPPED
+  (the old trap). Both chips ellipsize at 420px.
+**⏭ CHAD SMOKE: delegate a task from global chat → banner chip "<ws> · <task>" → Watch opens
+trace; after the report lands, its chip names the task too; ask a tool-using question → the
+live answer's tool cards sit INSIDE the reply exactly as after a reload.**
+
+## (prev) NEXT ACTION (2026-07-19): REALTIME CHAT FIXED (the session-activity feed) — gate GREEN 498f/2597t, reviewed (1 must-fix folded), committed; Chad's smoke CONFIRMED FIXED
 
 **Chad's 3 symptoms, root-caused: ① Telegram replies never surfaced without reload (NO server→UI
 push existed anywhere — channel turns run `runGlobalRootTurn` invisibly; the 4s thread poll only

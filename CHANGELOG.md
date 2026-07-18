@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Claude's replies keep their shape while streaming.** A response that uses tools now renders
+  live exactly as it will read afterwards — each part of the answer with its tool activity
+  attached in place — instead of one long text block with all the tool cards piled underneath
+  that silently reformatted after a reload.
+
+- **Task chips now say what the task is.** The "Watch…" chip on a hand-off reply and the
+  working banner above the chat both name the actual work — "vynel · Set up the login page" —
+  instead of a generic label, and still open the live view on click.
+
 - **The chat now updates in real time, wherever a conversation happens.** Message Claude from
   Telegram and the reply appears in the open app as it's written — no reload. Open a second
   window or tab and both stay live: whichever one starts a conversation, the other follows along.
