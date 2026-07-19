@@ -3,7 +3,19 @@
 **Updated 2026-07-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-19e): ORPHANED-APPROVAL WEDGE FIXED — gate GREEN 503f/2638t, committed; agent trace CONFIRMED WORKING by Chad
+## ⏭ NEXT ACTION (2026-07-19f): AGENT ACTIVITY IN THE WATCH PANEL — gate GREEN 503f/2639t, committed; Chad confirmed sync agents + trace live
+
+**Chad's follow-up: the Watch panel (global view) should show a spawned agent's activity like
+the chat thread does — his instinct matched the RECORDED old goal (ThreadStream: "chips return
+for spawned sub-agents, Phase 3"; orchestration docs' "future monitor reconstructs the tree").
+First slice shipped: the delegate's observer already forwarded agent-* events onto the trace
+channel — only the panel's fold dropped them. `fold-trace-stream` grew the same `agentActivity`
+fold the chat view has; `useDelegationTraceLive` exposes it; SessionViewerPanel passes it into
+its ToolCallList → the SAME AgentActivityPane nests under the Agent card in the panel, live.
+REMAINING Phase-3 vision (recorded, unbuilt): watch CHIPS for spawned agents in the global
+thread + the full monitor tree over agent.run-started/completed outbox events.**
+
+## (prev) NEXT ACTION (2026-07-19e): ORPHANED-APPROVAL WEDGE FIXED — gate GREEN 503f/2638t, committed; agent trace CONFIRMED WORKING by Chad
 
 **Chad's stuck-cards report (approve → POST /approvals/:id/decide 404, cards wedged, agents
 frozen): the pending approval ROWS survived a dev restart but the in-memory waiter registry

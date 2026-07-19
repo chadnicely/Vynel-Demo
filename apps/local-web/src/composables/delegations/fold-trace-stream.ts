@@ -8,6 +8,7 @@ import type {
   ChatTurnEvent,
   ChatToolCallResponse,
 } from "@vynel/contracts/chat/chat-http";
+import type { AgentActivityView } from "../chat/active-turn-view.js";
 
 /** The overlay's entry — the structural subset the panel renders (assignable
  *  from the trace read's wire entries too). */
@@ -24,10 +25,23 @@ export interface LiveTraceState {
   entries: LiveTraceEntry[];
   /** A carded tool waiting on the user's decision — the panel shows a pill. */
   pendingApprovalToolName: string | null;
+  /** A spawned subagent's live activity, keyed by its Agent tool call's
+   *  toolUseId — the panel nests it under that card, same as the chat thread
+   *  (the Phase-3 "watch spawned sub-agents" goal's first slice). */
+  agentActivity: Record<string, AgentActivityView>;
 }
 
 export function createLiveTraceState(): LiveTraceState {
-  return { entries: [], pendingApprovalToolName: null };
+  return { entries: [], pendingApprovalToolName: null, agentActivity: {} };
+}
+
+function patchAgentActivity(
+  activity: Record<string, AgentActivityView>,
+  parentToolUseId: string,
+  patch: (entry: AgentActivityView) => AgentActivityView,
+): Record<string, AgentActivityView> {
+  const current = activity[parentToolUseId] ?? { text: "", toolCalls: [] };
+  return { ...activity, [parentToolUseId]: patch(current) };
 }
 
 function upsertEntry(
@@ -95,6 +109,59 @@ export function applyTraceStreamEvent(
           (entry) => ({
             ...entry,
             toolCalls: upsertToolCall(entry.toolCalls, event.toolCall),
+          }),
+        ),
+      };
+    case "agent-text-chunk":
+      return {
+        ...state,
+        agentActivity: patchAgentActivity(
+          state.agentActivity,
+          event.parentToolUseId,
+          (entry) => ({ ...entry, text: entry.text + event.textDelta }),
+        ),
+      };
+    case "agent-tool-started":
+      return {
+        ...state,
+        agentActivity: patchAgentActivity(
+          state.agentActivity,
+          event.parentToolUseId,
+          (entry) => ({
+            ...entry,
+            toolCalls: [
+              ...entry.toolCalls,
+              {
+                toolUseId: event.toolUseId,
+                toolName: event.toolName,
+                toolInput: event.toolInput,
+                toolOutput: null,
+                status: "started",
+                startedAt: event.startedAt,
+                completedAt: null,
+              },
+            ],
+          }),
+        ),
+      };
+    case "agent-tool-completed":
+      return {
+        ...state,
+        agentActivity: patchAgentActivity(
+          state.agentActivity,
+          event.parentToolUseId,
+          (entry) => ({
+            ...entry,
+            toolCalls: entry.toolCalls.map((call) =>
+              call.toolUseId === event.toolUseId
+                ? {
+                    ...call,
+                    toolOutput: event.toolOutput,
+                    status: event.isError ? ("failed" as const) : ("completed" as const),
+                    completedAt: event.completedAt,
+                  }
+                : call,
+            ),
           }),
         ),
       };

@@ -80,3 +80,46 @@ describe("mergeTraceEntries", () => {
     ]);
   });
 });
+
+describe("applyTraceStreamEvent — spawned subagent activity", () => {
+  it("folds agent-* events into agentActivity keyed by the Agent call, never into entries", () => {
+    const state = fold([
+      {
+        kind: "agent-tool-started",
+        parentToolUseId: "tu_agent_1",
+        toolUseId: "tu_sub_read",
+        toolName: "Read",
+        toolInput: { file_path: "a.md" },
+        startedAt: "2026-07-19T10:00:00.000Z",
+      },
+      {
+        kind: "agent-text-chunk",
+        parentToolUseId: "tu_agent_1",
+        textDelta: "found it",
+      },
+      {
+        kind: "agent-tool-completed",
+        parentToolUseId: "tu_agent_1",
+        toolUseId: "tu_sub_read",
+        toolOutput: "file body",
+        isError: false,
+        completedAt: "2026-07-19T10:00:02.000Z",
+      },
+    ]);
+
+    expect(state.entries).toEqual([]); // the agent never minted a panel entry
+    const activity = state.agentActivity["tu_agent_1"]!;
+    expect(activity.text).toBe("found it");
+    expect(activity.toolCalls).toEqual([
+      {
+        toolUseId: "tu_sub_read",
+        toolName: "Read",
+        toolInput: { file_path: "a.md" },
+        toolOutput: "file body",
+        status: "completed",
+        startedAt: "2026-07-19T10:00:00.000Z",
+        completedAt: "2026-07-19T10:00:02.000Z",
+      },
+    ]);
+  });
+});

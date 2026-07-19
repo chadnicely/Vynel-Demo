@@ -122,6 +122,15 @@ export function useDelegationTraceLive(
   const pendingApprovalToolName = computed(
     () => streamState.value.pendingApprovalToolName,
   );
+  // Spawned subagents' live activity — the panel nests it under their Agent
+  // cards while the stream is attached (live-only, like the chat thread).
+  const agentActivity = computed(() => streamState.value.agentActivity);
 
-  return { traceQuery, entries, pendingApprovalToolName, isStreaming };
+  return {
+    traceQuery,
+    entries,
+    pendingApprovalToolName,
+    agentActivity,
+    isStreaming,
+  };
 }

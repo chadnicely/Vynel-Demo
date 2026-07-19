@@ -15,9 +15,8 @@ import { formatSdkError } from "../../utils/format-sdk-error.js";
 // when the stream drops).
 const viewer = useSessionViewerStore();
 
-const { traceQuery, entries, pendingApprovalToolName } = useDelegationTraceLive(
-  () => viewer.currentSessionId,
-);
+const { traceQuery, entries, pendingApprovalToolName, agentActivity } =
+  useDelegationTraceLive(() => viewer.currentSessionId);
 
 // The workspace reply and the surfaced global report carry the SAME body — the
 // backend trace is deliberately faithful (both copies returned); display
@@ -156,10 +155,14 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
                 :class="{ 'is-task': isTaskEntry(entry) }"
               >
                 <p class="entry-author">{{ authorLabel(entry) }}</p>
+                <!-- Spawned subagents nest their live activity under their
+                     Agent card here too — the same trace the chat thread
+                     shows (the Phase-3 watch-sub-agents goal, first slice). -->
                 <ToolCallList
                   v-if="entry.toolCalls.length > 0"
                   class="entry-tools"
                   :tool-calls="entry.toolCalls"
+                  :agent-activity="agentActivity"
                 />
                 <MarkdownText :source="entry.body" />
               </div>
