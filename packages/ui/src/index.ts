@@ -26,6 +26,7 @@ export type {
   AgentActivityLike,
   AgentActivityToolCallLike,
 } from "./components/AgentActivityPane.vue";
+export { deriveSettledAgentActivity } from "./tool-cards/subagent-activity.js";
 export { default as Tooltip } from "./components/Tooltip.vue";
 export { default as VoiceOrb } from "./components/VoiceOrb.vue";
 export {

@@ -2,12 +2,14 @@
 import { computed } from "vue";
 import MarkdownText from "./MarkdownText.vue";
 import PresenceDot from "./PresenceDot.vue";
-import { displayToolName } from "../tool-cards/tool-presenters.js";
+import { describeAgentActivityCall } from "../tool-cards/subagent-activity.js";
 
-// A running subagent's LIVE activity, nested under its Agent tool card — the
-// trace the delegation Watch panel gives a routed task, in place. Live-only:
-// after the turn settles, the Agent card's own toolOutput carries the final
-// report and this pane is gone.
+// A subagent's FULL activity — the Watch focused view's body (live from the
+// turn's stream while it runs; from the Agent call's persisted subagent
+// fields after settle). The thread never renders this pane: an in-thread
+// Agent card shows only ToolCallList's one-line live ticker (Chad's space
+// call — parallel agents must not flood the transcript), and Watch is the
+// way into the detail.
 
 export interface AgentActivityToolCallLike {
   toolUseId: string;
@@ -28,23 +30,6 @@ const props = defineProps<{
 const isWorking = computed(() =>
   props.activity.toolCalls.some((call) => call.status === "started"),
 );
-
-// "Read pricing.md" — the tool's display name plus its most telling string
-// argument, kept to one line per call.
-function describeCall(call: AgentActivityToolCallLike): string {
-  const verb = displayToolName(call.toolName);
-  const input = call.toolInput;
-  if (typeof input === "object" && input !== null) {
-    const fields = input as Record<string, unknown>;
-    const argument =
-      fields["file_path"] ?? fields["command"] ?? fields["pattern"] ?? fields["description"];
-    if (typeof argument === "string" && argument !== "") {
-      const short = argument.length > 80 ? `${argument.slice(0, 79)}…` : argument;
-      return `${verb} ${short}`;
-    }
-  }
-  return verb;
-}
 </script>
 
 <template>
@@ -62,7 +47,7 @@ function describeCall(call: AgentActivityToolCallLike): string {
       >
         <span class="call-status" :class="`is-${call.status}`" aria-hidden="true" />
         <span class="sr-only">{{ call.status }}:</span>
-        {{ describeCall(call) }}
+        <span class="call-text">{{ describeAgentActivityCall(call) }}</span>
       </li>
     </ul>
     <div v-if="props.activity.text" class="activity-text">
@@ -105,6 +90,11 @@ function describeCall(call: AgentActivityToolCallLike): string {
   gap: 7px;
   color: var(--ink-2);
   font: 500 12px/1.5 var(--font-mono);
+}
+
+/* Its own flex item so the ellipsis actually renders on overflow. */
+.call-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

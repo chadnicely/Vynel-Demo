@@ -1,5 +1,6 @@
-// The nested agent-activity pane + its ToolCallList integration: a card whose
-// toolUseId has live activity gets the pane; others don't.
+// The agent-activity pane (the Watch focused view's body) + ToolCallList's
+// in-thread integration: a RUNNING Agent card gets a one-line live ticker —
+// its latest action only; the full pane never renders in the thread.
 
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
@@ -46,27 +47,105 @@ describe("AgentActivityPane", () => {
   });
 });
 
-describe("ToolCallList agent nesting", () => {
-  it("nests the pane under the Agent card whose toolUseId has activity", () => {
+describe("ToolCallList agent ticker", () => {
+  it("a RUNNING Agent card shows a one-line ticker with its LATEST action only", () => {
     const wrapper = mount(ToolCallList, {
       props: {
         toolCalls: [agentCall],
         agentActivity: {
           tu_agent_1: {
-            text: "on it",
-            toolCalls: [],
+            text: "sweeping…",
+            toolCalls: [
+              {
+                toolUseId: "tu_sub_1",
+                toolName: "Read",
+                toolInput: { file_path: "docs/old.md" },
+                status: "completed" as const,
+              },
+              {
+                toolUseId: "tu_sub_2",
+                toolName: "Grep",
+                toolInput: { pattern: "pricing" },
+                status: "started" as const,
+              },
+            ],
           },
         },
       },
     });
-    expect(wrapper.find(".agent-activity").exists()).toBe(true);
-    expect(wrapper.text()).toContain("on it");
+    const ticker = wrapper.find(".agent-ticker");
+    expect(ticker.exists()).toBe(true);
+    expect(ticker.text()).toContain("Grep pricing");
+    expect(ticker.text()).not.toContain("docs/old.md");
+    // The full pane never renders in the thread — Watch is the way in.
+    expect(wrapper.find(".agent-activity").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("sweeping…");
   });
 
-  it("renders no pane without matching activity", () => {
+  it("shows a plain working note before the agent's first tool", () => {
     const wrapper = mount(ToolCallList, {
-      props: { toolCalls: [agentCall] },
+      props: {
+        toolCalls: [agentCall],
+        agentActivity: { tu_agent_1: { text: "on it", toolCalls: [] } },
+      },
     });
+    expect(wrapper.find(".agent-ticker").text()).toContain("Working…");
+  });
+
+  it("a RUNNING card with no live map falls back to its persisted latest action (mid-run reload)", () => {
+    const wrapper = mount(ToolCallList, {
+      props: {
+        toolCalls: [
+          {
+            ...agentCall,
+            subagentToolCalls: [
+              {
+                toolUseId: "tu_sub_1",
+                toolName: "Read",
+                toolInput: { file_path: "docs/pricing.md" },
+                status: "started",
+                startedAt: "2026-07-19T10:00:10.000Z",
+                completedAt: null,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(wrapper.find(".agent-ticker").text()).toContain("Read docs/pricing.md");
+  });
+
+  it("no ticker without any activity, and none once the card settles", () => {
+    expect(
+      mount(ToolCallList, { props: { toolCalls: [agentCall] } })
+        .find(".agent-ticker")
+        .exists(),
+    ).toBe(false);
+    const settledAgentCall: ChatToolCallResponse = {
+      ...agentCall,
+      status: "completed",
+      completedAt: "2026-07-19T10:01:00.000Z",
+      subagentNarrative: "swept the docs.",
+      subagentToolCalls: [
+        {
+          toolUseId: "tu_sub_read",
+          toolName: "Read",
+          toolInput: { file_path: "docs/pricing.md" },
+          status: "completed",
+          startedAt: "2026-07-19T10:00:10.000Z",
+          completedAt: "2026-07-19T10:00:12.000Z",
+        },
+      ],
+    };
+    // Even with a lingering live map entry AND persisted fields, a settled
+    // card shows nothing in-line — the recorded activity lives behind Watch.
+    const wrapper = mount(ToolCallList, {
+      props: {
+        toolCalls: [settledAgentCall],
+        agentActivity: { tu_agent_1: { text: "tail", toolCalls: [] } },
+      },
+    });
+    expect(wrapper.find(".agent-ticker").exists()).toBe(false);
     expect(wrapper.find(".agent-activity").exists()).toBe(false);
   });
 });

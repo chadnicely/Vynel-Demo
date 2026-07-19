@@ -122,8 +122,10 @@ export function useDelegationTraceLive(
   const pendingApprovalToolName = computed(
     () => streamState.value.pendingApprovalToolName,
   );
-  // Spawned subagents' live activity — the panel nests it under their Agent
-  // cards while the stream is attached (live-only, like the chat thread).
+  // Spawned subagents' LIVE activity — drives the trace list's one-line
+  // ticker + the focused view while the stream is attached. Settled runs
+  // render from the tool call's persisted subagent fields instead (the
+  // focused view's fallback).
   const agentActivity = computed(() => streamState.value.agentActivity);
 
   return {

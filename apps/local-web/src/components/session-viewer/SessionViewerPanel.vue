@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted } from "vue";
 import { ArrowLeft, Square, X } from "lucide-vue-next";
 import {
   AgentActivityPane,
+  deriveSettledAgentActivity,
   IconButton,
   MarkdownText,
   PresenceDot,
@@ -59,11 +60,16 @@ const focusedAgentCall = computed(() => {
   return null;
 });
 
-const focusedAgentActivity = computed(() =>
-  viewer.focusedAgentToolUseId !== null
-    ? (agentActivity.value[viewer.focusedAgentToolUseId] ?? null)
-    : null,
-);
+// The live fold's map wins while the stream is attached; a settled (or
+// reloaded) run derives from the Agent call's persisted subagent fields —
+// the focused view works after complete, like the task trace itself.
+const focusedAgentActivity = computed(() => {
+  if (viewer.focusedAgentToolUseId === null) return null;
+  const live = agentActivity.value[viewer.focusedAgentToolUseId];
+  if (live) return live;
+  const call = focusedAgentCall.value;
+  return call ? deriveSettledAgentActivity(call) : null;
+});
 
 function agentInputField(field: string): string | null {
   const input = focusedAgentCall.value?.toolInput;
@@ -252,9 +258,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
                 :class="{ 'is-task': isTaskEntry(entry) }"
               >
                 <p class="entry-author">{{ authorLabel(entry) }}</p>
-                <!-- Spawned subagents nest their live activity under their
-                     Agent card here too — the same trace the chat thread
-                     shows (the Phase-3 watch-sub-agents goal, first slice). -->
+                <!-- A running spawned agent shows its one-line live ticker
+                     under its card, same as the chat thread; the full
+                     activity is one drill-in away (the card's Watch chip →
+                     the focused view, live or settled). -->
                 <ToolCallList
                   v-if="entry.toolCalls.length > 0"
                   class="entry-tools"

@@ -4,14 +4,20 @@ import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import { groupConsecutiveToolCalls } from "../tool-cards/group-tool-calls.js";
 import { describeToolCallGroup } from "../tool-cards/tool-presenters.js";
 import ToolCallCard from "./ToolCallCard.vue";
-import AgentActivityPane from "./AgentActivityPane.vue";
 import type { AgentActivityLike } from "./AgentActivityPane.vue";
+import {
+  describeAgentActivityCall,
+  deriveSettledAgentActivity,
+} from "../tool-cards/subagent-activity.js";
 import PresenceDot from "./PresenceDot.vue";
 
 // Renders a message's tool activity: consecutive same-tool runs collapse
 // under one header ("Read 2 files"), single calls render as plain cards.
-// A spawning Agent card additionally nests its subagent's LIVE activity when
-// the host supplies it (keyed by the Agent call's toolUseId; live turns only).
+// A RUNNING Agent card shows a one-line live ticker — its latest action
+// only, from the host-supplied live map (keyed by the Agent call's
+// toolUseId). The full activity never renders in-line (parallel agents must
+// not flood the transcript): Watch is the way in, live and after complete
+// (the focused view reads the live map or the call's persisted fields).
 const props = defineProps<{
   toolCalls: ChatToolCallResponse[];
   agentActivity?: Record<string, AgentActivityLike> | undefined;
@@ -24,8 +30,19 @@ const emit = defineEmits<{
   watchAgent: [toolCall: ChatToolCallResponse];
 }>();
 
-function activityFor(toolCall: ChatToolCallResponse): AgentActivityLike | null {
-  return props.agentActivity?.[toolCall.toolUseId] ?? null;
+// The ticker line for a RUNNING Agent card: its latest live action ("Read
+// pricing.md"), or a plain working note before the first tool. A mid-run
+// reload has no live map yet — the persisted fields carry the latest action
+// until the next live event. Settled cards show nothing in-line — Watch
+// carries the recorded activity.
+function agentTickerFor(toolCall: ChatToolCallResponse): string | null {
+  if (toolCall.status !== "started") return null;
+  const activity: AgentActivityLike | null =
+    props.agentActivity?.[toolCall.toolUseId] ??
+    deriveSettledAgentActivity(toolCall);
+  if (!activity) return null;
+  const latestCall = activity.toolCalls.at(-1);
+  return latestCall ? describeAgentActivityCall(latestCall) : "Working…";
 }
 
 function isWatchableAgent(toolCall: ChatToolCallResponse): boolean {
@@ -66,10 +83,10 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
           :watchable="isWatchableAgent(group[0]!)"
           @watch="emit('watchAgent', group[0]!)"
         />
-        <AgentActivityPane
-          v-if="activityFor(group[0]!)"
-          :activity="activityFor(group[0]!)!"
-        />
+        <p v-if="agentTickerFor(group[0]!)" class="agent-ticker">
+          <PresenceDot state="live" />
+          <span class="ticker-text">{{ agentTickerFor(group[0]!) }}</span>
+        </p>
       </template>
 
       <div v-else class="tool-group">
@@ -113,10 +130,10 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
               :watchable="isWatchableAgent(toolCall)"
               @watch="emit('watchAgent', toolCall)"
             />
-            <AgentActivityPane
-              v-if="activityFor(toolCall)"
-              :activity="activityFor(toolCall)!"
-            />
+            <p v-if="agentTickerFor(toolCall)" class="agent-ticker">
+              <PresenceDot state="live" />
+              <span class="ticker-text">{{ agentTickerFor(toolCall) }}</span>
+            </p>
           </template>
         </div>
       </div>
@@ -181,5 +198,26 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
   gap: 6px;
   padding-left: 14px;
   border-left: 1px solid var(--hair);
+}
+
+/* A running agent's one-line live ticker — its latest action, nothing more.
+   Full detail lives behind the card's Watch chip. */
+.agent-ticker {
+  margin: 0 0 0 10px;
+  padding: 2px 10px 2px 12px;
+  border-left: 2px solid var(--hair-strong);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-2);
+  font: 500 12px/1.5 var(--font-mono);
+}
+
+/* Its own flex item so the ellipsis actually renders on overflow. */
+.ticker-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
