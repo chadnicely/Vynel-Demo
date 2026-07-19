@@ -37,7 +37,17 @@ export type FakeAiAgentProviderOptions = {
    * path is exercised end-to-end.
    */
   approvalToolName?: string
+  /** The distilled reply `summarizeReport` returns (unset/null = not supported
+   *  — the tick falls open to the full report). */
+  reportReply?: string | null
+  /** Captures every `summarizeReport` input the test makes assertions on. */
+  summarizeReportInputs?: SummarizeReportCall[]
 }
+
+/** The distill's input, derived from the abstract method so it can never
+ *  drift (`SummarizeReportInput` itself is barrel-omitted, like its
+ *  summarize-session sibling). */
+export type SummarizeReportCall = Parameters<AiAgentProvider['summarizeReport']>[0]
 
 export class FakeAiAgentProvider extends AiAgentProvider {
   readonly providerId: AiAgentProviderId = 'claude'
@@ -105,6 +115,11 @@ export class FakeAiAgentProvider extends AiAgentProvider {
   // the configured carry back (the real distill is a live SDK read).
   override summarizeSession(): Promise<string | null> {
     return Promise.resolve(this.options.summary ?? null)
+  }
+
+  override summarizeReport(input: SummarizeReportCall): Promise<string | null> {
+    this.options.summarizeReportInputs?.push(input)
+    return Promise.resolve(this.options.reportReply ?? null)
   }
 
   getAuthenticationStatus(): never {

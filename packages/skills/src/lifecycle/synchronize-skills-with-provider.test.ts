@@ -76,6 +76,7 @@ function makeFakeProvider(
     synchronizePersistedSessions: async () => [],
     getContextReport: async () => null,
     summarizeSession: async () => null,
+    summarizeReport: async () => null,
   } as AiAgentProvider
 }
 

@@ -68,6 +68,7 @@ function makeFakeProvider(receivedDiscoverInputs: DiscoverSkillsInput[] = []): A
     synchronizePersistedSessions: async () => [],
     getContextReport: async () => null,
     summarizeSession: async () => null,
+    summarizeReport: async () => null,
   } as AiAgentProvider
 }
 

@@ -24,7 +24,10 @@ import {
   linkPrimarySessionToSdkSession,
 } from '../continuity/index.js'
 import { buildNewChatSessionRow } from '@vynel/chat'
-import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
+import {
+  FakeAiAgentProvider,
+  type SummarizeReportCall,
+} from '../runtime/test-support/fake-ai-agent-provider.js'
 import { resolveDelegationTrace } from './resolve-delegation-trace.js'
 import { DelegationCancelRegistry } from './delegation-cancel-registry.js'
 import { runDelegationClaimAndRunTick } from './run-delegation-claim-and-run-tick.js'
@@ -431,6 +434,171 @@ describe('runDelegationClaimAndRunTick', () => {
         messageBody: 'Acme has 3 docs.',
         payloadKind: 'chat-stream-final',
       })
+    })
+  })
+
+  it('distills a LONG report into the user reply — summary lands in global, the FULL report stays on the job + trace', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+
+      const longReport = 'Finding: every doc is current and cross-linked. '.repeat(20)
+      // The routed drain trims the streamed reply — what the tick (and the
+      // distill) sees is the trimmed text; the persisted chunk keeps its raw form.
+      const drainedReport = longReport.trim()
+      const jobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'audit the docs',
+      })
+
+      const distillCalls: SummarizeReportCall[] = []
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: 'ws-root-distill',
+        resultText: longReport,
+        reportReply: 'Done — all docs are current and cross-linked.',
+        summarizeReportInputs: distillCalls,
+      })
+      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+
+      // The distill saw the full report + the task, targeting the chat surface.
+      expect(distillCalls).toHaveLength(1)
+      expect(distillCalls[0]).toMatchObject({
+        taskText: 'audit the docs',
+        reportText: drainedReport,
+        workspaceName: 'Acme',
+        deliveryTarget: 'chat',
+      })
+
+      // Global got the SHORT reply; the job row keeps the FULL report (the trace truth).
+      expect(listChatMessagesForSession(db, globalSessionId).map((m) => m.body)).toEqual([
+        'Done — all docs are current and cross-linked.',
+      ])
+      expect(findDelegationJobById(db, jobId)?.resultText).toBe(drainedReport)
+      // The workspace transcript keeps the full reply too — the Watch drill-down's body.
+      expect(
+        listChatMessagesForSession(db, 'ws-root-distill').map((m) => m.body),
+      ).toEqual(['audit the docs', longReport])
+    })
+  })
+
+  it('falls open to the FULL report when the provider cannot distill', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+
+      const longReport = 'Line of detailed findings the user still needs. '.repeat(20)
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'audit the docs',
+      })
+
+      // No reportReply configured → summarizeReport returns null (unsupported).
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: 'ws-root-noreply',
+        resultText: longReport,
+      })
+      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+
+      expect(listChatMessagesForSession(db, globalSessionId).map((m) => m.body)).toEqual([
+        longReport.trim(),
+      ])
+    })
+  })
+
+  it('a SHORT report skips the distill call and delivers as-is', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'quick check',
+      })
+
+      const distillCalls: SummarizeReportCall[] = []
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: 'ws-root-short',
+        resultText: 'All good.',
+        reportReply: 'should never be used',
+        summarizeReportInputs: distillCalls,
+      })
+      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+
+      expect(distillCalls).toHaveLength(0)
+      expect(listChatMessagesForSession(db, globalSessionId).map((m) => m.body)).toEqual([
+        'All good.',
+      ])
+    })
+  })
+
+  it('a channel-driven delegation distills FOR THE CHANNEL and delivers the reply there', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const now = new Date()
+      const channel = insertChannel(db, {
+        id: randomUUID(),
+        userId: user.id,
+        workspaceId: workspace.id,
+        channelKind: 'telegram',
+        displayName: 'Bot',
+        botCredentials: JSON.stringify({ botToken: 't' }),
+        botMetadata: '{}',
+        connectionStatus: 'healthy',
+        connectionStatusMessage: null,
+        lastPolledCursor: null,
+        lastPolledAt: null,
+        lastInboundAt: null,
+        isEnabled: true,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const longReport = 'Detailed working notes the channel user should not wade through. '.repeat(20)
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'summarize the docs',
+        origin: { channelId: channel.id, externalSenderId: 'tg-42', externalChatContextId: 'chat-7' },
+      })
+
+      const distillCalls: SummarizeReportCall[] = []
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: 'ws-root-ch-distill',
+        resultText: longReport,
+        reportReply: 'Docs summarized: 3 files, all current. ✅',
+        summarizeReportInputs: distillCalls,
+      })
+      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+
+      // The distill targeted the ORIGIN channel's kind, and BOTH surfaces got the
+      // same short reply — the channel message and the global row.
+      expect(distillCalls[0]?.deliveryTarget).toBe('telegram')
+      const queued = listOutboundMessagesForChannel(db, channel.id)
+      expect(queued).toHaveLength(1)
+      expect(queued[0]?.messageBody).toBe('Docs summarized: 3 files, all current. ✅')
+      expect(listChatMessagesForSession(db, globalSessionId).map((m) => m.body)).toEqual([
+        'Docs summarized: 3 files, all current. ✅',
+      ])
     })
   })
 

@@ -44,6 +44,8 @@ describe('runClaudeSessionSummary', () => {
     expect(queryArg?.options?.resume).toBe('sess-7')
     expect(queryArg?.options?.persistSession).toBe(false)
     expect(queryArg?.options?.maxTurns).toBe(1)
+    // TRULY toolless — a summary turn under bypass must not reach tools.
+    expect(queryArg?.options?.tools).toEqual([])
   })
 
   it('returns null when the summary is empty', async () => {

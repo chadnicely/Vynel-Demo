@@ -37,6 +37,10 @@ export async function runClaudeSessionSummary(
     ...(input.model !== undefined ? { model: input.model } : {}),
   })
   options.maxTurns = 1
+  // TRULY no tools (`allowedTools: []` would mean "no restriction") — a
+  // summary is a read-and-distill of the transcript; tool access under bypass
+  // is pure risk. Same-pattern sweep from the report distill.
+  options.tools = []
   // Ephemeral — the summary turn must NOT append to the session's JSONL (the
   // same read-only discipline as the /context probe).
   options.persistSession = false

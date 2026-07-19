@@ -47,6 +47,10 @@ import type { DelegationCancelRegistry } from './delegation-cancel-registry.js'
 // nobody waits on gets a longer leash, so a timeout means genuinely-stuck work.
 const DELEGATION_RUN_BUDGET_MS = 600_000
 
+// A report at or under this length is already user-sized — deliver it as-is and skip
+// the distill call (no wasted tokens on "Done, the file is fixed."-class reports).
+const REPORT_DISTILL_MIN_LENGTH = 700
+
 export interface RunDelegationTickDeps {
   provider: AiAgentProvider
   logger: Logger
@@ -194,6 +198,43 @@ export async function runDelegationClaimAndRunTick(
         'delegation: stopped by the user at terminal time (report suppressed)',
       )
     } else if (outcome.status === 'completed') {
+      // Resolved FRESH at completion (not the claim-time resolve) — the channel may have
+      // changed mid-run. Shared by the distill target below and the delivery further down.
+      const reportOrigin =
+        claimed.originChannelId !== null ? resolveDeliverableOrigin(db, claimed) : null
+
+      // The workspace reported to global — global composes what the user reads: a short
+      // reply in the manager's voice, formatted for where it lands (the global thread, or
+      // the originating channel). The FULL report stays on the job row + the workspace
+      // trace, one Watch-click away. Fail-open: a failed/unsupported distill (or an
+      // already-short report) delivers the full report — the user never loses the answer.
+      let userReply = outcome.result
+      if (outcome.result.length > REPORT_DISTILL_MIN_LENGTH) {
+        // The contract says never-throw, but fail-open must not depend on a
+        // provider honoring it — a distill throw would otherwise fail a
+        // COMPLETED job through the outer catch, losing the user's answer.
+        const distilled = await deps.provider
+          .summarizeReport({
+            workspacePath: claimed.workspacePath,
+            taskText: claimed.taskText,
+            reportText: outcome.result,
+            workspaceName,
+            deliveryTarget: reportOrigin?.channel.channelKind ?? 'chat',
+            logger: deps.logger,
+          })
+          .catch((err: unknown) => {
+            deps.logger.warn({ err, jobId: claimed.id }, 'delegation report distill threw')
+            return null
+          })
+        if (distilled !== null && distilled.length > 0) userReply = distilled
+        else {
+          deps.logger.warn(
+            { jobId: claimed.id },
+            'delegation report distill unavailable — delivering the full report',
+          )
+        }
+      }
+
       // Swap-safe: re-resolve the CURRENT global root at push time (it may have swapped
       // between enqueue and now) — NOT the job's enqueue-time parentSessionId.
       const globalSessionId = findPrimaryConversation(db, {
@@ -202,7 +243,7 @@ export async function runDelegationClaimAndRunTick(
       if (globalSessionId) {
         const pushed = recordPushedReportMessage(db, {
           globalRootSessionId: globalSessionId,
-          body: outcome.result,
+          body: userReply,
           workspaceName,
           ...(managerName !== undefined ? { managerName } : {}),
           ...(partialSessionId !== undefined ? { partialSessionId } : {}),
@@ -221,14 +262,12 @@ export async function runDelegationClaimAndRunTick(
       }
       completeDelegationJob(db, claimed.id, outcome.result, new Date())
 
-      // Ch4 (channel-aware OUTPUT): if a CHANNEL drove this delegation, also deliver the report
+      // Ch4 (channel-aware OUTPUT): if a CHANNEL drove this delegation, also deliver the reply
       // back to that channel — closing the loop (channel → root → delegate → report → channel).
       // Best-effort: the job already completed + the transcript push ran, so a delivery failure
-      // (channel gone/disabled, or an insert error) is logged, never re-fails the job. Resolved
-      // FRESH here (not the claim-time resolve) — the channel may have changed mid-run.
+      // (channel gone/disabled, or an insert error) is logged, never re-fails the job.
       if (claimed.originChannelId !== null) {
         try {
-          const reportOrigin = resolveDeliverableOrigin(db, claimed)
           if (reportOrigin !== null) {
             enqueueChannelReply(db, {
               channel: reportOrigin.channel,
@@ -236,7 +275,7 @@ export async function runDelegationClaimAndRunTick(
                 externalSenderId: reportOrigin.externalRecipientId,
                 externalChatContextId: reportOrigin.externalChatContextId,
               },
-              body: outcome.result,
+              body: userReply,
             })
           } else {
             deps.logger.warn(
@@ -253,8 +292,8 @@ export async function runDelegationClaimAndRunTick(
       }
 
       deps.logger.info(
-        { jobId: claimed.id, resultPreview: outcome.result.slice(0, 120) },
-        'delegation: completed — report pushed to the global root',
+        { jobId: claimed.id, resultPreview: userReply.slice(0, 120) },
+        'delegation: completed — reply pushed to the global root',
       )
     } else if (outcome.status === 'timed-out') {
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())

@@ -10,6 +10,7 @@ import type { McpServerConfig, ListMcpServersInput } from './mcp-server-config.j
 import type { StartChatSessionInput } from './start-chat-session-input.js'
 import type { GetContextReportInput } from './get-context-report-input.js'
 import type { SummarizeSessionInput } from './summarize-session-input.js'
+import type { SummarizeReportInput } from './summarize-report-input.js'
 import type { NormalizedSessionEvent } from './normalized-session-event.js'
 import type { ApprovalDecision } from './approval-decision.js'
 import type { ChatSessionTranscript, FetchTranscriptInput } from './chat-session-transcript.js'
@@ -98,6 +99,19 @@ export abstract class AiAgentProvider {
    * the same shape as `getContextReport`.
    */
   summarizeSession(_input: SummarizeSessionInput): Promise<string | null> {
+    return Promise.resolve(null)
+  }
+
+  /**
+   * Distills a workspace manager's full delegation report into the short
+   * reply shown to the user — the global chat's summary row, or a
+   * channel-formatted message when the task came from a channel (the full
+   * report stays on the delegation trace). Returns `null` if this provider
+   * can't distill — the caller falls open to the full report. A best-effort
+   * call; never throws. Default: not supported, same shape as
+   * `summarizeSession`.
+   */
+  summarizeReport(_input: SummarizeReportInput): Promise<string | null> {
     return Promise.resolve(null)
   }
 }

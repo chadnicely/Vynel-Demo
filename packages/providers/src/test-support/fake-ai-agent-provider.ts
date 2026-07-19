@@ -30,6 +30,7 @@ export function makeFakeAiAgentProvider(overrides: Partial<AiAgentProvider> = {}
     synchronizePersistedSessions: async () => [],
     getContextReport: async () => null,
     summarizeSession: async () => null,
+    summarizeReport: async () => null,
     ...overrides,
   } as AiAgentProvider
 }

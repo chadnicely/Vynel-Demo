@@ -24,6 +24,7 @@ import type { PersistedSessionRecord } from '../shared/persisted-session-record.
 import type { StartChatSessionInput } from '../shared/start-chat-session-input.js'
 import type { GetContextReportInput } from '../shared/get-context-report-input.js'
 import type { SummarizeSessionInput } from '../shared/summarize-session-input.js'
+import type { SummarizeReportInput } from '../shared/summarize-report-input.js'
 import { discoverClaudeInstalledSkills } from './installation/discover-claude-installed-skills.js'
 import { fetchClaudePersistedSessionTranscript } from './history/fetch-claude-persisted-session-transcript.js'
 import { listClaudeConfiguredMcpServers } from './installation/list-claude-configured-mcp-servers.js'
@@ -31,6 +32,7 @@ import { readClaudeAuthenticationStatus } from './installation/read-claude-authe
 import { runClaudeChatSession } from './session/run-claude-chat-session.js'
 import { runClaudeContextReport } from './session/run-claude-context-report.js'
 import { runClaudeSessionSummary } from './session/run-claude-session-summary.js'
+import { runClaudeReportSummary } from './session/run-claude-report-summary.js'
 import { synchronizeClaudePersistedSessions } from './history/synchronize-claude-persisted-sessions.js'
 
 export class ClaudeAiAgentProvider extends AiAgentProvider {
@@ -87,5 +89,9 @@ export class ClaudeAiAgentProvider extends AiAgentProvider {
 
   override async summarizeSession(input: SummarizeSessionInput): Promise<string | null> {
     return runClaudeSessionSummary(input)
+  }
+
+  override async summarizeReport(input: SummarizeReportInput): Promise<string | null> {
+    return runClaudeReportSummary(input)
   }
 }
