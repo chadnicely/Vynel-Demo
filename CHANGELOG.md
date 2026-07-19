@@ -41,6 +41,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Approval cards can no longer get stuck.** If the app restarts while approvals are waiting
+  (very common in development), the old cards used to linger un-clickable — approving them
+  failed with an error and the agent view froze. Now deciding such an orphaned card always
+  clears it, and every restart sweeps leftover pending approvals immediately instead of
+  letting ghosts sit for many minutes.
+
 - **Your chosen mode and model stick.** The composer's session mode (Ask / Auto / Bypass) and
   model silently reset to defaults on every reload — they now persist, which is why "bypass"
   sometimes seemed not to work after a restart.

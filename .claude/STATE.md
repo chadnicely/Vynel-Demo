@@ -3,7 +3,27 @@
 **Updated 2026-07-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-19d): AGENT-ACTIVITY TRACE — gate GREEN 503f/2636t, reviewed APPROVE (2 hardening should-fixes folded); NEXT: Chad's smoke (spawn an agent, watch it nested)
+## ⏭ NEXT ACTION (2026-07-19e): ORPHANED-APPROVAL WEDGE FIXED — gate GREEN 503f/2638t, committed; agent trace CONFIRMED WORKING by Chad
+
+**Chad's stuck-cards report (approve → POST /approvals/:id/decide 404, cards wedged, agents
+frozen): the pending approval ROWS survived a dev restart but the in-memory waiter registry
+died with the process — `resolveApproval` let the provider's NotFound bubble as a 404 and left
+the row pending FOREVER. The reaper already knew this lesson (its comment: post-restart id →
+"proceed to the row update") — the interactive decide path never learned it. Classic
+same-pattern sweep miss. Two fixes:**
+- **`resolveApproval` is orphan-tolerant:** provider NotFound → warn + resolve the ROW anyway
+  (nothing is parked — the park IS the waiter). Deciding a ghost card now clears it. +test.
+- **Boot reap:** `recoverStalePendingApprovals` grew `reapAllPending` (at boot EVERY pending
+  row is an orphan — the staleness window protects live parks, none exist at boot); server.ts
+  calls it beside the ask boot-expiry. No more ghost cards for timeoutMs×2 after every
+  `node --watch` restart. +test.
+**Also this session: Chad CONFIRMED the agent-activity trace working live (3 parallel Explore
+agents, nested activity, ask-mode subagent Bash carding). The earlier "Operation aborted"
+screenshot = his own Stop mid-fanout (by design).**
+**⏭ CHAD: restart mid-turn once → old cards vanish on boot; approve any lingering card → it
+clears. Then the full smoke list from 19c/19d still stands.**
+
+## (prev) NEXT ACTION (2026-07-19d): AGENT-ACTIVITY TRACE — gate GREEN 503f/2636t, reviewed APPROVE (2 hardening should-fixes folded); NEXT: Chad's smoke (spawn an agent, watch it nested)
 
 **Chad's report: a workspace-spawned agent showed only "Agent · 15ms" while its tool calls
 flooded the main thread unmarked and its text was invisible. Three root causes, one slice:**

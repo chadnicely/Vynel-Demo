@@ -98,6 +98,31 @@ describe('recoverStalePendingApprovals', () => {
     })
   })
 
+  it('reapAllPending (boot recovery): reaps EVERY pending row regardless of age', async () => {
+    // At boot the waiter registry is empty by definition — a fresh pending row
+    // is just as orphaned as a stale one; leaving it would show a ghost card
+    // (undecidable park) for up to timeoutMs × 2 after every dev restart.
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const now = new Date('2026-05-24T12:00:00Z')
+      const fresh = insertApprovalRequest(
+        db,
+        makeRow(user.id, workspace.id, new Date('2026-05-24T11:59:30Z')), // 30s old
+      )
+
+      const result = await recoverStalePendingApprovals(db, {
+        now: () => now,
+        reapAllPending: true,
+      })
+
+      expect(result.resolvedCount).toBe(1)
+      expect(findApprovalRequestById(db, fresh.id)?.status).toBe('resolved')
+      expect(findApprovalRequestById(db, fresh.id)?.resolutionKind).toBe('timed-out')
+    })
+  })
+
   it('respects per-row timeoutMs (channels may use longer windows)', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

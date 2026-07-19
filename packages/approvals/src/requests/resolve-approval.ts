@@ -5,11 +5,14 @@
 // when the request is already resolved.
 //
 // Ordering invariant: provider call BEFORE row update.
-// If the provider call fails (session interrupted, request id unknown),
-// the row stays pending; the `recoverStalePendingApprovals` worker
-// eventually resolves it as timed-out. The inverse failure mode (row
-// updated but provider unblock failed) would leave the agent waiting
-// forever — strictly worse.
+// If the provider call fails, the row stays pending; the
+// `recoverStalePendingApprovals` worker eventually resolves it as
+// timed-out. The inverse failure mode (row updated but provider unblock
+// failed) would leave the agent waiting forever — strictly worse.
+// EXCEPTION: an unknown request id (provider NotFound) means the waiter
+// is GONE — an orphaned row from a restart or a dead turn. There is
+// nothing to unblock, so the row resolves anyway (the reaper's policy);
+// without this, deciding an orphaned card 404s forever.
 
 import { randomUUID } from 'node:crypto'
 import { resolveAiAgentProvider } from '@vynel/providers'
@@ -62,7 +65,22 @@ export async function resolveApproval(
   //    If this throws, the row stays pending; recovery worker reaps it.
   const provider = resolveAiAgentProvider(input.providerId)
   const providerPayload = buildProviderPayload(input.decision)
-  await provider.respondToApprovalRequest(input.providerApprovalId, providerPayload)
+  try {
+    await provider.respondToApprovalRequest(input.providerApprovalId, providerPayload)
+  } catch (err) {
+    if (!(err instanceof NotFoundError)) throw err
+    // No parked waiter for this id — the row is an ORPHAN: its process
+    // restarted or its turn already died, so there is nothing to unblock and
+    // never will be. Before this catch, deciding such a card 404'd forever
+    // (the row stayed pending, the card stayed on screen — the user's click
+    // did nothing). Honor the decision by resolving the ROW — the exact
+    // policy `recoverStalePendingApprovals` already applies to these rows;
+    // the interactive path just never learned it.
+    deps.logger?.warn(
+      { providerApprovalId: input.providerApprovalId },
+      'resolveApproval: no parked provider approval (orphaned row) — resolving the row anyway',
+    )
+  }
 
   // 2. Update row + (optionally) save the rule + emit outbox event (sync tx).
   const resolvedAt = new Date()

@@ -44,22 +44,29 @@ export async function recoverStalePendingApprovals(
      *  (`provider.respondToApprovalRequest(id, denied)`). Throws NotFoundError for a
      *  post-restart id the registry no longer knows — caught + logged here. */
     unblockProvider?: (providerApprovalId: string) => Promise<void>
+    /** BOOT recovery: the waiter registry died with the previous process, so
+     *  EVERY pending row is an orphan — reap regardless of age (the staleness
+     *  window exists to protect live parked turns; at boot there are none).
+     *  Without this, a dev-restart mid-turn leaves ghost cards for up to
+     *  `timeoutMs * 2`. */
+    reapAllPending?: boolean
   } = {},
 ): Promise<RecoverStalePendingApprovalsResult> {
   const now = (deps.now ?? (() => new Date()))()
+  const reapAllPending = deps.reapAllPending ?? false
 
   // Fetch any pending row older than the safety lookback. Per-row check
   // uses `requestedAt + timeoutMs * 2` since timeoutMs may differ per
   // row (channels may use longer windows).
   const candidates = approvalRequestsRepository.listStalePendingApprovalRequests(db, {
-    staleBefore: new Date(now.getTime() - SAFETY_LOOKBACK_MS),
+    staleBefore: reapAllPending ? now : new Date(now.getTime() - SAFETY_LOOKBACK_MS),
     limit: 500,
   })
 
   let resolvedCount = 0
   for (const row of candidates) {
     const staleAt = new Date(row.requestedAt.getTime() + row.timeoutMs * 2)
-    if (staleAt >= now) continue
+    if (!reapAllPending && staleAt >= now) continue
 
     // Unblock a same-process parked agent BEFORE the row update (the resolveApproval
     // ordering invariant: provider first — the inverse failure mode leaves the agent

@@ -256,6 +256,31 @@ describe('resolveApproval', () => {
     })
   })
 
+  it('provider NotFound (orphaned row — restart/dead turn): the row still resolves', async () => {
+    // The waiter registry died with its process, but the pending row and its
+    // card survived. Deciding it must clear the card (the reaper's own
+    // orphan policy) — before this, the decide 404'd forever.
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      insertApprovalRequest(db, makePendingRow(user.id, workspace.id, 'prov-orphan'))
+      respondToApprovalRequestSpy.mockRejectedValueOnce(
+        new NotFoundError('approval_request', 'prov-orphan'),
+      )
+
+      const updated = await resolveApproval(db, {
+        providerApprovalId: 'prov-orphan',
+        userId: user.id,
+        providerId: 'claude',
+        decision: { kind: 'approved' },
+      })
+
+      expect(updated.status).toBe('resolved')
+      expect(updated.resolutionKind).toBe('approved')
+      expect(listOutboxEventsByType(db, 'approval.user-resolved')).toHaveLength(1)
+    })
+  })
+
   it('provider throw: row stays pending (provider-call-before-row-update invariant)', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

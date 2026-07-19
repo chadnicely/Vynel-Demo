@@ -14,6 +14,7 @@ import { createDatabase, closeDatabase, runMigrations, sqliteMigrationsFolder } 
 import { getOrCreateLocalUser } from '@vynel/core/users'
 import { configureEmbeddingsCacheDir } from '@vynel/embeddings'
 import { expireAskRequests } from '@vynel/asks'
+import { recoverStalePendingApprovals } from '@vynel/approvals'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
 import { FileWatcherService } from '@vynel/knowledge'
 import { resolveMasterKey } from '@vynel/ssh-servers'
@@ -165,6 +166,14 @@ export async function boot(): Promise<void> {
   // process, so every still-pending ask row is unanswerable — expire them once
   // at boot so the UI never shows a zombie wizard (docs/module-notes/ask.md).
   expireAskRequests(db, {}, { logger })
+  // Boot recovery for APPROVALS, same reasoning: the pending-approval waiter
+  // registry died with the previous process, so every pending row is an orphan
+  // — reap them all now (no unblockProvider: there is nothing parked to
+  // unblock). Without this, a restart mid-turn leaves ghost cards for up to
+  // timeoutMs × 2 (the running reaper's live-turn safety window).
+  recoverStalePendingApprovals(db, { logger, reapAllPending: true }).catch((err) =>
+    logger.error({ err }, 'boot approval reap failed'),
+  )
   // The outbox relay — dispatches published cross-domain events to their
   // registered consumers (schedules→channel delivery, the ask nudge).
   const outboxRelayService = startOutboxRelayService({ db, logger })
