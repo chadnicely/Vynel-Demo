@@ -3,7 +3,21 @@
 **Updated 2026-07-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-19j): CARD LEGIBILITY POLISH — gate GREEN 505f/2671t, reviewed (1 must-fix + 1 should-fix FOLDED); NEXT: Chad's smoke → commit THE DAY
+## ⏭ NEXT ACTION (2026-07-19k): DISTILL WALLS GET ONE HOME — gate GREEN 506f/2675t, reviewed CLEAN; NEXT: commit (Chad picked this hardening; reviewer-checklist teaching = option 3, deferred by Chad "later")
+
+**Closing the CLASS behind the 19i reviewer catch (empty allow-list ≠ no tools). NEW
+`run-claude-distill-turn.ts` = THE home for ephemeral text-distills; its walls are NOT
+caller-configurable: maxTurns 1 · `options.tools = []` (the SDK kill-switch — the header
+documents the footgun + the 2026-07-19 catch) · persistSession false · bypass (safe: no tools
+exist to permit) · null-on-failure w/ caller failureLogMessage. Both summaries are now thin
+prompts over it (prompts byte-identical — reviewer diffed vs HEAD). `SummarizeSessionInput`
+DELIBERATELY LOST permissionMode/allowedToolNames/deniedToolNames (walls are the provider's
+job, not a caller choice); sole caller (bridge-primary-session-after-turn) updated.
+`runClaudeContextReport` deliberately NOT a caller (documented in the home's header): /context
+is a local command (no model call = no injection surface) whose report must reflect the
+session's FAITHFUL tool/MCP shape — tools:[] would falsify the measurement. Walls test pins
+bypassPermissions/tools/persistSession/maxTurns once; caller tests keep their wall pins as
+route-through regression defense. The 19c-era commits through 19j are PUSHED (`2bcaa24..515d3d8`).**
 
 **Review folded: ① MUST-FIX — an empty-string `command` was promoted OUT of the JSON pane but
 rendered NO terminal line (falsy v-if): the trust card would approve a Bash call with its empty

@@ -17,6 +17,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   (The agent's raw tool outputs deliberately stay out of the record — the card's final report
   carries the result.)
 
+- **Background summarization is structurally sandboxed.** Every quick internal summarization
+  call (the task-reply distiller, the session hand-off summary) now runs through one shared
+  dispatcher that is physically incapable of using tools, writing session history, or running
+  more than a single turn — the safety walls are built into the mechanism instead of being
+  options each call site must remember.
+
 - **Tool cards and approval cards got readable.** A tool card's Input/Result panes now show
   pretty, syntax-colored JSON — and a tool that answers with a serialized object is unwrapped
   to the object itself, not a wall of escaped quotes. Approval cards lead with the assistant's

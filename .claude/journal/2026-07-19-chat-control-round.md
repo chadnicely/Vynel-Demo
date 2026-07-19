@@ -134,3 +134,17 @@ and 19h's persistence means the Watch drill-down shows the whole run.
 Learning: the 19h slice was load-bearing for this one — compressing the surface reply is only
 safe because the full detail has a durable, reachable home. Order of operations matters:
 persist the truth first, then you may shorten every surface that repeats it.
+
+## 19k — the distill walls get one home
+
+Chad picked the class-closure: `runClaudeDistillTurn` is now THE home for ephemeral
+text-distills, and its walls (single turn, options.tools = [], no session write,
+null-on-failure) are not inputs — they're the function. Both summaries became thin prompts
+over it; SummarizeSessionInput lost its permission/tool fields entirely (a distill's safety
+posture is the provider's job, not a caller knob). The context-report probe deliberately
+stayed out: /context never calls the model, and forcing tools:[] there would falsify the very
+report it measures — the home's header records both the footgun and this boundary.
+
+Learning: the strongest fix for "someone forgot the wall" is not a reminder — it's making the
+wall the only door. When a discipline lives as N options each call site must remember, extract
+it until forgetting is unrepresentable.
