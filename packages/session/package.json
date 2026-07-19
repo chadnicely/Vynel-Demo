@@ -21,6 +21,7 @@
     "@vynel/contracts": "workspace:*",
     "@vynel/db": "workspace:*",
     "@vynel/errors": "workspace:*",
+    "@vynel/instructions": "workspace:*",
     "@vynel/logger": "workspace:*",
     "@vynel/memory": "workspace:*",
     "@vynel/orchestration": "workspace:*",

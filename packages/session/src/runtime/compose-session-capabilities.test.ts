@@ -6,8 +6,8 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { setCapabilityEnabled } from '@vynel/capabilities'
 import { createMemoryEntry } from '@vynel/memory'
+import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { composeSessionCapabilities } from './compose-session-capabilities.js'
-import { VYNEL_AGENT_INSTRUCTIONS } from './vynel-agent-instructions.js'
 
 function seed(db: Database) {
   const now = new Date()
@@ -53,7 +53,7 @@ describe('composeSessionCapabilities', () => {
     await withTestDatabase((db) => {
       const { workspace } = seed(db)
       const composed = composeSessionCapabilities(db, { workspaceId: workspace.id })
-      expect(composed.systemPromptAppend).toContain(VYNEL_AGENT_INSTRUCTIONS)
+      expect(composed.systemPromptAppend).toContain(loadSessionInstruction('workspace-agent'))
     })
   })
 

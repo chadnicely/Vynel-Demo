@@ -33,7 +33,7 @@ import { collectDelegationReportsForRoot, markDelegationsSurfacedToRoot } from '
 import { linkPrimarySessionToSdkSession } from '../continuity/index.js'
 import type { SessionPermissionMode } from '../session-mode.js'
 import type { SessionSink } from './session-types.js'
-import { GLOBAL_ROOT_INSTRUCTIONS } from './global-root-instructions.js'
+import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { runUnderRootTurnLock } from './root-turn-lock.js'
 
 /**
@@ -81,7 +81,7 @@ export interface RunGlobalRootTurnCoreInput {
   allowedMcpToolPatterns: string[]
   /** Feature-declared mutating tools that card even under bypass (additive to the floor). */
   mutatingToolNames: string[]
-  /** The MCP/feature system-prompt contribution; the core prepends GLOBAL_ROOT_INSTRUCTIONS. */
+  /** The MCP/feature system-prompt contribution; the core prepends the `global-root` instruction. */
   mcpSystemPromptAppend: string
   /** Enabled USER-scope agents (subagents) for this global session, composed at
    *  the api edge (`composeSessionAgents` with a null workspaceId) — same
@@ -97,23 +97,16 @@ export interface RunGlobalRootTurnCoreInput {
   originChannel?: 'voice' | 'telegram' | 'discord'
 }
 
-// Appended for a voice turn. The user hears you ONLY through the `speak` tool —
-// your streamed text is never read aloud. So the reply must be MADE by calling
-// speak, and what you pass it must sound like speech (short, plain, no markup).
-const VOICE_TURN_INSTRUCTIONS = `This request came in by VOICE. The user HEARS you only when you call the \`speak\` tool — your normal text output is NOT read aloud.
-- To reply, CALL \`speak\` with what you want said. Do this for every voice turn — a turn with no \`speak\` call is silent to the user.
-- Pass ONE or TWO short spoken sentences: lead with the answer, plain conversational language, exactly as you'd say it out loud.
-- NEVER put markdown, asterisks, bullet points, headings, tables, code, or URLs in \`speak\` — no symbols the ear can't hear.
-- Do the work first (read tools, or route to a workspace for heavy tasks), THEN call \`speak\` with the spoken result. Keep any text answer brief; it's just the on-screen record.`
-
 /**
  * Compose the turn's `systemPromptAppend`: the global-root instructions, the
  * feature/MCP contribution, and — for a voice turn — the spoken-style directive.
+ * Both prompts are editable markdown loaded from
+ * `@vynel/instructions/session-instructions`.
  */
 function buildSystemPromptAppend(input: RunGlobalRootTurnCoreInput): string {
-  const parts = [GLOBAL_ROOT_INSTRUCTIONS]
+  const parts = [loadSessionInstruction('global-root')]
   if (input.mcpSystemPromptAppend !== '') parts.push(input.mcpSystemPromptAppend)
-  if (input.voice === true) parts.push(VOICE_TURN_INSTRUCTIONS)
+  if (input.voice === true) parts.push(loadSessionInstruction('voice-turn'))
   return parts.join('\n\n')
 }
 

@@ -1162,6 +1162,9 @@ importers:
       '@vynel/errors':
         specifier: workspace:*
         version: link:../errors
+      '@vynel/instructions':
+        specifier: workspace:*
+        version: link:../instructions
       '@vynel/logger':
         specifier: workspace:*
         version: link:../logger
