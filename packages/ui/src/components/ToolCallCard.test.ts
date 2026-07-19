@@ -91,7 +91,7 @@ describe("ToolCallCard", () => {
     );
   });
 
-  it("humanizes an MCP tool's name and falls back to payload panes", async () => {
+  it("humanizes an MCP tool's name and falls back to COLORED JSON payload panes", async () => {
     const wrapper = mount(ToolCallCard, {
       props: {
         toolCall: makeToolCall({
@@ -106,9 +106,33 @@ describe("ToolCallCard", () => {
 
     await wrapper.find(".summary").trigger("click");
 
-    const payloads = wrapper.findAll(".payload-body");
+    // Object payloads render through CodeBlock (json) — pretty + colored.
+    const payloads = wrapper.findAll(".payload-code");
+    expect(payloads).toHaveLength(2);
     expect(payloads[0]!.text()).toContain("invoices");
     expect(payloads[1]!.text()).toContain("hits");
+  });
+
+  it("unwraps an MCP text-content result and surfaces its inner JSON, unescaped", async () => {
+    const wrapper = mount(ToolCallCard, {
+      props: {
+        toolCall: makeToolCall({
+          toolName: "mcp__vynel__route_to_workspace",
+          toolInput: { task: "audit the docs" },
+          toolOutput: [
+            { type: "text", text: '{"status":"enqueued","jobId":"job-1"}' },
+          ],
+        }),
+      },
+    });
+
+    await wrapper.find(".summary").trigger("click");
+
+    const result = wrapper.findAll(".payload-code")[1]!;
+    // The object, not the wrapper array and not the escaped string.
+    expect(result.text()).toContain('"status": "enqueued"');
+    expect(result.text()).not.toContain("\\");
+    expect(result.text()).not.toContain('"type"');
   });
 
   it("renders a running tool with the live presence pulse", () => {

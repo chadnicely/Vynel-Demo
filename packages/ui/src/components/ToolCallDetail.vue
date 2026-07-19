@@ -10,11 +10,66 @@ const props = defineProps<{
   presentation: ToolCallPresentation;
 }>();
 
-function prettyPayload(payload: unknown): string {
-  if (payload === null || payload === undefined) return "—";
-  if (typeof payload === "string") return payload;
-  return JSON.stringify(payload, null, 2);
+// A payload pane's view: JSON payloads pretty-print + syntax-color; plain
+// text stays plain. An MCP tool result arrives as `[{type:'text', text}]` —
+// unwrap the single text block, and when that text is itself JSON (a tool
+// answering with a serialized object), surface the object, not the escapes.
+// `copySource` keeps the RAW unwrapped text where one exists — a JSON
+// round-trip can corrupt >2^53 integer literals, and the copy button must
+// never paste a corrupted value.
+type PayloadView = { code: string; isJson: boolean; copySource: string };
+
+function unwrapSingleTextContent(payload: unknown): unknown {
+  if (!Array.isArray(payload) || payload.length !== 1) return payload;
+  const item = payload[0] as Record<string, unknown> | null;
+  if (
+    item !== null &&
+    typeof item === "object" &&
+    item["type"] === "text" &&
+    typeof item["text"] === "string"
+  ) {
+    return item["text"];
+  }
+  return payload;
 }
+
+function tryParseJsonContainer(text: string): unknown {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return undefined;
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function payloadView(payload: unknown): PayloadView {
+  if (payload === null || payload === undefined)
+    return { code: "—", isJson: false, copySource: "—" };
+  const unwrapped = unwrapSingleTextContent(payload);
+  if (typeof unwrapped === "string") {
+    const parsed = tryParseJsonContainer(unwrapped);
+    if (parsed === undefined)
+      return { code: unwrapped, isJson: false, copySource: unwrapped };
+    return {
+      code: JSON.stringify(parsed, null, 2),
+      isJson: true,
+      copySource: unwrapped,
+    };
+  }
+  const code = JSON.stringify(unwrapped, null, 2);
+  return { code, isJson: true, copySource: code };
+}
+
+const payloadPanes = computed(() => {
+  const body = props.presentation.body;
+  if (body.kind !== "payloads") return null;
+  return {
+    input: payloadView(body.input),
+    output: payloadView(body.output),
+    hasOutput: body.output !== null && body.output !== undefined,
+  };
+});
 
 // Copy the primary artifact — the content a person would actually reuse.
 const copyText = computed(() => {
@@ -23,7 +78,9 @@ const copyText = computed(() => {
   if (body.kind === "diff") return body.added || body.removed;
   if (body.kind === "terminal") return body.command;
   if (body.kind === "text") return body.text;
-  return prettyPayload(body.output ?? body.input);
+  const panes = payloadPanes.value;
+  if (panes === null) return "";
+  return panes.hasOutput ? panes.output.copySource : panes.input.copySource;
 });
 
 const hasCopied = ref(false);
@@ -139,18 +196,26 @@ async function copyPrimary() {
       >{{ props.presentation.body.text || "—" }}</pre
     >
 
-    <div v-else class="payloads">
+    <div v-else-if="payloadPanes" class="payloads">
       <div class="payload">
         <p class="payload-label">Input</p>
-        <pre class="payload-body">{{
-          prettyPayload(props.presentation.body.input)
-        }}</pre>
+        <CodeBlock
+          v-if="payloadPanes.input.isJson"
+          class="payload-code"
+          :code="payloadPanes.input.code"
+          language="json"
+        />
+        <pre v-else class="payload-body">{{ payloadPanes.input.code }}</pre>
       </div>
       <div class="payload">
         <p class="payload-label">Result</p>
-        <pre class="payload-body">{{
-          prettyPayload(props.presentation.body.output)
-        }}</pre>
+        <CodeBlock
+          v-if="payloadPanes.output.isJson"
+          class="payload-code"
+          :code="payloadPanes.output.code"
+          language="json"
+        />
+        <pre v-else class="payload-body">{{ payloadPanes.output.code }}</pre>
       </div>
     </div>
   </div>
@@ -323,6 +388,26 @@ async function copyPrimary() {
   overflow: auto;
   color: var(--ink-2);
   font: 400 11.5px/1.55 var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* The pane's own box already frames the payload — the JSON block sits
+   borderless inside it, wrapping long lines instead of scrolling sideways.
+   Compounded with CodeBlock's own root class so the override outranks it by
+   specificity, not by CSS emission order. */
+.payload-code.code-block {
+  border: 0;
+  background: transparent;
+  max-height: 220px;
+  font-size: 11.5px;
+}
+
+.payload-code.code-block :deep(pre) {
+  padding: 0;
+}
+
+.payload-code.code-block :deep(.line) {
   white-space: pre-wrap;
   word-break: break-word;
 }
