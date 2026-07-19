@@ -21,9 +21,6 @@ const mockQuery = vi.mocked(query)
 const BASE: SummarizeSessionInput = {
   workspacePath: '/work/demo',
   resumeSessionId: 'sess-7',
-  permissionMode: 'bypass-with-behavior-gate',
-  allowedToolNames: [],
-  deniedToolNames: [],
 }
 
 function resultStep(result: string): FakeClaudeQueryStep {

@@ -1,16 +1,11 @@
 // `runClaudeSessionSummary` — distills a session into a hand-off summary (the
-// CARRY for the seed-fresh swap). Resumes the session so the summary covers the
-// full conversation, then dispatches one summarization turn on a cheap model
-// and returns the result text. Mirrors `runClaudeContextReport`: reuses
-// `buildClaudeSdkOptions` (faithful session shape), `maxTurns: 1`, and
-// `persistSession: false` so the summary turn never writes the session's JSONL
-// (it's an ephemeral read, not part of the conversation). Best-effort: a
-// failure is logged and returns null — never throws. The swap aborts cleanly
-// when the carry is null (continuity can't be preserved without it).
+// CARRY for the seed-fresh swap). Resumes the session so the summary covers
+// the full conversation. The dispatch discipline (one turn, truly toolless,
+// no JSONL write, null-on-failure) lives in `runClaudeDistillTurn` — this
+// file owns only the carry prompt.
 
-import { query } from '../base/claude-agent-sdk.js'
 import type { SummarizeSessionInput } from '../../shared/summarize-session-input.js'
-import { buildClaudeSdkOptions } from '../base/build-claude-sdk-options.js'
+import { runClaudeDistillTurn } from './run-claude-distill-turn.js'
 
 // The carry prompt. Folds "open todos" into DONE / IN PROGRESS / NEXT so a
 // fresh session can continue the work — not just recall facts (the
@@ -28,41 +23,12 @@ Prefer the user's own values verbatim over paraphrase. No preamble, no pleasantr
 export async function runClaudeSessionSummary(
   input: SummarizeSessionInput,
 ): Promise<string | null> {
-  const options = buildClaudeSdkOptions({
+  return runClaudeDistillTurn({
+    prompt: SESSION_SUMMARY_PROMPT,
     workspacePath: input.workspacePath,
     resumeSessionId: input.resumeSessionId,
-    permissionMode: input.permissionMode,
-    allowedToolNames: input.allowedToolNames,
-    deniedToolNames: input.deniedToolNames,
     ...(input.model !== undefined ? { model: input.model } : {}),
+    failureLogMessage: 'failed to summarize the session for the swap carry',
+    logger: input.logger,
   })
-  options.maxTurns = 1
-  // TRULY no tools (`allowedTools: []` would mean "no restriction") — a
-  // summary is a read-and-distill of the transcript; tool access under bypass
-  // is pure risk. Same-pattern sweep from the report distill.
-  options.tools = []
-  // Ephemeral — the summary turn must NOT append to the session's JSONL (the
-  // same read-only discipline as the /context probe).
-  options.persistSession = false
-  const abortController = new AbortController()
-  options.abortController = abortController
-
-  try {
-    for await (const message of query({ prompt: SESSION_SUMMARY_PROMPT, options })) {
-      if (message.type === 'result' && message.subtype === 'success') {
-        return typeof message.result === 'string' && message.result.length > 0
-          ? message.result
-          : null
-      }
-    }
-    return null
-  } catch (error) {
-    input.logger?.warn(
-      { error: error instanceof Error ? error.message : String(error) },
-      'failed to summarize the session for the swap carry',
-    )
-    return null
-  } finally {
-    abortController.abort()
-  }
 }

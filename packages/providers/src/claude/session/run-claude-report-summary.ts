@@ -1,17 +1,16 @@
 // `runClaudeReportSummary` — distills a workspace manager's full delegation
 // report into the short reply the user reads (the global chat's summary row /
-// a channel-formatted message). Mirrors `runClaudeSessionSummary`'s one-shot
-// ephemeral discipline: `maxTurns: 1`, `persistSession: false`, a cheap model,
-// no tools — but dispatches FRESH (no resume; the report text rides the
-// prompt). Best-effort: a failure is logged and returns null — the caller
-// falls open to the full report, so the user never loses the answer.
+// a channel-formatted message). Dispatches FRESH — the report text rides the
+// prompt. The dispatch discipline (one turn, truly toolless, no JSONL write,
+// null-on-failure) lives in `runClaudeDistillTurn` — this file owns the
+// reply prompt and the cheap-model default. Callers fall open to the full
+// report on null, so the user never loses the answer.
 
-import { query } from '../base/claude-agent-sdk.js'
 import type {
   SummarizeReportInput,
   ReportDeliveryTarget,
 } from '../../shared/summarize-report-input.js'
-import { buildClaudeSdkOptions } from '../base/build-claude-sdk-options.js'
+import { runClaudeDistillTurn } from './run-claude-distill-turn.js'
 
 // A short, mechanical read-and-distill — always the cheap model, never the
 // user's turn model (the swap-carry precedent).
@@ -46,40 +45,11 @@ ${input.reportText}`
 export async function runClaudeReportSummary(
   input: SummarizeReportInput,
 ): Promise<string | null> {
-  const options = buildClaudeSdkOptions({
+  return runClaudeDistillTurn({
+    prompt: buildPrompt(input),
     workspacePath: input.workspacePath,
-    permissionMode: 'bypass-with-behavior-gate',
-    allowedToolNames: [],
-    deniedToolNames: [],
     model: input.model ?? REPORT_REPLY_MODEL,
+    failureLogMessage: 'failed to distill the delegation report into a user reply',
+    logger: input.logger,
   })
-  options.maxTurns = 1
-  // TRULY no tools (`allowedTools: []` would mean "no restriction"): the
-  // report text is delegate-produced — under bypass, a tool-capable distill
-  // would be an indirect-injection egress channel. Text in, text out.
-  options.tools = []
-  // Ephemeral — a distill dispatch must NOT leave a session JSONL behind (the
-  // same read-only discipline as the /context probe and the swap carry).
-  options.persistSession = false
-  const abortController = new AbortController()
-  options.abortController = abortController
-
-  try {
-    for await (const message of query({ prompt: buildPrompt(input), options })) {
-      if (message.type === 'result' && message.subtype === 'success') {
-        return typeof message.result === 'string' && message.result.length > 0
-          ? message.result
-          : null
-      }
-    }
-    return null
-  } catch (error) {
-    input.logger?.warn(
-      { error: error instanceof Error ? error.message : String(error) },
-      'failed to distill the delegation report into a user reply',
-    )
-    return null
-  } finally {
-    abortController.abort()
-  }
 }

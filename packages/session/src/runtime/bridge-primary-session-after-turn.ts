@@ -79,9 +79,6 @@ export async function bridgePrimarySessionAfterTurn(
         provider.summarizeSession({
           workspacePath: input.workspacePath,
           resumeSessionId: fromSdkSessionId,
-          permissionMode: 'bypass-with-behavior-gate',
-          allowedToolNames: [],
-          deniedToolNames: [],
           model: SWAP_CARRY_MODEL,
           ...(logger !== undefined ? { logger } : {}),
         }),

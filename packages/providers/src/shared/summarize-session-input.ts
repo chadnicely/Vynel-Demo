@@ -1,10 +1,10 @@
 // Input for `AiAgentProvider.summarizeSession` — produces a concise hand-off
 // summary of a session's conversation, used as the CARRY for the
 // session-continuity seed-fresh swap (the distilled state seeded into the
-// fresh session). Mirrors the session-shaping fields of
-// `GetContextReportInput` (minus MCP — a read-only summary needs no tools) so
-// the summary is generated over the SAME resumed conversation the session ran.
-// See `docs/agent-base/session-continuity.md`.
+// fresh session). A summary is a read-and-distill: its dispatch discipline
+// (single turn, truly toolless, no session write) is the PROVIDER's
+// non-negotiable wall, not a caller choice — which is why this input carries
+// no permission or tool fields. See `docs/agent-base/session-continuity.md`.
 
 import type { ProviderLogger } from './provider-logger.js'
 
@@ -20,15 +20,6 @@ export type SummarizeSessionInput = {
    * cheap/small model (the summary is a short, mechanical read-and-distill).
    */
   model?: string
-
-  /** Permission mode for the dispatch. Summarization uses no tools. */
-  permissionMode: 'ask' | 'bypass-with-behavior-gate' | 'plan-only'
-
-  /** Allowed tool names — forwarded for faithful session options. */
-  allowedToolNames: string[]
-
-  /** Denied tool names. */
-  deniedToolNames: string[]
 
   /** Optional structural logger (a failed summary is logged, not thrown). */
   logger?: ProviderLogger
