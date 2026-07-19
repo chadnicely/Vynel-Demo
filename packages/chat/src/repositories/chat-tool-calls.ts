@@ -4,7 +4,7 @@
 // Phase 1 SYNC return values per
 // `.claude/memory/decisions/phase-1-sync-transactions.md`.
 
-import { asc, eq } from 'drizzle-orm'
+import { asc, eq, sql } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   chatToolCalls,
@@ -19,6 +19,7 @@ export type {
   NewChatToolCall,
   ToolCallStatus,
   ApprovalStatus,
+  SubagentToolCall,
 } from '../schema/chat-tool-calls.js'
 
 export function findChatToolCallById(db: Database, toolCallId: string): ChatToolCall | null {
@@ -69,6 +70,21 @@ export function insertChatToolCall(db: Database, newToolCall: NewChatToolCall): 
   const [inserted] = db.insert(chatToolCalls).values(newToolCall).returning().all()
   if (!inserted) throw new Error('insertChatToolCall: no row returned')
   return inserted
+}
+
+// COALESCE handles the first chunk (column starts null). SQL-side concat —
+// no read-modify-write — mirroring appendToChatMessageBody.
+export function appendToChatToolCallSubagentNarrative(
+  db: Database,
+  toolCallId: string,
+  narrativeDelta: string,
+): void {
+  db.update(chatToolCalls)
+    .set({
+      subagentNarrative: sql`COALESCE(${chatToolCalls.subagentNarrative}, '') || ${narrativeDelta}`,
+    })
+    .where(eq(chatToolCalls.id, toolCallId))
+    .run()
 }
 
 export function updateChatToolCall(

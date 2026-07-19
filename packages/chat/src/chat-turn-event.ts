@@ -20,9 +20,10 @@ export type ChatTurnEvent =
   | { kind: 'tool-call-started'; toolCall: ChatToolCall }
   | { kind: 'tool-call-completed'; toolCall: ChatToolCall }
   // A SUBAGENT's live activity, keyed by the spawning Agent tool call's
-  // toolUseId. LIVE-ONLY by design: nothing persists (the Agent card's settled
-  // toolOutput carries the final report) — the UI nests these under the card
-  // while the turn streams, never in the main transcript.
+  // toolUseId. The UI nests these under the card while the turn streams —
+  // never in the main transcript. The same activity persists onto the Agent
+  // call's row (subagentNarrative/subagentToolCalls) so the pane survives
+  // settle/reload; the settled toolOutput still carries the final report.
   | { kind: 'agent-text-chunk'; parentToolUseId: string; textDelta: string }
   | {
       kind: 'agent-tool-started'

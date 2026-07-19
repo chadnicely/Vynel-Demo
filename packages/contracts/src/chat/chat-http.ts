@@ -107,6 +107,19 @@ export interface ChatMessageResponse {
   createdAt: string
 }
 
+/** One tool call a SUBAGENT made, persisted lean (no output) on its spawning
+ *  Agent call's row — the settled source for the nested activity pane. */
+export interface SubagentToolCallResponse {
+  toolUseId: string
+  toolName: string
+  toolInput?: unknown
+  status: 'started' | 'completed' | 'failed'
+  /** ISO-8601 */
+  startedAt: string
+  /** ISO-8601 or `null` (never completed — the run was interrupted). */
+  completedAt: string | null
+}
+
 /** Serialized row shape inside `GET /sessions/{id}` (within `toolCallsByMessageId` values). */
 export interface ChatToolCallResponse {
   id: string
@@ -120,6 +133,11 @@ export interface ChatToolCallResponse {
   status: ToolCallStatus
   approvalStatus: ApprovalStatus | null
   isErrorResult: boolean
+  /** A spawning Agent/Task call's persisted subagent narrative — null (or
+   *  absent, on older payload producers) on ordinary calls. */
+  subagentNarrative?: string | null
+  /** The subagent's persisted tool calls; null/absent on ordinary calls. */
+  subagentToolCalls?: SubagentToolCallResponse[] | null
   /** ISO-8601 */
   startedAt: string
   /** ISO-8601 or `null` (still running). */
@@ -177,9 +195,9 @@ export type ChatTurnEvent =
   | { kind: 'tool-call-started'; toolCall: ChatToolCallResponse }
   | { kind: 'tool-call-completed'; toolCall: ChatToolCallResponse }
   // A SUBAGENT's live activity, keyed by the spawning Agent tool call's
-  // toolUseId. LIVE-ONLY: nothing persists (the Agent card's settled
-  // toolOutput carries the final report) — the UI nests these under the
-  // card while the turn streams, never in the main transcript.
+  // toolUseId — nested under the card while the turn streams, never in the
+  // main transcript. The same activity persists on the Agent call's row
+  // (subagentNarrative/subagentToolCalls), so settled reads carry it too.
   | { kind: 'agent-text-chunk'; parentToolUseId: string; textDelta: string }
   | {
       kind: 'agent-tool-started'

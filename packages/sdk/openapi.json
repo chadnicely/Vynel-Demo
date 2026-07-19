@@ -6949,6 +6949,54 @@
                             "isErrorResult": {
                               "type": "boolean"
                             },
+                            "subagentNarrative": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "subagentToolCalls": {
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "toolUseId": {
+                                    "type": "string"
+                                  },
+                                  "toolName": {
+                                    "type": "string"
+                                  },
+                                  "toolInput": {},
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "started",
+                                      "completed",
+                                      "failed"
+                                    ]
+                                  },
+                                  "startedAt": {
+                                    "type": "string"
+                                  },
+                                  "completedAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "toolUseId",
+                                  "toolName",
+                                  "status",
+                                  "startedAt",
+                                  "completedAt"
+                                ]
+                              }
+                            },
                             "startedAt": {
                               "type": "string"
                             },
@@ -18565,6 +18613,54 @@
                             "isErrorResult": {
                               "type": "boolean"
                             },
+                            "subagentNarrative": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "subagentToolCalls": {
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "toolUseId": {
+                                    "type": "string"
+                                  },
+                                  "toolName": {
+                                    "type": "string"
+                                  },
+                                  "toolInput": {},
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "started",
+                                      "completed",
+                                      "failed"
+                                    ]
+                                  },
+                                  "startedAt": {
+                                    "type": "string"
+                                  },
+                                  "completedAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "toolUseId",
+                                  "toolName",
+                                  "status",
+                                  "startedAt",
+                                  "completedAt"
+                                ]
+                              }
+                            },
                             "startedAt": {
                               "type": "string"
                             },
@@ -18726,6 +18822,54 @@
                                 },
                                 "isErrorResult": {
                                   "type": "boolean"
+                                },
+                                "subagentNarrative": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "subagentToolCalls": {
+                                  "type": [
+                                    "array",
+                                    "null"
+                                  ],
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "toolUseId": {
+                                        "type": "string"
+                                      },
+                                      "toolName": {
+                                        "type": "string"
+                                      },
+                                      "toolInput": {},
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "started",
+                                          "completed",
+                                          "failed"
+                                        ]
+                                      },
+                                      "startedAt": {
+                                        "type": "string"
+                                      },
+                                      "completedAt": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "toolUseId",
+                                      "toolName",
+                                      "status",
+                                      "startedAt",
+                                      "completedAt"
+                                    ]
+                                  }
                                 },
                                 "startedAt": {
                                   "type": "string"
@@ -19125,6 +19269,54 @@
                             },
                             "isErrorResult": {
                               "type": "boolean"
+                            },
+                            "subagentNarrative": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "subagentToolCalls": {
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "toolUseId": {
+                                    "type": "string"
+                                  },
+                                  "toolName": {
+                                    "type": "string"
+                                  },
+                                  "toolInput": {},
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "started",
+                                      "completed",
+                                      "failed"
+                                    ]
+                                  },
+                                  "startedAt": {
+                                    "type": "string"
+                                  },
+                                  "completedAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "toolUseId",
+                                  "toolName",
+                                  "status",
+                                  "startedAt",
+                                  "completedAt"
+                                ]
+                              }
                             },
                             "startedAt": {
                               "type": "string"

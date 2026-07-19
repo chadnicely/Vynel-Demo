@@ -8,6 +8,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { insertChatSession, type NewChatSession } from './chat-sessions.js'
 import { insertChatMessage, type NewChatMessage } from './chat-messages.js'
 import {
+  appendToChatToolCallSubagentNarrative,
   findChatToolCallById,
   findChatToolCallByToolUseId,
   listChatToolCallsForMessage,
@@ -166,6 +167,46 @@ describe('chatToolCalls repository', () => {
         .map((c) => c.toolName)
         .sort()
       expect(all).toEqual(['Bash', 'Read'])
+    })
+  })
+
+  it('appendToChatToolCallSubagentNarrative handles the null first chunk via COALESCE + concats', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      const session = insertChatSession(db, makeChatSession(user.id, ws.id))
+      const message = insertChatMessage(db, makeAssistantMessage(session.id))
+      const tc = insertChatToolCall(db, makeChatToolCall(message.id, { toolName: 'Agent' }))
+      expect(tc.subagentNarrative).toBeNull()
+      appendToChatToolCallSubagentNarrative(db, tc.id, 'reading ')
+      appendToChatToolCallSubagentNarrative(db, tc.id, 'the file…')
+      expect(findChatToolCallById(db, tc.id)?.subagentNarrative).toBe('reading the file…')
+    })
+  })
+
+  it('updateChatToolCall persists the lean subagent tool list', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      const session = insertChatSession(db, makeChatSession(user.id, ws.id))
+      const message = insertChatMessage(db, makeAssistantMessage(session.id))
+      const tc = insertChatToolCall(db, makeChatToolCall(message.id, { toolName: 'Agent' }))
+      const entries = [
+        {
+          toolUseId: 'tu_sub_1',
+          toolName: 'Read',
+          toolInput: { file_path: 'a.md' },
+          status: 'completed' as const,
+          startedAt: '2026-05-01T00:00:01.000Z',
+          completedAt: '2026-05-01T00:00:02.000Z',
+        },
+      ]
+      updateChatToolCall(db, tc.id, { subagentToolCalls: entries })
+      expect(findChatToolCallById(db, tc.id)?.subagentToolCalls).toEqual(entries)
     })
   })
 

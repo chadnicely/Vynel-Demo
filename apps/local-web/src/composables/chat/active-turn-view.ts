@@ -40,8 +40,9 @@ export interface ActiveTurnSegment {
   toolCalls: ChatToolCallResponse[];
 }
 
-/** One nested tool call a SUBAGENT made — live-only (nothing persists; the
- *  Agent card's settled toolOutput carries the final report). */
+/** One nested tool call a SUBAGENT made — the live mirror of the lean entry
+ *  persisted on the Agent call's row (subagentToolCalls); the card's settled
+ *  toolOutput carries the final report. */
 export interface AgentActivityToolCall {
   toolUseId: string;
   toolName: string;

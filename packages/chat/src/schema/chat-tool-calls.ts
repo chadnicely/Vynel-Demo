@@ -27,6 +27,19 @@ export type ToolCallStatus =
 
 export type ApprovalStatus = 'approved' | 'denied' | 'timed-out' | 'cancelled'
 
+/** One tool call a SUBAGENT made, persisted on its spawning Agent call's row.
+ *  Lean by design: no output (the activity pane renders name + input + status;
+ *  the subagent's outputs stay out of the DB — the Agent call's own toolOutput
+ *  carries the final report). Timestamps are ISO-8601 strings (JSON column). */
+export type SubagentToolCall = {
+  toolUseId: string
+  toolName: string
+  toolInput: unknown
+  status: 'started' | 'completed' | 'failed'
+  startedAt: string
+  completedAt: string | null
+}
+
 export const chatToolCalls = table(
   'chat_tool_calls',
   {
@@ -41,6 +54,12 @@ export const chatToolCalls = table(
     status: text().$type<ToolCallStatus>().notNull(),
     approvalStatus: text().$type<ApprovalStatus>(), // null if approval wasn't required
     isErrorResult: boolean().notNull(),
+    // A spawning Agent/Task call's persisted subagent activity — the agent's
+    // streamed narrative (appended per chunk) + its tool calls (lean, no
+    // outputs). Null on ordinary calls. Makes the nested activity pane
+    // survive settle/reload, the same way the delegation trace's rows do.
+    subagentNarrative: text(),
+    subagentToolCalls: json<SubagentToolCall[]>(),
     startedAt: timestamp().notNull(),
     completedAt: timestamp(),
   },

@@ -177,6 +177,17 @@ export const ChatMessageSchema = z.object({
   createdAt: z.string(),
 })
 
+// One SUBAGENT tool call persisted on its spawning Agent call's row — lean
+// (no output) by design; the settled source for the nested activity pane.
+export const SubagentToolCallSchema = z.object({
+  toolUseId: z.string(),
+  toolName: z.string(),
+  toolInput: z.unknown(),
+  status: z.enum(['started', 'completed', 'failed']),
+  startedAt: z.string(),
+  completedAt: z.string().nullable(),
+})
+
 export const ChatToolCallSchema = z.object({
   id: z.string(),
   parentMessageId: z.string(),
@@ -188,6 +199,10 @@ export const ChatToolCallSchema = z.object({
   status: ToolCallStatusSchema,
   approvalStatus: ApprovalStatusSchema.nullable(),
   isErrorResult: z.boolean(),
+  // Subagent activity persisted on a spawning Agent/Task call; null on
+  // ordinary calls. Optional so pre-persistence payload shapes stay valid.
+  subagentNarrative: z.string().nullable().optional(),
+  subagentToolCalls: z.array(SubagentToolCallSchema).nullable().optional(),
   startedAt: z.string(),
   completedAt: z.string().nullable(),
 })

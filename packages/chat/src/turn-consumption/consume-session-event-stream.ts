@@ -34,6 +34,7 @@ import {
 import { handleSessionStarted } from './handle-session-started.js'
 import { handleApprovalRequested } from './handle-approval-requested.js'
 import { handleUsageReported } from './handle-usage-reported.js'
+import { createSubagentActivityRecorder } from './record-subagent-activity.js'
 import { persistAttachedImages, type AttachedImageBytes } from './attached-images.js'
 import type { ChatTurnEvent } from '../chat-turn-event.js'
 import type { StructuralLogger, NewSessionOptions } from '../chat-types.js'
@@ -126,6 +127,13 @@ export async function* consumeSessionEventStream(
   // Per-turn caches (coding §1.4) — fresh per call; GC'd when generator exits.
   const assistantMessageByMessageId = new Map<string, ChatMessage>()
   const toolCallByToolUseId = new Map<string, string /* dbId */>()
+  // Subagent traffic persists onto its spawning Agent call's row (narrative +
+  // lean tool list) while the same wire events keep streaming to live viewers.
+  const subagentActivity = createSubagentActivityRecorder({
+    db,
+    toolCallByToolUseId,
+    logger,
+  })
 
   for await (const event of sessionEventStream) {
     switch (event.kind) {
@@ -166,15 +174,11 @@ export async function* consumeSessionEventStream(
       }
 
       case 'text-chunk': {
-        // A SUBAGENT's stream never touches the main transcript's rows — it
-        // renders live, nested under its spawning Agent card, and the card's
-        // settled toolOutput carries the final report (live-only by design).
+        // A SUBAGENT's stream never becomes main-transcript rows — it renders
+        // nested under its spawning Agent card, and persists onto that card's
+        // row (subagentNarrative) so the pane survives settle/reload.
         if (event.parentToolUseId !== undefined) {
-          yield {
-            kind: 'agent-text-chunk',
-            parentToolUseId: event.parentToolUseId,
-            textDelta: event.textDelta,
-          }
+          yield subagentActivity.onTextChunk(event.parentToolUseId, event.textDelta)
           break
         }
         const assistantMessage = ensureAssistantMessageRow(
@@ -215,17 +219,16 @@ export async function* consumeSessionEventStream(
       }
 
       case 'tool-use-started': {
-        // A subagent's tool call: live-only, keyed to its Agent card — never a
-        // top-level row (it used to flood the thread as the manager's own work).
+        // A subagent's tool call: keyed to its Agent card, never a top-level
+        // row (it used to flood the thread as the manager's own work) —
+        // persisted lean on the Agent call's subagentToolCalls.
         if (event.parentToolUseId !== undefined) {
-          yield {
-            kind: 'agent-tool-started',
-            parentToolUseId: event.parentToolUseId,
+          yield subagentActivity.onToolStarted(event.parentToolUseId, {
             toolUseId: event.toolUseId,
             toolName: event.toolName,
             toolInput: event.toolInput,
             startedAt: event.startedAt,
-          }
+          })
           break
         }
         const parentMessage = ensureAssistantMessageRow(
@@ -255,14 +258,12 @@ export async function* consumeSessionEventStream(
 
       case 'tool-use-completed': {
         if (event.parentToolUseId !== undefined) {
-          yield {
-            kind: 'agent-tool-completed',
-            parentToolUseId: event.parentToolUseId,
+          yield subagentActivity.onToolCompleted(event.parentToolUseId, {
             toolUseId: event.toolUseId,
             toolOutput: event.output,
             isError: event.isError,
             completedAt: event.completedAt,
-          }
+          })
           break
         }
         const dbId = toolCallByToolUseId.get(event.toolUseId)
@@ -273,6 +274,13 @@ export async function* consumeSessionEventStream(
           )
           break
         }
+        // A completing Agent call settles its recorded entries: a clean return
+        // means they only missed their completion events; an errored one
+        // means the run died under them.
+        subagentActivity.onParentSettled(event.toolUseId, {
+          isError: event.isError,
+          completedAt: event.completedAt,
+        })
         const updated = chatRepository.updateChatToolCall(db, dbId, {
           toolOutput: event.output,
           status: event.isError ? 'failed' : 'completed',

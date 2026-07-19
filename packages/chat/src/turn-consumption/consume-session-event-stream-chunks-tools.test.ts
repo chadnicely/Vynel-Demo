@@ -511,15 +511,27 @@ describe('consumeSessionEventStream — chunks + tool use + usage', () => {
 })
 
 describe('consumeSessionEventStream — SUBAGENT activity (parentToolUseId-marked events)', () => {
-  it('yields live-only agent-* events and persists NOTHING for a subagent stream', async () => {
+  // The spawning Agent call's own tool-use-started — the row subagent
+  // activity persists onto.
+  const agentCallStarted = {
+    kind: 'tool-use-started',
+    sessionId: 'session-agent',
+    parentMessageId: 'msg-main',
+    toolUseId: 'tu_agent_1',
+    toolName: 'Agent',
+    toolInput: { name: 'researcher', description: 'read the file' },
+    startedAt: new Date('2026-05-01T00:00:00Z'),
+  } as const
+
+  it('persists narrative + lean tool list on the Agent row; no top-level rows for the subagent', async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
       const ws = makeWorkspace(user.id)
       insertWorkspace(db, ws)
 
-      const startedAt = new Date()
-      const completedAt = new Date()
+      const startedAt = new Date('2026-05-01T00:00:01Z')
+      const completedAt = new Date('2026-05-01T00:00:02Z')
       const events = await drain(
         consumeSessionEventStream({
           db,
@@ -530,12 +542,21 @@ describe('consumeSessionEventStream — SUBAGENT activity (parentToolUseId-marke
               resumedFromExisting: false,
               startedAt: new Date(),
             },
+            agentCallStarted,
             // The subagent narrates, runs a tool, and its thinking is dropped.
             {
               kind: 'text-chunk',
               sessionId: 'session-agent',
               messageId: 'msg-sub-1',
-              textDelta: 'reading the file…',
+              textDelta: 'reading ',
+              isFinalChunk: false,
+              parentToolUseId: 'tu_agent_1',
+            },
+            {
+              kind: 'text-chunk',
+              sessionId: 'session-agent',
+              messageId: 'msg-sub-1',
+              textDelta: 'the file…',
               isFinalChunk: false,
               parentToolUseId: 'tu_agent_1',
             },
@@ -581,21 +602,208 @@ describe('consumeSessionEventStream — SUBAGENT activity (parentToolUseId-marke
       expect(kinds).toContain('agent-text-chunk')
       expect(kinds).toContain('agent-tool-started')
       expect(kinds).toContain('agent-tool-completed')
-      // Subagent thinking is dropped, and NO main-transcript events leaked.
+      // Subagent thinking is dropped, and NO main-transcript events leaked
+      // beyond the Agent call's own start.
       expect(kinds).not.toContain('text-chunk')
       expect(kinds).not.toContain('thinking-chunk')
-      expect(kinds).not.toContain('tool-call-started')
+      expect(kinds.filter((kind) => kind === 'tool-call-started')).toHaveLength(1)
 
-      const agentText = events.find((event) => event.kind === 'agent-text-chunk')
-      expect(agentText).toEqual({
-        kind: 'agent-text-chunk',
-        parentToolUseId: 'tu_agent_1',
-        textDelta: 'reading the file…',
-      })
+      // The activity persisted onto the spawning Agent call's row — the
+      // settled source for the nested pane (survives settle/reload).
+      const agentCall = findChatToolCallByToolUseId(db, 'tu_agent_1')
+      expect(agentCall?.subagentNarrative).toBe('reading the file…')
+      expect(agentCall?.subagentToolCalls).toEqual([
+        {
+          toolUseId: 'tu_sub_read',
+          toolName: 'Read',
+          toolInput: { file_path: 'a.md' },
+          status: 'completed',
+          startedAt: startedAt.toISOString(),
+          completedAt: completedAt.toISOString(),
+        },
+      ])
+      // Lean by design: the subagent tool's OUTPUT is not persisted.
+      expect(JSON.stringify(agentCall?.subagentToolCalls)).not.toContain('file body')
 
-      // Live-only: the subagent's message row and tool-call row must NOT exist.
+      // The subagent's own message/tool rows still must NOT exist — its
+      // activity lives on the Agent row, never in the main transcript.
       expect(findChatMessageById(db, 'msg-sub-1')).toBeNull()
       expect(findChatToolCallByToolUseId(db, 'tu_sub_read')).toBeNull()
+    })
+  })
+
+  it('a completing Agent call settles its lingering started entries (the subagent returned)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-agent',
+              resumedFromExisting: false,
+              startedAt: new Date(),
+            },
+            agentCallStarted,
+            {
+              kind: 'tool-use-started',
+              sessionId: 'session-agent',
+              parentMessageId: 'msg-sub-1',
+              toolUseId: 'tu_sub_grep',
+              toolName: 'Grep',
+              toolInput: { pattern: 'x' },
+              startedAt: new Date('2026-05-01T00:00:01Z'),
+              parentToolUseId: 'tu_agent_1',
+            },
+            // No completion event for the subagent tool — then the Agent call
+            // itself completes (the subagent returned its report).
+            {
+              kind: 'tool-use-completed',
+              sessionId: 'session-agent',
+              parentMessageId: 'msg-main',
+              toolUseId: 'tu_agent_1',
+              output: 'the final report',
+              isError: false,
+              completedAt: new Date('2026-05-01T00:00:09Z'),
+            },
+          ]),
+          userMessageInput: makeUserMessageInput('spawn an agent'),
+          userId: user.id,
+          workspaceId: ws.id,
+          workspacePath: ws.path,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      const agentCall = findChatToolCallByToolUseId(db, 'tu_agent_1')
+      expect(agentCall?.status).toBe('completed')
+      expect(agentCall?.toolOutput).toBe('the final report')
+      const entries = agentCall?.subagentToolCalls ?? []
+      expect(entries).toHaveLength(1)
+      expect(entries[0]!.status).toBe('completed')
+      // Settled with the PARENT's completion time — never a wall-clock stamp.
+      expect(entries[0]!.completedAt).toBe('2026-05-01T00:00:09.000Z')
+    })
+  })
+
+  it('an ERRORED Agent call settles its lingering entries as failed — no false green checkmark', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-agent',
+              resumedFromExisting: false,
+              startedAt: new Date(),
+            },
+            agentCallStarted,
+            {
+              kind: 'tool-use-started',
+              sessionId: 'session-agent',
+              parentMessageId: 'msg-sub-1',
+              toolUseId: 'tu_sub_bash',
+              toolName: 'Bash',
+              toolInput: { command: 'npm test' },
+              startedAt: new Date('2026-05-01T00:00:01Z'),
+              parentToolUseId: 'tu_agent_1',
+            },
+            // The run dies mid-tool — the Agent call reports an error.
+            {
+              kind: 'tool-use-completed',
+              sessionId: 'session-agent',
+              parentMessageId: 'msg-main',
+              toolUseId: 'tu_agent_1',
+              output: 'agent crashed',
+              isError: true,
+              completedAt: new Date('2026-05-01T00:00:09Z'),
+            },
+          ]),
+          userMessageInput: makeUserMessageInput('spawn an agent'),
+          userId: user.id,
+          workspaceId: ws.id,
+          workspacePath: ws.path,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      const agentCall = findChatToolCallByToolUseId(db, 'tu_agent_1')
+      expect(agentCall?.status).toBe('failed')
+      expect(agentCall?.subagentToolCalls?.[0]?.status).toBe('failed')
+    })
+  })
+
+  it('subagent events for an UNKNOWN Agent call still stream live but persist nothing (one warn)', async () => {
+    const warnings: Array<{ payload: object; message: string | undefined }> = []
+    const logger = {
+      info: () => {},
+      warn: (payload: object, message?: string) => warnings.push({ payload, message }),
+      error: () => {},
+    }
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+
+      const events = await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-agent',
+              resumedFromExisting: false,
+              startedAt: new Date(),
+            },
+            // No Agent call row exists for this parent — defensive path.
+            {
+              kind: 'text-chunk',
+              sessionId: 'session-agent',
+              messageId: 'msg-sub-1',
+              textDelta: 'working…',
+              isFinalChunk: false,
+              parentToolUseId: 'tu_agent_ghost',
+            },
+            {
+              kind: 'tool-use-started',
+              sessionId: 'session-agent',
+              parentMessageId: 'msg-sub-1',
+              toolUseId: 'tu_sub_x',
+              toolName: 'Read',
+              toolInput: {},
+              startedAt: new Date(),
+              parentToolUseId: 'tu_agent_ghost',
+            },
+          ]),
+          userMessageInput: makeUserMessageInput('spawn an agent'),
+          userId: user.id,
+          workspaceId: ws.id,
+          workspacePath: ws.path,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+          logger,
+        }),
+      )
+
+      const kinds = events.map((event) => event.kind)
+      expect(kinds).toContain('agent-text-chunk')
+      expect(kinds).toContain('agent-tool-started')
+      // Warned ONCE for the unknown parent (not once per event).
+      expect(warnings.filter((w) => w.message?.includes('unknown Agent call'))).toHaveLength(1)
     })
   })
 })

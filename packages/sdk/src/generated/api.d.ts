@@ -5204,6 +5204,16 @@ export interface operations {
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;
+                                subagentNarrative?: string | null;
+                                subagentToolCalls?: {
+                                    toolUseId: string;
+                                    toolName: string;
+                                    toolInput?: unknown;
+                                    /** @enum {string} */
+                                    status: "started" | "completed" | "failed";
+                                    startedAt: string;
+                                    completedAt: string | null;
+                                }[] | null;
                                 startedAt: string;
                                 completedAt: string | null;
                             }[];
@@ -9810,6 +9820,16 @@ export interface operations {
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;
+                                subagentNarrative?: string | null;
+                                subagentToolCalls?: {
+                                    toolUseId: string;
+                                    toolName: string;
+                                    toolInput?: unknown;
+                                    /** @enum {string} */
+                                    status: "started" | "completed" | "failed";
+                                    startedAt: string;
+                                    completedAt: string | null;
+                                }[] | null;
                                 startedAt: string;
                                 completedAt: string | null;
                             }[];
@@ -9863,6 +9883,16 @@ export interface operations {
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;
+                                subagentNarrative?: string | null;
+                                subagentToolCalls?: {
+                                    toolUseId: string;
+                                    toolName: string;
+                                    toolInput?: unknown;
+                                    /** @enum {string} */
+                                    status: "started" | "completed" | "failed";
+                                    startedAt: string;
+                                    completedAt: string | null;
+                                }[] | null;
                                 startedAt: string;
                                 completedAt: string | null;
                             }[];
@@ -9978,6 +10008,16 @@ export interface operations {
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;
+                                subagentNarrative?: string | null;
+                                subagentToolCalls?: {
+                                    toolUseId: string;
+                                    toolName: string;
+                                    toolInput?: unknown;
+                                    /** @enum {string} */
+                                    status: "started" | "completed" | "failed";
+                                    startedAt: string;
+                                    completedAt: string | null;
+                                }[] | null;
                                 startedAt: string;
                                 completedAt: string | null;
                             }[];
