@@ -3,6 +3,25 @@
 **Updated 2026-07-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## ⏭ NEXT ACTION (2026-07-20): EDITABLE SESSION-INSTRUCTION MD — gate GREEN 506f/2678t, reviewed COMPLETE, COMMITTED; NEXT: Chad smoke (edit a prompt file + restart) → then the DB/UI arc when Chad wants it
+
+**Chad's "at first" step of the instructions arc: the 3 always-on session-identity prompts left
+`@vynel/session/runtime` as TS string literals and became EDITABLE markdown in the `@vynel/instructions`
+leaf — `session-instructions/{global-root,workspace-agent,voice-turn}.md`, each file body IS the prompt.
+New loader `src/session-instructions/load-session-instruction.ts` (readFileSync + per-id cache + fail-loud)
+reached via a dedicated SDK-FREE subpath `@vynel/instructions/session-instructions` (the `@vynel/asks/mcp`
+split precedent) so session (spine→leaf) pulls only the fs loader, NEVER the notebook MCP descriptor's
+claude-agent-sdk builder graph. Consumers compose-session-capabilities.ts (workspace-agent) +
+run-global-root-turn-core.ts (global-root + voice-turn) call the loader; 3 old constant files deleted, the
+load-bearing routing-tool guard moved into the loader's colocated test. FAITHFUL: reviewer proved all 3
+`.md` byte-identical to the old constants (LF-clean, `.gitattributes eol=lf`). Scope DELIBERATE — session-
+identity prompts only; per-feature standing lines (notebook/tasks/ask/desktop) stay with their features
+(a feature owns its own prompt). Cache = restart-to-apply (verified-notebooks parity), not hot-reload.**
+**⏭ CHAD SMOKE: edit a word in `packages/instructions/session-instructions/workspace-agent.md` → restart
+the app → a workspace chat reflects it. FOLLOW-UPS (recorded, not done): refresh as-built docs still
+naming the deleted paths (`.claude/docs/session/structure.md`, `docs/module-notes/session.md`); the bigger
+DB-backed + in-app-editing arc (the `mode:'always'` column on instruction_documents is reserved for it).**
+
 ## ⏭ NEXT ACTION (2026-07-19k): DISTILL WALLS GET ONE HOME — gate GREEN 506f/2675t, reviewed CLEAN; NEXT: commit (Chad picked this hardening; reviewer-checklist teaching = option 3, deferred by Chad "later")
 
 **Closing the CLASS behind the 19i reviewer catch (empty allow-list ≠ no tools). NEW

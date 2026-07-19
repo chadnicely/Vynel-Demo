@@ -11,10 +11,13 @@ because the injection point lives in `@vynel/session`, and after cloud-admin-web
 
 ## What already exists (build on, don't duplicate)
 
-- **Hardcoded identity prompts:** `GLOBAL_ROOT_INSTRUCTIONS`
-  (`packages/session/src/runtime/global-root-instructions.ts`) and `VYNEL_AGENT_INSTRUCTIONS`
-  (`vynel-agent-instructions.ts`). These stay LOAD-BEARING and hardcoded (routing recipes the
-  product depends on); user instructions are APPENDED, never replace them.
+- **Editable identity prompts** (moved 2026-07-20 out of TS string literals): the always-on
+  session-identity prompts — `global-root`, `workspace-agent`, `voice-turn` — now live as editable
+  markdown in `packages/instructions/session-instructions/`, loaded via the SDK-free
+  `@vynel/instructions/session-instructions` subpath (the whole file is the prompt). They stay
+  LOAD-BEARING (routing recipes the product depends on — the colocated loader test guards the
+  routing-tool names); a user's own instructions are APPENDED, never replace them. This is the first
+  concrete step of the deferred always-on-instructions arc — content editability, before DB/UI.
 - **The memory `context` tag** (2026-07-11): `loadWorkspaceContextForSession` already injects
   context-tagged memory entries into turns. That's the proven injection pattern — but memory
   entries are fact-sized and agent-curated; instructions are document-sized and user-authored.

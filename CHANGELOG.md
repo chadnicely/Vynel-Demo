@@ -71,6 +71,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Vynel's core operating instructions now live as editable files.** The always-on prompts that
+  set how the assistant behaves — the workspace assistant's ground rules, the global brain's
+  routing recipe, and the voice-reply style — moved out of the code into plain markdown under
+  `packages/instructions/session-instructions/`. Editing a file changes how that scope behaves
+  (after an app restart), no code change needed. The wording is byte-identical to before — this is
+  groundwork for managing these instructions directly, not a behavior change.
+
 - **Engine updated.** The Claude Agent SDK moved forward 16 releases (0.3.197 → 0.3.213). Also
   verified end-to-end: workspace chats load your project's CLAUDE.md, skills, agents, rules, and
   settings from disk exactly like Claude Code does.
