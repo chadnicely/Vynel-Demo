@@ -85,3 +85,52 @@ the hook; subagent message_start guard). Smoke items: spawn under `auto` mode (p
 classifier-interaction via updatedInput), settled card body shape. Recorded: the Watch panel
 ignores agent-* events by design — a delegated turn's spawned agents trace in the workspace
 thread, not the panel.
+
+## 19h — agent activity persists (after-complete parity with the task trace)
+
+Chad's pressure-check of 19d–19g: "the task trace can be monitored realtime even after complete —
+agent activity needs the same, one global component." The audit split the claim in two: realtime +
+shared-component were real (one `AgentActivityPane`, same wire events, three surfaces); the
+after-complete half was not — agent activity was live-only by explicit design, so settle/reload
+dropped the pane while the task trace (persisted rows) stayed watchable forever.
+
+The fix followed the trace's own doctrine — persist as it streams, read anytime: the spawning
+Agent call's `chat_tool_calls` row grew `subagentNarrative` (per-chunk SQL append, the message-body
+pattern) + `subagentToolCalls` (lean JSON — name/input/status/timestamps, NO outputs; the pane
+never renders them, and the card's toolOutput already carries the report). A per-turn recorder
+(`record-subagent-activity.ts`) persists + yields the unchanged wire events; the Agent call's own
+completion settles lingering 'started' entries (the subagent returned — they only missed their
+completion events). Client-side, one derivation home (`deriveSettledAgentActivity`) + a
+`ToolCallList` fallback gave every surface the settled pane with zero per-host wiring.
+
+Learnings: "live-only by design" quietly violated the 19b no-reflow-on-settle doctrine the moment
+it shipped — the pane vanished at settle. Parity asks are best audited property-by-property
+(realtime / shared component / after-complete) rather than as one yes/no; two thirds being real
+hid the missing third. And lean persistence (drop what the renderer never reads — subagent tool
+outputs) turned a scary "persist the whole sub-transcript" fork into two additive columns.
+
+Gate GREEN 504f/2656t. Migration 0010 additive, applies on boot. Known limit recorded: mid-run
+Watch attach shows post-attach activity only until the settle refetch (overlay-wins; offset-merge
+is a follow-on).
+
+Round 2 (Chad's screenshot): the full nested activity list flooded the thread under parallel
+agents — replaced in-thread with a one-line live ticker (latest action, active agents only);
+the full pane now renders only in the Watch focused view (live or persisted). Learning: persist
+first, THEN slim the live surface — because the focused view reads the recorded copy, the thread
+could go compact without losing anything.
+
+## 19i — delegation replies distilled (the workspace reports, global speaks)
+
+Chad's next report: the global chat (and Telegram) received the workspace's entire working report
+verbatim. The mental model he named — workspace reports to GLOBAL, global composes what the user
+reads — mapped exactly onto the existing one-shot-distill machinery: `summarizeReport` joined the
+provider seam as `summarizeSession`'s sibling (fresh ephemeral haiku dispatch, no tools,
+null-on-failure), and the delegation tick now distills a >700-char report once, delivering the
+short reply to both the global row and the origin channel with per-target format rules. Fail-open
+everywhere: a failed distill delivers the full report — losing the answer is worse than losing
+the polish. The full report never left the system: the job row + workspace transcript keep it,
+and 19h's persistence means the Watch drill-down shows the whole run.
+
+Learning: the 19h slice was load-bearing for this one — compressing the surface reply is only
+safe because the full detail has a durable, reachable home. Order of operations matters:
+persist the truth first, then you may shorten every surface that repeats it.

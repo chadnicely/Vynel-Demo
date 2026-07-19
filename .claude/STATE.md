@@ -3,7 +3,140 @@
 **Updated 2026-07-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-19g): AGENT WATCH CHIPS + FOCUSED DRILL-DOWN — gate GREEN 503f/2645t, committed; NEXT: Chad's smoke
+## ⏭ NEXT ACTION (2026-07-19j): CARD LEGIBILITY POLISH — gate GREEN 505f/2671t, reviewed (1 must-fix + 1 should-fix FOLDED); NEXT: Chad's smoke → commit THE DAY
+
+**Review folded: ① MUST-FIX — an empty-string `command` was promoted OUT of the JSON pane but
+rendered NO terminal line (falsy v-if): the trust card would approve a Bash call with its empty
+command invisible. commandText now requires non-blank; an empty command stays visible in the
+JSON pane (+pin test). ② copy fidelity — PayloadView carries `copySource` (the RAW unwrapped
+text): the JSON round-trip can corrupt >2^53 integer literals, and copy must never paste a
+corrupted value (display keeps the pretty view). ③ the CodeBlock overrides compound with its
+root class (`.payload-code.code-block`) — outrank by specificity, not CSS emission order.
+RECORDED nits (not built): ToolCallDetail at ~410 lines → extract a PayloadPanes child next
+touch · a tool whose `description` field is DATA (not an explanation) gets promoted to the
+approval headline — design observation, nothing hidden.**
+
+**Chad (after confirming 19i): ① tool-card Input/Result panes = colored JSON. ② approval card =
+prettier + the input's `description` as the title. Built:**
+- **ToolCallDetail payload panes render through CodeBlock (shiki json, dual-theme)** for object
+  payloads; plain strings stay plain. **MCP text-content results unwrap**: `[{type:'text',text}]`
+  → the text; text that IS serialized JSON → the object, pretty-printed (kills the
+  escaped-quotes wall in Chad's screenshot). Copy button follows the unwrapped view.
+- **ApprovalCard: `description` promotes to the HEADLINE** ("Inspect sibling derived-state
+  schemas"), the mechanical "Your assistant wants to…" sentence demotes to a context line; a
+  shell-command approval shows `$ <command>` as a terminal line; ALL remaining input fields
+  render as colored JSON — the trust card omits nothing, it's just legible. String inputs keep
+  the plain pane. Compact (notifier) captures capped.
+- Tests: ApprovalCard 3→6, ToolCallCard payload tests recast to the colored-pane spec + the
+  unwrap pin.
+**⏭ CHAD SMOKE: expand a route_to_workspace card → Input/Result are colored JSON, the Result
+shows the object (no \" escapes) · trigger a Bash approval with a description → the description
+is the title, the command reads as a $ line · check the compact notifier card too. Then COMMIT
+THE DAY (feat(chat) 19h · feat(ui) ticker · feat(session) 19i · feat(ui) 19j · docs).**
+
+**Review round folded: ① the reviewer's sharp catch — `allowedToolNames: []` means NO RESTRICTION
+in buildClaudeSdkOptions, so the "toolless" distill actually ran the full claude_code toolset
+under bypass (read-tools silently executable = an indirect-injection egress channel over
+delegate-produced text). Fixed with the SDK's true kill-switch `options.tools = []` (+ pin
+tests), SAME-PATTERN SWEPT into run-claude-session-summary (the swap carry had the identical
+hole). ② distill fail-open now ENFORCED (local .catch → null — a throwing third-party provider
+would have failed a COMPLETED job via the outer catch) + empty-string distill guard. ③ the
+FOURTH structural stub (providers/test-support) grew the method; SummarizeReportCall now derives
+via Parameters<AiAgentProvider['summarizeReport']>[0] (drift-proof). RECORDED follow-ups (not
+built): tick at ~325 lines — extract the completed-branch composition next touch · the
+completion-time origin resolve predates the distill await (stale-channel window during a slow
+distill; pre-existing shape) · Telegram adapter has NO 4096-chunking — the fail-open full-report
+path can 400 at send (pre-existing; this slice strictly reduces frequency; adapter chunking is
+its own slice).**
+
+**Chad (after confirming 19h live): the global chat showed the workspace's ENTIRE report verbatim
+(and Telegram got the same wall of text). Wanted: workspace reports to global; GLOBAL composes
+what the user reads — a summary in the chat, channel-formatted for a channel origin. Built on the
+house one-shot-distill precedent (runClaudeSessionSummary + the swap's haiku):**
+- **Provider seam grew `summarizeReport`** (additive, null default — the summarizeSession shape;
+  input NOT in the barrel, flows structurally like its sibling). Claude impl
+  `run-claude-report-summary.ts`: FRESH ephemeral dispatch (no resume; report+task ride the
+  prompt), maxTurns 1, persistSession false, no tools, provider-owned cheap default
+  'claude-haiku-4-5'; per-target format rules (chat prose · telegram plain-text <900ch ·
+  discord light-markdown <1500ch); manager's voice; null-on-failure.
+- **The delegation tick distills once per completed job** (only when the report >700 chars —
+  REPORT_DISTILL_MIN_LENGTH; short reports deliver as-is) and uses the reply for BOTH the global
+  push row and the channel delivery. **Fail-open: null distill → the full report** (the user
+  never loses the answer). `completeDelegationJob` + the workspace transcript KEEP the full
+  report — the Watch trace stays the full-detail home (19h's persistence makes that real).
+  Origin resolve consolidated to one completion-time read feeding distill-target + delivery.
+  Stop-wins ordering untouched (a cancelled run never distills).
+- **Sweep:** three structural `as AiAgentProvider` test stubs grew the method; FakeAiAgentProvider
+  gained `reportReply` + captured `SummarizeReportCall`s (required-fields mirror of the
+  unexported input). Tick tests: distill-long / fail-open / short-skips / channel-target
+  ('telegram' + same reply both surfaces). NOTE: the trace's reply/report rows no longer carry
+  identical bodies, so collapse-trace-echo shows BOTH in the Watch panel (full reply + the short
+  surfaced report) — honest, recorded.
+**⏭ CHAD SMOKE: delegate something report-heavy from global chat → the report row reads as a few
+sentences (Watch still shows the full detail) · message the Telegram bot with a workspace task →
+the Telegram reply is short plain text · a trivially-short task reply arrives unchanged.**
+
+## ⏭ NEXT ACTION (2026-07-19h): AGENT ACTIVITY PERSISTS + IN-THREAD TICKER — reviewed CLEAN (1 should-fix FOLDED); NEXT: Chad's smoke → commit
+
+**ROUND 2 (Chad's screenshot): the full activity list nested under every Agent card floods the
+thread when agents run in parallel — "keep only the last one, while active only; the rest under
+Watch." ToolCallList's nested AgentActivityPane REPLACED by a one-line live TICKER: presence dot
++ the agent's LATEST action ("Grep pricing…"), "Working…" before the first tool, rendered ONLY
+while the Agent call is status='started' with a live map entry. A settled card shows NOTHING
+in-line — the full pane now renders ONLY in the Watch focused view (live map or the persisted
+fields; after-complete parity intact). `describeAgentActivityCall` extracted to
+ui/tool-cards/subagent-activity.ts (one home, pane + ticker). ToolCallList's settled-derive
+fallback REMOVED (the focused view keeps it); ticker tests replace the nesting tests. Recorded:
+a DIRECT turn's settled agent still has no in-thread activity view (no chip, no trace channel —
+its persisted fields await the monitor arc; live it gets the ticker). Delta review CLEAN, folded:
+stale trace-live comment · flex-ellipsis inert on ticker + pane rows (span-wrapped, same-pattern
+sweep) · mid-run reload ticker falls back to the persisted latest action (+test). Deferred nit
+(recorded): AgentActivityLike types live in the .vue while the logic lives in tool-cards/ — a
+benign type-only cycle; move types into subagent-activity.ts next touch.**
+
+**Chad's parity check on 19d–19g: the task trace is watchable realtime AND after complete; agent
+activity must match, one shared component. Audit verdict: realtime + shared-component halves were
+REAL (AgentActivityPane is the one home, fed by the same wire events in thread/panel/focused view);
+the after-complete half was NOT — agent activity was live-only by design (persisted nowhere), so
+settle/reload dropped the pane, the focused view degraded to report-only, and a mid-run Watch
+attach missed all pre-attach activity. Root cause: task-trace rows persist, agent events didn't.**
+- **chat_tool_calls grew `subagentNarrative` (text, per-chunk SQL append like message body) +
+  `subagentToolCalls` (json, LEAN entries — name/input/status/timestamps, NO outputs; the pane
+  never renders them). Migration `0010_subagent_activity`, additive, applies on boot.**
+- **Consumer: new `record-subagent-activity.ts`** (per-turn recorder; honors the recorded 369-line
+  split-next-touch nit) — marked events persist onto the spawning Agent call's row AND yield the
+  unchanged wire events; the Agent call's own completion sweeps lingering 'started' entries to
+  'completed' (the subagent returned); unknown parent → warn once, still stream.
+- **Contracts/SDK: ChatToolCallResponse/Schema += optional-nullable subagent fields** (the
+  delegationTaskLabel additive precedent); SDK regenerated.
+- **UI: `deriveSettledAgentActivity` (@vynel/ui tool-cards, one home)** — persisted fields → pane
+  shape; child stuck 'started' under a settled parent coerces to 'failed' (no breathing dot on a
+  dead run). **ToolCallList falls back to it when the live map lacks the key** → settled threads,
+  reloads, and the reopened Watch panel all nest the pane with ZERO per-host wiring; the settle
+  reflow violation (pane vanishing) is gone. SessionViewerPanel's focused view gets the same
+  fallback. Old "persists NOTHING" consumer test recast as the unknown-parent case (deliberate
+  spec change; subagent rows still never touch the main transcript — pinned).
+- **Reviewer: CLEAN, 0 must-fix.** 1 should-fix FOLDED (+test): the settle sweep now settles
+  lingering entries by the PARENT's outcome — 'failed' when the Agent call errored (was:
+  unconditional 'completed', a false green checkmark under a dead run) — stamped with the
+  parent's completedAt, not wall-clock. Nits recorded, not folded: activityFor double-call per
+  card (allocation-only), no started-dedupe in the recorder (provider normalization precludes).
+- **KNOWN LIMIT (recorded):** a mid-run Watch attach still shows only post-attach live activity
+  until the settle refetch swaps in the persisted copy (overlay-wins doctrine; full offset-merge
+  is a follow-on). `delegate-to-leaf-session` (workspace→SESSION spawning) remains PARKED for the
+  Phase-3 monitor arc — today's only live spawn path is the SDK Agent/Task tool, now covered.
+- **⚠ FOLLOW-UP (reviewer, pre-existing + now amplified): NOTHING ever writes ToolCallStatus
+  'cancelled'** — a turn interrupted/killed before a tool completes leaves the row 'started'
+  forever (the Agent card breathed forever before this slice; the nested pane now inherits it,
+  since deriveSettledAgentActivity sees a live parent and keeps children 'started'). Needs the
+  approvals-style boot/interrupt reap ('started' → 'cancelled') as its own slice.
+**⏭ CHAD SMOKE: delegate an agent-spawning task → while it runs, its Agent card shows ONE live
+line naming the current tool (thread + Watch panel; no more growing list) → click Watch on the
+card → full activity streams in the focused view → let it finish + RELOAD → the focused view
+still shows the recorded activity + report (not "no report was captured"); the thread card stays
+compact. Then commit (feat(chat) + docs).**
+
+## (prev) NEXT ACTION (2026-07-19g): AGENT WATCH CHIPS + FOCUSED DRILL-DOWN — gate GREEN 503f/2645t, committed; NEXT: Chad's smoke
 
 **Chad's parity ask (matches the recorded Phase-3 chips goal): Agent cards get a Watch chip
 like task chips, in BOTH chats; clicking opens the side panel FOCUSED on that agent —

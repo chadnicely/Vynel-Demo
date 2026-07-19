@@ -9,12 +9,39 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
-- **Watch your agents work.** When Claude spawns an agent (in any chat), the agent's activity now
-  shows up live, nested under its card — each tool it runs with a status light, plus its running
-  narrative. The same nested view appears in the task Watch panel, and every Agent card on a
-  hand-off carries a "Watch" chip — click it to open a focused side view of just that agent
-  (with a Back arrow returning to the task when you drilled in from the global chat). Works
-  from the workspace chat and the global chat alike. Before, the agent was a blank "Agent · 15ms" card while its tool calls flooded the
+- **Agent activity survives the reply.** A spawned agent's activity — its tools with their
+  status lights and its running narrative — is now recorded as it streams, so it's still there
+  after the reply finishes, after a reload, and whenever you reopen the task Watch panel or an
+  agent's focused view. Watching a task after the fact now shows what each agent actually did,
+  not just its final report — the same "look at it any time" behavior tasks have always had.
+  (The agent's raw tool outputs deliberately stay out of the record — the card's final report
+  carries the result.)
+
+- **Tool cards and approval cards got readable.** A tool card's Input/Result panes now show
+  pretty, syntax-colored JSON — and a tool that answers with a serialized object is unwrapped
+  to the object itself, not a wall of escaped quotes. Approval cards lead with the assistant's
+  own explanation of what it's doing ("Inspect sibling derived-state schemas") as the title, a
+  shell approval shows the actual command as a terminal line, and any remaining details render
+  as colored JSON — nothing is hidden, it's just finally legible.
+
+- **Task reports read like a colleague, not a log dump.** When a workspace finishes a task you
+  handed off, the global chat now shows a short reply — the outcome and key results in a few
+  sentences — instead of the workspace's entire working report scrolling down the thread. The
+  full report is still there behind the task's Watch view. Tasks that came in over Telegram get
+  the same treatment: a message actually shaped for Telegram (short, plain text), not a wall of
+  markdown. Already-short reports are delivered as-is.
+
+- **Agent cards stay compact in the chat.** While an agent works, its card shows a single live
+  line — the tool it's running right now — instead of the full activity list growing down the
+  thread (several agents in parallel used to flood the conversation). The full trace, live or
+  finished, is one click away behind the card's Watch chip.
+
+- **Watch your agents work.** When Claude spawns an agent (in any chat), you can see what it's
+  doing — a live line under its card names its current action, and every Agent card on a
+  hand-off carries a "Watch" chip opening a focused side view of the full activity: each tool
+  with a status light plus the agent's running narrative (with a Back arrow returning to the
+  task when you drilled in from the global chat). Works from the workspace chat and the global
+  chat alike. Before, the agent was a blank "Agent · 15ms" card while its tool calls flooded the
   chat as if Claude itself ran them and its words never appeared at all. Agents also now run to
   completion inside the reply — the engine's new background default could leave them silently
   killed mid-task when the reply finished.
