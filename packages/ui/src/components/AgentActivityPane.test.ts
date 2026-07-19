@@ -70,3 +70,33 @@ describe("ToolCallList agent nesting", () => {
     expect(wrapper.find(".agent-activity").exists()).toBe(false);
   });
 });
+
+describe("ToolCallList agent watch chip", () => {
+  it("shows Watch on Agent cards when watchable-agents and emits the call", async () => {
+    const wrapper = mount(ToolCallList, {
+      props: { toolCalls: [agentCall], watchableAgents: true },
+    });
+    const chip = wrapper.find(".watch-chip");
+    expect(chip.exists()).toBe(true);
+    await chip.trigger("click");
+    expect(wrapper.emitted("watchAgent")).toEqual([[agentCall]]);
+  });
+
+  it("no chip without the flag, and never on non-agent cards", () => {
+    expect(
+      mount(ToolCallList, { props: { toolCalls: [agentCall] } })
+        .find(".watch-chip")
+        .exists(),
+    ).toBe(false);
+    expect(
+      mount(ToolCallList, {
+        props: {
+          toolCalls: [{ ...agentCall, toolName: "Read" }],
+          watchableAgents: true,
+        },
+      })
+        .find(".watch-chip")
+        .exists(),
+    ).toBe(false);
+  });
+});

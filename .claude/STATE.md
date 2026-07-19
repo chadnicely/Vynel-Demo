@@ -3,7 +3,29 @@
 **Updated 2026-07-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-19f): AGENT ACTIVITY IN THE WATCH PANEL — gate GREEN 503f/2639t, committed; Chad confirmed sync agents + trace live
+## ⏭ NEXT ACTION (2026-07-19g): AGENT WATCH CHIPS + FOCUSED DRILL-DOWN — gate GREEN 503f/2645t, committed; NEXT: Chad's smoke
+
+**Chad's parity ask (matches the recorded Phase-3 chips goal): Agent cards get a Watch chip
+like task chips, in BOTH chats; clicking opens the side panel FOCUSED on that agent —
+Back+Close when drilled in from the global trace, Close-only from a workspace thread card.**
+- **session-viewer store grew the 2-level drill-down:** `openAgent(trace, toolUseId)` (direct,
+  no Back) · `focusAgent(toolUseId)` (from the open trace, Back available) ·
+  `clearAgentFocus()` · open/close reset focus. +4 tests.
+- **ToolCallCard grew `watchable` + a Watch chip** (summary-row split — no nested buttons);
+  ToolCallList threads `watchableAgents` (Agent/Task cards only) + `watchAgent` emit;
+  ThreadStream forwards it for DELEGATION-traced messages (message.partialSessionId keys the
+  trace channel, so the focused view attaches from anywhere); both views wire
+  `sessionViewer.openAgent`. The PANEL's own list drills in via `focusAgent`.
+- **SessionViewerPanel focused mode:** header = Agent <name> + live dot + the task description;
+  Back arrow when agentBackAvailable; body = full-pane AgentActivityPane (live) → the final
+  report (settled toolOutput) → honest empty states. Trace view untouched underneath.
+- NOTE: chips appear on delegated rows only — a DIRECT turn's agent renders its inline nested
+  pane in-thread (no trace channel exists for it; its focused view is the monitor arc's job).
+**⏭ CHAD SMOKE: delegate an agent-spawning task → workspace thread's Agent card shows Watch →
+opens the focused side view (Close only) · from global: Watch the task → click the Agent card's
+Watch chip → focused view with BACK → Back returns to the trace.**
+
+## (prev) NEXT ACTION (2026-07-19f): AGENT ACTIVITY IN THE WATCH PANEL — gate GREEN 503f/2639t, committed; Chad confirmed sync agents + trace live
 
 **Chad's follow-up: the Watch panel (global view) should show a spawned agent's activity like
 the chat thread does — his instinct matched the RECORDED old goal (ThreadStream: "chips return

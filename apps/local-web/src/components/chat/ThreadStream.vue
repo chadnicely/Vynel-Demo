@@ -30,6 +30,9 @@ const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
   /** A message's delegation chip: open that session's live view. */
   openSession: [sessionId: string];
+  /** An Agent card's Watch chip (delegation-traced messages only): open the
+   *  focused agent view keyed by the message's trace + the Agent call. */
+  watchAgent: [partialSessionId: string, toolUseId: string];
 }>();
 
 const liveSessions = useLiveSessionsStore();
@@ -184,9 +187,17 @@ watch(
               v-if="props.toolCallsByMessageId[message.id]?.length"
               #tool-calls
             >
+              <!-- Agent cards on DELEGATION-traced rows get a Watch chip —
+                   the routed turn's live activity streams on its trace
+                   channel, so the focused agent view can attach anywhere. -->
               <ToolCallList
                 class="tool-list"
                 :tool-calls="props.toolCallsByMessageId[message.id] ?? []"
+                :watchable-agents="message.partialSessionId != null"
+                @watch-agent="
+                  (toolCall) =>
+                    emit('watchAgent', message.partialSessionId!, toolCall.toolUseId)
+                "
               />
             </template>
           </MessageRow>

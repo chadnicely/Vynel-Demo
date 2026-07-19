@@ -12,6 +12,14 @@ import ToolCallDetail from "./ToolCallDetail.vue";
 const props = defineProps<{
   toolCall: ChatToolCallResponse;
   initiallyExpanded?: boolean;
+  /** Show a "Watch" chip (an Agent card whose run can open the focused
+   *  agent view) — the host wires where it navigates. */
+  watchable?: boolean;
+}>();
+
+const emit = defineEmits<{
+  /** The Watch chip — open this agent's focused live view. */
+  watch: [];
 }>();
 
 const isExpanded = ref(props.initiallyExpanded ?? false);
@@ -47,6 +55,7 @@ const durationLabel = computed(() => {
 
 <template>
   <div class="tool-call-card" :class="{ 'is-expanded': isExpanded }">
+    <div class="summary-row">
     <button
       type="button"
       class="summary"
@@ -93,12 +102,61 @@ const durationLabel = computed(() => {
         />
       </svg>
     </button>
+    <button
+      v-if="props.watchable"
+      type="button"
+      class="watch-chip"
+      :aria-label="`Watch ${presentation.argument ?? presentation.verb}`"
+      @click="emit('watch')"
+    >
+      <PresenceDot
+        :state="statusTone === 'running' ? 'live' : 'idle'"
+      />
+      Watch
+    </button>
+    </div>
 
     <ToolCallDetail v-if="isExpanded" :presentation="presentation" />
   </div>
 </template>
 
 <style scoped>
+.summary-row {
+  display: flex;
+  align-items: stretch;
+}
+
+.summary-row .summary {
+  flex: 1;
+  min-width: 0;
+}
+
+.watch-chip {
+  appearance: none;
+  border: 0;
+  border-left: 1px solid var(--hair);
+  margin: 0;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  font: 600 11px/1.5 var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.watch-chip:hover {
+  color: var(--ink-1);
+  background: var(--row-hover);
+}
+
+.watch-chip:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+}
+
 /* Collapsed, the card is a compact chip sized to its words; expanded it
    stretches to carry the artifact full-width. */
 .tool-call-card {

@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from "vue";
-import { Square, X } from "lucide-vue-next";
-import { IconButton, MarkdownText, PresenceDot, ToolCallList } from "@vynel/ui";
+import { ArrowLeft, Square, X } from "lucide-vue-next";
+import {
+  AgentActivityPane,
+  IconButton,
+  MarkdownText,
+  PresenceDot,
+  ToolCallList,
+} from "@vynel/ui";
 import { useDelegationTraceLive } from "../../composables/delegations/use-delegation-trace-live.js";
 import { useStopDelegation } from "../../composables/delegations/use-stop-delegation.js";
 import { collapseTraceEcho } from "../../composables/delegations/collapse-trace-echo.js";
@@ -37,6 +43,59 @@ function stopWatchedTask() {
     stopDelegation.mutate(viewer.currentSessionId);
   }
 }
+
+// ── Focused agent (drill-down level 2) ──
+// One spawned agent's view: entered from an Agent card's Watch chip (a thread
+// card → Close only; a drill-in from THIS trace → Back returns to it).
+const isAgentFocused = computed(() => viewer.focusedAgentToolUseId !== null);
+
+const focusedAgentCall = computed(() => {
+  const id = viewer.focusedAgentToolUseId;
+  if (id === null) return null;
+  for (const entry of entries.value) {
+    const match = entry.toolCalls.find((call) => call.toolUseId === id);
+    if (match) return match;
+  }
+  return null;
+});
+
+const focusedAgentActivity = computed(() =>
+  viewer.focusedAgentToolUseId !== null
+    ? (agentActivity.value[viewer.focusedAgentToolUseId] ?? null)
+    : null,
+);
+
+function agentInputField(field: string): string | null {
+  const input = focusedAgentCall.value?.toolInput;
+  if (typeof input !== "object" || input === null) return null;
+  const value = (input as Record<string, unknown>)[field];
+  return typeof value === "string" ? value : null;
+}
+
+const focusedAgentName = computed(
+  () => agentInputField("name") ?? agentInputField("subagent_type") ?? "Agent",
+);
+const focusedAgentTask = computed(() => agentInputField("description"));
+const focusedAgentReport = computed(() => {
+  const output = focusedAgentCall.value?.toolOutput;
+  return typeof output === "string" && output !== "" ? output : null;
+});
+
+// Header pieces follow the mode so the template stays one shape.
+const headerLive = computed(() =>
+  isAgentFocused.value
+    ? focusedAgentCall.value?.status === "started"
+    : isWorking.value,
+);
+const headerTitle = computed(() =>
+  isAgentFocused.value ? `Agent ${focusedAgentName.value}` : title.value,
+);
+const headerContext = computed(() =>
+  isAgentFocused.value
+    ? (focusedAgentTask.value ??
+      "Watching this agent live — everything it does shows up here.")
+    : "Watching this task live — everything the workspace does shows up here.",
+);
 
 const errorText = computed(() =>
   traceQuery.isError.value ? formatSdkError(traceQuery.error.value) : null,
@@ -106,22 +165,26 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
         <div class="scrim" @click="viewer.close()" />
         <aside class="session-viewer" aria-label="Delegation activity">
           <header class="viewer-header">
+            <IconButton
+              v-if="isAgentFocused && viewer.agentBackAvailable"
+              label="Back to the task"
+              @click="viewer.clearAgentFocus()"
+            >
+              <ArrowLeft :size="15" />
+            </IconButton>
             <div class="titles">
               <p class="viewer-title">
-                <PresenceDot :state="isWorking ? 'live' : 'idle'" />
-                {{ title }}
+                <PresenceDot :state="headerLive ? 'live' : 'idle'" />
+                {{ headerTitle }}
                 <span
-                  v-if="statusLabel"
+                  v-if="!isAgentFocused && statusLabel"
                   class="status-pill"
                   :class="statusTone ? `is-${statusTone}` : ''"
                 >
                   {{ statusLabel }}
                 </span>
               </p>
-              <p class="viewer-context">
-                Watching this task live — everything the workspace does shows
-                up here.
-              </p>
+              <p class="viewer-context">{{ headerContext }}</p>
             </div>
             <IconButton
               v-if="isWorking"
@@ -136,7 +199,41 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
           </header>
 
           <div class="viewer-body">
-            <p v-if="errorText" class="state-note is-error">{{ errorText }}</p>
+            <template v-if="isAgentFocused">
+              <div class="agent-focus">
+                <AgentActivityPane
+                  v-if="focusedAgentActivity"
+                  class="agent-focus-activity"
+                  :activity="focusedAgentActivity"
+                />
+                <p
+                  v-else-if="focusedAgentCall?.status === 'started'"
+                  class="state-note"
+                >
+                  The agent is working — its live activity appears here while
+                  it runs.
+                </p>
+                <div v-if="focusedAgentReport" class="agent-report">
+                  <MarkdownText :source="focusedAgentReport" />
+                </div>
+                <p
+                  v-else-if="
+                    focusedAgentCall !== null &&
+                    focusedAgentCall.status !== 'started'
+                  "
+                  class="state-note"
+                >
+                  The agent finished — no report was captured for this run.
+                </p>
+                <p v-else-if="focusedAgentCall === null" class="state-note">
+                  This agent's run isn't in the trace yet — it appears as the
+                  workspace records it.
+                </p>
+              </div>
+            </template>
+            <p v-else-if="errorText" class="state-note is-error">
+              {{ errorText }}
+            </p>
             <p v-else-if="traceQuery.isPending.value" class="state-note">
               Loading…
             </p>
@@ -163,6 +260,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
                   class="entry-tools"
                   :tool-calls="entry.toolCalls"
                   :agent-activity="agentActivity"
+                  watchable-agents
+                  @watch-agent="
+                    (toolCall) => viewer.focusAgent(toolCall.toolUseId)
+                  "
                 />
                 <MarkdownText :source="entry.body" />
               </div>
@@ -183,6 +284,23 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 </template>
 
 <style scoped>
+.agent-focus {
+  display: grid;
+  gap: 12px;
+}
+
+/* Full-pane variant of the nested pane — no indent rail needed here. */
+.agent-focus-activity {
+  margin-left: 0;
+  border-left: 0;
+  padding-left: 0;
+}
+
+.agent-report {
+  border-top: 1px solid var(--hair);
+  padding-top: 12px;
+}
+
 /* A floating overlay window (Chad's call), not a docked rail: detached from
    the edges, rounded, heavy shadow; the light scrim closes on click. */
 .viewer-layer {

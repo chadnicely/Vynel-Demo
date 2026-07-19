@@ -284,6 +284,7 @@ function openContinuous() {
         :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
         @decide-approval="onDecideApproval"
         @open-session="sessionViewer.open"
+        @watch-agent="sessionViewer.openAgent"
       />
 
       <footer class="composer-dock">

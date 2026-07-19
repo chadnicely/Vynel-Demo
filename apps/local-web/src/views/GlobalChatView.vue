@@ -348,6 +348,7 @@ function openContinuous() {
         :assistant-name="ASSISTANT_NAME"
         @decide-approval="onDecideApproval"
         @open-session="sessionViewer.open"
+        @watch-agent="sessionViewer.openAgent"
       />
 
       <div

@@ -58,3 +58,50 @@ describe("live-sessions store", () => {
     expect(live.liveFor("ghost")).toBeNull();
   });
 });
+
+describe("session-viewer store — the focused-agent drill-down", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  it("openAgent lands directly on the agent with no Back (a thread card's chip)", () => {
+    const viewer = useSessionViewerStore();
+    viewer.openAgent("trace-1", "tu_agent_1");
+    expect(viewer.isOpen).toBe(true);
+    expect(viewer.currentSessionId).toBe("trace-1");
+    expect(viewer.focusedAgentToolUseId).toBe("tu_agent_1");
+    expect(viewer.agentBackAvailable).toBe(false);
+  });
+
+  it("focusAgent from an open trace gets Back; Back returns to the trace", () => {
+    const viewer = useSessionViewerStore();
+    viewer.open("trace-1");
+    viewer.focusAgent("tu_agent_1");
+    expect(viewer.focusedAgentToolUseId).toBe("tu_agent_1");
+    expect(viewer.agentBackAvailable).toBe(true);
+
+    viewer.clearAgentFocus();
+    expect(viewer.focusedAgentToolUseId).toBeNull();
+    expect(viewer.currentSessionId).toBe("trace-1"); // still on the trace
+  });
+
+  it("open and close both reset any agent focus", () => {
+    const viewer = useSessionViewerStore();
+    viewer.openAgent("trace-1", "tu_agent_1");
+    viewer.open("trace-2");
+    expect(viewer.focusedAgentToolUseId).toBeNull();
+
+    viewer.focusAgent("tu_agent_2");
+    viewer.close();
+    expect(viewer.isOpen).toBe(false);
+    expect(viewer.focusedAgentToolUseId).toBeNull();
+    expect(viewer.agentBackAvailable).toBe(false);
+  });
+
+  it("focusAgent without an open trace is a no-op", () => {
+    const viewer = useSessionViewerStore();
+    viewer.focusAgent("tu_agent_1");
+    expect(viewer.isOpen).toBe(false);
+    expect(viewer.focusedAgentToolUseId).toBeNull();
+  });
+});

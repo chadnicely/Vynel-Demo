@@ -15,10 +15,24 @@ import PresenceDot from "./PresenceDot.vue";
 const props = defineProps<{
   toolCalls: ChatToolCallResponse[];
   agentActivity?: Record<string, AgentActivityLike> | undefined;
+  /** Put a "Watch" chip on Agent/Task cards — the host handles `watchAgent`
+   *  (opens the focused agent view). */
+  watchableAgents?: boolean | undefined;
+}>();
+
+const emit = defineEmits<{
+  watchAgent: [toolCall: ChatToolCallResponse];
 }>();
 
 function activityFor(toolCall: ChatToolCallResponse): AgentActivityLike | null {
   return props.agentActivity?.[toolCall.toolUseId] ?? null;
+}
+
+function isWatchableAgent(toolCall: ChatToolCallResponse): boolean {
+  return (
+    props.watchableAgents === true &&
+    (toolCall.toolName === "Agent" || toolCall.toolName === "Task")
+  );
 }
 
 const groups = computed(() => groupConsecutiveToolCalls(props.toolCalls));
@@ -47,7 +61,11 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
   <div class="tool-call-list">
     <template v-for="group in groups" :key="group[0]!.id">
       <template v-if="group.length === 1">
-        <ToolCallCard :tool-call="group[0]!" />
+        <ToolCallCard
+          :tool-call="group[0]!"
+          :watchable="isWatchableAgent(group[0]!)"
+          @watch="emit('watchAgent', group[0]!)"
+        />
         <AgentActivityPane
           v-if="activityFor(group[0]!)"
           :activity="activityFor(group[0]!)!"
@@ -90,7 +108,11 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
         </button>
         <div v-if="isGroupOpen(group)" class="group-body">
           <template v-for="toolCall in group" :key="toolCall.id">
-            <ToolCallCard :tool-call="toolCall" />
+            <ToolCallCard
+              :tool-call="toolCall"
+              :watchable="isWatchableAgent(toolCall)"
+              @watch="emit('watchAgent', toolCall)"
+            />
             <AgentActivityPane
               v-if="activityFor(toolCall)"
               :activity="activityFor(toolCall)!"
