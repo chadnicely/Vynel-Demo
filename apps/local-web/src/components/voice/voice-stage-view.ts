@@ -21,7 +21,9 @@ export function voiceStageCaption(
   if (failure) return failure;
   if (isMuted) return "Muted — Vynel isn't listening";
   if (view.state === "listening") return view.transcript || "Listening…";
-  if (view.state === "thinking") return view.transcript;
+  // The command was on screen while it was spoken; once it's sent the user
+  // needs to see the turn is IN FLIGHT, not a frozen echo of their own words.
+  if (view.state === "thinking") return "Thinking…";
   if (view.state === "speaking") return view.spokenText;
   return "Say “Hey Vynel” — or tap the mic to talk";
 }
