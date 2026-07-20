@@ -117,7 +117,7 @@ describe("ToolCallCard", () => {
     const wrapper = mount(ToolCallCard, {
       props: {
         toolCall: makeToolCall({
-          toolName: "mcp__vynel__route_to_workspace",
+          toolName: "mcp__vynel__send_task_to_workspace",
           toolInput: { task: "audit the docs" },
           toolOutput: [
             { type: "text", text: '{"status":"enqueued","jobId":"job-1"}' },

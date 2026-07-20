@@ -1385,43 +1385,6 @@ export const removeKnowledgeSource: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
-export const routeToWorkspace: McpToolFactory = (scope, app) =>
-  (tool as unknown as McpToolFn)(
-    'route_to_workspace',
-    "Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. If the task needs an irreversible action (write or edit a file, delete, run a shell command), that action PAUSES for the user to approve — the approval card appears in the app and, for a channel request, in that channel; the task continues once they decide.",
-    {
-    targetWorkspaceId: z.string(),
-    task: z.string(),
-  },
-    async (args: Record<string, unknown>) => {
-      try {
-        const pathStr = '/routing/delegate'
-        const queryStr = ''
-        const bodyObj: Record<string, unknown> = {}
-        for (const k of ['targetWorkspaceId', 'task']) {
-          if (args[k] !== undefined) bodyObj[k] = args[k]
-        }
-        const requestBody = JSON.stringify(bodyObj)
-        const url = pathStr + (queryStr ? '?' + queryStr : '')
-        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
-        const bodyText = await response.text()
-        if (!response.ok) {
-          return {
-            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
-            isError: true,
-          }
-        }
-        return { content: [{ type: 'text', text: bodyText }] }
-      } catch (err) {
-        return {
-          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
-          isError: true,
-        }
-      }
-    },
-    { annotations: { readOnlyHint: false, destructiveHint: true } },
-  )
-
 export const searchChatMessages: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'search_chat_messages',
@@ -1543,6 +1506,43 @@ export const searchMemory: McpToolFactory = (scope, app) =>
       }
     },
     { annotations: { readOnlyHint: true } },
+  )
+
+export const sendTaskToWorkspace: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'send_task_to_workspace',
+    "Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. If the task needs an irreversible action (write or edit a file, delete, run a shell command), that action PAUSES for the user to approve — the approval card appears in the app and, for a channel request, in that channel; the task continues once they decide.",
+    {
+    targetWorkspaceId: z.string(),
+    task: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/routing/delegate'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['targetWorkspaceId', 'task']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
 export const sendToChannel: McpToolFactory = (scope, app) =>
@@ -1870,7 +1870,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   listRoutingChannels,
   listRoutingWorkspaces,
   registerWorkspace,
-  routeToWorkspace,
+  sendTaskToWorkspace,
   sendToChannel,
   speak,
 ]

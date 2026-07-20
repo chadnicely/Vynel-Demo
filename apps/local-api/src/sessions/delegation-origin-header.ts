@@ -5,7 +5,7 @@
 // the report is later delivered back to the channel the user asked from.
 //
 // Why a header (not a request-body field): the delegate request is built by the AUTO-GENERATED
-// routing MCP tool (`route_to_workspace`) from the model's tool input — the origin is AMBIENT
+// routing MCP tool (`send_task_to_workspace`) from the model's tool input — the origin is AMBIENT
 // turn context the model never sees, so it rides beside the request, not inside it. Internal +
 // race-free (the origin is on the job at enqueue time); never part of the OpenAPI contract.
 //

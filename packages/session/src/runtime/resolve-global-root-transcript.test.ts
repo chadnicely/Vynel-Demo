@@ -100,7 +100,7 @@ describe('resolveGlobalRootTranscript', () => {
         id: 'tc-1',
         parentMessageId: 'asst-1',
         toolUseId: 'tu-1',
-        toolName: 'route_to_workspace',
+        toolName: 'send_task_to_workspace',
         toolInput: { targetWorkspaceId: 'w1' },
         toolOutput: 'queued',
         status: 'completed',
@@ -113,7 +113,7 @@ describe('resolveGlobalRootTranscript', () => {
       const transcript = resolveGlobalRootTranscript(db, user.id)
       expect(transcript.messages.map((message) => message.id)).toContain('asst-1')
       expect(transcript.toolCallsByMessageId['asst-1']).toHaveLength(1)
-      expect(transcript.toolCallsByMessageId['asst-1']?.[0]?.toolName).toBe('route_to_workspace')
+      expect(transcript.toolCallsByMessageId['asst-1']?.[0]?.toolName).toBe('send_task_to_workspace')
     })
   })
 

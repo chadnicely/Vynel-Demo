@@ -11,7 +11,7 @@
 // absorbs only the clean result.
 //
 // NOTE (brain-tree Phase 1): PARKED for the Phase 3 agent layer. The routing path
-// no longer binds this — `route_to_workspace` now routes into the workspace's own
+// no longer binds this — `send_task_to_workspace` now routes into the workspace's own
 // ROOT brain (`delegate-to-workspace-root.ts`, the thin path). This fresh-agent
 // ("hand") delegation returns UNDER the workspace root when the locked 3-level
 // hierarchy is built (global → workspace-root → agent). Kept + tested as the

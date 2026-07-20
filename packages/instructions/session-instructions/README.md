@@ -19,9 +19,9 @@ edit after a **restart**.
 - **The whole file is the prompt.** Do NOT add comments, frontmatter, or notes —
   every character reaches the model. Put explanatory notes here in the README.
 - **`global-root.md` is load-bearing.** LLM-native routing only works because the
-  prompt names the routing tools (`list_routing_workspaces`, `route_to_workspace`,
+  prompt names the routing tools (`list_routing_workspaces`, `send_task_to_workspace`,
   `list_routing_channels`, `send_to_channel`) — dropping a name silently breaks
-  routing. Routing is fire-and-forget: `route_to_workspace` returns immediately and
+  routing. Routing is fire-and-forget: `send_task_to_workspace` returns immediately and
   the report arrives later, so the prompt must NOT tell the model to wait for a
   result. A colocated test guards the tool names.
 - **`workspace-agent.md`** carries the general operating protocol (plain language,

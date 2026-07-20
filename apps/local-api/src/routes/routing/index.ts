@@ -3,7 +3,7 @@
 // global root has no workspace), so it does NOT nest under /workspaces/:workspaceId.
 //
 //   GET  /routing/workspaces      -> list_routing_workspaces (read-safe; the targets)
-//   POST /routing/delegate        -> route_to_workspace (a mutating MCP tool)
+//   POST /routing/delegate        -> send_task_to_workspace (a mutating MCP tool)
 //   GET  /routing/channels        -> list_routing_channels (read-safe; the send targets)
 //   POST /routing/send-to-channel -> send_to_channel (a mutating MCP tool — proactive push, Ch4 §D)
 //
@@ -12,7 +12,7 @@
 // the global-root turn's in-process server — the normal chat turn is byte-for-byte
 // unchanged (the additive invariant).
 //
-// ASYNC pass-and-push (brain-tree Chapter 1): `route_to_workspace` ENQUEUES the task on the
+// ASYNC pass-and-push (brain-tree Chapter 1): `send_task_to_workspace` ENQUEUES the task on the
 // durable delegation-jobs queue and returns IMMEDIATELY — the global root frees itself
 // (stays context-free) instead of blocking on the workspace turn. The in-process
 // `delegation-service` claims the job, runs the workspace-root turn in the background, and
@@ -20,7 +20,7 @@
 // synchronously; that machinery — `routeRequest` + `delegateToWorkspaceRoot` — is now reused
 // UNCHANGED by the service.)
 //
-// `route_to_workspace` is mutating (POST, enqueues a background sub-session), so it carries
+// `send_task_to_workspace` is mutating (POST, enqueues a background sub-session), so it carries
 // `mutatingApproved: true`. **The ROUTED WORKSPACE TURN SURFACES ITS APPROVALS UP** (fork 3
 // BUILT): a carded (irreversible) tool RECORDS its approval and PARKS — the card reaches the
 // web notifier (always) and the origin channel (when the request came from one); the user's
@@ -120,7 +120,7 @@ export const routingApp = factory
       },
       'x-mcp': {
         exposed: true,
-        name: 'route_to_workspace',
+        name: 'send_task_to_workspace',
         mutatingApproved: true,
         description:
           "Hand a task to a target workspace's own brain (its continuing conversation, with all its " +

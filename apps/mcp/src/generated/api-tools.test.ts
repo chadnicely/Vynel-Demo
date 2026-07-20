@@ -107,7 +107,7 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   'list_routing_channels',
   'list_routing_workspaces',
   'register_workspace',
-  'route_to_workspace',
+  'send_task_to_workspace',
   'send_to_channel',
   'speak',
 ] as const

@@ -19699,7 +19699,7 @@
         "x-sdk-name": "routing.delegate",
         "x-mcp": {
           "exposed": true,
-          "name": "route_to_workspace",
+          "name": "send_task_to_workspace",
           "mutatingApproved": true,
           "description": "Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. If the task needs an irreversible action (write or edit a file, delete, run a shell command), that action PAUSES for the user to approve — the approval card appears in the app and, for a channel request, in that channel; the task continues once they decide."
         },

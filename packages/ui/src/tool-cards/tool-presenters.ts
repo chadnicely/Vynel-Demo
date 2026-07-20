@@ -53,8 +53,8 @@ export function languageForFilePath(filePath: string): string {
   return LANGUAGE_BY_EXTENSION[extension] ?? "text";
 }
 
-/** An MCP tool id reads as machinery ("mcp__vynel__route_to_workspace") —
- *  surface just the tool's own name in words ("route to workspace"). */
+/** An MCP tool id reads as machinery ("mcp__vynel__send_task_to_workspace") —
+ *  surface just the tool's own name in words ("send task to workspace"). */
 export function displayToolName(toolName: string): string {
   const mcpMatch = toolName.match(/^mcp__.+?__(.+)$/);
   if (!mcpMatch) return toolName;

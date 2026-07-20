@@ -13,7 +13,7 @@ describe('loadSessionInstruction', () => {
   it('global-root names all four routing tools and frames the brain as a router', () => {
     const prompt = loadSessionInstruction('global-root')
     expect(prompt).toContain('list_routing_workspaces')
-    expect(prompt).toContain('route_to_workspace')
+    expect(prompt).toContain('send_task_to_workspace')
     expect(prompt).toContain('list_routing_channels')
     expect(prompt).toContain('send_to_channel')
     expect(prompt.toLowerCase()).toContain('route')

@@ -76,7 +76,7 @@ describe("adaptChatTurnStreamToVoice", () => {
 
   it("stays silent on a no-speak, no-text turn (nothing worth reading aloud)", async () => {
     const events = await collect([
-      toolCallStarted("mcp__vynel__route_to_workspace", { task: "check things" }),
+      toolCallStarted("mcp__vynel__send_task_to_workspace", { task: "check things" }),
       { kind: "turn-stream-ended" } as ChatTurnEvent,
     ]);
     expect(events).toEqual([{ kind: "completed" }]);
