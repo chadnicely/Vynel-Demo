@@ -73,9 +73,10 @@ export interface CommandRecognizer {
 }
 
 // How long a pause counts as "done speaking" before the transcript is finalized.
-// Generous so a mid-thought pause never cuts the user off — they finish talking,
-// then it waits this long of true silence before sending the command.
-const DEFAULT_ENDPOINT_SILENCE_MS = 5000;
+// The balance point (live-tuned with Chad): long enough that a think-and-continue
+// pause doesn't cut the command, short enough that every exchange doesn't drag —
+// 5000 felt broken, anything under 3000 clipped mid-thought speech.
+const DEFAULT_ENDPOINT_SILENCE_MS = 3000;
 
 export function createCommandRecognizer(
   lang = "en-US",
