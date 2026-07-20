@@ -23,6 +23,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A refused action now reads as refused.** When you deny an approval card, the tool's card
+  settles in a distinct "denied" state instead of looking like the tool broke, and the approval
+  record now links to the exact tool call it gated — every decision you make (approve, deny,
+  time out, cancel) is stamped on the action it applied to.
+
 - **No more cards stuck "running" forever.** If the app was closed, crashed, or lost its
   connection while a tool or spawned agent was mid-run, its card stayed in a live "running"
   state indefinitely — even days later. Any run cut short now settles to a quiet "cancelled"

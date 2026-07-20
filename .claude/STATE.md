@@ -41,8 +41,25 @@ parent already coerces children):**
   approvalStatus column never written) — wire the denial write in approval-resolved or trim.
 **⏭ CHAD SMOKE: restart the app → the stuck-since-yesterday Agent card in Ks Tournalink reads a
 muted "cancelled", no breathing dot · kill the app mid-agent-run, reopen → card settles cancelled
-on boot · Stop a turn mid-tool → the tool card settles. Then COMMIT (fix(chat) + docs) +
-CHANGELOG → Slice 2 module notes (docs/module-notes/concurrent-delegations.md).**
+on boot · Stop a turn mid-tool → the tool card settles. COMMITTED `7327ebb`+`6b71eaa` →
+Slice 2 module notes (docs/module-notes/concurrent-delegations.md).**
+
+**FOLLOW-ON (same day): 'DENIED' WIRED (the reviewer's same-pattern catch — the next zero-writer
+status) — gate GREEN 511f/2714t, reviewed CLEAN 0 must-fix. SDK 0.3.213's canUseTool options
+carry `toolUseID` (the per-call tool_use id), which closed the recorded foundation-hardening gap:
+approval events (ApprovalRequested/Resolved) grew optional `toolUseId`; the Claude callback
+threads it; handle-approval-requested's audit row now carries the REAL tool_use id
+(`event.toolUseId ?? approvalRequestId` — placeholder era over, JOIN onto chat_tool_calls works).
+Consumer grew per-turn `approvalStatusByToolUseId`: approval-resolved stamps `approvalStatus`
+(decision.kind maps 1:1) + a DENIAL settles the row `status='denied'` terminally (the trust card
+says "you refused it", not "it broke"); the SDK's post-denial error tool_result can no longer
+flip it 'failed'; all 3 event orderings covered (parked-decision insert · mid-flight update ·
+echo-overwrite). Denied is terminal → never reaped. UI/contracts needed NOTHING (both verified
+present end-to-end). RECORDED nits (not built): resolve-time denial doesn't yield a wire event
+(live card settles on the prompt deny echo — yield at resolve = instant settle) ·
+consume-session-event-stream ~431 lines (extraction next touch) · doc drift
+`.claude/docs/approvals/structure.md` ("outbox consumer" → the shipped in-stream mechanism) ·
+revisit the wasDenied guard if a live in-turn approval TIMEOUT ever lands (same trust argument).**
 
 ## ⏭ NEXT ACTION (2026-07-20): EDITABLE SESSION-INSTRUCTION MD — gate GREEN 506f/2678t, reviewed COMPLETE, COMMITTED; NEXT: Chad smoke (edit a prompt file + restart) → then the DB/UI arc when Chad wants it
 
