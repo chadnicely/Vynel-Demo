@@ -106,16 +106,19 @@ const statusLine = computed(() =>
   background: transparent;
 }
 
-/* No card at all — the orb, caption, and controls float free over the
-   desktop (Chad's pick). Text shadows keep the captions readable over bright
-   backgrounds; the (invisible) stage-card div remains the drag region. */
-.is-tauri :deep(.caption) {
-  text-shadow:
-    0 1px 3px rgb(0 0 0 / 0.9),
-    0 2px 12px rgb(0 0 0 / 0.6);
+/* A translucent glass card behind the stage (reopened 2026-07-21 — the earlier
+   free-floating look was unreadable over busy screens). Translucency without
+   blur is the honest look: backdrop-filter can't frost what's BEHIND a
+   transparent Tauri window. The card stays the drag region. */
+.is-tauri .stage-card {
+  background: rgb(8 11 16 / 0.78);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 24px;
+  box-shadow: 0 12px 48px rgb(0 0 0 / 0.5);
 }
 
-.is-tauri :deep(.status-line) {
-  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
+/* Belt over the glass — a bright desktop can still glow through 22% translucency. */
+.is-tauri :deep(.caption) {
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.7);
 }
 </style>
