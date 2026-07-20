@@ -1,12 +1,14 @@
 // Unit test for the api-side delegation service. The claim-and-run tick + the orphan-count
-// repo are mocked; we assert the ~1s poll wiring, the SERIAL in-flight guard (a slow tick
-// is never re-entered), the startup orphan log, and that stop() halts the poll. Fake timers
-// drive the cadence.
+// repo are mocked; we assert the ~1s poll wiring, the BOUNDED POOL (capacity fill, the
+// same-workspace exclusion set, slot release on settle), the startup orphan log, and that
+// stop() halts the poll. Fake timers drive the cadence. A mock tick signals "claimed" by
+// invoking deps.onRunStarted synchronously — exactly the real tick's contract.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
+import type { SessionActivityFeed } from '@vynel/session/runtime'
 
 const { tickMock, reclaimMock } = vi.hoisted(() => ({
   tickMock: vi.fn(),
@@ -30,7 +32,18 @@ function fakeOptions() {
     db: {} as unknown as Database,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as Logger,
     provider: {} as unknown as AiAgentProvider,
+    activityFeed: {} as unknown as SessionActivityFeed,
   }
+}
+
+/** The deps object the service passed to a given tick call. */
+type TickDeps = {
+  onRunStarted?: (run: { jobId: string; workspaceId: string }) => void
+  excludeWorkspaceIds?: ReadonlySet<string>
+}
+
+function tickDepsOfCall(callIndex: number): TickDeps {
+  return tickMock.mock.calls[callIndex]![1] as TickDeps
 }
 
 beforeEach(() => {
@@ -57,23 +70,78 @@ describe('startDelegationService', () => {
     service.stop()
   })
 
-  it('is SERIAL — does not start a second tick while one is still in flight', async () => {
-    // A tick that never resolves holds the in-flight flag.
-    let resolveTick: (processed: boolean) => void = () => {}
-    tickMock.mockReturnValue(
-      new Promise<boolean>((resolve) => {
-        resolveTick = resolve
-      }),
-    )
+  it('fills capacity in one tick, caps at 3 live runs, and frees a slot on settle', async () => {
+    // Every claim succeeds (a distinct workspace each) and never settles until
+    // released — the pool must launch exactly MAX_CONCURRENT_DELEGATIONS.
+    const resolvers: Array<(processed: boolean) => void> = []
+    let nextWorkspace = 0
+    tickMock.mockImplementation((_db: unknown, deps: TickDeps) => {
+      deps.onRunStarted?.({ jobId: `job-${nextWorkspace}`, workspaceId: `ws-${nextWorkspace}` })
+      nextWorkspace += 1
+      return new Promise<boolean>((resolve) => resolvers.push(resolve))
+    })
     const service = startDelegationService(fakeOptions())
 
-    await vi.advanceTimersByTimeAsync(1_000) // first tick starts (in flight)
-    await vi.advanceTimersByTimeAsync(5_000) // 5 more intervals fire but must be SKIPPED
-    expect(tickMock).toHaveBeenCalledTimes(1) // still once — the serial guard held
+    await vi.advanceTimersByTimeAsync(1_000) // ONE tick fills the whole pool
+    expect(tickMock).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(5_000) // pool full — later intervals launch nothing
+    expect(tickMock).toHaveBeenCalledTimes(3)
 
-    resolveTick(false) // the in-flight tick completes → the flag clears
-    await vi.advanceTimersByTimeAsync(1_000) // the next interval now runs
-    expect(tickMock).toHaveBeenCalledTimes(2)
+    resolvers[0]!(true) // one run settles → one slot frees
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(tickMock).toHaveBeenCalledTimes(4)
+    service.stop()
+  })
+
+  it('passes the live workspaces as the claim exclusion set (never two runs per workspace)', async () => {
+    // First claim holds ws-A and never settles; the second call claims nothing
+    // (simulating "the only pending job's workspace is busy").
+    const exclusionSeenByCall: string[][] = []
+    tickMock.mockImplementation((_db: unknown, deps: TickDeps) => {
+      exclusionSeenByCall.push([...(deps.excludeWorkspaceIds ?? [])])
+      if (exclusionSeenByCall.length === 1) {
+        deps.onRunStarted?.({ jobId: 'job-a', workspaceId: 'ws-A' })
+        return new Promise<boolean>(() => {})
+      }
+      return Promise.resolve(false)
+    })
+    const service = startDelegationService(fakeOptions())
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    // Call 1 claimed with nothing excluded; call 2 (same tick, second slot) must
+    // already see ws-A in the exclusion set.
+    expect(exclusionSeenByCall[0]).toEqual([])
+    expect(exclusionSeenByCall[1]).toEqual(['ws-A'])
+    service.stop()
+  })
+
+  it('an empty queue launches exactly one probe per poll (no busy loop)', async () => {
+    tickMock.mockResolvedValue(false) // no claim → no onRunStarted → break
+    const service = startDelegationService(fakeOptions())
+    await vi.advanceTimersByTimeAsync(3_000)
+    expect(tickMock).toHaveBeenCalledTimes(3)
+    service.stop()
+  })
+
+  it('a rejecting run still frees its slot and workspace', async () => {
+    let call = 0
+    tickMock.mockImplementation((_db: unknown, deps: TickDeps) => {
+      call += 1
+      if (call === 1) {
+        deps.onRunStarted?.({ jobId: 'job-a', workspaceId: 'ws-A' })
+        return Promise.reject(new Error('turn exploded'))
+      }
+      return Promise.resolve(false)
+    })
+    const options = fakeOptions()
+    const service = startDelegationService(options)
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(options.logger.error).toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1_000)
+    // The slot freed: the next poll probes again with ws-A no longer excluded.
+    const lastDeps = tickDepsOfCall(tickMock.mock.calls.length - 1)
+    expect([...(lastDeps.excludeWorkspaceIds ?? [])]).toEqual([])
     service.stop()
   })
 

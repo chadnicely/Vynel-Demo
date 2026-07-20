@@ -122,5 +122,15 @@ global side. Mechanism:
 
 - Dynamic pool sizing by machine resources; per-user fairness (Phase 2 multi-user).
 - The timed-out detached run still has no stop lever (pre-existing doctrine, unchanged
-  by concurrency — the registry entry ends at tick terminal).
+  by concurrency — the registry entry ends at tick terminal). **Named consequence
+  (reviewer, as-built): the exclusion set protects the TICK's lifetime, not the SDK
+  turn's — after a 600s timeout the detached turn keeps writing its workspace
+  conversation while the pool considers the workspace free, so a follow-up job can run
+  beside it. The old serial guard had the identical hole; a real fix is a
+  detached-run lease, its own slice.**
+- Fork C's banner copy ("Working on a task from the assistant…") deliberately rides the
+  sessions-panel slice — WorkspaceView's generic background-turn poll covers v1; no
+  origin-keyed copy shipped here.
+- `activeWorkspaceIds` keeps its precise-today name; the `activeTargetKeys` rename is a
+  Slice-④ act, when session targets actually exist.
 - Follow-up messaging into a running child (`pushToSession` rails) — Slice ④.

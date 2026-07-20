@@ -7,13 +7,17 @@
 // session detail while a turn is active renders near-live text; token-level
 // mirroring stays the trace-observe stream's job.
 
-/** Where a turn came from — drives the "Claude is replying via …" indicator. */
+/** Where a turn came from — drives the "Claude is replying via …" indicator.
+ *  `'delegation'` = a background workspace turn running a task the assistant
+ *  handed down (send_task_to_workspace); the originating channel stays on the
+ *  job row — the feed reports what is running, not where it was asked from. */
 export type SessionTurnOrigin =
   | 'web'
   | 'voice'
   | 'telegram'
   | 'discord'
   | 'schedule'
+  | 'delegation'
 
 /** One in-flight turn as the feed reports it. `sessionId` is null until the
  *  runtime resolves it (a fresh conversation learns its id mid-turn). */

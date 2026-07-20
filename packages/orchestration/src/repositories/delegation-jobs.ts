@@ -8,7 +8,7 @@
 //
 // Spec: the `orchestration` domain (Chapter 1 — async core).
 
-import { and, asc, desc, eq, gte, inArray, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, notInArray } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   delegationJobs,
@@ -89,11 +89,28 @@ export function findLatestDelegationJobForParentSince(
 // (mirrors claimDueSchedule's `changes > 0` semantics, returning the row
 // instead of a boolean). This is the ONLY concurrency guard; no explicit
 // transaction is needed.
-export function claimNextPendingDelegationJob(db: Database, claimedAt: Date): DelegationJob | null {
+export function claimNextPendingDelegationJob(
+  db: Database,
+  claimedAt: Date,
+  options: {
+    /** Workspaces with a LIVE run — skipped so the pool never resumes the same
+     *  workspace conversation twice concurrently (single-writer invariant).
+     *  FIFO still holds per workspace; parallelism is across workspaces only. */
+    excludeWorkspaceIds?: readonly string[]
+  } = {},
+): DelegationJob | null {
+  const excludeWorkspaceIds = options.excludeWorkspaceIds ?? []
   const [candidate] = db
     .select()
     .from(delegationJobs)
-    .where(eq(delegationJobs.status, 'pending'))
+    .where(
+      excludeWorkspaceIds.length > 0
+        ? and(
+            eq(delegationJobs.status, 'pending'),
+            notInArray(delegationJobs.workspaceId, [...excludeWorkspaceIds]),
+          )
+        : eq(delegationJobs.status, 'pending'),
+    )
     .orderBy(asc(delegationJobs.createdAt), asc(delegationJobs.id))
     .limit(1)
     .all()

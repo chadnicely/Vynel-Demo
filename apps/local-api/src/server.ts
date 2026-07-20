@@ -157,6 +157,7 @@ export async function boot(): Promise<void> {
     db,
     logger,
     provider,
+    activityFeed,
     turnEvents,
     cancelRegistry: delegationCancels,
   })

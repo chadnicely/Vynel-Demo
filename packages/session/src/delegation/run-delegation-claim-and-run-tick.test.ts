@@ -31,6 +31,7 @@ import {
 import { resolveDelegationTrace } from './resolve-delegation-trace.js'
 import { DelegationCancelRegistry } from './delegation-cancel-registry.js'
 import { runDelegationClaimAndRunTick } from './run-delegation-claim-and-run-tick.js'
+import { SessionActivityFeed } from '../runtime/session-activity-feed.js'
 
 // The tick only calls warn/error/info — a no-op stub satisfies pino's Logger (the
 // FakeAiAgentProvider uses the same `as unknown as` test-stub idiom).
@@ -122,6 +123,7 @@ describe('runDelegationClaimAndRunTick', () => {
           startChatSessionInputs: askInputs,
         }),
         logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
       })
       expect(askInputs[0]!.permissionMode).toBe('ask')
 
@@ -141,6 +143,7 @@ describe('runDelegationClaimAndRunTick', () => {
           startChatSessionInputs: defaultInputs,
         }),
         logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
       })
       expect(defaultInputs[0]!.permissionMode).toBe('bypass-with-behavior-gate')
     })
@@ -165,7 +168,7 @@ describe('runDelegationClaimAndRunTick', () => {
         seededSessionId: 'ws-root-new',
         resultText: 'Acme has 3 docs; all current.',
       })
-      const processed = await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+      const processed = await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
       expect(processed).toBe(true)
 
@@ -218,7 +221,7 @@ describe('runDelegationClaimAndRunTick', () => {
   it('returns false when the queue is empty', async () => {
     await withTestDatabase(async (db) => {
       const provider = new FakeAiAgentProvider({ seededSessionId: 'x', resultText: 'y' })
-      expect(await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })).toBe(false)
+      expect(await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })).toBe(false)
     })
   })
 
@@ -238,7 +241,7 @@ describe('runDelegationClaimAndRunTick', () => {
       })
 
       const provider = new FakeAiAgentProvider({ seededSessionId: 'ws-root-2', resultText: 'all clear' })
-      const processed = await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+      const processed = await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
       expect(processed).toBe(true)
       expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
@@ -296,6 +299,7 @@ describe('runDelegationClaimAndRunTick', () => {
       const processed = await runDelegationClaimAndRunTick(db, {
         provider: new InterruptedMidRunProvider(),
         logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
         cancelRegistry,
       })
       expect(processed).toBe(true)
@@ -348,6 +352,7 @@ describe('runDelegationClaimAndRunTick', () => {
       await runDelegationClaimAndRunTick(db, {
         provider,
         logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
         cancelRegistry,
       })
 
@@ -376,6 +381,7 @@ describe('runDelegationClaimAndRunTick', () => {
       const processed = await runDelegationClaimAndRunTick(db, {
         provider: new ThrowingTurnProvider(),
         logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
       })
 
       // The job reached a terminal `failed` state — NOT stuck `claimed`.
@@ -421,7 +427,7 @@ describe('runDelegationClaimAndRunTick', () => {
       })
 
       const provider = new FakeAiAgentProvider({ seededSessionId: 'ws-root-ch', resultText: 'Acme has 3 docs.' })
-      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
       expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
       // The report closed the loop — delivered back to the origin channel + recipient.
@@ -463,7 +469,7 @@ describe('runDelegationClaimAndRunTick', () => {
         reportReply: 'Done — all docs are current and cross-linked.',
         summarizeReportInputs: distillCalls,
       })
-      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
       // The distill saw the full report + the task, targeting the chat surface.
       expect(distillCalls).toHaveLength(1)
@@ -507,7 +513,7 @@ describe('runDelegationClaimAndRunTick', () => {
         seededSessionId: 'ws-root-noreply',
         resultText: longReport,
       })
-      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
       expect(listChatMessagesForSession(db, globalSessionId).map((m) => m.body)).toEqual([
         longReport.trim(),
@@ -537,7 +543,7 @@ describe('runDelegationClaimAndRunTick', () => {
         reportReply: 'should never be used',
         summarizeReportInputs: distillCalls,
       })
-      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
       expect(distillCalls).toHaveLength(0)
       expect(listChatMessagesForSession(db, globalSessionId).map((m) => m.body)).toEqual([
@@ -588,7 +594,7 @@ describe('runDelegationClaimAndRunTick', () => {
         reportReply: 'Docs summarized: 3 files, all current. ✅',
         summarizeReportInputs: distillCalls,
       })
-      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+      await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
       // The distill targeted the ORIGIN channel's kind, and BOTH surfaces got the
       // same short reply — the channel message and the global row.
@@ -641,7 +647,7 @@ describe('runDelegationClaimAndRunTick', () => {
         resultText: 'File updated.',
         approvalToolName: 'Write',
       })
-      const running = runDelegationClaimAndRunTick(db, { provider, logger: silentLogger })
+      const running = runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
       // Poll until the record-and-park lands (the tick is mid-turn, parked).
       await vi.waitFor(() => {
@@ -683,6 +689,117 @@ describe('runDelegationClaimAndRunTick', () => {
         'approval-request',
         'chat-stream-final',
       ])
+    })
+  })
+
+  it('announces the run on the activity feed: started (origin delegation) → session resolved → ended', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'summarize the docs',
+      })
+
+      const activityFeed = new SessionActivityFeed()
+      const seen: Array<{ kind: string; workspaceId?: string | null; origin?: string }> = []
+      activityFeed.subscribe(user.id, (event) => seen.push(event))
+
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ seededSessionId: 'ws-live', resultText: 'ok' }),
+        logger: silentLogger,
+        activityFeed,
+      })
+
+      expect(seen.map((event) => event.kind)).toEqual([
+        'turn-started',
+        'turn-updated',
+        'turn-ended',
+      ])
+      expect(seen[0]).toMatchObject({
+        scopeKind: 'workspace',
+        workspaceId: workspace.id,
+        origin: 'delegation',
+      })
+      expect(seen[1]).toMatchObject({ sessionId: 'ws-live' })
+      // No zombies: the snapshot is empty after the run.
+      const replay: unknown[] = []
+      activityFeed.subscribe(user.id, (event) => replay.push(event))
+      expect(replay).toHaveLength(0)
+    })
+  })
+
+  it('a THROWING turn still ends its feed announcement (no zombie turn)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'explode',
+      })
+
+      const activityFeed = new SessionActivityFeed()
+      const kinds: string[] = []
+      activityFeed.subscribe(user.id, (event) => kinds.push(event.kind))
+
+      await runDelegationClaimAndRunTick(db, {
+        provider: new ThrowingTurnProvider(),
+        logger: silentLogger,
+        activityFeed,
+      })
+
+      expect(kinds[0]).toBe('turn-started')
+      expect(kinds.at(-1)).toBe('turn-ended')
+    })
+  })
+
+  it('onRunStarted fires synchronously at claim; excludeWorkspaceIds skips a busy workspace', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const busyWorkspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const jobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: busyWorkspace.id,
+        workspacePath: busyWorkspace.path,
+        workspaceName: busyWorkspace.name,
+        taskText: 'wait your turn',
+      })
+
+      // The only pending job's workspace is busy → nothing claims.
+      const skipped = await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ seededSessionId: 'ws-x', resultText: 'ok' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        excludeWorkspaceIds: new Set([busyWorkspace.id]),
+      })
+      expect(skipped).toBe(false)
+      expect(findDelegationJobById(db, jobId)?.status).toBe('pending')
+
+      // Freed: the claim proceeds and reports itself SYNCHRONOUSLY (before the
+      // first await — the pool reserves the workspace slot on this callback).
+      const started: Array<{ jobId: string; workspaceId: string }> = []
+      const running = runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ seededSessionId: 'ws-y', resultText: 'ok' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        excludeWorkspaceIds: new Set(),
+        onRunStarted: (run) => started.push(run),
+      })
+      expect(started).toEqual([{ jobId, workspaceId: busyWorkspace.id }])
+      await running
+      expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
     })
   })
 })

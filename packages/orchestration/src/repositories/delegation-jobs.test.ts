@@ -135,6 +135,43 @@ describe('delegation_jobs repository', () => {
     })
   })
 
+  it('claim with excludeWorkspaceIds skips busy workspaces but keeps FIFO among the rest', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const busyWorkspace = insertWorkspace(db, makeWorkspace(user.id))
+      const freeWorkspace = insertWorkspace(db, makeWorkspace(user.id))
+      // The OLDEST pending job targets the busy workspace — without the
+      // exclusion it would win the FIFO claim.
+      insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, busyWorkspace.id, {
+          createdAt: new Date('2026-06-01T00:00:00Z'),
+        }),
+      )
+      const freeJob = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, freeWorkspace.id, {
+          createdAt: new Date('2026-06-01T00:01:00Z'),
+        }),
+      )
+
+      const claimed = claimNextPendingDelegationJob(db, new Date(), {
+        excludeWorkspaceIds: [busyWorkspace.id],
+      })
+      expect(claimed?.id).toBe(freeJob.id)
+
+      // Every pending workspace busy → nothing claimable; the busy job stays pending.
+      const none = claimNextPendingDelegationJob(db, new Date(), {
+        excludeWorkspaceIds: [busyWorkspace.id, freeWorkspace.id],
+      })
+      expect(none).toBeNull()
+
+      // Empty exclusion = today's behavior — the busy-workspace job now wins FIFO.
+      const next = claimNextPendingDelegationJob(db, new Date(), { excludeWorkspaceIds: [] })
+      expect(next?.workspaceId).toBe(busyWorkspace.id)
+    })
+  })
+
   it('double-claim of a single pending job wins once; the second claim returns null', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

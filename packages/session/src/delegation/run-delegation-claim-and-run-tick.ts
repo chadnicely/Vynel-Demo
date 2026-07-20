@@ -41,6 +41,7 @@ import {
 } from './build-routed-approval-handler.js'
 import { traceChannelKey, type TurnEventBroadcaster } from './turn-event-broadcaster.js'
 import type { DelegationCancelRegistry } from './delegation-cancel-registry.js'
+import type { SessionActivityFeed } from '../runtime/session-activity-feed.js'
 
 // Generous — the bound is on WAITING, not the turn (which keeps running in its own SDK
 // session). 120s was sized for an HTTP request waiting on a result; a background job
@@ -54,6 +55,11 @@ const REPORT_DISTILL_MIN_LENGTH = 700
 export interface RunDelegationTickDeps {
   provider: AiAgentProvider
   logger: Logger
+  /** The per-user liveness feed — a claimed run announces itself (origin
+   *  'delegation') so every open UI learns the workspace is mid-task without
+   *  Watching. REQUIRED (the runGlobalRootTurn precedent): a background turn
+   *  invisible to the feed is against the trust doctrine. */
+  activityFeed: SessionActivityFeed
   /** The in-process turn-event pub/sub — the routed turn publishes to its trace
    *  channel so the SSE observe route streams it live. Omit → no observers. */
   turnEvents?: TurnEventBroadcaster
@@ -62,6 +68,12 @@ export interface RunDelegationTickDeps {
   cancelRegistry?: DelegationCancelRegistry
   /** Wait budget for one job's turn (ms). Defaults to DELEGATION_RUN_BUDGET_MS. */
   budgetMs?: number
+  /** Workspaces with a live run this process — the claim skips them (the
+   *  pool's same-workspace exclusion; single-writer per conversation). */
+  excludeWorkspaceIds?: ReadonlySet<string>
+  /** Fires SYNCHRONOUSLY the moment a job is claimed (before any await) — the
+   *  service's pool uses it to reserve the workspace slot for the run's life. */
+  onRunStarted?: (run: { jobId: string; workspaceId: string }) => void
 }
 
 /** Resolve a job's origin channel to a DELIVERABLE address — the shared guard for the
@@ -92,8 +104,13 @@ export async function runDelegationClaimAndRunTick(
   db: Database,
   deps: RunDelegationTickDeps,
 ): Promise<boolean> {
-  const claimed = claimNextPendingDelegationJob(db, new Date())
+  const claimed = claimNextPendingDelegationJob(db, new Date(), {
+    ...(deps.excludeWorkspaceIds !== undefined && deps.excludeWorkspaceIds.size > 0
+      ? { excludeWorkspaceIds: [...deps.excludeWorkspaceIds] }
+      : {}),
+  })
   if (claimed === null) return false
+  deps.onRunStarted?.({ jobId: claimed.id, workspaceId: claimed.workspaceId })
 
   // The request's correlation key (brain-tree Chapter 2) — threaded into BOTH taggers
   // (the workspace-side task + reply via the delegate closure, the pushed report below)
@@ -122,6 +139,15 @@ export async function runDelegationClaimAndRunTick(
   // still-parked approval — fail-closed, never a hanging SDK agent.
   let approvalHandler: RoutedApprovalHandler | null = null
 
+  // Announce on the liveness feed so every open UI sees the workspace go
+  // busy (presence dot, thread poll, banner). Immediately before try/finally —
+  // anything throwable in between would leak a process-lifetime zombie turn.
+  const activityHandle = deps.activityFeed.begin({
+    userId: claimed.userId,
+    scopeKind: 'workspace',
+    workspaceId: claimed.workspaceId,
+    origin: 'delegation',
+  })
   try {
     // Resolve the workspace's persona ONCE (brain-tree Ch5) — both halves of the
     // "Mark · vynel" label come from this single fresh read: the manager name + the
@@ -169,8 +195,12 @@ export async function runDelegationClaimAndRunTick(
             }
           : {}),
         // The stop bridge learns the RUNNING session id so a user Stop can
-        // interrupt exactly this turn.
-        ...(cancelHandle !== null ? { onSessionResolved: cancelHandle.sessionResolved } : {}),
+        // interrupt exactly this turn; the liveness feed learns it for the
+        // turn-updated frame (the UI keys its thread poll on the session).
+        onSessionResolved: (sdkSessionId: string) => {
+          cancelHandle?.sessionResolved(sdkSessionId)
+          activityHandle.sessionResolved(sdkSessionId)
+        },
         logger: deps.logger,
       })
 
@@ -323,5 +353,6 @@ export async function runDelegationClaimAndRunTick(
     return true
   } finally {
     cancelHandle?.end()
+    activityHandle.end()
   }
 }
