@@ -135,240 +135,266 @@ export async function* consumeSessionEventStream(
     logger,
   })
 
-  for await (const event of sessionEventStream) {
-    switch (event.kind) {
-      case 'session-started': {
-        const result = handleSessionStarted({
-          db,
-          event,
-          userMessageInput,
-          userId,
-          workspaceId,
-          providerId,
-          isNewSession,
-          ...(newSessionOptions !== undefined ? { newSessionOptions } : {}),
-          ...(messageAttribution !== undefined ? { messageAttribution } : {}),
-        })
-        sessionId = result.sessionId
-        userMessage = result.userMessage
-        // Persist attached image bytes now that the real session id exists (a
-        // new session's id isn't known until the SDK assigns it). Best-effort:
-        // the provider already got the images inline, so a disk hiccup must not
-        // fail the turn — it only affects re-display when the session reopens.
-        if (workspacePath && userMessageInput.attachedImages?.length) {
-          try {
-            await persistAttachedImages({
-              workspacePath,
-              sessionId: result.sessionId,
-              images: userMessageInput.attachedImages,
-            })
-          } catch (err) {
-            logger?.warn(
-              { sessionId: result.sessionId, error: String(err) },
-              'failed to persist attached images',
-            )
+  try {
+    for await (const event of sessionEventStream) {
+      switch (event.kind) {
+        case 'session-started': {
+          const result = handleSessionStarted({
+            db,
+            event,
+            userMessageInput,
+            userId,
+            workspaceId,
+            providerId,
+            isNewSession,
+            ...(newSessionOptions !== undefined ? { newSessionOptions } : {}),
+            ...(messageAttribution !== undefined ? { messageAttribution } : {}),
+          })
+          sessionId = result.sessionId
+          userMessage = result.userMessage
+          // Persist attached image bytes now that the real session id exists (a
+          // new session's id isn't known until the SDK assigns it). Best-effort:
+          // the provider already got the images inline, so a disk hiccup must not
+          // fail the turn — it only affects re-display when the session reopens.
+          if (workspacePath && userMessageInput.attachedImages?.length) {
+            try {
+              await persistAttachedImages({
+                workspacePath,
+                sessionId: result.sessionId,
+                images: userMessageInput.attachedImages,
+              })
+            } catch (err) {
+              logger?.warn(
+                { sessionId: result.sessionId, error: String(err) },
+                'failed to persist attached images',
+              )
+            }
           }
-        }
-        for (const turnEvent of result.events) yield turnEvent
-        break
-      }
-
-      case 'text-chunk': {
-        // A SUBAGENT's stream never becomes main-transcript rows — it renders
-        // nested under its spawning Agent card, and persists onto that card's
-        // row (subagentNarrative) so the pane survives settle/reload.
-        if (event.parentToolUseId !== undefined) {
-          yield subagentActivity.onTextChunk(event.parentToolUseId, event.textDelta)
+          for (const turnEvent of result.events) yield turnEvent
           break
         }
-        const assistantMessage = ensureAssistantMessageRow(
-          db,
-          event.messageId,
-          sessionId!,
-          assistantMessageByMessageId,
-          assistantAttribution,
-        )
-        chatRepository.appendToChatMessageBody(db, assistantMessage.id, event.textDelta)
-        yield { kind: 'text-chunk', messageId: assistantMessage.id, textDelta: event.textDelta }
-        if (event.isFinalChunk) {
-          chatRepository.updateChatMessage(db, assistantMessage.id, { completedAt: new Date() })
-        }
-        break
-      }
 
-      case 'thinking-chunk': {
-        // Subagent thinking is dropped — even nested it is noise at this
-        // altitude; the agent's text + tool cards are the trace.
-        if (event.parentToolUseId !== undefined) break
-        const assistantMessage = ensureAssistantMessageRow(
-          db,
-          event.messageId,
-          sessionId!,
-          assistantMessageByMessageId,
-          assistantAttribution,
-        )
-        // Provider's field is `textDelta`; chat-turn-event renames to `thinkingDelta`
-        // for UI clarity (text vs thinking are distinct render surfaces).
-        chatRepository.appendToChatMessageThinking(db, assistantMessage.id, event.textDelta)
-        yield {
-          kind: 'thinking-chunk',
-          messageId: assistantMessage.id,
-          thinkingDelta: event.textDelta,
+        case 'text-chunk': {
+          // A SUBAGENT's stream never becomes main-transcript rows — it renders
+          // nested under its spawning Agent card, and persists onto that card's
+          // row (subagentNarrative) so the pane survives settle/reload.
+          if (event.parentToolUseId !== undefined) {
+            yield subagentActivity.onTextChunk(event.parentToolUseId, event.textDelta)
+            break
+          }
+          const assistantMessage = ensureAssistantMessageRow(
+            db,
+            event.messageId,
+            sessionId!,
+            assistantMessageByMessageId,
+            assistantAttribution,
+          )
+          chatRepository.appendToChatMessageBody(db, assistantMessage.id, event.textDelta)
+          yield { kind: 'text-chunk', messageId: assistantMessage.id, textDelta: event.textDelta }
+          if (event.isFinalChunk) {
+            chatRepository.updateChatMessage(db, assistantMessage.id, { completedAt: new Date() })
+          }
+          break
         }
-        break
-      }
 
-      case 'tool-use-started': {
-        // A subagent's tool call: keyed to its Agent card, never a top-level
-        // row (it used to flood the thread as the manager's own work) —
-        // persisted lean on the Agent call's subagentToolCalls.
-        if (event.parentToolUseId !== undefined) {
-          yield subagentActivity.onToolStarted(event.parentToolUseId, {
+        case 'thinking-chunk': {
+          // Subagent thinking is dropped — even nested it is noise at this
+          // altitude; the agent's text + tool cards are the trace.
+          if (event.parentToolUseId !== undefined) break
+          const assistantMessage = ensureAssistantMessageRow(
+            db,
+            event.messageId,
+            sessionId!,
+            assistantMessageByMessageId,
+            assistantAttribution,
+          )
+          // Provider's field is `textDelta`; chat-turn-event renames to `thinkingDelta`
+          // for UI clarity (text vs thinking are distinct render surfaces).
+          chatRepository.appendToChatMessageThinking(db, assistantMessage.id, event.textDelta)
+          yield {
+            kind: 'thinking-chunk',
+            messageId: assistantMessage.id,
+            thinkingDelta: event.textDelta,
+          }
+          break
+        }
+
+        case 'tool-use-started': {
+          // A subagent's tool call: keyed to its Agent card, never a top-level
+          // row (it used to flood the thread as the manager's own work) —
+          // persisted lean on the Agent call's subagentToolCalls.
+          if (event.parentToolUseId !== undefined) {
+            yield subagentActivity.onToolStarted(event.parentToolUseId, {
+              toolUseId: event.toolUseId,
+              toolName: event.toolName,
+              toolInput: event.toolInput,
+              startedAt: event.startedAt,
+            })
+            break
+          }
+          const parentMessage = ensureAssistantMessageRow(
+            db,
+            event.parentMessageId,
+            sessionId!,
+            assistantMessageByMessageId,
+            assistantAttribution,
+          )
+          const toolCall = chatRepository.insertChatToolCall(db, {
+            id: crypto.randomUUID(),
+            parentMessageId: parentMessage.id,
             toolUseId: event.toolUseId,
             toolName: event.toolName,
             toolInput: event.toolInput,
+            toolOutput: null,
+            status: 'started',
+            approvalStatus: null,
+            isErrorResult: false,
             startedAt: event.startedAt,
+            completedAt: null,
           })
+          toolCallByToolUseId.set(event.toolUseId, toolCall.id)
+          yield { kind: 'tool-call-started', toolCall }
           break
         }
-        const parentMessage = ensureAssistantMessageRow(
-          db,
-          event.parentMessageId,
-          sessionId!,
-          assistantMessageByMessageId,
-          assistantAttribution,
-        )
-        const toolCall = chatRepository.insertChatToolCall(db, {
-          id: crypto.randomUUID(),
-          parentMessageId: parentMessage.id,
-          toolUseId: event.toolUseId,
-          toolName: event.toolName,
-          toolInput: event.toolInput,
-          toolOutput: null,
-          status: 'started',
-          approvalStatus: null,
-          isErrorResult: false,
-          startedAt: event.startedAt,
-          completedAt: null,
-        })
-        toolCallByToolUseId.set(event.toolUseId, toolCall.id)
-        yield { kind: 'tool-call-started', toolCall }
-        break
-      }
 
-      case 'tool-use-completed': {
-        if (event.parentToolUseId !== undefined) {
-          yield subagentActivity.onToolCompleted(event.parentToolUseId, {
-            toolUseId: event.toolUseId,
-            toolOutput: event.output,
+        case 'tool-use-completed': {
+          if (event.parentToolUseId !== undefined) {
+            yield subagentActivity.onToolCompleted(event.parentToolUseId, {
+              toolUseId: event.toolUseId,
+              toolOutput: event.output,
+              isError: event.isError,
+              completedAt: event.completedAt,
+            })
+            break
+          }
+          const dbId = toolCallByToolUseId.get(event.toolUseId)
+          if (!dbId) {
+            logger?.warn(
+              { toolUseId: event.toolUseId },
+              'tool-use-completed for unknown toolUseId — dropping',
+            )
+            break
+          }
+          // A completing Agent call settles its recorded entries: a clean return
+          // means they only missed their completion events; an errored one
+          // means the run died under them.
+          subagentActivity.onParentSettled(event.toolUseId, {
             isError: event.isError,
             completedAt: event.completedAt,
           })
-          break
-        }
-        const dbId = toolCallByToolUseId.get(event.toolUseId)
-        if (!dbId) {
-          logger?.warn(
-            { toolUseId: event.toolUseId },
-            'tool-use-completed for unknown toolUseId — dropping',
-          )
-          break
-        }
-        // A completing Agent call settles its recorded entries: a clean return
-        // means they only missed their completion events; an errored one
-        // means the run died under them.
-        subagentActivity.onParentSettled(event.toolUseId, {
-          isError: event.isError,
-          completedAt: event.completedAt,
-        })
-        const updated = chatRepository.updateChatToolCall(db, dbId, {
-          toolOutput: event.output,
-          status: event.isError ? 'failed' : 'completed',
-          isErrorResult: event.isError,
-          completedAt: event.completedAt,
-        })
-        if (updated) yield { kind: 'tool-call-completed', toolCall: updated }
-        break
-      }
-
-      case 'approval-requested': {
-        yield await handleApprovalRequested({
-          db,
-          event,
-          sessionId,
-          userId,
-          workspaceId,
-          providerId,
-          logger,
-        })
-        break
-      }
-
-      case 'approval-resolved': {
-        yield {
-          kind: 'approval-resolved',
-          approvalRequestId: event.approvalRequestId,
-          decision: event.decision,
-          resolvedAt: event.resolvedAt,
-        }
-        break
-      }
-
-      case 'usage-reported': {
-        // Extracted to a sibling handler (file-size cap). `sessionModel` is loop
-        // state, so it's threaded in + back out rather than closed over.
-        const handled = handleUsageReported({
-          db,
-          event,
-          sessionId,
-          sessionModel,
-          assistantMessageByMessageId,
-        })
-        sessionModel = handled.sessionModel
-        yield handled.event
-        break
-      }
-
-      case 'session-completed': {
-        // Use the event's isNewSession (truth from the SDK) rather than the
-        // closure variable — defensive against SDK-side state drift. The brain
-        // keeps its fixed 'Global brain' title (skipAutoTitle).
-        if (sessionId && event.isNewSession && !newSessionOptions?.skipAutoTitle) {
-          const title = generateSessionTitle(db, sessionId)
-          chatRepository.updateChatSession(db, sessionId, { title })
-          yield { kind: 'session-titled', sessionId, title }
-        }
-        if (sessionId) yield { kind: 'session-completed', sessionId }
-        break
-      }
-
-      case 'session-interrupted': {
-        if (sessionId) yield { kind: 'session-interrupted', sessionId }
-        break
-      }
-
-      case 'session-errored': {
-        // Mark the last open assistant message as errored so the UI can
-        // surface the partial text + the error context.
-        const lastAssistantMessage = Array.from(assistantMessageByMessageId.values()).at(-1)
-        if (lastAssistantMessage) {
-          chatRepository.updateChatMessage(db, lastAssistantMessage.id, {
-            errorCode: event.errorCode,
-            errorMessage: event.errorMessage,
-            completedAt: new Date(),
+          const updated = chatRepository.updateChatToolCall(db, dbId, {
+            toolOutput: event.output,
+            status: event.isError ? 'failed' : 'completed',
+            isErrorResult: event.isError,
+            completedAt: event.completedAt,
           })
+          if (updated) yield { kind: 'tool-call-completed', toolCall: updated }
+          break
         }
-        if (sessionId) {
-          yield {
-            kind: 'session-errored',
+
+        case 'approval-requested': {
+          yield await handleApprovalRequested({
+            db,
+            event,
             sessionId,
-            errorCode: event.errorCode,
-            errorMessage: event.errorMessage,
-            isRecoverable: event.isRecoverable,
-          }
+            userId,
+            workspaceId,
+            providerId,
+            logger,
+          })
+          break
         }
-        break
+
+        case 'approval-resolved': {
+          yield {
+            kind: 'approval-resolved',
+            approvalRequestId: event.approvalRequestId,
+            decision: event.decision,
+            resolvedAt: event.resolvedAt,
+          }
+          break
+        }
+
+        case 'usage-reported': {
+          // Extracted to a sibling handler (file-size cap). `sessionModel` is loop
+          // state, so it's threaded in + back out rather than closed over.
+          const handled = handleUsageReported({
+            db,
+            event,
+            sessionId,
+            sessionModel,
+            assistantMessageByMessageId,
+          })
+          sessionModel = handled.sessionModel
+          yield handled.event
+          break
+        }
+
+        case 'session-completed': {
+          // Use the event's isNewSession (truth from the SDK) rather than the
+          // closure variable — defensive against SDK-side state drift. The brain
+          // keeps its fixed 'Global brain' title (skipAutoTitle).
+          if (sessionId && event.isNewSession && !newSessionOptions?.skipAutoTitle) {
+            const title = generateSessionTitle(db, sessionId)
+            chatRepository.updateChatSession(db, sessionId, { title })
+            yield { kind: 'session-titled', sessionId, title }
+          }
+          if (sessionId) yield { kind: 'session-completed', sessionId }
+          break
+        }
+
+        case 'session-interrupted': {
+          if (sessionId) yield { kind: 'session-interrupted', sessionId }
+          break
+        }
+
+        case 'session-errored': {
+          // Mark the last open assistant message as errored so the UI can
+          // surface the partial text + the error context.
+          const lastAssistantMessage = Array.from(assistantMessageByMessageId.values()).at(-1)
+          if (lastAssistantMessage) {
+            chatRepository.updateChatMessage(db, lastAssistantMessage.id, {
+              errorCode: event.errorCode,
+              errorMessage: event.errorMessage,
+              completedAt: new Date(),
+            })
+          }
+          if (sessionId) {
+            yield {
+              kind: 'session-errored',
+              sessionId,
+              errorCode: event.errorCode,
+              errorMessage: event.errorMessage,
+              isRecoverable: event.isRecoverable,
+            }
+          }
+          break
+        }
       }
+    }
+  } finally {
+    // Teardown reap: a row still `started` here will never receive its
+    // completion event — the stream ended, errored, was interrupted, or the
+    // client abandoned iteration (an SSE disconnect `.return()`s this
+    // generator). Settling to `cancelled` keeps cards from "running" forever;
+    // this is the one home every turn runner flows through. Hard process
+    // death (no finally runs at all) is covered by the boot reap in server.ts.
+    // Best-effort: a reap failure while unwinding must not mask the error
+    // that ended the turn.
+    try {
+      const cancelledRows = chatRepository.cancelStartedChatToolCalls(
+        db,
+        Array.from(toolCallByToolUseId.values()),
+        new Date(),
+      )
+      if (cancelledRows.length > 0) {
+        logger?.info(
+          { sessionId, cancelledToolCallIds: cancelledRows.map((row) => row.id) },
+          'turn teardown cancelled tool calls the stream left open',
+        )
+      }
+    } catch (err) {
+      logger?.error({ sessionId, error: String(err) }, 'turn teardown tool-call reap failed')
     }
   }
 }

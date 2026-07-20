@@ -15,6 +15,7 @@ import { getOrCreateLocalUser } from '@vynel/core/users'
 import { configureEmbeddingsCacheDir } from '@vynel/embeddings'
 import { expireAskRequests } from '@vynel/asks'
 import { recoverStalePendingApprovals } from '@vynel/approvals'
+import { reapAllStartedChatToolCalls } from '@vynel/chat'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
 import { FileWatcherService } from '@vynel/knowledge'
 import { resolveMasterKey } from '@vynel/ssh-servers'
@@ -174,6 +175,19 @@ export async function boot(): Promise<void> {
   recoverStalePendingApprovals(db, { logger, reapAllPending: true }).catch((err) =>
     logger.error({ err }, 'boot approval reap failed'),
   )
+  // Boot recovery for TOOL-CALL rows, same reasoning: the turn generators died
+  // with the previous process, so a row still 'started' can never receive its
+  // completion event — reap to 'cancelled' so no tool/Agent card renders
+  // "running" forever after a crash or app exit. Best-effort like the approvals
+  // reap above: recovery must never take down boot.
+  try {
+    const reapedToolCallCount = reapAllStartedChatToolCalls(db, new Date())
+    if (reapedToolCallCount > 0) {
+      logger.info({ reapedToolCallCount }, 'boot tool-call reap settled orphaned started rows')
+    }
+  } catch (err) {
+    logger.error({ err }, 'boot tool-call reap failed')
+  }
   // The outbox relay — dispatches published cross-domain events to their
   // registered consumers (schedules→channel delivery, the ask nudge).
   const outboxRelayService = startOutboxRelayService({ db, logger })

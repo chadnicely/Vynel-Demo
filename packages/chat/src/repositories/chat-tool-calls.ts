@@ -4,7 +4,7 @@
 // Phase 1 SYNC return values per
 // `.claude/memory/decisions/phase-1-sync-transactions.md`.
 
-import { asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   chatToolCalls,
@@ -85,6 +85,37 @@ export function appendToChatToolCallSubagentNarrative(
     })
     .where(eq(chatToolCalls.id, toolCallId))
     .run()
+}
+
+// Teardown reap — settle a turn's still-open rows as `cancelled` when its
+// stream ends without their completion events (interrupt, disconnect, error).
+// Guarded on `status = 'started'` so a completion that raced the teardown
+// keeps its terminal status.
+export function cancelStartedChatToolCalls(
+  db: Database,
+  toolCallIds: string[],
+  completedAt: Date,
+): ChatToolCall[] {
+  if (toolCallIds.length === 0) return []
+  return db
+    .update(chatToolCalls)
+    .set({ status: 'cancelled', completedAt })
+    .where(and(inArray(chatToolCalls.id, toolCallIds), eq(chatToolCalls.status, 'started')))
+    .returning()
+    .all()
+}
+
+// BOOT reap — at boot no turn is live, so EVERY `started` row is an orphan
+// whose completion event died with the previous process; without this a crash
+// or app exit mid-tool leaves its card "running" forever (the approvals
+// `reapAllPending` reasoning).
+export function reapAllStartedChatToolCalls(db: Database, completedAt: Date): number {
+  return db
+    .update(chatToolCalls)
+    .set({ status: 'cancelled', completedAt })
+    .where(eq(chatToolCalls.status, 'started'))
+    .returning({ id: chatToolCalls.id })
+    .all().length
 }
 
 export function updateChatToolCall(

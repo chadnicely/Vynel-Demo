@@ -34,6 +34,9 @@ export type {
 // Turn consumption — the persistence engine the session runners drive.
 export { consumeSessionEventStream } from './turn-consumption/consume-session-event-stream.js'
 export type { ConsumeSessionEventStreamInput } from './turn-consumption/consume-session-event-stream.js'
+// Boot recovery for orphaned tool-call rows — server.ts reaps `started` →
+// `cancelled` at boot (the consumer's teardown reap can't run on process death).
+export { reapAllStartedChatToolCalls } from './repositories/chat-tool-calls.js'
 export {
   readAttachedImageBytes,
   persistAttachedImages,

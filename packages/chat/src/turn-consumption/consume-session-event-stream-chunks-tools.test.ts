@@ -155,11 +155,19 @@ describe('consumeSessionEventStream — chunks + tool use + usage', () => {
         }),
       )
 
+      // The yielded event carries the live 'started' row…
+      const started = events.filter((e) => e.kind === 'tool-call-started')
+      expect(started).toHaveLength(1)
+      expect(
+        (started[0] as Extract<ChatTurnEvent, { kind: 'tool-call-started' }>).toolCall.status,
+      ).toBe('started')
+      // …but the stream ended without its completion event, so the teardown
+      // reap settles the row — no card may render "running" forever.
       const toolCall = findChatToolCallByToolUseId(db, 'toolu_abc')
       expect(toolCall?.toolName).toBe('Read')
-      expect(toolCall?.status).toBe('started')
+      expect(toolCall?.status).toBe('cancelled')
+      expect(toolCall?.completedAt).toBeInstanceOf(Date)
       expect(toolCall?.toolInput).toEqual({ file: '/tmp/x.md' })
-      expect(events.filter((e) => e.kind === 'tool-call-started')).toHaveLength(1)
     })
   })
 
@@ -506,6 +514,150 @@ describe('consumeSessionEventStream — chunks + tool use + usage', () => {
       )
 
       expect(findChatSessionById(db, 'session-mdl')?.model).toBe('claude-opus-4-8')
+    })
+  })
+})
+
+describe('consumeSessionEventStream — teardown reap (no card runs forever)', () => {
+  const sessionStarted = {
+    kind: 'session-started',
+    sessionId: 'session-reap',
+    resumedFromExisting: false,
+    startedAt: new Date(),
+  } as const
+
+  function toolStarted(toolUseId: string) {
+    return {
+      kind: 'tool-use-started',
+      sessionId: 'session-reap',
+      parentMessageId: 'msg-reap',
+      toolUseId,
+      toolName: 'Bash',
+      toolInput: { command: 'sleep 999' },
+      startedAt: new Date('2026-05-01T00:00:00Z'),
+    } as const
+  }
+
+  it('ABANDONED iteration (the SSE-disconnect .return()) cancels the open row', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+
+      const stream = consumeSessionEventStream({
+        db,
+        sessionEventStream: eventsFrom([sessionStarted, toolStarted('toolu_open')]),
+        userMessageInput: makeUserMessageInput('Hi'),
+        userId: user.id,
+        workspaceId: ws.id,
+        providerId: PROVIDER_ID,
+        isNewSession: true,
+      })
+      // A client disconnect abandons iteration mid-stream — `break` drives the
+      // same generator `.return()` teardown path.
+      for await (const event of stream) {
+        if (event.kind === 'tool-call-started') break
+      }
+
+      const toolCall = findChatToolCallByToolUseId(db, 'toolu_open')
+      expect(toolCall?.status).toBe('cancelled')
+      expect(toolCall?.completedAt).toBeInstanceOf(Date)
+    })
+  })
+
+  it('an interrupted turn cancels open rows while completed siblings keep their status', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            sessionStarted,
+            toolStarted('toolu_done'),
+            {
+              kind: 'tool-use-completed',
+              sessionId: 'session-reap',
+              parentMessageId: 'msg-reap',
+              toolUseId: 'toolu_done',
+              output: { ok: true },
+              isError: false,
+              completedAt: new Date('2026-05-01T00:00:01Z'),
+            },
+            toolStarted('toolu_interrupted'),
+            // The user hit Stop — the provider ends the stream with no
+            // completion event for the in-flight tool.
+            {
+              kind: 'session-interrupted',
+              sessionId: 'session-reap',
+              interruptedAt: new Date('2026-05-01T00:00:02Z'),
+            },
+          ]),
+          userMessageInput: makeUserMessageInput('Hi'),
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      expect(findChatToolCallByToolUseId(db, 'toolu_done')?.status).toBe('completed')
+      expect(findChatToolCallByToolUseId(db, 'toolu_interrupted')?.status).toBe('cancelled')
+    })
+  })
+
+  it('a stranded Agent call settles cancelled; its lean entries stay as recorded (the UI coerces under a settled parent)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            sessionStarted,
+            {
+              kind: 'tool-use-started',
+              sessionId: 'session-reap',
+              parentMessageId: 'msg-reap',
+              toolUseId: 'tu_agent_dead',
+              toolName: 'Agent',
+              toolInput: { name: 'researcher' },
+              startedAt: new Date('2026-05-01T00:00:00Z'),
+            },
+            {
+              kind: 'tool-use-started',
+              sessionId: 'session-reap',
+              parentMessageId: 'msg-sub',
+              toolUseId: 'tu_sub_read',
+              toolName: 'Read',
+              toolInput: {},
+              startedAt: new Date('2026-05-01T00:00:01Z'),
+              parentToolUseId: 'tu_agent_dead',
+            },
+            // The turn dies here — neither the subagent tool nor the Agent
+            // call ever completes (the stuck-"running"-card bug).
+          ]),
+          userMessageInput: makeUserMessageInput('spawn an agent'),
+          userId: user.id,
+          workspaceId: ws.id,
+          workspacePath: ws.path,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      const agentCall = findChatToolCallByToolUseId(db, 'tu_agent_dead')
+      expect(agentCall?.status).toBe('cancelled')
+      // The lean entry keeps its recorded state — deriveSettledAgentActivity
+      // coerces 'started' children to 'failed' once the parent is settled.
+      expect(agentCall?.subagentToolCalls?.[0]?.status).toBe('started')
     })
   })
 })

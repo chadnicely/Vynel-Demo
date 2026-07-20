@@ -9,11 +9,13 @@ import { insertChatSession, type NewChatSession } from './chat-sessions.js'
 import { insertChatMessage, type NewChatMessage } from './chat-messages.js'
 import {
   appendToChatToolCallSubagentNarrative,
+  cancelStartedChatToolCalls,
   findChatToolCallById,
   findChatToolCallByToolUseId,
   listChatToolCallsForMessage,
   listChatToolCallsForSession,
   insertChatToolCall,
+  reapAllStartedChatToolCalls,
   updateChatToolCall,
   type NewChatToolCall,
 } from './chat-tool-calls.js'
@@ -207,6 +209,75 @@ describe('chatToolCalls repository', () => {
       ]
       updateChatToolCall(db, tc.id, { subagentToolCalls: entries })
       expect(findChatToolCallById(db, tc.id)?.subagentToolCalls).toEqual(entries)
+    })
+  })
+
+  it('cancelStartedChatToolCalls settles only the listed STARTED rows', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      const session = insertChatSession(db, makeChatSession(user.id, ws.id))
+      const message = insertChatMessage(db, makeAssistantMessage(session.id))
+      const open = insertChatToolCall(db, makeChatToolCall(message.id))
+      const done = insertChatToolCall(
+        db,
+        makeChatToolCall(message.id, { status: 'completed', completedAt: new Date() }),
+      )
+      const unlisted = insertChatToolCall(db, makeChatToolCall(message.id))
+
+      const cancelledAt = new Date('2026-07-21T00:00:00Z')
+      const cancelled = cancelStartedChatToolCalls(db, [open.id, done.id], cancelledAt)
+
+      // Only the open listed row settles; a terminal row keeps its status
+      // (the completion-raced-the-teardown guard) and an unlisted row is
+      // another turn's business.
+      expect(cancelled.map((row) => row.id)).toEqual([open.id])
+      expect(findChatToolCallById(db, open.id)).toMatchObject({
+        status: 'cancelled',
+        completedAt: cancelledAt,
+      })
+      expect(findChatToolCallById(db, done.id)?.status).toBe('completed')
+      expect(findChatToolCallById(db, unlisted.id)?.status).toBe('started')
+    })
+  })
+
+  it('cancelStartedChatToolCalls with no ids is a no-op', async () => {
+    await withTestDatabase((db) => {
+      expect(cancelStartedChatToolCalls(db, [], new Date())).toEqual([])
+    })
+  })
+
+  it('reapAllStartedChatToolCalls settles EVERY started row, leaves terminal rows', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      const session = insertChatSession(db, makeChatSession(user.id, ws.id))
+      const message = insertChatMessage(db, makeAssistantMessage(session.id))
+      const orphan1 = insertChatToolCall(db, makeChatToolCall(message.id))
+      const orphan2 = insertChatToolCall(db, makeChatToolCall(message.id))
+      const failed = insertChatToolCall(
+        db,
+        makeChatToolCall(message.id, {
+          status: 'failed',
+          isErrorResult: true,
+          completedAt: new Date(),
+        }),
+      )
+
+      const reapedAt = new Date('2026-07-21T00:00:00Z')
+      expect(reapAllStartedChatToolCalls(db, reapedAt)).toBe(2)
+      expect(findChatToolCallById(db, orphan1.id)).toMatchObject({
+        status: 'cancelled',
+        completedAt: reapedAt,
+      })
+      expect(findChatToolCallById(db, orphan2.id)?.status).toBe('cancelled')
+      expect(findChatToolCallById(db, failed.id)?.status).toBe('failed')
+      // Idempotent: a second boot reaps nothing.
+      expect(reapAllStartedChatToolCalls(db, new Date())).toBe(0)
     })
   })
 
