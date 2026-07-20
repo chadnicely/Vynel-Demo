@@ -23,6 +23,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **No more cards stuck "running" forever.** If the app was closed, crashed, or lost its
+  connection while a tool or spawned agent was mid-run, its card stayed in a live "running"
+  state indefinitely — even days later. Any run cut short now settles to a quiet "cancelled"
+  state: immediately when the turn is interrupted or the stream drops, and at the next app
+  start for runs orphaned by a crash or exit.
+
 - **Voice replies you can actually hear, every time.** Three silent-voice failure modes are
   closed: (1) a `speak` from a typed chat or a scheduled task while a Jarvis window or app tab
   was merely *open* (no live voice session) used to be dropped while reporting success — the

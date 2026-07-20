@@ -1,7 +1,48 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-19.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ⏭ NEXT ACTION (2026-07-21): SESSION-LIBRARY ARC OPENED + SLICE 1 (CANCELLED-REAP) BUILT — reviewed CLEAN (1 should-fix + 1 hardening folded); NEXT: gate re-run → Chad smoke → commit → Slice 2 (concurrent delegations)
+
+**Chad opened the session-library arc (product decisions in memory
+[[session-library-product-decisions]]): sessions as a ROOT TOOL (create/list/send-task/stop +
+per-session context usage so the root plans and stays context-free) · continuity chains VISIBLE
+as THE feature (the 0.85 pressure-swap already runs; the arc surfaces A→B forks) · unified
+sessions panel, ALL sessions sorted by last-used, Watch everywhere · archive deprioritized.
+Ground mapped by 3 explorers: delegation is global→workspace ONLY, STRICTLY SERIAL (inFlight
+guard in delegation-service); delegate-to-leaf-session PARKED no-caller; NO follow-up-message
+path into a running child (stop/interrupt exists); agent.run-*/session.delegated outbox events
+published but CONSUMERLESS (no monitor); context usage measured for the swap then DISCARDED
+(nothing persists occupancy); supersededFromSdkSessionId is ONE-hop (full chain = recorded swap
+segments by time). SLICE ORDER (Chad-aligned): ① cancelled-reap bug ② concurrent delegations
+(+ delegation turns announce on the activity feed) ③ sessions panel + persisted context
+occupancy + chain view ④ session-library tools (generalize the delegation queue to session
+targets). Module notes per slice before building ②–④.**
+
+**SLICE 1 BUILT (the stuck-"running"-card bug — the 19h follow-up): ToolCallStatus 'cancelled'
+had ZERO writers; the only exit from 'started' was tool-use-completed, so disconnect/app-exit/
+interrupt stranded rows forever (Chad had an Agent card stuck a full day). Fix mirrors the
+approvals reapAllPending pattern, UI needed NOTHING (card renders 'cancelled' muted; settled
+parent already coerces children):**
+- **Repo:** `cancelStartedChatToolCalls` (turn-scoped ids, guarded `WHERE status='started'` — a
+  completion that raced teardown wins) + `reapAllStartedChatToolCalls` (boot) in
+  chat-tool-calls.ts.
+- **Consumer:** consume-session-event-stream.ts `for await` wrapped in try/finally; the finally
+  cancels the turn's still-open cached rows — ONE home covering all 3 runners AND the
+  SSE-disconnect `.return()` teardown. Reap itself best-effort (must not mask the turn's error).
+- **Boot:** server.ts reaps beside the approvals boot reap (best-effort, boot must not die).
+- **Tests:** repo guard/idempotence + 3 teardown shapes (abandoned iteration via break,
+  interrupt with completed sibling untouched, stranded Agent call w/ lean entries staying
+  'started' — the UI-coercion contract). One old test RECAST ('started' after stream-end WAS the
+  bug; comment explains).
+- **Reviewer CLEAN, 0 must-fix**; folded: boot reap try/catch symmetry + finally-reap catch.
+  RECORDED follow-up (spawn-task chip): **'denied' is now the zero-writer status** (+
+  approvalStatus column never written) — wire the denial write in approval-resolved or trim.
+**⏭ CHAD SMOKE: restart the app → the stuck-since-yesterday Agent card in Ks Tournalink reads a
+muted "cancelled", no breathing dot · kill the app mid-agent-run, reopen → card settles cancelled
+on boot · Stop a turn mid-tool → the tool card settles. Then COMMIT (fix(chat) + docs) +
+CHANGELOG → Slice 2 module notes (docs/module-notes/concurrent-delegations.md).**
 
 ## ⏭ NEXT ACTION (2026-07-20): EDITABLE SESSION-INSTRUCTION MD — gate GREEN 506f/2678t, reviewed COMPLETE, COMMITTED; NEXT: Chad smoke (edit a prompt file + restart) → then the DB/UI arc when Chad wants it
 
