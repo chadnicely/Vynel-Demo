@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./session-instructions": "./src/session-instructions/index.ts"
+    "./session-instructions": "./src/session-instructions/index.ts",
+    "./tool-descriptions": "./src/tool-descriptions/index.ts"
   },
   "scripts": {
     "build": "tsc",

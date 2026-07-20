@@ -15,6 +15,7 @@
 // `validator` from `hono-openapi/zod`, chained methods on `factory.createApp()`.
 
 import { resolver, validator } from 'hono-openapi/zod'
+import { loadToolDescription } from '@vynel/instructions/tool-descriptions'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -39,13 +40,9 @@ export const voiceApp = factory.createApp().post(
       name: 'speak',
       mutatingApproved: true,
       rootSurface: true,
-      description:
-        'Speak a short message ALOUD to the user through their voice assistant. Pass plain, ' +
-        'spoken-style prose — NO markdown, lists, code, or URLs; write it the way you would say ' +
-        'it out loud, and keep it brief (a sentence or two). Use this to answer or notify the ' +
-        'user by voice, especially when the request came in by voice. Returns { spoken: true } ' +
-        'when it played, or { spoken: false, reason } when the voice assistant is not running ' +
-        '(then reply in text instead).',
+      // Editable markdown, the session-instructions pattern — re-run
+      // `pnpm api:generate` after editing speak.md so the registry copy follows.
+      description: loadToolDescription('speak'),
     },
   }),
   validator('json', SpeakRequestSchema),
