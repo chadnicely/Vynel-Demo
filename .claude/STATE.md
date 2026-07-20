@@ -3,7 +3,42 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21): SESSION-LIBRARY ARC OPENED + SLICE 1 (CANCELLED-REAP) BUILT — reviewed CLEAN (1 should-fix + 1 hardening folded); NEXT: gate re-run → Chad smoke → commit → Slice 2 (concurrent delegations)
+## ⏭ NEXT ACTION (2026-07-21c): SLICE 2 CONCURRENT DELEGATIONS BUILT — reviewed CLEAN (1 should-fix folded); NEXT: Chad smoke → Slice 3 module notes (sessions panel + context visibility)
+
+**Slice ② built per docs/module-notes/concurrent-delegations.md (all forks Chad-approved; the
+notes carry the locked decisions + the reviewer's as-built observations):**
+- **Bounded pool** replaces the serial inFlight guard (delegation-service): cap
+  MAX_CONCURRENT_DELEGATIONS=3 (ONE named home — Chad's plan makes it a user setting later),
+  capacity-fill per 1s tick. **Invariant: never two live runs per workspace** (single-writer per
+  conversation — the workspace-side root-turn-lock analogue): in-memory activeWorkspaceIds +
+  `claimNextPendingDelegationJob` grew optional excludeWorkspaceIds (FIFO holds per workspace;
+  parallelism across workspaces only). The pool leans on the tick's SYNC-claim contract
+  (claim + onRunStarted before the first await) — regression-pinned by a synchronous test
+  assert + the release-finally attaches to EVERY launch (reviewer should-fix: a late claim can
+  never leak a slot).
+- **Delegations announce on the activity feed** (tick deps grew REQUIRED activityFeed; origin
+  'delegation' added to SessionTurnOrigin — additive, no exhaustive switch anywhere): begin
+  immediately-before-try (zombie doctrine), sessionResolved composed with the cancel handle,
+  end in the outer finally (throwing turn included, tested). Workspace views light up + poll
+  live for delegated turns FOR FREE (scope-keyed); the global banner never sees them
+  (workspace-scoped). REVERSES the 19-slice "delegations stay off the feed" deferral — that
+  poll only ever covered the global side's chips.
+- **Reviewer CLEAN**: pool arithmetic no-leak/no-double-free · 3-way interleave audited (no
+  shared mutable state; report-push is one sync block; stop keyed per partialSessionId) ·
+  RECORDED (in the notes): the timed-out DETACHED turn outlives its exclusion entry (a
+  follow-up job can run beside it — pre-existing hole, needs a detached-run lease slice) ·
+  tick file 358 lines (split next touch) · as-built docs still name route_to_workspace.
+- **Also this session: `route_to_workspace` RENAMED `send_task_to_workspace`** (Chad; parallels
+  send_to_channel, preps Slice-④ send_to_session) — x-mcp source + prompts (global-root.md) +
+  api:generate regen + fixtures; committed `7ab3f70` on a green gate.
+**⏭ CHAD SMOKE (Slice 2): delegate tasks to TWO different workspaces back-to-back from global
+chat → both run at once (two Watch chips live; both workspace views show the busy dot + live
+thread) · delegate two tasks to the SAME workspace → the second waits for the first · open a
+workspace view while a delegated task runs there → thread grows live without Watching. Then
+COMMIT + Slice 3 module notes (sessions panel: persist context occupancy per session, the
+unified last-used-sorted list, continuity chain view, Watch everywhere).**
+
+## (prev) NEXT ACTION (2026-07-21): SESSION-LIBRARY ARC OPENED + SLICE 1 (CANCELLED-REAP) BUILT — COMMITTED `7327ebb`+`6b71eaa`; denied-wire follow-on COMMITTED `27a952f`+`7d20f40`
 
 **Chad opened the session-library arc (product decisions in memory
 [[session-library-product-decisions]]): sessions as a ROOT TOOL (create/list/send-task/stop +

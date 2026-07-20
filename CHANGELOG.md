@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Workspaces now work in parallel.** Hand tasks to two different workspaces and both run at
+  the same time (up to three at once) instead of silently queuing one behind the other. Tasks
+  for the same workspace still run in order — a workspace never trips over itself. And a
+  workspace that's busy on a handed-off task now shows it live: its presence dot lights up and
+  its chat thread grows in real time, without needing the Watch panel.
+
+- **The "hand a task to a workspace" tool has a clearer name.** `route_to_workspace` is now
+  `send_task_to_workspace`, so its card reads as plain words about what's happening.
+
 - **Voice answers instantly acknowledge you.** The moment your spoken command is captured, the
   assistant says a quick contextual line — "Checking your schedules.", "On it." — while the real
   answer is being worked out, so you always know you were heard. For longer jobs (routing work to
