@@ -35,3 +35,12 @@ must-fix, two should-fix (cancel-resolve hang; echo-defense bypass when a client
 native conversation — delegation now requires `!driver.isAwake`) — both fixed + tested in
 `4766470`. Known limitation recorded, not patched blind: a scheduled-task `speak` firing during a
 live overlay session is still dropped (needs session provenance on the speak route).
+
+## voice — instant contextual ack (Chad's ask: confirm what's about to happen)
+
+The relay design's `ack-library` (deterministic keyword ack, zero LLM latency) was sitting
+unwired — wired it into the overlay session: ack plays concurrently with brain-turn start, real
+spokes await it, turn exit awaits it (mic never reopens over a playing ack). `voice-turn.md` now
+also tells the model to speak a short what-I'm-doing line before LONGER work — the content-aware
+half. Native daemon loop unchanged (needs state-machine concurrency; follow-up). Gate green
+(2703), committed `192b7cb`.
