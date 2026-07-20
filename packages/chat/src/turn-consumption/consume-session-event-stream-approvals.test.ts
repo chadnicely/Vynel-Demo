@@ -6,7 +6,11 @@ import { describe, expect, it } from 'vitest'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { findChatSessionById, listChatMessagesForSession } from '../repositories/index.js'
+import {
+  findChatSessionById,
+  findChatToolCallByToolUseId,
+  listChatMessagesForSession,
+} from '../repositories/index.js'
 import { consumeSessionEventStream } from './consume-session-event-stream.js'
 import type { ChatTurnEvent } from '../chat-turn-event.js'
 import {
@@ -44,6 +48,7 @@ describe('consumeSessionEventStream — approvals + happy-path', () => {
               toolName: 'Write',
               toolInput: { file: '/tmp/x.txt', content: 'hello' },
               requestedAt: new Date(),
+              toolUseId: 'tu_gated',
             },
           ]),
           userMessageInput: makeUserMessageInput('Hi'),
@@ -59,6 +64,11 @@ describe('consumeSessionEventStream — approvals + happy-path', () => {
       expect(
         (requested as Extract<ChatTurnEvent, { kind: 'approval-requested' }>).approvalRequestId,
       ).toBe('apr_1')
+
+      // The audit row carries the REAL tool_use id (the placeholder era is
+      // over) — the JOIN onto chat_tool_calls.toolUseId matches.
+      const { findApprovalRequestByProviderApprovalId } = await import('@vynel/approvals')
+      expect(findApprovalRequestByProviderApprovalId(db, 'apr_1')?.toolUseId).toBe('tu_gated')
     })
   })
 
@@ -100,6 +110,234 @@ describe('consumeSessionEventStream — approvals + happy-path', () => {
       expect(
         (resolved as Extract<ChatTurnEvent, { kind: 'approval-resolved' }>).decision.kind,
       ).toBe('approved')
+    })
+  })
+
+  it('a DENIED approval settles its tool row denied — the error tool_result never flips it failed', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+
+      const resolvedAt = new Date('2026-05-01T00:00:03Z')
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-deny',
+              resumedFromExisting: false,
+              startedAt: new Date(),
+            },
+            {
+              kind: 'tool-use-started',
+              sessionId: 'session-deny',
+              parentMessageId: 'msg-deny',
+              toolUseId: 'tu_denied',
+              toolName: 'Bash',
+              toolInput: { command: 'rm -rf build' },
+              startedAt: new Date('2026-05-01T00:00:00Z'),
+            },
+            {
+              kind: 'approval-resolved',
+              sessionId: 'session-deny',
+              approvalRequestId: 'apr_deny',
+              decision: { kind: 'denied', reason: 'too destructive' },
+              resolvedAt,
+              toolUseId: 'tu_denied',
+            },
+            // The SDK echoes every denial as an error tool_result — this must
+            // NOT overwrite the terminal 'denied' with 'failed'.
+            {
+              kind: 'tool-use-completed',
+              sessionId: 'session-deny',
+              parentMessageId: 'msg-deny',
+              toolUseId: 'tu_denied',
+              output: 'too destructive',
+              isError: true,
+              completedAt: new Date('2026-05-01T00:00:04Z'),
+            },
+          ]),
+          userMessageInput: makeUserMessageInput('Hi'),
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      const toolCall = findChatToolCallByToolUseId(db, 'tu_denied')
+      expect(toolCall?.status).toBe('denied')
+      expect(toolCall?.approvalStatus).toBe('denied')
+      expect(toolCall?.toolOutput).toBe('too destructive')
+    })
+  })
+
+  it('a denial that resolves BEFORE the row lands still settles it denied (parked decision)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-deny-early',
+              resumedFromExisting: false,
+              startedAt: new Date(),
+            },
+            {
+              kind: 'approval-resolved',
+              sessionId: 'session-deny-early',
+              approvalRequestId: 'apr_early',
+              decision: { kind: 'denied', reason: 'no' },
+              resolvedAt: new Date('2026-05-01T00:00:00Z'),
+              toolUseId: 'tu_early',
+            },
+            {
+              kind: 'tool-use-started',
+              sessionId: 'session-deny-early',
+              parentMessageId: 'msg-early',
+              toolUseId: 'tu_early',
+              toolName: 'Write',
+              toolInput: {},
+              startedAt: new Date('2026-05-01T00:00:01Z'),
+            },
+            {
+              kind: 'tool-use-completed',
+              sessionId: 'session-deny-early',
+              parentMessageId: 'msg-early',
+              toolUseId: 'tu_early',
+              output: 'no',
+              isError: true,
+              completedAt: new Date('2026-05-01T00:00:02Z'),
+            },
+          ]),
+          userMessageInput: makeUserMessageInput('Hi'),
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      const toolCall = findChatToolCallByToolUseId(db, 'tu_early')
+      expect(toolCall?.status).toBe('denied')
+      expect(toolCall?.approvalStatus).toBe('denied')
+    })
+  })
+
+  it('an APPROVED tool stamps approvalStatus and completes normally', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-appr',
+              resumedFromExisting: false,
+              startedAt: new Date(),
+            },
+            {
+              kind: 'tool-use-started',
+              sessionId: 'session-appr',
+              parentMessageId: 'msg-appr',
+              toolUseId: 'tu_approved',
+              toolName: 'Bash',
+              toolInput: { command: 'ls' },
+              startedAt: new Date('2026-05-01T00:00:00Z'),
+            },
+            {
+              kind: 'approval-resolved',
+              sessionId: 'session-appr',
+              approvalRequestId: 'apr_ok',
+              decision: { kind: 'approved' },
+              resolvedAt: new Date('2026-05-01T00:00:01Z'),
+              toolUseId: 'tu_approved',
+            },
+            {
+              kind: 'tool-use-completed',
+              sessionId: 'session-appr',
+              parentMessageId: 'msg-appr',
+              toolUseId: 'tu_approved',
+              output: 'ok',
+              isError: false,
+              completedAt: new Date('2026-05-01T00:00:02Z'),
+            },
+          ]),
+          userMessageInput: makeUserMessageInput('Hi'),
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      const toolCall = findChatToolCallByToolUseId(db, 'tu_approved')
+      expect(toolCall?.status).toBe('completed')
+      expect(toolCall?.approvalStatus).toBe('approved')
+    })
+  })
+
+  it('an approval-resolved WITHOUT toolUseId (provider sibling) only forwards — no row write', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-sib',
+              resumedFromExisting: false,
+              startedAt: new Date(),
+            },
+            {
+              kind: 'tool-use-started',
+              sessionId: 'session-sib',
+              parentMessageId: 'msg-sib',
+              toolUseId: 'tu_sib',
+              toolName: 'Bash',
+              toolInput: {},
+              startedAt: new Date(),
+            },
+            {
+              kind: 'approval-resolved',
+              sessionId: 'session-sib',
+              approvalRequestId: 'apr_sib',
+              decision: { kind: 'denied', reason: 'no' },
+              resolvedAt: new Date(),
+            },
+          ]),
+          userMessageInput: makeUserMessageInput('Hi'),
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      // Uncorrelated denial: the row stays on its normal lifecycle (here the
+      // teardown reap settles it — the stream ended with it open).
+      const toolCall = findChatToolCallByToolUseId(db, 'tu_sib')
+      expect(toolCall?.approvalStatus).toBeNull()
+      expect(toolCall?.status).toBe('cancelled')
     })
   })
 

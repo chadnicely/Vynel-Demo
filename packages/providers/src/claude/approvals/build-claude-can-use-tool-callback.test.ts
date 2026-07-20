@@ -11,7 +11,8 @@ import { PendingApprovalRegistry } from '../../shared/pending-approval-registry.
 import type { NormalizedSessionEvent } from '../../shared/normalized-session-event.js'
 
 // The SDK's `canUseTool` third argument — `signal` + `toolUseID` + (since SDK
-// 0.3.213) `requestId` are required; the callback under test does not read it.
+// 0.3.213) `requestId` are required. The callback threads `toolUseID` onto
+// both synthetic approval events (the chat consumer's row correlation).
 const TOOL_OPTIONS = {
   signal: new AbortController().signal,
   toolUseID: 'tu_test',
@@ -192,5 +193,24 @@ describe('buildClaudeCanUseToolCallback', () => {
     if (resolved.kind !== 'approval-resolved') throw new Error('expected approval-resolved')
     expect(resolved.approvalRequestId).toBe(requested.approvalRequestId)
     expect(resolved.decision).toEqual({ kind: 'approved' })
+  })
+
+  it('threads the SDK toolUseID onto both approval events (the row correlation)', async () => {
+    const { callback, syntheticEventQueue, pendingApprovalRegistry } = setup('ask')
+    const resultPromise = callback('Bash', { command: 'ls' }, TOOL_OPTIONS)
+
+    const requested = await syntheticEventQueue.dequeue()
+    if (requested.kind !== 'approval-requested') throw new Error('expected approval-requested')
+    expect(requested.toolUseId).toBe('tu_test')
+
+    pendingApprovalRegistry.resolve(requested.approvalRequestId, {
+      kind: 'denied',
+      reason: 'not now',
+    })
+    await resultPromise
+
+    const resolved = await syntheticEventQueue.dequeue()
+    if (resolved.kind !== 'approval-resolved') throw new Error('expected approval-resolved')
+    expect(resolved.toolUseId).toBe('tu_test')
   })
 })

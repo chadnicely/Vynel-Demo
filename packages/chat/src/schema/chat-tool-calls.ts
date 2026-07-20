@@ -22,8 +22,8 @@ export type ToolCallStatus =
   | 'started' // tool-use-started event received, no result yet
   | 'completed' // tool-use-completed event received, success
   | 'failed' // tool-use-completed event received, isError: true
-  | 'denied' // approval-resolved with kind: 'denied'
-  | 'cancelled' // session interrupted before completion
+  | 'denied' // approval-resolved with kind 'denied' — the user refused, the tool never ran
+  | 'cancelled' // stream/session ended before completion (interrupt, disconnect, crash reap)
 
 export type ApprovalStatus = 'approved' | 'denied' | 'timed-out' | 'cancelled'
 

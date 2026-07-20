@@ -84,6 +84,10 @@ export type ApprovalRequestedEvent = {
   toolName: string
   toolInput: unknown
   requestedAt: Date
+  /** The provider's tool_use id of the gated call — correlates the approval to
+   *  its chat_tool_calls row (Claude supplies it via canUseTool's `toolUseID`).
+   *  Optional: a provider sibling without per-call ids still conforms. */
+  toolUseId?: string
 }
 
 /** A tool-approval decision arrived (consumers update the card UI).
@@ -97,6 +101,9 @@ export type ApprovalResolvedEvent = {
   approvalRequestId: string
   decision: ApprovalDecision
   resolvedAt: Date
+  /** See ApprovalRequestedEvent.toolUseId — lets the consumer stamp the
+   *  decision onto the tool-call row (a denial settles it 'denied'). */
+  toolUseId?: string
 }
 
 /** Per-request token usage for ONE assistant message. The input side

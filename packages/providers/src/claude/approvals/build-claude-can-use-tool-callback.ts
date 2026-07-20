@@ -34,7 +34,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function buildClaudeCanUseToolCallback(
   input: BuildClaudeCanUseToolCallbackInput,
 ): CanUseTool {
-  return async (toolName, toolInput) => {
+  return async (toolName, toolInput, callOptions) => {
     const sessionId = input.sessionIdHolder.current ?? 'pending-session'
 
     // Behavior gate: under bypass mode, a tool in NEITHER the static floor nor
@@ -74,6 +74,9 @@ export function buildClaudeCanUseToolCallback(
         toolName,
         toolInput,
         requestedAt,
+        // The SDK's per-call tool_use id — the consumer's correlation onto the
+        // chat_tool_calls row (audit toolUseId + the 'denied' settle).
+        toolUseId: callOptions.toolUseID,
       })
     })
 
@@ -84,6 +87,7 @@ export function buildClaudeCanUseToolCallback(
       approvalRequestId,
       decision,
       resolvedAt: new Date(),
+      toolUseId: callOptions.toolUseID,
     })
 
     switch (decision.kind) {

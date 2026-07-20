@@ -21,6 +21,7 @@
 import * as chatRepository from '../repositories/index.js'
 import type { Database } from '@vynel/db'
 import type {
+  ApprovalStatus,
   ChatMessage,
   ChatMessageOriginChannel,
   AttachedImageMetadata,
@@ -127,6 +128,11 @@ export async function* consumeSessionEventStream(
   // Per-turn caches (coding §1.4) — fresh per call; GC'd when generator exits.
   const assistantMessageByMessageId = new Map<string, ChatMessage>()
   const toolCallByToolUseId = new Map<string, string /* dbId */>()
+  // Approval decisions keyed by the gated call's tool_use id — stamps the row
+  // whichever side arrives first (resolve-then-insert or insert-then-resolve),
+  // and keeps a DENIED row from being overwritten 'failed' by the SDK's
+  // error tool_result that follows every denial.
+  const approvalStatusByToolUseId = new Map<string, ApprovalStatus>()
   // Subagent traffic persists onto its spawning Agent call's row (narrative +
   // lean tool list) while the same wire events keep streaming to live viewers.
   const subagentActivity = createSubagentActivityRecorder({
@@ -247,7 +253,9 @@ export async function* consumeSessionEventStream(
             toolInput: event.toolInput,
             toolOutput: null,
             status: 'started',
-            approvalStatus: null,
+            // Non-null when the approval resolved before this row landed —
+            // the decision was parked in the map.
+            approvalStatus: approvalStatusByToolUseId.get(event.toolUseId) ?? null,
             isErrorResult: false,
             startedAt: event.startedAt,
             completedAt: null,
@@ -282,9 +290,13 @@ export async function* consumeSessionEventStream(
             isError: event.isError,
             completedAt: event.completedAt,
           })
+          // A denied tool's error tool_result is the DENIAL's echo, not a
+          // failure — the row keeps 'denied' (the trust card must say the user
+          // refused it, not that it broke).
+          const wasDenied = approvalStatusByToolUseId.get(event.toolUseId) === 'denied'
           const updated = chatRepository.updateChatToolCall(db, dbId, {
             toolOutput: event.output,
-            status: event.isError ? 'failed' : 'completed',
+            status: wasDenied ? 'denied' : event.isError ? 'failed' : 'completed',
             isErrorResult: event.isError,
             completedAt: event.completedAt,
           })
@@ -306,6 +318,21 @@ export async function* consumeSessionEventStream(
         }
 
         case 'approval-resolved': {
+          // Stamp the decision on the tool-call row when the provider
+          // correlates it (ApprovalDecision kinds map 1:1 onto ApprovalStatus).
+          // A denial settles the row terminally — the tool never ran.
+          if (event.toolUseId !== undefined) {
+            approvalStatusByToolUseId.set(event.toolUseId, event.decision.kind)
+            const dbId = toolCallByToolUseId.get(event.toolUseId)
+            if (dbId !== undefined) {
+              chatRepository.updateChatToolCall(db, dbId, {
+                approvalStatus: event.decision.kind,
+                ...(event.decision.kind === 'denied'
+                  ? { status: 'denied', completedAt: event.resolvedAt }
+                  : {}),
+              })
+            }
+          }
           yield {
             kind: 'approval-resolved',
             approvalRequestId: event.approvalRequestId,

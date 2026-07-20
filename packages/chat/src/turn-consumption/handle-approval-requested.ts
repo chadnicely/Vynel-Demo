@@ -7,14 +7,11 @@
 // `approval-auto-resolved` (status pill) based on the rule-match
 // outcome.
 //
-// NOTE on toolUseId (foundation-hardening backlog): the provider's
-// ApprovalRequestedEvent does not carry the SDK's tool_use_id —
-// Claude's canUseTool callback generates its own approvalRequestId
-// separate from the SDK-assigned tool_use_id that arrives later via
-// tool-use-started. We use approvalRequestId as the toolUseId
-// placeholder so the audit row is valid; the JOIN onto
-// chat_tool_calls.toolUseId won't match until the providers domain
-// surfaces the SDK's tool_use_id via the event payload.
+// toolUseId: the provider surfaces the SDK's tool_use_id on the event
+// (canUseTool's `toolUseID`, SDK ≥0.3.213), so the audit row JOINs onto
+// chat_tool_calls.toolUseId for real. The approvalRequestId fallback
+// keeps the NOT-NULL column valid for a provider sibling without
+// per-call ids (the original placeholder behavior).
 
 import type { Database } from '@vynel/db'
 import type { AiAgentProviderId, NormalizedSessionEvent } from '@vynel/providers'
@@ -72,7 +69,7 @@ export async function handleApprovalRequested(
       workspaceId,
       sessionId,
       parentMessageId: event.parentMessageId,
-      toolUseId: event.approvalRequestId, // PLACEHOLDER — foundation-hardening
+      toolUseId: event.toolUseId ?? event.approvalRequestId,
       providerId,
       toolName: event.toolName,
       toolInput: event.toolInput,
