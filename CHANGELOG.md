@@ -7,6 +7,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Changed
+
+- **Voice conversations feel snappier and readable.** The pause that ends a spoken command
+  dropped from five seconds to three; the overlay shows "Thinking…" while your question is in
+  flight instead of freezing on your own words; long spoken replies start sounding after the
+  first sentence is synthesized (the rest renders while it plays) instead of waiting for the
+  whole answer; and the floating Jarvis overlay got a translucent glass card behind the orb and
+  captions so they're readable over any screen.
+
 ### Fixed
 
 - **Voice replies you can actually hear, every time.** Three silent-voice failure modes are
