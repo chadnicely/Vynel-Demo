@@ -9,6 +9,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Voice answers instantly acknowledge you.** The moment your spoken command is captured, the
+  assistant says a quick contextual line — "Checking your schedules.", "On it." — while the real
+  answer is being worked out, so you always know you were heard. For longer jobs (routing work to
+  a workspace), it also says what it's about to do before doing it.
+
 - **Voice conversations feel snappier and readable.** The pause that ends a spoken command
   dropped from five seconds to three; the overlay shows "Thinking…" while your question is in
   flight instead of freezing on your own words; long spoken replies start sounding after the

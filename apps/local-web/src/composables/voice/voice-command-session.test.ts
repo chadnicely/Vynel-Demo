@@ -173,11 +173,28 @@ describe("startVoiceCommandSession", () => {
     await session.done;
   });
 
-  it("plays each spoken reply in the browser", async () => {
+  it("plays an instant contextual ack, then each spoken reply, in the browser", async () => {
     const { deps, played } = buildDeps(["weather"], () => brainSpeaking("It's clear."));
     const session = startVoiceCommandSession(deps, { idleTimeoutMs: 60_000 });
     for (let i = 0; i < 10; i += 1) await Promise.resolve();
-    expect(played).toEqual(["It's clear."]);
+    // The ack is deterministic per transcript ("weather" → a default ack) and
+    // always plays BEFORE the brain's line — the user hears the command landed.
+    expect(played).toHaveLength(2);
+    expect(played[1]).toBe("It's clear.");
+    expect(played[0]).not.toBe("It's clear.");
+    expect(played[0]!.length).toBeGreaterThan(0);
+    session.end();
+    await session.done;
+  });
+
+  it("still acks a turn that ends with no spoken reply (silence is confirmed, not dead air)", async () => {
+    async function* silentBrain(): AsyncIterable<VoiceTurnEvent> {
+      yield { kind: "completed" };
+    }
+    const { deps, played } = buildDeps(["weather"], () => silentBrain());
+    const session = startVoiceCommandSession(deps, { idleTimeoutMs: 60_000 });
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    expect(played).toHaveLength(1);
     session.end();
     await session.done;
   });
@@ -213,7 +230,11 @@ describe("startVoiceCommandSession", () => {
     for (let i = 0; i < 10; i += 1) await Promise.resolve();
     expect(captureStarts).toHaveLength(0);
 
-    releasePlayback(); // playback finished
+    releasePlayback(); // the instant ack finished — the reply is still playing
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    expect(captureStarts).toHaveLength(0);
+
+    releasePlayback(); // the reply finished
     for (let i = 0; i < 10; i += 1) await Promise.resolve();
     expect(captureStarts.length).toBeGreaterThan(0); // now the mic reopened
     session.end();

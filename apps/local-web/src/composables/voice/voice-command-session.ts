@@ -1,4 +1,4 @@
-import { stripSpokenMarkup } from "@vynel/voice";
+import { pickAckForRequest, stripSpokenMarkup } from "@vynel/voice";
 
 // The browser half of the hybrid voice loop — the command session the daemon
 // hands off to on wake. Web Speech STT captures a command (with a live interim
@@ -85,6 +85,12 @@ export function startVoiceCommandSession(
 
   async function runTurn(command: string): Promise<void> {
     setView({ state: "thinking", transcript: command, spokenText: "" });
+    // The instant acknowledgment: a deterministic, keyword-contextual line
+    // (no LLM — zero latency) spoken WHILE the brain turn starts, so the user
+    // immediately hears the command landed instead of waiting out the model's
+    // first token. Every real spoke awaits it — lines never overlap — and the
+    // turn's exit awaits it too, so the mic never reopens over a playing ack.
+    const ackPlayback = deps.playSpoken(pickAckForRequest(command));
     try {
       for await (const event of deps.runBrainTurn(command, turnAbort.signal)) {
         if (ended) return;
@@ -94,6 +100,7 @@ export function startVoiceCommandSession(
           const spoken = stripSpokenMarkup(event.text);
           if (spoken !== "") {
             setView({ state: "speaking", transcript: command, spokenText: spoken });
+            await ackPlayback;
             await deps.playSpoken(spoken);
           }
         } else {
@@ -107,6 +114,8 @@ export function startVoiceCommandSession(
     } catch {
       if (ended) return;
       setView({ state: "speaking", transcript: command, spokenText: FAILED_TURN_LINE });
+    } finally {
+      await ackPlayback;
     }
   }
 
