@@ -7,7 +7,7 @@
 // Pure: input is the turn's events, output is a spoken line. No I/O, no SDK.
 
 import type { NormalizedSessionEvent } from '@vynel/providers'
-import { stripSpokenMarkup } from './strip-spoken-markup.js'
+import { toSpokenGist } from './spoken-gist.js'
 
 export type VoiceTurnOutcome = 'completed' | 'failed' | 'interrupted'
 
@@ -15,10 +15,6 @@ export interface VoiceTurnSummary {
   outcome: VoiceTurnOutcome
   spokenText: string
 }
-
-// A spoken summary stays short — the brain's full answer lives in the chat
-// transcript; voice gets the gist.
-const MAX_SPOKEN_LENGTH = 240
 
 export function summarizeTurnForVoice(
   label: string,
@@ -41,7 +37,7 @@ export function summarizeTurnForVoice(
   }
 
   if (outcome === 'failed') {
-    const reason = toSpoken(errorMessage ?? '') || 'an unknown error'
+    const reason = toSpokenGist(errorMessage ?? '') || 'an unknown error'
     return { outcome, spokenText: `${label} ran into a problem: ${reason}` }
   }
   if (outcome === 'interrupted') {
@@ -50,18 +46,6 @@ export function summarizeTurnForVoice(
 
   // Completed. Speak the gist if the turn produced text; otherwise a clean
   // fallback (the spec's empty-result case — a turn can finish with no text).
-  const gist = toSpoken(textParts.join(''))
+  const gist = toSpokenGist(textParts.join(''))
   return { outcome, spokenText: gist ? `${label} is done. ${gist}` : `${label} is done.` }
-}
-
-// Make model output safe + short to read aloud: drop markdown markup, collapse
-// whitespace, keep the first sentence, cap the length. The list-marker strip
-// runs BEFORE the first-sentence scan so "1. Ship it." is not cut to "1.".
-function toSpoken(text: string): string {
-  const stripped = stripSpokenMarkup(text)
-  if (!stripped) return ''
-
-  const firstSentence = stripped.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim() ?? stripped
-  if (firstSentence.length <= MAX_SPOKEN_LENGTH) return firstSentence
-  return `${firstSentence.slice(0, MAX_SPOKEN_LENGTH).trim()}…`
 }

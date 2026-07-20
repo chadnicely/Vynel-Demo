@@ -12,6 +12,7 @@ edit after a **restart**.
 | `global-root.md` | The global brain — the router above all workspaces (web + voice + channel root turns). |
 | `workspace-agent.md` | The assistant working inside a workspace — appended to every workspace chat turn (including resumed ones). |
 | `voice-turn.md` | A modifier appended on top of `global-root.md` for voice turns only. |
+| `voice-turn-marker.md` | The one-line sibling of `voice-turn.md`, appended to a voice turn's USER MESSAGE (provider input only) — on a long root session the system-prompt block decays and the model slips back to text-only replies; the per-message restatement keeps `speak` in recency. |
 
 ## Rules for editing these files
 

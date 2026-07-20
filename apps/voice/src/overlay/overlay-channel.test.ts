@@ -245,6 +245,30 @@ describe('overlay channel', () => {
     second.close()
   })
 
+  it('publishSpeak delivers to exactly the newest client, or reports nobody home', async () => {
+    const { channel } = buildChannel()
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    expect(channel.publishSpeak('nobody is listening')).toBe(false)
+
+    const first = await subscribe(port)
+    const second = await subscribe(port, 'jarvis')
+    await waitFor(() => first.events.length >= 1 && second.events.length >= 1)
+
+    expect(channel.publishSpeak('your report is ready')).toBe(true)
+    await waitFor(() => second.events.some((event) => event.kind === 'speak'))
+    expect(second.events.find((event) => event.kind === 'speak')).toEqual({
+      kind: 'speak',
+      text: 'your report is ready',
+    })
+    // Single delivery — the older client must stay silent.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(first.events.filter((event) => event.kind === 'speak')).toEqual([])
+    first.close()
+    second.close()
+  })
+
   it('drops a pending wake once the daemon leaves the wake state', async () => {
     const { channel } = buildChannel()
     activeChannel = channel

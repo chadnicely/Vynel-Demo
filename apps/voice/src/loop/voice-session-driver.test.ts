@@ -278,6 +278,7 @@ describe('VoiceSessionDriver', () => {
       wakeHandoff,
     })
     await driver.pushAudio(chunk()) // wake → handed-off (overlay owns the session)
+    expect(driver.isHandedOff).toBe(true)
     driver.speak('The brain is answering.')
     await flush()
     // The daemon speaker is free during a handoff — the overlay's brain replies
@@ -301,10 +302,14 @@ describe('VoiceSessionDriver', () => {
 
     driver.speak('A long answer is playing.')
     await flush() // drain started, blocked awaiting playback (state forced busy)
+    // Mid-drain the state is forced 'busy', but the overlay still owns the
+    // session — isHandedOff must see through the drain (speak routing keys on it).
+    expect(driver.isHandedOff).toBe(true)
 
     driver.endHandoff() // overlay closed mid-sentence — must not be swallowed
     driver.notifyPlaybackDrained()
     await flush()
+    expect(driver.isHandedOff).toBe(false)
 
     // The daemon took the mic back (asleep), not stuck handed-off: a fresh wake
     // is heard + handed off again (a deaf daemon would drop this frame).

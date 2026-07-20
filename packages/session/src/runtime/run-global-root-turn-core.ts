@@ -136,10 +136,16 @@ export async function runGlobalRootTurnCore(
       // renders as if the user typed it) + mark them surfaced (exactly-once — the
       // injected text reaches the SDK session, so marking at turn-build is correct).
       const reports = collectDelegationReportsForRoot(deps.db, { userId: input.userId })
-      const providerUserMessageText =
+      let providerUserMessageText =
         reports.contextBlock !== null
           ? `${reports.contextBlock}\n\n${input.userMessageText}`
           : input.userMessageText
+      // A voice turn re-states the speak directive AT THE MESSAGE (provider input
+      // only, like the catch-up block): the system-prompt block alone decays on a
+      // long root session and the model slips back to text-only replies.
+      if (input.voice === true) {
+        providerUserMessageText = `${providerUserMessageText}\n\n${loadSessionInstruction('voice-turn-marker')}`
+      }
       if (reports.jobIds.length > 0) {
         markDelegationsSurfacedToRoot(deps.db, reports.jobIds, new Date())
       }

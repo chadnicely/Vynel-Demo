@@ -7,6 +7,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Fixed
+
+- **Voice replies you can actually hear, every time.** Three silent-voice failure modes are
+  closed: (1) a `speak` from a typed chat or a scheduled task while a Jarvis window or app tab
+  was merely *open* (no live voice session) used to be dropped while reporting success — the
+  daemon now asks that connected client to play the line, and only falls back to its own
+  speaker when nobody's connected; (2) on a long-running brain session the model would drift
+  back to text-only replies and ignore the voice directive — every voice turn now restates the
+  speak instruction right on the message, where recency keeps it in force; (3) if the model
+  still answers in prose without calling `speak`, the overlay speaks the first sentence of the
+  text answer instead of ending the turn in silence.
+
 ### Added
 
 - **Agent activity survives the reply.** A spawned agent's activity — its tools with their

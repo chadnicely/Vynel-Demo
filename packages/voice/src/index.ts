@@ -4,6 +4,7 @@
 // live in the apps/voice shell (the imperative layer); this package is pure +
 // headless-testable. Design: .claude/ceo/agent-base/voice-relay-design.md.
 export * from './relay/summarize-turn-for-voice.js'
+export * from './relay/spoken-gist.js'
 export * from './relay/strip-spoken-markup.js'
 export * from './relay/relay-task-notifier.js'
 export * from './relay/sentence-buffer.js'

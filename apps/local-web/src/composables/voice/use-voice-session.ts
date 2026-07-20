@@ -7,6 +7,7 @@ import {
   isWebSpeechAvailable,
 } from "./speech-recognition.js";
 import { createSpokenAudioPlayer } from "./spoken-audio-player.js";
+import { adaptChatTurnStreamToVoice } from "./voice-turn-adapter.js";
 import {
   startVoiceCommandSession,
   type VoiceCommandSession,
@@ -16,14 +17,11 @@ import {
 
 // Binds one browser voice-command session to Vue state for the Jarvis overlay:
 // Web Speech STT in, a global `/root/turn` per command on the fast voice model.
-// The browser NEVER speaks — voice output happens only when the brain calls the
-// `speak` tool, which plays through the daemon's speaker. This composable turns
-// each `speak` call in the stream into a 'spoke' view update.
+// The browser NEVER speaks on its own — voice output follows the brain's `speak`
+// calls (with the adapter's no-`speak` gist fallback as the safety net).
 
 // The small, fast model voice turns run on (the light triage tier).
 const VOICE_MODEL = "claude-haiku-4-5";
-// The brain-surface tool the model calls to talk (mcp__vynel__<name>).
-const SPEAK_TOOL_NAME = "mcp__vynel__speak";
 
 const IDLE_VIEW: VoiceCommandSessionView = {
   state: "ended",
@@ -31,46 +29,23 @@ const IDLE_VIEW: VoiceCommandSessionView = {
   spokenText: "",
 };
 
-/** Pull the spoken text out of a `speak` tool call's input ({ text }). */
-function extractSpokenText(toolInput: unknown): string | null {
-  if (typeof toolInput === "object" && toolInput !== null && "text" in toolInput) {
-    const text = (toolInput as { text: unknown }).text;
-    if (typeof text === "string" && text.trim() !== "") return text;
-  }
-  return null;
-}
-
-/** Adapt the chat-turn SSE stream to the session's events: surface each `speak`
- *  tool call (what the daemon is saying) + the terminal. The streamed TEXT is
- *  ignored — it's the on-screen record, never voice. */
+/** Run one voice turn against the global root; yields the adapter's events and
+ *  maps a transport failure to a 'failed' terminal (unless we aborted it). */
 async function* runGlobalVoiceTurn(
   client: VynelClient,
   utterance: string,
   signal: AbortSignal,
 ): AsyncIterable<VoiceTurnEvent> {
   try {
-    for await (const event of streamChatTurnEvents(client, {
-      scope: { kind: "global" },
-      userMessageText: utterance,
-      model: VOICE_MODEL, // the small, fast voice model
-      voice: true, // reply via the speak tool; nothing here is read aloud
-      signal,
-    })) {
-      if (event.kind === "tool-call-started" && event.toolCall.toolName === SPEAK_TOOL_NAME) {
-        const text = extractSpokenText(event.toolCall.toolInput);
-        if (text !== null) yield { kind: "spoke", text };
-      } else if (event.kind === "session-errored") {
-        yield { kind: "failed", message: event.errorMessage };
-        return;
-      } else if (event.kind === "session-interrupted") {
-        yield { kind: "failed", message: "the turn was interrupted" };
-        return;
-      } else if (event.kind === "turn-stream-ended") {
-        yield { kind: "completed" };
-        return;
-      }
-    }
-    yield { kind: "completed" };
+    yield* adaptChatTurnStreamToVoice(
+      streamChatTurnEvents(client, {
+        scope: { kind: "global" },
+        userMessageText: utterance,
+        model: VOICE_MODEL, // the small, fast voice model
+        voice: true, // reply via the speak tool; text is the on-screen record
+        signal,
+      }),
+    );
   } catch (error) {
     if (signal.aborted) return;
     yield {

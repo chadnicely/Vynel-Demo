@@ -89,6 +89,12 @@ export class VoiceSessionDriver {
     return this.#state !== 'asleep'
   }
 
+  /** True while a browser overlay owns the command session — its own turn
+   *  stream plays every `speak` there, so the daemon must not re-route one. */
+  get isHandedOff(): boolean {
+    return this.#state === 'handed-off' || this.#drainPriorState === 'handed-off'
+  }
+
   /** Feed a chunk of mic PCM (16 kHz mono). Ignored while a turn is in flight
    *  or while a browser overlay owns the session. */
   async pushAudio(audio: PcmAudio): Promise<void> {

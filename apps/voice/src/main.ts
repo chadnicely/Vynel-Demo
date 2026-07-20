@@ -65,17 +65,24 @@ function main(): void {
       // The overlay speaks with the daemon's own voice — one voice everywhere.
       onSynthesize: async (text) =>
         encodeWav(await synthesizer.synthesize(text, { voiceId: env.VYNEL_VOICE_ID })),
-      // The `speak` MCP tool — any global session's voice output. When an overlay
-      // is connected it PLAYS the audio itself (the daemon's speaker can't reach
-      // the device while the overlay window holds it); the daemon only speaks on
-      // its own native no-overlay loop. Accept + queue → resolves immediately.
+      // The `speak` MCP tool — any global session's voice output. Route it to
+      // whoever can actually play it:
+      //   - a LIVE overlay command session (handed-off) plays its own turn's
+      //     speak calls from its stream — re-routing would double-play;
+      //   - otherwise a connected-but-idle client is ASKED to play it (typed
+      //     chat, scheduled tasks — the browser owns reliable playback while
+      //     an overlay window holds the audio device);
+      //   - no client at all → the daemon's native speaker queue.
+      // Accept + hand off → resolves immediately.
       onSpeak: (text) => {
-        if (overlay.hasClient) {
-          logger.info({ text: text.slice(0, 80) }, 'speak — overlay will play it')
-          return Promise.resolve()
+        if (driver.isHandedOff) {
+          logger.info({ text: text.slice(0, 80) }, 'speak — the live overlay session plays it')
+        } else if (overlay.publishSpeak(text)) {
+          logger.info({ text: text.slice(0, 80) }, 'speak — delivered to a connected overlay client')
+        } else {
+          logger.info({ text: text.slice(0, 80) }, 'speak requested (native)')
+          driver.speak(text)
         }
-        logger.info({ text: text.slice(0, 80) }, 'speak requested (native)')
-        driver.speak(text)
         return Promise.resolve()
       },
     },

@@ -29,6 +29,10 @@ describe('loadSessionInstruction', () => {
     expect(loadSessionInstruction('voice-turn')).toContain('speak')
   })
 
+  it('voice-turn-marker re-states the speak directive for the per-message append', () => {
+    expect(loadSessionInstruction('voice-turn-marker')).toContain('speak')
+  })
+
   it('fails loudly for an id with no backing markdown file', () => {
     expect(() =>
       loadSessionInstruction('does-not-exist' as SessionInstructionId),

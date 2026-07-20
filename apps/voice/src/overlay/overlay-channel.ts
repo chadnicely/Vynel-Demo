@@ -11,8 +11,9 @@ import type { VoiceSessionState } from '../loop/voice-session-types.js'
 // loopback HTTP surface:
 //
 //   GET  /events?surface=app|jarvis — SSE: state replay on connect, then
-//        {kind:'state'|'wake', ...}. Wake events go to ONE client (never all —
-//        two sessions would answer twice): the newest eligible subscriber.
+//        {kind:'state'|'wake'|'speak', ...}. Wake and speak events go to ONE
+//        client (never all — two sessions would answer twice, two speakers
+//        would echo): wake to the newest eligible, speak to the newest of any.
 //   POST /session/end — the overlay's command session finished; daemon resumes.
 //   POST /synthesize {text} — one spoken sentence as a WAV (Kokoro — the same
 //        voice as the native loop), played by the overlay's own audio element.
@@ -27,6 +28,9 @@ import type { VoiceSessionState } from '../loop/voice-session-types.js'
 export type OverlayEvent =
   | { readonly kind: 'state'; readonly state: VoiceSessionState }
   | { readonly kind: 'wake'; readonly command: string }
+  // The daemon asks ONE connected client to play a spoken line (the `speak`
+  // tool while no overlay session is live — the browser owns reliable playback).
+  | { readonly kind: 'speak'; readonly text: string }
 
 export type OverlaySurface = 'app' | 'jarvis'
 
@@ -57,6 +61,11 @@ export interface OverlayChannel {
   readonly whenListening: Promise<number>
   publishState(state: VoiceSessionState): void
   publishWake(command: string): void
+  /** Ask the newest connected client to play a spoken line (single delivery —
+   *  two clients would speak twice). Returns false when nobody is connected,
+   *  so the caller can fall back to the native speaker. Best-effort beyond
+   *  that: a socket dying mid-write drops the line (like any spoken audio). */
+  publishSpeak(text: string): boolean
   stop(): void
 }
 
@@ -211,6 +220,19 @@ export function startOverlayChannel(
       pendingWake = command
       const target = findWakeTarget()
       if (target !== null) deliverWake(target, command)
+    },
+    publishSpeak(text: string): boolean {
+      // Newest client of ANY surface — playback needs a speaker, not wake
+      // eligibility (an app tab plays a proactive line as well as the window).
+      let target: SSEStreamingApi | null = null
+      for (const stream of subscribers.keys()) target = stream
+      if (target === null) return false
+      void target
+        .writeSSE({ data: JSON.stringify({ kind: 'speak', text } satisfies OverlayEvent) })
+        .catch(() => {
+          // Dead socket — the line is lost, like audio to an unplugged speaker.
+        })
+      return true
     },
     stop(): void {
       for (const stream of subscribers.keys()) void stream.close()

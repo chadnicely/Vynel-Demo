@@ -21,8 +21,15 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // Each id maps to `<id>.md` in the content directory — the filename IS the
-// specification of which session the instruction governs.
-export type SessionInstructionId = 'global-root' | 'workspace-agent' | 'voice-turn'
+// specification of which session the instruction governs. `voice-turn-marker`
+// is the per-MESSAGE sibling of `voice-turn`: the same directive re-stated on
+// the turn's provider input, because on a long root session the system-prompt
+// block decays under conversational momentum — recency wins.
+export type SessionInstructionId =
+  | 'global-root'
+  | 'workspace-agent'
+  | 'voice-turn'
+  | 'voice-turn-marker'
 
 const here = dirname(fileURLToPath(import.meta.url))
 // src/session-instructions/ (or dist/… once compiled) → packages/instructions/session-instructions/
