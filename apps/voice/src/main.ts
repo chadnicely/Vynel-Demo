@@ -77,7 +77,10 @@ function main(): void {
       onSpeak: (text) => {
         if (driver.isHandedOff) {
           logger.info({ text: text.slice(0, 80) }, 'speak — the live overlay session plays it')
-        } else if (overlay.publishSpeak(text)) {
+        } else if (!driver.isAwake && overlay.publishSpeak(text)) {
+          // Delegate only while the native loop is IDLE: a client playing audio
+          // mid native conversation would be heard by the open daemon mic (the
+          // echo defense only guards the daemon's own speaker path).
           logger.info({ text: text.slice(0, 80) }, 'speak — delivered to a connected overlay client')
         } else {
           logger.info({ text: text.slice(0, 80) }, 'speak requested (native)')

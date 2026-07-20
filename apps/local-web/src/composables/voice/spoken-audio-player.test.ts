@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createSpokenAudioPlayer,
   playSentencesPipelined,
   toSpokenSentences,
 } from "./spoken-audio-player.js";
@@ -7,6 +8,10 @@ import {
 // The pipeline is the latency win: sentence N+1 must be FETCHING while N plays,
 // and order/cancel/failure behavior must hold. Tested pure with fakes — the
 // fetch/Audio wiring stays thin around it.
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   let resolve!: (value: T) => void;
@@ -67,6 +72,33 @@ describe("playSentencesPipelined", () => {
       () => false,
     );
     expect(played).toEqual(["one.", "three."]);
+  });
+
+  it("cancel mid-playback settles play() — the session loop must never wedge", async () => {
+    // pause() fires neither onended nor onerror, so without cancel() resolving
+    // the in-flight playback, play() would hang forever and with it the awaiting
+    // session loop (done never settles → /session/end never posts → deaf daemon).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(new Blob(["wav"])) }),
+    );
+    class HangingAudio {
+      onended: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(public src: string) {}
+      play(): Promise<void> {
+        return Promise.resolve(); // starts "playing" and never ends on its own
+      }
+      pause(): void {}
+    }
+    vi.stubGlobal("Audio", HangingAudio);
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:test", revokeObjectURL: () => {} });
+
+    const player = createSpokenAudioPlayer();
+    const done = player.play("One sentence.");
+    await new Promise((resolve) => setTimeout(resolve, 0)); // reach playback
+    player.cancel();
+    await expect(done).resolves.toBeUndefined();
   });
 
   it("stops between steps once cancelled", async () => {

@@ -51,6 +51,11 @@ export function createSpokenAudioPlayer(): SpokenAudioPlayer {
   let cancelled = false;
   let playing: HTMLAudioElement | null = null;
   let abort: AbortController | null = null;
+  // The in-flight playback's resolver — cancel() must settle it: pause() fires
+  // neither onended nor onerror, so without this a cancel mid-playback would
+  // hang play() forever (and with it the session loop awaiting it — the
+  // deaf-daemon class: done never settles, /session/end never posts).
+  let resolvePlaying: (() => void) | null = null;
 
   async function fetchWav(text: string, signal: AbortSignal): Promise<Blob | null> {
     try {
@@ -71,6 +76,7 @@ export function createSpokenAudioPlayer(): SpokenAudioPlayer {
     const url = URL.createObjectURL(wav);
     try {
       await new Promise<void>((resolve) => {
+        resolvePlaying = resolve;
         const audio = new Audio(url);
         playing = audio;
         audio.onended = () => resolve();
@@ -78,6 +84,7 @@ export function createSpokenAudioPlayer(): SpokenAudioPlayer {
         audio.play().catch(() => resolve());
       });
     } finally {
+      resolvePlaying = null;
       playing = null;
       URL.revokeObjectURL(url);
     }
@@ -100,6 +107,8 @@ export function createSpokenAudioPlayer(): SpokenAudioPlayer {
       abort?.abort();
       playing?.pause();
       playing = null;
+      resolvePlaying?.();
+      resolvePlaying = null;
     },
   };
 }
