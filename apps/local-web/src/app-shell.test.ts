@@ -177,10 +177,13 @@ describe("app shell", () => {
     ]);
   });
 
-  it("marks no menu row inside a workspace thread (the switcher carries the scope)", async () => {
+  // test: correct expectation — Chat follows the scope now (Chad, 2026-07-21):
+  // a workspace thread marks the Chat row (was: nothing, when the row led to
+  // the global thread).
+  it("marks the Chat row inside a workspace thread (Chat follows the scope)", async () => {
     const { wrapper } = await mountShell("/workspace");
 
-    expect(currentMenuItems(wrapper)).toHaveLength(0);
+    expect(currentMenuItems(wrapper).map((button) => button.text())).toEqual(["Chat"]);
   });
 
   it("the trio still leads the menu inside a workspace, and Sessions opens the room's library", async () => {

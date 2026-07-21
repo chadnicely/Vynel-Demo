@@ -192,10 +192,9 @@ const activeSectionId = computed(() => {
   const view = scopeShell.value.mainView;
   if (typeof view !== "string") return null;
   if (view !== "chat") return view;
-  // The thread itself: the global chat marks the Chat item; a workspace
-  // thread marks nothing — the menu's Chat item leads to the GLOBAL chat
-  // (the pill's behavior), so lighting it there would mislead.
-  return surface.value === "chat" ? "chat" : null;
+  // The thread itself: Chat follows the scope (a room's Chat is ITS continuing
+  // conversation), so the global thread AND a workspace thread both mark it.
+  return "chat";
 });
 
 // ── Navigation handlers (write shared ui-store + route; the views react). ──
@@ -204,6 +203,12 @@ function selectSurface(id: string) {
     void router.push({ name: "home" });
   } else if (id === "sessions") {
     openSessions();
+  } else if (inWorkspaceScope.value) {
+    // Chat follows the scope: a workspace room's Chat is ITS continuing
+    // conversation — never a silent jump to the global thread (Chad,
+    // 2026-07-21 live feedback).
+    ui.workspaceChat.mainView = "chat";
+    void router.push({ name: "workspace" });
   } else {
     ui.globalChat.mainView = "chat";
     void router.push({ name: "chat" });
