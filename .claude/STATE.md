@@ -3,7 +3,16 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21O): SLICE ④ SHIPPED — `e9b2268` (+ the chat-follows-scope fix `6a376f5`); gate GREEN 2857t, reviewed CLEAN 0 must-fix 0 should-fix; THE SESSIONS-SURFACE ARC (①–④) IS COMPLETE. NEXT: Chad's full smoke → then candidates: inter-session comms arc (parked) · as-built docs refresh (stale on deleted panels) · monitor tree (outbox consumers) · detached-run lease
+## 🔵 NEXT ACTION (2026-07-21P): ARC SMOKED & CONFIRMED BY CHAD (screenshot: workspace chat → send_task_to_session → the session's report lands BACK IN THE WORKSPACE THREAD attributed + chipped; plain Home/Chat/Sessions menus live; session FIFO explained by Sarah correctly). **CHAD IS PREPARING AN ISSUE LIST "with proper instruction" — the next session's FIRST job is to receive + work that list.** Until it arrives, touch nothing new; the candidate queue (below) waits behind it.
+
+**Candidate queue AFTER Chad's list: ① inter-session comms arc (parked in
+docs/module-notes/sessions-surface.md — open with module notes + the forks: message-vs-task
+vocabulary, direct addressing vs creator-mediated, reply threading) · ② as-built docs
+refresh (.claude/docs stale on the deleted panels/stores of Slices ②–③) · ③ deep monitor
+tree (agent.run-* outbox consumers, delegate-to-leaf unparked) · ④ settings arc (default
+model + pool cap) · housekeeping bundle (detached-run lease · Telegram 4096 chunking · tick
+split · onDecideApproval ×3 extraction · AppShell 430 lines · workspace session-job chips
+global-banner-only).**
 
 **Slice ④ (subagent-built, reviewed CLEAN): workspace threads' Watch chips ON (the
 show-watch-chips gates DELETED, not flipped) · DIRECT-turn agents watchable —
