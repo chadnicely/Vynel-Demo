@@ -1,7 +1,10 @@
 // Integration test for `runDelegationClaimAndRunTick` (brain-tree Chapter 1, async core) —
 // the deterministic end-to-end of the async loop with a fake provider: enqueue → claim →
-// run the workspace-root turn → push the report UP to the global root → complete. Real
-// SQLite, no live SDK.
+// run the routed turn → complete → enqueue the report-delivery notify job → a later tick
+// runs the NOTIFY turn on the creator (session-comms, the revert flow). Real SQLite, no
+// live SDK. The old pushed-row expectations were RECAST deliberately: a report now lands
+// as the notify turn's attributed INBOUND message (workspace creators, end-to-end here)
+// or through the injected global runner seam (global creators, asserted via the mock).
 
 import { describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -20,7 +23,10 @@ import {
 import {
   enqueueWorkspaceDelegation,
   enqueueSessionDelegation,
+  enqueueReportDelivery,
   findDelegationJobById,
+  findDelegationJobByPartialSessionId,
+  GLOBAL_ROOT_DELIVERY_TARGET_KEY,
 } from '@vynel/orchestration'
 import { createSpawnedSession } from '../spawned/index.js'
 import { insertChannel, listOutboundMessagesForChannel } from '@vynel/channels/test-support'
@@ -104,6 +110,41 @@ class ThrowingTurnProvider extends FakeAiAgentProvider {
   }
 }
 
+// The captured input of the injected global notify runner (session-comms).
+type GlobalReportTurnCall = {
+  userId: string
+  reportBody: string
+  sourceLabel: string
+  partialSessionId?: string
+}
+
+// A stub global notify runner: records its calls, "absorbs" the report.
+function makeGlobalReportRunner(calls: GlobalReportTurnCall[] = []) {
+  return async (input: GlobalReportTurnCall) => {
+    calls.push(input)
+    return { sessionId: 'global-notify-sdk', resultText: 'Absorbed the report.' }
+  }
+}
+
+// Drain any pending report-delivery jobs a completed TASK tick enqueued —
+// multi-step tests re-tick for their NEXT task, and FIFO would hand them the
+// older delivery first. Workspace-target deliveries run a real (fake-provider)
+// notify turn; global ones hit the stub runner.
+async function drainPendingReportDeliveries(db: Database): Promise<void> {
+  let processed = true
+  while (processed) {
+    processed = await runDelegationClaimAndRunTick(db, {
+      provider: new FakeAiAgentProvider({
+        seededSessionId: `drain-${randomUUID()}`,
+        resultText: 'absorbed',
+      }),
+      logger: silentLogger,
+      activityFeed: new SessionActivityFeed(),
+      runGlobalRootReportTurn: makeGlobalReportRunner(),
+    })
+  }
+}
+
 describe('runDelegationClaimAndRunTick', () => {
   it('runs the routed turn under the job’s permission mode (surface-up step 1), defaulting to bypass', async () => {
     await withTestDatabase(async (db) => {
@@ -131,6 +172,7 @@ describe('runDelegationClaimAndRunTick', () => {
         activityFeed: new SessionActivityFeed(),
       })
       expect(askInputs[0]!.permissionMode).toBe('ask')
+      await drainPendingReportDeliveries(db)
 
       enqueueWorkspaceDelegation(db, {
         userId: user.id,
@@ -183,6 +225,7 @@ describe('runDelegationClaimAndRunTick', () => {
       })
       expect(workspaceInputs[0]!.model).toBe('claude-haiku-4-5')
       expect(workspaceInputs[0]!.thinkingEffort).toBe('low')
+      await drainPendingReportDeliveries(db)
 
       // SESSION target: same threading through delegateToSpawnedSession.
       const created = await createSpawnedSession(
@@ -211,6 +254,7 @@ describe('runDelegationClaimAndRunTick', () => {
       })
       expect(sessionInputs[0]!.model).toBe('claude-sonnet-4-6')
       expect(sessionInputs[0]!.thinkingEffort).toBe('max')
+      await drainPendingReportDeliveries(db)
 
       // No picks on the job → the keys are ABSENT from the provider input
       // (pinned: the SDK defaults stay in charge, exactOptionalPropertyTypes).
@@ -283,6 +327,7 @@ describe('runDelegationClaimAndRunTick', () => {
       })
       expect(workspaceInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
       expect(workspaceInputs[0]!.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+      await drainPendingReportDeliveries(db)
 
       // WORKSPACE-GROUNDED session target (Slice ④b): composed with the spawned
       // primary's OWN workspaceId — the session works in its ground's toolset.
@@ -316,13 +361,18 @@ describe('runDelegationClaimAndRunTick', () => {
         activityFeed: new SessionActivityFeed(),
         composeWorkspaceMcpServers,
       })
+      // The spawned primary id rides along (session-comms): the api edge stamps
+      // the caller-identity header from it so report_to_requester resolves the
+      // SESSION, not just its grounding workspace.
       expect(composeWorkspaceMcpServers).toHaveBeenCalledWith({
         db,
         userId: user.id,
         workspaceId: workspace.id,
         target: 'spawned-session',
+        targetPrimarySessionId: grounded.primarySessionId,
       })
       expect(groundedInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
+      await drainPendingReportDeliveries(db)
 
       // GLOBAL-grounded session target: NOTHING composed — bare stays
       // CONSISTENT there (its priming attached nothing, no tools to strip).
@@ -355,7 +405,7 @@ describe('runDelegationClaimAndRunTick', () => {
     })
   })
 
-  it('claims a pending job, runs it, completes it, and pushes the report up to the global root', async () => {
+  it('claims a pending job, runs it, completes it, and enqueues the report-delivery notify job for the global root (RECAST: the pushed row died with session-comms)', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
@@ -378,29 +428,27 @@ describe('runDelegationClaimAndRunTick', () => {
 
       expect(processed).toBe(true)
 
-      // The job reached `completed` with the result text.
+      // The job reached `completed` with the result text, and is marked
+      // SURFACED: the notify turn is the awareness path now — without the
+      // mark, the root's next-turn catch-up would inject the report twice.
       const job = findDelegationJobById(db, jobId)
       expect(job?.status).toBe('completed')
       expect(job?.resultText).toBe('Acme has 3 docs; all current.')
+      expect(job?.surfacedToRootAt).not.toBeNull()
 
-      // Brain-tree Chapter 2: the request minted a correlation key, and the WHOLE chain
-      // shares it — the workspace task + reply AND the bubbled-up global report. Read back
-      // via the trace key, the faithful chain is task → workspace-reply → global-report
-      // (the reply + report carry the same body; both are present — no dedup).
+      // Brain-tree Chapter 2: the task's trace is now the task + the workspace
+      // reply — the detached pushed report row is GONE (deliberately: the
+      // report reaches the creator as the notify turn's inbound message,
+      // keyed by the DELIVERY job's own trace).
       const traceKey = job?.partialSessionId
       expect(typeof traceKey).toBe('string')
       expect(listChatMessagesByPartialSessionId(db, traceKey!).map((m) => m.body)).toEqual([
         'summarize the docs',
         'Acme has 3 docs; all current.',
-        'Acme has 3 docs; all current.',
       ])
-
-      // End-to-end through the REAL taggers: resolveDelegationTrace returns the faithful,
-      // attributed chain (the trace foundation Ch3 renders) — locks the taggers↔trace contract.
       const trace = resolveDelegationTrace(db, { userId: user.id, partialSessionId: traceKey! })
       expect(trace.entries.map((e) => [e.sourceKind, e.sourceLabel, e.body])).toEqual([
         ['global-root', null, 'summarize the docs'],
-        ['workspace-manager', 'Mark · Acme', 'Acme has 3 docs; all current.'],
         ['workspace-manager', 'Mark · Acme', 'Acme has 3 docs; all current.'],
       ])
 
@@ -412,15 +460,42 @@ describe('runDelegationClaimAndRunTick', () => {
         ['assistant', 'workspace-manager', 'Mark · Acme'],
       ])
 
-      // The report bubbled UP to the global root's transcript, attributed.
+      // NOTHING was pushed onto the global transcript — the report travels as
+      // a queued NOTIFY TURN instead.
+      expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
+
+      // The next tick claims the report-delivery job and runs the GLOBAL
+      // notify turn through the injected runner: the distilled report, the
+      // child's composed label, the delivery's own trace key.
+      const reportCalls: GlobalReportTurnCall[] = []
+      const delivered = await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ seededSessionId: 'unused', resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
+      })
+      expect(delivered).toBe(true)
+      expect(reportCalls).toHaveLength(1)
+      expect(reportCalls[0]).toMatchObject({
+        userId: user.id,
+        reportBody: 'Acme has 3 docs; all current.',
+        sourceLabel: 'Mark · Acme',
+      })
+      // The delivery job row: kind report-delivery, reporter provenance, the
+      // notify turn's reply as its result — and NO cascade (queue is empty).
+      const deliveryJob = findDelegationJobByPartialSessionId(db, reportCalls[0]!.partialSessionId!)
+      expect(deliveryJob?.jobKind).toBe('report-delivery')
+      expect(deliveryJob?.status).toBe('completed')
+      expect(deliveryJob?.resultText).toBe('Absorbed the report.')
+      expect(deliveryJob?.parentSessionId).toBe('ws-root-new')
       expect(
-        listChatMessagesForSession(db, globalSessionId).map((m) => [
-          m.role,
-          m.sourceKind,
-          m.sourceLabel,
-          m.body,
-        ]),
-      ).toEqual([['assistant', 'workspace-manager', 'Mark · Acme', 'Acme has 3 docs; all current.']])
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({ resultText: 'never' }),
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+          runGlobalRootReportTurn: makeGlobalReportRunner(),
+        }),
+      ).toBe(false)
     })
   })
 
@@ -686,10 +761,20 @@ describe('runDelegationClaimAndRunTick', () => {
         deliveryTarget: 'chat',
       })
 
-      // Global got the SHORT reply; the job row keeps the FULL report (the trace truth).
-      expect(listChatMessagesForSession(db, globalSessionId).map((m) => m.body)).toEqual([
+      // The DELIVERY carries the SHORT reply (RECAST: the notify turn's
+      // inbound message, not a pushed global row); the job row keeps the FULL
+      // report (the trace truth).
+      const reportCalls: GlobalReportTurnCall[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
+      })
+      expect(reportCalls.map((call) => call.reportBody)).toEqual([
         'Done — all docs are current and cross-linked.',
       ])
+      expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
       expect(findDelegationJobById(db, jobId)?.resultText).toBe(drainedReport)
       // The workspace transcript keeps the full reply too — the Watch drill-down's body.
       expect(
@@ -721,9 +806,16 @@ describe('runDelegationClaimAndRunTick', () => {
       })
       await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
-      expect(listChatMessagesForSession(db, globalSessionId).map((m) => m.body)).toEqual([
-        longReport.trim(),
-      ])
+      // RECAST: the fail-open FULL report rides the delivery job.
+      const reportCalls: GlobalReportTurnCall[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
+      })
+      expect(reportCalls.map((call) => call.reportBody)).toEqual([longReport.trim()])
+      expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
     })
   })
 
@@ -752,9 +844,16 @@ describe('runDelegationClaimAndRunTick', () => {
       await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
       expect(distillCalls).toHaveLength(0)
-      expect(listChatMessagesForSession(db, globalSessionId).map((m) => m.body)).toEqual([
-        'All good.',
-      ])
+      // RECAST: the as-is short report rides the delivery job.
+      const reportCalls: GlobalReportTurnCall[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
+      })
+      expect(reportCalls.map((call) => call.reportBody)).toEqual(['All good.'])
+      expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
     })
   })
 
@@ -802,15 +901,24 @@ describe('runDelegationClaimAndRunTick', () => {
       })
       await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
-      // The distill targeted the ORIGIN channel's kind, and BOTH surfaces got the
-      // same short reply — the channel message and the global row.
+      // The distill targeted the ORIGIN channel's kind, and BOTH deliveries carry
+      // the same short reply — the channel message (unchanged at task completion:
+      // the session-comms channel-delivery choice) and the notify job's report.
       expect(distillCalls[0]?.deliveryTarget).toBe('telegram')
       const queued = listOutboundMessagesForChannel(db, channel.id)
       expect(queued).toHaveLength(1)
       expect(queued[0]?.messageBody).toBe('Docs summarized: 3 files, all current. ✅')
-      expect(listChatMessagesForSession(db, globalSessionId).map((m) => m.body)).toEqual([
+      const reportCalls: GlobalReportTurnCall[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
+      })
+      expect(reportCalls.map((call) => call.reportBody)).toEqual([
         'Docs summarized: 3 files, all current. ✅',
       ])
+      expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
     })
   })
 
@@ -1066,11 +1174,21 @@ describe('runDelegationClaimAndRunTick', () => {
 
       expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
 
-      // The report pushed onto the global root, labeled as the SESSION.
-      const rootMessages = listChatMessagesForSession(db, globalSessionId)
-      const report = rootMessages.find((m) => m.sourceKind === 'workspace-manager')
-      expect(report?.sourceLabel).toBe('Research: pricing')
-      expect(report?.body).toBe('A undercuts us by 12%.')
+      // RECAST: the report rides a delivery job to the global root, labeled as
+      // the SESSION (the child's name — same label the pushed row carried).
+      const reportCalls: GlobalReportTurnCall[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
+      })
+      expect(reportCalls).toHaveLength(1)
+      expect(reportCalls[0]).toMatchObject({
+        sourceLabel: 'Research: pricing',
+        reportBody: 'A undercuts us by 12%.',
+      })
+      expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
     })
   })
 
@@ -1134,17 +1252,52 @@ describe('runDelegationClaimAndRunTick', () => {
       expect(processed).toBe(true)
       expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
 
-      // The report landed on the WORKSPACE primary's transcript…
+      // The next tick runs the WORKSPACE notify turn END-TO-END (the real
+      // delegateToWorkspaceRoot machinery): the report lands as the turn's
+      // INBOUND message on the workspace primary — attributed FROM the child
+      // session — and the workspace's own reply follows.
+      const reportCalls: GlobalReportTurnCall[] = []
+      const notifyInputs: StartChatSessionInput[] = []
+      const delivered = await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: 'ws-primary-sdk-1',
+          resultText: 'Noted — I will fold the stale items into the plan.',
+          startChatSessionInputs: notifyInputs,
+        }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
+      })
+      expect(delivered).toBe(true)
+      // A WORKSPACE requester never touches the global runner.
+      expect(reportCalls).toEqual([])
+      // The notify turn RESUMED the workspace primary under the
+      // report-delivery steer — never the task steer.
+      expect(notifyInputs[0]!.resumeSessionId).toBe('ws-primary-sdk-1')
+      expect(notifyInputs[0]!.systemPromptAppend).toContain('This message is a REPORT')
+      expect(notifyInputs[0]!.systemPromptAppend).not.toContain('This task was routed')
+
       const wsMessages = listChatMessagesForSession(db, 'ws-primary-sdk-1')
-      const report = wsMessages.find((m) => m.sourceKind === 'workspace-manager')
-      expect(report?.sourceLabel).toBe('Acme research')
-      expect(report?.body).toBe('Backlog has 4 stale items.')
-      // …and NOT on the global root's.
+      expect(wsMessages.map((m) => [m.role, m.sourceKind, m.sourceLabel, m.body])).toEqual([
+        ['user', 'workspace-manager', 'Acme research', 'Backlog has 4 stale items.'],
+        ['assistant', 'workspace-manager', 'Mark · Acme', 'Noted — I will fold the stale items into the plan.'],
+      ])
+      // …and NOTHING reached the global root's transcript.
       expect(
         listChatMessagesForSession(db, globalSessionId).filter(
           (m) => m.sourceKind === 'workspace-manager',
         ),
       ).toEqual([])
+
+      // Anti-cascade: the completed delivery enqueued NOTHING further.
+      expect(
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({ resultText: 'never' }),
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+          runGlobalRootReportTurn: makeGlobalReportRunner(),
+        }),
+      ).toBe(false)
     })
   })
 
@@ -1173,6 +1326,123 @@ describe('runDelegationClaimAndRunTick', () => {
       })
       expect(skipped).toBe(false)
       expect(findDelegationJobById(db, jobId)?.status).toBe('pending')
+    })
+  })
+
+  it('GLOBAL deliveries share one exclusion key: at most one runs, the rest stay PENDING while a workspace task claims alongside', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      await setUpGlobalRoot(db, user.id)
+
+      // Two pending GLOBAL deliveries + one workspace task on the queue.
+      const deliveryIds = [
+        enqueueReportDelivery(db, {
+          userId: user.id,
+          reporterSessionId: 'reporter-1',
+          reporterLabel: 'Session A',
+          reportBody: 'report one',
+          requester: { kind: 'global-root' },
+        }),
+        enqueueReportDelivery(db, {
+          userId: user.id,
+          reporterSessionId: 'reporter-2',
+          reporterLabel: 'Session B',
+          reportBody: 'report two',
+          requester: { kind: 'global-root' },
+        }),
+      ]
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'global-sdk-1',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'a task that must not starve',
+      })
+
+      // Tick A (no exclusion): claims ONE delivery and reports the SHARED
+      // synthetic key — what the pool will hold for the run's life.
+      const started: Array<{ jobId: string; targetKey: string }> = []
+      const firstRunnerCalls: GlobalReportTurnCall[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: makeGlobalReportRunner(firstRunnerCalls),
+        onRunStarted: (run) => started.push(run),
+      })
+      expect(started[0]!.targetKey).toBe(GLOBAL_ROOT_DELIVERY_TARGET_KEY)
+      expect(firstRunnerCalls).toHaveLength(1)
+
+      // Tick B, key held (the pool's exclusion set): the SECOND delivery stays
+      // pending — the workspace TASK claims instead (no starvation either way).
+      const secondRunnerCalls: GlobalReportTurnCall[] = []
+      const taskInputs: StartChatSessionInput[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: 'ws-root-alongside',
+          resultText: 'task done',
+          startChatSessionInputs: taskInputs,
+        }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: makeGlobalReportRunner(secondRunnerCalls),
+        excludeTargetKeys: new Set([GLOBAL_ROOT_DELIVERY_TARGET_KEY]),
+        onRunStarted: (run) => started.push(run),
+      })
+      expect(secondRunnerCalls).toEqual([])
+      expect(started[1]!.targetKey).toBe(workspace.id)
+      expect(taskInputs).toHaveLength(1)
+
+      // Exactly one delivery completed; the other is still PENDING (waiting
+      // for the key, its budget untouched — never failed, never lost).
+      const deliveryStatuses = deliveryIds
+        .map((id) => findDelegationJobById(db, id)?.status)
+        .sort()
+      expect(deliveryStatuses).toEqual(['completed', 'pending'])
+    })
+  })
+
+  it('a GLOBAL report-delivery job without the injected runner fails cleanly — never stuck claimed, task job untouched', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const taskJobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'produce a report',
+      })
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ seededSessionId: 'ws-root-norunner', resultText: 'done' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+      })
+      expect(findDelegationJobById(db, taskJobId)?.status).toBe('completed')
+
+      // The delivery tick runs WITHOUT runGlobalRootReportTurn (an MCP-less
+      // harness shape) — the delivery job fails with an actionable message.
+      const delivered = await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+      })
+      expect(delivered).toBe(true)
+      // The delivery reached a TERMINAL state (the queue is drained — a stuck
+      // `claimed`/`pending` row would keep claiming) and the TASK job's
+      // completion survived untouched.
+      expect(findDelegationJobById(db, taskJobId)?.status).toBe('completed')
+      expect(
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({ resultText: 'never' }),
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+        }),
+      ).toBe(false)
     })
   })
 

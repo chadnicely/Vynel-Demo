@@ -1,0 +1,1 @@
+ALTER TABLE `delegation_jobs` ADD `job_kind` text;

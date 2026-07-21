@@ -22,6 +22,13 @@ import type { DelegationPermissionMode } from '../orchestration-types.js'
 
 export type DelegationJobStatus = 'pending' | 'claimed' | 'completed' | 'failed'
 
+// What a queue row IS (session-comms, the revert flow): a 'task' row runs the
+// delegated work; a 'report-delivery' row runs a NOTIFY turn on the REQUESTER's
+// conversation with a child's report as the attributed inbound message. Stored
+// nullable — NULL means 'task' (every legacy row), so the migration is a pure
+// additive ALTER.
+export type DelegationJobKind = 'task' | 'report-delivery'
+
 export const delegationJobs = table(
   'delegation_jobs',
   {
@@ -31,9 +38,12 @@ export const delegationJobs = table(
     // session id; used later for a monitor edge. Same treatment as
     // schedule_runs.chatSessionId.
     parentSessionId: text().notNull(),
-    // TARGET (exactly one set — the enqueue ops enforce the row invariant): a
-    // WORKSPACE target carries the three workspace columns; a SESSION target
-    // (session-library Slice ④) carries `targetPrimarySessionId` instead.
+    // TARGET (the enqueue ops enforce the row invariant): a WORKSPACE target
+    // carries the three workspace columns; a SESSION target (session-library
+    // Slice ④) carries `targetPrimarySessionId` instead — exactly one set for a
+    // 'task' row. A 'report-delivery' row targets the REQUESTER conversation:
+    // `workspaceId` set = that workspace's primary; BOTH targets null = the
+    // global root (permitted for kind 'report-delivery' ONLY — session-comms).
     // Nullable FK via `text().references(...)` — `id()` is NOT NULL by dialect
     // contract (the primary_sessions.workspaceId precedent).
     workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
@@ -44,7 +54,11 @@ export const delegationJobs = table(
     // ops write; nullable because a session target has no workspace to demand it.
     workspacePath: text(),
     // The enqueue-time workspace name — null for a session target (the tick
-    // labels those by the spawned session's name, read fresh at run time).
+    // labels those by the spawned session's name, read fresh at run time). On a
+    // 'report-delivery' row this column carries the CHILD's composed source
+    // label instead ("Mark · Acme" / the session name) — the notify turn's
+    // inbound attribution; the requester is already identified by the target
+    // columns (session-comms; the notes bless column reuse over a new column).
     workspaceName: text(),
     // A SESSION target: the spawned primary this job's turn resumes. LOOSE
     // cross-feature ref — NOT a FK (`primary_sessions` is another package's
@@ -82,6 +96,11 @@ export const delegationJobs = table(
     // Null = the provider defaults (today's behavior, byte-for-byte).
     model: text(),
     thinkingEffort: text().$type<ThinkingEffortLevel>(),
+    // What this row IS (session-comms): NULL/'task' = delegated work;
+    // 'report-delivery' = a notify turn delivering `taskText` (the child's
+    // report) to the requester. Nullable so migration 0015 stays a pure
+    // additive ALTER — legacy rows read as tasks byte-for-byte.
+    jobKind: text().$type<DelegationJobKind>(),
     createdAt: timestamp().notNull(),
   },
   (t) => ({

@@ -54,6 +54,14 @@ export {
   enqueueSessionDelegation,
   type EnqueueSessionDelegationInput,
 } from './routing/enqueue-session-delegation.js'
+// Session-comms (the revert flow): a child's report travels UP as a queued
+// notify turn on the requester's conversation — the tick's report-delivery
+// branch consumes these rows.
+export {
+  enqueueReportDelivery,
+  type EnqueueReportDeliveryInput,
+  type ReportDeliveryRequester,
+} from './routing/enqueue-report-delivery.js'
 
 // The global-root catch-up (Ch3.5 root-awareness fix): the terminal delegations the root
 // hasn't been told about, as a context block to prepend to its next turn.
@@ -69,13 +77,14 @@ export { markDelegationsSurfacedToRoot } from './repositories/index.js'
 // starts from the job row keyed by partialSessionId, then composes chat reads itself.
 // Only the anchor is exported; the composed VIEW stays out of this leaf (see below).
 export { findDelegationJobByPartialSessionId } from './repositories/index.js'
-export type { DelegationJobStatus } from './schema/delegation-jobs.js'
+export type { DelegationJobStatus, DelegationJobKind } from './schema/delegation-jobs.js'
 // The queue's CONSUMER half (brain-tree Ch1) — the app-tier delegation service
 // claims one pending job per tick, runs it, and records the terminal state; at
 // startup it fails the jobs a crash left stuck `claimed`. Re-exported (the
 // findDelegationJobByPartialSessionId precedent) — repos stay in this leaf.
 export {
   claimNextPendingDelegationJob,
+  GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   completeDelegationJob,
   failDelegationJob,
   failPendingDelegationJob,

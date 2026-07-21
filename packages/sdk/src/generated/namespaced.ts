@@ -880,6 +880,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  report: async (input: NonNullable<paths["/routing/report"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/routing/report", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   sendToChannel: async (input: NonNullable<paths["/routing/send-to-channel"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/routing/send-to-channel", {
       body: input,

@@ -80,8 +80,12 @@ export type ConsumeSessionEventStreamInput = {
  *  delegation trace key linking them (all optional, all additive). */
 export type TurnMessageAttribution = {
   partialSessionId?: string
-  /** The user row's origin (a routed task passes 'global-root'). */
+  /** The user row's origin (a routed task passes 'global-root'; a report-delivery
+   *  notify turn passes 'workspace-manager' — the report comes FROM a child). */
   userSourceKind?: AssistantRowAttribution['sourceKind']
+  /** The user row's source label (a notify turn passes the CHILD's name —
+   *  "Mark · Acme" / the session name). Omitted → null (unchanged). */
+  userSourceLabel?: string
   /** The assistant rows' identity (a routed turn passes 'workspace-manager' + label). */
   assistantSourceKind?: AssistantRowAttribution['sourceKind']
   assistantSourceLabel?: string

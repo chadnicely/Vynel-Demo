@@ -41,6 +41,7 @@ import { startChannelsService } from './services/channels-service.js'
 import { startOutboxRelayService } from './services/outbox-relay-service.js'
 import { startDelegationService } from './services/delegation-service.js'
 import { buildDelegatedTurnMcpComposer } from './sessions/build-workspace-background-mcp.js'
+import { buildGlobalRootReportTurnRunner } from './sessions/run-global-root-turn.js'
 import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
 import {
   TurnEventBroadcaster,
@@ -170,6 +171,16 @@ export async function boot(): Promise<void> {
   // tools ("server disconnected").
   const provider = resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
   const composeWorkspaceMcpServers = await buildDelegatedTurnMcpComposer(appRequest)
+  // The GLOBAL-root notify runner (session-comms): a completed delegation's
+  // report runs a REAL turn on the root — the assistant absorbs the result in
+  // its own flow instead of receiving a detached pushed row.
+  const runGlobalRootReportTurn = buildGlobalRootReportTurnRunner({
+    db,
+    logger,
+    appRequest,
+    activityFeed,
+    turnEvents,
+  })
   const delegationService = startDelegationService({
     db,
     logger,
@@ -178,6 +189,7 @@ export async function boot(): Promise<void> {
     turnEvents,
     cancelRegistry: delegationCancels,
     composeWorkspaceMcpServers,
+    runGlobalRootReportTurn,
     targetLocks: sessionTargetLocks,
   })
   // The stale-approval reaper (surface-up's unanswered bound) — denies the provider

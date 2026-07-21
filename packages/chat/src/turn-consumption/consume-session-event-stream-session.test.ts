@@ -390,9 +390,11 @@ describe('consumeSessionEventStream — session lifecycle', () => {
         }),
       )
 
-      // The task row reads "From Global" + carries the trace key.
+      // The task row reads "From Global" + carries the trace key. No
+      // userSourceLabel given → the label stays null (the task shape).
       const task = findChatMessageById(db, userMessageInput.id)
       expect(task?.sourceKind).toBe('global-root')
+      expect(task?.sourceLabel).toBeNull()
       expect(task?.partialSessionId).toBe('trace-key-1')
 
       // The reply row carries the workspace-manager identity + the trace key.
@@ -401,6 +403,51 @@ describe('consumeSessionEventStream — session lifecycle', () => {
       expect(reply?.sourceLabel).toBe('Ava · vynel')
       expect(reply?.partialSessionId).toBe('trace-key-1')
       expect(reply?.body).toBe('On it.')
+    })
+  })
+
+  it('stamps userSourceLabel on the inbound row (session-comms: a notify turn attributes the report FROM the child)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      const userMessageInput = makeUserMessageInput('Backlog has 4 stale items.')
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-notify-1',
+              resumedFromExisting: false,
+              startedAt: new Date('2026-07-21T00:00:00Z'),
+            },
+            {
+              kind: 'session-completed',
+              sessionId: 'session-notify-1',
+              isNewSession: true,
+              completedAt: new Date('2026-07-21T00:00:05Z'),
+            },
+          ]),
+          userMessageInput,
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+          messageAttribution: {
+            partialSessionId: 'delivery-trace-1',
+            userSourceKind: 'workspace-manager',
+            userSourceLabel: 'Acme research',
+          },
+        }),
+      )
+
+      const inbound = findChatMessageById(db, userMessageInput.id)
+      expect(inbound?.sourceKind).toBe('workspace-manager')
+      expect(inbound?.sourceLabel).toBe('Acme research')
+      expect(inbound?.partialSessionId).toBe('delivery-trace-1')
     })
   })
 

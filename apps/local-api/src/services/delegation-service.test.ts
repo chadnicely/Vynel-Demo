@@ -41,6 +41,9 @@ function fakeOptions() {
       mutatingToolNames: [],
       systemPromptAppend: '',
     })),
+    // The global notify runner (session-comms) — required so a report-delivery
+    // job targeting the global root can run its turn.
+    runGlobalRootReportTurn: vi.fn(async () => ({ sessionId: 'g-1', resultText: 'ok' })),
     // The REAL lock registry (Slice ③a — the shared single-writer state the
     // pool now holds its target keys in); pure in-memory, so no mock needed.
     targetLocks: new SessionTargetLocks(),
@@ -86,6 +89,9 @@ describe('startDelegationService', () => {
       // The background MCP composition must reach every tick — a routed turn
       // without it strips the resumed session's deferred tools.
       composeWorkspaceMcpServers: options.composeWorkspaceMcpServers,
+      // The global notify runner must reach every tick — a report-delivery
+      // job targeting the global root runs its turn through it (session-comms).
+      runGlobalRootReportTurn: options.runGlobalRootReportTurn,
     })
     service.stop()
   })

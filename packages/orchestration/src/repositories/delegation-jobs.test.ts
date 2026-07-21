@@ -18,7 +18,9 @@ import {
   claimNextPendingDelegationJob,
   completeDelegationJob,
   failDelegationJob,
+  GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   listPendingDelegationJobsForUser,
+  listUnsurfacedTerminalDelegationsForUser,
   failOrphanedClaimedDelegations,
   type NewDelegationJob,
 } from './delegation-jobs.js'
@@ -360,6 +362,94 @@ describe('delegation_jobs repository', () => {
       expect(reclaimed.surfacedToRootAt).not.toBeNull() // marked surfaced → no restart spam to the root
       // The completed job is left alone.
       expect(findDelegationJobById(db, completed.id)!.status).toBe('completed')
+    })
+  })
+
+  // ── session-comms: report-delivery rows on the shared queue ─────────
+
+  it('claims a report-delivery row with BOTH targets null even when exclusion keys are active (NULL-safe claim)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      // A GLOBAL-target report-delivery row: both target columns null.
+      const delivery = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, {
+          workspaceId: null,
+          workspacePath: null,
+          workspaceName: 'Mark · Acme',
+          jobKind: 'report-delivery',
+        }),
+      )
+      // Busy-key exclusion active — a bare NOT IN would silently drop the
+      // NULL-column row; the isNull disjuncts must keep it claimable.
+      const claimed = claimNextPendingDelegationJob(db, new Date(), {
+        excludeTargetKeys: ['some-busy-workspace'],
+      })
+      expect(claimed?.id).toBe(delivery.id)
+      expect(claimed?.jobKind).toBe('report-delivery')
+    })
+  })
+
+  it('the shared GLOBAL_ROOT_DELIVERY_TARGET_KEY excludes global-delivery rows from the claim while task rows still claim', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      // The OLDER row is the global delivery — only the synthetic-key exclusion
+      // (not FIFO order) can explain the task row claiming first.
+      insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, {
+          workspaceId: null,
+          workspacePath: null,
+          workspaceName: 'Mark · Acme',
+          jobKind: 'report-delivery',
+          createdAt: new Date('2026-07-22T00:00:00Z'),
+        }),
+      )
+      const task = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { createdAt: new Date('2026-07-22T00:00:01Z') }),
+      )
+
+      const claimed = claimNextPendingDelegationJob(db, new Date(), {
+        excludeTargetKeys: [GLOBAL_ROOT_DELIVERY_TARGET_KEY],
+      })
+      expect(claimed?.id).toBe(task.id)
+
+      // With the key freed, the pending delivery claims normally.
+      const next = claimNextPendingDelegationJob(db, new Date())
+      expect(next?.jobKind).toBe('report-delivery')
+    })
+  })
+
+  it('listUnsurfacedTerminalDelegationsForUser surfaces TASK rows only — never report-delivery rows (completed OR failed)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      // A legacy task row (NULL jobKind) — surfaces.
+      const task = insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
+      completeDelegationJob(db, task.id, 'the report', new Date())
+      // A completed report-delivery row — its resultText is the notify turn's
+      // own reply; injecting it as "a report from a workspace" would be a
+      // false echo. Excluded.
+      const completedDelivery = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { jobKind: 'report-delivery' }),
+      )
+      completeDelegationJob(db, completedDelivery.id, 'absorbed', new Date())
+      // A failed report-delivery row — a delivery failure is not a task
+      // failure; excluded too.
+      const failedDelivery = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { jobKind: 'report-delivery' }),
+      )
+      failDelegationJob(db, failedDelivery.id, 'notify turn failed', new Date())
+
+      expect(listUnsurfacedTerminalDelegationsForUser(db, user.id).map((j) => j.id)).toEqual([
+        task.id,
+      ])
     })
   })
 })

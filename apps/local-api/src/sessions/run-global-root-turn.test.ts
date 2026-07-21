@@ -33,7 +33,12 @@ vi.mock('@vynel/orchestration', async () => {
   return { ...actual, composeSessionAgents: async () => ({}) }
 })
 
-import { runGlobalRootTurn, wrapAppRequestWithOrigin } from './run-global-root-turn.js'
+import {
+  runGlobalRootTurn,
+  wrapAppRequestWithOrigin,
+  buildGlobalRootReportTurnRunner,
+} from './run-global-root-turn.js'
+import { REPORT_DELIVERY_INSTRUCTIONS } from '@vynel/session/delegation'
 import { DELEGATION_ORIGIN_HEADER, serializeDelegationOrigin } from './delegation-origin-header.js'
 
 type SinkEvent = Parameters<SessionSink['onEvent']>[0]
@@ -180,6 +185,99 @@ describe('runGlobalRootTurn', () => {
     await expect(
       runGlobalRootTurn(fakeDeps(), { userId: 'u1', userMessageText: 'hi' }),
     ).rejects.toThrow(/the global-root turn errored: boom/)
+  })
+
+  it('threads the notify-variant fields to the core (session-comms): child attribution, steer append, feed origin delegation', async () => {
+    coreMock.mockImplementation(async (_deps: unknown, _input: unknown, sink: SessionSink) => {
+      await sink.onEvent({
+        kind: 'user-message-persisted',
+        message: { sessionId: 'root-sess-1' },
+      } as SinkEvent)
+      await sink.onEnd?.()
+    })
+
+    const activity = fakeActivityFeed()
+    await runGlobalRootTurn(fakeDeps(activity.feed), {
+      userId: 'u1',
+      userMessageText: 'Backlog has 4 stale items.',
+      inboundAttribution: {
+        sourceKind: 'workspace-manager',
+        sourceLabel: 'Acme research',
+        partialSessionId: 'delivery-trace-1',
+      },
+      steerPromptAppend: REPORT_DELIVERY_INSTRUCTIONS,
+      activityOrigin: 'delegation',
+    })
+
+    // The feed reports what is actually running — a delegation-driven turn.
+    expect(activity.begin).toHaveBeenCalledWith({
+      userId: 'u1',
+      scopeKind: 'global',
+      origin: 'delegation',
+    })
+    const coreInput = coreMock.mock.calls[0]?.[1] as {
+      messageAttribution?: Record<string, unknown>
+      steerPromptAppend?: string
+    }
+    expect(coreInput.messageAttribution).toEqual({
+      userSourceKind: 'workspace-manager',
+      userSourceLabel: 'Acme research',
+      partialSessionId: 'delivery-trace-1',
+    })
+    expect(coreInput.steerPromptAppend).toBe(REPORT_DELIVERY_INSTRUCTIONS)
+  })
+
+  it('a normal turn threads NEITHER notify field (the shipped core input, byte-for-byte)', async () => {
+    coreMock.mockImplementation(async (_deps: unknown, _input: unknown, sink: SessionSink) => {
+      await sink.onEvent({
+        kind: 'user-message-persisted',
+        message: { sessionId: 'sess-1' },
+      } as SinkEvent)
+      await sink.onEnd?.()
+    })
+    await runGlobalRootTurn(fakeDeps(), { userId: 'u1', userMessageText: 'hi' })
+    const coreInput = coreMock.mock.calls[0]?.[1] as Record<string, unknown>
+    expect(coreInput).not.toHaveProperty('messageAttribution')
+    expect(coreInput).not.toHaveProperty('steerPromptAppend')
+  })
+
+  it('buildGlobalRootReportTurnRunner runs ONE notify turn and returns the session id + reply', async () => {
+    coreMock.mockImplementation(async (_deps: unknown, _input: unknown, sink: SessionSink) => {
+      await sink.onEvent({
+        kind: 'user-message-persisted',
+        message: { sessionId: 'root-sess-9' },
+      } as SinkEvent)
+      await sink.onEvent({ kind: 'text-chunk', messageId: 'm1', textDelta: 'Absorbed.' })
+      await sink.onEnd?.()
+    })
+
+    const activity = fakeActivityFeed()
+    const runReportTurn = buildGlobalRootReportTurnRunner(fakeDeps(activity.feed))
+    const turn = await runReportTurn({
+      userId: 'u1',
+      reportBody: 'All docs current.',
+      sourceLabel: 'Mark · Acme',
+      partialSessionId: 'delivery-trace-2',
+    })
+
+    expect(turn).toEqual({ sessionId: 'root-sess-9', resultText: 'Absorbed.' })
+    const coreInput = coreMock.mock.calls[0]?.[1] as {
+      userMessageText: string
+      messageAttribution?: Record<string, unknown>
+      steerPromptAppend?: string
+    }
+    expect(coreInput.userMessageText).toBe('All docs current.')
+    expect(coreInput.messageAttribution).toEqual({
+      userSourceKind: 'workspace-manager',
+      userSourceLabel: 'Mark · Acme',
+      partialSessionId: 'delivery-trace-2',
+    })
+    expect(coreInput.steerPromptAppend).toBe(REPORT_DELIVERY_INSTRUCTIONS)
+    expect(activity.begin).toHaveBeenCalledWith({
+      userId: 'u1',
+      scopeKind: 'global',
+      origin: 'delegation',
+    })
   })
 
   it('wrapAppRequestWithOrigin stamps the serialized origin header on every dispatch', async () => {

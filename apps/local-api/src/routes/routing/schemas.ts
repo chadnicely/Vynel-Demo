@@ -74,6 +74,19 @@ export const SendTaskToSessionResponseSchema = z.object({
   sessionName: z.string(),
 })
 
+// session-comms: the upward report. DELIBERATELY only the report body — the
+// requester is resolved server-side from the calling turn's identity header
+// (fork 2: no ids in the tool input = no mis-addressing, no cycles).
+export const ReportToRequesterRequestSchema = z.object({
+  /** The real result to pass up — findings, numbers, paths; not just "done". */
+  report: z.string().min(1).max(50000),
+})
+
+export const ReportToRequesterResponseSchema = z.object({
+  status: z.literal('enqueued'),
+  jobId: z.string(),
+})
+
 // Local enum (the root-schemas precedent of redeclaring small unions) — the
 // channels route file keeps its ChannelKindSchema private.
 const RoutingChannelKindSchema = z.enum(['telegram', 'discord'])

@@ -19904,6 +19904,74 @@
         }
       }
     },
+    "/routing/report": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "A queued acknowledgement: { status: 'enqueued', jobId }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "enqueued"
+                    },
+                    "jobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "jobId"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "This turn has no requester (interactive chats, schedule fires, the global root)."
+          },
+          "404": {
+            "description": "The calling session could not be resolved."
+          }
+        },
+        "operationId": "postRoutingReport",
+        "tags": [
+          "routing"
+        ],
+        "parameters": [],
+        "summary": "Report a result up to the conversation that requested this work.",
+        "x-sdk-name": "routing.report",
+        "x-mcp": {
+          "exposed": true,
+          "name": "report_to_requester",
+          "mutatingApproved": true,
+          "rootSurface": false,
+          "description": "Report your REAL result up to the conversation that requested this work (your requester). Use it when you finish delegated work, or when a report arrives from a session you delegated to and its outcome should travel further up the chain. Pass the actual findings — data, numbers, file paths — not just \"done\". The requester is resolved automatically from who you are; you cannot choose the destination. Returns IMMEDIATELY with { status: 'enqueued' } — your requester absorbs the report in its own conversation a little later. Only works on background (delegated) turns; if it says there is no requester, simply reply with your findings as text instead."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "report": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  }
+                },
+                "required": [
+                  "report"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/routing/channels": {
       "get": {
         "responses": {

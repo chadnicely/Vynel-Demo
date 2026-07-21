@@ -28,6 +28,7 @@ import {
   attachedImagesMetadataFor,
   type AttachedImageBytes,
   type StructuralLogger,
+  type TurnMessageAttribution,
 } from '@vynel/chat'
 import { collectDelegationReportsForRoot, markDelegationsSurfacedToRoot } from '@vynel/orchestration'
 import { linkPrimarySessionToSdkSession } from '../continuity/index.js'
@@ -103,6 +104,15 @@ export interface RunGlobalRootTurnCoreInput {
    *  user row ("via Voice" / "via Telegram"). Set by the EDGES (the SSE route
    *  maps `voice`, the channel runner its kind); the core only passes it through. */
   originChannel?: 'voice' | 'telegram' | 'discord'
+  /** REPORT-DELIVERY notify turn (session-comms): attribute this turn's rows —
+   *  the inbound message reads as coming FROM the reporting child
+   *  ('workspace-manager' + its label), trace-keyed. Omit → rows stay null
+   *  (every shipped turn, byte-for-byte). */
+  messageAttribution?: TurnMessageAttribution
+  /** REPORT-DELIVERY notify turn: an extra steer appended to the system prompt
+   *  (absorb the report; act if needed; never re-run the work). Omit → the
+   *  shipped prompt, byte-for-byte. */
+  steerPromptAppend?: string
 }
 
 /**
@@ -115,6 +125,9 @@ function buildSystemPromptAppend(input: RunGlobalRootTurnCoreInput): string {
   const parts = [loadSessionInstruction('global-root')]
   if (input.mcpSystemPromptAppend !== '') parts.push(input.mcpSystemPromptAppend)
   if (input.voice === true) parts.push(loadSessionInstruction('voice-turn'))
+  if (input.steerPromptAppend !== undefined && input.steerPromptAppend !== '') {
+    parts.push(input.steerPromptAppend)
+  }
   return parts.join('\n\n')
 }
 
@@ -216,6 +229,11 @@ export async function runGlobalRootTurnCore(
         providerId: DEFAULT_PROVIDER_ID,
         isNewSession: resumeSessionId === undefined,
         newSessionOptions: { visibility: 'hidden', title: 'Global brain', skipAutoTitle: true },
+        // The notify-turn attribution (session-comms) — absent on every other
+        // turn, so the shipped rows stay byte-for-byte.
+        ...(input.messageAttribution !== undefined
+          ? { messageAttribution: input.messageAttribution }
+          : {}),
         logger: deps.logger,
       })
 

@@ -62,6 +62,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
   } = input
   const userRowAttribution = {
     sourceKind: messageAttribution?.userSourceKind ?? null,
+    sourceLabel: messageAttribution?.userSourceLabel ?? null,
     partialSessionId: messageAttribution?.partialSessionId ?? null,
   }
   const sessionId = event.sessionId
@@ -98,6 +99,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
         role: 'user',
         body: userMessageInput.body,
         sourceKind: userRowAttribution.sourceKind,
+        sourceLabel: userRowAttribution.sourceLabel,
         partialSessionId: userRowAttribution.partialSessionId,
         originChannel: userMessageInput.originChannel ?? null,
         thinkingBody: null,
@@ -135,6 +137,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
         role: 'user',
         body: userMessageInput.body,
         sourceKind: userRowAttribution.sourceKind,
+        sourceLabel: userRowAttribution.sourceLabel,
         partialSessionId: userRowAttribution.partialSessionId,
         originChannel: userMessageInput.originChannel ?? null,
         thinkingBody: null,

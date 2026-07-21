@@ -31,7 +31,11 @@ import {
   type SessionActivityFeed,
   type SessionSink,
 } from '@vynel/session/runtime'
-import type { TurnEventBroadcaster } from '@vynel/session/delegation'
+import {
+  REPORT_DELIVERY_INSTRUCTIONS,
+  type RunGlobalRootReportTurn,
+  type TurnEventBroadcaster,
+} from '@vynel/session/delegation'
 import type { DelegationOrigin } from '@vynel/orchestration'
 import type { HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
@@ -63,6 +67,21 @@ export interface RunGlobalRootTurnInput {
   origin?: DelegationOrigin
   /** The inbound channel's kind — stamped on the persisted user row ("via Telegram"). */
   originChannel?: 'telegram' | 'discord'
+  /** REPORT-DELIVERY notify turn (session-comms): the inbound message is a
+   *  child's report — attribute its row as coming FROM that child. Omit → the
+   *  shipped channel-turn rows, byte-for-byte. */
+  inboundAttribution?: {
+    sourceKind: 'workspace-manager'
+    sourceLabel: string
+    partialSessionId?: string
+  }
+  /** REPORT-DELIVERY notify turn: the report-delivery steer, appended to the
+   *  system prompt. Omit → the shipped prompt. */
+  steerPromptAppend?: string
+  /** The liveness-feed origin for this turn. Omit → the channel kind, else
+   *  'web' (the shipped behavior); the report-delivery runner passes
+   *  'delegation' so the feed reports what is actually running. */
+  activityOrigin?: 'delegation'
   model?: string
   /** Surface-up: called for each `approval-requested` the brain's own turn emits (the
    *  core already RECORDED it — web notifier). The channel path pushes the card back
@@ -202,9 +221,9 @@ export async function runGlobalRootTurn(
   const activity = deps.activityFeed.begin({
     userId: input.userId,
     scopeKind: 'global',
-    // The channels service (the only caller) always sets originChannel;
-    // 'web' is the defensive fallback, not an expected path.
-    origin: input.originChannel ?? 'web',
+    // The channels service sets originChannel; the report-delivery runner sets
+    // activityOrigin 'delegation'; 'web' is the defensive fallback.
+    origin: input.activityOrigin ?? input.originChannel ?? 'web',
   })
   const sink = new GlobalRootDrainSink(input.onApprovalRequested, activity.sessionResolved)
   try {
@@ -226,6 +245,22 @@ export async function runGlobalRootTurn(
         userMessageText: input.userMessageText,
         ...(input.model !== undefined ? { model: input.model } : {}),
         ...(input.originChannel !== undefined ? { originChannel: input.originChannel } : {}),
+        // The notify-turn variant (session-comms): the child's attribution on
+        // the inbound row + the report-delivery steer.
+        ...(input.inboundAttribution !== undefined
+          ? {
+              messageAttribution: {
+                userSourceKind: input.inboundAttribution.sourceKind,
+                userSourceLabel: input.inboundAttribution.sourceLabel,
+                ...(input.inboundAttribution.partialSessionId !== undefined
+                  ? { partialSessionId: input.inboundAttribution.partialSessionId }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(input.steerPromptAppend !== undefined
+          ? { steerPromptAppend: input.steerPromptAppend }
+          : {}),
         mcpServers: composedMcp.mcpServers,
         allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
         mutatingToolNames: composedMcp.mutatingToolNames,
@@ -250,4 +285,31 @@ export async function runGlobalRootTurn(
     }
   }
   return sink.requireResult()
+}
+
+/** The GLOBAL-root notify runner the delegation tick's report-delivery branch
+ *  calls (session-comms): one `runGlobalRootTurn` with the child's attribution
+ *  on the inbound row, the report-delivery steer, and the feed origin
+ *  'delegation'. Everything else — root-turn lock, routing toolset, delegation
+ *  catch-up, agents — is the channel runner's shipped shape, which is exactly
+ *  the point: the root ABSORBS the report the way it absorbs any message. */
+export function buildGlobalRootReportTurnRunner(
+  deps: RunGlobalRootTurnDeps,
+): RunGlobalRootReportTurn {
+  return async (input) => {
+    const turn = await runGlobalRootTurn(deps, {
+      userId: input.userId,
+      userMessageText: input.reportBody,
+      inboundAttribution: {
+        sourceKind: 'workspace-manager',
+        sourceLabel: input.sourceLabel,
+        ...(input.partialSessionId !== undefined
+          ? { partialSessionId: input.partialSessionId }
+          : {}),
+      },
+      steerPromptAppend: REPORT_DELIVERY_INSTRUCTIONS,
+      activityOrigin: 'delegation',
+    })
+    return { sessionId: turn.sessionId, resultText: turn.resultText }
+  }
 }

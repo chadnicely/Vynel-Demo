@@ -17,8 +17,14 @@ export {
 } from './delegate-to-workspace-root.js'
 export {
   ROUTED_TASK_INSTRUCTIONS,
+  REPORT_DELIVERY_INSTRUCTIONS,
   type RoutedTurnMcpAttachment,
 } from './routed-turn-provider-input.js'
+// Session-comms: the report-delivery notify branch's global-runner seam (the
+// api edge implements it over runGlobalRootTurn) + the one-home spawned-name
+// reading the /routing/report route shares with the tick's attribution.
+export { type RunGlobalRootReportTurn } from './run-report-delivery-tick.js'
+export { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
 export {
   delegateToLeafSession,
   type DelegateToLeafSessionInput,

@@ -7,7 +7,11 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { enqueueWorkspaceDelegation, findDelegationJobById } from '@vynel/orchestration'
+import {
+  enqueueWorkspaceDelegation,
+  enqueueReportDelivery,
+  findDelegationJobById,
+} from '@vynel/orchestration'
 import type { Database } from '@vynel/db'
 import { attachDelegationTaskLabels } from './attach-delegation-task-labels.js'
 
@@ -71,6 +75,33 @@ describe('attachDelegationTaskLabels', () => {
         { id: 'm1', partialSessionId: 'no-such-key' },
       ])
       expect(enriched[0]).toEqual({ id: 'm1', partialSessionId: 'no-such-key' })
+    })
+  })
+
+  it('never labels a report-delivery row — its taskText is the REPORT body, not a task (session-comms)', async () => {
+    await withTestDatabase((db) => {
+      const now = new Date()
+      const user = insertUser(db, {
+        id: randomUUID(),
+        displayName: 'T',
+        emailAddress: null,
+        locale: 'en-US',
+        timezone: 'UTC',
+        hasCompletedOnboarding: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const deliveryJobId = enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: 'ws-root-sdk-1',
+        reporterLabel: 'Mark · Acme',
+        reportBody: 'Finding: every doc is current and cross-linked.',
+        requester: { kind: 'global-root' },
+      })
+      const key = findDelegationJobById(db, deliveryJobId)!.partialSessionId!
+
+      const enriched = attachDelegationTaskLabels(db, [{ id: 'm1', partialSessionId: key }])
+      expect(enriched[0]).toEqual({ id: 'm1', partialSessionId: key })
     })
   })
 })

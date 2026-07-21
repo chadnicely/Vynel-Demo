@@ -5,6 +5,9 @@
 //   GET  /routing/workspaces       -> list_routing_workspaces (read-safe; the targets)
 //   POST /routing/delegate         -> send_task_to_workspace (a mutating MCP tool)
 //   POST /routing/delegate-session -> send_task_to_session (Slice ④ — same queue, spawned-session target)
+//   POST /routing/report           -> report_to_requester (session-comms — the UPWARD tool;
+//                                     rootSurface FALSE: it rides the plain workspace array,
+//                                     never the global root, which has no requester)
 //   GET  /routing/channels         -> list_routing_channels (read-safe; the send targets)
 //   POST /routing/send-to-channel  -> send_to_channel (a mutating MCP tool — proactive push, Ch4 §D)
 //
@@ -41,12 +44,19 @@
 // from `hono-openapi/zod`, chained methods on `factory.createApp()`.
 
 import { resolver, validator } from 'hono-openapi/zod'
-import { listWorkspacesForUser, getWorkspaceById } from '@vynel/workspaces'
+import { listWorkspacesForUser, getWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { listChannelsForUser, sendToChannel } from '@vynel/channels'
 import { findPrimaryConversation } from '@vynel/session/continuity'
-import { findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
+import { findSpawnedSessionById, findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
+import { resolveSpawnedSessionDisplayName } from '@vynel/session/delegation'
+import { composeManagerSourceLabel } from '@vynel/chat'
 import { findChatSessionById } from '@vynel/chat/repositories'
-import { enqueueWorkspaceDelegation, enqueueSessionDelegation } from '@vynel/orchestration'
+import {
+  enqueueWorkspaceDelegation,
+  enqueueSessionDelegation,
+  enqueueReportDelivery,
+  type ReportDeliveryRequester,
+} from '@vynel/orchestration'
 import { ValidationError, NotFoundError } from '@vynel/errors'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
@@ -60,9 +70,15 @@ import {
   DELEGATION_MODE_HEADER,
 } from '../../sessions/delegation-mode-header.js'
 import {
+  parseReportCallerHeader,
+  REPORT_CALLER_HEADER,
+} from '../../sessions/report-caller-header.js'
+import {
   RouteToWorkspaceRequestSchema,
   SendTaskToSessionRequestSchema,
   SendToChannelRequestSchema,
+  ReportToRequesterRequestSchema,
+  ReportToRequesterResponseSchema,
   ListRoutingWorkspacesResponseSchema,
   RouteToWorkspaceResponseSchema,
   SendTaskToSessionResponseSchema,
@@ -283,6 +299,123 @@ export const routingApp = factory
       })
 
       return c.json({ status: 'enqueued' as const, jobId, sessionName })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // POST /report — report a result UP to the requester (session-comms)
+  // ──────────────────────────────────────────────────────────────────
+  .post(
+    '/report',
+    describeRoute({
+      tags: ['routing'],
+      summary: 'Report a result up to the conversation that requested this work.',
+      'x-sdk-name': 'routing.report',
+      responses: {
+        200: {
+          description: "A queued acknowledgement: { status: 'enqueued', jobId }.",
+          content: {
+            'application/json': { schema: resolver(ReportToRequesterResponseSchema) },
+          },
+        },
+        400: {
+          description:
+            'This turn has no requester (interactive chats, schedule fires, the global root).',
+        },
+        404: { description: 'The calling session could not be resolved.' },
+      },
+      // rootSurface FALSE (session-comms): a /routing/ path lands on the
+      // global-root surface by default, but the global root HAS no requester —
+      // this tool rides the plain workspace array instead, reaching delegated
+      // workspace-root turns AND (workspace-grounded) spawned-session turns.
+      'x-mcp': {
+        exposed: true,
+        name: 'report_to_requester',
+        mutatingApproved: true,
+        rootSurface: false,
+        description:
+          'Report your REAL result up to the conversation that requested this work (your ' +
+          'requester). Use it when you finish delegated work, or when a report arrives from a ' +
+          'session you delegated to and its outcome should travel further up the chain. Pass ' +
+          'the actual findings — data, numbers, file paths — not just "done". The requester is ' +
+          'resolved automatically from who you are; you cannot choose the destination. Returns ' +
+          "IMMEDIATELY with { status: 'enqueued' } — your requester absorbs the report in its " +
+          'own conversation a little later. Only works on background (delegated) turns; if it ' +
+          'says there is no requester, simply reply with your findings as text instead.',
+      },
+    }),
+    validator('json', ReportToRequesterRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const { report } = c.req.valid('json')
+
+      // WHO is reporting — the ambient caller identity the delegated-turn MCP
+      // composer stamped (never model input: fork 2, no mis-addressing). No
+      // header = no requester (interactive chats, schedule fires, the global
+      // root) — an actionable 400, not a silent drop.
+      const caller = parseReportCallerHeader(c.req.header(REPORT_CALLER_HEADER))
+      if (caller === undefined) {
+        throw new ValidationError(
+          'This turn has no requester to report to — report_to_requester works on background ' +
+            '(delegated) turns only. Reply with your findings as text instead.',
+        )
+      }
+
+      let reporterSessionId: string | null
+      let reporterLabel: string
+      let requester: ReportDeliveryRequester
+      if (caller.kind === 'spawned-session') {
+        // A spawned session reports to its CREATOR: its grounding workspace's
+        // primary, else the global root. A gone grounding workspace falls
+        // through to the global root (upward chains terminate there — the ④b
+        // missing-creator precedent, mirrored in the tick's completion path).
+        const spawned = findSpawnedSessionById(c.var.db, {
+          userId: c.var.user.id,
+          primarySessionId: caller.targetPrimarySessionId,
+        })
+        if (spawned === null) {
+          throw new NotFoundError('session', caller.targetPrimarySessionId)
+        }
+        reporterSessionId = spawned.currentSdkSessionId
+        reporterLabel = resolveSpawnedSessionDisplayName(c.var.db, spawned)
+        const groundingWorkspace =
+          spawned.workspaceId !== null
+            ? await getWorkspaceById(c.var.db, spawned.workspaceId, c.var.user.id).catch(() => null)
+            : null
+        requester =
+          groundingWorkspace !== null
+            ? {
+                kind: 'workspace-primary',
+                workspaceId: groundingWorkspace.id,
+                workspacePath: groundingWorkspace.path,
+              }
+            : { kind: 'global-root' }
+      } else {
+        // A workspace primary reports to the global root (the tree's top).
+        const workspace = await getWorkspaceById(c.var.db, caller.workspaceId, c.var.user.id)
+        const primary = findPrimaryConversation(c.var.db, {
+          userId: c.var.user.id,
+          workspaceId: workspace.id,
+        })
+        reporterSessionId = primary?.currentSdkSessionId ?? null
+        reporterLabel = composeManagerSourceLabel(workspace.name, resolveManagerName(workspace))
+        requester = { kind: 'global-root' }
+      }
+      if (reporterSessionId === null) {
+        // The caller is mid-turn on this very conversation, so a missing link
+        // means a corrupt row — fail loud rather than forging provenance.
+        throw new ValidationError(
+          'The calling conversation has no linked session — cannot attribute the report.',
+        )
+      }
+
+      const jobId = enqueueReportDelivery(c.var.db, {
+        userId: c.var.user.id,
+        reporterSessionId,
+        reporterLabel,
+        reportBody: report,
+        requester,
+      })
+      return c.json({ status: 'enqueued' as const, jobId })
     },
   )
   // ──────────────────────────────────────────────────────────────────

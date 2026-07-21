@@ -21,7 +21,13 @@ export function attachDelegationTaskLabels<
     if (key === null || key === undefined) return message
     if (!labelByKey.has(key)) {
       const job = findDelegationJobByPartialSessionId(db, key)
-      const label = job === null ? null : deriveDelegationTaskLabel(job.taskText)
+      // A report-delivery job's taskText is the REPORT BODY, not a task — a
+      // chip labeled with a report excerpt would read as nonsense (and the
+      // delivery turn's rows never chip anyway, session-comms). No label.
+      const label =
+        job === null || job.jobKind === 'report-delivery'
+          ? null
+          : deriveDelegationTaskLabel(job.taskText)
       labelByKey.set(key, label === '' ? null : label)
     }
     const label = labelByKey.get(key) ?? null

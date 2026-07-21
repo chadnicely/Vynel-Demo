@@ -1456,6 +1456,42 @@ export const removeKnowledgeSource: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const reportToRequester: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'report_to_requester',
+    "Report your REAL result up to the conversation that requested this work (your requester). Use it when you finish delegated work, or when a report arrives from a session you delegated to and its outcome should travel further up the chain. Pass the actual findings — data, numbers, file paths — not just \"done\". The requester is resolved automatically from who you are; you cannot choose the destination. Returns IMMEDIATELY with { status: 'enqueued' } — your requester absorbs the report in its own conversation a little later. Only works on background (delegated) turns; if it says there is no requester, simply reply with your findings as text instead.",
+    {
+    report: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/routing/report'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['report']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const searchChatMessages: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'search_chat_messages',
@@ -1970,6 +2006,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   listTasks,
   listWorkspaces,
   removeKnowledgeSource,
+  reportToRequester,
   searchChatMessages,
   searchKnowledge,
   searchMemory,

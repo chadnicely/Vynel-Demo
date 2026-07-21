@@ -2270,6 +2270,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/routing/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report a result up to the conversation that requested this work. */
+        post: operations["postRoutingReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/routing/channels": {
         parameters: {
             query?: never;
@@ -10362,6 +10379,50 @@ export interface operations {
                 content?: never;
             };
             /** @description Target session (or the given workspace) not found, not owned, or not a spawned session. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postRoutingReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    report: string;
+                };
+            };
+        };
+        responses: {
+            /** @description A queued acknowledgement: { status: 'enqueued', jobId }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "enqueued";
+                        jobId: string;
+                    };
+                };
+            };
+            /** @description This turn has no requester (interactive chats, schedule fires, the global root). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The calling session could not be resolved. */
             404: {
                 headers: {
                     [name: string]: unknown;

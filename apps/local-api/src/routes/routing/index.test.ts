@@ -39,6 +39,11 @@ import {
   DELEGATION_ORIGIN_HEADER,
 } from '../../sessions/delegation-origin-header.js'
 import { DELEGATION_MODE_HEADER } from '../../sessions/delegation-mode-header.js'
+import {
+  serializeReportCaller,
+  REPORT_CALLER_HEADER,
+  type ReportCaller,
+} from '../../sessions/report-caller-header.js'
 import { routingApp } from './index.js'
 
 const silentLogger = pino({ level: 'silent' })
@@ -612,6 +617,222 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
         })
         expect(crossUser.status).toBe(404)
       })
+    })
+  })
+})
+
+describe('POST /routing/report (session-comms — report_to_requester)', () => {
+  // The spawn-time priming turn, faked (session-started + completed) — a local
+  // copy of the delegate-session describe's helper (describe-scoped there).
+  function makePrimingProvider(sessionId: string): AiAgentProvider {
+    return {
+      startChatSession(): AsyncIterable<NormalizedSessionEvent> {
+        return (async function* () {
+          yield {
+            kind: 'session-started',
+            sessionId,
+            resumedFromExisting: false,
+            startedAt: new Date(),
+          } as NormalizedSessionEvent
+          yield {
+            kind: 'session-completed',
+            sessionId,
+            isNewSession: true,
+            completedAt: new Date(),
+          } as NormalizedSessionEvent
+        })()
+      },
+    } as unknown as AiAgentProvider
+  }
+
+  function seedManagedWorkspace(db: Database, userId: string, name = 'Acme') {
+    const now = new Date()
+    return insertWorkspace(db, {
+      id: randomUUID(),
+      userId,
+      name,
+      managerName: 'Mark',
+      kind: 'personal',
+      path: `/tmp/vynel/${randomUUID()}`,
+      isArchived: false,
+      createdAt: now,
+      updatedAt: now,
+      lastAccessedAt: now,
+    })
+  }
+
+  async function seedLinkedWorkspacePrimaryFor(
+    db: Database,
+    userId: string,
+    workspaceId: string,
+    sdkSessionId: string,
+  ) {
+    const primary = await getOrCreatePrimarySession(db, { userId, workspaceId })
+    insertChatSession(
+      db,
+      buildNewChatSessionRow({
+        sessionId: sdkSessionId,
+        userId,
+        workspaceId,
+        providerId: 'claude',
+        startedAt: new Date(),
+        title: 'Workspace brain',
+        visibility: 'hidden',
+      }),
+    )
+    linkPrimarySessionToSdkSession(db, { primarySessionId: primary.id, userId, sdkSessionId })
+  }
+
+  function postReport(app: ReturnType<typeof makeHarness>, report: string, caller?: ReportCaller) {
+    return postJson(
+      app,
+      '/routing/report',
+      { report },
+      caller !== undefined ? { [REPORT_CALLER_HEADER]: serializeReportCaller(caller) } : {},
+    )
+  }
+
+  it('400s without the caller-identity header — interactive chats, schedule fires, and the global root have no requester', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      const res = await postReport(app, 'my findings')
+      expect(res.status).toBe(400)
+      const body = (await res.json()) as { message: string }
+      expect(body.message).toContain('no requester')
+    })
+  })
+
+  it('a WORKSPACE-PRIMARY caller reports to the GLOBAL root: kind report-delivery, both targets null, manager label, reporter provenance', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-r1')
+      const app = makeHarness(db)
+
+      const res = await postReport(app, 'All docs are current.', {
+        kind: 'workspace-primary',
+        workspaceId: workspace.id,
+      })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { status: string; jobId: string }
+      expect(body.status).toBe('enqueued')
+
+      const job = findDelegationJobById(db, body.jobId)
+      expect(job?.jobKind).toBe('report-delivery')
+      expect(job?.workspaceId).toBeNull()
+      expect(job?.targetPrimarySessionId).toBeNull()
+      expect(job?.taskText).toBe('All docs are current.')
+      expect(job?.workspaceName).toBe('Mark · Acme')
+      expect(job?.parentSessionId).toBe('ws-primary-r1')
+    })
+  })
+
+  it('a GLOBAL-grounded SPAWNED caller reports to the GLOBAL root, labeled as the session', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const spawned = await createSpawnedSession(db, makePrimingProvider('sdk-sp-report-1'), {
+        userId: user.id,
+        name: 'Research: pricing',
+        purpose: 'compare pricing pages',
+        workspacePath: '/tmp/vynel/global-root',
+      })
+      const app = makeHarness(db)
+
+      const res = await postReport(app, 'A undercuts us by 12%.', {
+        kind: 'spawned-session',
+        targetPrimarySessionId: spawned.primarySessionId,
+      })
+      expect(res.status).toBe(200)
+      const { jobId } = (await res.json()) as { jobId: string }
+
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.jobKind).toBe('report-delivery')
+      expect(job?.workspaceId).toBeNull()
+      expect(job?.workspaceName).toBe('Research: pricing')
+      expect(job?.parentSessionId).toBe('sdk-sp-report-1')
+    })
+  })
+
+  it('a WORKSPACE-grounded SPAWNED caller reports to ITS workspace primary (the creator), run cwd = that workspace', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      const spawned = await createSpawnedSession(db, makePrimingProvider('sdk-sp-report-2'), {
+        userId: user.id,
+        name: 'Acme research',
+        purpose: 'dig into the backlog',
+        workspacePath: workspace.path,
+        workspaceId: workspace.id,
+      })
+      const app = makeHarness(db)
+
+      const res = await postReport(app, 'Backlog has 4 stale items.', {
+        kind: 'spawned-session',
+        targetPrimarySessionId: spawned.primarySessionId,
+      })
+      expect(res.status).toBe(200)
+      const { jobId } = (await res.json()) as { jobId: string }
+
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.jobKind).toBe('report-delivery')
+      expect(job?.workspaceId).toBe(workspace.id)
+      expect(job?.workspacePath).toBe(workspace.path)
+      expect(job?.workspaceName).toBe('Acme research')
+      expect(job?.parentSessionId).toBe('sdk-sp-report-2')
+    })
+  })
+
+  it('404s an unknown or foreign spawned caller (no enumeration leak)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const app = makeHarness(db)
+      const unknown = await postReport(app, 'r', {
+        kind: 'spawned-session',
+        targetPrimarySessionId: randomUUID(),
+      })
+      expect(unknown.status).toBe(404)
+
+      const stranger = seedUser(db)
+      const theirs = await createSpawnedSession(db, makePrimingProvider('sdk-sp-theirs-r'), {
+        userId: stranger.id,
+        name: 'S',
+        purpose: 'p',
+        workspacePath: '/tmp/x',
+      })
+      const crossUser = await postReport(app, 'r', {
+        kind: 'spawned-session',
+        targetPrimarySessionId: theirs.primarySessionId,
+      })
+      expect(crossUser.status).toBe(404)
+      // The seeded first user stays the resolved local user.
+      expect(user.id).not.toBe(stranger.id)
+    })
+  })
+
+  it('enforces the report bounds at the boundary (empty and over-long both 400)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-r2')
+      const app = makeHarness(db)
+      const caller: ReportCaller = { kind: 'workspace-primary', workspaceId: workspace.id }
+
+      expect((await postReport(app, '', caller)).status).toBe(400)
+      expect((await postReport(app, 'x'.repeat(50001), caller)).status).toBe(400)
+    })
+  })
+
+  it('400s a workspace caller whose primary conversation has no linked session (never forge provenance)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      const app = makeHarness(db)
+      const res = await postReport(app, 'r', {
+        kind: 'workspace-primary',
+        workspaceId: workspace.id,
+      })
+      expect(res.status).toBe(400)
     })
   })
 })

@@ -50,6 +50,10 @@ type XMcp = {
   // workspace surface. The default split is path-based (`/routing/*`); a
   // user-scoped brain tool that doesn't live under `/routing/` (e.g. creating a
   // workspace) opts in here so it lands in `generatedRoutingMcpTools`.
+  // Explicit FALSE opts a `/routing/*` route OUT of the root surface — it then
+  // lands in the plain workspace array instead (session-comms:
+  // `report_to_requester` rides background workspace/session turns, and the
+  // global root — which has no requester — must never see it).
   rootSurface?: boolean
   // ALSO expose this tool on WORKSPACE-ROOT turns that may route work onward
   // (session-library Slice ④b, widened 2026-07-21): the tool keeps whatever
@@ -164,7 +168,8 @@ for (const [pathKey, methods] of Object.entries(paths)) {
       queryParams: allParams.filter((p) => p.in === 'query'),
       bodyFields,
       isMutating,
-      isRouting: pathKey.startsWith('/routing/') || mcp.rootSurface === true,
+      isRouting:
+        (pathKey.startsWith('/routing/') && mcp.rootSurface !== false) || mcp.rootSurface === true,
       isWorkspaceInteractive: mcp.workspaceInteractiveSurface === true,
     })
   }

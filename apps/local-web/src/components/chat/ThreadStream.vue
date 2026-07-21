@@ -53,22 +53,25 @@ function agentWatchSourceFor(message: ChatMessageResponse): ActivitySource {
 }
 
 // The received-vs-sent discriminator (empirical, from how rows land): a
-// delegation that TARGETED this thread persists its task row HERE as
-// `role:'user'` + `sourceKind:'global-root'` carrying the trace key (the
-// shared pipeline's messageAttribution — delegate-to-workspace-root /
-// delegate-to-spawned-session), and the replies share that key. Work this
-// thread SENT DOWN arrives only as the pushed REPORT row
-// (recordPushedReportMessage: assistant + 'workspace-manager' + the key) —
-// no task row ever lands on the sender. So: a trace key with a 'global-root'
-// USER row in this thread was RECEIVED → its rows show no watch chip.
-// Computed over the FULL history, not the visible window — the task row may
-// be scrolled out while its replies are on screen.
+// delegation that TARGETED this thread persists its ATTRIBUTED inbound row
+// HERE as `role:'user'` + a non-null sourceKind carrying the trace key — a
+// routed task lands as 'global-root' (the shared pipeline's
+// messageAttribution — delegate-to-workspace-root / delegate-to-spawned-
+// session), and a report-delivery NOTIFY turn lands as 'workspace-manager'
+// + the child's label (session-comms). The replies share that key. Work this
+// thread SENT DOWN never leaves an attributed USER row here (its rows are
+// assistant-role). So: a trace key with ANY attributed user row in this
+// thread was RECEIVED → its rows show no watch chip (a delivery turn must
+// never render a Watch chip pointing at the thread's own notify turn — the
+// 12b90bd self-watch leak class). Computed over the FULL history, not the
+// visible window — the inbound row may be scrolled out while its replies
+// are on screen.
 const receivedTraceIds = computed(() => {
   const ids = new Set<string>();
   for (const message of props.messages) {
     if (
       message.role === "user" &&
-      message.sourceKind === "global-root" &&
+      message.sourceKind != null &&
       message.partialSessionId != null
     ) {
       ids.add(message.partialSessionId);

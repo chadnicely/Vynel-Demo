@@ -29,6 +29,7 @@ import { runDelegationClaimAndRunTick } from '@vynel/session/delegation'
 import type {
   TurnEventBroadcaster,
   DelegationCancelRegistry,
+  RunGlobalRootReportTurn,
   SessionTargetLocks,
 } from '@vynel/session/delegation'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
@@ -62,6 +63,10 @@ export interface DelegationServiceOptions {
    *  turn never runs bare against a session that has the vynel tools (the
    *  deferred-tool "server disconnected" class). */
   composeWorkspaceMcpServers: DelegatedTurnMcpComposer
+  /** The GLOBAL-root notify runner for report-delivery jobs (session-comms) —
+   *  `buildGlobalRootReportTurnRunner` in server.ts. REQUIRED: a global
+   *  delivery without it fails cleanly but delivers nothing. */
+  runGlobalRootReportTurn: RunGlobalRootReportTurn
   /** The process-wide single-writer lock per target — SHARED with the api
    *  routes (sessions-surface Slice ③a): a user turn into a spawned session
    *  holds the same key a delegated run to it would claim, so the two can
@@ -80,6 +85,7 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
     turnEvents,
     cancelRegistry,
     composeWorkspaceMcpServers,
+    runGlobalRootReportTurn,
     targetLocks,
   } = options
 
@@ -116,6 +122,7 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
         logger,
         activityFeed,
         composeWorkspaceMcpServers,
+        runGlobalRootReportTurn,
         // Snapshot read synchronously per launch — `acquire` below registers a
         // claimed key synchronously, so the next loop iteration (and the next
         // poll) sees it excluded, exactly like the old in-closure Set.

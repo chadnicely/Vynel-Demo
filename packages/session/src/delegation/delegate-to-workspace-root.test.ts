@@ -16,7 +16,10 @@ import type { AiAgentProvider, NormalizedSessionEvent, StartChatSessionInput } f
 import { ROUTED_LEAF_WRITE_BLOCKED_NOTE } from '@vynel/orchestration'
 import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
-import { ROUTED_TASK_INSTRUCTIONS } from './routed-turn-provider-input.js'
+import {
+  ROUTED_TASK_INSTRUCTIONS,
+  REPORT_DELIVERY_INSTRUCTIONS,
+} from './routed-turn-provider-input.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -112,6 +115,42 @@ describe('delegateToWorkspaceRoot', () => {
       expect(messages.map((m) => [m.role, m.sourceKind, m.sourceLabel])).toEqual([
         ['user', 'global-root', null],
         ['assistant', 'workspace-manager', 'Acme'],
+      ])
+    })
+  })
+
+  it('the REPORT-DELIVERY variant: inbound row attributed FROM the child, the report steer replaces the task steer, defaults untouched otherwise', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const startChatSessionInputs: StartChatSessionInput[] = []
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: 'ws-root-notify',
+        resultText: 'Noted.',
+        startChatSessionInputs,
+      })
+
+      await delegateToWorkspaceRoot(db, provider, {
+        parentSessionId: 'spawned-sdk-1',
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'Backlog has 4 stale items.',
+        providerId: 'claude',
+        inboundAttribution: { sourceKind: 'workspace-manager', sourceLabel: 'Acme research' },
+        steerInstructions: REPORT_DELIVERY_INSTRUCTIONS,
+      })
+
+      // The steer swapped wholesale — never both.
+      expect(startChatSessionInputs[0]!.systemPromptAppend).toBe(REPORT_DELIVERY_INSTRUCTIONS)
+
+      // The INBOUND row reads as the child's report; the reply keeps the
+      // workspace's own manager identity.
+      const messages = listChatMessagesForSession(db, 'ws-root-notify')
+      expect(messages.map((m) => [m.role, m.sourceKind, m.sourceLabel, m.body])).toEqual([
+        ['user', 'workspace-manager', 'Acme research', 'Backlog has 4 stale items.'],
+        ['assistant', 'workspace-manager', 'Acme', 'Noted.'],
       ])
     })
   })

@@ -54,6 +54,13 @@ import {
 //     add_app / update_app / start_app / stop_app (mutatingApproved — NO
 //     approval cards by design, Chad; the safety story is visibility +
 //     the supervisor's cwd containment). DELETE stays user-only.
+//   - session-comms (2026-07-21): report_to_requester — the UPWARD report tool.
+//     Lives under /routing/ but carries `rootSurface: false`, so it lands HERE
+//     (the plain workspace array) instead of the routing array: delegated
+//     workspace-root turns and workspace-grounded spawned-session turns get it;
+//     the GLOBAL ROOT (which has no requester) never does. Interactive chats
+//     and schedule fires see it too (same array) but carry no caller-identity
+//     header, so the route answers 400 with an actionable note.
 const EXPECTED_TOOL_NAMES = [
   'add_app',
   'add_memory_from_file',
@@ -90,6 +97,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_tasks',
   'list_workspaces',
   'remove_knowledge_source',
+  'report_to_requester',
   'search_chat_messages',
   'search_knowledge',
   'search_memory',
@@ -159,6 +167,12 @@ describe('generatedRoutingMcpTools', () => {
     expect(generatedRoutingMcpTools.map((f) => f.name).sort()).toEqual(
       EXPECTED_ROUTING_TOOL_NAMES.map(snakeToCamel).sort(),
     )
+  })
+
+  it('root-surface exclusion holds: report_to_requester never reaches the global root (rootSurface: false — it has no requester)', () => {
+    expect(generatedRoutingMcpTools.map((f) => f.name)).not.toContain('reportToRequester')
+    // …and it DOES ride the plain workspace array (background turns).
+    expect(generatedMcpTools.map((f) => f.name)).toContain('reportToRequester')
   })
 })
 

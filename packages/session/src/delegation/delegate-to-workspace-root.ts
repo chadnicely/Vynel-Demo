@@ -74,6 +74,13 @@ export type DelegateToWorkspaceRootInput = {
    *  edge). Omit → the turn runs bare, stripping the session's deferred MCP
    *  tools — only acceptable for a target that never had them. */
   mcpAttachment?: RoutedTurnMcpAttachment
+  /** REPORT-DELIVERY variant (session-comms): attribute the INBOUND row as
+   *  coming from the reporting CHILD instead of the default 'global-root' task
+   *  shape. Omit → the shipped task attribution, byte-for-byte. */
+  inboundAttribution?: { sourceKind: 'workspace-manager'; sourceLabel: string }
+  /** REPORT-DELIVERY variant: the system steer for this routed turn. Omit →
+   *  `ROUTED_TASK_INSTRUCTIONS` (the shipped task steer). */
+  steerInstructions?: string
   /** The surface-up handler (the tick's `buildRoutedApprovalHandler`): channel push +
    *  wait-gate edges. Recording happens inside the pipeline either way — without a
    *  handler a carded tool still parks on the recorded card, bounded by the approvals
@@ -126,7 +133,7 @@ export async function delegateToWorkspaceRoot(
       ? { resumeSessionId: target.resumeSdkSessionId }
       : {}),
     userMessageText: input.taskText,
-    systemPromptAppend: composeRoutedTurnSystemPrompt(input.mcpAttachment),
+    systemPromptAppend: composeRoutedTurnSystemPrompt(input.mcpAttachment, input.steerInstructions),
     permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
     // Empty grants: a resumed root keeps the workspace's existing tool grants; a
     // fresh root gets the SDK defaults. The behavior gate still cards the floor.
@@ -157,7 +164,12 @@ export async function delegateToWorkspaceRoot(
       ...(input.partialSessionId !== undefined
         ? { partialSessionId: input.partialSessionId }
         : {}),
-      userSourceKind: 'global-root',
+      // A notify turn's inbound row is attributed FROM the reporting child
+      // (session-comms); the default is the shipped task shape ('global-root').
+      userSourceKind: input.inboundAttribution?.sourceKind ?? 'global-root',
+      ...(input.inboundAttribution !== undefined
+        ? { userSourceLabel: input.inboundAttribution.sourceLabel }
+        : {}),
       assistantSourceKind: 'workspace-manager',
       assistantSourceLabel: composeManagerSourceLabel(input.workspaceName, input.managerName),
     },

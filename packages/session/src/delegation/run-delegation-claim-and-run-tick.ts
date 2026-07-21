@@ -1,11 +1,13 @@
 // `runDelegationClaimAndRunTick` — claims ONE pending delegation job and runs it to a
 // terminal state (brain-tree Chapter 1, async core). The CONSUMER half of the durable
 // queue: the in-process `delegation-service` calls this on a poll; it claims atomically,
-// runs the workspace-root turn, pushes the report UP to the CREATOR's conversation
-// (the spawning workspace's primary for a workspace-spawned session target — Slice ④b;
-// the global root otherwise), and marks the job done/failed. Mirrors the core precedent
-// `runScheduleClaimAndFireTick`; the apps/local-api `delegation-service` poll loop is
-// its only production caller.
+// runs the routed turn, and marks the job done/failed. On completion the report travels
+// UP to the CREATOR's conversation as a QUEUED NOTIFY TURN (session-comms — a
+// 'report-delivery' job this same tick later claims and runs via
+// `runReportDeliveryJob`; the creator is the spawning workspace's primary for a
+// workspace-spawned session target — Slice ④b — or the global root otherwise). Mirrors
+// the core precedent `runScheduleClaimAndFireTick`; the apps/local-api
+// `delegation-service` poll loop is its only production caller.
 //
 // REUSES, UNCHANGED, the synchronous delegation path — `routeRequest` (the timeout-raced
 // coordinator) + `delegateToWorkspaceRoot` (run + workspace-side persist). The sync drain
@@ -13,25 +15,28 @@
 // runner awaiting it is exactly right. The bound is on WAITING, not the turn: on timeout
 // the workspace turn keeps running in its own SDK session — we just stop waiting on it.
 //
-// Swap-safe push: the global root may compaction-swap between enqueue and completion, so
-// the report targets the CURRENT global-root session (re-resolved here), not the job's
-// enqueue-time `parentSessionId`. The whole post-claim body is guarded so an unexpected
-// throw marks the job failed rather than leaving it stuck `claimed` (Ch1 does not
-// auto-reclaim stuck jobs — see `delegation-service.ts`).
+// Swap-safe delivery: the creator conversation may compaction-swap between enqueue and
+// completion, so the report-delivery job targets the creator by IDENTITY (workspace id /
+// the global root) and the notify runner resolves its CURRENT session at run time — never
+// the job's enqueue-time `parentSessionId`. The whole post-claim body is guarded so an
+// unexpected throw marks the job failed rather than leaving it stuck `claimed` (Ch1 does
+// not auto-reclaim stuck jobs — see `delegation-service.ts`).
 
-import type { Database } from '@vynel/db'
+import { withTransaction, type Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import {
   ApprovalWaitGate,
   claimNextPendingDelegationJob,
   completeDelegationJob,
+  enqueueReportDelivery,
   failDelegationJob,
+  GLOBAL_ROOT_DELIVERY_TARGET_KEY,
+  markDelegationsSurfacedToRoot,
   routeRequest,
   type DelegateForRouting,
   type DelegationJob,
 } from '@vynel/orchestration'
-import { findPrimaryConversation } from '../continuity/index.js'
-import { recordPushedReportMessage, type ChatTurnEvent } from '@vynel/chat'
+import { composeManagerSourceLabel, type ChatTurnEvent } from '@vynel/chat'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
@@ -39,6 +44,7 @@ import * as primarySessionsRepository from '../repositories/index.js'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
 import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
+import { runReportDeliveryJob, type RunGlobalRootReportTurn } from './run-report-delivery-tick.js'
 import { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
 import {
   buildRoutedApprovalHandler,
@@ -96,7 +102,17 @@ export interface RunDelegationTickDeps {
     userId: string
     workspaceId: string
     target: 'workspace-root' | 'spawned-session'
+    /** The spawned primary a 'spawned-session' target resumes — the api edge
+     *  stamps the caller-identity header from it so `report_to_requester`
+     *  resolves the SESSION (not just its grounding workspace) and can never
+     *  mis-address (session-comms fork 2). Absent for workspace-root targets. */
+    targetPrimarySessionId?: string
   }) => RoutedTurnMcpAttachment
+  /** The GLOBAL-root notify runner for report-delivery jobs (session-comms) —
+   *  the api edge binds `runGlobalRootTurn` with report attribution + steer.
+   *  REQUIRED in production; a global delivery claims and fails cleanly
+   *  without it (optional only for MCP-less test harnesses). */
+  runGlobalRootReportTurn?: RunGlobalRootReportTurn
 }
 
 /** Resolve a job's origin channel to a DELIVERABLE address — the shared guard for the
@@ -134,10 +150,47 @@ export async function runDelegationClaimAndRunTick(
   })
   if (claimed === null) return false
   // The pool's exclusion key: the spawned primary id for a session target, the
-  // workspace id for a workspace target. The job id is a defensive fallback for
-  // a targetless row (the enqueue ops preclude it) — it excludes nothing real.
-  const targetKey = claimed.targetPrimarySessionId ?? claimed.workspaceId ?? claimed.id
+  // workspace id for a workspace target, the SHARED synthetic key for a
+  // global-requester report-delivery row (session-comms: the global root is
+  // one conversation — at most one notify turn runs; the claim skips the rest
+  // while the key is busy, so they wait as PENDING instead of burning budget
+  // in the root-lock queue). The job id is a defensive fallback for a
+  // targetless TASK row (the enqueue ops preclude it) — it excludes nothing
+  // real.
+  const targetKey =
+    claimed.targetPrimarySessionId ??
+    claimed.workspaceId ??
+    ((claimed.jobKind ?? 'task') === 'report-delivery'
+      ? GLOBAL_ROOT_DELIVERY_TARGET_KEY
+      : claimed.id)
   deps.onRunStarted?.({ jobId: claimed.id, targetKey })
+
+  // Session-comms: a 'report-delivery' row runs the NOTIFY branch — a real turn
+  // on the requester's conversation with the child's report as the inbound
+  // message. Its exclusion key came out above for free: the requester
+  // workspace's id (single-writer with task jobs on the same primary), or the
+  // job id for the global root (nothing to exclude — the root-turn lock
+  // serializes those). NULL = 'task' (every legacy row).
+  if ((claimed.jobKind ?? 'task') === 'report-delivery') {
+    return runReportDeliveryJob(
+      db,
+      {
+        provider: deps.provider,
+        logger: deps.logger,
+        activityFeed: deps.activityFeed,
+        ...(deps.turnEvents !== undefined ? { turnEvents: deps.turnEvents } : {}),
+        ...(deps.cancelRegistry !== undefined ? { cancelRegistry: deps.cancelRegistry } : {}),
+        budgetMs: deps.budgetMs ?? DELEGATION_RUN_BUDGET_MS,
+        ...(deps.composeWorkspaceMcpServers !== undefined
+          ? { composeWorkspaceMcpServers: deps.composeWorkspaceMcpServers }
+          : {}),
+        ...(deps.runGlobalRootReportTurn !== undefined
+          ? { runGlobalRootReportTurn: deps.runGlobalRootReportTurn }
+          : {}),
+      },
+      claimed,
+    )
+  }
 
   // The request's correlation key (brain-tree Chapter 2) — threaded into BOTH taggers
   // (the workspace-side task + reply via the delegate closure, the pushed report below)
@@ -249,6 +302,12 @@ export async function runDelegationClaimAndRunTick(
             userId: claimed.userId,
             workspaceId: mcpGroundingWorkspaceId,
             target: claimed.targetPrimarySessionId !== null ? 'spawned-session' : 'workspace-root',
+            // The caller identity for `report_to_requester` (session-comms): a
+            // spawned target's tool calls must resolve as the SESSION, not its
+            // grounding workspace.
+            ...(claimed.targetPrimarySessionId !== null
+              ? { targetPrimarySessionId: claimed.targetPrimarySessionId }
+              : {}),
           })
         : undefined
 
@@ -379,44 +438,77 @@ export async function runDelegationClaimAndRunTick(
         }
       }
 
-      // Reports go to the CREATOR (Slice ④b): a workspace-spawned session
-      // target reports to ITS workspace's primary conversation; a
-      // global-spawned target — and every workspace-target job — to the
-      // global root, as shipped. Swap-safe either way: re-resolve the CURRENT
-      // creator conversation at push time (it may have compaction-swapped
-      // between enqueue and now) — NOT the job's enqueue-time parentSessionId.
-      const creatorSessionId = findPrimaryConversation(db, {
-        userId: claimed.userId,
-        ...(spawnedTargetWorkspaceId !== null
-          ? { workspaceId: spawnedTargetWorkspaceId }
-          : {}),
-      })?.currentSdkSessionId
-      if (creatorSessionId) {
-        const pushed = recordPushedReportMessage(db, {
-          globalRootSessionId: creatorSessionId,
-          body: userReply,
-          workspaceName: targetName,
-          ...(managerName !== undefined ? { managerName } : {}),
-          ...(partialSessionId !== undefined ? { partialSessionId } : {}),
-        })
-        if (!pushed) {
-          deps.logger.warn(
-            { jobId: claimed.id },
-            'delegation report push skipped — creator conversation session row missing',
-          )
-        }
-      } else {
+      // Reports go to the CREATOR (Slice ④b) — as a QUEUED NOTIFY TURN on the
+      // creator's conversation (session-comms: the parent absorbs the real
+      // result in its own flow), replacing the old detached pushed row. A
+      // workspace-spawned session target reports to ITS workspace's primary; a
+      // global-spawned target — and every workspace-target job — to the global
+      // root. Swap-safety is the notify runner's job (it resolves the CURRENT
+      // creator conversation at run time). A deleted grounding workspace falls
+      // through to the global root (upward chains terminate there — the ④b
+      // missing-creator precedent). Requester resolved BEFORE the write block
+      // (reads stay outside the co-commit).
+      const creatorWorkspace =
+        spawnedTargetWorkspaceId !== null ? findWorkspaceById(db, spawnedTargetWorkspaceId) : null
+      if (spawnedTargetWorkspaceId !== null && creatorWorkspace === null) {
         deps.logger.warn(
-          { jobId: claimed.id },
-          'delegation report push skipped — no live creator conversation',
+          { jobId: claimed.id, workspaceId: spawnedTargetWorkspaceId },
+          'delegation report: grounding workspace gone — delivering to the global root instead',
         )
       }
-      completeDelegationJob(db, claimed.id, outcome.result, new Date())
 
-      // Ch4 (channel-aware OUTPUT): if a CHANNEL drove this delegation, also deliver the reply
+      // complete + enqueue-delivery + mark-surfaced CO-COMMIT in ONE
+      // transaction (invariant 5): the mark exists BECAUSE the notify turn is
+      // the awareness path — enqueued-but-unsurfaced (a crash between the
+      // writes) would double-inject the report (notify turn AND the root's
+      // next-turn catch-up). Failure falls back to completing ALONE,
+      // unsurfaced — the catch-up net still carries the report, and a
+      // delivery hiccup can never flip a FINISHED turn to failed.
+      const deliverableReply = userReply.trim() !== ''
+      try {
+        withTransaction(db, (tx) => {
+          completeDelegationJob(tx, claimed.id, outcome.result, new Date())
+          if (deliverableReply) {
+            enqueueReportDelivery(tx, {
+              userId: claimed.userId,
+              reporterSessionId: outcome.reference,
+              reporterLabel: composeManagerSourceLabel(targetName, managerName),
+              reportBody: userReply,
+              requester:
+                creatorWorkspace !== null
+                  ? {
+                      kind: 'workspace-primary',
+                      workspaceId: creatorWorkspace.id,
+                      workspacePath: creatorWorkspace.path,
+                    }
+                  : { kind: 'global-root' },
+            })
+            markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
+          }
+        })
+      } catch (deliveryErr) {
+        deps.logger.warn(
+          { err: deliveryErr, jobId: claimed.id },
+          'delegation report delivery enqueue failed — completing without a delivery (the catch-up net carries the report)',
+        )
+        completeDelegationJob(db, claimed.id, outcome.result, new Date())
+      }
+      if (!deliverableReply) {
+        // A completed turn with NO text: nothing to deliver — left UNSURFACED
+        // so the root's catch-up still tells it the task ended without a result.
+        deps.logger.warn(
+          { jobId: claimed.id },
+          'delegation report delivery skipped — the completed turn produced no text',
+        )
+      }
+
+      // Ch4 (channel-aware OUTPUT): if a CHANNEL drove this delegation, deliver the reply
       // back to that channel — closing the loop (channel → root → delegate → report → channel).
-      // Best-effort: the job already completed + the transcript push ran, so a delivery failure
-      // (channel gone/disabled, or an insert error) is logged, never re-fails the job.
+      // KEPT AT TASK COMPLETION (session-comms channel-delivery choice — the smaller safe
+      // change): the channel user gets the distilled report immediately, on the path that is
+      // already pinned end-to-end; the notify turn above is the chat/awareness path only and
+      // never re-sends to channels (its steer says so). Best-effort: the job already
+      // completed, so a delivery failure is logged, never re-fails the job.
       if (claimed.originChannelId !== null) {
         try {
           if (reportOrigin !== null) {
@@ -444,7 +536,7 @@ export async function runDelegationClaimAndRunTick(
 
       deps.logger.info(
         { jobId: claimed.id, resultPreview: userReply.slice(0, 120) },
-        'delegation: completed — reply pushed to the creator conversation',
+        'delegation: completed — report delivery enqueued for the creator conversation',
       )
     } else if (outcome.status === 'timed-out') {
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())

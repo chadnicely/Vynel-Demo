@@ -23,6 +23,10 @@ import {
   composeSessionMcpServers,
   type ComposedSessionMcpServers,
 } from './compose-session-mcp-servers.js'
+import {
+  wrapAppRequestWithReportCaller,
+  type ReportCaller,
+} from './report-caller-header.js'
 
 export type WorkspaceBackgroundMcpComposer = (input: {
   db: Database
@@ -64,6 +68,11 @@ export type DelegatedTurnMcpComposer = (input: {
   userId: string
   workspaceId: string
   target: DelegatedTurnTarget
+  /** The spawned primary a 'spawned-session' target resumes — required to stamp
+   *  that turn's caller-identity header as the SESSION (session-comms fork 2:
+   *  a spawned session and its grounding workspace share a workspaceId, but
+   *  their requesters differ). Absent for workspace-root targets. */
+  targetPrimarySessionId?: string
 }) => ComposedSessionMcpServers
 
 export async function buildDelegatedTurnMcpComposer(
@@ -73,17 +82,32 @@ export async function buildDelegatedTurnMcpComposer(
     '@vynel/mcp'
   )
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  return ({ db, userId, workspaceId, target }) =>
-    composeSessionMcpServers(
+  return ({ db, userId, workspaceId, target, targetPrimarySessionId }) => {
+    // The caller identity (session-comms): stamped server-side onto every
+    // request this routed turn's tools make, so `report_to_requester` resolves
+    // the requester from WHO is running — never from model input. A spawned
+    // target with no primary id (a shape the tick never produces) gets NO
+    // header: the tool then 400s honestly instead of mis-addressing as the
+    // workspace primary.
+    const caller: ReportCaller | null =
+      target === 'workspace-root'
+        ? { kind: 'workspace-primary', workspaceId }
+        : targetPrimarySessionId !== undefined
+          ? { kind: 'spawned-session', targetPrimarySessionId }
+          : null
+    const callerAwareAppRequest =
+      caller !== null ? wrapAppRequestWithReportCaller(appRequest, caller) : appRequest
+    return composeSessionMcpServers(
       [
         target === 'workspace-root' ? vynelWorkspaceInteractiveDescriptor : vynelWorkspaceDescriptor,
         notebookFeatureDescriptor,
       ],
-      { db, userId, workspaceId, appRequest },
+      { db, userId, workspaceId, appRequest: callerAwareAppRequest },
       {
         enabledCapabilityIds: new Set(
           listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),
         ),
       },
     )
+  }
 }

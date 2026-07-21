@@ -13,6 +13,22 @@ export const ROUTED_TASK_INSTRUCTIONS =
   'chat — use one only when the task genuinely needs it, and if it is denied or times ' +
   'out, report your findings as text instead of retrying.'
 
+// The REPORT-DELIVERY steer (session-comms, the revert flow) — the notify
+// turn's variant of the routed-task steer: the inbound message is a child's
+// finished REPORT, not a new task. Absorb the real data; act only if genuinely
+// needed; NEVER re-run the child's work. The cascade phrasing is conditional
+// ("if the tool is available") because the GLOBAL root's notify turn has no
+// requester and no report_to_requester tool — its reply IS the answer.
+export const REPORT_DELIVERY_INSTRUCTIONS =
+  'This message is a REPORT from a session or workspace you delegated work to — the real ' +
+  'result arriving back, not a new task from the user. Absorb it into your understanding. ' +
+  'Act on it only if follow-up work is genuinely needed; NEVER re-run or re-verify the ' +
+  'work it describes from scratch. If something above you requested this work and the ' +
+  'report_to_requester tool is available, pass the REAL result up with it (findings, ' +
+  'numbers, paths — not just "done"); otherwise reply briefly with the outcome for the ' +
+  'user. The user has already been notified on any channel they asked from — do not ' +
+  're-send this report to channels.'
+
 /** The background workspace MCP attachment for a routed turn — structurally the
  *  api composer's output (`composeSessionMcpServers`), declared here so the
  *  session leaf never imports `@vynel/mcp` (invariant #2; the `FireScheduleDeps`
@@ -32,14 +48,17 @@ export type RoutedTurnMcpAttachment = {
   systemPromptAppend: string
 }
 
-/** Joins the routed-task instructions with the attachment's per-feature prompt
- *  sections — one home for both routed runners' system prompt. */
+/** Joins the routed-turn instructions with the attachment's per-feature prompt
+ *  sections — one home for both routed runners' system prompt. `instructions`
+ *  defaults to the task steer; the report-delivery notify turn passes
+ *  `REPORT_DELIVERY_INSTRUCTIONS` (same machinery, different steer). */
 export function composeRoutedTurnSystemPrompt(
   mcpAttachment: RoutedTurnMcpAttachment | undefined,
+  instructions: string = ROUTED_TASK_INSTRUCTIONS,
 ): string {
   return mcpAttachment !== undefined && mcpAttachment.systemPromptAppend !== ''
-    ? `${ROUTED_TASK_INSTRUCTIONS}\n\n${mcpAttachment.systemPromptAppend}`
-    : ROUTED_TASK_INSTRUCTIONS
+    ? `${instructions}\n\n${mcpAttachment.systemPromptAppend}`
+    : instructions
 }
 
 /** The attachment's provider-input fields, spread into `startChatSession` by

@@ -8,7 +8,7 @@
 //
 // Spec: the `orchestration` domain (Chapter 1 — async core).
 
-import { and, asc, desc, eq, gte, inArray, isNull, notInArray, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, notInArray, or } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   delegationJobs,
@@ -23,12 +23,22 @@ export type {
   DelegationJob,
   NewDelegationJob,
   DelegationJobStatus,
+  DelegationJobKind,
 } from '../schema/delegation-jobs.js'
 
 // Bounded pending list, capped defensively per coding-standard.md
 // "Structure / patterns".
 const DEFAULT_LIST_LIMIT = 50
 const MAX_LIST_LIMIT = 100
+
+/** The SYNTHETIC exclusion key every GLOBAL-requester report-delivery job
+ *  shares (session-comms): a both-targets-null row has no natural key, and the
+ *  global root is ONE conversation — at most one notify turn should run at a
+ *  time (the rest stay pending; no budget burned waiting in the root-lock
+ *  queue, no failed-delivery report loss). The tick reports it as the claimed
+ *  run's targetKey; the claim below excludes global-delivery rows whenever the
+ *  key is busy. Workspace ids are UUIDs, so the constant can never collide. */
+export const GLOBAL_ROOT_DELIVERY_TARGET_KEY = 'global-root-delivery'
 
 export function insertDelegationJob(db: Database, row: NewDelegationJob): DelegationJob {
   const [inserted] = db.insert(delegationJobs).values(row).returning().all()
@@ -94,7 +104,9 @@ export function claimNextPendingDelegationJob(
   claimedAt: Date,
   options: {
     /** Targets with a LIVE run — a target key is the job's `workspaceId` OR its
-     *  `targetPrimarySessionId` (Slice ④). Skipped so the pool never resumes
+     *  `targetPrimarySessionId` (Slice ④), OR the shared
+     *  `GLOBAL_ROOT_DELIVERY_TARGET_KEY` for a global-requester
+     *  report-delivery row (session-comms). Skipped so the pool never resumes
      *  the same conversation twice concurrently (single-writer invariant).
      *  FIFO still holds per target; parallelism is across targets only.
      *  NULL-safe: `NOT IN` alone would silently drop every row whose column is
@@ -104,6 +116,11 @@ export function claimNextPendingDelegationJob(
   } = {},
 ): DelegationJob | null {
   const excludeTargetKeys = options.excludeTargetKeys ?? []
+  // A GLOBAL-requester delivery row (both targets null + kind report-delivery)
+  // has no natural column key — when the shared synthetic key is busy, exclude
+  // those rows explicitly: a row passes only if it has SOME target column, or
+  // isn't a report-delivery row at all (legacy NULL kind = task).
+  const globalDeliveryHeld = excludeTargetKeys.includes(GLOBAL_ROOT_DELIVERY_TARGET_KEY)
   const [candidate] = db
     .select()
     .from(delegationJobs)
@@ -119,6 +136,16 @@ export function claimNextPendingDelegationJob(
               isNull(delegationJobs.targetPrimarySessionId),
               notInArray(delegationJobs.targetPrimarySessionId, [...excludeTargetKeys]),
             ),
+            ...(globalDeliveryHeld
+              ? [
+                  or(
+                    isNotNull(delegationJobs.workspaceId),
+                    isNotNull(delegationJobs.targetPrimarySessionId),
+                    isNull(delegationJobs.jobKind),
+                    ne(delegationJobs.jobKind, 'report-delivery'),
+                  ),
+                ]
+              : []),
           )
         : eq(delegationJobs.status, 'pending'),
     )
@@ -207,6 +234,13 @@ export function listPendingDelegationJobsForUser(
 // leave the root thinking it's "still working". Filtered by `surfacedToRootAt IS NULL` +
 // the owning user (one global root per user → no session/swap reasoning). Ordered oldest-
 // first so the report block reads chronologically.
+//
+// TASK rows only (NULL-safe — legacy rows have a NULL jobKind): a
+// 'report-delivery' row IS the awareness mechanism, never a task the root
+// awaits — injecting a completed notify turn's own reply (or a failed
+// delivery's error) as "a report from a workspace" would be a false echo
+// (session-comms; the completion path marks a task surfaced when it enqueues
+// the task's delivery, so the two paths never double-inject).
 export function listUnsurfacedTerminalDelegationsForUser(
   db: Database,
   userId: string,
@@ -219,6 +253,7 @@ export function listUnsurfacedTerminalDelegationsForUser(
         eq(delegationJobs.userId, userId),
         isNull(delegationJobs.surfacedToRootAt),
         inArray(delegationJobs.status, ['completed', 'failed']),
+        or(isNull(delegationJobs.jobKind), eq(delegationJobs.jobKind, 'task')),
       ),
     )
     .orderBy(asc(delegationJobs.createdAt), asc(delegationJobs.id))

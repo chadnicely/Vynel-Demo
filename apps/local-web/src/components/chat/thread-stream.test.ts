@@ -144,6 +144,48 @@ describe("ThreadStream", () => {
     expect(chips[0]!.text()).toContain("Research helper");
   });
 
+  it("never chips a report-DELIVERY turn's rows (session-comms): the attributed inbound report + the reply stay bare, a separate sent-down chip survives", () => {
+    // A notify turn as it lands on the CREATOR's transcript (workspace primary
+    // or the global root — same row shape either way): the report arrives as
+    // role:'user' + sourceKind:'workspace-manager' + the DELIVERY job's trace
+    // key, and the thread's own reply shares it. Chipping either would render
+    // a Watch pointing at the thread's OWN turn, labeled with the report body
+    // — the exact self-watch leak class 12b90bd killed. The widened
+    // discriminator (ANY attributed user row) suppresses both; a sent-down
+    // report on another trace keeps its chip on the same surface.
+    const arrivingReport: ChatMessageResponse = {
+      ...makeMessage(0),
+      role: "user",
+      sourceKind: "workspace-manager",
+      sourceLabel: "Acme research",
+      partialSessionId: "delivery-in",
+    };
+    const threadReply: ChatMessageResponse = {
+      ...makeMessage(1),
+      sourceKind: "workspace-manager",
+      sourceLabel: "Sarah · letterman",
+      partialSessionId: "delivery-in",
+    };
+    const sentDownReport: ChatMessageResponse = {
+      ...makeMessage(3),
+      sourceKind: "workspace-manager",
+      sourceLabel: "Research helper",
+      partialSessionId: "partial-out",
+    };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [arrivingReport, threadReply, sentDownReport],
+        toolCallsByMessageId: {},
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    const chips = wrapper.findAll(".session-link");
+    expect(chips).toHaveLength(1);
+    expect(chips[0]!.text()).toContain("Research helper");
+  });
+
   it("agent chips SURVIVE on a received trace's rows — an agent is a direct child", async () => {
     // Scoping suppresses the trace chip, never the agent chip: the manager's
     // own agents belong to THIS thread's pipeline level.

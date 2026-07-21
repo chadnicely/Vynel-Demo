@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Finished work now reports back as a real conversation, not a dropped note.** When a
+  workspace or session finishes something you (or your assistant) handed to it, the result no
+  longer just appears as a detached message — the receiving conversation actually *processes*
+  it: the report arrives as an incoming message from that workspace or session, and the
+  assistant reads it, acts on it if needed, and replies with what it means for you. Reports also
+  travel the whole chain now — a session created by a workspace reports to that workspace, which
+  can pass the real result (findings, numbers, file paths — not just "done") up to your main
+  assistant with a new `report_to_requester` tool. Channel replies (e.g. Telegram) still arrive
+  immediately, exactly as before.
+
 - **Workspaces now work in parallel.** Hand tasks to two different workspaces and both run at
   the same time (up to three at once) instead of silently queuing one behind the other. Tasks
   for the same workspace still run in order — a workspace never trips over itself. And a
