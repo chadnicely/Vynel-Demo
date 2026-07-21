@@ -119,8 +119,15 @@ describe("ui-store composer selections", () => {
   });
 
   it("falls back to Auto for a stored effort outside the picker catalog", () => {
-    // 'xhigh' is a real API level but NOT a picker choice — fail closed.
-    localStorage.setItem("vynel.composer-thinking-effort", "xhigh");
+    // A junk/legacy value must never reach a turn request — fail closed.
+    localStorage.setItem("vynel.composer-thinking-effort", "ultra");
     expect(useUiStore().composerThinkingEffort).toBe("auto");
+  });
+
+  it("keeps the full desktop-parity levels as valid stored choices", () => {
+    // test: correct expectation — Chad widened the picker to all five SDK
+    // levels (2026-07-21); 'xhigh' moved from fail-closed to valid.
+    localStorage.setItem("vynel.composer-thinking-effort", "xhigh");
+    expect(useUiStore().composerThinkingEffort).toBe("xhigh");
   });
 });

@@ -13,13 +13,16 @@ export interface ThinkingEffortOption {
   label: string
 }
 
-/** The composer picker's curated choices — deliberately four (fork D: simple
- *  for non-technical users; xhigh/max stay reachable via the API union). */
+/** The composer picker's choices — Claude-desktop parity, all five levels
+ *  (Chad, 2026-07-21: match the desktop set; the SDK silently downgrades a
+ *  level the selected model doesn't support). */
 export const THINKING_EFFORT_OPTIONS: readonly ThinkingEffortOption[] = [
   { id: 'auto', label: 'Auto' },
-  { id: 'high', label: 'High' },
-  { id: 'medium', label: 'Medium' },
   { id: 'low', label: 'Low' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'high', label: 'High' },
+  { id: 'xhigh', label: 'Extra' },
+  { id: 'max', label: 'Max' },
 ] as const
 
 export const DEFAULT_THINKING_EFFORT = 'auto'
