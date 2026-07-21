@@ -32,6 +32,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **One watch panel for everything.** Watching a handed-off task, a session, or an agent now opens
+  the same side panel — and you can drill from a session into the agent working inside it and back.
+  Watching a session also gained agent drill-down it never had.
+
 - **Watching a session now shows its history.** Opening Watch on any session starts with the
   conversation so far — not an empty pane that only fills when the next turn begins — and joining
   mid-turn catches up instead of freezing on a partial reply.

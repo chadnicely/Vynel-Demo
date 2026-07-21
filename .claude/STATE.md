@@ -3,7 +3,31 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21j): SESSIONS-SURFACE SLICE ① BUILT (the activity source seam) — gate GREEN 524f/2811t, reviewed (1 should-fix + 2 nits FOLDED); NEXT: prompt Chad commit → Slice ② (SessionThread + merged panel)
+## ⏭ NEXT ACTION (2026-07-21k): SLICES ①+② COMMITTED (`ecf33c2`+`44a219e`) — gate GREEN 524f/2819t, both reviewed CLEAN; NEXT: CHAD CLICK-THROUGH SMOKE, then Slice ③ (nav Home|Chat|Sessions + Sessions view + the session-turn route)
+
+**Slice ② (subagent-built, adversarially reviewed CLEAN 0 must-fix — behavior + test intents
+verified 1:1 against the deleted panels): SessionViewerPanel + SessionWatchPanel + their two
+stores DELETED → ONE `components/activity/ActivityMonitorPanel.vue` (+ ActivityPanelHeader /
+ActivityEntriesList / AgentFocusView + agent-focus.ts) over
+`stores/activity-monitor-store.ts` — a node STACK (trace | session | agent; an agent node
+CARRIES its parent ActivitySource; open resets · push/back · openTrace/openSession ·
+openAgentDirect = Close-only · focusAgent = Back). One useActivityMonitor(baseSource)
+instance; drilling into an agent never re-attaches. Session views GAINED agent drill-down.
+The Slice-① thin adapters retired with their last consumers; the 3 load-bearing trace
+lifecycle tests recast onto use-activity-monitor.test.ts verbatim. Reviewer folds: stale
+chat-turn-stream comment · unused trace-node title field dropped · aria-label per baseKind.
+RECORDED (not built): as-built docs still name the deleted panels
+(`.claude/docs/_apps/local-web/structure.md`, `docs/desktop-shell-inventory.md`) · Slice ③
+may extract the entries list toward @vynel/ui when SessionThread shares it · the settle-
+refetch-error overlay guard (inherited nit) still open.**
+**⏭ CHAD SMOKE (①+② together, before ③ builds on it): delegate a task → banner chip Watch →
+the SAME panel opens with status pill + Stop · click an Agent card's Watch chip → focused
+agent view, Close-only; from an open trace click a chip → Back returns · Sessions left-nav →
+Watch any session → its HISTORY renders immediately (was an empty pane), a live turn streams
+on top, drill into its agent · Esc closes. Then Slice ③ per the notes (nav trio + Sessions
+view + POST /sessions/:id/turn with the three locked decisions).**
+
+## (prev) ⏭ NEXT ACTION (2026-07-21j): SESSIONS-SURFACE SLICE ① BUILT (the activity source seam) — gate GREEN 524f/2811t, reviewed (1 should-fix + 2 nits FOLDED); COMMITTED `ecf33c2`
 
 **Slice ① per docs/module-notes/sessions-surface.md: NEW
 `apps/local-web/src/composables/activity/use-activity-monitor.ts` — the ONE source seam.
