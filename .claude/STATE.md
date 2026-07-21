@@ -3,7 +3,34 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔵 NEXT ACTION (2026-07-21i): SESSIONS-SURFACE ARC OPENED (notes `docs/module-notes/sessions-surface.md`, Chad approved verbatim) + cf15137 REVIEW DONE & FOLDED — gate GREEN 523f/2806t; ⚠ TWO separable uncommitted changes await Chad's commit word → then Slice ①
+## ⏭ NEXT ACTION (2026-07-21j): SESSIONS-SURFACE SLICE ① BUILT (the activity source seam) — gate GREEN 524f/2811t, reviewed (1 should-fix + 2 nits FOLDED); NEXT: prompt Chad commit → Slice ② (SessionThread + merged panel)
+
+**Slice ① per docs/module-notes/sessions-surface.md: NEW
+`apps/local-web/src/composables/activity/use-activity-monitor.ts` — the ONE source seam.
+`ActivitySource {kind:'trace'|'session', id}`; settled half = trace read (status-polled) /
+FULL transcript via root.getSession (owner-gated, any scope — the watch had NO history
+before); live half = the matching SSE fold (applyTraceStreamEvent, unchanged); merge =
+settled-wins-by-id + overlay append; settle = streaming-off → refetch → overlay swap; drop
+= errorText + poll re-arm; per-kind attach policy (session immediate/one-attach-one-turn
+v1 · trace only-while-live). `useSessionWatch` + `useDelegationTraceLive` are now thin
+ADAPTERS with byte-identical return contracts — panels untouched, the old lifecycle tests
+run unchanged through them (the regression net). CLOSES two recorded gaps: Watch opens
+onto history (not an empty pane) + mid-run attach unfreezes via the keep-alive.**
+**Reviewer (trace parity CLEAN line-for-line; session lifecycle CLEAN): 1 REAL should-fix
+FOLDED — `sessionKeys.detail` was scope-BLIND while the fetch is scope-ROUTED
+(root.getSession decorates delegationTaskLabel; chat.getSession doesn't) → a watched
+workspace session + its open thread = two fetchers on one cache entry. Key now carries
+`sessionScopeKey` (invalidations are prefix-based, unaffected). Also folded: keep-alive
+cadence ONE home (TRACE_KEEP_ALIVE_MS exported) + a session-kind re-target test. RECORDED
+not built: settle-refetch-error still clears the overlay (inherited from the old trace
+code — guard on next touch) · chat.getSession should ALSO attachDelegationTaskLabels so
+the two detail reads can't diverge in content (ride Slice ④) · monitor's hasEnded/errorText
+unexposed for the trace kind until Slice ② consumes them.**
+**⏭ CHAD SMOKE (with ②, or now): open Sessions → Watch any session → its HISTORY renders
+immediately; a running turn streams on top; after the turn ends the rows persist. COMMIT:
+`feat(web): one activity source seam for watch surfaces (slice 1)`.**
+
+## (prev) 🔵 NEXT ACTION (2026-07-21i): SESSIONS-SURFACE ARC OPENED (notes `docs/module-notes/sessions-surface.md`, Chad approved verbatim) + cf15137 REVIEW DONE & FOLDED — gate GREEN 523f/2806t; TWO separable uncommitted changes awaited commit (DONE: `414621e`+`cec4a38`+`bf7b1f0`)
 
 **cf15137 REVIEW VERDICT (adversarial pass, done): structurally sound end-to-end, 0 must-fix
 — migration 0014 truly additive · no unvalidated hop (bogus model can't reach the provider)

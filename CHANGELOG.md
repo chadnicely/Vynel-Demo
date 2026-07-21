@@ -30,6 +30,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   whole answer; and the floating Jarvis overlay got a translucent glass card behind the orb and
   captions so they're readable over any screen.
 
+### Changed
+
+- **Watching a session now shows its history.** Opening Watch on any session starts with the
+  conversation so far — not an empty pane that only fills when the next turn begins — and joining
+  mid-turn catches up instead of freezing on a partial reply.
+
 ### Fixed
 
 - **Handed-off tasks no longer knock the assistant's tools offline.** Running a task in a
