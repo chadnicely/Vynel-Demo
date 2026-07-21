@@ -104,10 +104,21 @@ session channel (Watch-everywhere already publishes), announce on the activity f
    in-scope sessions (the Slice-③ overview op, per-scope) and opens SessionThread;
    NEW session-turn route + queue coordination (locked decisions 1–3).
 4. **④ Coverage** — workspace threads get Watch chips ON; direct-turn agents get the
-   focused view; linked-session chips open the monitor.
+   focused view; linked-session chips open the monitor; **in-flight SESSION-target
+   jobs surface Watch chips too** (Chad's smoke gap 2026-07-21: letterman routed into
+   a spawned session and neither the global banner nor the workspace view offered a
+   Watch chip for that run — today's chips cover only the root's own workspace
+   delegations).
 - **(Later — the deep monitor arc, unchanged scope):** the cross-session tree over
   `agent.run-started/completed` outbox events (today consumerless) + unparking
   `delegate-to-leaf-session`. Slices ①–④ need none of it.
+
+## Parked follow-ons (Chad, 2026-07-21 — "complete whatever is on our plate first")
+
+- **Inter-session communication MCP tool**: sessions talk to each other in the flow —
+  they hold the context to decide where to send which report, how to communicate with
+  each other appropriately, and can take actions when they need to. A future arc on top
+  of the session library + the monitor tree; NOT part of Slices ①–④.
 
 ## Ground (recon 2026-07-21, full inventory in the session journal)
 
