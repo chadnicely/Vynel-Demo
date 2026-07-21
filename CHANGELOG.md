@@ -55,6 +55,22 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A Sessions page that shows everything Claude is doing.** A new "Sessions" section in the
+  sidebar lists every conversation — the Assistant itself, each workspace, all sorted by last
+  use — with a context meter on each one, a live dot when it's working, and a Watch button
+  that streams any running session's activity in real time.
+
+- **You can see conversations continue past the context limit.** When a conversation nears
+  its limit (~85%), Vynel quietly continues it in a fresh session — and now you can see it:
+  a continued conversation expands into its chain ("continued at 83% → current"), telling the
+  story of how you never hit a wall.
+
+- **The composer shows your context and thinking controls, like Claude desktop.** A small
+  ring beside the message box fills as the conversation uses context (ticking live during a
+  reply, resetting when a conversation continues fresh), and a new Thinking picker
+  (Auto/High/Medium/Low) controls how much reasoning Claude applies — remembered across
+  restarts.
+
 - **Agent activity survives the reply.** A spawned agent's activity — its tools with their
   status lights and its running narrative — is now recorded as it streams, so it's still there
   after the reply finishes, after a reload, and whenever you reopen the task Watch panel or an

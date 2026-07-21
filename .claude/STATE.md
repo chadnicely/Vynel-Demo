@@ -3,7 +3,56 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21c): SLICE 2 CONCURRENT DELEGATIONS BUILT — reviewed CLEAN (1 should-fix folded); NEXT: Chad smoke → Slice 3 module notes (sessions panel + context visibility)
+## ⏭ NEXT ACTION (2026-07-21d): SLICE 3 SESSIONS PANEL + CONTEXT VISIBILITY BUILT — gate GREEN 2762t, reviewed CLEAN (2 should-fixes folded); NEXT: Chad smoke (Slices 2+3 together) → Slice 4 module notes (the session-library tools)
+
+**Slice ③ built per docs/module-notes/sessions-panel.md (all four forks = my recommendations,
+Chad-approved; + his composer follow-up §5). Five parts:**
+- **DATA (migration 0011_session_context_chain, drizzle-generated, additive):** chat_sessions
+  grew `lastContextTokens` (the occupancy mirror — handle-usage-reported writes it beside the
+  per-message write, model merged into the same update) + `continuedFromSessionId` (the chain
+  link — recordSwapSegmentSession stamps it; bridgePrimarySession's startSeededSession dep
+  gained the fromSdkSessionId param). `resolveContextWindow` ALREADY EXISTED in contracts —
+  the window map was free.
+- **API:** `@vynel/session/overview` getSessionsOverview (ONE home — the panel route now, the
+  Slice-④ list_sessions tool later): chain folding (newest-first-wins on corrupted duplicate
+  children — reviewer should-fix; cycles terminate + drop silently, tested), fork-B "Assistant"
+  surfacing of the hidden global chain, hidden-workspace-chain doorway rule, last-known-model
+  window fallback (a fresh swap segment reports no model — a 1M chain must not meter as 200k).
+  Route GET /sessions/overview (`sessions.overview`), contracts sessions-overview.ts.
+- **WATCH EVERYWHERE:** `session-turn-channel.ts` (sessionChannelKey + the tee wrapper, keyed
+  from the FIRST frame — user-message-persisted carries the id nested) wired INSIDE the three
+  core runners (startChatTurn / runGlobalRootTurnCore / delegateToWorkspaceRoot — optional
+  turnEvents deps) → all five surfaces publish (web ws, global web/voice, channels, schedules,
+  delegations; a delegated turn publishes trace + session keys, disjoint namespaces). SSE route
+  GET /sessions/:sessionId/stream (ownership 404, one attach = one turn, turn-stream-ended;
+  server-side tests folded per reviewer).
+- **THINKING:** the SDK grew FIRST-CLASS `options.effort` (EffortLevel low/medium/high/xhigh/
+  max) — no budget table; contracts thinking-effort.ts (picker Auto/High/Medium/Low),
+  StartChatSessionInput.thinkingEffort → buildClaudeSdkOptions, both route schemas + streams;
+  Auto = omitted, pinned byte-for-byte. Background turns stay Auto.
+- **UI (subagent, verified LIVE against the real backend, 0 console errors):** Sessions
+  left-nav section (global-only, like Account) — unified list, ContextMeter (amber ≥70%, 85%
+  tick), working dots from the activity feed, chain expansion `A ──83%──▶ B (current)` (the %
+  = predecessor's fork-time occupancy), Watch via a NEW minimal SessionWatchPanel (the
+  delegation viewer is welded to partialSessionId — didn't compose; reuses fold-trace-stream
+  unchanged); composer ContextRing (settled + live usage ticks; resets on swap) + Thinking
+  SelectChip (ui-store persisted fail-closed). session-keys nests overview under sessionKeys.all
+  → every existing turn-end invalidation refreshes it free.
+- **RECORDED (reviewer nits, not built):** two tabs racing one session share the channel (first
+  end closes the watcher early — no leak, v1-fine) · trace-route safety timer not carried (idle
+  attach waits by contract) · cycle corruption drops silently (a fold-time warn if it ever
+  bites) · chain-segment click-to-transcript deferred · agent-scope working dots await Slice ④ ·
+  pre-existing sessions meter-less until their next turn (expected).
+**⏭ CHAD SMOKE (Slices 2+3 together): open Sessions in the left nav → the Assistant row + your
+workspaces listed by last use, context meters on sessions with recent turns · chat until a chain
+exists (or drop VYNEL_CONTEXT_PRESSURE_THRESHOLD) → the entry expands showing A ──%──▶ B ·
+composer shows the ring ticking during a reply + the Thinking chip persists across restarts ·
+delegate to two workspaces → both run at once, Sessions rows show working dots, Watch streams a
+NON-delegation turn live · same-workspace double-delegate → second queues. Then COMMIT + Slice
+4 module notes (create_session/list_sessions/send_to_session/stop_session over the generalized
+queue).**
+
+## (prev) NEXT ACTION (2026-07-21c): SLICE 2 CONCURRENT DELEGATIONS BUILT — COMMITTED `5b44a76`+`6de7fda` (+ rename `7ab3f70`)
 
 **Slice ② built per docs/module-notes/concurrent-delegations.md (all forks Chad-approved; the
 notes carry the locked decisions + the reviewer's as-built observations):**
