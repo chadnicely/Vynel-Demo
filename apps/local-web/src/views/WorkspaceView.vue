@@ -25,14 +25,14 @@ import type { SessionScope } from "../composables/chat/session-scope.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
-import { useSessionViewerStore } from "../stores/session-viewer-store.js";
+import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 
 // The workspace room — same continuous-first chat as global, scoped to one
 // workspace. Panels beside the canvas: menu (persistent) · history · files.
 const ui = useUiStore();
 const shell = ui.workspaceChat;
-const sessionViewer = useSessionViewerStore();
+const activityMonitor = useActivityMonitorStore();
 
 const workspacesQuery = useWorkspaceList();
 const workspaces = computed(() => workspacesQuery.data.value ?? []);
@@ -292,8 +292,8 @@ function openContinuous() {
         :show-watch-chips="false"
         :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
         @decide-approval="onDecideApproval"
-        @open-session="sessionViewer.open"
-        @watch-agent="sessionViewer.openAgent"
+        @open-session="activityMonitor.openTrace"
+        @watch-agent="activityMonitor.openAgentDirect"
       />
 
       <footer class="composer-dock">

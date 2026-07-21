@@ -113,8 +113,8 @@ export async function* readSseFrames(
   }
 }
 
-/** The chat-turn event stream. Shared with the delegation observe stream
- *  (use-delegation-trace-live) — one reader, one decoder. */
+/** The chat-turn event stream. Shared with the activity monitor's live
+ *  streams (use-activity-monitor) — one reader, one decoder. */
 export async function* readChatTurnEvents(
   stream: ReadableStream<Uint8Array>,
 ): AsyncGenerator<ChatTurnEvent> {

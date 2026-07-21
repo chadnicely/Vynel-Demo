@@ -37,7 +37,7 @@ import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.j
 import { useCurrentUser } from "../composables/users/use-current-user.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
-import { useSessionViewerStore } from "../stores/session-viewer-store.js";
+import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 import { firstNameOf } from "../utils/greeting.js";
 
@@ -73,7 +73,7 @@ function isGlobalSection(view: unknown): view is GlobalSectionId {
 
 const ui = useUiStore();
 const shell = ui.globalChat;
-const sessionViewer = useSessionViewerStore();
+const activityMonitor = useActivityMonitorStore();
 
 // Tier gating: a locked section renders the upgrade card in place of its
 // component — the menu item stays visible, so the lock is discoverable.
@@ -359,8 +359,8 @@ function openContinuous() {
         :active-turn="activeTurn"
         :assistant-name="ASSISTANT_NAME"
         @decide-approval="onDecideApproval"
-        @open-session="sessionViewer.open"
-        @watch-agent="sessionViewer.openAgent"
+        @open-session="activityMonitor.openTrace"
+        @watch-agent="activityMonitor.openAgentDirect"
       />
 
       <div
@@ -385,7 +385,7 @@ function openContinuous() {
             <button
               type="button"
               class="processing-chip-main"
-              @click="sessionViewer.open(delegation.partialSessionId)"
+              @click="activityMonitor.openTrace(delegation.partialSessionId)"
             >
               <PresenceDot state="live" />
               <span class="processing-chip-label">{{

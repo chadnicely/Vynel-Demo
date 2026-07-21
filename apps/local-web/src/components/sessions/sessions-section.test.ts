@@ -6,7 +6,7 @@ import { vynelClientKey } from "../../plugins/vynel-client.js";
 import type { VynelClient } from "@vynel/sdk";
 import type { SessionsOverviewEntry } from "@vynel/contracts/chat/sessions-overview";
 import { useActivityStore } from "../../stores/activity-store.js";
-import { useSessionWatchStore } from "../../stores/session-watch-store.js";
+import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
 import SessionsSection from "./SessionsSection.vue";
 
 function makeSegment(
@@ -187,9 +187,12 @@ describe("SessionsSection", () => {
 
     await wrapper.get(".watch-button").trigger("click");
 
-    const watchStore = useSessionWatchStore(pinia);
-    expect(watchStore.sessionId).toBe("ws-1");
-    expect(watchStore.title).toBe("Marketing · Launch plan");
+    const monitorStore = useActivityMonitorStore(pinia);
+    expect(monitorStore.current).toEqual({
+      kind: "session",
+      sessionId: "ws-1",
+      title: "Marketing · Launch plan",
+    });
   });
 
   it("invites conversation when there is nothing yet", async () => {

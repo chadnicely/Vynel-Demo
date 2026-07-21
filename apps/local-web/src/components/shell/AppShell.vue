@@ -26,8 +26,7 @@ import AppStatusBar from "./AppStatusBar.vue";
 import ApprovalNotifier from "./ApprovalNotifier.vue";
 import AskNotifier from "../asks/AskNotifier.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
-import SessionViewerPanel from "../session-viewer/SessionViewerPanel.vue";
-import SessionWatchPanel from "../sessions/SessionWatchPanel.vue";
+import ActivityMonitorPanel from "../activity/ActivityMonitorPanel.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 import { WORKSPACE_SECTIONS } from "../workspace/workspace-sections.js";
 import { useUiStore } from "../../stores/ui-store.js";
@@ -348,8 +347,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       @open-approvals="selectSurface('chat')"
     />
 
-    <SessionViewerPanel />
-    <SessionWatchPanel />
+    <ActivityMonitorPanel />
     <ApprovalNotifier />
     <AskNotifier />
     <VoiceOverlay />

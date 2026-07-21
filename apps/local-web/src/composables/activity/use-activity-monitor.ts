@@ -1,8 +1,8 @@
 // The ONE activity source seam (sessions-surface Slice ①): every watch surface
 // registers a SOURCE and gets the same merged state — the settled history ("old
 // activity") plus the live overlay — instead of each surface hand-wiring its own
-// fetch + SSE + fold. `useDelegationTraceLive` and `useSessionWatch` are thin
-// adapters over this; the coming SessionThread (Slice ②) consumes it directly.
+// fetch + SSE + fold. The merged activity panel (Slice ②) consumes it directly;
+// the Slice-① thin adapters are gone with their panels.
 //
 // Source kinds:
 //   - 'trace'   — a delegation, keyed by its partialSessionId. Settled = the

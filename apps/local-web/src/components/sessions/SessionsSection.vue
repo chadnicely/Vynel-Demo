@@ -5,7 +5,7 @@ import { EmptyState } from "@vynel/ui";
 import type { SessionsOverviewEntry } from "@vynel/contracts/chat/sessions-overview";
 import { useSessionsOverview } from "../../composables/sessions/use-sessions-overview.js";
 import { useActivityStore } from "../../stores/activity-store.js";
-import { useSessionWatchStore } from "../../stores/session-watch-store.js";
+import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import SectionHeader from "../sections/SectionHeader.vue";
 import SessionRow from "./SessionRow.vue";
@@ -17,7 +17,7 @@ import { sessionScopeLabel } from "./session-scope-label.js";
 // activity feed the app already subscribes to; while anything runs the list
 // polls so meters and order stay fresh.
 const activity = useActivityStore();
-const watchStore = useSessionWatchStore();
+const activityMonitor = useActivityMonitorStore();
 
 const overviewQuery = useSessionsOverview(true, () =>
   activity.isTurnRunning ? 5000 : false,
@@ -40,7 +40,10 @@ function isWorking(entry: SessionsOverviewEntry): boolean {
 }
 
 function openWatch(entry: SessionsOverviewEntry) {
-  watchStore.open(entry.sessionId, `${sessionScopeLabel(entry)} · ${entry.title}`);
+  activityMonitor.openSession(
+    entry.sessionId,
+    `${sessionScopeLabel(entry)} · ${entry.title}`,
+  );
 }
 </script>
 
