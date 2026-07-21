@@ -2,10 +2,11 @@
 // the GLOBAL root uses to route a task down to a workspace. Top-level + user-scoped (the
 // global root has no workspace), so it does NOT nest under /workspaces/:workspaceId.
 //
-//   GET  /routing/workspaces      -> list_routing_workspaces (read-safe; the targets)
-//   POST /routing/delegate        -> send_task_to_workspace (a mutating MCP tool)
-//   GET  /routing/channels        -> list_routing_channels (read-safe; the send targets)
-//   POST /routing/send-to-channel -> send_to_channel (a mutating MCP tool — proactive push, Ch4 §D)
+//   GET  /routing/workspaces       -> list_routing_workspaces (read-safe; the targets)
+//   POST /routing/delegate         -> send_task_to_workspace (a mutating MCP tool)
+//   POST /routing/delegate-session -> send_task_to_session (Slice ④ — same queue, spawned-session target)
+//   GET  /routing/channels         -> list_routing_channels (read-safe; the send targets)
+//   POST /routing/send-to-channel  -> send_to_channel (a mutating MCP tool — proactive push, Ch4 §D)
 //
 // Both opt into MCP via `x-mcp`; the generator emits them into the SEPARATE
 // `generatedRoutingMcpTools` array (path-prefix `/routing/`), so they reach ONLY
@@ -43,8 +44,10 @@ import { resolver, validator } from 'hono-openapi/zod'
 import { listWorkspacesForUser, getWorkspaceById } from '@vynel/workspaces'
 import { listChannelsForUser, sendToChannel } from '@vynel/channels'
 import { findPrimaryConversation } from '@vynel/session/continuity'
-import { enqueueWorkspaceDelegation } from '@vynel/orchestration'
-import { ValidationError } from '@vynel/errors'
+import { findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
+import { findChatSessionById } from '@vynel/chat/repositories'
+import { enqueueWorkspaceDelegation, enqueueSessionDelegation } from '@vynel/orchestration'
+import { ValidationError, NotFoundError } from '@vynel/errors'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -58,12 +61,15 @@ import {
 } from '../../sessions/delegation-mode-header.js'
 import {
   RouteToWorkspaceRequestSchema,
+  SendTaskToSessionRequestSchema,
   SendToChannelRequestSchema,
   ListRoutingWorkspacesResponseSchema,
   RouteToWorkspaceResponseSchema,
+  SendTaskToSessionResponseSchema,
   ListRoutingChannelsResponseSchema,
   SendToChannelResponseSchema,
 } from './schemas.js'
+import { ensureGlobalRootWorkspaceDir } from '../../sessions/global-root-workspace.js'
 
 export const routingApp = factory
   .createApp()
@@ -174,6 +180,82 @@ export const routingApp = factory
       })
 
       return c.json({ status: 'enqueued' as const, jobId, workspaceName: workspace.name })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // POST /delegate-session — ENQUEUE a task for a spawned session (Slice ④)
+  // ──────────────────────────────────────────────────────────────────
+  .post(
+    '/delegate-session',
+    describeRoute({
+      tags: ['routing'],
+      summary: 'Enqueue a task for a spawned session; it runs in the background and reports back.',
+      'x-sdk-name': 'routing.delegateSession',
+      responses: {
+        200: {
+          description: "A queued acknowledgement: { status: 'enqueued', jobId, sessionName }.",
+          content: {
+            'application/json': { schema: resolver(SendTaskToSessionResponseSchema) },
+          },
+        },
+        400: { description: 'Routing is only available during an active global-root turn.' },
+        404: { description: 'Target session not found, not owned, or not a spawned session.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'send_task_to_session',
+        mutatingApproved: true,
+        description:
+          'Hand a task to a session you created with create_session (its continuing ' +
+          'conversation, with its primed purpose and everything it has done since). Use ' +
+          'list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to ' +
+          'a session with room, or create a new one. This returns IMMEDIATELY with ' +
+          "{ status: 'enqueued', jobId } — the session runs the task in the BACKGROUND and its " +
+          'report arrives a little later as a NEW message in this conversation. Do NOT wait for ' +
+          'a result here, and do NOT call this again for the same task — just tell the user you ' +
+          'have handed it off. Tasks sent to the SAME session run one at a time, in order; ' +
+          'different sessions run in parallel. If the task needs an irreversible action, that ' +
+          'action PAUSES for the user to approve; the task continues once they decide.',
+      },
+    }),
+    validator('json', SendTaskToSessionRequestSchema),
+    ...userScoped,
+    (c) => {
+      const { targetSessionId, task } = c.req.valid('json')
+
+      // Same gate as /delegate: the delegating global-root turn is the job's parent.
+      const globalRoot = findPrimaryConversation(c.var.db, { userId: c.var.user.id })
+      if (!globalRoot?.currentSdkSessionId) {
+        throw new ValidationError('Routing is only available during an active global-root turn.')
+      }
+
+      // Resolve the spawned primary from the tool-facing handle (the current
+      // segment id). Unknown / not-owned / not-spawned all 404 the same way.
+      const spawned = findSpawnedSessionBySegmentId(c.var.db, {
+        userId: c.var.user.id,
+        sessionId: targetSessionId,
+      })
+      if (spawned === null) {
+        throw new NotFoundError('session', targetSessionId)
+      }
+      const sessionName = findChatSessionById(c.var.db, targetSessionId)?.title ?? 'Session'
+
+      const origin = parseDelegationOriginHeader(c.req.header(DELEGATION_ORIGIN_HEADER))
+      const permissionMode = parseDelegationModeHeader(c.req.header(DELEGATION_MODE_HEADER))
+
+      const jobId = enqueueSessionDelegation(c.var.db, {
+        userId: c.var.user.id,
+        parentSessionId: globalRoot.currentSdkSessionId,
+        targetPrimarySessionId: spawned.id,
+        // V1 ground: every spawned session runs in the global root's hidden
+        // user-data dir (the cwd it was created with).
+        runCwdPath: ensureGlobalRootWorkspaceDir(),
+        taskText: task,
+        ...(origin ? { origin } : {}),
+        ...(permissionMode !== undefined ? { permissionMode } : {}),
+      })
+
+      return c.json({ status: 'enqueued' as const, jobId, sessionName })
     },
   )
   // ──────────────────────────────────────────────────────────────────

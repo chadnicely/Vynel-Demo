@@ -30,9 +30,25 @@ export const delegationJobs = table(
     // session id; used later for a monitor edge. Same treatment as
     // schedule_runs.chatSessionId.
     parentSessionId: text().notNull(),
-    workspaceId: id().references(() => workspaces.id, { onDelete: 'cascade' }),
-    workspacePath: text().notNull(),
-    workspaceName: text().notNull(),
+    // TARGET (exactly one set — the enqueue ops enforce the row invariant): a
+    // WORKSPACE target carries the three workspace columns; a SESSION target
+    // (session-library Slice ④) carries `targetPrimarySessionId` instead.
+    // Nullable FK via `text().references(...)` — `id()` is NOT NULL by dialect
+    // contract (the primary_sessions.workspaceId precedent).
+    workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
+    // The RUN CWD, not strictly "the workspace's folder": a workspace target
+    // stores the workspace path; a SESSION target stores the spawned session's
+    // cwd (v1: the global root's hidden user-data dir). One column, one
+    // reading — "where this job's turn runs". Never null on rows the enqueue
+    // ops write; nullable because a session target has no workspace to demand it.
+    workspacePath: text(),
+    // The enqueue-time workspace name — null for a session target (the tick
+    // labels those by the spawned session's name, read fresh at run time).
+    workspaceName: text(),
+    // A SESSION target: the spawned primary this job's turn resumes. LOOSE
+    // cross-feature ref — NOT a FK (`primary_sessions` is another package's
+    // table; loose-ref + outbox is the cross-feature contract).
+    targetPrimarySessionId: text(),
     taskText: text().notNull(),
     // Loose cross-system ref — NOT a FK. Reserved for Chapter 2 (the partial
     // sdk session id). Nullable until then.

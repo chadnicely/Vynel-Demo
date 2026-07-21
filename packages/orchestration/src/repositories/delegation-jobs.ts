@@ -8,7 +8,7 @@
 //
 // Spec: the `orchestration` domain (Chapter 1 — async core).
 
-import { and, asc, desc, eq, gte, inArray, isNull, notInArray } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, notInArray, or } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   delegationJobs,
@@ -93,21 +93,32 @@ export function claimNextPendingDelegationJob(
   db: Database,
   claimedAt: Date,
   options: {
-    /** Workspaces with a LIVE run — skipped so the pool never resumes the same
-     *  workspace conversation twice concurrently (single-writer invariant).
-     *  FIFO still holds per workspace; parallelism is across workspaces only. */
-    excludeWorkspaceIds?: readonly string[]
+    /** Targets with a LIVE run — a target key is the job's `workspaceId` OR its
+     *  `targetPrimarySessionId` (Slice ④). Skipped so the pool never resumes
+     *  the same conversation twice concurrently (single-writer invariant).
+     *  FIFO still holds per target; parallelism is across targets only.
+     *  NULL-safe: `NOT IN` alone would silently drop every row whose column is
+     *  NULL (a session-target job has a NULL workspaceId and vice versa), so
+     *  each column's filter passes NULL explicitly. */
+    excludeTargetKeys?: readonly string[]
   } = {},
 ): DelegationJob | null {
-  const excludeWorkspaceIds = options.excludeWorkspaceIds ?? []
+  const excludeTargetKeys = options.excludeTargetKeys ?? []
   const [candidate] = db
     .select()
     .from(delegationJobs)
     .where(
-      excludeWorkspaceIds.length > 0
+      excludeTargetKeys.length > 0
         ? and(
             eq(delegationJobs.status, 'pending'),
-            notInArray(delegationJobs.workspaceId, [...excludeWorkspaceIds]),
+            or(
+              isNull(delegationJobs.workspaceId),
+              notInArray(delegationJobs.workspaceId, [...excludeTargetKeys]),
+            ),
+            or(
+              isNull(delegationJobs.targetPrimarySessionId),
+              notInArray(delegationJobs.targetPrimarySessionId, [...excludeTargetKeys]),
+            ),
           )
         : eq(delegationJobs.status, 'pending'),
     )

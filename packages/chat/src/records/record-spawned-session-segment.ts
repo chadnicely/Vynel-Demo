@@ -1,0 +1,77 @@
+// `recordSpawnedSessionSegment` — records the `chat_sessions` row for the FIRST
+// segment of a SPAWNED session (session-library Slice ④). The root creates
+// sessions as a tool (`create_session`): the priming turn mints the SDK session,
+// and this records it as a LISTED, NAMED conversation — unlike its sibling
+// `recordSwapSegmentSession`, which hard-codes the hidden swap-segment
+// presentation ("the continuing brain shows as ONE entry"). A spawned session
+// is a first-class entry in the Sessions panel from birth, so its first
+// segment is `visibility: 'listed'`, `scope: 'spawned'`, `title` = the
+// session's name (the identity rule: the FIRST segment's title IS the name —
+// later swap segments keep the stock hidden title and the chain fold surfaces
+// this one).
+//
+// Grounding: spawned sessions inherit the creator's scope — v1 exposes the
+// tool on the GLOBAL root only, so `workspaceId` is NULL (the session runs in
+// the root's hidden user-data cwd, same ground as the brain).
+//
+// Like the swap sibling: the segment starts EMPTY (0 messages) — the priming
+// exchange lives only in the runtime's session storage; the first delegated
+// task populates it via the normal resumed-turn flow. Co-commits the
+// `chat.session-created` outbox event in the same transaction ("everything is
+// recorded; the list is curated").
+
+import { withTransaction, type Database } from '@vynel/db'
+import * as chatRepository from '../repositories/index.js'
+import type { ChatSession } from '../repositories/index.js'
+import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
+import type { AiAgentProviderId } from '@vynel/providers'
+import { CHAT_SESSION_CREATED, type ChatSessionCreatedPayload } from '../chat-events.js'
+import { buildNewChatSessionRow } from '../turn-consumption/build-new-chat-session-row.js'
+
+export type RecordSpawnedSessionSegmentInput = {
+  /** The SDK session id the priming turn minted — the recorded segment's PK. */
+  sessionId: string
+  userId: string
+  providerId: AiAgentProviderId
+  /** The spawned session's name — the first segment's title IS the identity. */
+  name: string
+  /** When the segment was started. Defaults to now. */
+  startedAt?: Date
+}
+
+export function recordSpawnedSessionSegment(
+  db: Database,
+  input: RecordSpawnedSessionSegmentInput,
+): ChatSession {
+  const startedAt = input.startedAt ?? new Date()
+  const payload: ChatSessionCreatedPayload = {
+    userId: input.userId,
+    workspaceId: null,
+    sessionId: input.sessionId,
+    providerId: input.providerId,
+  }
+
+  return withTransaction(db, (tx) => {
+    const segment = chatRepository.insertChatSession(tx, {
+      ...buildNewChatSessionRow({
+        sessionId: input.sessionId,
+        userId: input.userId,
+        workspaceId: null,
+        providerId: input.providerId,
+        startedAt,
+        title: input.name,
+        initialMessageCount: 0,
+        visibility: 'listed',
+        scope: 'spawned',
+      }),
+    })
+    insertOutboxEvent(tx, {
+      id: crypto.randomUUID(),
+      type: CHAT_SESSION_CREATED,
+      payload,
+      createdAt: new Date(),
+      processedAt: null,
+    })
+    return segment
+  })
+}

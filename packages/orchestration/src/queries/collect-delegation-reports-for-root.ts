@@ -29,12 +29,15 @@ export function collectDelegationReportsForRoot(
   if (jobs.length === 0) return { contextBlock: null, jobIds: [] }
 
   const lines = jobs.map((job) => {
+    // Session-target jobs (Slice ④) have no workspace name — a generic label
+    // keeps the block honest (the report text itself names the work).
+    const sourceName = job.workspaceName ?? 'A session you created'
     if (job.status === 'completed' && job.resultText) {
-      return `— ${job.workspaceName}: ${job.resultText}`
+      return `— ${sourceName}: ${job.resultText}`
     }
     // failed (or completed with no text) — the root must learn it did NOT finish, so it
     // never tells the user "still working" for a task that already gave up.
-    return `— ${job.workspaceName}: (couldn't complete the task — ${job.errorMessage ?? 'no result'})`
+    return `— ${sourceName}: (couldn't complete the task — ${job.errorMessage ?? 'no result'})`
   })
 
   const contextBlock =

@@ -42,9 +42,11 @@ import { workspaces } from '@vynel/db/schema/workspaces'
 // brain (`'global'`, Slice 3b). `'voice'` is the first NON-primary continuing
 // session (voice-jarvis piece 1 — the Jarvis session is continuous too). The
 // continuity MECHANISM (detect-pressure + seed-fresh swap) is scope-agnostic,
-// so any kind added here gets continuity for free. Agents (many-per-user, keyed
-// by a scopeRef) are a later kind — deferred, don't over-fit now.
-export type PrimarySessionScope = 'global' | 'workspace' | 'voice'
+// so any kind added here gets continuity for free. `'spawned'` (session-library
+// Slice ④) is a session the ROOT creates as a tool — MANY per user by design,
+// so it deliberately has NO liveness unique index (the partial indexes below
+// don't cover it). Agents (keyed by a scopeRef) are a later kind — deferred.
+export type PrimarySessionScope = 'global' | 'workspace' | 'voice' | 'spawned'
 
 export const primarySessions = table(
   'primary_sessions',

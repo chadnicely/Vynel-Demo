@@ -9,7 +9,8 @@
     "./runtime": "./src/runtime/index.ts",
     "./continuity": "./src/continuity/index.ts",
     "./delegation": "./src/delegation/index.ts",
-    "./overview": "./src/overview/index.ts"
+    "./overview": "./src/overview/index.ts",
+    "./spawned": "./src/spawned/index.ts"
   },
   "scripts": {
     "build": "tsc",

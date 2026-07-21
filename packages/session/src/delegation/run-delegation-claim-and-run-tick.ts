@@ -29,11 +29,14 @@ import {
   type DelegationJob,
 } from '@vynel/orchestration'
 import { findPrimaryConversation } from '../continuity/index.js'
-import { recordPushedReportMessage } from '@vynel/chat'
+import { recordPushedReportMessage, type ChatTurnEvent } from '@vynel/chat'
+import { findChatSessionById } from '@vynel/chat/repositories'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
+import * as primarySessionsRepository from '../repositories/index.js'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
+import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
 import {
   buildRoutedApprovalHandler,
   type RoutedApprovalHandler,
@@ -68,12 +71,14 @@ export interface RunDelegationTickDeps {
   cancelRegistry?: DelegationCancelRegistry
   /** Wait budget for one job's turn (ms). Defaults to DELEGATION_RUN_BUDGET_MS. */
   budgetMs?: number
-  /** Workspaces with a live run this process — the claim skips them (the
-   *  pool's same-workspace exclusion; single-writer per conversation). */
-  excludeWorkspaceIds?: ReadonlySet<string>
+  /** Targets with a live run this process — the claim skips them (the pool's
+   *  same-target exclusion; single-writer per conversation). A target key is
+   *  the job's workspaceId OR its targetPrimarySessionId (Slice ④). */
+  excludeTargetKeys?: ReadonlySet<string>
   /** Fires SYNCHRONOUSLY the moment a job is claimed (before any await) — the
-   *  service's pool uses it to reserve the workspace slot for the run's life. */
-  onRunStarted?: (run: { jobId: string; workspaceId: string }) => void
+   *  service's pool uses it to reserve the target slot for the run's life.
+   *  `targetKey` = targetPrimarySessionId ?? workspaceId. */
+  onRunStarted?: (run: { jobId: string; targetKey: string }) => void
 }
 
 /** Resolve a job's origin channel to a DELIVERABLE address — the shared guard for the
@@ -105,12 +110,16 @@ export async function runDelegationClaimAndRunTick(
   deps: RunDelegationTickDeps,
 ): Promise<boolean> {
   const claimed = claimNextPendingDelegationJob(db, new Date(), {
-    ...(deps.excludeWorkspaceIds !== undefined && deps.excludeWorkspaceIds.size > 0
-      ? { excludeWorkspaceIds: [...deps.excludeWorkspaceIds] }
+    ...(deps.excludeTargetKeys !== undefined && deps.excludeTargetKeys.size > 0
+      ? { excludeTargetKeys: [...deps.excludeTargetKeys] }
       : {}),
   })
   if (claimed === null) return false
-  deps.onRunStarted?.({ jobId: claimed.id, workspaceId: claimed.workspaceId })
+  // The pool's exclusion key: the spawned primary id for a session target, the
+  // workspace id for a workspace target. The job id is a defensive fallback for
+  // a targetless row (the enqueue ops preclude it) — it excludes nothing real.
+  const targetKey = claimed.targetPrimarySessionId ?? claimed.workspaceId ?? claimed.id
+  deps.onRunStarted?.({ jobId: claimed.id, targetKey })
 
   // The request's correlation key (brain-tree Chapter 2) — threaded into BOTH taggers
   // (the workspace-side task + reply via the delegate closure, the pushed report below)
@@ -131,31 +140,68 @@ export async function runDelegationClaimAndRunTick(
   // can take a while — and may PARK on a human approval (surface-up); log the claim + the
   // terminal outcome so a slow/parked job is visible in the server console.
   deps.logger.info(
-    { jobId: claimed.id, workspace: claimed.workspaceName, task: claimed.taskText.slice(0, 100) },
-    'delegation: claimed — running the workspace turn',
+    {
+      jobId: claimed.id,
+      target: claimed.workspaceName ?? claimed.targetPrimarySessionId,
+      task: claimed.taskText.slice(0, 100),
+    },
+    'delegation: claimed — running the delegated turn',
   )
 
   // Hoisted so the failure paths (failed envelope + the outer catch) can abandon any
   // still-parked approval — fail-closed, never a hanging SDK agent.
   let approvalHandler: RoutedApprovalHandler | null = null
 
-  // Announce on the liveness feed so every open UI sees the workspace go
-  // busy (presence dot, thread poll, banner). Immediately before try/finally —
+  // Announce on the liveness feed so every open UI sees the target go busy
+  // (presence dot, thread poll, banner). Immediately before try/finally —
   // anything throwable in between would leak a process-lifetime zombie turn.
+  // A SESSION target is global-grounded: scopeKind 'global', no workspaceId
+  // (the Sessions panel's working dot keys on the resolved session id).
   const activityHandle = deps.activityFeed.begin({
     userId: claimed.userId,
-    scopeKind: 'workspace',
-    workspaceId: claimed.workspaceId,
+    ...(claimed.targetPrimarySessionId !== null || claimed.workspaceId === null
+      ? { scopeKind: 'global' as const }
+      : { scopeKind: 'workspace' as const, workspaceId: claimed.workspaceId }),
     origin: 'delegation',
   })
   try {
-    // Resolve the workspace's persona ONCE (brain-tree Ch5) — both halves of the
-    // "Mark · vynel" label come from this single fresh read: the manager name + the
-    // CURRENT workspace name, falling back to the job's enqueue-time name if the
-    // workspace was deleted between enqueue and now.
-    const workspace = findWorkspaceById(db, claimed.workspaceId)
-    const workspaceName = workspace?.name ?? claimed.workspaceName
-    const managerName = workspace ? resolveManagerName(workspace) : undefined
+    // The run cwd — one column, one reading ("where this job's turn runs"): the
+    // workspace folder for a workspace target, the spawned session's cwd for a
+    // session target. Both enqueue ops always write it; null = a corrupt row.
+    const runCwdPath = claimed.workspacePath
+    if (runCwdPath === null) {
+      throw new Error('delegation job has no run cwd (workspacePath is null — corrupt row)')
+    }
+
+    // Resolve the target's persona ONCE — one fresh read per run.
+    // WORKSPACE target (brain-tree Ch5): manager name + CURRENT workspace name,
+    // falling back to the enqueue-time name if the workspace was deleted.
+    // SESSION target (Slice ④): the spawned session's NAME plays the manager
+    // role (v1, recorded) — read fresh off its current segment's title (the
+    // first, listed segment names it; after a rare mid-turn swap the stock
+    // hidden title falls back to 'Session').
+    let targetName: string
+    let managerName: string | undefined
+    if (claimed.targetPrimarySessionId !== null) {
+      const targetPrimary = primarySessionsRepository.findPrimarySessionById(
+        db,
+        claimed.targetPrimarySessionId,
+      )
+      const currentSegment =
+        targetPrimary?.currentSdkSessionId != null
+          ? findChatSessionById(db, targetPrimary.currentSdkSessionId)
+          : null
+      targetName =
+        currentSegment !== null && currentSegment.visibility === 'listed'
+          ? currentSegment.title
+          : 'Session'
+      managerName = undefined
+    } else {
+      const workspace =
+        claimed.workspaceId !== null ? findWorkspaceById(db, claimed.workspaceId) : null
+      targetName = workspace?.name ?? claimed.workspaceName ?? 'Workspace'
+      managerName = workspace ? resolveManagerName(workspace) : undefined
+    }
 
     // Surface-up: one gate + handler per job. The shared pipeline RECORDS each carded
     // tool's approval (web notifier always) and parks; the handler pushes the card to
@@ -166,52 +212,77 @@ export async function runDelegationClaimAndRunTick(
       db,
       logger: deps.logger,
       provider: deps.provider,
-      workspaceName,
+      workspaceName: targetName,
       waitGate,
       ...(approvalOrigin !== null ? { origin: approvalOrigin } : {}),
     })
     approvalHandler = handler
 
-    const delegate: DelegateForRouting = (delegationInput) =>
-      delegateToWorkspaceRoot(db, deps.provider, {
-        ...delegationInput,
-        workspaceName,
-        ...(managerName !== undefined ? { managerName } : {}),
-        providerId: DEFAULT_PROVIDER_ID,
-        ...(partialSessionId !== undefined ? { partialSessionId } : {}),
-        // The delegating turn's mode, stamped on the job at enqueue (surface-up step 1).
-        // Null (pre-mode job / channel origin) → the runner's bypass default.
-        ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
-        approvalHandler: handler,
-        // Live observing: publish the turn's events on its trace channel; the end
-        // closes any attached observe stream (drained or threw alike). The same
-        // broadcaster also feeds the session-keyed channel (Watch everywhere).
-        ...(turnEvents !== undefined ? { turnEvents } : {}),
-        ...(turnEvents !== undefined && partialSessionId !== undefined
-          ? {
-              observer: {
-                onTurnEvent: (event) =>
-                  turnEvents.publish(traceChannelKey(partialSessionId), event),
-                onTurnEnded: () => turnEvents.end(traceChannelKey(partialSessionId)),
-              },
-            }
-          : {}),
-        // The stop bridge learns the RUNNING session id so a user Stop can
-        // interrupt exactly this turn; the liveness feed learns it for the
-        // turn-updated frame (the UI keys its thread poll on the session).
-        onSessionResolved: (sdkSessionId: string) => {
-          cancelHandle?.sessionResolved(sdkSessionId)
-          activityHandle.sessionResolved(sdkSessionId)
-        },
-        logger: deps.logger,
-      })
+    // The pieces both target runners share verbatim: mode, trace observing, and
+    // the stop/liveness session hookup.
+    const sharedRunnerOptions = {
+      providerId: DEFAULT_PROVIDER_ID,
+      ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+      // The delegating turn's mode, stamped on the job at enqueue (surface-up step 1).
+      // Null (pre-mode job / channel origin) → the runner's bypass default.
+      ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
+      approvalHandler: handler,
+      // Live observing: publish the turn's events on its trace channel; the end
+      // closes any attached observe stream (drained or threw alike). The same
+      // broadcaster also feeds the session-keyed channel (Watch everywhere).
+      ...(turnEvents !== undefined ? { turnEvents } : {}),
+      ...(turnEvents !== undefined && partialSessionId !== undefined
+        ? {
+            observer: {
+              onTurnEvent: (event: ChatTurnEvent) =>
+                turnEvents.publish(traceChannelKey(partialSessionId), event),
+              onTurnEnded: () => turnEvents.end(traceChannelKey(partialSessionId)),
+            },
+          }
+        : {}),
+      // The stop bridge learns the RUNNING session id so a user Stop can
+      // interrupt exactly this turn; the liveness feed learns it for the
+      // turn-updated frame (the UI keys its thread poll on the session).
+      onSessionResolved: (sdkSessionId: string) => {
+        cancelHandle?.sessionResolved(sdkSessionId)
+        activityHandle.sessionResolved(sdkSessionId)
+      },
+      logger: deps.logger,
+    }
+
+    // Branch on the target (Slice ④): a session job resumes the spawned
+    // primary's continuing conversation; a workspace job is byte-for-byte the
+    // pre-slice path. Captured for closure narrowing.
+    const spawnedTargetId = claimed.targetPrimarySessionId
+    const delegate: DelegateForRouting =
+      spawnedTargetId !== null
+        ? (delegationInput) =>
+            delegateToSpawnedSession(db, deps.provider, {
+              parentSessionId: delegationInput.parentSessionId,
+              userId: delegationInput.userId,
+              targetPrimarySessionId: spawnedTargetId,
+              runCwdPath,
+              sessionName: targetName,
+              taskText: delegationInput.taskText,
+              ...sharedRunnerOptions,
+            })
+        : (delegationInput) =>
+            delegateToWorkspaceRoot(db, deps.provider, {
+              ...delegationInput,
+              workspaceName: targetName,
+              ...(managerName !== undefined ? { managerName } : {}),
+              ...sharedRunnerOptions,
+            })
 
     const outcome = await routeRequest(
       {
         userId: claimed.userId,
         parentSessionId: claimed.parentSessionId,
-        targetWorkspaceId: claimed.workspaceId,
-        targetWorkspacePath: claimed.workspacePath,
+        // For a session target this is the target KEY (routeRequest only threads
+        // it to the delegate + its log lines; the session closure captures its
+        // own target and ignores the threaded id).
+        targetWorkspaceId: targetKey,
+        targetWorkspacePath: runCwdPath,
         taskText: claimed.taskText,
         timeoutMs: deps.budgetMs ?? DELEGATION_RUN_BUDGET_MS,
       },
@@ -247,10 +318,12 @@ export async function runDelegationClaimAndRunTick(
         // COMPLETED job through the outer catch, losing the user's answer.
         const distilled = await deps.provider
           .summarizeReport({
-            workspacePath: claimed.workspacePath,
+            workspacePath: runCwdPath,
             taskText: claimed.taskText,
             reportText: outcome.result,
-            workspaceName,
+            // For a session target: the session's name (v1 — the distill and the
+            // label both speak as the session).
+            workspaceName: targetName,
             deliveryTarget: reportOrigin?.channel.channelKind ?? 'chat',
             logger: deps.logger,
           })
@@ -276,7 +349,7 @@ export async function runDelegationClaimAndRunTick(
         const pushed = recordPushedReportMessage(db, {
           globalRootSessionId: globalSessionId,
           body: userReply,
-          workspaceName,
+          workspaceName: targetName,
           ...(managerName !== undefined ? { managerName } : {}),
           ...(partialSessionId !== undefined ? { partialSessionId } : {}),
         })

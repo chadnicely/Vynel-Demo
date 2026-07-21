@@ -863,6 +863,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  delegateSession: async (input: NonNullable<paths["/routing/delegate-session"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/routing/delegate-session", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   listChannels: async () => {
     const { data, error, response } = await client["GET"]("/routing/channels")
     if (error || data === undefined) throw new SdkError(response, error ?? data)
@@ -1006,6 +1013,13 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   sessions: {
+  createSpawned: async (input: NonNullable<paths["/sessions/spawned"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/sessions/spawned", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   overview: async () => {
     const { data, error, response } = await client["GET"]("/sessions/overview")
     if (error || data === undefined) throw new SdkError(response, error ?? data)

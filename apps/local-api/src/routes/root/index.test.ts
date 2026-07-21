@@ -82,6 +82,7 @@ import {
 } from '@vynel/session/continuity'
 import {
   enqueueWorkspaceDelegation,
+  enqueueSessionDelegation,
   findDelegationJobById,
   failDelegationJob,
   claimNextPendingDelegationJob,
@@ -622,6 +623,28 @@ describe('POST /root/delegations/:partialSessionId/stop', () => {
       expect(await res.json()).toEqual({ result: 'stopping' })
       expect(handle.isCancelRequested()).toBe(true)
       expect(interruptChatSessionMock).toHaveBeenCalledWith('sdk-run-1')
+    })
+  })
+
+  it('stops a SESSION-target job identically — the stop keys on the job, not the target (Slice ④)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const jobId = enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'g-parent',
+        targetPrimarySessionId: randomUUID(),
+        runCwdPath: '/tmp/vynel/global-root',
+        taskText: 'a session task the user stops',
+      })
+      const partialSessionId = findDelegationJobById(db, jobId)!.partialSessionId!
+      const app = makeHarness(db)
+
+      const res = await app.request(`/root/delegations/${partialSessionId}/stop`, {
+        method: 'POST',
+      })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ result: 'stopped' })
+      expect(findDelegationJobById(db, jobId)?.status).toBe('failed')
     })
   })
 

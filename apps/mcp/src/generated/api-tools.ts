@@ -231,6 +231,43 @@ export const createMemoryEntry: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const createSession: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'create_session',
+    "Create a NEW session: a normal continuing conversation with its own context, primed with the purpose you give it. Use it to hand off big or parallel work and keep your own context free — prefer send_task_to_workspace when the task belongs to a specific workspace's ongoing context, and a new session for standalone or cross-cutting work. Check list_sessions first: reuse an existing suitable session instead of creating duplicates. Returns { sessionId, name } — pass sessionId to send_task_to_session. The session appears in the user’s Sessions panel immediately.",
+    {
+    name: z.string(),
+    purpose: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/sessions/spawned'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['name', 'purpose']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const createTask: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_task',
@@ -1235,6 +1272,36 @@ export const listSchedules: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listSessions: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_sessions',
+    "List every session — yours (scope 'spawned' = sessions you created), the user's workspaces, and the assistant thread — with per-session context usage: contextTokens used of contextWindow. Check these numbers BEFORE choosing where to send work: a session near its window is a poor target; create a new one instead. Each entry’s sessionId is the handle send_task_to_session accepts. Read-only.",
+    {},
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/sessions/overview'
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const listTasks: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_tasks',
@@ -1506,6 +1573,43 @@ export const searchMemory: McpToolFactory = (scope, app) =>
       }
     },
     { annotations: { readOnlyHint: true } },
+  )
+
+export const sendTaskToSession: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'send_task_to_session',
+    "Hand a task to a session you created with create_session (its continuing conversation, with its primed purpose and everything it has done since). Use list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to a session with room, or create a new one. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the session runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. Tasks sent to the SAME session run one at a time, in order; different sessions run in parallel. If the task needs an irreversible action, that action PAUSES for the user to approve; the task continues once they decide.",
+    {
+    targetSessionId: z.string(),
+    task: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/routing/delegate-session'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['targetSessionId', 'task']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
 export const sendTaskToWorkspace: McpToolFactory = (scope, app) =>
@@ -1867,9 +1971,12 @@ export const generatedMcpTools: McpToolFactory[] = [
 // Routing tools (agent-base Slice 4) — the GLOBAL-ROOT turn's server ONLY.
 // Kept OUT of generatedMcpTools so the normal chat turn stays byte-for-byte.
 export const generatedRoutingMcpTools: McpToolFactory[] = [
+  createSession,
   listRoutingChannels,
   listRoutingWorkspaces,
+  listSessions,
   registerWorkspace,
+  sendTaskToSession,
   sendTaskToWorkspace,
   sendToChannel,
   speak,

@@ -135,7 +135,7 @@ describe('delegation_jobs repository', () => {
     })
   })
 
-  it('claim with excludeWorkspaceIds skips busy workspaces but keeps FIFO among the rest', async () => {
+  it('claim with excludeTargetKeys skips busy workspaces but keeps FIFO among the rest', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const busyWorkspace = insertWorkspace(db, makeWorkspace(user.id))
@@ -156,19 +156,75 @@ describe('delegation_jobs repository', () => {
       )
 
       const claimed = claimNextPendingDelegationJob(db, new Date(), {
-        excludeWorkspaceIds: [busyWorkspace.id],
+        excludeTargetKeys: [busyWorkspace.id],
       })
       expect(claimed?.id).toBe(freeJob.id)
 
       // Every pending workspace busy → nothing claimable; the busy job stays pending.
       const none = claimNextPendingDelegationJob(db, new Date(), {
-        excludeWorkspaceIds: [busyWorkspace.id, freeWorkspace.id],
+        excludeTargetKeys: [busyWorkspace.id, freeWorkspace.id],
       })
       expect(none).toBeNull()
 
       // Empty exclusion = today's behavior — the busy-workspace job now wins FIFO.
-      const next = claimNextPendingDelegationJob(db, new Date(), { excludeWorkspaceIds: [] })
+      const next = claimNextPendingDelegationJob(db, new Date(), { excludeTargetKeys: [] })
       expect(next?.workspaceId).toBe(busyWorkspace.id)
+    })
+  })
+
+  it('exclusion is NULL-safe across BOTH target columns (Slice ④): a busy workspace never hides a session-target job, and vice versa', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const busyWorkspace = insertWorkspace(db, makeWorkspace(user.id))
+      const spawnedPrimaryId = randomUUID()
+      // Oldest: a workspace job on the busy workspace. Newer: a SESSION-target
+      // job (workspaceId NULL — a bare NOT IN would silently drop it).
+      insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, busyWorkspace.id, {
+          createdAt: new Date('2026-06-01T00:00:00Z'),
+        }),
+      )
+      const sessionJob = insertDelegationJob(db, {
+        ...makeDelegationJob(user.id, busyWorkspace.id, {
+          createdAt: new Date('2026-06-01T00:01:00Z'),
+        }),
+        workspaceId: null,
+        workspaceName: null,
+        workspacePath: '/tmp/vynel/global-root',
+        targetPrimarySessionId: spawnedPrimaryId,
+      })
+
+      // The busy workspace is excluded — the session job must still claim.
+      const claimed = claimNextPendingDelegationJob(db, new Date(), {
+        excludeTargetKeys: [busyWorkspace.id],
+      })
+      expect(claimed?.id).toBe(sessionJob.id)
+      expect(claimed?.targetPrimarySessionId).toBe(spawnedPrimaryId)
+
+      // Same-session exclusion: a second job for the SAME spawned session holds
+      // while its key is live (FIFO per target)…
+      const queuedSameSession = insertDelegationJob(db, {
+        ...makeDelegationJob(user.id, busyWorkspace.id, {
+          createdAt: new Date('2026-06-01T00:02:00Z'),
+        }),
+        workspaceId: null,
+        workspaceName: null,
+        workspacePath: '/tmp/vynel/global-root',
+        targetPrimarySessionId: spawnedPrimaryId,
+      })
+      expect(
+        claimNextPendingDelegationJob(db, new Date(), {
+          excludeTargetKeys: [busyWorkspace.id, spawnedPrimaryId],
+        }),
+      ).toBeNull()
+      // …and claims once the key frees (the workspace exclusion alone — a NULL
+      // targetPrimarySessionId on the workspace row doesn't hide it either, but
+      // FIFO gives the older busy-workspace job priority only when unexcluded).
+      const next = claimNextPendingDelegationJob(db, new Date(), {
+        excludeTargetKeys: [busyWorkspace.id],
+      })
+      expect(next?.id).toBe(queuedSameSession.id)
     })
   })
 

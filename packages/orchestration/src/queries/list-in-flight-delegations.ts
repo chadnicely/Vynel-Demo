@@ -13,9 +13,12 @@ export interface InFlightDelegation {
    *  (Ch2-precluded) case of a job with no key; the indicator still counts it as live work. */
   partialSessionId: string | null
   /** The target workspace — lets the workspace chat poll its transcript while a
-   *  routed turn streams rows into it. */
-  workspaceId: string
-  /** The target workspace's name — the indicator label. */
+   *  routed turn streams rows into it. Null for a SESSION-target job (Slice ④ —
+   *  no workspace view polls it; the Sessions panel watches it instead). */
+  workspaceId: string | null
+  /** The indicator label: the target workspace's name, or the generic 'Session'
+   *  for a session-target job (orchestration can't read the session's name —
+   *  that's the session package's table; the taskLabel still names the work). */
   workspaceName: string
   /** The task, as a short human label — the indicator names the actual work
    *  ("vynel · Set up the login page"), never a canned "Working…". */
@@ -33,7 +36,7 @@ export function listInFlightDelegations(
   return listInFlightDelegationsForUser(db, input.userId).map((job) => ({
     partialSessionId: job.partialSessionId,
     workspaceId: job.workspaceId,
-    workspaceName: job.workspaceName,
+    workspaceName: job.workspaceName ?? 'Session',
     taskLabel: deriveDelegationTaskLabel(job.taskText),
     status: job.status as 'pending' | 'claimed',
   }))

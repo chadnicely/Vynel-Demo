@@ -17,7 +17,12 @@ import {
   listChatMessagesByPartialSessionId,
   insertChatSession,
 } from '@vynel/chat/repositories'
-import { enqueueWorkspaceDelegation, findDelegationJobById } from '@vynel/orchestration'
+import {
+  enqueueWorkspaceDelegation,
+  enqueueSessionDelegation,
+  findDelegationJobById,
+} from '@vynel/orchestration'
+import { createSpawnedSession } from '../spawned/index.js'
 import { insertChannel, listOutboundMessagesForChannel } from '@vynel/channels/test-support'
 import {
   getOrCreatePrimarySession,
@@ -763,7 +768,7 @@ describe('runDelegationClaimAndRunTick', () => {
     })
   })
 
-  it('onRunStarted fires synchronously at claim; excludeWorkspaceIds skips a busy workspace', async () => {
+  it('onRunStarted fires synchronously at claim; excludeTargetKeys skips a busy workspace', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const busyWorkspace = insertWorkspace(db, makeWorkspace(user.id))
@@ -782,24 +787,141 @@ describe('runDelegationClaimAndRunTick', () => {
         provider: new FakeAiAgentProvider({ seededSessionId: 'ws-x', resultText: 'ok' }),
         logger: silentLogger,
         activityFeed: new SessionActivityFeed(),
-        excludeWorkspaceIds: new Set([busyWorkspace.id]),
+        excludeTargetKeys: new Set([busyWorkspace.id]),
       })
       expect(skipped).toBe(false)
       expect(findDelegationJobById(db, jobId)?.status).toBe('pending')
 
       // Freed: the claim proceeds and reports itself SYNCHRONOUSLY (before the
-      // first await — the pool reserves the workspace slot on this callback).
-      const started: Array<{ jobId: string; workspaceId: string }> = []
+      // first await — the pool reserves the target slot on this callback).
+      const started: Array<{ jobId: string; targetKey: string }> = []
       const running = runDelegationClaimAndRunTick(db, {
         provider: new FakeAiAgentProvider({ seededSessionId: 'ws-y', resultText: 'ok' }),
         logger: silentLogger,
         activityFeed: new SessionActivityFeed(),
-        excludeWorkspaceIds: new Set(),
+        excludeTargetKeys: new Set(),
         onRunStarted: (run) => started.push(run),
       })
-      expect(started).toEqual([{ jobId, workspaceId: busyWorkspace.id }])
+      expect(started).toEqual([{ jobId, targetKey: busyWorkspace.id }])
       await running
       expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
+    })
+  })
+
+  // ── SESSION targets (session-library Slice ④) ─────────────────────
+
+  it('runs a SESSION-target job through delegateToSpawnedSession and pushes the report labeled with the session name', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const created = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-spawned-tick' }),
+        {
+          userId: user.id,
+          name: 'Research: pricing',
+          purpose: 'compare pricing pages',
+          workspacePath: '/tmp/vynel/global-root',
+        },
+      )
+
+      const jobId = enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        targetPrimarySessionId: created.primarySessionId,
+        runCwdPath: '/tmp/vynel/global-root',
+        taskText: 'compare pricing',
+      })
+
+      // The liveness feed sees a GLOBAL-scoped turn (no workspace to key on).
+      const activityFeed = new SessionActivityFeed()
+      const turnStarts: Array<{ scopeKind: string; workspaceId: string | null }> = []
+      activityFeed.subscribe(user.id, (event) => {
+        if (event.kind === 'turn-started') {
+          turnStarts.push({ scopeKind: event.scopeKind, workspaceId: event.workspaceId })
+        }
+      })
+
+      const started: Array<{ jobId: string; targetKey: string }> = []
+      const inputs: StartChatSessionInput[] = []
+      const processed = await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: created.sessionId,
+          resultText: 'A undercuts us by 12%.',
+          startChatSessionInputs: inputs,
+        }),
+        logger: silentLogger,
+        activityFeed,
+        onRunStarted: (run) => started.push(run),
+      })
+
+      expect(processed).toBe(true)
+      // The pool key for a session job is the spawned primary id.
+      expect(started).toEqual([{ jobId, targetKey: created.primarySessionId }])
+      expect(turnStarts).toEqual([{ scopeKind: 'global', workspaceId: null }])
+      // The turn RESUMED the spawned session in the job's stored run cwd.
+      expect(inputs[0]!.resumeSessionId).toBe(created.sessionId)
+      expect(inputs[0]!.workspacePath).toBe('/tmp/vynel/global-root')
+
+      expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
+
+      // The report pushed onto the global root, labeled as the SESSION.
+      const rootMessages = listChatMessagesForSession(db, globalSessionId)
+      const report = rootMessages.find((m) => m.sourceKind === 'workspace-manager')
+      expect(report?.sourceLabel).toBe('Research: pricing')
+      expect(report?.body).toBe('A undercuts us by 12%.')
+    })
+  })
+
+  it('excludeTargetKeys with the spawned primary id holds a same-session job (FIFO per session)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const created = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-spawned-busy' }),
+        { userId: user.id, name: 'S', purpose: 'p', workspacePath: '/tmp/x' },
+      )
+      const jobId = enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        targetPrimarySessionId: created.primarySessionId,
+        runCwdPath: '/tmp/x',
+        taskText: 'queued task',
+      })
+
+      const skipped = await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'never' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        excludeTargetKeys: new Set([created.primarySessionId]),
+      })
+      expect(skipped).toBe(false)
+      expect(findDelegationJobById(db, jobId)?.status).toBe('pending')
+    })
+  })
+
+  it('fails (never strands) a SESSION-target job whose spawned session is gone', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const jobId = enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        targetPrimarySessionId: randomUUID(), // no such primary
+        runCwdPath: '/tmp/x',
+        taskText: 'orphan task',
+      })
+
+      const processed = await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'never' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+      })
+      expect(processed).toBe(true)
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.status).toBe('failed')
+      expect(job?.errorMessage).toMatch(/not found or not owned/)
     })
   })
 })

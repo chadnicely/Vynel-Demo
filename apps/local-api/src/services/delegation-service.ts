@@ -65,11 +65,12 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
     )
   }
 
-  // The pool state: how many runs live, and WHICH workspaces they hold (the
-  // same-workspace exclusion). In-process only — same trust level as the old
+  // The pool state: how many runs live, and WHICH targets they hold (the
+  // same-target exclusion — a target key is a workspace id or a spawned
+  // primary id, Slice ④). In-process only — same trust level as the old
   // serial guard; the Phase-2 multi-process swap point is a DB-side lease.
   let activeRunCount = 0
-  const activeWorkspaceIds = new Set<string>()
+  const activeTargetKeys = new Set<string>()
 
   const pollTimer = setInterval(() => {
     // Fill free capacity each tick. The claim (and its onRunStarted) executes
@@ -77,16 +78,16 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
     // successful claim reserves its slot before the next loop iteration reads
     // the count, and an empty claim breaks without reserving anything.
     while (activeRunCount < MAX_CONCURRENT_DELEGATIONS) {
-      let claimedWorkspaceId: string | null = null
+      let claimedTargetKey: string | null = null
       void runDelegationClaimAndRunTick(db, {
         provider,
         logger,
         activityFeed,
-        excludeWorkspaceIds: activeWorkspaceIds,
-        onRunStarted: ({ workspaceId }) => {
-          claimedWorkspaceId = workspaceId
+        excludeTargetKeys: activeTargetKeys,
+        onRunStarted: ({ targetKey }) => {
+          claimedTargetKey = targetKey
           activeRunCount += 1
-          activeWorkspaceIds.add(workspaceId)
+          activeTargetKeys.add(targetKey)
         },
         ...(turnEvents !== undefined ? { turnEvents } : {}),
         ...(cancelRegistry !== undefined ? { cancelRegistry } : {}),
@@ -98,12 +99,12 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
           // reserve a slot after the break skipped the release — a permanent
           // leak that silently starves all delegations. Re-checking here turns
           // that failure mode into a correctly-freed slot.
-          if (claimedWorkspaceId !== null) {
+          if (claimedTargetKey !== null) {
             activeRunCount -= 1
-            activeWorkspaceIds.delete(claimedWorkspaceId)
+            activeTargetKeys.delete(claimedTargetKey)
           }
         })
-      if (claimedWorkspaceId === null) break // queue empty, or every pending workspace is busy
+      if (claimedTargetKey === null) break // queue empty, or every pending target is busy
     }
   }, DELEGATION_POLL_INTERVAL_MS)
 

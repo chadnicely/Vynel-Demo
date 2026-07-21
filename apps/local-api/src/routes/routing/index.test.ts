@@ -7,15 +7,21 @@
 
 import { describe, it, expect } from 'vitest'
 import { randomUUID } from 'node:crypto'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import pino from 'pino'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { withTestDatabase } from '@vynel/testing'
 import { VynelError } from '@vynel/errors'
 import type { Database } from '@vynel/db'
+import type { AiAgentProvider, NormalizedSessionEvent } from '@vynel/providers'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findDelegationJobById } from '@vynel/orchestration'
+import { createSpawnedSession } from '@vynel/session/spawned'
+import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
 import {
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
@@ -315,6 +321,103 @@ describe('POST /routing/send-to-channel', () => {
         message: 'ping',
       })
       expect(crossUser.status).toBe(404)
+    })
+  })
+})
+
+describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', () => {
+  // The spawn-time priming turn, faked (session-started + completed).
+  function makePrimingProvider(sessionId: string): AiAgentProvider {
+    return {
+      startChatSession(): AsyncIterable<NormalizedSessionEvent> {
+        return (async function* () {
+          yield {
+            kind: 'session-started',
+            sessionId,
+            resumedFromExisting: false,
+            startedAt: new Date(),
+          } as NormalizedSessionEvent
+          yield {
+            kind: 'session-completed',
+            sessionId,
+            isNewSession: true,
+            completedAt: new Date(),
+          } as NormalizedSessionEvent
+        })()
+      },
+    } as unknown as AiAgentProvider
+  }
+
+  async function seedSpawnedSession(db: Database, userId: string, sdkSessionId = 'sdk-sp-1') {
+    return createSpawnedSession(db, makePrimingProvider(sdkSessionId), {
+      userId,
+      name: 'Research: pricing',
+      purpose: 'compare pricing pages',
+      workspacePath: '/tmp/vynel/global-root',
+    })
+  }
+
+  it('enqueues a SESSION-target job keyed by the spawned primary, run cwd = the global-root dir', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-delegate-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        await seedLinkedGlobalRoot(db, user.id)
+        const spawned = await seedSpawnedSession(db, user.id)
+        const app = makeHarness(db)
+
+        const res = await postJson(app, '/routing/delegate-session', {
+          targetSessionId: spawned.sessionId,
+          task: 'compare pricing',
+        })
+        expect(res.status).toBe(200)
+        const body = (await res.json()) as { status: string; jobId: string; sessionName: string }
+        expect(body.status).toBe('enqueued')
+        expect(body.sessionName).toBe('Research: pricing')
+
+        const job = findDelegationJobById(db, body.jobId)
+        expect(job?.status).toBe('pending')
+        expect(job?.targetPrimarySessionId).toBe(spawned.primarySessionId)
+        expect(job?.workspaceId).toBeNull()
+        expect(job?.workspaceName).toBeNull()
+        expect(job?.workspacePath).toBe(path.join(dataDir, 'global-root'))
+        expect(job?.parentSessionId).toBe('g-1')
+      })
+    })
+  })
+
+  it('400s without an active global-root turn; 404s an unknown or foreign target session', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-delegate-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const spawned = await seedSpawnedSession(db, user.id)
+        const app = makeHarness(db)
+
+        // No linked global root yet → 400 (the delegate-route gate).
+        const noRoot = await postJson(app, '/routing/delegate-session', {
+          targetSessionId: spawned.sessionId,
+          task: 't',
+        })
+        expect(noRoot.status).toBe(400)
+
+        await seedLinkedGlobalRoot(db, user.id)
+        // Unknown handle → 404.
+        const unknown = await postJson(app, '/routing/delegate-session', {
+          targetSessionId: 'sdk-no-such',
+          task: 't',
+        })
+        expect(unknown.status).toBe(404)
+
+        // Another user's spawned session → the same 404 (no enumeration leak).
+        const stranger = seedUser(db)
+        const theirs = await seedSpawnedSession(db, stranger.id, 'sdk-sp-theirs')
+        const crossUser = await postJson(app, '/routing/delegate-session', {
+          targetSessionId: theirs.sessionId,
+          task: 't',
+        })
+        expect(crossUser.status).toBe(404)
+      })
     })
   })
 })

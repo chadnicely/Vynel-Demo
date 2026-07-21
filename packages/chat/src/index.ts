@@ -55,6 +55,8 @@ export type { BuildNewChatSessionRowInput } from './turn-consumption/build-new-c
 // Records — the chat side of session-continuity swaps + delegation.
 export { recordSwapSegmentSession } from './records/record-swap-segment-session.js'
 export type { RecordSwapSegmentSessionInput } from './records/record-swap-segment-session.js'
+export { recordSpawnedSessionSegment } from './records/record-spawned-session-segment.js'
+export type { RecordSpawnedSessionSegmentInput } from './records/record-spawned-session-segment.js'
 export { recordLeafSession } from './records/record-leaf-session.js'
 export type { RecordLeafSessionInput } from './records/record-leaf-session.js'
 export { recordPushedReportMessage } from './records/record-pushed-report-message.js'

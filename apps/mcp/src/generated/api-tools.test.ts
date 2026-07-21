@@ -102,11 +102,16 @@ const EXPECTED_TOOL_NAMES = [
 // Landed with the routing vertical (2026-07-05); `register_workspace` (the
 // user sets up a workspace from the global conversation — rootSurface, mutating
 // → cards) joined 2026-07-05; `speak` (rootSurface — any global session's voice
-// output) joined 2026-07-08.
+// output) joined 2026-07-08; the session-library tools `create_session` /
+// `list_sessions` (rootSurface) + `send_task_to_session` (/routing/) joined
+// 2026-07-21 (Slice ④).
 const EXPECTED_ROUTING_TOOL_NAMES = [
+  'create_session',
   'list_routing_channels',
   'list_routing_workspaces',
+  'list_sessions',
   'register_workspace',
+  'send_task_to_session',
   'send_task_to_workspace',
   'send_to_channel',
   'speak',

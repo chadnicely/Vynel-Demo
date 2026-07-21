@@ -37,9 +37,12 @@ function fakeOptions() {
 }
 
 /** The deps object the service passed to a given tick call. */
+// test: correct expectation — Slice ④ generalized the pool contract from
+// workspaceId/excludeWorkspaceIds to targetKey/excludeTargetKeys (a target key
+// is a workspace id OR a spawned primary id).
 type TickDeps = {
-  onRunStarted?: (run: { jobId: string; workspaceId: string }) => void
-  excludeWorkspaceIds?: ReadonlySet<string>
+  onRunStarted?: (run: { jobId: string; targetKey: string }) => void
+  excludeTargetKeys?: ReadonlySet<string>
 }
 
 function tickDepsOfCall(callIndex: number): TickDeps {
@@ -76,7 +79,7 @@ describe('startDelegationService', () => {
     const resolvers: Array<(processed: boolean) => void> = []
     let nextWorkspace = 0
     tickMock.mockImplementation((_db: unknown, deps: TickDeps) => {
-      deps.onRunStarted?.({ jobId: `job-${nextWorkspace}`, workspaceId: `ws-${nextWorkspace}` })
+      deps.onRunStarted?.({ jobId: `job-${nextWorkspace}`, targetKey: `ws-${nextWorkspace}` })
       nextWorkspace += 1
       return new Promise<boolean>((resolve) => resolvers.push(resolve))
     })
@@ -93,14 +96,14 @@ describe('startDelegationService', () => {
     service.stop()
   })
 
-  it('passes the live workspaces as the claim exclusion set (never two runs per workspace)', async () => {
+  it('passes the live target keys as the claim exclusion set (never two runs per target)', async () => {
     // First claim holds ws-A and never settles; the second call claims nothing
     // (simulating "the only pending job's workspace is busy").
     const exclusionSeenByCall: string[][] = []
     tickMock.mockImplementation((_db: unknown, deps: TickDeps) => {
-      exclusionSeenByCall.push([...(deps.excludeWorkspaceIds ?? [])])
+      exclusionSeenByCall.push([...(deps.excludeTargetKeys ?? [])])
       if (exclusionSeenByCall.length === 1) {
-        deps.onRunStarted?.({ jobId: 'job-a', workspaceId: 'ws-A' })
+        deps.onRunStarted?.({ jobId: 'job-a', targetKey: 'ws-A' })
         return new Promise<boolean>(() => {})
       }
       return Promise.resolve(false)
@@ -123,12 +126,12 @@ describe('startDelegationService', () => {
     service.stop()
   })
 
-  it('a rejecting run still frees its slot and workspace', async () => {
+  it('a rejecting run still frees its slot and target key', async () => {
     let call = 0
     tickMock.mockImplementation((_db: unknown, deps: TickDeps) => {
       call += 1
       if (call === 1) {
-        deps.onRunStarted?.({ jobId: 'job-a', workspaceId: 'ws-A' })
+        deps.onRunStarted?.({ jobId: 'job-a', targetKey: 'ws-A' })
         return Promise.reject(new Error('turn exploded'))
       }
       return Promise.resolve(false)
@@ -141,7 +144,7 @@ describe('startDelegationService', () => {
     await vi.advanceTimersByTimeAsync(1_000)
     // The slot freed: the next poll probes again with ws-A no longer excluded.
     const lastDeps = tickDepsOfCall(tickMock.mock.calls.length - 1)
-    expect([...(lastDeps.excludeWorkspaceIds ?? [])]).toEqual([])
+    expect([...(lastDeps.excludeTargetKeys ?? [])]).toEqual([])
     service.stop()
   })
 

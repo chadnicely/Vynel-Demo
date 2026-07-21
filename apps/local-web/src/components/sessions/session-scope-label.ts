@@ -8,5 +8,6 @@ export function sessionScopeLabel(
 ): string {
   if (entry.scope === "global") return "Assistant";
   if (entry.scope === "agent") return "Agent";
+  if (entry.scope === "spawned") return "Session";
   return entry.workspaceName ?? "Workspace";
 }

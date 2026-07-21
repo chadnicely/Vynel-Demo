@@ -22,6 +22,11 @@ export {
   type DelegateToLeafSessionResult,
 } from './delegate-to-leaf-session.js'
 export {
+  delegateToSpawnedSession,
+  type DelegateToSpawnedSessionInput,
+  type DelegateToSpawnedSessionResult,
+} from './delegate-to-spawned-session.js'
+export {
   runDelegationClaimAndRunTick,
   type RunDelegationTickDeps,
 } from './run-delegation-claim-and-run-tick.js'

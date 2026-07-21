@@ -154,6 +154,29 @@ describe('getSessionsOverview', () => {
     })
   })
 
+  it('lists a SPAWNED session as its own entry — scope spawned, title = the name, no workspace (Slice ④)', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      insertChatSession(
+        db,
+        makeSession(user.id, null, {
+          id: 'sdk-spawned-1',
+          title: 'Research: pricing',
+          scope: 'spawned',
+          visibility: 'listed',
+          totalMessageCount: 0,
+        }),
+      )
+
+      const entries = getSessionsOverview(db, { userId: user.id })
+      const spawned = entries.find((entry) => entry.sessionId === 'sdk-spawned-1')
+      expect(spawned?.scope).toBe('spawned')
+      expect(spawned?.title).toBe('Research: pricing')
+      expect(spawned?.workspaceId).toBeNull()
+      expect(spawned?.segments).toHaveLength(1)
+    })
+  })
+
   it('marks the segment a live primary points at as isCurrent', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

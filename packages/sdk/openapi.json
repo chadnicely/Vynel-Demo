@@ -19407,7 +19407,10 @@
                             ]
                           },
                           "workspaceId": {
-                            "type": "string"
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           },
                           "workspaceName": {
                             "type": "string"
@@ -19741,6 +19744,82 @@
                 },
                 "required": [
                   "targetWorkspaceId",
+                  "task"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/routing/delegate-session": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "A queued acknowledgement: { status: 'enqueued', jobId, sessionName }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "enqueued"
+                    },
+                    "jobId": {
+                      "type": "string"
+                    },
+                    "sessionName": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "jobId",
+                    "sessionName"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Routing is only available during an active global-root turn."
+          },
+          "404": {
+            "description": "Target session not found, not owned, or not a spawned session."
+          }
+        },
+        "operationId": "postRoutingDelegate-session",
+        "tags": [
+          "routing"
+        ],
+        "parameters": [],
+        "summary": "Enqueue a task for a spawned session; it runs in the background and reports back.",
+        "x-sdk-name": "routing.delegateSession",
+        "x-mcp": {
+          "exposed": true,
+          "name": "send_task_to_session",
+          "mutatingApproved": true,
+          "description": "Hand a task to a session you created with create_session (its continuing conversation, with its primed purpose and everything it has done since). Use list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to a session with room, or create a new one. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the session runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. Tasks sent to the SAME session run one at a time, in order; different sessions run in parallel. If the task needs an irreversible action, that action PAUSES for the user to approve; the task continues once they decide."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "targetSessionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "task": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  }
+                },
+                "required": [
+                  "targetSessionId",
                   "task"
                 ]
               }
@@ -20427,7 +20506,8 @@
                         "enum": [
                           "global",
                           "workspace",
-                          "agent"
+                          "agent",
+                          "spawned"
                         ]
                       },
                       "workspaceId": {
@@ -20532,7 +20612,85 @@
         ],
         "parameters": [],
         "summary": "List every session across scopes — continuity chains folded into single entries, newest first.",
-        "x-sdk-name": "sessions.overview"
+        "x-sdk-name": "sessions.overview",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_sessions",
+          "rootSurface": true,
+          "description": "List every session — yours (scope 'spawned' = sessions you created), the user's workspaces, and the assistant thread — with per-session context usage: contextTokens used of contextWindow. Check these numbers BEFORE choosing where to send work: a session near its window is a poor target; create a new one instead. Each entry’s sessionId is the handle send_task_to_session accepts. Read-only."
+        }
+      }
+    },
+    "/sessions/spawned": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ status: 'created', sessionId, name }",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "created"
+                    },
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "sessionId",
+                    "name"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postSessionsSpawned",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [],
+        "summary": "Create a spawned session — a named, purpose-primed continuing session.",
+        "x-sdk-name": "sessions.createSpawned",
+        "x-mcp": {
+          "exposed": true,
+          "name": "create_session",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "description": "Create a NEW session: a normal continuing conversation with its own context, primed with the purpose you give it. Use it to hand off big or parallel work and keep your own context free — prefer send_task_to_workspace when the task belongs to a specific workspace's ongoing context, and a new session for standalone or cross-cutting work. Check list_sessions first: reuse an existing suitable session instead of creating duplicates. Returns { sessionId, name } — pass sessionId to send_task_to_session. The session appears in the user’s Sessions panel immediately."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  }
+                },
+                "required": [
+                  "name",
+                  "purpose"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "/sessions/{sessionId}/stream": {

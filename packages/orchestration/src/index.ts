@@ -50,6 +50,10 @@ export {
   type EnqueueWorkspaceDelegationInput,
   type DelegationOrigin,
 } from './routing/enqueue-workspace-delegation.js'
+export {
+  enqueueSessionDelegation,
+  type EnqueueSessionDelegationInput,
+} from './routing/enqueue-session-delegation.js'
 
 // The global-root catch-up (Ch3.5 root-awareness fix): the terminal delegations the root
 // hasn't been told about, as a context block to prepend to its next turn.

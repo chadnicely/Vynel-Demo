@@ -39,6 +39,19 @@ export const RouteToWorkspaceResponseSchema = z.object({
   workspaceName: z.string(),
 })
 
+export const SendTaskToSessionRequestSchema = z.object({
+  /** The target session — the id list_sessions shows / create_session returned. */
+  targetSessionId: z.string().min(1),
+  /** The task to send — becomes a turn on the spawned session's conversation. */
+  task: z.string().min(1).max(50000),
+})
+
+export const SendTaskToSessionResponseSchema = z.object({
+  status: z.literal('enqueued'),
+  jobId: z.string(),
+  sessionName: z.string(),
+})
+
 // Local enum (the root-schemas precedent of redeclaring small unions) — the
 // channels route file keeps its ChannelKindSchema private.
 const RoutingChannelKindSchema = z.enum(['telegram', 'discord'])

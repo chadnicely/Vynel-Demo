@@ -37,8 +37,10 @@ export type ChatSessionVisibility = 'listed' | 'hidden'
 // platform — and a future "read session history" tool — filter sessions by type
 // instead of inferring from `workspaceId IS NULL`. NOT NULL DEFAULT `'workspace'`
 // so the column is purely additive (every pre-existing row backfills to
-// `'workspace'`).
-export type ChatSessionScope = 'global' | 'workspace' | 'agent'
+// `'workspace'`). `'spawned'` (session-library Slice ④) = a session the root
+// created as a tool — global-grounded (`workspaceId` null) but LISTED under its
+// own name, unlike the hidden global-brain segments.
+export type ChatSessionScope = 'global' | 'workspace' | 'agent' | 'spawned'
 
 export const chatSessions = table(
   'chat_sessions',

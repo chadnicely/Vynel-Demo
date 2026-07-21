@@ -2253,6 +2253,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/routing/delegate-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enqueue a task for a spawned session; it runs in the background and reports back. */
+        post: operations["postRoutingDelegate-session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/routing/channels": {
         parameters: {
             query?: never;
@@ -2349,6 +2366,23 @@ export interface paths {
         get: operations["getSessionsOverview"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sessions/spawned": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a spawned session — a named, purpose-primed continuing session. */
+        post: operations["postSessionsSpawned"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10088,7 +10122,7 @@ export interface operations {
                     "application/json": {
                         delegations: {
                             partialSessionId: string | null;
-                            workspaceId: string;
+                            workspaceId: string | null;
                             workspaceName: string;
                             taskLabel: string;
                             /** @enum {string} */
@@ -10250,6 +10284,52 @@ export interface operations {
                 content?: never;
             };
             /** @description Target workspace not found or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postRoutingDelegate-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    targetSessionId: string;
+                    task: string;
+                };
+            };
+        };
+        responses: {
+            /** @description A queued acknowledgement: { status: 'enqueued', jobId, sessionName }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "enqueued";
+                        jobId: string;
+                        sessionName: string;
+                    };
+                };
+            };
+            /** @description Routing is only available during an active global-root turn. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target session not found, not owned, or not a spawned session. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10502,7 +10582,7 @@ export interface operations {
                     "application/json": {
                         sessionId: string;
                         /** @enum {string} */
-                        scope: "global" | "workspace" | "agent";
+                        scope: "global" | "workspace" | "agent" | "spawned";
                         workspaceId: string | null;
                         workspaceName: string | null;
                         title: string;
@@ -10520,6 +10600,38 @@ export interface operations {
                             isCurrent: boolean;
                         }[];
                     }[];
+                };
+            };
+        };
+    };
+    postSessionsSpawned: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name: string;
+                    purpose: string;
+                };
+            };
+        };
+        responses: {
+            /** @description { status: 'created', sessionId, name } */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "created";
+                        sessionId: string;
+                        name: string;
+                    };
                 };
             };
         };

@@ -120,7 +120,8 @@ export const InFlightDelegationSchema = z.object({
   // Null only for a (Ch2-precluded) job with no key; still counted as live work.
   partialSessionId: z.string().nullable(),
   // The target workspace — the workspace chat polls its transcript while this runs.
-  workspaceId: z.string(),
+  // Null for a session-target job (Slice ④ — no workspace view polls it).
+  workspaceId: z.string().nullable(),
   workspaceName: z.string(),
   // The task as a short label — the indicator names the actual work.
   taskLabel: z.string(),

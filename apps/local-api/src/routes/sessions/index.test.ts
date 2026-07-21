@@ -6,6 +6,9 @@
 
 import { describe, it, expect } from 'vitest'
 import { randomUUID } from 'node:crypto'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import pino from 'pino'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
@@ -13,22 +16,61 @@ import { withTestDatabase } from '@vynel/testing'
 import { VynelError } from '@vynel/errors'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { insertChatSession, type NewChatSession } from '@vynel/chat/repositories'
+import { insertChatSession, findChatSessionById, type NewChatSession } from '@vynel/chat/repositories'
 import { TurnEventBroadcaster } from '@vynel/session/delegation'
 import { sessionChannelKey } from '@vynel/session/runtime'
+import { findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
 import type { Database } from '@vynel/db'
+import type {
+  AiAgentProvider,
+  NormalizedSessionEvent,
+  StartChatSessionInput,
+} from '@vynel/providers'
 import type { AppEnv } from '../../factory.js'
+import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
 import { sessionsApp } from './index.js'
 
 const silentLogger = pino({ level: 'silent' })
 
-function makeHarness(db: Database, turnEvents = new TurnEventBroadcaster()) {
+// The create route's priming turn, faked: session-started + completed — the
+// runSeededSwapSession drain shape (no live SDK).
+function makePrimingProvider(
+  sessionId: string,
+  inputs: StartChatSessionInput[] = [],
+): AiAgentProvider {
+  return {
+    startChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
+      inputs.push(input)
+      return (async function* () {
+        yield {
+          kind: 'session-started',
+          sessionId,
+          resumedFromExisting: false,
+          startedAt: new Date(),
+        } as NormalizedSessionEvent
+        yield {
+          kind: 'session-completed',
+          sessionId,
+          isNewSession: true,
+          completedAt: new Date(),
+        } as NormalizedSessionEvent
+      })()
+    },
+  } as unknown as AiAgentProvider
+}
+
+function makeHarness(
+  db: Database,
+  turnEvents = new TurnEventBroadcaster(),
+  aiProvider?: AiAgentProvider,
+) {
   const app = new Hono<AppEnv>()
   app.use('*', async (c, next) => {
     c.set('db', db)
     c.set('logger', silentLogger)
     c.set('appRequest', app.request.bind(app))
     c.set('turnEvents', turnEvents)
+    if (aiProvider !== undefined) c.set('aiProvider', aiProvider)
     await next()
   })
   app.onError((err, c) => {
@@ -199,6 +241,64 @@ describe('GET /sessions/:sessionId/stream (SSE observe)', () => {
       expect(frames).toContain('event: text-chunk')
       expect(frames).toContain('Working…')
       expect(frames).toContain('event: turn-stream-ended')
+    })
+  })
+})
+
+describe('POST /sessions/spawned (Slice ④ — create_session)', () => {
+  it('primes a session with the purpose in the global-root cwd and records the named, listed spawned session', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-spawned-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const primingInputs: StartChatSessionInput[] = []
+        const app = makeHarness(
+          db,
+          new TurnEventBroadcaster(),
+          makePrimingProvider('sdk-spawned-route', primingInputs),
+        )
+
+        const res = await app.request('/sessions/spawned', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            name: 'Research: pricing',
+            purpose: 'Compare competitor pricing pages.',
+          }),
+        })
+        expect(res.status).toBe(200)
+        expect(await res.json()).toEqual({
+          status: 'created',
+          sessionId: 'sdk-spawned-route',
+          name: 'Research: pricing',
+        })
+
+        // The priming turn ran in the pinned global-root cwd with the purpose.
+        expect(primingInputs[0]!.workspacePath).toBe(path.join(dataDir, 'global-root'))
+        expect(primingInputs[0]!.userMessageText).toContain('Compare competitor pricing pages.')
+
+        // Recorded: the listed named segment + the resolvable spawned primary.
+        const segment = findChatSessionById(db, 'sdk-spawned-route')
+        expect(segment?.scope).toBe('spawned')
+        expect(segment?.visibility).toBe('listed')
+        expect(segment?.title).toBe('Research: pricing')
+        expect(
+          findSpawnedSessionBySegmentId(db, { userId: user.id, sessionId: 'sdk-spawned-route' }),
+        ).not.toBeNull()
+      })
+    })
+  })
+
+  it('validates the body (empty name rejected)', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db, new TurnEventBroadcaster(), makePrimingProvider('sdk-x'))
+      const res = await app.request('/sessions/spawned', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '', purpose: 'p' }),
+      })
+      expect(res.status).toBe(400)
     })
   })
 })

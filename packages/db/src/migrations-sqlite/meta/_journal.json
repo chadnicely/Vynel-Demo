@@ -85,6 +85,13 @@
       "when": 1784588489920,
       "tag": "0011_session_context_chain",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1784593322878,
+      "tag": "0012_delegation_session_targets",
+      "breakpoints": true
     }
   ]
 }
