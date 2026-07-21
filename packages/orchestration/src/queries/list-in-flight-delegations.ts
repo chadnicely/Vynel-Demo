@@ -18,8 +18,13 @@ export interface InFlightDelegation {
   workspaceId: string | null
   /** The indicator label: the target workspace's name, or the generic 'Session'
    *  for a session-target job (orchestration can't read the session's name —
-   *  that's the session package's table; the taskLabel still names the work). */
+   *  that's the session package's table; the session tier's
+   *  attachSpawnedSessionNames decorates the real name at serve time). */
   workspaceName: string
+  /** A SESSION-target job's spawned primary — null for workspace targets. The
+   *  session tier resolves its display name off this (loose cross-feature ref,
+   *  same as the column itself). */
+  targetPrimarySessionId: string | null
   /** The task, as a short human label — the indicator names the actual work
    *  ("vynel · Set up the login page"), never a canned "Working…". */
   taskLabel: string
@@ -37,6 +42,7 @@ export function listInFlightDelegations(
     partialSessionId: job.partialSessionId,
     workspaceId: job.workspaceId,
     workspaceName: job.workspaceName ?? 'Session',
+    targetPrimarySessionId: job.targetPrimarySessionId,
     taskLabel: deriveDelegationTaskLabel(job.taskText),
     status: job.status as 'pending' | 'claimed',
   }))

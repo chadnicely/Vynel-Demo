@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
-import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
+import type {
+  ChatMessageResponse,
+  ChatToolCallResponse,
+} from "@vynel/contracts/chat/chat-http";
 import { createActiveTurnView } from "../../composables/chat/active-turn-view.js";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
 import ThreadStream from "./ThreadStream.vue";
@@ -21,6 +24,22 @@ function makeMessage(index: number): ChatMessageResponse {
     startedAt: "2026-07-05T10:00:00.000Z",
     completedAt: "2026-07-05T10:00:01.000Z",
     createdAt: "2026-07-05T10:00:00.000Z",
+  };
+}
+
+function makeAgentToolCall(parentMessageId: string): ChatToolCallResponse {
+  return {
+    id: `tc-${parentMessageId}`,
+    parentMessageId,
+    toolUseId: `tu-${parentMessageId}`,
+    toolName: "Agent",
+    toolInput: { name: "scout", description: "Find the pricing rules" },
+    toolOutput: "done",
+    status: "completed",
+    approvalStatus: null,
+    isErrorResult: false,
+    startedAt: "2026-07-05T10:00:00.000Z",
+    completedAt: "2026-07-05T10:00:30.000Z",
   };
 }
 
@@ -60,6 +79,63 @@ describe("ThreadStream", () => {
     const wrapper = mountStream(5);
 
     expect(wrapper.find(".jump-to-latest").exists()).toBe(false);
+  });
+
+  // Watch coverage (Slice ④): chips render on EVERY surface — the old
+  // per-surface `showWatchChips` gate (the workspace passed false) is gone.
+  it("offers the Watch chip on a delegation-traced row and emits its trace key", async () => {
+    const traced: ChatMessageResponse = {
+      ...makeMessage(1),
+      partialSessionId: "partial-1",
+      sourceKind: "workspace-manager",
+      sourceLabel: "Noah · vynel",
+    };
+    const wrapper = mount(ThreadStream, {
+      props: { messages: [traced], toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+
+    const chip = wrapper.get(".session-link");
+    await chip.trigger("click");
+    expect(wrapper.emitted("openSession")).toEqual([["partial-1"]]);
+  });
+
+  it("a traced row's Agent card watches over the TRACE source", async () => {
+    const traced: ChatMessageResponse = {
+      ...makeMessage(1),
+      partialSessionId: "partial-1",
+    };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [traced],
+        toolCallsByMessageId: { m1: [makeAgentToolCall("m1")] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    await wrapper.get(".watch-chip").trigger("click");
+    expect(wrapper.emitted("watchAgent")).toEqual([
+      [{ kind: "trace", id: "partial-1" }, "tu-m1"],
+    ]);
+  });
+
+  it("a DIRECT turn's Agent card watches over the row's own SESSION source", async () => {
+    // No partialSessionId — the agent's activity lives on the session the
+    // turn ran on (persisted subagent fields / the live map).
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [makeMessage(1)],
+        toolCallsByMessageId: { m1: [makeAgentToolCall("m1")] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    await wrapper.get(".watch-chip").trigger("click");
+    expect(wrapper.emitted("watchAgent")).toEqual([
+      [{ kind: "session", id: "s1" }, "tu-m1"],
+    ]);
   });
 
   it("hides persisted rows the live overlay already renders (mid-turn refetch dedupe)", () => {

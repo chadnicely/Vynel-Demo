@@ -379,7 +379,7 @@ describe("ActivityMonitorPanel — agent drill-down", () => {
       traceStatus: "completed",
       traceEntries: agentTraceEntries,
     });
-    harness.store.openAgentDirect("trace-1", "tu_agent_1");
+    harness.store.openAgentDirect({ kind: "trace", id: "trace-1" }, "tu_agent_1");
 
     await vi.waitFor(() =>
       expect(harness.wrapper.find(".agent-focus").exists()).toBe(true),
@@ -388,6 +388,35 @@ describe("ActivityMonitorPanel — agent drill-down", () => {
       false,
     );
     expect(harness.wrapper.find('[aria-label="Close"]').exists()).toBe(true);
+    harness.wrapper.unmount();
+  });
+
+  it("openAgentDirect over a SESSION source: a settled DIRECT-turn agent renders its recorded activity + report", async () => {
+    // No trace exists for a direct turn — the agent's data is the session
+    // transcript's persisted subagent fields (Slice ④ coverage).
+    const harness = makeHarness({
+      transcriptMessages: () => [{ id: "m-1", body: "spawning a scout" }],
+      transcriptToolCalls: () => ({ "m-1": [makeAgentToolCall()] }),
+    });
+    harness.store.openAgentDirect({ kind: "session", id: "s1" }, "tu_agent_1");
+
+    await vi.waitFor(() =>
+      expect(harness.wrapper.find(".agent-focus").exists()).toBe(true),
+    );
+    // The monitor bound to the SESSION channel, not a trace read.
+    expect(harness.GET.mock.calls[0]![0]).toBe("/sessions/{sessionId}/stream");
+    expect(harness.getTrace).not.toHaveBeenCalled();
+    expect(harness.wrapper.get(".viewer-title").text()).toContain("Agent scout");
+    expect(harness.wrapper.get(".agent-activity").text()).toContain(
+      "Scanned the docs folder.",
+    );
+    expect(harness.wrapper.get(".agent-report").text()).toContain(
+      "The pricing rules live in pricing.md",
+    );
+    // Direct open: Close only, no Back.
+    expect(
+      harness.wrapper.find('[aria-label="Back to the conversation"]').exists(),
+    ).toBe(false);
     harness.wrapper.unmount();
   });
 

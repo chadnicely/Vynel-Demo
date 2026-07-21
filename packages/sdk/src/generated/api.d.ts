@@ -10130,7 +10130,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description { delegations: [{ partialSessionId, workspaceName, taskLabel, status }] } — empty when idle. */
+            /** @description { delegations: [{ partialSessionId, workspaceName, sessionName, taskLabel, status }] } — empty when idle. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10141,6 +10141,8 @@ export interface operations {
                             partialSessionId: string | null;
                             workspaceId: string | null;
                             workspaceName: string;
+                            targetPrimarySessionId: string | null;
+                            sessionName: string | null;
                             taskLabel: string;
                             /** @enum {string} */
                             status: "pending" | "claimed";

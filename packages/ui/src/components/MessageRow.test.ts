@@ -69,16 +69,9 @@ describe("MessageRow", () => {
     expect(wrapper.find(".session-link").exists()).toBe(false);
   });
 
-  it("suppresses the chip when showWatchChip is false (the workspace's own transcript)", () => {
-    const wrapper = mount(MessageRow, {
-      props: {
-        message: makeMessage({ partialSessionId: "child-session" }),
-        showWatchChip: false,
-      },
-    });
-
-    expect(wrapper.find(".session-link").exists()).toBe(false);
-  });
+  // The old `showWatchChip: false` suppression pins died with the prop
+  // (sessions-surface Slice ④, Chad's monitor-parity call): a traced row now
+  // wears its chip + accent on EVERY surface, the workspace room included.
 
   // Author labels are persona-first: the brain speaks as Claude, a workspace
   // persona by its own label — "Assistant · X" prefixes are gone.
@@ -152,20 +145,6 @@ describe("MessageRow", () => {
     const row = wrapper.find(".message-row");
     expect(row.classes()).toContain("has-accent");
     expect(row.attributes("style")).toContain("--accent");
-  });
-
-  it("suppresses the accent inside the workspace's own room (showWatchChip false)", () => {
-    const wrapper = mount(MessageRow, {
-      props: {
-        message: makeMessage({
-          sourceKind: "workspace-manager",
-          sourceLabel: "Noah · vynel",
-        }),
-        showWatchChip: false,
-      },
-    });
-
-    expect(wrapper.find(".message-row").classes()).not.toContain("has-accent");
   });
 
   it("stays neutral for the global brain and the user (no accent)", () => {

@@ -19389,7 +19389,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "{ delegations: [{ partialSessionId, workspaceName, taskLabel, status }] } — empty when idle.",
+            "description": "{ delegations: [{ partialSessionId, workspaceName, sessionName, taskLabel, status }] } — empty when idle.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19415,6 +19415,18 @@
                           "workspaceName": {
                             "type": "string"
                           },
+                          "targetPrimarySessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "sessionName": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "taskLabel": {
                             "type": "string"
                           },
@@ -19430,6 +19442,8 @@
                           "partialSessionId",
                           "workspaceId",
                           "workspaceName",
+                          "targetPrimarySessionId",
+                          "sessionName",
                           "taskLabel",
                           "status"
                         ]

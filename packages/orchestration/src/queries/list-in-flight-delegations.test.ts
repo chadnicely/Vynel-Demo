@@ -82,6 +82,45 @@ describe('listInFlightDelegations', () => {
       expect(inFlight[0]).toMatchObject({ workspaceName: 'Acme' })
       expect(typeof inFlight[0]!.workspaceId).toBe('string')
       expect(typeof inFlight[0]!.partialSessionId).toBe('string')
+      // A workspace-target job carries no session target.
+      expect(inFlight[0]!.targetPrimarySessionId).toBeNull()
+    })
+  })
+
+  it('carries a session-target job with its targetPrimarySessionId (Slice ④ chips)', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const targetId = randomUUID()
+      const now = new Date()
+      insertDelegationJob(db, {
+        id: randomUUID(),
+        userId: user.id,
+        parentSessionId: 'g-sess',
+        workspaceId: null,
+        workspacePath: '/tmp/vynel/global-root',
+        workspaceName: null,
+        targetPrimarySessionId: targetId,
+        taskText: 'research the pricing pages',
+        partialSessionId: randomUUID(),
+        status: 'pending',
+        claimedAt: null,
+        completedAt: null,
+        resultText: null,
+        errorMessage: null,
+        surfacedToRootAt: null,
+        createdAt: now,
+      })
+
+      const inFlight = listInFlightDelegations(db, { userId: user.id })
+      expect(inFlight).toHaveLength(1)
+      // The session tier decorates the real name at serve time; here the
+      // generic label + the target ref it decorates FROM.
+      expect(inFlight[0]).toMatchObject({
+        workspaceId: null,
+        workspaceName: 'Session',
+        targetPrimarySessionId: targetId,
+        taskLabel: 'research the pricing pages',
+      })
     })
   })
 

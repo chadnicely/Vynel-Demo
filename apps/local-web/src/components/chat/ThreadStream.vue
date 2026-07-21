@@ -6,34 +6,44 @@ import type {
 } from "@vynel/contracts/chat/chat-http";
 import { MessageRow, ToolCallList } from "@vynel/ui";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
+import type { ActivitySource } from "../../composables/activity/use-activity-monitor.js";
 import { useLiveSessionsStore } from "../../stores/live-sessions-store.js";
 import LiveTurn from "./LiveTurn.vue";
 
+// Watch chips render on EVERY thread surface — global, workspace, and session
+// views alike (Chad's monitor-parity call, sessions-surface Slice ④; the old
+// per-surface `showWatchChips` gate died with the workspace-suppression rule).
 const props = withDefaults(
   defineProps<{
     messages: ChatMessageResponse[];
     toolCallsByMessageId: Record<string, ChatToolCallResponse[]>;
     activeTurn: ActiveTurnView | null;
-    /** Watch chips point at work on ANOTHER session — the global thread shows them
-     *  (default); the workspace's own transcript suppresses them (the routed
-     *  exchange is local; chips return for spawned sub-agents, Phase 3). Explicit
-     *  default: an absent Boolean prop casts to false. */
-    showWatchChips?: boolean;
     /** Who speaks for plain assistant rows on this surface (settled AND live) —
      *  the global thread passes the assistant's name. */
     assistantName?: string;
   }>(),
-  { showWatchChips: true, assistantName: "Assistant" },
+  { assistantName: "Assistant" },
 );
 
 const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
   /** A message's delegation chip: open that session's live view. */
   openSession: [sessionId: string];
-  /** An Agent card's Watch chip (delegation-traced messages only): open the
-   *  focused agent view keyed by the message's trace + the Agent call. */
-  watchAgent: [partialSessionId: string, toolUseId: string];
+  /** An Agent card's Watch chip: open the focused agent view over the source
+   *  that carries the agent's activity (trace for delegation-traced rows, the
+   *  row's own session for a direct turn's agent). */
+  watchAgent: [source: ActivitySource, toolUseId: string];
 }>();
+
+/** The activity source an Agent card's Watch chip opens over: a
+ *  delegation-traced row streams on its trace channel; a DIRECT turn's agent
+ *  has no trace — its activity lives on the session the turn ran on (live map
+ *  while running, persisted subagent fields after settle). */
+function agentWatchSourceFor(message: ChatMessageResponse): ActivitySource {
+  return message.partialSessionId != null
+    ? { kind: "trace", id: message.partialSessionId }
+    : { kind: "session", id: message.sessionId };
+}
 
 const liveSessions = useLiveSessionsStore();
 const scroller = ref<HTMLElement | null>(null);
@@ -175,7 +185,6 @@ watch(
         <template v-for="message in visibleMessages" :key="message.id">
           <MessageRow
             :message="message"
-            :show-watch-chip="props.showWatchChips"
             :assistant-name="props.assistantName"
             :linked-session-live="
               message.partialSessionId != null &&
@@ -187,16 +196,16 @@ watch(
               v-if="props.toolCallsByMessageId[message.id]?.length"
               #tool-calls
             >
-              <!-- Agent cards on DELEGATION-traced rows get a Watch chip —
-                   the routed turn's live activity streams on its trace
-                   channel, so the focused agent view can attach anywhere. -->
+              <!-- Every Agent card gets a Watch chip: traced rows open over
+                   the delegation's trace channel, direct rows over the
+                   session itself (agentWatchSourceFor). -->
               <ToolCallList
                 class="tool-list"
                 :tool-calls="props.toolCallsByMessageId[message.id] ?? []"
-                :watchable-agents="message.partialSessionId != null"
+                watchable-agents
                 @watch-agent="
                   (toolCall) =>
-                    emit('watchAgent', message.partialSessionId!, toolCall.toolUseId)
+                    emit('watchAgent', agentWatchSourceFor(message), toolCall.toolUseId)
                 "
               />
             </template>

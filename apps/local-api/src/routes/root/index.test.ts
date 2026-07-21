@@ -282,11 +282,52 @@ describe('GET /root/delegations', () => {
 
       const busy = await app.request('/root/delegations')
       const body = (await busy.json()) as {
-        delegations: { partialSessionId: string | null; workspaceName: string; status: string }[]
+        delegations: {
+          partialSessionId: string | null
+          workspaceName: string
+          sessionName: string | null
+          status: string
+        }[]
       }
       expect(body.delegations).toHaveLength(1)
       expect(body.delegations[0]!.workspaceName).toBe('Acme')
       expect(body.delegations[0]!.status).toBe('pending')
+      expect(body.delegations[0]!.partialSessionId).not.toBeNull()
+      // A workspace-target job never carries a session name.
+      expect(body.delegations[0]!.sessionName).toBeNull()
+    })
+  })
+
+  it('surfaces SESSION-target jobs with a sessionName for the banner chip (Slice ④)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const app = makeHarness(db)
+
+      // No primary row behind the target ref — the serve-time enrichment falls
+      // back to the generic name (the real-name path is pinned in the session
+      // package's attach-spawned-session-names test).
+      enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'g-parent',
+        targetPrimarySessionId: randomUUID(),
+        runCwdPath: '/tmp/vynel/global-root',
+        taskText: 'research the pricing pages',
+      })
+
+      const busy = await app.request('/root/delegations')
+      const body = (await busy.json()) as {
+        delegations: {
+          partialSessionId: string | null
+          workspaceId: string | null
+          sessionName: string | null
+          taskLabel: string
+        }[]
+      }
+      expect(body.delegations).toHaveLength(1)
+      expect(body.delegations[0]!.workspaceId).toBeNull()
+      expect(body.delegations[0]!.sessionName).toBe('Session')
+      expect(body.delegations[0]!.taskLabel).toBe('research the pricing pages')
+      // The chip's Watch opens the trace by this key, target kind regardless.
       expect(body.delegations[0]!.partialSessionId).not.toBeNull()
     })
   })

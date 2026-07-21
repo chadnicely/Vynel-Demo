@@ -243,12 +243,13 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           </template>
         </EmptyState>
       </div>
+      <!-- Watch chips render here too (monitor parity, Slice ④) — a routed
+           exchange's rows open the same trace panel the global thread offers. -->
       <ThreadStream
         v-else
         :messages="messages"
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
-        :show-watch-chips="false"
         :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
         @decide-approval="onDecideApproval"
         @open-session="activityMonitor.openTrace"

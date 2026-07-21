@@ -32,7 +32,6 @@ import {
 } from '@vynel/orchestration'
 import { findPrimaryConversation } from '../continuity/index.js'
 import { recordPushedReportMessage, type ChatTurnEvent } from '@vynel/chat'
-import { findChatSessionById } from '@vynel/chat/repositories'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
@@ -40,6 +39,7 @@ import * as primarySessionsRepository from '../repositories/index.js'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
 import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
+import { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
 import {
   buildRoutedApprovalHandler,
   type RoutedApprovalHandler,
@@ -195,9 +195,8 @@ export async function runDelegationClaimAndRunTick(
     // WORKSPACE target (brain-tree Ch5): manager name + CURRENT workspace name,
     // falling back to the enqueue-time name if the workspace was deleted.
     // SESSION target (Slice ④): the spawned session's NAME plays the manager
-    // role (v1, recorded) — read fresh off its current segment's title (the
-    // first, listed segment names it; after a rare mid-turn swap the stock
-    // hidden title falls back to 'Session').
+    // role (v1, recorded) — the shared display-name reading (one home with the
+    // in-flight chip's label, see resolve-spawned-session-name.ts).
     let targetName: string
     let managerName: string | undefined
     // Slice ④b: a SESSION target's own workspace grounding (null for a
@@ -210,14 +209,7 @@ export async function runDelegationClaimAndRunTick(
         claimed.targetPrimarySessionId,
       )
       spawnedTargetWorkspaceId = targetPrimary?.workspaceId ?? null
-      const currentSegment =
-        targetPrimary?.currentSdkSessionId != null
-          ? findChatSessionById(db, targetPrimary.currentSdkSessionId)
-          : null
-      targetName =
-        currentSegment !== null && currentSegment.visibility === 'listed'
-          ? currentSegment.title
-          : 'Session'
+      targetName = resolveSpawnedSessionDisplayName(db, targetPrimary)
       managerName = undefined
     } else {
       const workspace =

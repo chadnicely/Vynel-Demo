@@ -23,6 +23,7 @@ import {
   type NewChatMessage,
 } from '@vynel/chat/repositories'
 import { persistAttachedImages } from '@vynel/chat'
+import { enqueueWorkspaceDelegation, findDelegationJobById } from '@vynel/orchestration'
 import { getOrCreatePrimarySession } from '@vynel/session/continuity'
 import type { Database } from '@vynel/db'
 import { createApp } from '../../app.js'
@@ -217,6 +218,38 @@ describe('GET /chat/sessions/:sessionId', () => {
       expect(body.messages).toHaveLength(1)
       expect(body.messages[0]!.body).toBe('hello there')
       expect(body.toolCallsByMessageId).toEqual({})
+    })
+  })
+
+  it('enriches delegation-traced rows with the task label (parity with root.getSession)', async () => {
+    // Slice ④ turned the workspace thread's Watch chips ON — its detail read
+    // must carry the same serve-time label the global read does, or the two
+    // surfaces would name the same chip differently.
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      const session = insertChatSession(db, makeSession(user.id, workspace.id))
+      const jobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'g-parent',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'Set up the login page',
+      })
+      const partialSessionId = findDelegationJobById(db, jobId)!.partialSessionId!
+      insertChatMessage(db, {
+        ...makeMessage(session.id, 'On it.'),
+        role: 'assistant',
+        partialSessionId,
+      })
+      const app = createApp({ db, logger: silentLogger })
+
+      const res = await app.request(`/workspaces/${workspace.id}/chat/sessions/${session.id}`)
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        messages: Array<{ body: string; delegationTaskLabel?: string }>
+      }
+      expect(body.messages[0]!.delegationTaskLabel).toBe('Set up the login page')
     })
   })
 

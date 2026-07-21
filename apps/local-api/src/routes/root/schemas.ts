@@ -123,6 +123,12 @@ export const InFlightDelegationSchema = z.object({
   // Null for a session-target job (Slice ④ — no workspace view polls it).
   workspaceId: z.string().nullable(),
   workspaceName: z.string(),
+  // A SESSION-target job's spawned primary — null for workspace targets.
+  targetPrimarySessionId: z.string().nullable(),
+  // The spawned target session's display name (serve-time enrichment) — the
+  // chip's label for session-target jobs. Null for workspace targets, whose
+  // workspaceName already labels them.
+  sessionName: z.string().nullable(),
   // The task as a short label — the indicator names the actual work.
   taskLabel: z.string(),
   status: z.enum(['pending', 'claimed']),

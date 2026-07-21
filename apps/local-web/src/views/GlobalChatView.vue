@@ -2,9 +2,10 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { Settings2 } from "lucide-vue-next";
-import { EmptyState, PresenceDot, workspaceAccentVar } from "@vynel/ui";
+import { EmptyState } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
+import ProcessingBanner from "../components/chat/ProcessingBanner.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
 import AccountSection from "../components/sections/AccountSection.vue";
@@ -116,24 +117,14 @@ function openWorkspace(workspaceId: string) {
 // A routed task runs in the background and pushes its report into this thread
 // on completion — there is no server push, so poll while any delegation is
 // in flight (and keep the thread live) so the report surfaces within seconds.
-// Each in-flight row carries its correlation key, so the banner chip opens the
-// SAME live trace panel the report's "Watch X" chip does — while the task runs,
-// not only after it completes (the viewer's own poll fills the trace in live).
+// The banner (ProcessingBanner) shows one Watch chip per in-flight job —
+// workspace- and session-target alike. RECORDED (Slice ④): the workspace view
+// has no banner yet, so a workspace-created session-target job's chip appears
+// here (the global banner) only for now.
 const inFlightQuery = useInFlightDelegations();
 const inFlightDelegations = computed(() => inFlightQuery.data.value ?? []);
 const isProcessing = computed(() => inFlightDelegations.value.length > 0);
 const stopDelegation = useStopDelegation();
-
-/** The banner chip names the actual work — "vynel · Set up the login page" —
- *  falling back to the old generic line when the task text was empty. */
-function delegationChipLabel(delegation: {
-  workspaceName: string;
-  taskLabel: string;
-}): string {
-  return delegation.taskLabel
-    ? `${delegation.workspaceName} · ${delegation.taskLabel}`
-    : `Working in ${delegation.workspaceName}…`;
-}
 
 const chatTurn = useChatTurn({
   scope: () => GLOBAL_SCOPE,
@@ -328,55 +319,12 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         @watch-agent="activityMonitor.openAgentDirect"
       />
 
-      <div
-        v-if="isProcessing || backgroundTurnLabel"
-        class="processing-banner"
-      >
-        <span v-if="backgroundTurnLabel" class="processing-chip is-static">
-          <PresenceDot state="live" />
-          <span>{{ backgroundTurnLabel }}</span>
-        </span>
-        <template
-          v-for="(delegation, index) in inFlightDelegations"
-          :key="delegation.partialSessionId ?? `in-flight-${index}`"
-        >
-          <span
-            v-if="delegation.partialSessionId"
-            class="processing-chip"
-            :style="{
-              '--accent': workspaceAccentVar(delegation.workspaceName),
-            }"
-          >
-            <button
-              type="button"
-              class="processing-chip-main"
-              @click="activityMonitor.openTrace(delegation.partialSessionId)"
-            >
-              <PresenceDot state="live" />
-              <span class="processing-chip-label">{{
-                delegationChipLabel(delegation)
-              }}</span>
-              <span class="processing-chip-cta">Watch</span>
-            </button>
-            <button
-              type="button"
-              class="processing-chip-stop"
-              :aria-label="`Stop: ${delegationChipLabel(delegation)}`"
-              @click="stopDelegation.mutate(delegation.partialSessionId)"
-            >
-              <svg width="9" height="9" viewBox="0 0 16 16" aria-hidden="true">
-                <rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor" />
-              </svg>
-            </button>
-          </span>
-          <span v-else class="processing-chip is-static">
-            <PresenceDot state="live" />
-            <span class="processing-chip-label">{{
-              delegationChipLabel(delegation)
-            }}</span>
-          </span>
-        </template>
-      </div>
+      <ProcessingBanner
+        :delegations="inFlightDelegations"
+        :background-turn-label="backgroundTurnLabel"
+        @watch="activityMonitor.openTrace"
+        @stop="stopDelegation.mutate"
+      />
 
       <footer class="composer-dock">
         <QueuedMessageChips
@@ -459,104 +407,6 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
    deliberately narrow (readable single-column sections). */
 .section-column.is-wide {
   max-width: none;
-}
-
-.processing-banner {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  max-width: 968px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 4px 24px 8px;
-}
-
-/* One pill per in-flight delegation — the live sibling of the report's
-   "Watch X" chip (MessageRow .session-link): clicking opens the same trace
-   panel while the task is still running. */
-.processing-chip {
-  appearance: none;
-  border: 1px solid
-    color-mix(in srgb, var(--accent, var(--gold)) 38%, transparent);
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 12px;
-  border-radius: 99px;
-  background: color-mix(in srgb, var(--accent, var(--gold)) 12%, transparent);
-  color: var(--ink-1);
-  font: 600 11.5px/1.5 var(--font-ui);
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-/* Task labels can run long — the chip stays one line and ellipsizes. */
-.processing-chip-label {
-  max-width: 420px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The chip splits into Watch (the body) + Stop (the square) — both plain
-   buttons inside the pill so no button ever nests in a button. */
-.processing-chip-main {
-  appearance: none;
-  border: none;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: inherit;
-  font: inherit;
-  cursor: default;
-}
-
-.processing-chip-stop {
-  appearance: none;
-  border: none;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-3);
-  cursor: pointer;
-}
-
-.processing-chip-stop:hover {
-  background: color-mix(in srgb, var(--danger) 15%, transparent);
-  color: var(--danger);
-}
-
-.processing-chip-stop:focus-visible {
-  outline: 2px solid var(--accent, var(--gold));
-  outline-offset: 1px;
-}
-
-.processing-chip:not(.is-static):hover {
-  border-color: var(--accent, var(--gold));
-}
-
-.processing-chip.is-static {
-  background: transparent;
-  border-color: transparent;
-  color: var(--ink-2);
-  font-weight: 500;
-}
-
-.processing-chip-cta {
-  color: var(--ink-3);
-  font: 600 10.5px/1.5 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
 }
 
 .composer-dock {

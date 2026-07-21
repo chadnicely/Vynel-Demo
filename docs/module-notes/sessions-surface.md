@@ -113,6 +113,40 @@ session channel (Watch-everywhere already publishes), announce on the activity f
   `agent.run-started/completed` outbox events (today consumerless) + unparking
   `delegate-to-leaf-session`. Slices ①–④ need none of it.
 
+### Slice ④ as built (2026-07-21)
+
+- **Workspace chips ON — the suppression gate DELETED, not just flipped:** the
+  `showWatchChips` (ThreadStream) / `showWatchChip` (MessageRow) props and their
+  off-state pins died with the workspace-suppression rule (parity is the rule
+  now; git history keeps them). `chat.getSession` gained the same
+  `attachDelegationTaskLabels` enrichment as `root.getSession` (the recorded
+  Slice-① content-divergence nit — closed here so both surfaces name a chip
+  identically).
+- **Direct-turn agents:** `openAgentDirect` generalized to take an
+  `ActivitySource` (no new sibling function); ThreadStream computes the source
+  per row — trace for delegation-traced rows, `{kind:'session', id:
+  message.sessionId}` otherwise — so EVERY Agent/Task card is watchable and a
+  settled direct agent renders its persisted activity + report in the focused
+  view (panel-pinned).
+- **Session-target banner chips:** the in-flight DTO grew
+  `targetPrimarySessionId` + `sessionName` (serve-time decoration
+  `attachSpawnedSessionNames` over the NEW shared
+  `resolveSpawnedSessionDisplayName` — the tick's name reading refactored onto
+  the same home, so chip and reply attribution can't diverge). The banner
+  extracted to `ProcessingBanner.vue` (testable; GlobalChatView shrank).
+  **RECORDED: the workspace view has NO processing banner — a
+  workspace-created session-target job's chip appears in the GLOBAL banner only
+  for now** (the global banner lists every in-flight job of the user).
+- **Linked-session chips ALREADY open the monitor** — via `openTrace`, and that
+  stays deliberate: a row's `partialSessionId` is the delegation's correlation
+  KEY, not a session id (`openSession` over it would 404), and the trace node
+  is the richer panel (status pill + Stop). The planned openSession rewire was
+  therefore not made.
+- **Decision (the 21N record): `openSession` KEPT** — the session-kind door the
+  node stack builds on (WHY-commented in the store; a real-session-id surface
+  like watch-from-list lands there if it returns). **`ContextMeter` DELETED**
+  (component + test + barrel export, no shims — zero consumers).
+
 ## Parked follow-ons (Chad, 2026-07-21 — "complete whatever is on our plate first")
 
 - **Inter-session communication MCP tool**: sessions talk to each other in the flow —

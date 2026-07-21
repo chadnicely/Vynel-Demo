@@ -60,19 +60,23 @@ export const useActivityMonitorStore = defineStore("activity-monitor", () => {
     open({ kind: "trace", partialSessionId });
   }
 
-  /** The Sessions view's Watch — any owned session, labeled by its identity. */
+  /** Watch any owned session in the panel, labeled by its identity. KEPT
+   *  (Slice ④ decision) as the session-kind door the node stack builds on —
+   *  thread chips hold a TRACE key (partialSessionId is a correlation key,
+   *  not a session id) so they open `openTrace`; direct-agent chips enter via
+   *  `openAgentDirect` with a session source. A surface holding a real
+   *  session id (watch-from-list, if it returns) lands here. */
   function openSession(sessionId: string, title: string) {
     open({ kind: "session", sessionId, title });
   }
 
   /** A thread card's Watch chip — straight onto one agent, no panel context to
-   *  return to: Close only, no Back. */
-  function openAgentDirect(partialSessionId: string, toolUseId: string) {
-    open({
-      kind: "agent",
-      source: { kind: "trace", id: partialSessionId },
-      toolUseId,
-    });
+   *  return to: Close only, no Back. The source is whatever channel carries the
+   *  agent's activity: a delegation-traced row's trace, or — for a DIRECT
+   *  turn's agent — the session the turn ran on (its persisted subagent fields
+   *  live in that transcript). */
+  function openAgentDirect(source: ActivitySource, toolUseId: string) {
+    open({ kind: "agent", source, toolUseId });
   }
 
   /** Drill into an agent FROM the open panel — Back returns to it. */

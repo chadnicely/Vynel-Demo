@@ -39,9 +39,9 @@ describe("activity-monitor store — the node stack", () => {
     expect(store.backAvailable).toBe(false);
   });
 
-  it("openAgentDirect lands on the agent with NO back — the base source is the carried trace", () => {
+  it("openAgentDirect lands on the agent with NO back — the base source is the carried source", () => {
     const store = useActivityMonitorStore();
-    store.openAgentDirect("partial-1", "tu_agent_1");
+    store.openAgentDirect({ kind: "trace", id: "partial-1" }, "tu_agent_1");
     expect(store.isOpen).toBe(true);
     expect(store.backAvailable).toBe(false);
     expect(store.current).toEqual({
@@ -51,6 +51,19 @@ describe("activity-monitor store — the node stack", () => {
     });
     // The agent node's carried source anchors the monitor.
     expect(store.baseSource).toEqual({ kind: "trace", id: "partial-1" });
+  });
+
+  it("openAgentDirect over a SESSION source — a DIRECT turn's agent, no trace involved", () => {
+    const store = useActivityMonitorStore();
+    store.openAgentDirect({ kind: "session", id: "sdk-1" }, "tu_agent_1");
+    expect(store.backAvailable).toBe(false);
+    expect(store.current).toEqual({
+      kind: "agent",
+      source: { kind: "session", id: "sdk-1" },
+      toolUseId: "tu_agent_1",
+    });
+    // The monitor binds to the session the turn ran on.
+    expect(store.baseSource).toEqual({ kind: "session", id: "sdk-1" });
   });
 
   it("focusAgent pushes an agent node carrying the current base source; back pops to it", () => {

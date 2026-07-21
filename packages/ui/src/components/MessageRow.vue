@@ -10,23 +10,21 @@ import {
   workspaceNameFromLabel,
 } from "../lib/workspace-color.js";
 
+// A delegation-traced row wears its Watch chip + workspace accent on EVERY
+// surface — the workspace's own transcript included (Chad's monitor-parity
+// call, sessions-surface Slice ④; the old `showWatchChip` suppression gate is
+// gone deliberately).
 const props = withDefaults(
   defineProps<{
     message: ChatMessageResponse;
     /** True while the linked session is streaming — the chip pulses gold. */
     linkedSessionLive?: boolean | undefined;
-    /** A Watch chip means "work happening on ANOTHER session" (the global thread
-     *  watching a delegation). Inside the transcript where the work itself lives
-     *  (the workspace chat's routed exchange) the chip is noise — pass false to
-     *  suppress it. Explicit default: an absent Boolean prop casts to false, which
-     *  would silently suppress every chip. */
-    showWatchChip?: boolean;
     /** The surface's own assistant author — ordinary rows carry no sourceKind,
      *  so the host names who speaks here (the global thread passes "Claude",
      *  a workspace room its manager persona). */
     assistantName?: string;
   }>(),
-  { linkedSessionLive: undefined, showWatchChip: true, assistantName: "Assistant" },
+  { linkedSessionLive: undefined, assistantName: "Assistant" },
 );
 
 const emit = defineEmits<{
@@ -75,9 +73,7 @@ const originBadge = computed(() => {
   return { kind: origin, label: ORIGIN_LABELS[origin] };
 });
 
-const linkedSessionId = computed(() =>
-  props.showWatchChip ? (props.message.partialSessionId ?? null) : null,
-);
+const linkedSessionId = computed(() => props.message.partialSessionId ?? null);
 
 // The chip names the actual work when the serve-time enrichment carried the
 // delegated task ("vynel · Set up the login page"); the persona-first
@@ -98,14 +94,12 @@ const watchChipLabel = computed(() => {
 });
 
 // A report bubbled up from a workspace/agent wears that workspace's stable
-// accent (left bar + chip tint) so it reads as belonging to it. Gated on the
-// same signal as the Watch chip: the accent marks work from ANOTHER session, so
-// inside the workspace's own room (showWatchChip=false) it's noise — suppress
-// it. The global brain and the user stay neutral regardless.
+// accent (left bar + chip tint) so it reads as belonging to it — on every
+// surface, the workspace's own room included (chip parity above). The global
+// brain and the user stay neutral regardless.
 const accentVar = computed(() => {
   const { role, sourceKind, sourceLabel } = props.message;
   const isWorkspaceReport =
-    props.showWatchChip &&
     role === "assistant" &&
     (sourceKind === "workspace-manager" || sourceKind === "agent") &&
     !!sourceLabel;

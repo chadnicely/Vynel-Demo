@@ -32,7 +32,11 @@ import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { streamGlobalRootTurn } from '../../streams/global-root-turn.js'
 import { resolveGlobalRootTranscript } from '@vynel/session/runtime'
 import { resolveDelegationTrace } from '@vynel/session/delegation'
-import { traceChannelKey, attachDelegationTaskLabels } from '@vynel/session/delegation'
+import {
+  traceChannelKey,
+  attachDelegationTaskLabels,
+  attachSpawnedSessionNames,
+} from '@vynel/session/delegation'
 import {
   StartGlobalRootTurnRequestSchema,
   DelegationTraceParamSchema,
@@ -252,7 +256,7 @@ export const rootApp = factory
       responses: {
         200: {
           description:
-            '{ delegations: [{ partialSessionId, workspaceName, taskLabel, status }] } — empty when idle.',
+            '{ delegations: [{ partialSessionId, workspaceName, sessionName, taskLabel, status }] } — empty when idle.',
           content: {
             'application/json': { schema: resolver(ListInFlightDelegationsResponseSchema) },
           },
@@ -261,7 +265,15 @@ export const rootApp = factory
       // No x-mcp — a UI liveness indicator, not an agent tool surface.
     }),
     ...userScoped,
-    (c) => c.json({ delegations: listInFlightDelegations(c.var.db, { userId: c.var.user.id }) }),
+    // Session-target rows gain the spawned session's display name — the chip
+    // labels the actual target ("Research: pricing"), not a generic 'Session'.
+    (c) =>
+      c.json({
+        delegations: attachSpawnedSessionNames(
+          c.var.db,
+          listInFlightDelegations(c.var.db, { userId: c.var.user.id }),
+        ),
+      }),
   )
   // ──────────────────────────────────────────────────────────────────
   // POST /delegations/:partialSessionId/stop — the user's Stop on a routed
