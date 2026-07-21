@@ -3,7 +3,25 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21k): SLICES ①+② COMMITTED (`ecf33c2`+`44a219e`) — gate GREEN 524f/2819t, both reviewed CLEAN; NEXT: CHAD CLICK-THROUGH SMOKE, then Slice ③ (nav Home|Chat|Sessions + Sessions view + the session-turn route)
+## ⏭ NEXT ACTION (2026-07-21L): ④b PIN RE-DECIDED + BUILT (`524559d`) — delegated workspace-root turns carry the session-routing trio; gate GREEN 525f/2821t; NEXT: Chad's ② click-through + the new chain smoke → Slice ③
+
+**Chad's live smoke exposed the residual: a delegated letterman turn couldn't
+send_task_to_session (the ④b backgrounds-excluded pin), and the model narrated the
+per-origin toolset flip as "dropped again" — blocking his global → workspace → session
+chain. RE-DECISION (Chad: "we can continue then", after the mechanism explanation):
+delegated WORKSPACE-ROOT turns compose `vynelWorkspaceInteractiveDescriptor` (trio
+included) via NEW target-aware `buildDelegatedTurnMcpComposer`; schedule fires +
+spawned-session targets stay plain (autonomy boundary; leaves don't recurse). The tick's
+composer dep gained `target`; generator/emitted/descriptor comments swept; the
+generated-array exclusion pin stays TRUE (opt-in is descriptor-level); routing pinned by
+a mocked-descriptor test + the tick's target assertions. Notes updated (decision 0 + 0b:
+the View→Conversations sidebar is SUPERSEDED by Slice ③'s Sessions view — Chad's call on
+seeing "No past conversations").
+⏭ CHAD SMOKE: re-run the exact chain — global chat: "have letterman send the
+publication-module overview into the Letterman – Test Session" → Sarah routes it (no
+"not available"), the report lands back; PLUS the ② click-through below. Then Slice ③.**
+
+## (prev) ⏭ NEXT ACTION (2026-07-21k): SLICES ①+② COMMITTED (`ecf33c2`+`44a219e`) — gate GREEN 524f/2819t, both reviewed CLEAN; NEXT: CHAD CLICK-THROUGH SMOKE, then Slice ③ (nav Home|Chat|Sessions + Sessions view + the session-turn route)
 
 **Slice ② (subagent-built, adversarially reviewed CLEAN 0 must-fix — behavior + test intents
 verified 1:1 against the deleted panels): SessionViewerPanel + SessionWatchPanel + their two

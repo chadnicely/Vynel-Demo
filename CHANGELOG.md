@@ -42,6 +42,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A workspace can now route handed-off work into sessions.** Asking your assistant to have a
+  workspace send work into a created session used to dead-end — the workspace's background run
+  didn't carry the session tools and reported them "dropped". Background runs now have the same
+  session tools the workspace chat has, so the whole chain (assistant → workspace → session)
+  works and the tools stop appearing to come and go.
+
 - **Handed-off tasks no longer knock the assistant's tools offline.** Running a task in a
   workspace (or a created session) used to strip that conversation's Vynel tools — the next time
   you chatted there, the assistant would insist "the whole Vynel integration is disconnected"

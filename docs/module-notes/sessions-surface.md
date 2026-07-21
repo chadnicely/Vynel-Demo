@@ -66,6 +66,19 @@ session channel (Watch-everywhere already publishes), announce on the activity f
 
 ## Locked decisions (Chad, 2026-07-21)
 
+0. **Delegated workspace-root turns carry the session-routing trio** (the ④b
+   "backgrounds structurally excluded" pin RE-DECIDED after the deferred-tool
+   lesson): a delegated turn is the user's own request via the global root, so
+   it composes `vynelWorkspaceInteractiveDescriptor` — the global → workspace →
+   session chain works and the primary's toolset never flips per turn origin.
+   Schedule fires and spawned-session targets stay on the plain set (autonomous
+   turns don't route; leaves don't recurse). Built same-day
+   (`buildDelegatedTurnMcpComposer`, target-aware).
+0b. **The View → Conversations sidebar is superseded by Slice ③'s Sessions
+   view** (Chad, on seeing "No past conversations"): the side listing becomes
+   the SESSION list — every in-scope session with open-as-chat-view options —
+   not a "finished topics" archive concept.
+
 1. **User turns into a spawned session attach the BACKGROUND MCP set** (vynel +
    notebook — the same set its delegated turns attach after the mcp-attachment fix).
    Perfectly consistent toolset per session → zero deferred-tool deltas. RECORDED
