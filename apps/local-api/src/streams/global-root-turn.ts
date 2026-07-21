@@ -10,12 +10,6 @@
 // `session-errored` EVENT (which flows through `onEvent` unchanged) — the two
 // error channels must stay distinct or the wire bytes drift (the additive
 // invariant; see `@vynel/session/runtime`'s `SessionSink`).
-//
-// PHASE-NOW (the `runGlobalRootTurn` precedent): only the routing descriptor is
-// composed. Desktop observation — the source's second descriptor — waits on
-// `@vynel/desktop-control` being wired at boot (the `desktopNotifications` reader
-// returning to `AppEnv` + the dependency landing in apps/local-api); it joins the
-// descriptor list then.
 
 import type { Context } from 'hono'
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
@@ -28,7 +22,12 @@ import {
 } from '@vynel/orchestration'
 import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
 import { toPermissionMode, type SessionPermissionMode } from '@vynel/session'
-import { runGlobalRootTurnCore, type SessionSink } from '@vynel/session/runtime'
+import {
+  runGlobalRootTurnCore,
+  publishTurnActivityStep,
+  type SessionSink,
+  type SessionTurnActivityHandle,
+} from '@vynel/session/runtime'
 import type { AppEnv, HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
 import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-root-conversation.js'
@@ -47,16 +46,19 @@ class GlobalRootSseSink implements SessionSink {
   constructor(
     private readonly stream: SSEStreamingApi,
     private readonly logger: Logger,
-    /** Called when the turn's session identity is learned (activity feed). */
-    private readonly onSessionResolved?: (sessionId: string) => void,
+    /** The turn's activity-feed handle — session identity + tool-step narration. */
+    private readonly activity?: SessionTurnActivityHandle,
   ) {}
 
   async onEvent(event: ChatTurnEvent): Promise<void> {
     // `user-message-persisted` fires on new AND resumed turns; `session-created`
     // only on a new/swapped segment — tap both so every turn resolves.
-    if (event.kind === 'session-created') this.onSessionResolved?.(event.session.id)
+    if (event.kind === 'session-created') this.activity?.sessionResolved(event.session.id)
     else if (event.kind === 'user-message-persisted')
-      this.onSessionResolved?.(event.message.sessionId)
+      this.activity?.sessionResolved(event.message.sessionId)
+    // Narrate tool steps + approval bells on the feed (the desktop overlay,
+    // the activity panel).
+    if (this.activity !== undefined) publishTurnActivityStep(this.activity, event)
     await this.stream.writeSSE({ event: event.kind, data: JSON.stringify(event) })
   }
 
@@ -130,17 +132,24 @@ export async function streamGlobalRootTurn(
     typeof sshMasterKey === 'string'
       ? [buildSshFeatureDescriptor({ masterKeyBase64: sshMasterKey, logger: c.var.logger })]
       : []
+  // Desktop observation (+ gated actions) — the brain's desktop senses. The
+  // descriptor excludes itself when no reader was wired at boot (off-Windows /
+  // tests), so composition stays safe everywhere.
+  const { desktopFeatureDescriptor } = await import('@vynel/desktop-control')
   const composedMcp = composeSessionMcpServers(
     [
       vynelRoutingDescriptor,
       notebookFeatureDescriptor,
       askFeatureDescriptor,
+      desktopFeatureDescriptor,
       ...sshFeatureDescriptors,
     ],
     {
       db: c.var.db,
       userId: c.var.user.id,
       appRequest,
+      desktopReader: c.var.desktopNotifications,
+      enableDesktopActions: c.var.desktopActionsEnabled,
     },
     // The global root has no workspace, so no capability override rows can
     // exist for it — the catalog defaults ARE its enabled set (without this,
@@ -212,7 +221,7 @@ export async function streamGlobalRootTurn(
           mcpSystemPromptAppend: composedMcp.systemPromptAppend,
           ...(agentSlugs.length > 0 ? { agents: sessionAgents } : {}),
         },
-        new GlobalRootSseSink(stream, c.var.logger, activity.sessionResolved),
+        new GlobalRootSseSink(stream, c.var.logger, activity),
       )
     } finally {
       activity.end()

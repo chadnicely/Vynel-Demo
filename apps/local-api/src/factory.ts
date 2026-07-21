@@ -9,8 +9,8 @@
 //   - `workspace` — the resolved workspace, populated by
 //     `workspaceResolverMiddleware` on `...workspaceScoped` routes.
 //
-// (Knowledge-slice pull: `chatSession` + `desktopNotifications` return to
-// `AppEnv` when the chat / desktop-control features land.)
+// (Knowledge-slice pull: `chatSession` returns to `AppEnv` when the chat
+// feature lands.)
 
 import { createFactory } from 'hono/factory'
 import type { Database } from '@vynel/db'
@@ -30,6 +30,7 @@ import type {
   SessionTargetLocks,
 } from '@vynel/session/delegation'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
+import type { DesktopNotificationReader } from '@vynel/desktop-control'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
 // stashed on `c.var.appRequest` so handlers can re-enter the app (the mcp
@@ -100,6 +101,15 @@ export interface AppEnv {
     // keyring at boot by server.ts; null in generator/test contexts that
     // don't pass one (the ssh routes then refuse to seal/open credentials).
     sshMasterKey: string | null
+    // The process-wide desktop-notification reader — present only when boot
+    // constructed the Windows listener (server.ts); absent in tests /
+    // off-Windows, which also keeps the whole desktop MCP feature off a turn
+    // (the descriptor's `build` returns null without a reader).
+    desktopNotifications?: DesktopNotificationReader
+    // Whether the MUTATING desktop `act_on_app` tool is enabled — the
+    // VYNEL_DESKTOP_ACT_ENABLED env flag, stamped once at construction.
+    // Fail-closed: tests that omit it get `false`.
+    desktopActionsEnabled: boolean
   }
 }
 

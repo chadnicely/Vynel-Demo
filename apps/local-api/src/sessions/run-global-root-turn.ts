@@ -12,11 +12,11 @@
 // (`@vynel/session/runtime`), not here — it is the sole lock acquirer (a nested
 // same-user acquire on the non-reentrant lock would deadlock).
 //
-// The routing descriptor is the only one composed here — it carries the brain's
-// tools: delegate a task to a workspace, send to a channel, list workspaces /
-// channels, and register a new workspace (the mutating one — it cards). Desktop
-// observation, present on the source's channel root, is intentionally out of
-// scope — no desktop-notification reader is wired at boot in KLONE.
+// Composes the routing + notebook + desktop descriptors — the brain's tools
+// (delegate / channel-send / list / register-workspace) plus its desktop senses.
+// The desktop descriptor excludes itself when boot wired no reader
+// (off-Windows / tests), so the channel root carries desktop observation on
+// exactly the machines that have it.
 
 import type { Database } from '@vynel/db'
 import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
@@ -28,7 +28,9 @@ import {
 import type { Logger } from 'pino'
 import {
   runGlobalRootTurnCore,
+  publishTurnActivityStep,
   type SessionActivityFeed,
+  type SessionTurnActivityHandle,
   type SessionSink,
 } from '@vynel/session/runtime'
 import {
@@ -58,6 +60,11 @@ export interface RunGlobalRootTurnDeps {
   /** The shared live-turn pub/sub — the background turn tees onto its session
    *  channel so it is watchable like any other (Slice ③). */
   turnEvents?: TurnEventBroadcaster
+  /** The process-wide desktop-notification reader — absent off-Windows/tests
+   *  (the desktop descriptor then excludes itself from the composition). */
+  desktopReader?: unknown
+  /** Whether the mutating desktop `act_on_app` tool is enabled (env flag). */
+  enableDesktopActions?: boolean
 }
 
 export interface RunGlobalRootTurnInput {
@@ -124,18 +131,22 @@ class GlobalRootDrainSink implements SessionSink {
 
   constructor(
     private readonly onApprovalRequested?: RunGlobalRootTurnInput['onApprovalRequested'],
-    /** Called when the turn's session identity is learned (activity feed). */
-    private readonly onSessionResolved?: (sessionId: string) => void,
+    /** The turn's activity-feed handle — session identity + tool-step narration. */
+    private readonly activity?: SessionTurnActivityHandle,
   ) {}
 
   onEvent(event: SessionEvent): void {
+    // Narrate tool steps + approval bells on the feed FIRST (independent of the
+    // drain bookkeeping below) — a background channel turn is otherwise
+    // invisible to the desktop overlay.
+    if (this.activity !== undefined) publishTurnActivityStep(this.activity, event)
     if (event.kind === 'user-message-persisted') {
       // Capture from user-message-persisted — it fires on BOTH the new AND resumed
       // branches, so every channel-brain turn (turns 2+ are resumed) sets it.
       // `session-created` fires only on a new/swapped segment, so it would leave a
       // resumed turn without a session id and `requireResult` would throw.
       this.sessionId = event.message.sessionId
-      this.onSessionResolved?.(event.message.sessionId)
+      this.activity?.sessionResolved(event.message.sessionId)
     } else if (event.kind === 'text-chunk') {
       this.resultText += event.textDelta
     } else if (event.kind === 'approval-requested') {
@@ -180,12 +191,15 @@ export async function runGlobalRootTurn(
   // has none. Dynamic import keeps the heavy SDK out of module load.
   const { vynelRoutingDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
+  const { desktopFeatureDescriptor } = await import('@vynel/desktop-control')
   const composedMcp = composeSessionMcpServers(
-    [vynelRoutingDescriptor, notebookFeatureDescriptor],
+    [vynelRoutingDescriptor, notebookFeatureDescriptor, desktopFeatureDescriptor],
     {
       db: deps.db,
       userId: input.userId,
       appRequest,
+      desktopReader: deps.desktopReader,
+      enableDesktopActions: deps.enableDesktopActions ?? false,
     },
     // The global root has no workspace, so no capability override rows can
     // exist for it — the catalog defaults ARE its enabled set (without this,
@@ -225,7 +239,7 @@ export async function runGlobalRootTurn(
     // activityOrigin 'delegation'; 'web' is the defensive fallback.
     origin: input.activityOrigin ?? input.originChannel ?? 'web',
   })
-  const sink = new GlobalRootDrainSink(input.onApprovalRequested, activity.sessionResolved)
+  const sink = new GlobalRootDrainSink(input.onApprovalRequested, activity)
   try {
     await runGlobalRootTurnCore(
       {

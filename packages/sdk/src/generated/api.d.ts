@@ -10510,7 +10510,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description SSE stream of SessionActivityEvents (turn-started / turn-updated / turn-ended). Long-lived; ends only when the client disconnects. */
+            /** @description SSE stream of SessionActivityEvents (turn lifecycle + tool steps + approval bells). Long-lived; ends only when the client disconnects. */
             200: {
                 headers: {
                     [name: string]: unknown;

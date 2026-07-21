@@ -3,6 +3,7 @@ import type { DesktopNotificationReader } from '../notifications/desktop-notific
 import { makeListDesktopNotificationsTool } from './list-desktop-notifications-tool.js'
 import { makeListOpenAppsTool } from './list-open-apps-tool.js'
 import { makeSnapshotAppTool } from './snapshot-app-tool.js'
+import { makeScreenshotAppTool } from './screenshot-app-tool.js'
 import { makeActOnAppTool } from './act-on-app-tool.js'
 
 export type BuildDesktopMcpServerInput = {
@@ -26,8 +27,8 @@ export type BuildDesktopMcpServerInput = {
 // other servers. See decision `[[desktop-control-mcp-server]]`.
 //
 // Read-only tools always: list_desktop_notifications · list_open_apps ·
-// snapshot_app. The MUTATING act_on_app is included ONLY when `enableActions`
-// is true (default off).
+// snapshot_app · screenshot_app. The MUTATING act_on_app is included ONLY when
+// `enableActions` is true (default off).
 export function buildDesktopMcpServer(
   input: BuildDesktopMcpServerInput,
 ): ReturnType<typeof createSdkMcpServer> {
@@ -35,6 +36,7 @@ export function buildDesktopMcpServer(
     makeListDesktopNotificationsTool(input.reader),
     makeListOpenAppsTool(),
     makeSnapshotAppTool(),
+    makeScreenshotAppTool(),
   ]
   if (input.enableActions === true) {
     factories.push(makeActOnAppTool())

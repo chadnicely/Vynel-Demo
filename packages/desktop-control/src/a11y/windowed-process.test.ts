@@ -34,11 +34,32 @@ describe('selectWindowedPid', () => {
     expect(selectWindowedPid(processes, '   ')).toBeNull()
   })
 
-  it('returns the first match when several windows match', () => {
+  // test: correct expectation for multi-match selection — was "first row wins"
+  // (which codified the bug: whichever process Get-Process listed first won),
+  // should be "ranked": name-match tier > longest title > lowest pid.
+  it('a process-NAME match beats a title-only match', () => {
     const chatMatches: WindowedProcess[] = [
       { pid: 1, processName: 'Code', windowTitle: 'a.ts - chat - Visual Studio Code' },
       { pid: 2, processName: 'chat-app', windowTitle: 'Chat' },
     ]
-    expect(selectWindowedPid(chatMatches, 'chat')).toBe(1)
+    // VS Code's title contains "chat", but `chat-app` matches by process name.
+    expect(selectWindowedPid(chatMatches, 'chat')).toBe(2)
+  })
+
+  it('within a tier, the longest window title wins (the Electron helper-window case)', () => {
+    const discordProcesses: WindowedProcess[] = [
+      { pid: 5000, processName: 'Discord', windowTitle: '' },
+      { pid: 5001, processName: 'Discord', windowTitle: 'Discord Updater' },
+      { pid: 5002, processName: 'Discord', windowTitle: '@user - #general - Discord' },
+    ]
+    expect(selectWindowedPid(discordProcesses, 'discord')).toBe(5002)
+  })
+
+  it('ties break to the lowest pid (deterministic across runs)', () => {
+    const twins: WindowedProcess[] = [
+      { pid: 20, processName: 'App', windowTitle: 'Same' },
+      { pid: 10, processName: 'App', windowTitle: 'Same' },
+    ]
+    expect(selectWindowedPid(twins, 'app')).toBe(10)
   })
 })

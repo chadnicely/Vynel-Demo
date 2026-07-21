@@ -82,6 +82,43 @@ describe('SessionActivityFeed', () => {
     expect(events).toEqual([]) // nothing in flight, nothing replayed
   })
 
+  it('publishTurnStep reaches live subscribers stamped with the turnId', () => {
+    const feed = new SessionActivityFeed()
+    const { events } = collect(feed, 'user-1')
+    const handle = feed.begin({ userId: 'user-1', scopeKind: 'global', origin: 'web' })
+    handle.publishTurnStep({
+      kind: 'turn-tool-started',
+      toolUseId: 'toolu_1',
+      toolName: 'mcp__desktop__snapshot_app',
+      toolInput: { app: 'Discord' },
+    })
+    expect(events[1]).toEqual({
+      kind: 'turn-tool-started',
+      turnId: handle.turnId,
+      toolUseId: 'toolu_1',
+      toolName: 'mcp__desktop__snapshot_app',
+      toolInput: { app: 'Discord' },
+    })
+  })
+
+  it('steps are transient — never part of the snapshot replay', () => {
+    const feed = new SessionActivityFeed()
+    const handle = feed.begin({ userId: 'user-1', scopeKind: 'global', origin: 'web' })
+    handle.publishTurnStep({ kind: 'turn-tool-started', toolUseId: 't', toolName: 'Read' })
+
+    const { events } = collect(feed, 'user-1')
+    expect(events.map((event) => event.kind)).toEqual(['turn-started'])
+  })
+
+  it('publishTurnStep after end() is a no-op', () => {
+    const feed = new SessionActivityFeed()
+    const { events } = collect(feed, 'user-1')
+    const handle = feed.begin({ userId: 'user-1', scopeKind: 'global', origin: 'web' })
+    handle.end()
+    handle.publishTurnStep({ kind: 'turn-tool-started', toolUseId: 't', toolName: 'Read' })
+    expect(events.map((event) => event.kind)).toEqual(['turn-started', 'turn-ended'])
+  })
+
   it('keeps users isolated', () => {
     const feed = new SessionActivityFeed()
     const alice = collect(feed, 'alice')

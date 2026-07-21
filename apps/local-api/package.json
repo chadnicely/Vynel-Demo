@@ -26,6 +26,7 @@
     "@vynel/contracts": "workspace:*",
     "@vynel/core": "workspace:*",
     "@vynel/db": "workspace:*",
+    "@vynel/desktop-control": "workspace:*",
     "@vynel/errors": "workspace:*",
     "@vynel/files": "workspace:*",
     "@vynel/hub-account": "workspace:*",

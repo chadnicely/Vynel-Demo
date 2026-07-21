@@ -78,3 +78,7 @@ export {
   sessionChannelKey,
   publishTurnEventsToSessionChannel,
 } from './session-turn-channel.js'
+
+// The one ChatTurnEvent → feed-step mapping every producer taps through, so the
+// feed narrates identically no matter which surface drove the turn.
+export { publishTurnActivityStep, turnStepFromChatTurnEvent } from './activity-turn-steps.js'

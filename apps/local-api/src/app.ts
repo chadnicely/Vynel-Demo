@@ -15,6 +15,7 @@ import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
 import type { FireScheduleDeps } from '@vynel/schedules'
+import type { DesktopNotificationReader } from '@vynel/desktop-control'
 import type { AppEnv } from './factory.js'
 import { openApiInfo } from './openapi.js'
 import { knowledgeApp } from './routes/knowledge/index.js'
@@ -110,6 +111,13 @@ export interface CreateAppOptions {
   // from the OS keyring at boot; omitted by generators/tests that don't need
   // ssh (the routes then answer that ssh is unavailable).
   readonly sshMasterKeyBase64?: string
+  // The process-wide desktop-notification reader — `server.ts` constructs the
+  // listener on Windows only; omitted (tests / generators / off-Windows) the
+  // desktop MCP feature stays off every turn (descriptor `build` → null).
+  readonly desktopNotifications?: DesktopNotificationReader
+  // Enable the MUTATING desktop `act_on_app` tool (VYNEL_DESKTOP_ACT_ENABLED).
+  // Fail-closed default: false.
+  readonly desktopActionsEnabled?: boolean
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -155,6 +163,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('askWaiters', askWaiters)
     c.set('appSupervisor', appSupervisor)
     c.set('sshMasterKey', options.sshMasterKeyBase64 ?? null)
+    c.set('desktopActionsEnabled', options.desktopActionsEnabled ?? false)
+    if (options.desktopNotifications !== undefined)
+      c.set('desktopNotifications', options.desktopNotifications)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
     if (options.hubSession !== undefined) c.set('hubSession', options.hubSession)
     await next()

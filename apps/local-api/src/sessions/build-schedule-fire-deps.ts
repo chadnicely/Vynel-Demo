@@ -15,7 +15,11 @@
 // every producer resuming a workspace's continuing conversation attaches the
 // same server set (the deferred-tool "server disconnected" class).
 
-import { startChatTurn, composeSessionCapabilities } from '@vynel/session/runtime'
+import {
+  startChatTurn,
+  composeSessionCapabilities,
+  publishTurnActivityStep,
+} from '@vynel/session/runtime'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { TurnEventBroadcaster } from '@vynel/session/delegation'
 import type { FireScheduleDeps } from '@vynel/schedules'
@@ -58,6 +62,8 @@ export async function buildScheduleFireDeps(
         if (event.kind === 'session-created') activity.sessionResolved(event.session.id)
         else if (event.kind === 'user-message-persisted')
           activity.sessionResolved(event.message.sessionId)
+        // Narrate tool steps + approval bells on the feed, like every producer.
+        publishTurnActivityStep(activity, event)
         yield event
       }
     } finally {

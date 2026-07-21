@@ -3,8 +3,8 @@
 // Boot: loadEnv → createDatabase → runMigrations → getOrCreateLocalUser →
 // createApp → serve on 127.0.0.1:PORT. SIGINT/SIGTERM → close + exit.
 //
-// (Knowledge-slice pull: the provider / desktop-notification / channels /
-// schedules / delegation boot services return as their features land.)
+// (Knowledge-slice pull: the provider boot service returns as its feature
+// lands.)
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -50,6 +50,11 @@ import {
 } from '@vynel/session/delegation'
 import { SessionActivityFeed } from '@vynel/session/runtime'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
+import {
+  createDesktopNotificationListener,
+  resolveDesktopOs,
+  type DesktopNotificationListener,
+} from '@vynel/desktop-control'
 
 export async function boot(): Promise<void> {
   const env = loadEnv()
@@ -105,6 +110,20 @@ export async function boot(): Promise<void> {
   // turn and a delegated run never write one spawned session concurrently).
   const sessionTargetLocks = new SessionTargetLocks()
 
+  // The desktop-notification listener — Windows only (the guard here, not just
+  // inside start(), so off-Windows the reader stays undefined and the whole
+  // desktop MCP feature — tools + prompt — stays off every turn). Resilient by
+  // design: a spawn failure logs and leaves it idle, never crashes boot.
+  let desktopNotifications: DesktopNotificationListener | undefined
+  if (resolveDesktopOs() === 'windows') {
+    desktopNotifications = createDesktopNotificationListener({ logger })
+    await desktopNotifications.start()
+    logger.info(
+      { actionsEnabled: env.VYNEL_DESKTOP_ACT_ENABLED },
+      'api boot: desktop-control enabled (windows)',
+    )
+  }
+
   // The hub link (accounts) — only when a hub is configured; the refresh
   // token lives in the OS credential store, never a file.
   let hubSession: HubSession | undefined
@@ -139,6 +158,8 @@ export async function boot(): Promise<void> {
     appSupervisor,
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
     sshMasterKeyBase64: sshMasterKey,
+    desktopActionsEnabled: env.VYNEL_DESKTOP_ACT_ENABLED,
+    ...(desktopNotifications !== undefined ? { desktopNotifications } : {}),
     ...(hubSession !== undefined ? { hubSession } : {}),
   })
 
@@ -160,7 +181,15 @@ export async function boot(): Promise<void> {
   // pending inbound message and queue the answer; send queued outbound messages.
   // Sub-minute cadence + MCP-intrinsic processing, so it lives in the api process
   // (not the worker); `appRequest` re-enters the api from each processing turn.
-  const channelsService = startChannelsService({ db, logger, appRequest, activityFeed, turnEvents })
+  const channelsService = startChannelsService({
+    db,
+    logger,
+    appRequest,
+    activityFeed,
+    turnEvents,
+    desktopReader: desktopNotifications,
+    enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
+  })
   // The delegation claim-and-run tick — claims one pending routing job per tick,
   // runs it as a workspace turn, records the terminal state; at startup it fails
   // the jobs a crash left stuck `claimed`. Same api-process reasoning as above.
@@ -266,6 +295,7 @@ export async function boot(): Promise<void> {
       void appSupervisor.stopAll()
       hubSessionService?.stop()
       catalogSyncService?.stop()
+      desktopNotifications?.stop()
       void fileWatcher.stopAll()
       closeDatabase(db)
       logger.info({}, 'api shutdown complete')

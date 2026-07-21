@@ -38,6 +38,14 @@ export function createAppRouter() {
         meta: { bare: true },
       },
       {
+        // The desktop-control attention overlay (Tauri always-on-top window).
+        // `bare` drops the app shell — the view mounts its own activity feed.
+        path: "/desktop-control",
+        name: "desktop-control",
+        component: () => import("./views/DesktopControlOverlayView.vue"),
+        meta: { bare: true },
+      },
+      {
         // Dev gallery for the reinvented desktop primitives (Tailwind + Reka UI).
         // `bare` renders it standalone, outside the shell + onboarding gate.
         path: "/ui-preview",

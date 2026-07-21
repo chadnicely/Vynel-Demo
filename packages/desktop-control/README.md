@@ -19,7 +19,8 @@ house style from a reference scaffold; the accessibility engine is `xa11y`
 | `list_open_apps` | List open windows the agent can target (read-only) | **shipped** |
 | `snapshot_app` | Read a named app's accessibility tree (read-only) | **shipped** |
 | `act_on_app` | Act on an element — press / type_text / set_value (mutating; default-OFF) | **shipped** |
-| `screenshot` / `click_xy` | Pixel capture + coordinate fallback | deferred (element-addressing preferred) |
+| `screenshot_app` | Pixel capture of one window, observation-only fallback for a11y-blind apps (read-only; `node-screenshots`/XCap — Windows.Graphics.Capture is the upgrade path if BitBlt-class capture falls short) | **shipped** |
+| `click_xy` | Coordinate-based clicking | deferred (element-addressing preferred) |
 
 ## How it plugs into Vynel
 

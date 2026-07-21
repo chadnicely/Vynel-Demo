@@ -1,0 +1,84 @@
+// The SINGLE point that loads xa11y — the native accessibility engine behind
+// desktop control. The `a11y/` folder is the xa11y boundary; every other file
+// in it works through the types + helpers here, so any quirk of the binding
+// (CJS interop, missing .d.ts members, error taxonomy) stays contained.
+//
+// xa11y is a native CJS module. It is loaded LAZILY via `createRequire` on the
+// first desktop op — so merely importing this module (in tests, or on a
+// platform without the prebuilt binary) never pulls the native binary. The type
+// comes from `typeof import(...)`, which is erased at compile time (no load).
+
+import { createRequire } from 'node:module'
+
+export type Xa11yModule = typeof import('@crowecawcaw/xa11y')
+
+// The native xa11y App instance (what App.find / App.byPid resolve to). Its
+// shipped .d.ts omits `dump`/`tree` (present at runtime); cast where used.
+export type Xa11yAppInstance = Awaited<ReturnType<Xa11yModule['App']['byPid']>>
+export type Xa11ySubscription = Awaited<ReturnType<Xa11yAppInstance['subscribe']>>
+
+let cachedXa11y: Xa11yModule | undefined
+
+export function loadXa11y(): Xa11yModule {
+  if (cachedXa11y !== undefined) {
+    return cachedXa11y
+  }
+  try {
+    const requireFromHere = createRequire(import.meta.url)
+    cachedXa11y = requireFromHere('@crowecawcaw/xa11y') as Xa11yModule
+    return cachedXa11y
+  } catch (cause) {
+    throw new Error(
+      'Desktop control is unavailable: the xa11y accessibility engine failed to load (it needs the ' +
+        'prebuilt native binary for this OS/arch). ' +
+        (cause instanceof Error ? cause.message : String(cause)),
+    )
+  }
+}
+
+// Read an app's tree — xa11y's `dump` isn't in the shipped .d.ts, so cast here.
+export function dumpApp(app: Xa11yAppInstance, maxDepth: number): Promise<string> {
+  return (app as unknown as { dump(maxDepth?: number): Promise<string> }).dump(maxDepth)
+}
+
+// Hard backstop so a desktop op can NEVER hang the brain. A custom-drawn control
+// (Telegram/Qt, some Electron) can make xa11y's press/dump block indefinitely
+// (the UIA Invoke never completes); this bounds the wait and surfaces an
+// actionable error. The underlying native call may keep running in the
+// background, but the caller returns instead of leaving the turn pending
+// forever. Lives here (the a11y boundary) so every xa11y-touching file — the
+// adapter's ops AND the wake loop's probes — bounds through the same guard.
+export function withTimeout<T>(operation: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(
+        new Error(
+          `Desktop ${label} did not complete within ${ms / 1000}s — the target may be a custom-drawn ` +
+            'control (e.g. Telegram/Qt) that does not respond to accessibility actions. Try a different ' +
+            'element; some apps can only be read, not acted on this way.',
+        ),
+      )
+    }, ms)
+    operation.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error: unknown) => {
+        clearTimeout(timer)
+        reject(error instanceof Error ? error : new Error(String(error)))
+      },
+    )
+  })
+}
+
+// Release a held UIA subscription (xa11y's `Subscription.close()`). Best-effort.
+export function closeSubscription(subscription: Xa11ySubscription): void {
+  try {
+    if (!subscription.closed) {
+      subscription.close()
+    }
+  } catch {
+    // Releasing the listener must never throw to the caller.
+  }
+}

@@ -1,7 +1,7 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
-import { snapshotApp } from '../a11y/xa11y-adapter.js'
+import { snapshotApp, type AppSnapshot } from '../a11y/xa11y-adapter.js'
 
 const TOOL_DESCRIPTION =
   "Read a desktop app's on-screen UI as an indented accessibility tree (roles, names, values) — your " +
@@ -13,12 +13,38 @@ const TOOL_DESCRIPTION =
   '`button[name="Save"]`). Windows only today. PRIVACY: this reads whatever is on that app\'s screen — ' +
   'only snapshot an app the user has asked you to work with, never to browse for secrets.'
 
+// Turn the wake outcome into actionable guidance instead of a bare empty tree —
+// the model (and through it the user) learns exactly what to do next.
+function describeEmptyTree(appQuery: string, snapshot: AppSnapshot): string {
+  if (snapshot.wakeIncomplete && snapshot.focusSucceeded === false) {
+    return (
+      `(the app exposed no accessibility tree — its window refused focus, which the wake needs. ` +
+      `Ask the user to click the "${appQuery}" window once, then retry.)`
+    )
+  }
+  if (snapshot.wakeIncomplete) {
+    return (
+      '(the app exposed no accessibility tree yet — its interface may still be waking. ' +
+      'Retry in a few seconds.)'
+    )
+  }
+  return '(the app exposed no accessibility tree)'
+}
+
 export function buildSnapshotAppResponse(
   appQuery: string,
-  tree: string,
+  snapshot: AppSnapshot,
 ): { content: Array<{ type: 'text'; text: string }> } {
-  const body = tree.trim().length > 0 ? tree : '(the app exposed no accessibility tree)'
-  return { content: [{ type: 'text', text: `Accessibility tree for "${appQuery}":\n\n${body}` }] }
+  const hasTree = snapshot.tree.trim().length > 0
+  const body = hasTree ? snapshot.tree : describeEmptyTree(appQuery, snapshot)
+  // A non-empty but incomplete tree still deserves the caveat — content may be missing.
+  const caveat =
+    hasTree && snapshot.wakeIncomplete
+      ? "\n\n(note: the app's interface may not be fully loaded — retry if something seems missing)"
+      : ''
+  return {
+    content: [{ type: 'text', text: `Accessibility tree for "${appQuery}":\n\n${body}${caveat}` }],
+  }
 }
 
 /** Construct the read-only `snapshot_app` SDK MCP tool. */
@@ -36,14 +62,14 @@ export function makeSnapshotAppTool(): unknown {
         .positive()
         .max(40)
         .optional()
-        .describe('Max accessibility-tree depth to read. Default 12 (20 for Electron apps), capped at 40.'),
+        .describe('Max accessibility-tree depth to read. Default 12 (25 for Electron apps), capped at 40.'),
     },
     async (args: Record<string, unknown>) => {
       try {
         const app = typeof args['app'] === 'string' ? args['app'] : ''
         const maxDepth = typeof args['maxDepth'] === 'number' ? args['maxDepth'] : undefined
-        const tree = await snapshotApp(app, maxDepth !== undefined ? { maxDepth } : {})
-        return buildSnapshotAppResponse(app, tree)
+        const snapshot = await snapshotApp(app, maxDepth !== undefined ? { maxDepth } : {})
+        return buildSnapshotAppResponse(app, snapshot)
       } catch (err) {
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],

@@ -83,6 +83,34 @@ describe("activity store — server turns", () => {
     expect(store.isTurnRunning).toBe(false);
   });
 
+  it("turn-step narration never removes a live turn (only turn-ended does)", () => {
+    const store = useActivityStore();
+    store.applyServerActivity(started("t4"));
+    store.applyServerActivity({
+      kind: "turn-tool-started",
+      turnId: "t4",
+      toolUseId: "toolu_1",
+      toolName: "mcp__desktop__snapshot_app",
+    });
+    store.applyServerActivity({
+      kind: "turn-tool-settled",
+      turnId: "t4",
+      toolUseId: "toolu_1",
+      status: "completed",
+    });
+    store.applyServerActivity({
+      kind: "turn-approval-requested",
+      turnId: "t4",
+      approvalRequestId: "ap-1",
+      toolName: "mcp__desktop__act_on_app",
+    });
+    expect(store.serverTurns["t4"]).toBeDefined();
+    expect(store.isTurnRunning).toBe(true);
+
+    store.applyServerActivity({ kind: "turn-ended", turnId: "t4", sessionId: null });
+    expect(store.serverTurns["t4"]).toBeUndefined();
+  });
+
   it("local turn counting still drives the presence flag", () => {
     const store = useActivityStore();
     store.turnStarted();

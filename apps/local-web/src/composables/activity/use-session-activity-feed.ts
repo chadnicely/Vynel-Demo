@@ -3,8 +3,10 @@ import { useQueryClient } from "@tanstack/vue-query";
 import type { SessionActivityEvent } from "@vynel/contracts/chat/session-activity";
 import { useVynel } from "../use-vynel.js";
 import { useActivityStore } from "../../stores/activity-store.js";
+import { useDesktopActivityStore } from "../../stores/desktop-activity-store.js";
 import { sessionKeys } from "../chat/session-keys.js";
 import { workspaceKeys } from "../workspaces/workspace-keys.js";
+import { approvalKeys } from "../approvals/approval-keys.js";
 import { readSessionActivityEvents } from "./session-activity-stream.js";
 
 // ONE long-lived /activity/stream subscription for the app's lifetime (AppShell
@@ -24,6 +26,7 @@ const RECONNECT_MAX_MS = 15_000;
 export function useSessionActivityFeed() {
   const vynel = useVynel();
   const activity = useActivityStore();
+  const desktopActivity = useDesktopActivityStore();
   const queryClient = useQueryClient();
 
   let disposed = false;
@@ -58,6 +61,17 @@ export function useSessionActivityFeed() {
         hadConnected = true;
         for await (const event of readSessionActivityEvents(data)) {
           activity.applyServerActivity(event);
+          desktopActivity.apply(event);
+          if (
+            event.kind === "turn-approval-requested" ||
+            event.kind === "turn-approval-resolved"
+          ) {
+            // The bell says "the approval set changed NOW" — the 5s poll is too
+            // slow while Claude is mid-drive on the user's desktop.
+            void queryClient.invalidateQueries({
+              queryKey: approvalKeys.pending(),
+            });
+          }
           if (event.kind === "turn-started" || event.kind === "turn-ended") {
             settleSessionViews(event);
           }
@@ -68,6 +82,7 @@ export function useSessionActivityFeed() {
         // retry; the disposed flag is the clean exit.
       }
       activity.resetServerTurns();
+      desktopActivity.reset();
       if (disposed) break;
       attempt += 1;
       const delayMs = Math.min(
@@ -83,5 +98,6 @@ export function useSessionActivityFeed() {
     disposed = true;
     abortController?.abort();
     activity.resetServerTurns();
+    desktopActivity.reset();
   });
 }

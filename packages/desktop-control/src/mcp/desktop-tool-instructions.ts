@@ -16,6 +16,7 @@ export const DESKTOP_TOOL_INSTRUCTIONS = `Beyond routing, you can DIRECTLY obser
 - list_desktop_notifications — desktop notifications the user received (app, title, body, time), oldest last. Optional ISO "since" timestamp. One-time passcodes are already removed.
 - list_open_apps — the apps/windows currently open, with their names. Call this to discover what's open before reading a specific app (window titles are dynamic, so don't guess them).
 - snapshot_app — read a named app's on-screen UI as an accessibility tree (roles, names, values), so you can see what's in it. Pass \`app\` = the app name or a distinctive part of it. Only read an app the user has asked you to work with — never to browse for secrets.
+- screenshot_app — capture a named app's window as a PNG, WITHOUT focusing it. The fallback when snapshot_app's tree comes back empty (some Electron/canvas/custom-drawn apps) or when you need visual confirmation of what the user sees. Prefer snapshot_app first. Same privacy rule: only capture an app the user asked you to work with.
 When the user asks what they missed, what's open, or to look at / read something on their screen, use these tools and answer directly. Do NOT route a desktop-observation request to a workspace. These tools only OBSERVE — they do not change anything.`
 
 // Appended ONLY when desktop ACTIONS are enabled (the VYNEL_DESKTOP_ACT_ENABLED

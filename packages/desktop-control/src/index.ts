@@ -24,9 +24,12 @@ export {
   actionRequiresValue,
   DESKTOP_ACTIONS,
 } from './a11y/xa11y-adapter.js'
+export { screenshotApp } from './a11y/screenshot-adapter.js'
+export type { AppScreenshot } from './a11y/screenshot-adapter.js'
 export type {
   OpenApp,
   SnapshotAppOptions,
+  AppSnapshot,
   DesktopAction,
   ActOnAppResult,
   ActCandidate,

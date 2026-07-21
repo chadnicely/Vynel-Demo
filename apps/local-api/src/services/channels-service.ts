@@ -54,10 +54,16 @@ export interface ChannelsServiceOptions {
   /** The shared live-turn pub/sub — channel turns tee onto their session
    *  channel so they are watchable like any other (Slice ③). */
   turnEvents?: TurnEventBroadcaster
+  /** The process-wide desktop-notification reader (server.ts, Windows only) —
+   *  the channel root carries the brain's desktop senses too. */
+  desktopReader?: unknown
+  /** Whether the mutating desktop `act_on_app` tool is enabled (env flag). */
+  enableDesktopActions?: boolean
 }
 
 export function startChannelsService(options: ChannelsServiceOptions): { stop: () => void } {
-  const { db, logger, appRequest, activityFeed, turnEvents } = options
+  const { db, logger, appRequest, activityFeed, turnEvents, desktopReader, enableDesktopActions } =
+    options
 
   const turnDeps: ProcessInboundDeps = {
     logger,
@@ -67,7 +73,15 @@ export function startChannelsService(options: ChannelsServiceOptions): { stop: (
     // serializes root turns per user (the firehose lock lives in the core).
     runRootTurn: (turnDb, input) =>
       runGlobalRootTurn(
-        { db: turnDb, logger, appRequest, activityFeed, ...(turnEvents !== undefined ? { turnEvents } : {}) },
+        {
+          db: turnDb,
+          logger,
+          appRequest,
+          activityFeed,
+          ...(turnEvents !== undefined ? { turnEvents } : {}),
+          desktopReader,
+          ...(enableDesktopActions !== undefined ? { enableDesktopActions } : {}),
+        },
         input,
       ),
     // KLONE decoupled the approvals leaf: `resolveApproval` is injected here (the

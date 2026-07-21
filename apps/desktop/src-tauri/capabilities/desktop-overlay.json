@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-overlay-window",
+  "description": "The desktop-control attention overlay controls its own window: show when Claude touches the desktop, hide after the burst, park bottom-right, drag to move. Deliberately NO set-focus — revealing must never steal the user's typing.",
+  "windows": ["desktop-overlay"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-position",
+    "core:window:allow-start-dragging"
+  ]
+}

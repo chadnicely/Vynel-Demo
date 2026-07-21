@@ -13,7 +13,13 @@ import type { SessionActivityFeed, SessionSink } from '@vynel/session/runtime'
 
 const { coreMock } = vi.hoisted(() => ({ coreMock: vi.fn() }))
 
-vi.mock('@vynel/session/runtime', () => ({ runGlobalRootTurnCore: coreMock }))
+vi.mock('@vynel/session/runtime', async () => {
+  // The REAL step mapper runs (it's pure) so the drain sink's feed-narration
+  // tap is exercised, while the heavy core stays mocked.
+  const actual =
+    await vi.importActual<typeof import('@vynel/session/runtime')>('@vynel/session/runtime')
+  return { runGlobalRootTurnCore: coreMock, publishTurnActivityStep: actual.publishTurnActivityStep }
+})
 
 // Stub routing descriptor: `build` returns null → the real `composeSessionMcpServers`
 // yields an empty MCP set, and the heavy `@vynel/mcp` (SDK builder) never loads.
@@ -47,7 +53,12 @@ type SinkEvent = Parameters<SessionSink['onEvent']>[0]
 // unavailable — a recording fake stands in (and lets tests assert the
 // begin/end announcement wiring).
 function fakeActivityFeed() {
-  const handle = { turnId: 'turn-1', sessionResolved: vi.fn(), end: vi.fn() }
+  const handle = {
+    turnId: 'turn-1',
+    sessionResolved: vi.fn(),
+    publishTurnStep: vi.fn(),
+    end: vi.fn(),
+  }
   const begin = vi.fn(() => handle)
   return { feed: { begin } as unknown as SessionActivityFeed, begin, handle }
 }

@@ -16,6 +16,7 @@ import type {
   SessionActivityEvent,
   SessionTurnActivity,
   SessionTurnOrigin,
+  SessionTurnStep,
 } from '@vynel/contracts/chat/session-activity'
 import { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
 
@@ -37,6 +38,9 @@ export interface SessionTurnActivityHandle {
   readonly turnId: string
   /** The runtime learned (or confirmed) the session this turn runs on. */
   sessionResolved: (sessionId: string) => void
+  /** Publish one narration step (tool start/settle, approval bell) on the feed.
+   *  Transient — stamped with this turn's id, never stored, no-op after end(). */
+  publishTurnStep: (step: SessionTurnStep) => void
   /** The turn finished (drained, threw, or the client disconnected). Idempotent. */
   end: () => void
 }
@@ -71,6 +75,13 @@ export class SessionActivityFeed {
           kind: 'turn-updated',
           turnId: turn.turnId,
           sessionId,
+        })
+      },
+      publishTurnStep: (step: SessionTurnStep) => {
+        if (ended) return
+        this.broadcaster.publish(activityChannelKey(input.userId), {
+          turnId: turn.turnId,
+          ...step,
         })
       },
       end: () => {

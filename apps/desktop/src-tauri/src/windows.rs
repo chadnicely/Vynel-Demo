@@ -28,5 +28,26 @@ pub fn create_windows(handle: &AppHandle, jarvis_only: bool) -> tauri::Result<()
         .skip_taskbar(false)
         .build()?;
 
+    // The desktop-control attention overlay — hidden until its web view reveals
+    // it (first mcp__desktop__ step on the activity feed). Created in BOTH modes:
+    // a voice-driven desktop turn must surface it with the main window closed.
+    // skip_taskbar: unlike jarvis there is nothing to summon from the taskbar —
+    // the feed shows/hides it. No set-focus permission (never steals typing).
+    WebviewWindowBuilder::new(
+        handle,
+        "desktop-overlay",
+        WebviewUrl::App("/desktop-control".into()),
+    )
+    .title("Claude on your desktop")
+    .inner_size(380.0, 360.0)
+    .decorations(false)
+    .transparent(true)
+    .shadow(false)
+    .always_on_top(true)
+    .resizable(false)
+    .skip_taskbar(true)
+    .visible(false)
+    .build()?;
+
     Ok(())
 }

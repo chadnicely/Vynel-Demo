@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { McpFeatureDescriptor, SessionToolContext } from '@vynel/mcp-contract'
+import { desktopFeatureDescriptor } from '@vynel/desktop-control'
 import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
 
 const context: SessionToolContext = {
@@ -128,5 +129,47 @@ describe('composeSessionMcpServers', () => {
     })
     expect(tasksOn.systemPromptAppend).toBe('keep the task list current')
     expect(tasksOn.deniedMcpToolPatterns).toEqual([])
+  })
+})
+
+// The REAL desktop descriptor through the composer — the integration the turn
+// wiring (global-root-turn / run-global-root-turn) depends on. The descriptor's
+// builder uses the SDK's runtime-free `tool`/`createSdkMcpServer` primitives, so
+// this stays a pure unit test.
+describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
+  const fakeReader = { listSince: () => [] }
+
+  it('excludes the whole feature when no reader was wired at boot', () => {
+    const composed = composeSessionMcpServers([desktopFeatureDescriptor], context)
+    expect(composed.mcpServers).not.toHaveProperty('desktop')
+    expect(composed.allowedMcpToolPatterns).toEqual([])
+    expect(composed.mutatingToolNames).toEqual([])
+    expect(composed.systemPromptAppend).toBe('')
+  })
+
+  it('attaches observation with actions off: server + prompt, act_on_app still declared mutating', () => {
+    const composed = composeSessionMcpServers([desktopFeatureDescriptor], {
+      ...context,
+      desktopReader: fakeReader,
+      enableDesktopActions: false,
+    })
+    expect(composed.mcpServers).toHaveProperty('desktop')
+    expect(composed.allowedMcpToolPatterns).toContain('mcp__desktop__*')
+    // The declaration is unconditional (descriptor contract) — the approval
+    // backstop is additive, so declaring an unregistered tool is harmless.
+    expect(composed.mutatingToolNames).toContain('mcp__desktop__act_on_app')
+    expect(composed.systemPromptAppend).toContain('snapshot_app')
+    expect(composed.systemPromptAppend).not.toContain('act_on_app')
+  })
+
+  it('appends the act instructions when actions are enabled', () => {
+    const composed = composeSessionMcpServers([desktopFeatureDescriptor], {
+      ...context,
+      desktopReader: fakeReader,
+      enableDesktopActions: true,
+    })
+    expect(composed.mcpServers).toHaveProperty('desktop')
+    expect(composed.mutatingToolNames).toContain('mcp__desktop__act_on_app')
+    expect(composed.systemPromptAppend).toContain('act_on_app')
   })
 })

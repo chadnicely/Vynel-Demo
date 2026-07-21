@@ -1,4 +1,5 @@
 import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
+import { presentDesktopToolCall } from "./desktop-step-presenter.js";
 
 // Presentation logic for tool calls — turns a raw {toolName, toolInput,
 // toolOutput} row into what a person should SEE: "Wrote pricing.md +12" with
@@ -98,6 +99,13 @@ export function presentToolCall(
   toolCall: ChatToolCallResponse,
 ): ToolCallPresentation {
   const { toolName, toolInput, toolOutput } = toolCall;
+
+  // Desktop-control calls read as actions on the user's screen ("Pressed
+  // 'Save' in Notepad"), never as raw payload panes — the same grammar the
+  // attention overlay narrates with (desktop-step-presenter.ts).
+  const desktopPresentation = presentDesktopToolCall(toolName, toolInput, toolOutput);
+  if (desktopPresentation !== null) return desktopPresentation;
+
   const filePath = inputField(toolInput, "file_path");
 
   if (toolName === "Read" && filePath) {

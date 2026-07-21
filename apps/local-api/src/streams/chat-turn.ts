@@ -16,6 +16,7 @@ import {
   composeSessionCapabilities,
   resolvePrimaryConversationTarget,
   applyPrimaryTurnContinuity,
+  publishTurnActivityStep,
 } from '@vynel/session/runtime'
 import {
   composeSessionAgents,
@@ -211,6 +212,9 @@ export async function streamChatTurn(
           occupancyTokens =
             event.inputTokens + event.cacheReadInputTokens + event.cacheCreationInputTokens
         }
+        // Narrate tool steps + approval bells on the feed (other surfaces —
+        // the desktop overlay, the activity panel — see them live).
+        publishTurnActivityStep(activity, event)
         await stream.writeSSE({ event: event.kind, data: JSON.stringify(event) })
       }
       await stream.writeSSE({ event: 'turn-stream-ended', data: '{}' })

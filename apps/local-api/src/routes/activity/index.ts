@@ -1,8 +1,9 @@
 // The `/activity` surface — the per-user session-activity SSE feed.
 //
-//   GET /stream -> subscribe to turn liveness (SSE): the in-flight snapshot
-//                  replays as `turn-started` frames, then live
-//                  turn-started / turn-updated / turn-ended events follow.
+//   GET /stream -> subscribe to turn narration (SSE): the in-flight snapshot
+//                  replays as `turn-started` frames, then live events follow —
+//                  turn lifecycle (started / updated / ended) plus per-tool
+//                  steps and approval bells (the contracts vocabulary).
 //
 // This is the UI's ONLY server push for turns it didn't start itself — a
 // Telegram message's background root turn, another tab's turn, a schedule
@@ -31,7 +32,7 @@ export const activityApp = factory
       responses: {
         200: {
           description:
-            'SSE stream of SessionActivityEvents (turn-started / turn-updated / turn-ended). Long-lived; ends only when the client disconnects.',
+            'SSE stream of SessionActivityEvents (turn lifecycle + tool steps + approval bells). Long-lived; ends only when the client disconnects.',
         },
       },
     }),

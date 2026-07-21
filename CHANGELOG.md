@@ -141,6 +141,29 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   (Auto/High/Medium/Low) controls how much reasoning Claude applies — remembered across
   restarts.
 
+- **Claude's desktop senses are live — and Discord-class apps finally read.** The desktop tools
+  (notifications, open apps, reading an app's screen, and the opt-in click/type actions) are now
+  wired into every global-brain turn — web chat, voice, and Telegram alike. Reading an Electron
+  app like Discord got a rebuilt wake: the screen-reader signal Chromium actually checks, verified
+  window focus with a retry that defeats Windows focus-stealing prevention, the right window
+  picked among an app's many helper processes, and a poll that returns the moment the app's
+  interface is readable instead of a fixed guess. When a wake still can't finish, the tool now
+  says exactly what to do ("click the window once and retry") instead of returning nothing.
+
+- **A screenshot fallback for apps that can't be read.** New read-only `screenshot_app` tool
+  captures one app window as an image — without touching focus — for canvas-drawn or stubborn
+  apps where the accessibility tree stays empty. Element-reading stays the primary path.
+
+- **An attention overlay while Claude uses your desktop.** A small always-on-top window appears
+  the moment Claude touches the desktop, narrating each step in plain words — "Reading Discord",
+  "Pressing 'Save' in Notepad" — with recent steps, the approval card for any mutating action
+  (decidable right there, synced with the main window), and a Stop button. It appears
+  bottom-right without stealing your typing, lingers a few seconds after the last step, then
+  hides. Works even when the turn came from voice or Telegram with the main window closed,
+  riding a widened activity feed that now narrates per-tool steps and approval bells for every
+  turn surface (the workspace-turn drill-down gets the same signal for free later; delegated
+  workspace runs keep their existing trace stream).
+
 - **Agent activity survives the reply.** A spawned agent's activity — its tools with their
   status lights and its running narrative — is now recorded as it streams, so it's still there
   after the reply finishes, after a reload, and whenever you reopen the task Watch panel or an

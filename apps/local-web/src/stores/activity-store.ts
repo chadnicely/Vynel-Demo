@@ -65,6 +65,10 @@ export const useActivityStore = defineStore("activity", () => {
       };
       return;
     }
+    // ONLY turn-ended removes. The feed also carries turn-step narration
+    // (turn-tool-started/settled, approval bells) with a known turnId — folding
+    // those as removals would kill a live turn from the presence map.
+    if (event.kind !== "turn-ended") return;
     const next = { ...serverTurns.value };
     delete next[event.turnId];
     serverTurns.value = next;

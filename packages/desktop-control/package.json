@@ -16,6 +16,7 @@
     "@crowecawcaw/xa11y": "^0.9.1",
     "@vynel/logger": "workspace:*",
     "@vynel/mcp-contract": "workspace:*",
+    "node-screenshots": "^0.2.8",
     "zod": "^3.23.0"
   },
   "devDependencies": {
