@@ -38,6 +38,7 @@ import { findChannelById, enqueueChannelReply } from '@vynel/channels'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import * as primarySessionsRepository from '../repositories/index.js'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
+import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
 import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
 import {
   buildRoutedApprovalHandler,
@@ -81,6 +82,18 @@ export interface RunDelegationTickDeps {
    *  service's pool uses it to reserve the target slot for the run's life.
    *  `targetKey` = targetPrimarySessionId ?? workspaceId. */
   onRunStarted?: (run: { jobId: string; targetKey: string }) => void
+  /** The background workspace MCP composition (the api edge binds it to
+   *  `composeSessionMcpServers([vynelWorkspaceDescriptor, …])` — the schedules
+   *  `FireScheduleDeps` precedent; core never imports @vynel/mcp). REQUIRED for
+   *  production wiring: a routed turn that attaches no MCP servers strips the
+   *  resumed session's deferred tools — the CLI then tells the model the whole
+   *  Vynel server DISCONNECTED (the 2026-07-21 live bug). Optional only so
+   *  MCP-less test harnesses keep composing nothing. */
+  composeWorkspaceMcpServers?: (input: {
+    db: Database
+    userId: string
+    workspaceId: string
+  }) => RoutedTurnMcpAttachment
 }
 
 /** Resolve a job's origin channel to a DELIVERABLE address — the shared guard for the
@@ -225,6 +238,24 @@ export async function runDelegationClaimAndRunTick(
     })
     approvalHandler = handler
 
+    // The routed turn's MCP attachment — the target's grounding workspace picks
+    // it: the job's workspace for a workspace target, the spawned primary's own
+    // workspaceId for a workspace-grounded session target (Slice ④b). A
+    // global-grounded session target composes NOTHING — bare is CONSISTENT
+    // there (its priming attached nothing, so no deferred tools exist to
+    // strip); every workspace-grounded turn MUST attach, or the resumed
+    // session's deferred tools get stripped ("server disconnected").
+    const mcpGroundingWorkspaceId =
+      claimed.targetPrimarySessionId !== null ? spawnedTargetWorkspaceId : claimed.workspaceId
+    const mcpAttachment =
+      deps.composeWorkspaceMcpServers !== undefined && mcpGroundingWorkspaceId !== null
+        ? deps.composeWorkspaceMcpServers({
+            db,
+            userId: claimed.userId,
+            workspaceId: mcpGroundingWorkspaceId,
+          })
+        : undefined
+
     // The pieces both target runners share verbatim: mode, trace observing, and
     // the stop/liveness session hookup.
     const sharedRunnerOptions = {
@@ -237,6 +268,7 @@ export async function runDelegationClaimAndRunTick(
       // enqueue. Null → the provider defaults (absent, exactOptionalPropertyTypes).
       ...(claimed.model !== null ? { model: claimed.model } : {}),
       ...(claimed.thinkingEffort !== null ? { thinkingEffort: claimed.thinkingEffort } : {}),
+      ...(mcpAttachment !== undefined ? { mcpAttachment } : {}),
       approvalHandler: handler,
       // Live observing: publish the turn's events on its trace channel; the end
       // closes any attached observe stream (drained or threw alike). The same

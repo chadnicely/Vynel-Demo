@@ -12,10 +12,12 @@
 // each workspace via the claim's exclusion filter. (The atomic DB claim still prevents
 // two ticks claiming the SAME job.)
 //
-// SYNC (no async) — unlike channels/schedules it does NOT compose `@vynel/mcp`: the
-// workspace turn runs through the injected `AiAgentProvider` directly (via
-// `delegateToWorkspaceRoot`), not an MCP-equipped chat turn. Started from `server.ts`
-// after `createApp(...)`, stopped on shutdown.
+// MCP: every routed turn attaches the BACKGROUND workspace set via the injected
+// `composeWorkspaceMcpServers` (built by `buildWorkspaceBackgroundMcpComposer` in
+// `server.ts` — the schedules precedent). It used to attach NOTHING, which made the
+// SDK's deferred-tool reconciliation strip the resumed session's `mcp__vynel*`
+// tools and tell the model the whole Vynel server DISCONNECTED (2026-07-21 bug).
+// Started from `server.ts` after `createApp(...)`, stopped on shutdown.
 
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
@@ -24,6 +26,7 @@ import { failOrphanedClaimedDelegations } from '@vynel/orchestration'
 import { runDelegationClaimAndRunTick } from '@vynel/session/delegation'
 import type { TurnEventBroadcaster, DelegationCancelRegistry } from '@vynel/session/delegation'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
+import type { WorkspaceBackgroundMcpComposer } from '../sessions/build-workspace-background-mcp.js'
 
 const DELEGATION_POLL_INTERVAL_MS = 1_000
 
@@ -48,10 +51,15 @@ export interface DelegationServiceOptions {
   /** The stop bridge shared with the api routes — each claimed run registers
    *  so the stop route can cancel it. */
   cancelRegistry?: DelegationCancelRegistry
+  /** The background workspace MCP composition every routed turn attaches —
+   *  REQUIRED so a routed turn never runs bare against a session that has the
+   *  vynel tools (the deferred-tool "server disconnected" class). */
+  composeWorkspaceMcpServers: WorkspaceBackgroundMcpComposer
 }
 
 export function startDelegationService(options: DelegationServiceOptions): { stop: () => void } {
-  const { db, logger, provider, activityFeed, turnEvents, cancelRegistry } = options
+  const { db, logger, provider, activityFeed, turnEvents, cancelRegistry, composeWorkspaceMcpServers } =
+    options
 
   // Reclaim jobs orphaned in `claimed` by a prior crash/restart mid-run: mark them FAILED — NOT
   // re-run (exactly-once preserved; the Ch1 decision was no-RE-EXECUTE, not no-cleanup). At
@@ -83,6 +91,7 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
         provider,
         logger,
         activityFeed,
+        composeWorkspaceMcpServers,
         excludeTargetKeys: activeTargetKeys,
         onRunStarted: ({ targetKey }) => {
           claimedTargetKey = targetKey

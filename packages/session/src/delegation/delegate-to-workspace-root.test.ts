@@ -15,7 +15,8 @@ import { findPrimaryConversation } from '../continuity/index.js'
 import type { AiAgentProvider, NormalizedSessionEvent, StartChatSessionInput } from '@vynel/providers'
 import { ROUTED_LEAF_WRITE_BLOCKED_NOTE } from '@vynel/orchestration'
 import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
-import { delegateToWorkspaceRoot, ROUTED_TASK_INSTRUCTIONS } from './delegate-to-workspace-root.js'
+import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
+import { ROUTED_TASK_INSTRUCTIONS } from './routed-turn-provider-input.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -112,6 +113,49 @@ describe('delegateToWorkspaceRoot', () => {
         ['user', 'global-root', null],
         ['assistant', 'workspace-manager', 'Acme'],
       ])
+    })
+  })
+
+  it('threads the MCP attachment into the provider turn (servers + allow/deny + carded mutators + joined prompt)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const startChatSessionInputs: StartChatSessionInput[] = []
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: 'ws-root-mcp',
+        resultText: 'done',
+        startChatSessionInputs,
+      })
+
+      const vynelServer = { name: 'vynel' }
+      await delegateToWorkspaceRoot(db, provider, {
+        parentSessionId: 'global-sdk-1',
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'file the docs',
+        providerId: 'claude',
+        mcpAttachment: {
+          mcpServers: { vynel: vynelServer },
+          allowedMcpToolPatterns: ['mcp__vynel__*'],
+          deniedMcpToolPatterns: ['mcp__vynel__search_knowledge'],
+          mutatingToolNames: ['mcp__vynel__register_workspace'],
+          systemPromptAppend: '## Task list\nKeep it current.',
+        },
+      })
+
+      const turnInput = startChatSessionInputs[0]!
+      // The resumed session keeps the SAME background toolset a schedule fire
+      // attaches — a bare turn would strip its deferred tools ("disconnected").
+      expect(turnInput.mcpServers).toEqual({ vynel: vynelServer })
+      expect(turnInput.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+      expect(turnInput.deniedToolNames).toEqual(['mcp__vynel__search_knowledge'])
+      expect(turnInput.alwaysRequireApprovalToolNames).toEqual(['mcp__vynel__register_workspace'])
+      // The routed steer stays FIRST; the composer's feature sections follow.
+      expect(turnInput.systemPromptAppend).toBe(
+        `${ROUTED_TASK_INSTRUCTIONS}\n\n## Task list\nKeep it current.`,
+      )
     })
   })
 

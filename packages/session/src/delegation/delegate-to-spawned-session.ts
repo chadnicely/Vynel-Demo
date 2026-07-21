@@ -41,7 +41,11 @@ import type { Logger } from 'pino'
 import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
 import type { TurnEventBroadcaster } from './turn-event-broadcaster.js'
 import { publishTurnEventsToSessionChannel } from '../runtime/session-turn-channel.js'
-import { ROUTED_TASK_INSTRUCTIONS } from './delegate-to-workspace-root.js'
+import {
+  composeRoutedTurnSystemPrompt,
+  routedTurnMcpSessionFields,
+  type RoutedTurnMcpAttachment,
+} from './routed-turn-provider-input.js'
 
 export type DelegateToSpawnedSessionInput = {
   /** The delegating (parent) session — the global root's current SDK session id. */
@@ -69,6 +73,16 @@ export type DelegateToSpawnedSessionInput = {
   /** The permission mode the routed turn runs under — from the job row. Omit for
    *  the pre-mode default (`bypass-with-behavior-gate`). */
   permissionMode?: DelegationPermissionMode
+  /** The background workspace MCP attachment (Slice ④b: a WORKSPACE-grounded
+   *  spawned session gets its ground's toolset; the tick composes it with the
+   *  spawned primary's own workspaceId). Omit for a global-grounded target.
+   *  The invariant is per-grounding FORWARD-consistency: priming runs bare for
+   *  both groundings, and this tick is the only producer that ever resumes a
+   *  spawned primary — so a workspace-grounded target gains tools on its first
+   *  task (adding is safe; STRIPPING is the "server disconnected" bug) and
+   *  keeps the identical set ever after, while a global-grounded target stays
+   *  bare on every turn. */
+  mcpAttachment?: RoutedTurnMcpAttachment
   /** The surface-up handler (the tick's `buildRoutedApprovalHandler`). */
   approvalHandler?: Pick<RoutedApprovalHandler, 'onApprovalRequested' | 'onApprovalResolved'>
   /** Live observing (the SSE observe route) — same contract as the workspace runner. */
@@ -122,12 +136,12 @@ export async function delegateToSpawnedSession(
     workspacePath: input.runCwdPath,
     resumeSessionId: primary.currentSdkSessionId,
     userMessageText: input.taskText,
-    systemPromptAppend: ROUTED_TASK_INSTRUCTIONS,
+    systemPromptAppend: composeRoutedTurnSystemPrompt(input.mcpAttachment),
     permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
     // Empty grants: the resumed session keeps its existing tool grants; the
     // behavior gate still cards the floor.
     allowedToolNames: [],
-    deniedToolNames: [],
+    ...routedTurnMcpSessionFields(input.mcpAttachment),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
   })

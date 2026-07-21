@@ -36,16 +36,11 @@ import type { Logger } from 'pino'
 import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
 import type { TurnEventBroadcaster } from './turn-event-broadcaster.js'
 import { publishTurnEventsToSessionChannel } from '../runtime/session-turn-channel.js'
-
-// How a routed (background) turn should behave — appended to the SYSTEM prompt, never
-// the task text (the task persists verbatim to the transcript). Steers the model to
-// read-only tools for read tasks and sets expectations for the approval pause.
-export const ROUTED_TASK_INSTRUCTIONS =
-  'This task was routed from the user’s assistant and runs in the background. Prefer ' +
-  'read-only tools (Read, Glob, Grep, LS) for read/analysis tasks. An irreversible action ' +
-  '(write, edit, delete, shell command) PAUSES until the user approves it from their app or ' +
-  'chat — use one only when the task genuinely needs it, and if it is denied or times ' +
-  'out, report your findings as text instead of retrying.'
+import {
+  composeRoutedTurnSystemPrompt,
+  routedTurnMcpSessionFields,
+  type RoutedTurnMcpAttachment,
+} from './routed-turn-provider-input.js'
 
 export type DelegateToWorkspaceRootInput = {
   /** The delegating (parent) session — the global root's current SDK session id. */
@@ -75,6 +70,10 @@ export type DelegateToWorkspaceRootInput = {
   /** The permission mode the routed turn runs under (surface-up step 1) — from the
    *  job row. Omit for the pre-mode default (`bypass-with-behavior-gate`). */
   permissionMode?: DelegationPermissionMode
+  /** The background workspace MCP attachment (the tick composes it at the api
+   *  edge). Omit → the turn runs bare, stripping the session's deferred MCP
+   *  tools — only acceptable for a target that never had them. */
+  mcpAttachment?: RoutedTurnMcpAttachment
   /** The surface-up handler (the tick's `buildRoutedApprovalHandler`): channel push +
    *  wait-gate edges. Recording happens inside the pipeline either way — without a
    *  handler a carded tool still parks on the recorded card, bounded by the approvals
@@ -118,18 +117,21 @@ export async function delegateToWorkspaceRoot(
   })
 
   // 2. Start the provider turn — resume the workspace's brain, or fresh on first use.
+  //    The MCP attachment rides along so the resumed session keeps the SAME
+  //    background toolset a schedule fire attaches — never a bare turn that
+  //    strips the session's deferred tools ("server disconnected").
   const sessionEventStream = provider.startChatSession({
     workspacePath: input.workspacePath,
     ...(target.resumeSdkSessionId !== null
       ? { resumeSessionId: target.resumeSdkSessionId }
       : {}),
     userMessageText: input.taskText,
-    systemPromptAppend: ROUTED_TASK_INSTRUCTIONS,
+    systemPromptAppend: composeRoutedTurnSystemPrompt(input.mcpAttachment),
     permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
     // Empty grants: a resumed root keeps the workspace's existing tool grants; a
     // fresh root gets the SDK defaults. The behavior gate still cards the floor.
     allowedToolNames: [],
-    deniedToolNames: [],
+    ...routedTurnMcpSessionFields(input.mcpAttachment),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
   })

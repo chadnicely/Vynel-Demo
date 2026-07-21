@@ -15,7 +15,7 @@ import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provi
 import { createSpawnedSession } from '../spawned/index.js'
 import { getOrCreatePrimarySession } from '../continuity/index.js'
 import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
-import { ROUTED_TASK_INSTRUCTIONS } from './delegate-to-workspace-root.js'
+import { ROUTED_TASK_INSTRUCTIONS } from './routed-turn-provider-input.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -94,6 +94,48 @@ describe('delegateToSpawnedSession', () => {
       expect(edge.parentSessionId).toBe('global-sdk-1')
       expect(edge.childSessionId).toBe(created.sessionId)
       expect(edge.role).toBe('spawned-session')
+    })
+  })
+
+  it('threads a workspace-grounded MCP attachment into the resumed turn (Slice ④b ground toolset)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const created = await spawnSession(db, user.id)
+
+      const startChatSessionInputs: StartChatSessionInput[] = []
+      await delegateToSpawnedSession(
+        db,
+        new FakeAiAgentProvider({
+          seededSessionId: created.sessionId,
+          resultText: 'done',
+          startChatSessionInputs,
+        }),
+        {
+          parentSessionId: 'global-sdk-1',
+          userId: user.id,
+          targetPrimarySessionId: created.primarySessionId,
+          runCwdPath: '/tmp/vynel/global-root',
+          sessionName: created.name,
+          taskText: 'compare pricing',
+          providerId: 'claude',
+          mcpAttachment: {
+            mcpServers: { vynel: { name: 'vynel' } },
+            allowedMcpToolPatterns: ['mcp__vynel__*'],
+            deniedMcpToolPatterns: [],
+            mutatingToolNames: [],
+            systemPromptAppend: '',
+          },
+        },
+      )
+
+      const turnInput = startChatSessionInputs[0]!
+      expect(turnInput.mcpServers).toEqual({ vynel: { name: 'vynel' } })
+      expect(turnInput.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+      expect(turnInput.deniedToolNames).toEqual([])
+      // Empty composer prompt → the routed steer alone, no trailing join.
+      expect(turnInput.systemPromptAppend).toBe(ROUTED_TASK_INSTRUCTIONS)
+      // No declared mutators → the field stays absent (the provider floor alone).
+      expect(turnInput.alwaysRequireApprovalToolNames).toBeUndefined()
     })
   })
 

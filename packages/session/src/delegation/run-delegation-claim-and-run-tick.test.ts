@@ -237,6 +237,120 @@ describe('runDelegationClaimAndRunTick', () => {
     })
   })
 
+  it('composes the background MCP attachment per target grounding (workspace job → its workspace; workspace-grounded session → its ground; global-grounded session → none)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const attachment = {
+        mcpServers: { vynel: { name: 'vynel' } },
+        allowedMcpToolPatterns: ['mcp__vynel__*'],
+        deniedMcpToolPatterns: [],
+        mutatingToolNames: [],
+        systemPromptAppend: '',
+      }
+      const composeWorkspaceMcpServers = vi.fn(() => attachment)
+
+      // WORKSPACE target: composed with the JOB's workspace, attachment reaches
+      // the provider turn — a bare routed turn strips the resumed session's
+      // deferred tools ("server disconnected", the 2026-07-21 bug).
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'tidy the notes',
+      })
+      const workspaceInputs: StartChatSessionInput[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: 'ws-root-mcp',
+          resultText: 'ok',
+          startChatSessionInputs: workspaceInputs,
+        }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        composeWorkspaceMcpServers,
+      })
+      expect(composeWorkspaceMcpServers).toHaveBeenCalledWith({
+        db,
+        userId: user.id,
+        workspaceId: workspace.id,
+      })
+      expect(workspaceInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
+      expect(workspaceInputs[0]!.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+
+      // WORKSPACE-GROUNDED session target (Slice ④b): composed with the spawned
+      // primary's OWN workspaceId — the session works in its ground's toolset.
+      composeWorkspaceMcpServers.mockClear()
+      const grounded = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-spawned-grounded' }),
+        {
+          userId: user.id,
+          name: 'Grounded',
+          purpose: 'p',
+          workspacePath: workspace.path,
+          workspaceId: workspace.id,
+        },
+      )
+      enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        targetPrimarySessionId: grounded.primarySessionId,
+        runCwdPath: workspace.path,
+        taskText: 'grounded task',
+      })
+      const groundedInputs: StartChatSessionInput[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: grounded.sessionId,
+          resultText: 'ok',
+          startChatSessionInputs: groundedInputs,
+        }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        composeWorkspaceMcpServers,
+      })
+      expect(composeWorkspaceMcpServers).toHaveBeenCalledWith({
+        db,
+        userId: user.id,
+        workspaceId: workspace.id,
+      })
+      expect(groundedInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
+
+      // GLOBAL-grounded session target: NOTHING composed — bare stays
+      // CONSISTENT there (its priming attached nothing, no tools to strip).
+      composeWorkspaceMcpServers.mockClear()
+      const globalGrounded = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-spawned-global' }),
+        { userId: user.id, name: 'Global', purpose: 'p', workspacePath: '/tmp/x' },
+      )
+      enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        targetPrimarySessionId: globalGrounded.primarySessionId,
+        runCwdPath: '/tmp/x',
+        taskText: 'global task',
+      })
+      const globalInputs: StartChatSessionInput[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: globalGrounded.sessionId,
+          resultText: 'ok',
+          startChatSessionInputs: globalInputs,
+        }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        composeWorkspaceMcpServers,
+      })
+      expect(composeWorkspaceMcpServers).not.toHaveBeenCalled()
+      expect(globalInputs[0]!).not.toHaveProperty('mcpServers')
+    })
+  })
+
   it('claims a pending job, runs it, completes it, and pushes the report up to the global root', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

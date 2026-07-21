@@ -33,6 +33,13 @@ function fakeOptions() {
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as Logger,
     provider: {} as unknown as AiAgentProvider,
     activityFeed: {} as unknown as SessionActivityFeed,
+    composeWorkspaceMcpServers: vi.fn(() => ({
+      mcpServers: {},
+      allowedMcpToolPatterns: [],
+      deniedMcpToolPatterns: [],
+      mutatingToolNames: [],
+      systemPromptAppend: '',
+    })),
   }
 }
 
@@ -69,7 +76,13 @@ describe('startDelegationService', () => {
     expect(tickMock).toHaveBeenCalledTimes(1)
     const [dbArg, depsArg] = tickMock.mock.calls[0]!
     expect(dbArg).toBe(options.db)
-    expect(depsArg).toMatchObject({ provider: options.provider, logger: options.logger })
+    expect(depsArg).toMatchObject({
+      provider: options.provider,
+      logger: options.logger,
+      // The background MCP composition must reach every tick — a routed turn
+      // without it strips the resumed session's deferred tools.
+      composeWorkspaceMcpServers: options.composeWorkspaceMcpServers,
+    })
     service.stop()
   })
 

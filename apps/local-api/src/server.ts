@@ -40,6 +40,7 @@ import { startMemoryMaintenanceService } from './services/memory-maintenance-ser
 import { startChannelsService } from './services/channels-service.js'
 import { startOutboxRelayService } from './services/outbox-relay-service.js'
 import { startDelegationService } from './services/delegation-service.js'
+import { buildWorkspaceBackgroundMcpComposer } from './sessions/build-workspace-background-mcp.js'
 import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
 import { TurnEventBroadcaster, DelegationCancelRegistry } from '@vynel/session/delegation'
 import { SessionActivityFeed } from '@vynel/session/runtime'
@@ -152,7 +153,10 @@ export async function boot(): Promise<void> {
   // The delegation claim-and-run tick — claims one pending routing job per tick,
   // runs it as a workspace turn, records the terminal state; at startup it fails
   // the jobs a crash left stuck `claimed`. Same api-process reasoning as above.
+  // Routed turns attach the SAME background MCP set schedule fires attach — a
+  // bare turn strips the resumed session's deferred tools ("server disconnected").
   const provider = resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
+  const composeWorkspaceMcpServers = await buildWorkspaceBackgroundMcpComposer(appRequest)
   const delegationService = startDelegationService({
     db,
     logger,
@@ -160,6 +164,7 @@ export async function boot(): Promise<void> {
     activityFeed,
     turnEvents,
     cancelRegistry: delegationCancels,
+    composeWorkspaceMcpServers,
   })
   // The stale-approval reaper (surface-up's unanswered bound) — denies the provider
   // approval so a parked turn resumes, then marks the row timed-out.

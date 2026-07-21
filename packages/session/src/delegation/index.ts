@@ -12,10 +12,13 @@
 
 export {
   delegateToWorkspaceRoot,
-  ROUTED_TASK_INSTRUCTIONS,
   type DelegateToWorkspaceRootInput,
   type DelegateToWorkspaceRootResult,
 } from './delegate-to-workspace-root.js'
+export {
+  ROUTED_TASK_INSTRUCTIONS,
+  type RoutedTurnMcpAttachment,
+} from './routed-turn-provider-input.js'
 export {
   delegateToLeafSession,
   type DelegateToLeafSessionInput,
