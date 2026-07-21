@@ -30,6 +30,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   whole answer; and the floating Jarvis overlay got a translucent glass card behind the orb and
   captions so they're readable over any screen.
 
+### Added
+
+- **A Sessions home, and you can chat with any created session.** The top navigation is now
+  Home · Chat · Sessions. Sessions is the library of every conversation the assistant runs —
+  your workspaces' brains, sessions it created, and the continuation chain behind each one.
+  Open any of them to read the full thread live; sessions the assistant created are directly
+  chattable (your message waits its turn if the session is mid-task), older chain segments are
+  readable with chat continuing at the newest one. This replaces the old "past conversations"
+  side panel.
+
 ### Changed
 
 - **One watch panel for everything.** Watching a handed-off task, a session, or an agent now opens

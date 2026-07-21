@@ -3,7 +3,46 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21L): ④b PIN RE-DECIDED + BUILT (`524559d`) — delegated workspace-root turns carry the session-routing trio; gate GREEN 525f/2821t; NEXT: Chad's ② click-through + the new chain smoke → Slice ③
+## ⏭ NEXT ACTION (2026-07-21M): SLICE ③ SHIPPED WHOLE — ③a `448176a` (chat-into-session route + SessionTargetLocks) + ③b `4d05e12` (nav trio + Sessions library + composer); gate GREEN 528f/2849t, both halves adversarially reviewed (0 must-fix; all should-fixes folded); NEXT: CHAD'S BIG SMOKE → Slice ④ (coverage)
+
+**③a (subagent-built, reviewed CLEAN): POST /sessions/:sessionId/turn (`sessions.startTurn`,
+segment-id handle, SSE chat-turn shape + leading `turn-queued` sentinel) resumes the spawned
+HEAD (re-read after parking; deleted-mid-queue clean) with the SPAWNED-target background MCP
+set (locked ①; global-grounded = bare) under interactive `ask`-default mode; NO routed-task
+steer. NEW `SessionTargetLocks` (FIFO acquire/release, sync registration) SHARED between the
+delegation pool (its private Set replaced; sync-claim + release-every-launch pins survive) and
+user turns — single-writer per spawned session both directions, TOCTOU-free (reviewer-attacked).
+Disconnect-while-parked pinned: the promised turn still runs, the lock frees (hono 4.12 nuance:
+real disconnects arrive via body.cancel(), NOT the request signal — the test simulates it
+faithfully, commented). startChatTurn widened additively (nullable workspaceId +
+newSessionOptions); ground resolution ONE home (resolveSpawnedSessionRunCwd). RECORDED:
+composition-before-parking snapshot (one-turn staleness, harmless) · user turns get the
+onCompaction hook delegated runs lack (asymmetry noted) · no server interrupt for session turns
+(client abort only, consistent with stop_session_task not shipped).**
+**③b (subagent-built, reviewed 0 must-fix, 3 should-fixes folded): nav = Home | Chat | Sessions
+(both scopes; palette/Go/View menu route through openSessions). /sessions = the routed library
+(?workspace=<id> scope; absorbs SessionsSection — DELETED with SessionsPanel +
+use-session-list, no shims; locked 0b: the Conversations panel + workspace "New conversation"
+affordance died deliberately; global ⌘N fresh path intact). SessionThreadView =
+useActivityMonitor + ActivityEntriesList + AppComposer (spawned-head only; segments view-only
++ head hint; primaries route to Chat; agent-scope view-only). use-session-turn = the composer
+driver (monitor's fold reused, settle = invalidate sessionKeys.all THEN clear; 404 → "session
+moved" message). FOLDED: ChatComposer grew `allowAttachments` (explicit withDefaults true —
+bare optional boolean would have stripped attachments everywhere; caught by existing tests) ·
+turn errors render beside the composer, never blanking the transcript · the dead
+SessionsSection meter/chain pins resurrected. RECORDED (deferred): AppShell 426 lines (split
+next touch) · watching-vs-working dot semantics (both surfaces) · spawned working-dot +
+scopeKind 'global' announce = the Slice-④ chips item · ShellPreview mock dock permanently open
+(preview-only) · as-built docs stale on deleted panels/sections.**
+**⏭ CHAD SMOKE (the arc's visible payoff): nav shows Home | Chat | Sessions in global AND a
+workspace · Sessions lists everything scope-filtered (meters, chains, working dots) · open
+"Letterman – Test Session" → full thread renders (history + live) → TYPE INTO IT → reply
+streams; send while a delegated task runs → "queued" note, then it goes · open a chain segment
+→ view-only + head hint · View menu → Sessions (old panel gone) · Esc/Back/Watch all still fine.
+Then Slice ④ (coverage: workspace Watch chips + direct-turn agent focus + session-target chips
++ linked-session chips → monitor).**
+
+## (prev) ⏭ NEXT ACTION (2026-07-21L): ④b PIN RE-DECIDED + BUILT (`524559d`) — delegated workspace-root turns carry the session-routing trio; gate GREEN 525f/2821t; Chad's chain smoke CONFIRMED WORKING (screenshot: Sarah routed send_task_to_session cleanly)
 
 **Chad's live smoke exposed the residual: a delegated letterman turn couldn't
 send_task_to_session (the ④b backgrounds-excluded pin), and the model narrated the
