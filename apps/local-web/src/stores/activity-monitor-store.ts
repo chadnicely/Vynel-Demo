@@ -2,12 +2,12 @@ import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import type { ActivitySource } from "../composables/activity/use-activity-monitor.js";
 
-// The ONE activity panel's drill-down stack (sessions-surface Slice ②):
-// `Session → Session | Agent` as a stack of nodes — Back pops, Close clears.
-// An agent node CARRIES its parent's ActivitySource: its data is the live
-// agentActivity map or the Agent call's persisted subagent fields, so it needs
-// no channel of its own — which is what makes a direct-open agent (a thread
-// card's Watch chip, no surrounding panel) watchable at all.
+// The ONE activity panel's drill-down stack (sessions-surface Slice ②, deepened
+// by the watch-pipeline drill): `Trace → Session → Agent` as a stack of nodes —
+// Back pops, Close clears. An agent node CARRIES its parent's ActivitySource:
+// its data is the live agentActivity map or the Agent call's persisted subagent
+// fields, so it needs no channel of its own — which is what makes a direct-open
+// agent (a thread card's Watch chip, no surrounding panel) watchable at all.
 export type ActivityNode =
   | { kind: "trace"; partialSessionId: string }
   | { kind: "session"; sessionId: string; title: string }
@@ -32,11 +32,14 @@ export const useActivityMonitorStore = defineStore("activity-monitor", () => {
   );
   const isOpen = computed(() => stack.value.length > 0);
   const backAvailable = computed(() => stack.value.length > 1);
-  /** The source the panel's single monitor binds to — the bottom node's (an
-   *  agent bottom node contributes the source it carries). */
-  const baseSource = computed<ActivitySource | null>(() => {
-    const bottom = stack.value[0];
-    return bottom === undefined ? null : sourceOf(bottom);
+  /** The source the panel's single monitor binds to — the TOP node's (an agent
+   *  node contributes the source it carries, so focusing an agent never
+   *  re-binds). Was the bottom node's until the pipeline drill let a session
+   *  node stack ON TOP of a trace — the drilled-into session needs its own
+   *  channel, so the monitor follows the active node down the pipeline. */
+  const activeSource = computed<ActivitySource | null>(() => {
+    const top = stack.value.at(-1);
+    return top === undefined ? null : sourceOf(top);
   });
 
   function open(node: ActivityNode) {
@@ -79,9 +82,11 @@ export const useActivityMonitorStore = defineStore("activity-monitor", () => {
     open({ kind: "agent", source, toolUseId });
   }
 
-  /** Drill into an agent FROM the open panel — Back returns to it. */
+  /** Drill into an agent FROM the open panel — Back returns to it. The agent
+   *  captures the ACTIVE node's source (a drilled-into session's agents read
+   *  the session channel, not the trace the drill came through). */
   function focusAgent(toolUseId: string) {
-    const source = baseSource.value;
+    const source = activeSource.value;
     if (source === null) return;
     push({ kind: "agent", source, toolUseId });
   }
@@ -91,7 +96,7 @@ export const useActivityMonitorStore = defineStore("activity-monitor", () => {
     current,
     isOpen,
     backAvailable,
-    baseSource,
+    activeSource,
     open,
     push,
     back,

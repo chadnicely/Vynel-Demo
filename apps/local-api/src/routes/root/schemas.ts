@@ -113,6 +113,12 @@ export const DelegationTraceResponseSchema = z.object({
   partialSessionId: z.string(),
   // Null when the key is unknown / not owned (the empty trace).
   status: DelegationJobStatusSchema.nullable(),
+  // The spawned session a SESSION-target job ran in (watch-pipeline drill:
+  // the panel pushes a session node over it). Null for workspace targets and
+  // when the spawned primary no longer resolves.
+  spawnedTargetSession: z
+    .object({ sessionId: z.string(), name: z.string() })
+    .nullable(),
   entries: z.array(DelegationTraceEntrySchema),
 })
 

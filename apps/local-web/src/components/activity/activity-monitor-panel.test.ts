@@ -73,6 +73,8 @@ function makeHarness(
   options: {
     traceStatus?: string;
     traceEntries?: () => Array<Record<string, unknown>>;
+    /** A SESSION-target trace names its spawned session (the pipeline drill). */
+    traceSpawnedTarget?: { sessionId: string; name: string } | null;
     transcriptMessages?: () => TranscriptMessage[];
     transcriptToolCalls?: () => Record<string, unknown[]>;
     onStreamRequest?: () => ReadableStream<Uint8Array>;
@@ -87,6 +89,7 @@ function makeHarness(
   const getTrace = vi.fn(async (partialSessionId: string) => ({
     partialSessionId,
     status: options.traceStatus ?? "claimed",
+    spawnedTargetSession: options.traceSpawnedTarget ?? null,
     entries: options.traceEntries?.() ?? [],
   }));
   const getSession = vi.fn(async () => ({
@@ -327,6 +330,91 @@ describe("ActivityMonitorPanel — trace nodes", () => {
     expect(harness.wrapper.find('[aria-label="Stop this task"]').exists()).toBe(
       false,
     );
+    harness.wrapper.unmount();
+  });
+});
+
+// The watch-pipeline drill (Chad's 2026-07-21 scoping rules): from a trace
+// node, a session-report entry drills into the spawned session's node —
+// Trace → Session → Agent, Back walking up.
+describe("ActivityMonitorPanel — the pipeline drill (trace → session)", () => {
+  const sessionTraceEntries = () => [
+    {
+      id: "t-user",
+      role: "user",
+      sourceKind: "global-root",
+      sourceLabel: null,
+      body: "Dig into the pricing rules",
+      toolCalls: [],
+    },
+    {
+      id: "t-report",
+      role: "assistant",
+      sourceKind: "workspace-manager",
+      sourceLabel: "Research helper",
+      body: "Found three pricing tiers.",
+      toolCalls: [],
+    },
+  ];
+
+  it("a session-target trace's report entry drills into the session node; Back returns to the task", async () => {
+    const harness = makeHarness({
+      traceStatus: "completed",
+      traceEntries: sessionTraceEntries,
+      traceSpawnedTarget: { sessionId: "sdk-spawned", name: "Research helper" },
+      transcriptMessages: () => [
+        { id: "m-s1", body: "the session's own reply" },
+      ],
+    });
+    harness.store.openTrace("trace-1");
+    await vi.waitFor(() =>
+      expect(harness.wrapper.find(".session-drill").exists()).toBe(true),
+    );
+    // The chip sits on the SESSION's attributed entry, named after it.
+    expect(harness.wrapper.get(".session-drill").text()).toContain(
+      "Research helper",
+    );
+
+    await harness.wrapper.get(".session-drill").trigger("click");
+    await flushPromises();
+    // The panel re-bound to the SESSION node: its title, its channel, and the
+    // trace-only job pill gone.
+    expect(harness.wrapper.get(".viewer-title").text()).toContain(
+      "Research helper",
+    );
+    await vi.waitFor(() =>
+      expect(
+        harness.GET.mock.calls.some(
+          (call) => call[0] === "/sessions/{sessionId}/stream",
+        ),
+      ).toBe(true),
+    );
+    expect(harness.wrapper.find(".status-pill").exists()).toBe(false);
+    await vi.waitFor(() =>
+      expect(harness.wrapper.text()).toContain("the session's own reply"),
+    );
+
+    // Back pops the session node — the trace view returns.
+    await harness.wrapper.get('[aria-label="Back to the task"]').trigger("click");
+    await flushPromises();
+    expect(harness.wrapper.text()).toContain("Dig into the pricing rules");
+    expect(harness.wrapper.get(".status-pill").text()).toBe("Done");
+    harness.wrapper.unmount();
+  });
+
+  it("a WORKSPACE-target trace offers no session drill", async () => {
+    // spawnedTargetSession is null for workspace targets — the drill is a
+    // session-report affordance only.
+    const harness = makeHarness({
+      traceStatus: "completed",
+      traceEntries: sessionTraceEntries,
+      traceSpawnedTarget: null,
+    });
+    harness.store.openTrace("trace-1");
+    await vi.waitFor(() =>
+      expect(harness.wrapper.text()).toContain("Found three pricing tiers."),
+    );
+    expect(harness.wrapper.find(".session-drill").exists()).toBe(false);
     harness.wrapper.unmount();
   });
 });

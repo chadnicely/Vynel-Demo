@@ -12,9 +12,11 @@ import AgentFocusView from "./AgentFocusView.vue";
 
 // The ONE activity overlay (sessions-surface Slice ②) — the old delegation
 // viewer and session watch panels merged over the single monitor seam, with
-// the node-stack drill-down (`Session → Session | Agent`). ONE monitor binds
-// to the stack's base source; an agent node reads that monitor's live map or
-// the Agent call's persisted fields — no channel of its own.
+// the node-stack drill-down, now the full watch PIPELINE (Chad's 2026-07-21
+// scoping rules): `Trace → Session → Agent`, Back walking up. ONE monitor
+// binds to the stack's ACTIVE source (a drilled-into session brings its own
+// channel); an agent node reads that monitor's live map or the Agent call's
+// persisted fields — no channel of its own.
 const store = useActivityMonitorStore();
 
 const {
@@ -25,9 +27,9 @@ const {
   hasEnded,
   errorText,
   traceQuery,
-} = useActivityMonitor(() => store.baseSource);
+} = useActivityMonitor(() => store.activeSource);
 
-const baseKind = computed(() => store.baseSource?.kind ?? null);
+const activeKind = computed(() => store.activeSource?.kind ?? null);
 const agentNode = computed(() =>
   store.current?.kind === "agent" ? store.current : null,
 );
@@ -36,14 +38,14 @@ const agentNode = computed(() =>
 // backend trace is deliberately faithful (both copies returned); display
 // collapses the echo for trace nodes (see collapse-trace-echo.ts).
 const displayEntries = computed(() =>
-  baseKind.value === "trace"
+  activeKind.value === "trace"
     ? collapseTraceEcho(entries.value)
     : entries.value,
 );
 
 // ── Trace-kind job affordances (status pill + Stop) ──
 const status = computed(() =>
-  baseKind.value === "trace" ? (traceQuery.data.value?.status ?? null) : null,
+  activeKind.value === "trace" ? (traceQuery.data.value?.status ?? null) : null,
 );
 const isWorking = computed(
   () => status.value === "pending" || status.value === "claimed",
@@ -54,8 +56,25 @@ const isWorking = computed(
 // poll then settles the panel to "Failed (stopped by the user)".
 const stopDelegation = useStopDelegation();
 function stopWatchedTask() {
-  const source = store.baseSource;
+  const source = store.activeSource;
   if (source?.kind === "trace") stopDelegation.mutate(source.id);
+}
+
+// ── The pipeline drill (trace → session) ──
+// A SESSION-target trace names the spawned session it ran in; its report
+// entries offer a drill into that session's node — Back returns to the trace.
+const sessionDrill = computed(() => {
+  if (activeKind.value !== "trace") return null;
+  const target = traceQuery.data.value?.spawnedTargetSession ?? null;
+  return target === null
+    ? null
+    : { sessionId: target.sessionId, title: target.name };
+});
+
+function drillIntoSession() {
+  const drill = sessionDrill.value;
+  if (drill === null) return;
+  store.push({ kind: "session", sessionId: drill.sessionId, title: drill.title });
 }
 
 const statusLabel = computed(() => {
@@ -108,7 +127,7 @@ const headerTitle = computed(() => {
 const headerLive = computed(() => {
   if (agentFocus.value !== null)
     return agentFocus.value.call?.status === "started";
-  return baseKind.value === "trace" ? isWorking.value : isStreaming.value;
+  return activeKind.value === "trace" ? isWorking.value : isStreaming.value;
 });
 
 const headerContext = computed(() => {
@@ -117,19 +136,23 @@ const headerContext = computed(() => {
       agentFocus.value.task ??
       "Watching this agent live — everything it does shows up here."
     );
-  return baseKind.value === "trace"
+  return activeKind.value === "trace"
     ? "Watching this task live — everything the workspace does shows up here."
     : "Watching this conversation live — replies and tool use show up here as they happen.";
 });
 
-const backLabel = computed(() =>
-  baseKind.value === "trace" ? "Back to the task" : "Back to the conversation",
-);
+// Back names where it GOES — the node UNDER the top of the stack (the pipeline
+// drill can leave a trace beneath a session beneath an agent).
+const backLabel = computed(() => {
+  const below = store.stack.at(-2);
+  if (below === undefined) return "Back";
+  return below.kind === "trace" ? "Back to the task" : "Back to the conversation";
+});
 
 // Each kind keeps its established error surface: a trace fails through its
 // settled read (polling was always its fallback); a session says a stream drop.
 const bodyErrorText = computed(() =>
-  baseKind.value === "trace"
+  activeKind.value === "trace"
     ? traceQuery.isError.value
       ? formatSdkError(traceQuery.error.value)
       : null
@@ -154,7 +177,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
         <div class="scrim" @click="store.close()" />
         <aside
           class="session-viewer"
-          :aria-label="baseKind === 'trace' ? 'Delegation activity' : 'Session activity'"
+          :aria-label="activeKind === 'trace' ? 'Delegation activity' : 'Session activity'"
         >
           <ActivityPanelHeader
             :title="headerTitle"
@@ -162,12 +185,12 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
             :is-live="headerLive"
             :back-label="store.backAvailable ? backLabel : null"
             :status-label="
-              agentFocus === null && baseKind === 'trace' && statusLabel
+              agentFocus === null && activeKind === 'trace' && statusLabel
                 ? statusLabel
                 : null
             "
             :status-tone="statusTone"
-            :show-stop="baseKind === 'trace' && isWorking"
+            :show-stop="activeKind === 'trace' && isWorking"
             @back="store.back()"
             @stop="stopWatchedTask"
             @close="store.close()"
@@ -176,8 +199,8 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
           <div class="viewer-body">
             <AgentFocusView v-if="agentFocus !== null" :focus="agentFocus" />
             <ActivityEntriesList
-              v-else-if="baseKind !== null"
-              :kind="baseKind"
+              v-else-if="activeKind !== null"
+              :kind="activeKind"
               :entries="displayEntries"
               :agent-activity="agentActivity"
               :pending-approval-tool-name="pendingApprovalToolName"
@@ -186,7 +209,9 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
               :is-working="isWorking"
               :is-streaming="isStreaming"
               :has-ended="hasEnded"
+              :session-drill="sessionDrill"
               @watch-agent="store.focusAgent"
+              @drill-session="drillIntoSession"
             />
           </div>
         </aside>

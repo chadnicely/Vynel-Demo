@@ -17,7 +17,11 @@ import { withTestDatabase } from '@vynel/testing'
 import type { Database } from '@vynel/db'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { enqueueWorkspaceDelegation, listInFlightDelegations } from '@vynel/orchestration'
+import {
+  enqueueSessionDelegation,
+  enqueueWorkspaceDelegation,
+  listInFlightDelegations,
+} from '@vynel/orchestration'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import {
   insertChatToolCall,
@@ -25,6 +29,7 @@ import {
   insertChatMessage,
   type NewChatMessage,
 } from '@vynel/chat/repositories'
+import { insertPrimarySession } from '../repositories/index.js'
 import { resolveDelegationTrace } from './resolve-delegation-trace.js'
 
 function makeUser(id: string = randomUUID()) {
@@ -213,6 +218,9 @@ describe('resolveDelegationTrace', () => {
 
       expect(trace.partialSessionId).toBe(partialSessionId)
       expect(trace.status).toBe('pending') // the anchor's live status — drives the poll
+      // Watch-pipeline scoping: a WORKSPACE-target trace offers no session
+      // drill — only session-target jobs carry a spawned target identity.
+      expect(trace.spawnedTargetSession).toBeNull()
       // The scope is derived from the session's workspaceId, NOT sourceKind: the
       // acknowledgement and the task are BOTH `global-root`, yet the ack is scope 'global'
       // (its session is /global) and the task is scope 'workspace' (the drill-down target).
@@ -244,6 +252,58 @@ describe('resolveDelegationTrace', () => {
 
       expect(trace.entries).toEqual([])
       expect(trace.status).toBeNull()
+    })
+  })
+
+  // The watch-pipeline drill (Chad's 2026-07-21 scoping rules): a SESSION-target
+  // trace names the spawned session it ran in, so the panel can push a
+  // `{kind:'session'}` node from the trace view (Workspace → Session → Agent).
+  it('a session-target trace carries the spawned target session identity for the drill', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const now = new Date()
+      const spawnedSdkSessionId = `spawned-${randomUUID()}`
+      // The spawned session's listed, titled segment — its display name home.
+      insertChatSession(
+        db,
+        buildNewChatSessionRow({
+          sessionId: spawnedSdkSessionId,
+          userId: user.id,
+          workspaceId: null,
+          providerId: 'claude',
+          startedAt: now,
+          title: 'Research helper',
+        }),
+      )
+      const primary = insertPrimarySession(db, {
+        id: randomUUID(),
+        userId: user.id,
+        workspaceId: null,
+        scope: 'spawned',
+        currentSdkSessionId: spawnedSdkSessionId,
+        supersededFromSdkSessionId: null,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      })
+      enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: `global-${randomUUID()}`,
+        targetPrimarySessionId: primary.id,
+        runCwdPath: '/tmp/vynel/spawned',
+        taskText: 'dig into the pricing rules',
+      })
+      const [inFlight] = listInFlightDelegations(db, { userId: user.id })
+      const partialSessionId = inFlight!.partialSessionId!
+
+      const trace = resolveDelegationTrace(db, { userId: user.id, partialSessionId })
+
+      // The CURRENT SDK segment id — what the session watch channel keys on —
+      // and the shared display-name reading (chip/reply/drill can't diverge).
+      expect(trace.spawnedTargetSession).toEqual({
+        sessionId: spawnedSdkSessionId,
+        name: 'Research helper',
+      })
     })
   })
 

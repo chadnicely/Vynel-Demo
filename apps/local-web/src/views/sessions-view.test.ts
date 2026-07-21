@@ -76,15 +76,18 @@ function makeEntry(
   };
 }
 
-/** Full wire-shaped message rows — MessageRow renders the real contract. */
-function makeTranscript(messages: Array<{ id: string; body: string }>) {
+/** Full wire-shaped message rows — MessageRow renders the real contract.
+ *  Extra per-row fields (attribution, trace keys) ride via the overrides. */
+function makeTranscript(
+  messages: Array<{ id: string; body: string } & Record<string, unknown>>,
+) {
   return {
     session: { id: "sdk-1" },
-    messages: messages.map((message) => ({
-      id: message.id,
+    messages: messages.map(({ id, body, ...overrides }) => ({
+      id,
       sessionId: "sp-1",
       role: "assistant",
-      body: message.body,
+      body,
       thinkingBody: null,
       inputTokens: null,
       outputTokens: null,
@@ -94,6 +97,7 @@ function makeTranscript(messages: Array<{ id: string; body: string }>) {
       startedAt: "2026-07-21T09:00:00.000Z",
       completedAt: "2026-07-21T09:00:01.000Z",
       createdAt: "2026-07-21T09:00:00.000Z",
+      ...overrides,
     })),
     toolCallsByMessageId: {},
   };
@@ -108,12 +112,16 @@ async function mountView(
     turnResponse?: { ok: boolean; status: number };
     /** The transcript read fails (stale handle, deleted session). */
     detailError?: string;
+    /** Override the opened session's transcript rows. */
+    transcriptMessages?: Array<{ id: string; body: string } & Record<string, unknown>>;
   } = {},
 ) {
   const getSession = vi.fn(async () => {
     if (options.detailError !== undefined)
       throw new Error(options.detailError);
-    return makeTranscript([{ id: "m-1", body: "Earlier findings." }]);
+    return makeTranscript(
+      options.transcriptMessages ?? [{ id: "m-1", body: "Earlier findings." }],
+    );
   });
   const turnCalls: Array<{ path: string; init: Record<string, unknown> }> = [];
   const POST = vi.fn(async (path: string, init: Record<string, unknown>) => {
@@ -332,6 +340,35 @@ describe("SessionsView", () => {
     expect(wrapper.find('[aria-label="Attach files"]').exists()).toBe(false);
     // Two-pane: the list stays put and marks the open row.
     expect(wrapper.get(".session-row").classes()).toContain("is-active");
+  });
+
+  // Pipeline scoping rule 3 (Chad, 2026-07-21 evening): a SESSION view is a
+  // leaf — no trace/report watch chips, even on rows that would chip on a
+  // thread surface (SessionThreadView passes show-watch-chips=false).
+  it("the opened session's traced rows wear NO watch chip — agent chips only", async () => {
+    const { wrapper } = await mountView([makeEntry()], {
+      transcriptMessages: [
+        {
+          id: "m-task",
+          body: "Dig into the pricing rules",
+          role: "user",
+          sourceKind: "global-root",
+          partialSessionId: "partial-in",
+        },
+        {
+          id: "m-reply",
+          body: "Found three tiers.",
+          sourceKind: "workspace-manager",
+          sourceLabel: "Research helper",
+          partialSessionId: "partial-in",
+        },
+      ],
+    });
+
+    await openRow(wrapper);
+
+    expect(wrapper.text()).toContain("Found three tiers.");
+    expect(wrapper.find(".session-link").exists()).toBe(false);
   });
 
   it("sending posts to the session-turn route, shows queued on the sentinel, then streams", async () => {

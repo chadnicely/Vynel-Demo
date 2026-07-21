@@ -219,6 +219,7 @@ describe('GET /root/trace/:partialSessionId', () => {
       expect(await res.json()).toEqual({
         partialSessionId: 'no-such-key',
         status: null,
+        spawnedTargetSession: null,
         entries: [],
       })
     })

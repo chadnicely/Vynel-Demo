@@ -28,10 +28,16 @@ const props = defineProps<{
   isStreaming: boolean;
   /** Session kind: the watched turn ended (one-attach-one-turn). */
   hasEnded: boolean;
+  /** Trace kind, SESSION-target jobs only: the spawned session the task ran
+   *  in — its report entries offer the pipeline drill into that session's
+   *  node (Chad's 2026-07-21 scoping rules). Null: no drill. */
+  sessionDrill?: { sessionId: string; title: string } | null;
 }>();
 
 const emit = defineEmits<{
   watchAgent: [toolUseId: string];
+  /** A session-report entry's drill chip — the host pushes the session node. */
+  drillSession: [];
 }>();
 
 // Persona-first author labels, matching MessageRow: the brain is Claude, a
@@ -50,6 +56,19 @@ function isTaskEntry(entry: LiveTraceEntry): boolean {
 
 function onWatchAgent(toolCall: ChatToolCallResponse) {
   emit("watchAgent", toolCall.toolUseId);
+}
+
+// The pipeline drill (trace → session): the SESSION's own voice in the trace —
+// an attributed 'workspace-manager' reply/report entry — wears the drill chip
+// when the trace names a spawned target. Attribution-gated so task cards and
+// unattributed overlay rows never grow one.
+function offersSessionDrill(entry: LiveTraceEntry): boolean {
+  return (
+    props.kind === "trace" &&
+    (props.sessionDrill ?? null) !== null &&
+    entry.role === "assistant" &&
+    entry.sourceKind === "workspace-manager"
+  );
 }
 
 const emptyNote = computed(() => {
@@ -91,7 +110,34 @@ const approvalNote = computed(() =>
       class="entry"
       :class="{ 'is-task': isTaskEntry(entry) }"
     >
-      <p class="entry-author">{{ authorLabel(entry) }}</p>
+      <p class="entry-author">
+        {{ authorLabel(entry) }}
+        <!-- The pipeline drill: this work ran in a spawned session — open its
+             node (Back returns to the task). -->
+        <button
+          v-if="offersSessionDrill(entry)"
+          type="button"
+          class="session-drill"
+          @click="emit('drillSession')"
+        >
+          Open {{ props.sessionDrill!.title }}
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M6 4l4 4-4 4"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+      </p>
       <!-- A running spawned agent shows its one-line live ticker under its
            card, same as the chat thread; the full activity is one drill-in
            away (the card's Watch chip → the focused agent node). -->
@@ -151,6 +197,40 @@ const approvalNote = computed(() =>
   font: 600 10.5px/1.5 var(--font-ui);
   text-transform: uppercase;
   letter-spacing: 0.07em;
+}
+
+/* The trace→session drill chip — the thread chips' quiet pill shape, sized to
+   sit inline with the author line. */
+.session-drill {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border: 1px solid var(--hair-strong);
+  border-radius: 99px;
+  background: var(--bg-raised);
+  color: var(--ink-2);
+  font: 600 10px/1.5 var(--font-ui);
+  letter-spacing: 0.03em;
+  text-transform: none;
+  cursor: default;
+  transition: border-color var(--t-fast) var(--ease-out);
+}
+
+.session-drill:hover {
+  border-color: var(--gold);
+}
+
+.session-drill:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.session-drill svg {
+  color: var(--ink-3);
+  flex: none;
 }
 
 .state-note {

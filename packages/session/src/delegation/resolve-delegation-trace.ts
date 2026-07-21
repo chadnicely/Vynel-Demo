@@ -32,6 +32,8 @@ import {
   type ChatMessageSourceKind,
   type ChatToolCall,
 } from '@vynel/chat/repositories'
+import * as primarySessionsRepository from '../repositories/index.js'
+import { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
 
 /** Which session a trace entry lives on. The drill-down target is `'workspace'`; the
  *  global-root session (`'global'`) holds the delegation acknowledgement + the surfaced
@@ -69,12 +71,27 @@ export interface DelegationTraceEntry {
   createdAt: Date
 }
 
+/** The SPAWNED session a session-target delegation ran in — the watch-pipeline
+ *  drill's identity (Chad's 2026-07-21 scoping rules): from a trace node the
+ *  panel pushes a `{kind:'session'}` node over this session. `sessionId` is the
+ *  target's CURRENT SDK segment (resolved fresh — the chain may have swapped
+ *  since the rows persisted), which is exactly what the session watch channel
+ *  and the owner-gated session read key on. */
+export type SpawnedTargetSession = {
+  sessionId: string
+  name: string
+}
+
 export interface DelegationTrace {
   partialSessionId: string
   /** The delegation's lifecycle status — lets a live consumer poll while it's still working
    *  (`pending`/`claimed`) and settle when terminal (`completed`/`failed`). Null when the key
    *  is unknown / not owned (the empty trace). */
   status: DelegationJobStatus | null
+  /** Non-null ONLY for a session-target job (the anchor row carries
+   *  `targetPrimarySessionId`) whose spawned primary still resolves — workspace
+   *  targets and pruned/unlinked targets read null (no drill offered). */
+  spawnedTargetSession: SpawnedTargetSession | null
   entries: DelegationTraceEntry[]
 }
 
@@ -89,8 +106,19 @@ export function resolveDelegationTrace(
   // miss OR cross-user — no enumeration leak.
   const job = findDelegationJobByPartialSessionId(db, input.partialSessionId)
   if (job === null || job.userId !== input.userId) {
-    return { partialSessionId: input.partialSessionId, status: null, entries: [] }
+    return {
+      partialSessionId: input.partialSessionId,
+      status: null,
+      spawnedTargetSession: null,
+      entries: [],
+    }
   }
+
+  // The pipeline-drill identity (session-target jobs only): the spawned primary
+  // resolved FRESH off the anchor row, so the drill lands on the chain's CURRENT
+  // segment even after a mid-run swap. A deleted/unlinked/foreign primary reads
+  // null — the trace still renders, just without a drill.
+  const spawnedTargetSession = resolveSpawnedTargetSession(db, job.targetPrimarySessionId, job.userId)
 
   // Each entry's SCOPE, by the session's `workspaceId` (cached per session — a trace has a
   // handful of entries across 1-2 sessions). A workspace-root session carries its
@@ -124,5 +152,23 @@ export function resolveDelegationTrace(
     }),
   )
 
-  return { partialSessionId: input.partialSessionId, status: job.status, entries }
+  return { partialSessionId: input.partialSessionId, status: job.status, spawnedTargetSession, entries }
+}
+
+function resolveSpawnedTargetSession(
+  db: Database,
+  targetPrimarySessionId: string | null,
+  userId: string,
+): SpawnedTargetSession | null {
+  if (targetPrimarySessionId === null) return null
+  const primary = primarySessionsRepository.findPrimarySessionById(db, targetPrimarySessionId)
+  if (primary === null || primary.userId !== userId || primary.currentSdkSessionId === null) {
+    return null
+  }
+  return {
+    sessionId: primary.currentSdkSessionId,
+    // One naming home with the tick's attribution + the in-flight chip — the
+    // drill can never call the session something its rows don't.
+    name: resolveSpawnedSessionDisplayName(db, primary),
+  }
 }

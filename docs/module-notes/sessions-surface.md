@@ -147,12 +147,37 @@ session channel (Watch-everywhere already publishes), announce on the activity f
   like watch-from-list lands there if it returns). **`ContextMeter` DELETED**
   (component + test + barrel export, no shims — zero consumers).
 
-## Parked follow-ons (Chad, 2026-07-21 — "complete whatever is on our plate first")
+## The watch PIPELINE scoping rules (Chad, 2026-07-21 evening — the chip-mixing issue)
 
-- **Inter-session communication MCP tool**: sessions talk to each other in the flow —
-  they hold the context to decide where to send which report, how to communicate with
-  each other appropriately, and can take actions when they need to. A future arc on top
-  of the session library + the monitor tree; NOT part of Slices ①–④.
+The hierarchy is a pipeline: **Global → Workspace → Session → Agent**. After Slice ④
+chips appeared on EVERY row at every level (Chad's screenshots: the workspace thread
+carried the GLOBAL delegation's own watch chips; the session view carried chips too).
+THE RULE: **a thread shows watch chips ONLY for its DIRECT children's activity — never
+for the delegation that targeted itself** (that is its parent's watch):
+- **Global thread**: chips for the tasks IT sent (workspace + session targets) — and the
+  panel drills the full pipeline from there.
+- **Workspace thread**: chips for tasks IT routed into sessions + its agents. NO chip on
+  the global→workspace task/report rows themselves.
+- **Session view**: agent chips only. No chip for the task that targeted it.
+- **Panel = the pipeline drill**: child → child → child with Back — from a watched
+  workspace trace, a session-report row drills into that session's node, then into its
+  agents; Back walks up the stack (the node-stack store already carries this).
+- RECORDED edge (reviewer, low): the received-trace discriminator reads the CURRENT
+  segment's history — a mid-routed-turn SDK swap strands the task row on the prior
+  segment and a received row can regain its chip. Durable fix when it bites: mark
+  direction server-side in attach-delegation-task-labels (job target vs serving session).
+
+## The inter-session COMMUNICATION arc (Chad's elaboration, 2026-07-21 evening — NEXT major arc)
+
+Each level can communicate with the flow: global → workspace → session → agent — and the
+REVERSE flow is the point: **when a child completes, it reports REAL data back to whoever
+requested it** (not the current shape: an immediate "routed ✅" ack + a detached pushed
+report row later). The parent is AWARE of the completion (notified in its flow), can act
+on the real result, and notifies ITS parent in turn — the revert chain: agent → session →
+workspace → global. Built as MCP tool(s) on the session library + locks + creator routing.
+FORKS to settle with Chad at arc-open: the tool vocabulary (message vs task vs report) ·
+direct addressing vs creator-mediated · how a parent's "awareness" lands (a turn on the
+parent? a standing context block? both?) · loop/depth guards.
 
 ## Ground (recon 2026-07-21, full inventory in the session journal)
 

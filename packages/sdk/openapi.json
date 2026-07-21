@@ -18740,6 +18740,24 @@
                         null
                       ]
                     },
+                    "spawnedTargetSession": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "sessionId",
+                        "name"
+                      ]
+                    },
                     "entries": {
                       "type": "array",
                       "items": {
@@ -18925,6 +18943,7 @@
                   "required": [
                     "partialSessionId",
                     "status",
+                    "spawnedTargetSession",
                     "entries"
                   ]
                 }

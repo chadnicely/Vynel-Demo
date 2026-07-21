@@ -69,9 +69,26 @@ describe("MessageRow", () => {
     expect(wrapper.find(".session-link").exists()).toBe(false);
   });
 
-  // The old `showWatchChip: false` suppression pins died with the prop
-  // (sessions-surface Slice ④, Chad's monitor-parity call): a traced row now
-  // wears its chip + accent on EVERY surface, the workspace room included.
+  // Pipeline scoping (Chad, 2026-07-21 evening): the host gates the chip per
+  // ROW — a row of a delegation that targeted the host's own thread is the
+  // parent's watch, so ThreadStream passes false. The row's identity (accent,
+  // author) is untouched by the gate; only the chip goes.
+  it("hides the watch chip when the host gates it — accent and author survive", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          partialSessionId: "child-session",
+          sourceKind: "workspace-manager",
+          sourceLabel: "Sarah · letterman",
+        }),
+        showWatchChip: false,
+      },
+    });
+
+    expect(wrapper.find(".session-link").exists()).toBe(false);
+    expect(wrapper.find(".message-row").classes()).toContain("has-accent");
+    expect(wrapper.find(".role-label").text()).toBe("Sarah · letterman");
+  });
 
   // Author labels are persona-first: the brain speaks as Claude, a workspace
   // persona by its own label — "Assistant · X" prefixes are gone.

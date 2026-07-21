@@ -10,9 +10,12 @@ import type { ActivitySource } from "../../composables/activity/use-activity-mon
 import { useLiveSessionsStore } from "../../stores/live-sessions-store.js";
 import LiveTurn from "./LiveTurn.vue";
 
-// Watch chips render on EVERY thread surface — global, workspace, and session
-// views alike (Chad's monitor-parity call, sessions-surface Slice ④; the old
-// per-surface `showWatchChips` gate died with the workspace-suppression rule).
+// Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening —
+// Global → Workspace → Session → Agent): a thread shows chips ONLY for its
+// DIRECT children's activity, never for the delegation that targeted itself
+// (that one is its PARENT's watch — the Slice-④ everywhere-parity leaked it
+// onto every level). Agent chips are exempt: an agent is always the row's own
+// direct child.
 const props = withDefaults(
   defineProps<{
     messages: ChatMessageResponse[];
@@ -21,8 +24,12 @@ const props = withDefaults(
     /** Who speaks for plain assistant rows on this surface (settled AND live) —
      *  the global thread passes the assistant's name. */
     assistantName?: string;
+    /** False on a SESSION view — a pipeline leaf shows agent chips only, no
+     *  trace/report chips at all (scoping rule 3). Threads (global/workspace)
+     *  keep the default and rely on the received-trace discriminator below. */
+    showWatchChips?: boolean;
   }>(),
-  { assistantName: "Assistant" },
+  { assistantName: "Assistant", showWatchChips: true },
 );
 
 const emit = defineEmits<{
@@ -43,6 +50,39 @@ function agentWatchSourceFor(message: ChatMessageResponse): ActivitySource {
   return message.partialSessionId != null
     ? { kind: "trace", id: message.partialSessionId }
     : { kind: "session", id: message.sessionId };
+}
+
+// The received-vs-sent discriminator (empirical, from how rows land): a
+// delegation that TARGETED this thread persists its task row HERE as
+// `role:'user'` + `sourceKind:'global-root'` carrying the trace key (the
+// shared pipeline's messageAttribution — delegate-to-workspace-root /
+// delegate-to-spawned-session), and the replies share that key. Work this
+// thread SENT DOWN arrives only as the pushed REPORT row
+// (recordPushedReportMessage: assistant + 'workspace-manager' + the key) —
+// no task row ever lands on the sender. So: a trace key with a 'global-root'
+// USER row in this thread was RECEIVED → its rows show no watch chip.
+// Computed over the FULL history, not the visible window — the task row may
+// be scrolled out while its replies are on screen.
+const receivedTraceIds = computed(() => {
+  const ids = new Set<string>();
+  for (const message of props.messages) {
+    if (
+      message.role === "user" &&
+      message.sourceKind === "global-root" &&
+      message.partialSessionId != null
+    ) {
+      ids.add(message.partialSessionId);
+    }
+  }
+  return ids;
+});
+
+function showsWatchChipFor(message: ChatMessageResponse): boolean {
+  if (!props.showWatchChips) return false;
+  return (
+    message.partialSessionId == null ||
+    !receivedTraceIds.value.has(message.partialSessionId)
+  );
 }
 
 const liveSessions = useLiveSessionsStore();
@@ -186,6 +226,7 @@ watch(
           <MessageRow
             :message="message"
             :assistant-name="props.assistantName"
+            :show-watch-chip="showsWatchChipFor(message)"
             :linked-session-live="
               message.partialSessionId != null &&
               liveSessions.liveFor(message.partialSessionId) !== null

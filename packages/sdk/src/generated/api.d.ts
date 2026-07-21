@@ -9947,6 +9947,10 @@ export interface operations {
                         partialSessionId: string;
                         /** @enum {string|null} */
                         status: "pending" | "claimed" | "completed" | "failed" | null;
+                        spawnedTargetSession: {
+                            sessionId: string;
+                            name: string;
+                        } | null;
                         entries: {
                             id: string;
                             /** @enum {string} */

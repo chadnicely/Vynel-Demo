@@ -10,21 +10,26 @@ import {
   workspaceNameFromLabel,
 } from "../lib/workspace-color.js";
 
-// A delegation-traced row wears its Watch chip + workspace accent on EVERY
-// surface — the workspace's own transcript included (Chad's monitor-parity
-// call, sessions-surface Slice ④; the old `showWatchChip` suppression gate is
-// gone deliberately).
+// Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening): a
+// thread shows chips only for its DIRECT children's work — never for the
+// delegation that targeted itself (that's its parent's watch). The row can't
+// know which side of that line it sits on, so the host (ThreadStream, which
+// sees the whole thread) passes `showWatchChip`. This is NOT the old Slice-④
+// per-surface suppression: the accent + author identity always render.
 const props = withDefaults(
   defineProps<{
     message: ChatMessageResponse;
     /** True while the linked session is streaming — the chip pulses gold. */
     linkedSessionLive?: boolean | undefined;
+    /** False when the row belongs to a delegation that targeted THIS thread
+     *  (the parent's watch — pipeline scoping above). Default: chip renders. */
+    showWatchChip?: boolean;
     /** The surface's own assistant author — ordinary rows carry no sourceKind,
      *  so the host names who speaks here (the global thread passes "Claude",
      *  a workspace room its manager persona). */
     assistantName?: string;
   }>(),
-  { linkedSessionLive: undefined, assistantName: "Assistant" },
+  { linkedSessionLive: undefined, showWatchChip: true, assistantName: "Assistant" },
 );
 
 const emit = defineEmits<{
@@ -177,7 +182,7 @@ const accentVar = computed(() => {
     />
 
     <button
-      v-if="linkedSessionId"
+      v-if="linkedSessionId && props.showWatchChip"
       type="button"
       class="session-link"
       @click="emit('openSession', linkedSessionId)"

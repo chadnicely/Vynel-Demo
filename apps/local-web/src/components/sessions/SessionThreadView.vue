@@ -96,6 +96,9 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
       <p v-else-if="detailQuery.isError.value" class="state-note is-error">
         {{ formatSdkError(detailQuery.error.value) }}
       </p>
+      <!-- Pipeline scoping rule 3 (Chad, 2026-07-21 evening): a SESSION view
+           is a leaf — agent chips only. No trace/report chips, and the task
+           rows that targeted this session show none either. -->
       <ThreadStream
         v-else
         class="thread-slot"
@@ -103,6 +106,7 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="turn.view.value"
         :assistant-name="props.title"
+        :show-watch-chips="false"
         @decide-approval="onDecideApproval"
         @open-session="activityMonitor.openTrace"
         @watch-agent="activityMonitor.openAgentDirect"

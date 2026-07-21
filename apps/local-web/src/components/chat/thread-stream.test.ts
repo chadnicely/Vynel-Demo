@@ -81,23 +81,121 @@ describe("ThreadStream", () => {
     expect(wrapper.find(".jump-to-latest").exists()).toBe(false);
   });
 
-  // Watch coverage (Slice ④): chips render on EVERY surface — the old
-  // per-surface `showWatchChips` gate (the workspace passed false) is gone.
-  it("offers the Watch chip on a delegation-traced row and emits its trace key", async () => {
-    const traced: ChatMessageResponse = {
+  // ── Watch-chip PIPELINE scoping (Chad, 2026-07-21 evening) ──
+  // A thread chips ONLY its direct children's work. The discriminator: a
+  // delegation that TARGETED this thread left its task row here (role 'user'
+  // + sourceKind 'global-root' + the trace key); work this thread SENT DOWN
+  // arrives only as the pushed report row (assistant + 'workspace-manager',
+  // no task row on the sender) — recordPushedReportMessage vs the routed
+  // turn's messageAttribution.
+
+  it("chips a SENT-DOWN report row (no task row for its trace) and emits its trace key", async () => {
+    const report: ChatMessageResponse = {
       ...makeMessage(1),
       partialSessionId: "partial-1",
       sourceKind: "workspace-manager",
       sourceLabel: "Noah · vynel",
     };
     const wrapper = mount(ThreadStream, {
-      props: { messages: [traced], toolCallsByMessageId: {}, activeTurn: null },
+      props: { messages: [report], toolCallsByMessageId: {}, activeTurn: null },
       global: { plugins: [createPinia()] },
     });
 
     const chip = wrapper.get(".session-link");
     await chip.trigger("click");
     expect(wrapper.emitted("openSession")).toEqual([["partial-1"]]);
+  });
+
+  it("never chips the rows of a delegation that TARGETED this thread — that's the parent's watch", () => {
+    // The global→workspace exchange as it lands on the WORKSPACE transcript:
+    // the arriving task (user + 'global-root') and the manager's reply share
+    // the trace key. Neither may chip — the chip belongs to the PARENT thread
+    // that sent the task. A separate SENT trace ('partial-out', report row
+    // only) keeps its chip on the very same surface.
+    const arrivingTask: ChatMessageResponse = {
+      ...makeMessage(0),
+      role: "user",
+      sourceKind: "global-root",
+      partialSessionId: "partial-in",
+    };
+    const managerReply: ChatMessageResponse = {
+      ...makeMessage(1),
+      sourceKind: "workspace-manager",
+      sourceLabel: "Sarah · letterman",
+      partialSessionId: "partial-in",
+    };
+    const sentDownReport: ChatMessageResponse = {
+      ...makeMessage(3),
+      sourceKind: "workspace-manager",
+      sourceLabel: "Research helper",
+      partialSessionId: "partial-out",
+    };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [arrivingTask, managerReply, sentDownReport],
+        toolCallsByMessageId: {},
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    const chips = wrapper.findAll(".session-link");
+    expect(chips).toHaveLength(1);
+    expect(chips[0]!.text()).toContain("Research helper");
+  });
+
+  it("agent chips SURVIVE on a received trace's rows — an agent is a direct child", async () => {
+    // Scoping suppresses the trace chip, never the agent chip: the manager's
+    // own agents belong to THIS thread's pipeline level.
+    const arrivingTask: ChatMessageResponse = {
+      ...makeMessage(0),
+      role: "user",
+      sourceKind: "global-root",
+      partialSessionId: "partial-in",
+    };
+    const managerReply: ChatMessageResponse = {
+      ...makeMessage(1),
+      sourceKind: "workspace-manager",
+      sourceLabel: "Sarah · letterman",
+      partialSessionId: "partial-in",
+    };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [arrivingTask, managerReply],
+        toolCallsByMessageId: { m1: [makeAgentToolCall("m1")] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    expect(wrapper.findAll(".session-link")).toHaveLength(0);
+    await wrapper.get(".watch-chip").trigger("click");
+    expect(wrapper.emitted("watchAgent")).toEqual([
+      [{ kind: "trace", id: "partial-in" }, "tu-m1"],
+    ]);
+  });
+
+  it("show-watch-chips=false (a SESSION view, pipeline leaf) drops every trace chip but keeps agent chips", () => {
+    // Scoping rule 3: a session view shows agent chips ONLY — even a report
+    // row that would chip on a thread surface stays bare here.
+    const report: ChatMessageResponse = {
+      ...makeMessage(1),
+      partialSessionId: "partial-1",
+      sourceKind: "workspace-manager",
+      sourceLabel: "Research helper",
+    };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [report],
+        toolCallsByMessageId: { m1: [makeAgentToolCall("m1")] },
+        activeTurn: null,
+        showWatchChips: false,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    expect(wrapper.find(".session-link").exists()).toBe(false);
+    expect(wrapper.find(".watch-chip").exists()).toBe(true);
   });
 
   it("a traced row's Agent card watches over the TRACE source", async () => {
