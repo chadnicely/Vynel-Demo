@@ -137,13 +137,15 @@ export const routingApp = factory
           'user you have handed it off. If the task needs an irreversible action (write or edit a ' +
           'file, delete, run a shell command), that action PAUSES for the user to approve — the ' +
           'approval card appears in the app and, for a channel request, in that channel; the task ' +
-          'continues once they decide.',
+          'continues once they decide. You may pick the model and thinkingEffort for the task: ' +
+          'choose a cheaper model / lower effort for routine tasks, a stronger model / higher ' +
+          'effort for hard ones; omit both for the defaults.',
       },
     }),
     validator('json', RouteToWorkspaceRequestSchema),
     ...userScoped,
     async (c) => {
-      const { targetWorkspaceId, task } = c.req.valid('json')
+      const { targetWorkspaceId, task, model, thinkingEffort } = c.req.valid('json')
 
       // The global root must be running this turn — its current SDK session is recorded on
       // the job as the delegation's parent (the session.delegated edge / provenance).
@@ -177,6 +179,8 @@ export const routingApp = factory
         taskText: task,
         ...(origin ? { origin } : {}),
         ...(permissionMode !== undefined ? { permissionMode } : {}),
+        ...(model !== undefined ? { model } : {}),
+        ...(thinkingEffort !== undefined ? { thinkingEffort } : {}),
       })
 
       return c.json({ status: 'enqueued' as const, jobId, workspaceName: workspace.name })
@@ -222,13 +226,16 @@ export const routingApp = factory
           'a result here, and do NOT call this again for the same task — just tell the user you ' +
           'have handed it off. Tasks sent to the SAME session run one at a time, in order; ' +
           'different sessions run in parallel. If the task needs an irreversible action, that ' +
-          'action PAUSES for the user to approve; the task continues once they decide.',
+          'action PAUSES for the user to approve; the task continues once they decide. You may ' +
+          'pick the model and thinkingEffort for the task: choose a cheaper model / lower effort ' +
+          'for routine tasks, a stronger model / higher effort for hard ones; omit both for the ' +
+          'defaults.',
       },
     }),
     validator('json', SendTaskToSessionRequestSchema),
     ...userScoped,
     async (c) => {
-      const { targetSessionId, task, workspaceId } = c.req.valid('json')
+      const { targetSessionId, task, workspaceId, model, thinkingEffort } = c.req.valid('json')
 
       // Slice ④b: the job's parent is the CREATOR conversation — the calling
       // workspace's primary when `workspaceId` is present (ownership-checked;
@@ -276,6 +283,8 @@ export const routingApp = factory
         taskText: task,
         ...(origin ? { origin } : {}),
         ...(permissionMode !== undefined ? { permissionMode } : {}),
+        ...(model !== undefined ? { model } : {}),
+        ...(thinkingEffort !== undefined ? { thinkingEffort } : {}),
       })
 
       return c.json({ status: 'enqueued' as const, jobId, sessionName })

@@ -233,6 +233,10 @@ export async function runDelegationClaimAndRunTick(
       // The delegating turn's mode, stamped on the job at enqueue (surface-up step 1).
       // Null (pre-mode job / channel origin) → the runner's bypass default.
       ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
+      // The root's model/effort picks for this delegated turn, stamped on the job at
+      // enqueue. Null → the provider defaults (absent, exactOptionalPropertyTypes).
+      ...(claimed.model !== null ? { model: claimed.model } : {}),
+      ...(claimed.thinkingEffort !== null ? { thinkingEffort: claimed.thinkingEffort } : {}),
       approvalHandler: handler,
       // Live observing: publish the turn's events on its trace channel; the end
       // closes any attached observe stream (drained or threw alike). The same

@@ -3,7 +3,18 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21f): SLICE 4b WORKSPACE-LEVEL SPAWNING BUILT — gate GREEN 2798t, reviewed APPROVED (1 test-pin folded, 1 surface decision RECORDED); NEXT: Chad's big smoke (both levels) → candidates: monitor arc · detached-run lease
+## ⏭ NEXT ACTION (2026-07-21g): DELEGATION MODEL+EFFORT PICKS SHIPPED — gate GREEN 2803t; ⚠ REVIEWER PASS DEFERRED to next session (context limit) — run code-reviewer on `git show HEAD` first thing
+
+**Chad's follow-up: the root now picks `model` + `thinkingEffort` PER DELEGATED TASK on BOTH
+send tools (workspace + session). Migration `0014_delegation_model_effort` (two additive
+ALTERs, verified no-recreate); enqueues store; routes validate (CHAT_MODEL_IDS refine +
+THINKING_EFFORT_LEVELS enum, shared field object); tick threads via sharedRunnerOptions into
+both runners → StartChatSessionInput (fields existed since the composer seam). Omitted =
+defaults, pinned. Tool descriptions teach cost economics (cheap model/low effort for routine).
+7 new tests. Subagent-built; scoped 619 + full gate green; the adversarial review is the ONE
+outstanding item — do it before building anything on top.**
+
+## (prev) ⏭ NEXT ACTION (2026-07-21f): SLICE 4b WORKSPACE-LEVEL SPAWNING BUILT — gate GREEN 2798t, reviewed APPROVED (1 test-pin folded, 1 surface decision RECORDED); NEXT: Chad's big smoke (both levels) → candidates: monitor arc · detached-run lease
 
 **Slice ④b (Chad: "available on the workspace level as well") — notes §4b, subagent-built +
 adversarially reviewed:** createSpawnedSession/segment thread optional workspaceId (ground =

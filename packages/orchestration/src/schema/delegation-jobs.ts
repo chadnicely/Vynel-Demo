@@ -17,6 +17,7 @@
 import { table, id, text, timestamp, index } from '@vynel/db/dialect'
 import { users } from '@vynel/db/schema/users'
 import { workspaces } from '@vynel/db/schema/workspaces'
+import type { ThinkingEffortLevel } from '@vynel/contracts/chat/thinking-effort'
 import type { DelegationPermissionMode } from '../orchestration-types.js'
 
 export type DelegationJobStatus = 'pending' | 'claimed' | 'completed' | 'failed'
@@ -76,6 +77,11 @@ export const delegationJobs = table(
     // threaded from the delegating turn's user-facing mode. Null = the pre-mode
     // default (`bypass-with-behavior-gate`: only the irreversible floor cards).
     permissionMode: text().$type<DelegationPermissionMode>(),
+    // The delegating root's MODEL + THINKING-EFFORT picks for the routed turn —
+    // threaded into the provider's startChatSession by the claim-and-run tick.
+    // Null = the provider defaults (today's behavior, byte-for-byte).
+    model: text(),
+    thinkingEffort: text().$type<ThinkingEffortLevel>(),
     createdAt: timestamp().notNull(),
   },
   (t) => ({

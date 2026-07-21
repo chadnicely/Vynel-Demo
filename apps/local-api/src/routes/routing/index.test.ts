@@ -223,6 +223,42 @@ describe('POST /routing/delegate', () => {
     })
   })
 
+  it('threads the model + thinkingEffort picks onto the job; 400s a model outside the allowlist', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      const app = makeHarness(db)
+
+      const res = await postJson(app, '/routing/delegate', {
+        targetWorkspaceId: workspace.id,
+        task: 'routine tidy-up',
+        model: 'claude-haiku-4-5',
+        thinkingEffort: 'low',
+      })
+      expect(res.status).toBe(200)
+      const { jobId } = (await res.json()) as { jobId: string }
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.model).toBe('claude-haiku-4-5')
+      expect(job?.thinkingEffort).toBe('low')
+
+      // Only the curated allowlist passes (the composer precedent) — and an
+      // invalid effort level is equally rejected at the boundary.
+      const badModel = await postJson(app, '/routing/delegate', {
+        targetWorkspaceId: workspace.id,
+        task: 't',
+        model: 'gpt-5',
+      })
+      expect(badModel.status).toBe(400)
+      const badEffort = await postJson(app, '/routing/delegate', {
+        targetWorkspaceId: workspace.id,
+        task: 't',
+        thinkingEffort: 'ultra',
+      })
+      expect(badEffort.status).toBe(400)
+    })
+  })
+
   it('400s when there is no active global-root turn', async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)
@@ -413,6 +449,30 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
         expect(job?.workspaceName).toBeNull()
         expect(job?.workspacePath).toBe(path.join(dataDir, 'global-root'))
         expect(job?.parentSessionId).toBe('g-1')
+      })
+    })
+  })
+
+  it('threads the model + thinkingEffort picks onto the SESSION-target job', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-delegate-picks-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        await seedLinkedGlobalRoot(db, user.id)
+        const spawned = await seedSpawnedSession(db, user.id)
+        const app = makeHarness(db)
+
+        const res = await postJson(app, '/routing/delegate-session', {
+          targetSessionId: spawned.sessionId,
+          task: 'hard analysis',
+          model: 'claude-sonnet-4-6',
+          thinkingEffort: 'max',
+        })
+        expect(res.status).toBe(200)
+        const { jobId } = (await res.json()) as { jobId: string }
+        const job = findDelegationJobById(db, jobId)
+        expect(job?.model).toBe('claude-sonnet-4-6')
+        expect(job?.thinkingEffort).toBe('max')
       })
     })
   })

@@ -154,6 +154,89 @@ describe('runDelegationClaimAndRunTick', () => {
     })
   })
 
+  it('threads the job’s model + thinking effort into the provider turn for BOTH target kinds; omitted = absent', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+
+      // WORKSPACE target: the enqueue-time picks reach startChatSession.
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'routine tidy-up',
+        model: 'claude-haiku-4-5',
+        thinkingEffort: 'low',
+      })
+      const workspaceInputs: StartChatSessionInput[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: 'ws-root-picks',
+          resultText: 'ok',
+          startChatSessionInputs: workspaceInputs,
+        }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+      })
+      expect(workspaceInputs[0]!.model).toBe('claude-haiku-4-5')
+      expect(workspaceInputs[0]!.thinkingEffort).toBe('low')
+
+      // SESSION target: same threading through delegateToSpawnedSession.
+      const created = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-spawned-picks' }),
+        { userId: user.id, name: 'S', purpose: 'p', workspacePath: '/tmp/x' },
+      )
+      enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        targetPrimarySessionId: created.primarySessionId,
+        runCwdPath: '/tmp/x',
+        taskText: 'hard analysis',
+        model: 'claude-sonnet-4-6',
+        thinkingEffort: 'max',
+      })
+      const sessionInputs: StartChatSessionInput[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: created.sessionId,
+          resultText: 'ok',
+          startChatSessionInputs: sessionInputs,
+        }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+      })
+      expect(sessionInputs[0]!.model).toBe('claude-sonnet-4-6')
+      expect(sessionInputs[0]!.thinkingEffort).toBe('max')
+
+      // No picks on the job → the keys are ABSENT from the provider input
+      // (pinned: the SDK defaults stay in charge, exactOptionalPropertyTypes).
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'default run',
+      })
+      const defaultInputs: StartChatSessionInput[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: 'ws-root-picks-default',
+          resultText: 'ok',
+          startChatSessionInputs: defaultInputs,
+        }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+      })
+      expect(defaultInputs[0]!).not.toHaveProperty('model')
+      expect(defaultInputs[0]!).not.toHaveProperty('thinkingEffort')
+    })
+  })
+
   it('claims a pending job, runs it, completes it, and pushes the report up to the global root', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

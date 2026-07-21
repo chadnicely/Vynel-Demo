@@ -10258,6 +10258,9 @@ export interface operations {
                 "application/json": {
                     targetWorkspaceId: string;
                     task: string;
+                    model?: string;
+                    /** @enum {string} */
+                    thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
                 };
             };
         };
@@ -10305,6 +10308,9 @@ export interface operations {
                     targetSessionId: string;
                     task: string;
                     workspaceId?: string;
+                    model?: string;
+                    /** @enum {string} */
+                    thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
                 };
             };
         };

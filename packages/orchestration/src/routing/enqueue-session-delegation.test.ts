@@ -51,10 +51,13 @@ describe('enqueueSessionDelegation', () => {
       // The correlation key is minted at enqueue (the trace + stop anchor).
       expect(job?.partialSessionId).not.toBeNull()
       expect(job?.permissionMode).toBeNull()
+      // No model/effort picks passed → null (the provider defaults apply).
+      expect(job?.model).toBeNull()
+      expect(job?.thinkingEffort).toBeNull()
     })
   })
 
-  it('threads origin + permissionMode like the workspace sibling', async () => {
+  it('threads origin + permissionMode + the model/effort picks like the workspace sibling', async () => {
     await withTestDatabase((db) => {
       const user = insertUser(db, makeUser())
       const jobId = enqueueSessionDelegation(db, {
@@ -65,12 +68,16 @@ describe('enqueueSessionDelegation', () => {
         taskText: 't',
         origin: { channelId: 'ch-1', externalSenderId: 's-1', externalChatContextId: 'ctx-1' },
         permissionMode: 'ask',
+        model: 'claude-haiku-4-5',
+        thinkingEffort: 'low',
       })
       const job = findDelegationJobById(db, jobId)
       expect(job?.originChannelId).toBe('ch-1')
       expect(job?.originExternalSenderId).toBe('s-1')
       expect(job?.originExternalChatContextId).toBe('ctx-1')
       expect(job?.permissionMode).toBe('ask')
+      expect(job?.model).toBe('claude-haiku-4-5')
+      expect(job?.thinkingEffort).toBe('low')
     })
   })
 

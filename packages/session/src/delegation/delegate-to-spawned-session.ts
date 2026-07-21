@@ -60,6 +60,9 @@ export type DelegateToSpawnedSessionInput = {
   providerId: AiAgentProviderId
   /** Optional model override for the delegated turn. */
   model?: string
+  /** Optional thinking-effort override for the delegated turn — the SDK levels
+   *  (the run-global-root-turn-core precedent). Omit for the adaptive default. */
+  thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   /** The delegation request's correlation key — stamped on every row the turn
    *  persists so the chain is queryable as one trace. */
   partialSessionId?: string
@@ -126,6 +129,7 @@ export async function delegateToSpawnedSession(
     allowedToolNames: [],
     deniedToolNames: [],
     ...(input.model !== undefined ? { model: input.model } : {}),
+    ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
   })
 
   // 3. Consume through the shared pipeline — every row persists as it streams

@@ -1582,18 +1582,20 @@ export const searchMemory: McpToolFactory = (scope, app) =>
 export const sendTaskToSession: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'send_task_to_session',
-    "Hand a task to a session you created with create_session (its continuing conversation, with its primed purpose and everything it has done since). Use list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to a session with room, or create a new one. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the session runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. Tasks sent to the SAME session run one at a time, in order; different sessions run in parallel. If the task needs an irreversible action, that action PAUSES for the user to approve; the task continues once they decide.",
+    "Hand a task to a session you created with create_session (its continuing conversation, with its primed purpose and everything it has done since). Use list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to a session with room, or create a new one. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the session runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. Tasks sent to the SAME session run one at a time, in order; different sessions run in parallel. If the task needs an irreversible action, that action PAUSES for the user to approve; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults.",
     {
     targetSessionId: z.string(),
     task: z.string(),
     workspaceId: z.string().optional(),
+    model: z.string().optional(),
+    thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/routing/delegate-session'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['targetSessionId', 'task', 'workspaceId']) {
+        for (const k of ['targetSessionId', 'task', 'workspaceId', 'model', 'thinkingEffort']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
@@ -1623,17 +1625,19 @@ export const sendTaskToSession: McpToolFactory = (scope, app) =>
 export const sendTaskToWorkspace: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'send_task_to_workspace',
-    "Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. If the task needs an irreversible action (write or edit a file, delete, run a shell command), that action PAUSES for the user to approve — the approval card appears in the app and, for a channel request, in that channel; the task continues once they decide.",
+    "Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. If the task needs an irreversible action (write or edit a file, delete, run a shell command), that action PAUSES for the user to approve — the approval card appears in the app and, for a channel request, in that channel; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults.",
     {
     targetWorkspaceId: z.string(),
     task: z.string(),
+    model: z.string().optional(),
+    thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/routing/delegate'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['targetWorkspaceId', 'task']) {
+        for (const k of ['targetWorkspaceId', 'task', 'model', 'thinkingEffort']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)

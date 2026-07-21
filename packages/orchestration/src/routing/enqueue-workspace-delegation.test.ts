@@ -91,6 +91,32 @@ describe('enqueueWorkspaceDelegation', () => {
 
       // Surface-up step 1: no mode passed → null (the runner's bypass default applies).
       expect(job!.permissionMode).toBeNull()
+
+      // No model/effort picks passed → null (the provider defaults apply).
+      expect(job!.model).toBeNull()
+      expect(job!.thinkingEffort).toBeNull()
+    })
+  })
+
+  it('stores the root’s model + thinking-effort picks when given', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const jobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'global-root-1',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'routine tidy-up',
+        model: 'claude-haiku-4-5',
+        thinkingEffort: 'low',
+      })
+
+      const job = findDelegationJobById(db, jobId)!
+      expect(job.model).toBe('claude-haiku-4-5')
+      expect(job.thinkingEffort).toBe('low')
     })
   })
 

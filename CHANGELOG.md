@@ -55,6 +55,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude picks the right power per task.** When handing work to a workspace or a spawned
+  session, Claude can now choose the model and thinking effort for that task — a cheap fast
+  model for routine chores, full reasoning for hard problems — instead of one-size-fits-all.
+
 - **Workspaces can spin up sessions too.** Session spawning works at both levels: a
   workspace's assistant can create helper sessions grounded in that workspace (its files,
   memory, and skills), and their results come back into the workspace's own conversation.

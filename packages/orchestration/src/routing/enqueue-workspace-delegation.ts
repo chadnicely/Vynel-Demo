@@ -13,6 +13,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
+import type { ThinkingEffortLevel } from '@vynel/contracts/chat/thinking-effort'
 import { insertDelegationJob } from '../repositories/index.js'
 import type { DelegationPermissionMode } from '../orchestration-types.js'
 
@@ -39,6 +40,10 @@ export interface EnqueueWorkspaceDelegationInput {
   /** The permission mode the routed turn runs under (surface-up step 1) — the delegating
    *  turn's mode. Omit for the pre-mode default (`bypass-with-behavior-gate`). */
   permissionMode?: DelegationPermissionMode
+  /** The root's model pick for the routed turn. Omit for the provider default. */
+  model?: string
+  /** The root's thinking-effort pick for the routed turn. Omit for the adaptive default. */
+  thinkingEffort?: ThinkingEffortLevel
 }
 
 /** Enqueue a workspace delegation as a pending job and return its id. Callable
@@ -74,6 +79,8 @@ export function enqueueWorkspaceDelegation(
     originExternalSenderId: input.origin?.externalSenderId ?? null,
     originExternalChatContextId: input.origin?.externalChatContextId ?? null,
     permissionMode: input.permissionMode ?? null,
+    model: input.model ?? null,
+    thinkingEffort: input.thinkingEffort ?? null,
     createdAt: new Date(),
   })
   return id

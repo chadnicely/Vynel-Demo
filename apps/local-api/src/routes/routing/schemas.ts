@@ -8,12 +8,28 @@
 // exactly what each handler already emits.
 
 import { z } from 'zod'
+import { CHAT_MODEL_IDS } from '@vynel/contracts/chat/chat-models'
+import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
+
+// The root's model/effort picks for the delegated turn (shared by both delegate
+// routes) — the composer precedent in routes/chat/schemas.ts: model validated
+// against the curated allowlist; omitted = the provider defaults.
+const DelegationRunPreferenceFields = {
+  /** The model to run the delegated turn. Omit to inherit the provider default. */
+  model: z
+    .string()
+    .refine((value) => CHAT_MODEL_IDS.includes(value), 'Unsupported model.')
+    .optional(),
+  /** Reasoning effort for the delegated turn. Omit for the adaptive default. */
+  thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
+}
 
 export const RouteToWorkspaceRequestSchema = z.object({
   /** The workspace to route the task to (from list_routing_workspaces). */
   targetWorkspaceId: z.string().min(1),
   /** The task to route down — becomes a turn on the workspace root's brain. */
   task: z.string().min(1).max(50000),
+  ...DelegationRunPreferenceFields,
 })
 
 export const SendToChannelRequestSchema = z.object({
@@ -49,6 +65,7 @@ export const SendTaskToSessionRequestSchema = z.object({
    *  creator. Absent = a global-root call (the shipped v1 behavior). The
    *  workspace surface stamps this ambiently from the turn's scope. */
   workspaceId: z.string().min(1).optional(),
+  ...DelegationRunPreferenceFields,
 })
 
 export const SendTaskToSessionResponseSchema = z.object({
