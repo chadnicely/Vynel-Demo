@@ -5,6 +5,7 @@ import { makeListOpenAppsTool } from './list-open-apps-tool.js'
 import { makeSnapshotAppTool } from './snapshot-app-tool.js'
 import { makeScreenshotAppTool } from './screenshot-app-tool.js'
 import { makeActOnAppTool } from './act-on-app-tool.js'
+import { makeActOnDesktopTool } from './act-on-desktop-tool.js'
 
 export type BuildDesktopMcpServerInput = {
   reader: DesktopNotificationReader
@@ -27,8 +28,9 @@ export type BuildDesktopMcpServerInput = {
 // other servers. See decision `[[desktop-control-mcp-server]]`.
 //
 // Read-only tools always: list_desktop_notifications · list_open_apps ·
-// snapshot_app · screenshot_app. The MUTATING act_on_app is included ONLY when
-// `enableActions` is true (default off).
+// snapshot_app · screenshot_app. The MUTATING act_on_app (element-addressed) +
+// act_on_desktop (coordinate-addressed) are included ONLY when `enableActions`
+// is true (default off).
 export function buildDesktopMcpServer(
   input: BuildDesktopMcpServerInput,
 ): ReturnType<typeof createSdkMcpServer> {
@@ -40,6 +42,7 @@ export function buildDesktopMcpServer(
   ]
   if (input.enableActions === true) {
     factories.push(makeActOnAppTool())
+    factories.push(makeActOnDesktopTool())
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK widening at the factory boundary, matching @vynel/mcp's buildInProcessMcpServer.
   const tools = factories.map((toolDefinition) => toolDefinition as SdkMcpToolDefinition<any>)

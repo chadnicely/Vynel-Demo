@@ -16,6 +16,45 @@ function inputString(input: unknown, field: string): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+function inputNumber(input: unknown, field: string): number | null {
+  if (typeof input !== "object" || input === null) return null;
+  const value = (input as Record<string, unknown>)[field];
+  return typeof value === "number" ? value : null;
+}
+
+// Describe an act_on_desktop coordinate action. `tense` picks the overlay's
+// progressive voice ("Clicking") vs the settled card's past voice ("Clicked").
+function describeCoordAction(toolInput: unknown, tense: "progressive" | "past"): string {
+  const action = inputString(toolInput, "action");
+  const x = inputNumber(toolInput, "x");
+  const y = inputNumber(toolInput, "y");
+  const at = x !== null && y !== null ? ` at (${x}, ${y})` : "";
+  const inApp = inputString(toolInput, "app");
+  const where = inApp !== null ? ` in ${inApp}` : "";
+  const p = tense === "progressive";
+  switch (action) {
+    case "click": {
+      const isDouble = (toolInput as Record<string, unknown>)?.["double"] === true;
+      const verb = isDouble ? (p ? "Double-clicking" : "Double-clicked") : p ? "Clicking" : "Clicked";
+      return `${verb}${at}${where}`;
+    }
+    case "type":
+      return `${p ? "Typing" : "Typed"} "${inputString(toolInput, "text") ?? ""}"${where}`;
+    case "press":
+      return `${p ? "Pressing" : "Pressed"} ${inputString(toolInput, "keys") ?? "a key"}`;
+    case "scroll":
+      return `${p ? "Scrolling" : "Scrolled"} ${inputString(toolInput, "direction") ?? "down"}${at}${where}`;
+    case "drag": {
+      const toX = inputNumber(toolInput, "toX");
+      const toY = inputNumber(toolInput, "toY");
+      const target = toX !== null && toY !== null ? ` to (${toX}, ${toY})` : "";
+      return `${p ? "Dragging" : "Dragged"}${at}${target}${where}`;
+    }
+    default:
+      return p ? "Controlling the desktop" : "Controlled the desktop";
+  }
+}
+
 /** Pull the human name out of a selector — `button[name="Save"]` → "Save",
  *  `[stable_id="…"]` → null (ids aren't names). */
 export function selectorDisplayName(selector: string): string | null {
@@ -61,6 +100,8 @@ export function describeDesktopStep(toolName: string, toolInput: unknown): strin
       const voice = action !== null ? ACTION_VOICES[action] : undefined;
       return `${voice?.progressive ?? "Acting on"} ${actTarget(toolInput)}`;
     }
+    case "act_on_desktop":
+      return describeCoordAction(toolInput, "progressive");
     default:
       return displayToolName(toolName);
   }
@@ -109,6 +150,14 @@ export function presentDesktopToolCall(
         body,
       };
     }
+    case "act_on_desktop":
+      return {
+        verb: describeCoordAction(toolInput, "past"),
+        argument: null,
+        subtitle: "on your desktop",
+        stats: null,
+        body,
+      };
     default:
       return null;
   }

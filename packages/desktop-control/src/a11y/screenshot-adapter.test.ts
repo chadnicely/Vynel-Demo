@@ -5,7 +5,15 @@ import { selectWindowId, screenshotApp, type WindowInfo } from './screenshot-ada
 // at the binding boundary, so the ranking is tested on real data, not a fake
 // that could re-encode a wrong assumption about the native object's shape.
 function windowInfo(overrides: Partial<WindowInfo>): WindowInfo {
-  return { id: 1, appName: 'App', title: 'Window', isMinimized: false, ...overrides }
+  return {
+    id: 1,
+    appName: 'App',
+    title: 'Window',
+    isMinimized: false,
+    width: 800,
+    height: 600,
+    ...overrides,
+  }
 }
 
 describe('selectWindowId', () => {

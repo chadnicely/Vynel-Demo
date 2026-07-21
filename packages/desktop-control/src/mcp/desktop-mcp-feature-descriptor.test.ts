@@ -12,9 +12,14 @@ const baseContext: SessionToolContext = {
 }
 
 describe('desktopFeatureDescriptor', () => {
-  it('declares the desktop server with act_on_app as its mutating tool', () => {
+  it('declares the desktop server with both mutating tools (element + coordinate acting)', () => {
     expect(desktopFeatureDescriptor.serverName).toBe('desktop')
-    expect(desktopFeatureDescriptor.mutatingToolNames).toEqual(['mcp__desktop__act_on_app'])
+    // test: correct expectation for mutatingToolNames — was ['…act_on_app'],
+    // should include act_on_desktop too (coordinate control cards the same way).
+    expect(desktopFeatureDescriptor.mutatingToolNames).toEqual([
+      'mcp__desktop__act_on_app',
+      'mcp__desktop__act_on_desktop',
+    ])
   })
 
   it('is not capability-gated (gated by reader presence + the env flag instead)', () => {

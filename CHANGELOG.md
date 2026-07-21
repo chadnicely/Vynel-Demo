@@ -7,7 +7,24 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Added
+
+- **Claude can now use the desktop by hand — click, type, scroll, drag at a point.** When Claude
+  is working from a screenshot (an app with no readable accessibility tree), it can now act the way
+  a person does: click where it sees, type, press keys and shortcuts ("enter", "ctrl+c"), scroll,
+  and drag — via a new `act_on_desktop` tool. Pass the window name and coordinates are read straight
+  off that window's screenshot (top-left is 0,0), so "click the button I can see" just works. It
+  stays behind the same off-by-default safety switch as the element-based actions and asks for
+  approval before every action. (Element-addressed `act_on_app` remains preferred when the
+  accessibility tree is available.)
+
 ### Changed
+
+- **The desktop overlay stays put while Claude works, and the approval never hides.** The
+  "Claude is using your desktop" overlay used to blink shut between steps; now it stays open through
+  the whole desktop sequence and shows the full running log (scrollable), hiding shortly after
+  Claude is done. When Claude needs your approval, the card is pinned at the top — it can't get
+  buried under the step log anymore.
 
 - **Finished work now reports back as a real conversation, not a dropped note.** When a
   workspace or session finishes something you (or your assistant) handed to it, the result no

@@ -21,7 +21,12 @@ export function buildScreenshotAppResponse(screenshot: AppScreenshot): {
     content: [
       {
         type: 'text',
-        text: `Screenshot of "${screenshot.windowTitle}" (app: ${screenshot.appName}):`,
+        // Include the window's pixel size so act_on_desktop coordinates (with
+        // app=this window) have a known frame: top-left is (0, 0).
+        text:
+          `Screenshot of "${screenshot.windowTitle}" (app: ${screenshot.appName}), ` +
+          `${screenshot.width}×${screenshot.height}px — for act_on_desktop with app="${screenshot.appName}", ` +
+          'the top-left of this image is (0, 0):',
       },
       { type: 'image', data: screenshot.pngBase64, mimeType: 'image/png' },
     ],

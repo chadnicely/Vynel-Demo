@@ -45,8 +45,10 @@ const isVisible = computed(() =>
 const runningStep = computed(() =>
   [...desktopActivity.state.steps].reverse().find((step) => step.status === "running"),
 );
+// The full settled log (newest last) — rendered in a scrollable box so it never
+// pushes the pinned approval card or the current step off the window.
 const settledSteps = computed(() =>
-  desktopActivity.state.steps.filter((step) => step.status !== "running").slice(-3),
+  desktopActivity.state.steps.filter((step) => step.status !== "running"),
 );
 
 function stepLabel(toolName: string, toolInput: unknown): string {
@@ -118,6 +120,25 @@ onUnmounted(() => {
         <PresenceDot :state="desktopApprovals.length > 0 ? 'attention' : 'live'" />
       </header>
 
+      <!-- PINNED: an approval must never scroll away under the step log. It sits
+           right below the header, above the current step + the log. -->
+      <div v-if="desktopApprovals.length > 0" class="approval-zone">
+        <p class="approval-heading">Approve to continue</p>
+        <ApprovalCard
+          v-for="approval in desktopApprovals"
+          :key="approval.id"
+          compact
+          :tool-name="approval.toolName"
+          :tool-input="approval.toolInput"
+          :action-kind="approval.actionKind"
+          context-label="your desktop"
+          :busy="decideApproval.isPending.value"
+          class="overlay-approval"
+          @approve="decide(approval.providerApprovalId, 'approved')"
+          @deny="decide(approval.providerApprovalId, 'denied')"
+        />
+      </div>
+
       <div class="current-step" v-if="runningStep">
         <span class="step-spinner" aria-hidden="true" />
         <span class="step-label">{{ stepLabel(runningStep.toolName, runningStep.toolInput) }}</span>
@@ -128,6 +149,8 @@ onUnmounted(() => {
         }}</span>
       </div>
 
+      <!-- The full progress log — scrolls in its own box so it can't push the
+           approval or the current step off the window. -->
       <ul class="settled-steps" v-if="settledSteps.length > 0">
         <li v-for="step in settledSteps" :key="step.toolUseId" class="settled-step">
           <span class="step-status" :class="`is-${step.status}`" aria-hidden="true">{{
@@ -136,20 +159,6 @@ onUnmounted(() => {
           <span class="step-label">{{ stepLabel(step.toolName, step.toolInput) }}</span>
         </li>
       </ul>
-
-      <ApprovalCard
-        v-for="approval in desktopApprovals"
-        :key="approval.id"
-        compact
-        :tool-name="approval.toolName"
-        :tool-input="approval.toolInput"
-        :action-kind="approval.actionKind"
-        context-label="your desktop"
-        :busy="decideApproval.isPending.value"
-        class="overlay-approval"
-        @approve="decide(approval.providerApprovalId, 'approved')"
-        @deny="decide(approval.providerApprovalId, 'denied')"
-      />
 
       <footer class="overlay-footer">
         <button class="stop-button" :disabled="isStopping" @click="stopTurn">
@@ -174,8 +183,13 @@ onUnmounted(() => {
 
 .overlay-card {
   margin: 10px;
-  display: grid;
+  /* Flex column with a bounded height so the settled-step log (below) scrolls
+     inside the card instead of pushing the pinned approval / current step out
+     of the window. */
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  max-height: calc(100vh - 20px);
   padding: 12px 14px;
   border-radius: 14px;
   border: 1px solid var(--edge-2, rgb(255 255 255 / 0.12));
@@ -189,6 +203,30 @@ onUnmounted(() => {
   gap: 8px;
   cursor: grab;
   user-select: none;
+  flex: none;
+}
+
+/* The pinned approval zone — never scrolls, accented so it's unmissable. */
+.approval-zone {
+  flex: none;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--gold, #d4a24e);
+  background: var(--gold-soft, rgb(212 162 78 / 0.12));
+}
+
+.approval-heading {
+  margin: 0;
+  color: var(--gold, #d4a24e);
+  font: 600 11px/1.4 var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.current-step {
+  flex: none;
 }
 
 .overlay-title {
@@ -230,10 +268,15 @@ onUnmounted(() => {
 
 .settled-steps {
   margin: 0;
-  padding: 0;
+  padding: 0 2px 0 0;
   list-style: none;
   display: grid;
   gap: 4px;
+  /* The one growing/scrolling region — takes remaining height, scrolls its own
+     overflow so the log never buries the pinned approval or the Stop button. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .settled-step {
@@ -266,6 +309,7 @@ onUnmounted(() => {
 .overlay-footer {
   display: flex;
   justify-content: flex-end;
+  flex: none;
 }
 
 .stop-button {

@@ -4,14 +4,23 @@ import type { SessionActivityEvent } from "@vynel/contracts/chat/session-activit
 // "what is Claude doing to the desktop right now" out. Only `mcp__desktop__*`
 // steps count — a long global turn doing non-desktop work must not surface the
 // overlay. Colocated with the store (desktop-activity-store.ts) that holds it;
-// pure so the burst/linger visibility rule is unit-testable with a fake clock.
+// pure so the visibility rule is unit-testable with a fake clock.
+//
+// Visibility is CONTINUOUS while Claude is on the desktop, not per-step: once a
+// desktop step arrives the overlay stays up and accumulates the whole progress
+// log, hiding only when the turn ends OR after a long idle with no desktop
+// activity (the previous 8s per-settle linger made it flicker open/closed
+// between steps). `lastActivityAtMs` is stamped on EVERY desktop event.
 
 export const DESKTOP_TOOL_PREFIX = "mcp__desktop__";
 
-/** How long the overlay lingers after the last desktop step settles. */
-export const OVERLAY_LINGER_MS = 8_000;
+/** How long the overlay stays up after the LAST desktop activity (any step or
+ *  bell), so a multi-step sequence never flickers it closed between steps. */
+export const IDLE_HIDE_MS = 20_000;
 
-const RECENT_STEP_LIMIT = 4;
+// Keep the whole desktop-active sequence (the overlay shows a scrollable log),
+// bounded so memory can't grow unboundedly on a very long session.
+const RECENT_STEP_LIMIT = 50;
 
 export interface DesktopStep {
   toolUseId: string;
@@ -27,12 +36,12 @@ export interface DesktopActivityState {
   steps: DesktopStep[];
   /** Pending desktop approvals (bells; the approvals API owns the state). */
   pendingApprovalIds: string[];
-  /** When the last desktop step settled (ms epoch) — drives the linger. */
-  lastSettledAtMs: number | null;
+  /** When the last desktop activity happened (ms epoch) — drives the idle hide. */
+  lastActivityAtMs: number | null;
 }
 
 export function emptyDesktopActivity(): DesktopActivityState {
-  return { trackedTurn: null, steps: [], pendingApprovalIds: [], lastSettledAtMs: null };
+  return { trackedTurn: null, steps: [], pendingApprovalIds: [], lastActivityAtMs: null };
 }
 
 function isDesktopTool(toolName: string): boolean {
@@ -75,6 +84,7 @@ export function applyDesktopActivityEvent(
         ...state,
         trackedTurn: trackTurn(state, event.turnId),
         steps,
+        lastActivityAtMs: nowMs,
       };
     }
     case "turn-tool-settled": {
@@ -82,7 +92,7 @@ export function applyDesktopActivityEvent(
       if (index === -1) return state;
       const steps = state.steps.slice();
       steps[index] = { ...steps[index]!, status: event.status };
-      return { ...state, steps, lastSettledAtMs: nowMs };
+      return { ...state, steps, lastActivityAtMs: nowMs };
     }
     case "turn-approval-requested": {
       if (!isDesktopTool(event.toolName)) return state;
@@ -91,6 +101,7 @@ export function applyDesktopActivityEvent(
         ...state,
         trackedTurn: trackTurn(state, event.turnId),
         pendingApprovalIds: [...state.pendingApprovalIds, event.approvalRequestId],
+        lastActivityAtMs: nowMs,
       };
     }
     case "turn-approval-resolved": {
@@ -112,10 +123,12 @@ export function applyDesktopActivityEvent(
   }
 }
 
-/** The burst-based visibility rule: visible while a desktop step runs or a
- *  desktop approval waits, lingering OVERLAY_LINGER_MS past the last settle. */
+/** Continuous visibility: up while a desktop step runs or a desktop approval
+ *  waits, and staying up until IDLE_HIDE_MS after the LAST desktop activity —
+ *  so a multi-step sequence keeps it steady rather than flickering per step.
+ *  (turn-ended clears the state, hiding it immediately.) */
 export function isDesktopOverlayVisible(state: DesktopActivityState, nowMs: number): boolean {
   if (state.pendingApprovalIds.length > 0) return true;
   if (state.steps.some((step) => step.status === "running")) return true;
-  return state.lastSettledAtMs !== null && nowMs - state.lastSettledAtMs < OVERLAY_LINGER_MS;
+  return state.lastActivityAtMs !== null && nowMs - state.lastActivityAtMs < IDLE_HIDE_MS;
 }

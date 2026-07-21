@@ -44,6 +44,6 @@ function contributePrompt(context: SessionToolContext): string {
 export const desktopFeatureDescriptor: McpFeatureDescriptor = {
   serverName: 'desktop',
   build,
-  mutatingToolNames: ['mcp__desktop__act_on_app'],
+  mutatingToolNames: ['mcp__desktop__act_on_app', 'mcp__desktop__act_on_desktop'],
   contributePrompt,
 }

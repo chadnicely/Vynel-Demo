@@ -26,6 +26,10 @@ type NativeWindow = {
   appName(): string
   title(): string
   isMinimized(): boolean
+  x(): number
+  y(): number
+  width(): number
+  height(): number
   captureImageSync(): { toPng(): Promise<Buffer> }
 }
 type NodeScreenshotsModule = { Window: { all(): NativeWindow[] } }
@@ -56,6 +60,8 @@ export interface WindowInfo {
   appName: string
   title: string
   isMinimized: boolean
+  width: number
+  height: number
 }
 
 // Call each method defensively (the binding is native — a shape surprise must
@@ -66,6 +72,8 @@ function readWindow(window: NativeWindow): WindowInfo {
     appName: String(window.appName()),
     title: String(window.title()),
     isMinimized: Boolean(window.isMinimized()),
+    width: Number(window.width()),
+    height: Number(window.height()),
   }
 }
 
@@ -84,10 +92,48 @@ export function selectWindowId(windows: WindowInfo[], query: string): number | n
   return selectWindowedPid(asProcesses, query)
 }
 
+/** A window's on-screen rectangle (physical pixels) — the frame the coordinate
+ *  input path translates window-relative clicks against. */
+export interface WindowBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * Resolve a named app's window rectangle (the ranked, non-minimized match), so
+ * a screenshot-relative (x,y) can be translated to absolute screen coords.
+ * Null when no matching window is open. The one node-screenshots touchpoint
+ * for geometry, shared with the coordinate input path.
+ */
+export function findAppWindowBounds(query: string): WindowBounds | null {
+  const trimmedQuery = query.trim()
+  if (trimmedQuery.length === 0) return null
+  const { Window } = loadNodeScreenshots()
+  const windows = Window.all()
+    .filter((native) => !native.isMinimized())
+    .map((native) => ({ native, info: readWindow(native) }))
+  const winnerId = selectWindowId(
+    windows.map((entry) => entry.info),
+    trimmedQuery,
+  )
+  const winner = windows.find((entry) => entry.info.id === winnerId)
+  if (winner === undefined) return null
+  return {
+    x: Number(winner.native.x()),
+    y: Number(winner.native.y()),
+    width: Number(winner.native.width()),
+    height: Number(winner.native.height()),
+  }
+}
+
 export type AppScreenshot = {
   pngBase64: string
   appName: string
   windowTitle: string
+  width: number
+  height: number
 }
 
 /**
@@ -139,5 +185,7 @@ export async function screenshotApp(query: string): Promise<AppScreenshot> {
     pngBase64: png.toString('base64'),
     appName: winner.info.appName,
     windowTitle: winner.info.title,
+    width: winner.info.width,
+    height: winner.info.height,
   }
 }

@@ -3,7 +3,7 @@ import {
   applyDesktopActivityEvent,
   emptyDesktopActivity,
   isDesktopOverlayVisible,
-  OVERLAY_LINGER_MS,
+  IDLE_HIDE_MS,
   type DesktopActivityState,
 } from "./desktop-activity-fold.js";
 
@@ -43,40 +43,38 @@ describe("applyDesktopActivityEvent", () => {
     expect(tracked.steps[0]).toMatchObject({ toolUseId: "a", status: "running" });
   });
 
-  it("settles a step in place and stamps lastSettledAtMs", () => {
+  it("settles a step in place and stamps lastActivityAtMs", () => {
     const state = fold([
       desktopStep("a"),
       { kind: "turn-tool-settled", turnId: "t1", toolUseId: "a", status: "completed" },
     ]);
     expect(state.steps[0]?.status).toBe("completed");
-    expect(state.lastSettledAtMs).toBe(T0);
+    expect(state.lastActivityAtMs).toBe(T0);
   });
 
-  it("caps the recent-step list (newest kept)", () => {
-    const state = fold(["a", "b", "c", "d", "e"].map((id) => desktopStep(id)));
-    expect(state.steps.map((step) => step.toolUseId)).toEqual(["b", "c", "d", "e"]);
+  it("keeps the whole sequence up to the cap (50) — the log is scrollable", () => {
+    const many = Array.from({ length: 60 }, (_, i) => desktopStep(`s${i}`));
+    const state = fold(many);
+    expect(state.steps).toHaveLength(50);
+    // Newest kept (oldest evicted).
+    expect(state.steps.at(-1)?.toolUseId).toBe("s59");
+    expect(state.steps[0]?.toolUseId).toBe("s10");
   });
 
-  it("evicts settled steps before running ones — a running step never drops mid-operation", () => {
+  it("at the cap, evicts a SETTLED step before any running one", () => {
+    // 50 running steps, settle the oldest, then one more running step arrives →
+    // the settled one is evicted, never a running step (which would orphan its
+    // later settle and could hide the overlay mid-operation).
+    const fifty = Array.from({ length: 50 }, (_, i) => desktopStep(`s${i}`));
     const state = fold([
-      desktopStep("a"),
-      { kind: "turn-tool-settled", turnId: "t1", toolUseId: "a", status: "completed" },
-      desktopStep("b"),
-      desktopStep("c"),
-      desktopStep("d"),
-      desktopStep("e"),
+      ...fifty,
+      { kind: "turn-tool-settled", turnId: "t1", toolUseId: "s0", status: "completed" },
+      desktopStep("s50"),
     ]);
-    // "a" (settled) was evicted; the four running steps all survive.
-    expect(state.steps.map((step) => step.toolUseId)).toEqual(["b", "c", "d", "e"]);
+    expect(state.steps).toHaveLength(50);
+    expect(state.steps.some((step) => step.toolUseId === "s0")).toBe(false); // settled one evicted
     expect(state.steps.every((step) => step.status === "running")).toBe(true);
-
-    // Its settle still finds "b" — visibility keeps its linger anchor.
-    const settled = applyDesktopActivityEvent(
-      state,
-      { kind: "turn-tool-settled", turnId: "t1", toolUseId: "b", status: "completed" },
-      T0,
-    );
-    expect(settled.lastSettledAtMs).toBe(T0);
+    expect(state.steps.at(-1)?.toolUseId).toBe("s50");
   });
 
   it("desktop approval bells add/remove pending ids; non-desktop bells are ignored", () => {
@@ -112,7 +110,7 @@ describe("applyDesktopActivityEvent", () => {
   });
 });
 
-describe("isDesktopOverlayVisible — the burst/linger rule", () => {
+describe("isDesktopOverlayVisible — continuous while active", () => {
   it("visible while a desktop step runs or an approval waits", () => {
     expect(isDesktopOverlayVisible(fold([desktopStep("a")]), T0)).toBe(true);
     const bell = fold([
@@ -121,13 +119,27 @@ describe("isDesktopOverlayVisible — the burst/linger rule", () => {
     expect(isDesktopOverlayVisible(bell, T0)).toBe(true);
   });
 
-  it("lingers after the last settle, then hides", () => {
+  it("stays up across a multi-step sequence — no flicker between steps", () => {
+    // Step A settles at T0; step B starts 15s later (>the OLD 8s linger, which
+    // would have hidden then re-shown). With the idle-hide window it stays up.
+    let state = fold([
+      desktopStep("a"),
+      { kind: "turn-tool-settled", turnId: "t1", toolUseId: "a", status: "completed" },
+    ]);
+    // 15s later, still visible (within the 20s idle window).
+    expect(isDesktopOverlayVisible(state, T0 + 15_000)).toBe(true);
+    // A new step at T0+15s refreshes the activity stamp.
+    state = applyDesktopActivityEvent(state, desktopStep("b"), T0 + 15_000);
+    expect(isDesktopOverlayVisible(state, T0 + 15_000)).toBe(true); // running
+  });
+
+  it("hides IDLE_HIDE_MS after the last desktop activity", () => {
     const settled = fold([
       desktopStep("a"),
       { kind: "turn-tool-settled", turnId: "t1", toolUseId: "a", status: "completed" },
     ]);
-    expect(isDesktopOverlayVisible(settled, T0 + OVERLAY_LINGER_MS - 1)).toBe(true);
-    expect(isDesktopOverlayVisible(settled, T0 + OVERLAY_LINGER_MS)).toBe(false);
+    expect(isDesktopOverlayVisible(settled, T0 + IDLE_HIDE_MS - 1)).toBe(true);
+    expect(isDesktopOverlayVisible(settled, T0 + IDLE_HIDE_MS)).toBe(false);
   });
 
   it("hidden when nothing desktop-related ever happened", () => {

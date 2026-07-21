@@ -62,6 +62,30 @@ describe("describeDesktopStep — the overlay's progressive voice", () => {
     ).toBe('Pressing [stable_id="x9"] in Notepad');
   });
 
+  it("narrates coordinate actions (act_on_desktop)", () => {
+    expect(
+      describeDesktopStep("mcp__desktop__act_on_desktop", { action: "click", x: 120, y: 340 }),
+    ).toBe("Clicking at (120, 340)");
+    expect(
+      describeDesktopStep("mcp__desktop__act_on_desktop", {
+        action: "click",
+        x: 5,
+        y: 6,
+        double: true,
+        app: "Zoom",
+      }),
+    ).toBe("Double-clicking at (5, 6) in Zoom");
+    expect(
+      describeDesktopStep("mcp__desktop__act_on_desktop", { action: "type", text: "hello" }),
+    ).toBe('Typing "hello"');
+    expect(
+      describeDesktopStep("mcp__desktop__act_on_desktop", { action: "press", keys: "ctrl+c" }),
+    ).toBe("Pressing ctrl+c");
+    expect(
+      describeDesktopStep("mcp__desktop__act_on_desktop", { action: "drag", x: 1, y: 2, toX: 9, toY: 9 }),
+    ).toBe("Dragging at (1, 2) to (9, 9)");
+  });
+
   it("is null for non-desktop tools (callers keep their own fallback)", () => {
     expect(describeDesktopStep("Read", { file_path: "a.ts" })).toBeNull();
     expect(describeDesktopStep("mcp__vynel__list_workspaces", {})).toBeNull();
