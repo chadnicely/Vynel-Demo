@@ -10,20 +10,25 @@
 // `node-screenshots` is a native module: loaded LAZILY via `createRequire` on
 // first use (the `xa11y-loader.ts` pattern), so importing this adapter in tests
 // or on a platform without the prebuilt binary never pulls the binary.
+//
+// EVERY field on node-screenshots' `Window` is a METHOD (`appName()`, `title()`,
+// `isMinimized()`, `captureImageSync()`), not a property — so this module reads
+// each window into a plain `WindowInfo` snapshot at the boundary, and the pure
+// selection logic works on that snapshot (never on the live binding object).
 
 import { createRequire } from 'node:module'
 import { selectWindowedPid, type WindowedProcess } from './windowed-process.js'
 
-// Structural view of the node-screenshots surface we use — kept local so the
-// dependency's own types never leak into the package surface.
-type ScreenshotWindow = {
-  id: number
-  appName: string
-  title: string
-  isMinimized: boolean
-  captureImage(): Promise<{ toPng(): Promise<Buffer> }>
+// The subset of node-screenshots' `Window` we call — methods, matching the
+// binding's real 0.2.x shape (verified against its index.d.ts).
+type NativeWindow = {
+  id(): number
+  appName(): string
+  title(): string
+  isMinimized(): boolean
+  captureImageSync(): { toPng(): Promise<Buffer> }
 }
-type NodeScreenshotsModule = { Window: { all(): ScreenshotWindow[] } }
+type NodeScreenshotsModule = { Window: { all(): NativeWindow[] } }
 
 let cachedModule: NodeScreenshotsModule | undefined
 
@@ -44,23 +49,39 @@ function loadNodeScreenshots(): NodeScreenshotsModule {
   }
 }
 
+// A window read into plain data at the binding boundary — the pure selection
+// works on this, never on the live `NativeWindow` (whose fields are methods).
+export interface WindowInfo {
+  id: number
+  appName: string
+  title: string
+  isMinimized: boolean
+}
+
+// Call each method defensively (the binding is native — a shape surprise must
+// degrade to "no match", never a thrown TypeError deep in the ranking).
+function readWindow(window: NativeWindow): WindowInfo {
+  return {
+    id: Number(window.id()),
+    appName: String(window.appName()),
+    title: String(window.title()),
+    isMinimized: Boolean(window.isMinimized()),
+  }
+}
+
 /**
- * Pick the window matching the query — the SAME ranked selection as the a11y
- * pid fallback (`selectWindowedPid`), with the window id standing in for the
+ * Pick the id of the window matching the query — the SAME ranked selection as
+ * the a11y pid fallback (`selectWindowedPid`), the window id standing in for the
  * pid, so "screenshot Discord" and "read Discord" resolve the same window.
- * Pure (no I/O) for testing.
+ * Pure (plain data in, id out) for testing.
  */
-export function selectScreenshotWindow(
-  windows: ScreenshotWindow[],
-  query: string,
-): ScreenshotWindow | null {
+export function selectWindowId(windows: WindowInfo[], query: string): number | null {
   const asProcesses: WindowedProcess[] = windows.map((window) => ({
     pid: window.id,
     processName: window.appName,
     windowTitle: window.title,
   }))
-  const selectedId = selectWindowedPid(asProcesses, query)
-  return windows.find((window) => window.id === selectedId) ?? null
+  return selectWindowedPid(asProcesses, query)
 }
 
 export type AppScreenshot = {
@@ -83,30 +104,40 @@ export async function screenshotApp(query: string): Promise<AppScreenshot> {
     )
   }
   const { Window } = loadNodeScreenshots()
-  const windows = Window.all()
-  const restored = windows.filter((window) => !window.isMinimized)
-  const match = selectScreenshotWindow(restored, trimmedQuery)
-  if (match === null) {
+  const nativeWindows = Window.all()
+  // Read every window into plain data once, keeping the native handle beside it
+  // so the winner can be captured.
+  const windows = nativeWindows.map((native) => ({ native, info: readWindow(native) }))
+
+  const restored = windows.filter((entry) => !entry.info.isMinimized)
+  const winnerId = selectWindowId(
+    restored.map((entry) => entry.info),
+    trimmedQuery,
+  )
+  const winner = restored.find((entry) => entry.info.id === winnerId)
+  if (winner === undefined) {
     // Distinguish "minimized" from "not open" — different user action.
-    const minimizedMatch = selectScreenshotWindow(
-      windows.filter((window) => window.isMinimized),
+    const minimized = windows.filter((entry) => entry.info.isMinimized)
+    const minimizedId = selectWindowId(
+      minimized.map((entry) => entry.info),
       trimmedQuery,
     )
-    if (minimizedMatch !== null) {
+    const minimizedWinner = minimized.find((entry) => entry.info.id === minimizedId)
+    if (minimizedWinner !== undefined) {
       throw new Error(
-        `The "${minimizedMatch.appName}" window is minimized — a minimized window has no pixels to ` +
-          'capture. Ask the user to restore it, then retry.',
+        `The "${minimizedWinner.info.appName}" window is minimized — a minimized window has no ` +
+          'pixels to capture. Ask the user to restore it, then retry.',
       )
     }
     throw new Error(
       `Could not screenshot "${trimmedQuery}": no matching window is open. Call list_open_apps to see available apps.`,
     )
   }
-  const image = await match.captureImage()
-  const png = await image.toPng()
+
+  const png = await winner.native.captureImageSync().toPng()
   return {
     pngBase64: png.toString('base64'),
-    appName: match.appName,
-    windowTitle: match.title,
+    appName: winner.info.appName,
+    windowTitle: winner.info.title,
   }
 }

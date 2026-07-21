@@ -1,33 +1,27 @@
 import { describe, it, expect } from 'vitest'
-import { selectScreenshotWindow, screenshotApp } from './screenshot-adapter.js'
+import { selectWindowId, screenshotApp, type WindowInfo } from './screenshot-adapter.js'
 
-type FakeWindow = Parameters<typeof selectScreenshotWindow>[0][number]
-
-function fakeWindow(overrides: Partial<FakeWindow>): FakeWindow {
-  return {
-    id: 1,
-    appName: 'App',
-    title: 'Window',
-    isMinimized: false,
-    captureImage: () => Promise.reject(new Error('not captured in tests')),
-    ...overrides,
-  }
+// Plain window snapshots — the SAME shape the adapter reads native windows into
+// at the binding boundary, so the ranking is tested on real data, not a fake
+// that could re-encode a wrong assumption about the native object's shape.
+function windowInfo(overrides: Partial<WindowInfo>): WindowInfo {
+  return { id: 1, appName: 'App', title: 'Window', isMinimized: false, ...overrides }
 }
 
-describe('selectScreenshotWindow', () => {
+describe('selectWindowId', () => {
   it('ranks like the a11y pid fallback: app-name match > title match, longest title wins', () => {
     const windows = [
-      fakeWindow({ id: 1, appName: 'Code', title: 'a.ts - discord-bot - Visual Studio Code' }),
-      fakeWindow({ id: 2, appName: 'Discord', title: '' }),
-      fakeWindow({ id: 3, appName: 'Discord', title: '@user - #general - Discord' }),
+      windowInfo({ id: 1, appName: 'Code', title: 'a.ts - discord-bot - Visual Studio Code' }),
+      windowInfo({ id: 2, appName: 'Discord', title: '' }),
+      windowInfo({ id: 3, appName: 'Discord', title: '@user - #general - Discord' }),
     ]
-    expect(selectScreenshotWindow(windows, 'discord')?.id).toBe(3)
+    expect(selectWindowId(windows, 'discord')).toBe(3)
   })
 
   it('returns null when nothing matches or the query is blank', () => {
-    const windows = [fakeWindow({ id: 1, appName: 'Notepad', title: 'notes.txt - Notepad' })]
-    expect(selectScreenshotWindow(windows, 'discord')).toBeNull()
-    expect(selectScreenshotWindow(windows, '   ')).toBeNull()
+    const windows = [windowInfo({ id: 1, appName: 'Notepad', title: 'notes.txt - Notepad' })]
+    expect(selectWindowId(windows, 'discord')).toBeNull()
+    expect(selectWindowId(windows, '   ')).toBeNull()
   })
 })
 
