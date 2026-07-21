@@ -86,7 +86,7 @@ export const StartChatTurnRequestSchema = z.object({
   // curated allowlist; omit to inherit the Claude Code default.
   model: z
     .string()
-    .refine((value) => CHAT_MODEL_IDS.includes(value), 'Unsupported model.')
+    .refine((value) => (CHAT_MODEL_IDS as readonly string[]).includes(value), 'Unsupported model.')
     .optional(),
   // Reasoning effort for this turn (the composer's picker; Slice ③). Omitted =
   // Auto (the SDK's adaptive default — unchanged behavior).

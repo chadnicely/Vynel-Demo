@@ -256,6 +256,15 @@ describe('POST /routing/delegate', () => {
         thinkingEffort: 'ultra',
       })
       expect(badEffort.status).toBe(400)
+
+      // The session route composes the SAME shared preference fields — pin it
+      // (validation runs before target resolution, so no spawned seed needed).
+      const badSessionModel = await postJson(app, '/routing/delegate-session', {
+        targetSessionId: 'any',
+        task: 't',
+        model: 'gpt-5',
+      })
+      expect(badSessionModel.status).toBe(400)
     })
   })
 

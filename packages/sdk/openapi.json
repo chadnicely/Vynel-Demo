@@ -19742,7 +19742,13 @@
                     "maxLength": 50000
                   },
                   "model": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                      "claude-fable-5",
+                      "claude-opus-4-8",
+                      "claude-sonnet-4-6",
+                      "claude-haiku-4-5"
+                    ]
                   },
                   "thinkingEffort": {
                     "type": "string",
@@ -19836,7 +19842,13 @@
                     "minLength": 1
                   },
                   "model": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                      "claude-fable-5",
+                      "claude-opus-4-8",
+                      "claude-sonnet-4-6",
+                      "claude-haiku-4-5"
+                    ]
                   },
                   "thinkingEffort": {
                     "type": "string",

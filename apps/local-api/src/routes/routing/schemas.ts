@@ -12,14 +12,14 @@ import { CHAT_MODEL_IDS } from '@vynel/contracts/chat/chat-models'
 import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
 
 // The root's model/effort picks for the delegated turn (shared by both delegate
-// routes) — the composer precedent in routes/chat/schemas.ts: model validated
-// against the curated allowlist; omitted = the provider defaults.
+// routes). BOTH fields are z.enum — an enum flows the curated allowlist into the
+// OpenAPI spec and the generated MCP tool schema, which here IS the UI: the
+// delegating agent can only pick ids it can see (the cf15137 review catch — a
+// `.refine` published a bare string, leaving the model half unguessable). The
+// composer routes keep their refine (a UI picker constrains those).
 const DelegationRunPreferenceFields = {
   /** The model to run the delegated turn. Omit to inherit the provider default. */
-  model: z
-    .string()
-    .refine((value) => CHAT_MODEL_IDS.includes(value), 'Unsupported model.')
-    .optional(),
+  model: z.enum(CHAT_MODEL_IDS).optional(),
   /** Reasoning effort for the delegated turn. Omit for the adaptive default. */
   thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
 }

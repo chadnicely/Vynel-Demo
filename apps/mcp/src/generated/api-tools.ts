@@ -1587,7 +1587,7 @@ export const sendTaskToSession: McpToolFactory = (scope, app) =>
     targetSessionId: z.string(),
     task: z.string(),
     workspaceId: z.string().optional(),
-    model: z.string().optional(),
+    model: z.enum(['claude-fable-5', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5']).optional(),
     thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   },
     async (args: Record<string, unknown>) => {
@@ -1629,7 +1629,7 @@ export const sendTaskToWorkspace: McpToolFactory = (scope, app) =>
     {
     targetWorkspaceId: z.string(),
     task: z.string(),
-    model: z.string().optional(),
+    model: z.enum(['claude-fable-5', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5']).optional(),
     thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   },
     async (args: Record<string, unknown>) => {

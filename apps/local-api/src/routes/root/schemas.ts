@@ -39,7 +39,7 @@ export const StartGlobalRootTurnRequestSchema = z
     /** The model to run this turn. Validated against the curated allowlist. */
     model: z
       .string()
-      .refine((value) => CHAT_MODEL_IDS.includes(value), 'Unsupported model.')
+      .refine((value) => (CHAT_MODEL_IDS as readonly string[]).includes(value), 'Unsupported model.')
       .optional(),
     // Reasoning effort for this turn (the composer's picker; Slice ③). Omitted = Auto.
     thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
