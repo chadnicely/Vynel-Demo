@@ -3,7 +3,29 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21N): SESSIONS SURFACE SIMPLIFIED PER CHAD'S LIVE FEEDBACK — `fcc9141`; gate GREEN 528f/2847t, two more review rounds folded; NEXT: Chad's re-smoke → Slice ④ (coverage)
+## ⏭ NEXT ACTION (2026-07-21O): SLICE ④ SHIPPED — `e9b2268` (+ the chat-follows-scope fix `6a376f5`); gate GREEN 2857t, reviewed CLEAN 0 must-fix 0 should-fix; THE SESSIONS-SURFACE ARC (①–④) IS COMPLETE. NEXT: Chad's full smoke → then candidates: inter-session comms arc (parked) · as-built docs refresh (stale on deleted panels) · monitor tree (outbox consumers) · detached-run lease
+
+**Slice ④ (subagent-built, reviewed CLEAN): workspace threads' Watch chips ON (the
+show-watch-chips gates DELETED, not flipped) · DIRECT-turn agents watchable —
+openAgentDirect(source, toolUseId) generalized, the agent node rides {kind:'session'} for
+non-delegated rows (persisted subagent fields render settled; panel derive verified
+source-agnostic) · session-target in-flight jobs get banner chips named by the spawned
+session (in-flight DTO widened additively: targetPrimarySessionId + sessionName;
+attach-spawned-session-names batched enricher; resolveSpawnedSessionDisplayName = ONE home
+shared with the tick's attribution; NEW ProcessingBanner.vue extracted byte-equivalent) ·
+linked-session chips open the monitor (openSession KEPT, its consumer arrived) ·
+ContextMeter DELETED (zero consumers) · chat.getSession gained attachDelegationTaskLabels
+(the two detail flavors can't diverge — the Slice-① recorded follow-on closed). RECORDED:
+workspace-created session-job chips appear in the GLOBAL banner only (v1, commented) ·
+direct-agent chip on an old chain segment binds that segment's channel (settled correct;
+one-attach contract) · .gitignore trailing-newline chore.**
+**⏭ CHAD FULL SMOKE (the whole arc): workspace thread → delegation rows show Watch · any
+chat → an agent runs → its card's Watch chip opens the focused view (live + after reload) ·
+send a task INTO a session from global → the banner chip names the session, click → live
+trace · click a linked-session chip → the session's live view · plus the 21N re-smoke list
+(plain menus, Sessions list, chat-into-session, queued sends, Chat follows scope).**
+
+## (prev) ⏭ NEXT ACTION (2026-07-21N): SESSIONS SURFACE SIMPLIFIED PER CHAD'S LIVE FEEDBACK — `fcc9141`; gate GREEN 528f/2847t, two more review rounds folded; + the chat-menu scope fix `6a376f5`
 
 **Chad's two live-feedback rounds on the shipped ③b, both reworked + reviewed:**
 - **"No special menus"**: the segmented Home/Chat pill DELETED — Home, Chat, Sessions are plain

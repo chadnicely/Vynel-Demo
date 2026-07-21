@@ -42,6 +42,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Watch works everywhere now.** Workspace conversations offer the same Watch chips the
+  assistant's chat has; an agent working directly in any conversation can be watched live and
+  its recorded activity reviewed after; a task running inside a created session shows a live
+  chip named after that session; and clicking a linked session opens its live view.
+
 - **One watch panel for everything.** Watching a handed-off task, a session, or an agent now opens
   the same side panel — and you can drill from a session into the agent working inside it and back.
   Watching a session also gained agent drill-down it never had.
