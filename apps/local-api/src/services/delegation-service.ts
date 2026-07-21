@@ -26,7 +26,7 @@ import { failOrphanedClaimedDelegations } from '@vynel/orchestration'
 import { runDelegationClaimAndRunTick } from '@vynel/session/delegation'
 import type { TurnEventBroadcaster, DelegationCancelRegistry } from '@vynel/session/delegation'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
-import type { WorkspaceBackgroundMcpComposer } from '../sessions/build-workspace-background-mcp.js'
+import type { DelegatedTurnMcpComposer } from '../sessions/build-workspace-background-mcp.js'
 
 const DELEGATION_POLL_INTERVAL_MS = 1_000
 
@@ -51,10 +51,11 @@ export interface DelegationServiceOptions {
   /** The stop bridge shared with the api routes — each claimed run registers
    *  so the stop route can cancel it. */
   cancelRegistry?: DelegationCancelRegistry
-  /** The background workspace MCP composition every routed turn attaches —
-   *  REQUIRED so a routed turn never runs bare against a session that has the
-   *  vynel tools (the deferred-tool "server disconnected" class). */
-  composeWorkspaceMcpServers: WorkspaceBackgroundMcpComposer
+  /** The delegated-turn MCP composition (target-aware: workspace-root gets the
+   *  interactive set, spawned-session the plain one) — REQUIRED so a routed
+   *  turn never runs bare against a session that has the vynel tools (the
+   *  deferred-tool "server disconnected" class). */
+  composeWorkspaceMcpServers: DelegatedTurnMcpComposer
 }
 
 export function startDelegationService(options: DelegationServiceOptions): { stop: () => void } {

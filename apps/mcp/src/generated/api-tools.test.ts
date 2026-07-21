@@ -121,12 +121,12 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   'speak',
 ] as const
 
-// Slice ④b: the session-spawning tools ALSO ride WORKSPACE INTERACTIVE chat
-// streams — via a THIRD array (`x-mcp.workspaceInteractiveSurface`) that only
-// `vynelWorkspaceInteractiveDescriptor` (streams/chat-turn.ts) composes. They
-// are deliberately NOT in `generatedMcpTools`: that array feeds BACKGROUND
-// workspace turns too (schedule fires via build-schedule-fire-deps), which must
-// never see them (the background-exclusion test below pins this).
+// Slice ④b (widened 2026-07-21): the session-routing tools ride workspace-ROOT
+// turns — the interactive chat stream AND delegated workspace-root runs — via a
+// THIRD array (`x-mcp.workspaceInteractiveSurface`) that only
+// `vynelWorkspaceInteractiveDescriptor` composes. They are deliberately NOT in
+// `generatedMcpTools`: that array feeds schedule fires and spawned-session
+// targets, which must never see them (the exclusion test below pins this).
 const EXPECTED_WORKSPACE_INTERACTIVE_TOOL_NAMES = [
   'create_session',
   'list_sessions',

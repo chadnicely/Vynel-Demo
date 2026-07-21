@@ -273,10 +273,13 @@ describe('runDelegationClaimAndRunTick', () => {
         activityFeed: new SessionActivityFeed(),
         composeWorkspaceMcpServers,
       })
+      // target 'workspace-root' → the api edge composes the INTERACTIVE set
+      // (session-routing trio included — the 2026-07-21 re-decision).
       expect(composeWorkspaceMcpServers).toHaveBeenCalledWith({
         db,
         userId: user.id,
         workspaceId: workspace.id,
+        target: 'workspace-root',
       })
       expect(workspaceInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
       expect(workspaceInputs[0]!.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
@@ -317,6 +320,7 @@ describe('runDelegationClaimAndRunTick', () => {
         db,
         userId: user.id,
         workspaceId: workspace.id,
+        target: 'spawned-session',
       })
       expect(groundedInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
 

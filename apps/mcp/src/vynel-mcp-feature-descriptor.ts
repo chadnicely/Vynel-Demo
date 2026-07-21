@@ -101,13 +101,17 @@ export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
   contributePrompt: contributeWorkspacePrompt,
 }
 
-// The workspace INTERACTIVE chat stream's variant (session-library Slice ④b):
-// everything `vynelWorkspaceDescriptor` carries PLUS the session-spawning tools
-// (create_session / list_sessions / send_task_to_session — the
-// `generatedWorkspaceInteractiveMcpTools` set). Composed ONLY by the interactive
-// stream (`streams/chat-turn.ts`, and the /context report that mirrors it) —
-// background workspace turns (schedule fires, delegated runs) keep the plain
-// workspace descriptor and never see the spawning tools. The spawning tools are
+// The workspace-root's FULL variant (session-library Slice ④b, widened
+// 2026-07-21): everything `vynelWorkspaceDescriptor` carries PLUS the
+// session-routing tools (create_session / list_sessions / send_task_to_session —
+// the `generatedWorkspaceInteractiveMcpTools` set). Composed by the interactive
+// stream (`streams/chat-turn.ts`, the /context report that mirrors it) AND by
+// DELEGATED workspace-root runs (`buildDelegatedTurnMcpComposer` — a delegated
+// turn is the user's own request via the global root, and the primary's toolset
+// must not flip per turn origin: the deferred-tool "dropped again" lesson).
+// Schedule fires and spawned-session targets keep the plain workspace
+// descriptor — a truly autonomous turn never gains spawning tools, and a
+// spawned session is the leaf, not a router. The spawning tools are
 // mutatingApproved-auto (Chad's "Claude manages freely" precedent, like the root
 // surface), so `mutatingToolNames` stays empty here too.
 export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {

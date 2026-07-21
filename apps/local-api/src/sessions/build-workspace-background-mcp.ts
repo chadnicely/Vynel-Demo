@@ -46,3 +46,44 @@ export async function buildWorkspaceBackgroundMcpComposer(
       },
     )
 }
+
+// The DELEGATED-turn composer (2026-07-21, Chad's re-decision of the ④b pin):
+// a delegated WORKSPACE-ROOT turn is the user's own request arriving through
+// the global root, so it carries the SAME session-routing trio the interactive
+// chat has (create_session / list_sessions / send_task_to_session) — the
+// global → workspace → session chain works, and the workspace primary's
+// toolset stops flip-flopping per turn origin (the deferred-tool "dropped
+// again" narrative). A SPAWNED-SESSION target stays on the plain set — it is
+// the leaf doing the work, not a brain that routes further (no session
+// recursion in v1). Schedule fires keep `buildWorkspaceBackgroundMcpComposer`
+// above: a truly autonomous turn never gains spawning tools.
+export type DelegatedTurnTarget = 'workspace-root' | 'spawned-session'
+
+export type DelegatedTurnMcpComposer = (input: {
+  db: Database
+  userId: string
+  workspaceId: string
+  target: DelegatedTurnTarget
+}) => ComposedSessionMcpServers
+
+export async function buildDelegatedTurnMcpComposer(
+  appRequest: HonoAppRequestFn,
+): Promise<DelegatedTurnMcpComposer> {
+  const { vynelWorkspaceDescriptor, vynelWorkspaceInteractiveDescriptor } = await import(
+    '@vynel/mcp'
+  )
+  const { notebookFeatureDescriptor } = await import('@vynel/instructions')
+  return ({ db, userId, workspaceId, target }) =>
+    composeSessionMcpServers(
+      [
+        target === 'workspace-root' ? vynelWorkspaceInteractiveDescriptor : vynelWorkspaceDescriptor,
+        notebookFeatureDescriptor,
+      ],
+      { db, userId, workspaceId, appRequest },
+      {
+        enabledCapabilityIds: new Set(
+          listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),
+        ),
+      },
+    )
+}

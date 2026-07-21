@@ -82,17 +82,20 @@ export interface RunDelegationTickDeps {
    *  service's pool uses it to reserve the target slot for the run's life.
    *  `targetKey` = targetPrimarySessionId ?? workspaceId. */
   onRunStarted?: (run: { jobId: string; targetKey: string }) => void
-  /** The background workspace MCP composition (the api edge binds it to
-   *  `composeSessionMcpServers([vynelWorkspaceDescriptor, …])` — the schedules
-   *  `FireScheduleDeps` precedent; core never imports @vynel/mcp). REQUIRED for
-   *  production wiring: a routed turn that attaches no MCP servers strips the
-   *  resumed session's deferred tools — the CLI then tells the model the whole
-   *  Vynel server DISCONNECTED (the 2026-07-21 live bug). Optional only so
-   *  MCP-less test harnesses keep composing nothing. */
+  /** The delegated-turn MCP composition (the api edge binds it per target:
+   *  a WORKSPACE-ROOT turn gets the interactive descriptor — session-routing
+   *  trio included, Chad's 2026-07-21 re-decision of the ④b pin — while a
+   *  SPAWNED-SESSION target keeps the plain set; the schedules `FireScheduleDeps`
+   *  precedent, core never imports @vynel/mcp). REQUIRED for production wiring:
+   *  a routed turn that attaches no MCP servers strips the resumed session's
+   *  deferred tools — the CLI then tells the model the whole Vynel server
+   *  DISCONNECTED (the 2026-07-21 live bug). Optional only so MCP-less test
+   *  harnesses keep composing nothing. */
   composeWorkspaceMcpServers?: (input: {
     db: Database
     userId: string
     workspaceId: string
+    target: 'workspace-root' | 'spawned-session'
   }) => RoutedTurnMcpAttachment
 }
 
@@ -253,6 +256,7 @@ export async function runDelegationClaimAndRunTick(
             db,
             userId: claimed.userId,
             workspaceId: mcpGroundingWorkspaceId,
+            target: claimed.targetPrimarySessionId !== null ? 'spawned-session' : 'workspace-root',
           })
         : undefined
 

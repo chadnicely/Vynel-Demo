@@ -51,13 +51,13 @@ type XMcp = {
   // user-scoped brain tool that doesn't live under `/routing/` (e.g. creating a
   // workspace) opts in here so it lands in `generatedRoutingMcpTools`.
   rootSurface?: boolean
-  // ALSO expose this tool on WORKSPACE INTERACTIVE chat streams (session-library
-  // Slice ④b): the tool keeps whatever surface the path/rootSurface split gives
-  // it AND joins `generatedWorkspaceInteractiveMcpTools` — which only the
-  // interactive workspace chat stream attaches (via
-  // `vynelWorkspaceInteractiveDescriptor`). Background workspace turns (schedule
-  // fires, delegated runs) compose the plain workspace descriptor and never see
-  // these tools.
+  // ALSO expose this tool on WORKSPACE-ROOT turns that may route work onward
+  // (session-library Slice ④b, widened 2026-07-21): the tool keeps whatever
+  // surface the path/rootSurface split gives it AND joins
+  // `generatedWorkspaceInteractiveMcpTools` — attached by the interactive chat
+  // stream AND delegated workspace-root runs (via
+  // `vynelWorkspaceInteractiveDescriptor`). Schedule fires and spawned-session
+  // targets compose the plain workspace descriptor and never see these tools.
   workspaceInteractiveSurface?: boolean
 }
 
@@ -407,10 +407,10 @@ type McpToolFn = (
     `export const generatedRoutingMcpTools: McpToolFactory[] = [\n${routing
       .map((e) => `  ${e.exportName},`)
       .join('\n')}\n]\n` +
-    `\n// Session-library Slice ④b — tools ALSO exposed on WORKSPACE INTERACTIVE\n` +
-    `// chat streams (x-mcp.workspaceInteractiveSurface). Only the interactive\n` +
-    `// stream's descriptor composes this array; background workspace turns\n` +
-    `// (schedule fires, delegated runs) never see it.\n` +
+    `\n// Session-library Slice ④b (widened 2026-07-21) — tools ALSO exposed on\n` +
+    `// workspace-root turns (x-mcp.workspaceInteractiveSurface): the interactive\n` +
+    `// chat stream AND delegated workspace-root runs compose this array; schedule\n` +
+    `// fires and spawned-session targets never see it.\n` +
     `export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [\n${workspaceInteractive
       .map((e) => `  ${e.exportName},`)
       .join('\n')}\n]\n`

@@ -70,16 +70,17 @@ export function buildGlobalRootMcpServer(
   })
 }
 
-// `buildWorkspaceInteractiveMcpServer` — the `vynel` server for a WORKSPACE
-// INTERACTIVE chat stream (session-library Slice ④b): the full workspace
-// registry PLUS the session-spawning tools (create_session / list_sessions /
-// send_task_to_session), so a workspace root can spawn and drive sessions in
-// its own ground. A SEPARATE builder — not a widening of `generatedMcpTools` —
-// because that array also feeds BACKGROUND workspace turns (schedule fires via
-// `build-schedule-fire-deps`), which must never see the spawning tools; the
-// interactive stream opts in by composing `vynelWorkspaceInteractiveDescriptor`
-// (the ask-descriptor precedent: interactive-only features are a call-site
-// descriptor choice). Same server key (`vynel`) — one turn ever builds one.
+// `buildWorkspaceInteractiveMcpServer` — the `vynel` server for a WORKSPACE-ROOT
+// turn that may ROUTE work onward (session-library Slice ④b, widened
+// 2026-07-21): the full workspace registry PLUS the session-routing tools
+// (create_session / list_sessions / send_task_to_session), so a workspace root
+// can spawn and drive sessions in its own ground. Composed by the interactive
+// chat stream AND delegated workspace-root runs. A SEPARATE builder — not a
+// widening of `generatedMcpTools` — because that array also feeds schedule
+// fires (`build-schedule-fire-deps`) and spawned-session targets, which must
+// never gain the spawning tools (autonomous turns don't route; leaves don't
+// recurse). Opt-in is a call-site descriptor choice (the ask precedent). Same
+// server key (`vynel`) — one turn ever builds one.
 export function buildWorkspaceInteractiveMcpServer(
   scope: McpScope,
   app: HonoAppRequestFn,

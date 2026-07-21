@@ -1994,10 +1994,10 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   speak,
 ]
 
-// Session-library Slice ④b — tools ALSO exposed on WORKSPACE INTERACTIVE
-// chat streams (x-mcp.workspaceInteractiveSurface). Only the interactive
-// stream's descriptor composes this array; background workspace turns
-// (schedule fires, delegated runs) never see it.
+// Session-library Slice ④b (widened 2026-07-21) — tools ALSO exposed on
+// workspace-root turns (x-mcp.workspaceInteractiveSurface): the interactive
+// chat stream AND delegated workspace-root runs compose this array; schedule
+// fires and spawned-session targets never see it.
 export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
   createSession,
   listSessions,
