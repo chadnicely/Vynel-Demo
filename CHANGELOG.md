@@ -32,6 +32,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Handed-off tasks no longer knock the assistant's tools offline.** Running a task in a
+  workspace (or a created session) used to strip that conversation's Vynel tools — the next time
+  you chatted there, the assistant would insist "the whole Vynel integration is disconnected"
+  until an app restart. Background task runs now carry the same toolset as scheduled runs, so
+  the conversation's tools survive every kind of turn — and a handed-off task can finally use
+  them (tracking its work on your task list, reading memory) while it runs.
+
+- **The assistant now knows which models it can pick for a handed-off task.** The
+  "send task" tools advertised a free-form model field, so the assistant had to guess valid
+  model names (and a wrong guess silently fell back to the default). The tools now present the
+  exact list of available models to choose from.
+
 - **A refused action now reads as refused.** When you deny an approval card, the tool's card
   settles in a distinct "denied" state instead of looking like the tool broke, and the approval
   record now links to the exact tool call it gated — every decision you make (approve, deny,

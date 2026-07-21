@@ -3,23 +3,83 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔴 NEXT ACTION (2026-07-21h): LIVE BUG — WORKSPACE TURN LOSES THE ENTIRE VYNEL MCP SERVER ("server disconnected", all mcp__vynel__* tools gone mid-conversation). FIX FIRST, then the deferred cf15137 review.
+## 🔵 NEXT ACTION (2026-07-21i): SESSIONS-SURFACE ARC OPENED (notes `docs/module-notes/sessions-surface.md`, Chad approved verbatim) + cf15137 REVIEW DONE & FOLDED — gate GREEN 523f/2806t; ⚠ TWO separable uncommitted changes await Chad's commit word → then Slice ①
 
-**Chad's smoke repro: a conversation that created a spawned session ("Letterman – Test Session",
-scope spawned, grounded in letterman) later reports the whole Vynel server DISCONNECTED —
-list_sessions/create_session AND the long-standing chat tools all unavailable. Console shows a NEW
-SDK warning: `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` (bare allowedTools `mcp__vynel__*` etc. auto-approve
-before canUseTool — check whether this SDK version changed allowlist semantics). VERIFIED CLEAN:
-chat-turn.ts composes ONLY vynelWorkspaceInteractiveDescriptor (replaced, no server-key collision).
-SUSPECTS, in order: ① a THROW inside the new workspaceInteractive server's tool dispatch (the bare
-invariant throw at build-in-process-server.ts:88-ish — an in-process handler exception kills the SDK
-MCP connection for the session) — reproduce by calling create_session/list_sessions from a WORKSPACE
-turn and watching the api console; ② the ambient workspaceId stamping path when scope lacks it;
-③ the allowedTools-shadowing warning being a symptom of the pattern-allowlist breaking server
-registration in this SDK version. Also note: an EARLIER screenshot showed 'vynel server dropped'
-during an ask_user test BEFORE 4b — the crash class may predate 4b (a tool handler throw killing the
-server), with 4b only adding surface. Debug via the api console stderr + the persisted transcript.
-Workaround for Chad meanwhile: restart the app; each fresh turn re-registers the server.**
+**cf15137 REVIEW VERDICT (adversarial pass, done): structurally sound end-to-end, 0 must-fix
+— migration 0014 truly additive · no unvalidated hop (bogus model can't reach the provider)
+· NULL/absent correct at every hop (legacy rows byte-identical) · both target kinds honored
+· threading SURVIVED the mcp-attachment work. ONE should-fix FOLDED: the curated model ids
+were INVISIBLE to the delegating agent (`.refine` emits a bare string into OpenAPI → the
+generated tool schema said `model: z.string()` — the pick half of the feature depended on
+guessing post-cutoff ids). Fix: `CHAT_MODEL_IDS` became a const TUPLE in contracts (the
+THINKING_EFFORT_LEVELS pattern, + `ChatModelId`; `ChatModelOption.id` narrowed; the two
+composer-route refines keep behavior via a `readonly string[]` widen) →
+`DelegationRunPreferenceFields.model = z.enum(CHAT_MODEL_IDS)` → api:generate: BOTH send
+tools now expose `z.enum(['claude-fable-5','claude-opus-4-8','claude-sonnet-4-6',
+'claude-haiku-4-5'])`. + the reviewer's deferred nit: session-route 400-on-bad-model pin
+(the shared-fields composition). RECORDED not built: session/delegation runners' inline
+effort union = a third structural copy (import ThinkingEffortLevel next touch).
+**COMMIT PLAN (two commits, files disjoint): ① the 21h mcp fix
+(`fix(session): attach background mcp servers to delegated turns`) ② this fold
+(`fix(api): expose the model allowlist as an enum on both send tools`).**
+
+**Chad's arc (confirmed "yes exactly we need that"): nav becomes Home | Chat | Sessions per
+scope. Chat = THE continuous primary; Sessions = the library (spawned children + chain fork
+segments), each opening a FULL chat-style view — live, and directly chattable at the chain
+HEAD. ONE component (`SessionThread` = transcript + live overlay + optional composer) over
+ONE source seam (`useActivityMonitor`: settled ∪ live, source kinds session/trace/agent),
+drill-down `Session → Session | Agent` as a node stack. LOCKED: ① user turns into spawned
+sessions attach the BACKGROUND MCP set (toolset consistency — today's disconnect lesson);
+② superseded segments VIEW-ONLY, chat lands on the head; ③ user turns QUEUE behind a
+running delegated task (pool FIFO extends). Slices: ① source seam → ② SessionThread +
+merged panel → ③ nav + Sessions view + the NEW session-turn route → ④ coverage (workspace
+Watch chips, direct-turn agent focus). The deep monitor tree (outbox consumers,
+delegate-to-leaf) stays a later arc. Full recon inventory in the notes' Ground section.
+SEQUENCE: commit the 21h fix → fold the cf15137 review verdict → Slice ①.**
+
+## (prev) ⏭ NEXT ACTION (2026-07-21h): MCP "SERVER DISCONNECTED" BUG FIXED — gate GREEN 523f/2806t, reviewed CLEAN 0 must-fix; NEXT: Chad smoke (delegate → tools survive) → COMMIT → then the deferred cf15137 review
+
+**ROOT CAUSE (verified empirically from the letterman CLI transcripts, NOT the STATE suspects):
+the server never crashed. A DELEGATED background turn (`delegateToWorkspaceRoot` /
+`delegateToSpawnedSession`) resumes the SAME SDK session as the interactive chat with ZERO MCP
+servers (delegation-service's documented "does NOT compose @vynel/mcp"). Under SDK 0.3.213 MCP
+tools are DEFERRED tools reconciled per turn on the resumed session: the bare delegated turn made
+the CLI strip every `mcp__vynel*` tool and inject "deferred tools are no longer available (MCP
+server disconnected) … Do not search for them" — so the workspace brain honestly told Chad the
+whole server was offline, and the belief persisted into later turns. The transcript
+(`0254dbc3….jsonl`) shows `deferred_tools_delta` REMOVE-all at each delegated turn ("Quick test
+task…" 00:08, the re-sent create-session asks 01:57/01:59) and ADD-back at each interactive turn
+(01:08, 01:41). Suspects ①(handler throw — generated handlers are fully try/caught) and
+②(workspaceId stamping) RULED OUT; ③ the SHADOWED warning is orthogonal + benign (the floor cards
+via the PreToolUse hook, never canUseTool — expected noise, no action).**
+
+**FIX (schedule-fire parity, subagent-reviewed CLEAN): delegated turns now attach the SAME
+background workspace MCP set schedule fires attach.**
+- **NEW `apps/local-api/src/sessions/build-workspace-background-mcp.ts`** — ONE home:
+  `buildWorkspaceBackgroundMcpComposer(appRequest)` composes `[vynelWorkspaceDescriptor,
+  notebookFeatureDescriptor]` capability-gated; `buildScheduleFireDeps` refactored onto it
+  (reviewer: byte-identical composition, still pinned end-to-end).
+- **NEW `packages/session/src/delegation/routed-turn-provider-input.ts`** — ROUTED_TASK_INSTRUCTIONS
+  moved here + `RoutedTurnMcpAttachment` (structural mirror of ComposedSessionMcpServers — the leaf
+  never imports @vynel/mcp) + composeRoutedTurnSystemPrompt + routedTurnMcpSessionFields (both
+  runners spread it; no-attachment = byte-for-byte the old bare shape).
+- **Tick** grew optional `composeWorkspaceMcpServers` dep; grounding: workspace job → its
+  workspaceId · workspace-grounded spawned target → the spawned primary's OWN workspaceId (gains
+  its ground's toolset on first task — adding is safe, stripping was the bug) · global-grounded
+  spawned → NOTHING (bare stays forward-consistent; the tick is the only resumer of spawned
+  primaries). delegation-service REQUIRES the composer; server.ts builds + injects it.
+- **Tests:** attachment threading pinned in both runner tests, per-target grounding + negatives in
+  the tick test, dep pass-through in the service test. 6 new tests.
+- **KNOWN RESIDUAL (by design, recorded):** interactive-only features still detach on a background
+  turn — the session trio (create/list/send) reads "tool removed", the ask + ssh SERVERS read
+  "disconnected" in the delta. Honest (they genuinely aren't available in background turns) and
+  small; revisit only if the model over-reacts in practice.
+**⏭ CHAD SMOKE: restart the api → from GLOBAL chat delegate any task to letterman → when it
+completes, ask the letterman workspace chat "list your vynel tools / list_sessions" → tools present,
+NO "disconnected" claim (previously every delegated turn killed them) · send a task to a spawned
+session → same check on the global side · schedule fires unchanged. Then COMMIT
+(fix(session): attach background mcp to delegated turns) + changelog. THEN the deferred cf15137
+adversarial review (2026-07-21g item) still stands.**
 
 ## (prev) NEXT ACTION (2026-07-21g): DELEGATION MODEL+EFFORT PICKS SHIPPED — gate GREEN 2803t; ⚠ REVIEWER PASS DEFERRED to next session (context limit) — run code-reviewer on `git show HEAD` first thing
 
