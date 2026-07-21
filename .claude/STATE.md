@@ -3,7 +3,28 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21e): SLICE 4 SESSION TOOLS BUILT — gate GREEN 2786t, reviewed APPROVE (empirical migration round-trip; 1 spec-reconcile folded); THE SESSION-LIBRARY ARC'S TOOL LAYER IS LIVE. NEXT: Chad's big smoke (spawn sessions for real) → then candidates: workspace-root spawning · monitor arc · detached-run lease
+## ⏭ NEXT ACTION (2026-07-21f): SLICE 4b WORKSPACE-LEVEL SPAWNING BUILT — gate GREEN 2798t, reviewed APPROVED (1 test-pin folded, 1 surface decision RECORDED); NEXT: Chad's big smoke (both levels) → candidates: monitor arc · detached-run lease
+
+**Slice ④b (Chad: "available on the workspace level as well") — notes §4b, subagent-built +
+adversarially reviewed:** createSpawnedSession/segment thread optional workspaceId (ground =
+the workspace's cwd/memory; global unchanged) · tools reach WORKSPACE interactive streams via a
+NEW generator surface flag `workspaceInteractiveSurface` → third array + vynelWorkspaceInteractiveDescriptor,
+composed ONLY by chat-turn stream + /context mirror (backgrounds structurally excluded, pinned) ·
+routes take ownership-checked optional workspaceId (guard = active creator conversation; parent =
+the workspace primary's sdk id) · **reports route to the CREATOR** (spawned primary's own
+workspaceId → that workspace's conversation; global → root; missing creator falls through, job
+still completes). **THE BUILD CAUGHT TWO REAL SLICE-④ BUGS:** the workspace liveness index
+collided with workspace-spawned primaries (migration `0013_spawned_workspace_grounding` — index
+drop/recreate scope-gated to 'workspace', reviewer-verified rows untouched) + a spawned row could
+MASQUERADE as the workspace brain in findPrimarySessionForWorkspace (scope filter added; swept =
+only workspaceId query site; deterministic insert-order pin folded per reviewer). **DECISION
+RECORDED (notes):** workspaceId stays MODEL-VISIBLE on both surfaces — it's how the global root
+spawns workspace-grounded sessions; ownership 404 is the gate.
+**⏭ CHAD SMOKE addendum: from a WORKSPACE chat — "create a session for X" → the entry lists
+under that workspace name · its report lands in the WORKSPACE conversation · from GLOBAL —
+"create a session in <workspace> for Y" → grounded there, report to global.**
+
+## (prev) NEXT ACTION (2026-07-21e): SLICE 4 SESSION TOOLS BUILT — COMMITTED `22b0460`+`1d1326b`
 
 **Slice ④ built per docs/module-notes/session-tools.md (subagent-built, independently
 adversarially reviewed; the notes carry the as-built decisions + reviewer nits):**

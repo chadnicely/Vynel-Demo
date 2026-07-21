@@ -55,6 +55,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Workspaces can spin up sessions too.** Session spawning works at both levels: a
+  workspace's assistant can create helper sessions grounded in that workspace (its files,
+  memory, and skills), and their results come back into the workspace's own conversation.
+  From the global chat you can also ask for a session grounded in a specific workspace.
+
 - **Claude can now spin up its own sessions.** Ask for something big and Claude can create
   a dedicated session for it — a full conversation with its own memory and its own context
   window — name it, hand it tasks, and keep working while it runs. Spawned sessions appear
