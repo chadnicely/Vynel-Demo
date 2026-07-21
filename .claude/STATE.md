@@ -3,7 +3,25 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21g): DELEGATION MODEL+EFFORT PICKS SHIPPED — gate GREEN 2803t; ⚠ REVIEWER PASS DEFERRED to next session (context limit) — run code-reviewer on `git show HEAD` first thing
+## 🔴 NEXT ACTION (2026-07-21h): LIVE BUG — WORKSPACE TURN LOSES THE ENTIRE VYNEL MCP SERVER ("server disconnected", all mcp__vynel__* tools gone mid-conversation). FIX FIRST, then the deferred cf15137 review.
+
+**Chad's smoke repro: a conversation that created a spawned session ("Letterman – Test Session",
+scope spawned, grounded in letterman) later reports the whole Vynel server DISCONNECTED —
+list_sessions/create_session AND the long-standing chat tools all unavailable. Console shows a NEW
+SDK warning: `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` (bare allowedTools `mcp__vynel__*` etc. auto-approve
+before canUseTool — check whether this SDK version changed allowlist semantics). VERIFIED CLEAN:
+chat-turn.ts composes ONLY vynelWorkspaceInteractiveDescriptor (replaced, no server-key collision).
+SUSPECTS, in order: ① a THROW inside the new workspaceInteractive server's tool dispatch (the bare
+invariant throw at build-in-process-server.ts:88-ish — an in-process handler exception kills the SDK
+MCP connection for the session) — reproduce by calling create_session/list_sessions from a WORKSPACE
+turn and watching the api console; ② the ambient workspaceId stamping path when scope lacks it;
+③ the allowedTools-shadowing warning being a symptom of the pattern-allowlist breaking server
+registration in this SDK version. Also note: an EARLIER screenshot showed 'vynel server dropped'
+during an ask_user test BEFORE 4b — the crash class may predate 4b (a tool handler throw killing the
+server), with 4b only adding surface. Debug via the api console stderr + the persisted transcript.
+Workaround for Chad meanwhile: restart the app; each fresh turn re-registers the server.**
+
+## (prev) NEXT ACTION (2026-07-21g): DELEGATION MODEL+EFFORT PICKS SHIPPED — gate GREEN 2803t; ⚠ REVIEWER PASS DEFERRED to next session (context limit) — run code-reviewer on `git show HEAD` first thing
 
 **Chad's follow-up: the root now picks `model` + `thinkingEffort` PER DELEGATED TASK on BOTH
 send tools (workspace + session). Migration `0014_delegation_model_effort` (two additive
