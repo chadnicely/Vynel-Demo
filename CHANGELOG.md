@@ -32,13 +32,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
-- **A Sessions home, and you can chat with any created session.** The top navigation is now
-  Home · Chat · Sessions. Sessions is the library of every conversation the assistant runs —
-  your workspaces' brains, sessions it created, and the continuation chain behind each one.
-  Open any of them to read the full thread live; sessions the assistant created are directly
-  chattable (your message waits its turn if the session is mid-task), older chain segments are
-  readable with chat continuing at the newest one. This replaces the old "past conversations"
-  side panel.
+- **A Sessions menu, and you can chat with any created session.** Home, Chat, and Sessions are
+  now plain entries at the top of the sidebar menu. Sessions is a simple list — in a workspace,
+  its conversation and its sessions; globally, the assistant's own created sessions — and
+  clicking one opens it as a normal chat, the same view the ongoing conversation uses. Sessions
+  the assistant created are directly chattable (a message sent while it's mid-task queues and
+  goes next), and older continuation segments are readable with chat continuing at the newest
+  one. This replaces the old "past conversations" side panel.
 
 ### Changed
 

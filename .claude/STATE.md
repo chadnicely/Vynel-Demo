@@ -3,7 +3,37 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21M): SLICE ③ SHIPPED WHOLE — ③a `448176a` (chat-into-session route + SessionTargetLocks) + ③b `4d05e12` (nav trio + Sessions library + composer); gate GREEN 528f/2849t, both halves adversarially reviewed (0 must-fix; all should-fixes folded); NEXT: CHAD'S BIG SMOKE → Slice ④ (coverage)
+## ⏭ NEXT ACTION (2026-07-21N): SESSIONS SURFACE SIMPLIFIED PER CHAD'S LIVE FEEDBACK — `fcc9141`; gate GREEN 528f/2847t, two more review rounds folded; NEXT: Chad's re-smoke → Slice ④ (coverage)
+
+**Chad's two live-feedback rounds on the shipped ③b, both reworked + reviewed:**
+- **"No special menus"**: the segmented Home/Chat pill DELETED — Home, Chat, Sessions are plain
+  sidebar MENU rows (both scopes; House/MessageCircle/History icons; aria-current active
+  marks; the duplicate GLOBAL_SECTIONS sessions entry died with it; selectSurface = the one
+  routing home for rows + Go menu + palette).
+- **The Sessions view = the plain two-pane shape** (old Conversations-panel styling): narrow
+  list rows (name · time · small % · working dot; chain expansion kept) + the selected session
+  as a NORMAL CHAT — ThreadStream + the active-turn fold (use-session-turn switched folds from
+  the trace fold; ThreadStream dedupe/scroll free; approvals decidable in-pane). GLOBAL scope
+  lists ONLY the root's own children (spawned + workspaceId null); workspace = its conversation
+  + its sessions. Row Watch button died (chips still reach the monitor); hero/badges/scope
+  labels died; monitor detached from the pane (detail poll 4s while the feed reports a turn).
+- **Review folds across the rounds**: mid-turn sends QUEUE via useQueuedSend + chips (were
+  silently eaten — ChatComposer clears the draft on emit by contract) · detail-read error =
+  said state-note · dead global branches deleted · allowAttachments composer prop (explicit
+  withDefaults(true) — a bare optional boolean would have stripped attachments on every chat
+  surface; existing tests caught it) · turn errors never blank the transcript · 404 → "session
+  moved" · meter/chain pins resurrected. RECORDED: activityMonitorStore.openSession +
+  ContextMeter now zero production consumers (Slice ④ decides: watch-from-list returns or they
+  go) · onDecideApproval copy #3 (extract next touch) · mid-turn compaction-swap freezes the
+  pane until reopened (WHY-commented, ~85% edge) · no unmount abort (server runs to completion
+  by design).
+**⏭ CHAD RE-SMOKE: sidebar = plain Home/Chat/Sessions rows, no pill · Sessions → list pane +
+"Pick a session" → open Letterman Overview → normal chat look, type into it → streams; send
+again mid-reply → queued chip → fires · workspace scope: letterman's conversation + its
+sessions listed. Then Slice ④ (coverage: workspace Watch chips · direct-turn agent focus ·
+session-target chips · linked-session chips → monitor · watch-from-list decision).**
+
+## (prev) ⏭ NEXT ACTION (2026-07-21M): SLICE ③ SHIPPED WHOLE — ③a `448176a` (chat-into-session route + SessionTargetLocks) + ③b `4d05e12` (nav trio + Sessions library + composer); gate GREEN 528f/2849t, both halves adversarially reviewed (0 must-fix; all should-fixes folded)
 
 **③a (subagent-built, reviewed CLEAN): POST /sessions/:sessionId/turn (`sessions.startTurn`,
 segment-id handle, SSE chat-turn shape + leading `turn-queued` sentinel) resumes the spawned
