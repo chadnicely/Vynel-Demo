@@ -2,8 +2,6 @@ import type { SessionScope } from "./session-scope.js";
 
 export const sessionKeys = {
   all: ["chat-sessions"] as const,
-  lists: () => [...sessionKeys.all, "list"] as const,
-  list: (scopeKey: string) => [...sessionKeys.lists(), scopeKey] as const,
   details: () => [...sessionKeys.all, "detail"] as const,
   // Scope rides the key: the detail queryFn is scope-ROUTED (`root.getSession`
   // vs `chat.getSession`, and the root read decorates report rows with

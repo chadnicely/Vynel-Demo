@@ -13,6 +13,12 @@ const props = defineProps<{
   contextWindow: number;
 }>();
 
+const emit = defineEmits<{
+  /** A chain part clicked open — a superseded part reads view-only (locked
+   *  decision 2: chat always lands on the head). */
+  openSegment: [segment: SessionsOverviewSegment];
+}>();
+
 const hops = computed(() =>
   props.segments.map((segment, index) => ({
     segment,
@@ -35,13 +41,16 @@ const hops = computed(() =>
     </p>
     <div class="flex flex-wrap items-center gap-y-1.5">
       <template v-for="hop in hops" :key="hop.segment.sessionId">
-        <span
-          class="chain-node inline-flex max-w-44 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium"
+        <button
+          type="button"
+          class="chain-node inline-flex max-w-44 cursor-default items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition hover:border-hair-strong"
           :class="
             hop.segment.isCurrent
               ? 'is-current border-gold-soft bg-gold-soft text-ink-1'
               : 'border-hair bg-panel text-ink-2'
           "
+          :aria-label="`Open ${hop.segment.title}`"
+          @click="emit('openSegment', hop.segment)"
         >
           <span class="truncate">{{ hop.segment.title }}</span>
           <span
@@ -49,7 +58,7 @@ const hops = computed(() =>
             class="shrink-0 text-[9.5px] font-semibold uppercase tracking-wider text-gold"
             >current</span
           >
-        </span>
+        </button>
         <span
           v-if="!hop.isLast"
           class="chain-hop inline-flex shrink-0 items-center gap-1 px-1.5 text-[10px] text-ink-3"

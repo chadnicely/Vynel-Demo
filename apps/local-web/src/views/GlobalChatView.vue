@@ -3,7 +3,6 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { Settings2 } from "lucide-vue-next";
 import { EmptyState, PresenceDot, workspaceAccentVar } from "@vynel/ui";
-import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
@@ -17,13 +16,11 @@ import MarketplaceSection from "../components/sections/MarketplaceSection.vue";
 import MemorySection from "../components/sections/MemorySection.vue";
 import NotebookSection from "../components/sections/NotebookSection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
-import SessionsSection from "../components/sessions/SessionsSection.vue";
 import SshServersSection from "../components/sections/SshServersSection.vue";
 import TasksSection from "../components/sections/TasksSection.vue";
 import TasksPanel from "../components/tasks/TasksPanel.vue";
 import { useChannels } from "../composables/channels/use-channels.js";
 import { useHubFeatures } from "../composables/hub/use-hub-features.js";
-import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
@@ -38,12 +35,11 @@ import { useCurrentUser } from "../composables/users/use-current-user.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
-import { formatSdkError } from "../utils/format-sdk-error.js";
 import { firstNameOf } from "../utils/greeting.js";
 
 // The global chat — ONE continuous conversation by default (the product's
-// "one brain"). Panels are opt-in: the menu (persistent, leftmost) and the
-// history list both sit beside the canvas, never over it.
+// "one brain"). Panels are opt-in and sit beside the canvas, never over it;
+// past conversations live in the routed Sessions library.
 const GLOBAL_SCOPE = { kind: "global" } as const;
 
 // The assistant presents itself by name (hero wordmark, thread labels). It IS
@@ -51,12 +47,12 @@ const GLOBAL_SCOPE = { kind: "global" } as const;
 // configurable persona later.
 const ASSISTANT_NAME = "Claude";
 
-/** The global menu items that render a feature section on the canvas. */
+/** The global menu items that render a feature section on the canvas.
+ *  (Sessions is a ROUTED surface — `/sessions` — not a canvas section.) */
 const GLOBAL_SECTION_IDS = [
   "channels",
   "schedules",
   "tasks",
-  "sessions",
   "ssh-servers",
   "knowledge",
   "memory",
@@ -116,14 +112,6 @@ function openWorkspace(workspaceId: string) {
   ui.activeWorkspaceId = workspaceId;
   void router.push({ name: "workspace" });
 }
-
-const sessionsQuery = useSessionList(() => GLOBAL_SCOPE);
-const sessions = computed(() => sessionsQuery.data.value ?? []);
-const sessionsErrorText = computed(() =>
-  sessionsQuery.isError.value
-    ? formatSdkError(sessionsQuery.error.value)
-    : null,
-);
 
 // A routed task runs in the background and pushes its report into this thread
 // on completion — there is no server push, so poll while any delegation is
@@ -234,31 +222,10 @@ function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
 // sendMessage fresh, so a queued follow-up continues the session the first
 // turn just created.
 const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
-
-function openHistorySession(sessionId: string) {
-  shell.target = { sessionId };
-  shell.mainView = "chat";
-}
-
-function openContinuous() {
-  shell.target = "continuous";
-  shell.mainView = "chat";
-}
 </script>
 
 <template>
   <div class="chat-view">
-    <SessionsPanel
-      v-if="ui.isSessionListOpen"
-      :sessions="sessions"
-      :active-session-id="activeSessionId"
-      :is-continuous-active="shell.target === 'continuous'"
-      :is-loading="sessionsQuery.isPending.value"
-      :error-text="sessionsErrorText"
-      @select="openHistorySession"
-      @select-continuous="openContinuous"
-    />
-
     <div
       v-if="shell.mainView === 'application'"
       class="canvas application-view"
@@ -299,8 +266,6 @@ function openContinuous() {
           v-else-if="shell.mainView === 'tasks'"
           :scope="{ kind: 'global' }"
         />
-        <!-- Sessions is core continuity visibility (like tasks) — no tier gate. -->
-        <SessionsSection v-else-if="shell.mainView === 'sessions'" />
         <template v-else-if="shell.mainView === 'ssh-servers'">
           <LockedFeatureCard
             v-if="isLocked('ssh')"

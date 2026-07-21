@@ -17,13 +17,20 @@ import type { TurnAttachmentInput } from "../../composables/chat/turn-attachment
 // draft); talking with the assistant is the top-bar mic → voice overlay.
 // Picked/pasted files are encoded + validated here, so the views receive
 // wire-ready attachments.
-const props = defineProps<{
-  streaming?: boolean | undefined;
-  placeholder?: string | undefined;
-  /** The active session's context occupancy 0..1 — null hides the ring. */
-  contextFraction?: number | null | undefined;
-  contextTooltip?: string | null | undefined;
-}>();
+const props = withDefaults(
+  defineProps<{
+    streaming?: boolean | undefined;
+    placeholder?: string | undefined;
+    /** The active session's context occupancy 0..1 — null hides the ring. */
+    contextFraction?: number | null | undefined;
+    contextTooltip?: string | null | undefined;
+    /** False for surfaces whose turn route takes text only (session threads) —
+     *  the attach affordance disappears instead of eating a typed message.
+     *  Defaults TRUE explicitly (boolean-absent casting would strip it). */
+    allowAttachments?: boolean | undefined;
+  }>(),
+  { allowAttachments: true },
+);
 
 const emit = defineEmits<{
   send: [text: string, attachments: TurnAttachmentInput[]];
@@ -88,6 +95,7 @@ async function onSend(text: string, files: File[]) {
     :effort-id="ui.composerThinkingEffort"
     :context-fraction="props.contextFraction ?? null"
     :context-tooltip="props.contextTooltip ?? undefined"
+    :allow-attachments="props.allowAttachments"
     show-voice
     :voice-active="dictation.isDictating.value"
     :notice="notice"

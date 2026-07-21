@@ -6,7 +6,7 @@ import { useTasks } from "../../composables/tasks/use-tasks.js";
 import { useUpdateTask } from "../../composables/tasks/use-update-task.js";
 import TaskStatusControl from "./TaskStatusControl.vue";
 
-// The opt-in tasks dock (SessionsPanel's sibling): a compact glance at what's
+// The opt-in tasks dock: a compact glance at what's
 // still open, beside whichever chat surface is up. Self-contained — it reads
 // the one shared list itself, so both views mount it without rewiring.
 const tasksQuery = useTasks(true);

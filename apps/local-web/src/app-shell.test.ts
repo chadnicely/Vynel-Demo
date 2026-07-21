@@ -25,8 +25,9 @@ function makeFakeVynelClient(): VynelClient {
     channelsUser: { list: async () => [] },
     // The shell reads the tasks list for the title-bar badge.
     tasksUser: { list: async () => [] },
+    // The Sessions view reads the cross-scope overview.
+    sessions: { overview: async () => [] },
     chat: {
-      listSessions: async () => [],
       getContinuing: noConversation,
       getSession: async () => {
         throw new Error("not in this test");
@@ -90,14 +91,14 @@ async function mountShell(initialPath = "/") {
 
 describe("app shell", () => {
   // The shell was reinvented into a desktop layout: the sidebar carries a
-  // Home/Chat mode toggle (no "Workspace" tab — a room is entered via the
-  // title-bar workspace switcher). These tests track that model.
-  it("redirects / to Home and shows the Home/Chat toggle", async () => {
+  // Home/Chat/Sessions mode toggle (no "Workspace" tab — a room is entered via
+  // the title-bar workspace switcher). These tests track that model.
+  it("redirects / to Home and shows the Home/Chat/Sessions toggle", async () => {
     const { wrapper, router } = await mountShell();
 
     expect(router.currentRoute.value.name).toBe("home");
     const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs.map((tab) => tab.text())).toEqual(["Home", "Chat"]);
+    expect(tabs.map((tab) => tab.text())).toEqual(["Home", "Chat", "Sessions"]);
     expect(wrapper.text()).toContain(
       "everything your assistant does shows up here",
     );
@@ -124,6 +125,22 @@ describe("app shell", () => {
     expect(wrapper.text()).toContain("Reachable on");
   });
 
+  it("clicking the Sessions toggle routes to the session library", async () => {
+    const { wrapper, router } = await mountShell();
+
+    const sessionsTab = wrapper
+      .findAll('[role="tab"]')
+      .find((tab) => tab.text() === "Sessions");
+    await sessionsTab!.trigger("click");
+    await vi.dynamicImportSettled();
+    await flushPromises();
+
+    expect(router.currentRoute.value.name).toBe("sessions");
+    // Global scope carries no workspace query — the library lists everything.
+    expect(router.currentRoute.value.query.workspace).toBeUndefined();
+    expect(wrapper.text()).toContain("No conversations yet");
+  });
+
   it("marks the toggle for the current global surface", async () => {
     const { wrapper } = await mountShell("/chat");
 
@@ -134,6 +151,16 @@ describe("app shell", () => {
     expect(selected[0]!.text()).toBe("Chat");
   });
 
+  it("marks the Sessions toggle on the session library", async () => {
+    const { wrapper } = await mountShell("/sessions");
+
+    const selected = wrapper
+      .findAll('[role="tab"]')
+      .filter((tab) => tab.attributes("aria-selected") === "true");
+    expect(selected).toHaveLength(1);
+    expect(selected[0]!.text()).toBe("Sessions");
+  });
+
   it("selects neither toggle inside a workspace (the switcher carries the scope)", async () => {
     const { wrapper } = await mountShell("/workspace");
 
@@ -141,5 +168,20 @@ describe("app shell", () => {
       .findAll('[role="tab"]')
       .filter((tab) => tab.attributes("aria-selected") === "true");
     expect(selected).toHaveLength(0);
+  });
+
+  it("the trio still renders inside a workspace, and Sessions opens the room's library", async () => {
+    const { wrapper, router } = await mountShell("/workspace");
+
+    const tabs = wrapper.findAll('[role="tab"]');
+    expect(tabs.map((tab) => tab.text())).toEqual(["Home", "Chat", "Sessions"]);
+
+    // No workspace exists in this harness (empty list), so the scope resolves
+    // global — the point pinned here is the ROUTING, per-scope filtering is
+    // pinned in sessions-view.test.ts.
+    await tabs[2]!.trigger("click");
+    await vi.dynamicImportSettled();
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("sessions");
   });
 });

@@ -23,6 +23,13 @@ export function createAppRouter() {
         component: () => import("./views/WorkspaceView.vue"),
       },
       {
+        // The session library (Home | Chat | Sessions). Scope rides the query:
+        // `?workspace=<id>` lists that room's sessions; bare = everything.
+        path: "/sessions",
+        name: "sessions",
+        component: () => import("./views/SessionsView.vue"),
+      },
+      {
         // The floating Jarvis window (chrome --app). `bare` drops the app
         // shell — this view IS the whole window.
         path: "/jarvis",

@@ -16,14 +16,13 @@ export type Theme = "dark" | "light";
  *  default — Vynel's "one brain"), a fresh topic, or one history session. */
 export type ChatTarget = "continuous" | "fresh" | { sessionId: string };
 
-/** What the canvas shows: the chat itself, a menu item's view (Application,
- *  Account, and Sessions globally; a feature section in a workspace), or an
- *  open file. */
+/** What the canvas shows: the chat itself, a menu item's view (Application and
+ *  Account globally; a feature section in a workspace), or an open file. The
+ *  session library is a ROUTED surface (`/sessions`), not a canvas view. */
 export type ChatMainView =
   | "chat"
   | "application"
   | "account"
-  | "sessions"
   | WorkspaceSectionId
   | { kind: "file"; filePath: string };
 
@@ -71,7 +70,7 @@ function readStoredThinkingEffort(): ComposerThinkingEffort {
 
 // Shell UI state only (server state lives in vue-query). One home for how the
 // window presents itself: theme, active workspace, the chat shells' view
-// state, the session-list toggle, the voice overlay.
+// state, the tasks dock, the voice overlay.
 export const useUiStore = defineStore("ui", () => {
   const theme = ref<Theme>(readStoredTheme());
 
@@ -101,12 +100,8 @@ export const useUiStore = defineStore("ui", () => {
     else localStorage.setItem(WORKSPACE_STORAGE_KEY, value);
   });
 
-  // The session-history list is opt-in (Chad's model): chat is ALWAYS the
-  // continuous single conversation unless the user toggles the list open.
-  const isSessionListOpen = ref(false);
-
-  // The tasks dock mirrors it on the other side of the canvas: opt-in, off by
-  // default — chat stays the whole story until the user asks for the list.
+  // The tasks dock is opt-in, off by default — chat stays the whole story
+  // until the user asks for the list.
   const isTasksPanelOpen = ref(false);
 
   const globalChat = reactive<ChatShellState>({
@@ -145,7 +140,6 @@ export const useUiStore = defineStore("ui", () => {
     theme,
     toggleTheme,
     activeWorkspaceId,
-    isSessionListOpen,
     isTasksPanelOpen,
     globalChat,
     workspaceChat,

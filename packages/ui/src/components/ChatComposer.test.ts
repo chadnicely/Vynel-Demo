@@ -150,6 +150,36 @@ describe("ChatComposer", () => {
     expect(wrapper.find(".attachment-chip").text()).toContain("report.pdf");
   });
 
+  it("allowAttachments=false hides the attach affordance and rejects pasted/dropped files", async () => {
+    const wrapper = mount(ChatComposer, {
+      props: { ...baseProps, allowAttachments: false },
+    });
+
+    // No attach button, no hidden file input — the affordance is gone, so a
+    // typed message can never be lost to an attachment the route rejects.
+    expect(wrapper.find('[aria-label="Attach files"]').exists()).toBe(false);
+    expect(wrapper.find('input[type="file"]').exists()).toBe(false);
+
+    const file = new File(["pdf-bytes"], "report.pdf", {
+      type: "application/pdf",
+    });
+    await wrapper.find(".chat-composer").trigger("drop", {
+      dataTransfer: { files: [file], types: ["Files"] },
+    });
+    await wrapper.find("textarea").trigger("paste", {
+      clipboardData: { files: [file] },
+    });
+
+    expect(wrapper.find(".attachment-chip").exists()).toBe(false);
+    // The drop highlight never arms either.
+    await wrapper.find(".chat-composer").trigger("dragenter", {
+      dataTransfer: { files: [file], types: ["Files"] },
+    });
+    expect(wrapper.find(".chat-composer").classes()).not.toContain(
+      "is-drop-target",
+    );
+  });
+
   it("picked files show as removable chips and ride the send", async () => {
     const wrapper = mount(ChatComposer, { props: baseProps });
     const fileInput = wrapper.find('input[type="file"]');

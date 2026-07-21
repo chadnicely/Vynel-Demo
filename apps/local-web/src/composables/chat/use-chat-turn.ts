@@ -49,7 +49,9 @@ export function useChatTurn(options: {
     if (event.kind === "session-created") {
       activeSessionId.value = event.session.id;
       options.onSessionCreated?.(event.session);
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+      // A fresh conversation appears in the Sessions library mid-turn — the
+      // full sessionKeys.all reconcile still runs once the turn settles.
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.overview() });
     }
   }
 

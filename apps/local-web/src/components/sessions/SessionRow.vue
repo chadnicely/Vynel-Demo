@@ -2,7 +2,10 @@
 import { computed, ref } from "vue";
 import { ChevronRight, Eye } from "lucide-vue-next";
 import { ContextMeter, PresenceDot } from "@vynel/ui";
-import type { SessionsOverviewEntry } from "@vynel/contracts/chat/sessions-overview";
+import type {
+  SessionsOverviewEntry,
+  SessionsOverviewSegment,
+} from "@vynel/contracts/chat/sessions-overview";
 import { formatContextTooltip } from "../../composables/chat/context-occupancy.js";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import SessionChain from "./SessionChain.vue";
@@ -10,7 +13,8 @@ import { sessionScopeLabel } from "./session-scope-label.js";
 
 // One conversation on the Sessions list: who it belongs to, how full its
 // context window is, whether it's working right now, and — for a continued
-// conversation — the expandable chain of parts.
+// conversation — the expandable chain of parts. Clicking the row OPENS the
+// conversation (the library's whole point); Watch keeps the live overlay.
 const props = defineProps<{
   entry: SessionsOverviewEntry;
   /** A turn is running in this session's scope (the activity feed's truth). */
@@ -18,6 +22,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  open: [];
+  openSegment: [segment: SessionsOverviewSegment];
   watch: [];
 }>();
 
@@ -42,7 +48,12 @@ const meterTooltip = computed(() =>
     class="session-row rounded-lg border border-hair bg-raised p-3 transition hover:border-hair-strong"
   >
     <div class="flex items-center gap-3">
-      <div class="min-w-0 flex-1">
+      <button
+        type="button"
+        class="open-button min-w-0 flex-1 cursor-default rounded-sm text-left"
+        :aria-label="`Open ${props.entry.title}`"
+        @click="emit('open')"
+      >
         <div class="flex items-center gap-2">
           <span
             class="scope-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
@@ -65,7 +76,7 @@ const meterTooltip = computed(() =>
             · continued {{ props.entry.segments.length - 1 }}×</template
           >
         </p>
-      </div>
+      </button>
 
       <ContextMeter
         v-if="meterFraction !== null"
@@ -104,6 +115,7 @@ const meterTooltip = computed(() =>
       v-if="hasChain && isChainOpen"
       :segments="props.entry.segments"
       :context-window="props.entry.contextWindow"
+      @open-segment="(segment) => emit('openSegment', segment)"
     />
   </div>
 </template>

@@ -9,12 +9,12 @@ export interface SidebarItem {
   icon?: Component;
 }
 
-// The left navigation, Claude-Desktop-shaped: Home / Chat as a full-width
-// segmented mode toggle up top, the contextual section list, and the account
-// pinned at the foot. The workspace switcher lives in the title bar. Data-blind
-// — the shell owns routing + state.
+// The left navigation, Claude-Desktop-shaped: Home / Chat / Sessions as a
+// full-width segmented mode toggle up top, the contextual section list, and the
+// account pinned at the foot. The workspace switcher lives in the title bar.
+// Data-blind — the shell owns routing + state.
 const props = defineProps<{
-  surface: "home" | "chat" | "workspace";
+  surface: "home" | "chat" | "sessions" | "workspace";
   sectionTitle: string;
   sectionItems: SidebarItem[];
   activeSectionId: string | null;
@@ -30,12 +30,13 @@ const emit = defineEmits<{
 const SURFACE_TABS = [
   { id: "home", label: "Home" },
   { id: "chat", label: "Chat" },
+  { id: "sessions", label: "Sessions" },
 ];
 </script>
 
 <template>
   <nav class="flex h-full flex-col bg-panel">
-    <!-- Home / Chat mode toggle (full-width segmented control) -->
+    <!-- Home / Chat / Sessions mode toggle (full-width segmented control) -->
     <div class="p-2">
       <div
         class="flex gap-0.5 rounded-md border border-hair bg-shell p-0.5"

@@ -2,7 +2,6 @@
 import { computed, ref, watch } from "vue";
 import { FolderTree, Sparkles } from "lucide-vue-next";
 import { EmptyState, IconButton } from "@vynel/ui";
-import SessionsPanel from "../components/chat/SessionsPanel.vue";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
@@ -13,7 +12,6 @@ import WorkspaceSectionPanel from "../components/workspace/WorkspaceSectionPanel
 import WorkspaceWelcomeHero from "../components/workspace/WorkspaceWelcomeHero.vue";
 import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
-import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
@@ -26,10 +24,9 @@ import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.j
 import { useUiStore } from "../stores/ui-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
-import { formatSdkError } from "../utils/format-sdk-error.js";
 
 // The workspace room — same continuous-first chat as global, scoped to one
-// workspace. Panels beside the canvas: menu (persistent) · history · files.
+// workspace. Panels beside the canvas: menu (persistent) · files.
 const ui = useUiStore();
 const shell = ui.workspaceChat;
 const activityMonitor = useActivityMonitorStore();
@@ -81,14 +78,6 @@ const activeSessionId = computed<string | null>(() => {
   if (shell.target === "fresh") return null;
   return shell.target.sessionId;
 });
-
-const sessionsQuery = useSessionList(() => scope.value);
-const sessions = computed(() => sessionsQuery.data.value ?? []);
-const sessionsErrorText = computed(() =>
-  sessionsQuery.isError.value
-    ? formatSdkError(sessionsQuery.error.value)
-    : null,
-);
 
 // A routed task streams its rows into THIS workspace's transcript in the
 // background (the shared pipeline) — poll the open thread while one is in
@@ -167,14 +156,13 @@ const occupancy = useContextOccupancy(
   () => activeTurn.value,
 );
 
-// "account"/"sessions" are global-only — the workspace menu never sets them,
-// but the type excludes them here so the shell union stays one shared shape.
+// "account"/"application" are global-only — the workspace menu never sets
+// them, but the type excludes them here so the shell union stays one shape.
 const activeSection = computed<WorkspaceSectionId | null>(() =>
   typeof shell.mainView === "string" &&
   shell.mainView !== "chat" &&
   shell.mainView !== "application" &&
-  shell.mainView !== "account" &&
-  shell.mainView !== "sessions"
+  shell.mainView !== "account"
     ? shell.mainView
     : null,
 );
@@ -202,39 +190,10 @@ function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
 // sendMessage fresh, so a queued follow-up continues the session the first
 // turn just created.
 const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
-
-function openHistorySession(sessionId: string) {
-  shell.target = { sessionId };
-  shell.mainView = "chat";
-}
-
-// A fresh per-topic conversation — the next send creates its session.
-function startFreshConversation() {
-  shell.target = "fresh";
-  shell.mainView = "chat";
-}
-
-function openContinuous() {
-  shell.target = "continuous";
-  shell.mainView = "chat";
-}
 </script>
 
 <template>
   <div class="workspace-view">
-    <SessionsPanel
-      v-if="ui.isSessionListOpen"
-      :sessions="sessions"
-      :active-session-id="activeSessionId"
-      :is-continuous-active="shell.target === 'continuous'"
-      :is-loading="sessionsQuery.isPending.value"
-      :error-text="sessionsErrorText"
-      can-start-new
-      @select="openHistorySession"
-      @select-continuous="openContinuous"
-      @start-new="startFreshConversation"
-    />
-
     <div v-if="activeSection" class="canvas section-view">
       <!-- Marketplace runs full-width (Chad's ask — the card grid earns the
            room); the other sections keep the deliberate narrow column. -->

@@ -99,7 +99,6 @@ function runCommand(id: string) {
   if (id === "toggle-theme") ui.toggleTheme();
   else if (id === "command-palette") isPaletteOpen.value = true;
   else if (id === "toggle-sidebar") sidebarOpen.value = !sidebarOpen.value;
-  else if (id === "toggle-dock") dockOpen.value = !dockOpen.value;
   else if (id === "go-home") selectSurface("home");
   else if (id === "go-chat") selectSurface("chat");
   else if (id === "go-workspace") selectWorkspace(workspaces[0]!.id);
@@ -123,7 +122,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       presence-label="assistant idle"
       :theme="ui.theme"
       :sidebar-open="sidebarOpen"
-      :dock-open="dockOpen"
       :tasks-open="false"
       :open-task-count="3"
       :workspaces="workspaces"

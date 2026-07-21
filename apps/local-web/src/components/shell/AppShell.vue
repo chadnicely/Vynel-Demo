@@ -55,12 +55,24 @@ const pendingApprovalsQuery = usePendingApprovals();
 // chat views go live and the presence dot lights for background work.
 useSessionActivityFeed();
 
-const surface = computed<"home" | "chat" | "workspace">(() => {
+const surface = computed<"home" | "chat" | "sessions" | "workspace">(() => {
   const name = route.name;
-  return name === "home" || name === "workspace" ? name : "chat";
+  return name === "home" || name === "workspace" || name === "sessions"
+    ? name
+    : "chat";
 });
+// The Sessions view's scope rides its query — a workspace-scoped library keeps
+// the room's context (switcher, sections) while it's open.
+const sessionsWorkspaceId = computed(() =>
+  route.name === "sessions" && typeof route.query.workspace === "string"
+    ? route.query.workspace
+    : null,
+);
+const inWorkspaceScope = computed(
+  () => surface.value === "workspace" || sessionsWorkspaceId.value !== null,
+);
 const scopeShell = computed(() =>
-  surface.value === "workspace" ? ui.workspaceChat : ui.globalChat,
+  inWorkspaceScope.value ? ui.workspaceChat : ui.globalChat,
 );
 
 const activeWorkspaces = computed(() =>
@@ -75,11 +87,12 @@ const activeWorkspaceName = computed(
     null,
 );
 const barWorkspaceId = computed(() =>
-  surface.value === "workspace" ? ui.activeWorkspaceId : null,
+  surface.value === "workspace" ? ui.activeWorkspaceId : sessionsWorkspaceId.value,
 );
 
 const contextTitle = computed(() => {
   if (surface.value === "home") return "Home";
+  if (surface.value === "sessions") return "Sessions";
   if (surface.value === "workspace")
     return activeWorkspaceName.value ?? "Workspace";
   return "Global chat";
@@ -157,15 +170,19 @@ const WORKSPACE_SECTION_ITEMS: SidebarItem[] = WORKSPACE_SECTIONS.map(
   },
 );
 const sectionItems = computed(() =>
-  surface.value === "workspace" ? WORKSPACE_SECTION_ITEMS : GLOBAL_SECTIONS,
+  inWorkspaceScope.value ? WORKSPACE_SECTION_ITEMS : GLOBAL_SECTIONS,
 );
 const sectionTitle = computed(() =>
-  surface.value === "workspace"
+  inWorkspaceScope.value
     ? (activeWorkspaceName.value ?? "Workspace")
     : "Menu",
 );
 const activeSectionId = computed(() => {
   if (surface.value === "home") return null;
+  // On the global library the menu's own Sessions entry lights up (the
+  // workspace section list has no sessions item — nothing to mark there).
+  if (surface.value === "sessions")
+    return sessionsWorkspaceId.value === null ? "sessions" : null;
   const view = scopeShell.value.mainView;
   return typeof view === "string" && view !== "chat" ? view : null;
 });
@@ -174,10 +191,26 @@ const activeSectionId = computed(() => {
 function selectSurface(id: string) {
   if (id === "home") {
     void router.push({ name: "home" });
+  } else if (id === "sessions") {
+    openSessions();
   } else {
     ui.globalChat.mainView = "chat";
     void router.push({ name: "chat" });
   }
+}
+
+// The library follows where you are: a workspace room's Sessions lists that
+// room's sessions (its primary chain + its spawned children); everywhere else
+// lists everything.
+function openSessions() {
+  const workspaceId =
+    surface.value === "workspace"
+      ? ui.activeWorkspaceId
+      : sessionsWorkspaceId.value;
+  void router.push({
+    name: "sessions",
+    ...(workspaceId !== null ? { query: { workspace: workspaceId } } : {}),
+  });
 }
 function selectWorkspace(id: string) {
   ui.activeWorkspaceId = id;
@@ -188,12 +221,18 @@ function selectGlobal() {
   ui.globalChat.mainView = "chat";
   void router.push({ name: "chat" });
 }
-// Only the seven workspace sections live on a workspace; global-only views
-// (account, application) always route to the global chat surface — otherwise a
-// workspace canvas can't render them and silently falls back to the thread.
+// Only the workspace sections live on a workspace; global-only views (account,
+// application) always route to the global chat surface — otherwise a workspace
+// canvas can't render them and silently falls back to the thread. The menu's
+// Sessions entry is a slim doorway into the routed library.
 function selectSection(id: string) {
-  if (surface.value === "workspace" && WORKSPACE_SECTION_IDS.has(id)) {
+  if (id === "sessions") {
+    openSessions();
+    return;
+  }
+  if (inWorkspaceScope.value && WORKSPACE_SECTION_IDS.has(id)) {
     ui.workspaceChat.mainView = id as typeof ui.workspaceChat.mainView;
+    if (route.name !== "workspace") void router.push({ name: "workspace" });
   } else {
     ui.globalChat.mainView = id as typeof ui.globalChat.mainView;
     if (route.name !== "chat") void router.push({ name: "chat" });
@@ -223,9 +262,6 @@ function runCommand(id: string) {
     case "toggle-sidebar":
       isSidebarOpen.value = !isSidebarOpen.value;
       break;
-    case "toggle-dock":
-      ui.isSessionListOpen = !ui.isSessionListOpen;
-      break;
     case "toggle-tasks":
       ui.isTasksPanelOpen = !ui.isTasksPanelOpen;
       break;
@@ -234,6 +270,9 @@ function runCommand(id: string) {
       break;
     case "go-chat":
       selectSurface("chat");
+      break;
+    case "go-sessions":
+      openSessions();
       break;
     case "go-workspace": {
       const first = switcherWorkspaces.value[0];
@@ -265,6 +304,7 @@ const paletteCommands = computed<CommandItem[]>(() => [
   { id: "start-voice", label: "Start voice", group: "Assistant" },
   { id: "go-home", label: "Go to Home", group: "Go" },
   { id: "go-chat", label: "Go to Chat", group: "Go" },
+  { id: "go-sessions", label: "Go to Sessions", group: "Go" },
   ...switcherWorkspaces.value.map((w) => ({
     id: `ws:${w.id}`,
     label: w.name,
@@ -303,7 +343,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :presence-label="presenceLabel"
       :theme="ui.theme"
       :sidebar-open="isSidebarOpen"
-      :dock-open="ui.isSessionListOpen"
       :tasks-open="ui.isTasksPanelOpen"
       :open-task-count="openTaskCount"
       :workspaces="switcherWorkspaces"

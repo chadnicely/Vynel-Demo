@@ -6,7 +6,7 @@ export interface ComposerOption {
 </script>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import ContextRing from "./ContextRing.vue";
 import SelectChip from "./SelectChip.vue";
 
@@ -16,7 +16,8 @@ import SelectChip from "./SelectChip.vue";
 // host wires them to real state. The draft is an optional v-model so a host
 // can write into it (dictation types here). Icons are inline SVGs so
 // @vynel/ui stays icon-library-free.
-const props = defineProps<{
+const props = withDefaults(
+  defineProps<{
   placeholder?: string | undefined;
   /** True while a turn is streaming — the send button becomes Stop. */
   streaming?: boolean | undefined;
@@ -35,7 +36,14 @@ const props = defineProps<{
   voiceActive?: boolean | undefined;
   /** A quiet one-line message above the input (e.g. "mic access denied"). */
   notice?: string | undefined;
-}>();
+  /** False hides the attach affordance and rejects pasted/dropped files —
+   *  for surfaces whose turn route takes text only. Defaults TRUE explicitly —
+   *  Vue's boolean-absent casting would otherwise read "not passed" as false
+   *  and strip attachments from every chat surface. */
+  allowAttachments?: boolean | undefined;
+  }>(),
+  { allowAttachments: true },
+);
 
 const emit = defineEmits<{
   send: [text: string, attachments: File[]];
@@ -51,6 +59,9 @@ const attachments = ref<File[]>([]);
 const textareaElement = ref<HTMLTextAreaElement | null>(null);
 const fileInputElement = ref<HTMLInputElement | null>(null);
 const isDropTarget = ref(false);
+
+// Attachments default ON — only an explicit false opts a surface out.
+const attachmentsAllowed = computed(() => props.allowAttachments);
 
 function autoGrow() {
   const element = textareaElement.value;
@@ -87,7 +98,8 @@ function onFilesPicked(event: Event) {
 }
 
 function addFiles(files: File[]) {
-  if (files.length === 0) return;
+  // Every intake path (picker, paste, drop) funnels here — one gate.
+  if (!attachmentsAllowed.value || files.length === 0) return;
   attachments.value = [...attachments.value, ...files];
 }
 
@@ -98,6 +110,7 @@ function removeAttachment(index: number) {
 // Pasting a screenshot or a copied file attaches it; plain text pastes as
 // usual (only intercept when the clipboard actually carries files).
 function onPaste(event: ClipboardEvent) {
+  if (!attachmentsAllowed.value) return;
   const files = Array.from(event.clipboardData?.files ?? []);
   if (files.length === 0) return;
   event.preventDefault();
@@ -113,7 +126,7 @@ function dragCarriesFiles(event: DragEvent): boolean {
 }
 
 function onDragEnter(event: DragEvent) {
-  if (!dragCarriesFiles(event)) return;
+  if (!attachmentsAllowed.value || !dragCarriesFiles(event)) return;
   dragDepth += 1;
   isDropTarget.value = true;
 }
@@ -186,6 +199,7 @@ function onDrop(event: DragEvent) {
 
     <div class="toolbar">
       <button
+        v-if="attachmentsAllowed"
         type="button"
         class="tool-button"
         aria-label="Attach files"
@@ -329,6 +343,7 @@ function onDrop(event: DragEvent) {
     </div>
 
     <input
+      v-if="attachmentsAllowed"
       ref="fileInputElement"
       type="file"
       multiple

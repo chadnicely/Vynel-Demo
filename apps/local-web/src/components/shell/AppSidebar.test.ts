@@ -21,13 +21,22 @@ function mountSidebar(overrides: Record<string, unknown> = {}) {
 }
 
 describe("AppSidebar", () => {
-  it("renders the Home/Chat toggle and marks the active surface", () => {
+  it("renders the Home/Chat/Sessions toggle and marks the active surface", () => {
     const wrapper = mountSidebar({ surface: "chat" });
     const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs.map((t) => t.text())).toEqual(["Home", "Chat"]);
+    expect(tabs.map((t) => t.text())).toEqual(["Home", "Chat", "Sessions"]);
     const active = tabs.filter((t) => t.attributes("aria-selected") === "true");
     expect(active).toHaveLength(1);
     expect(active[0]!.text()).toBe("Chat");
+  });
+
+  it("marks the Sessions toggle on the sessions surface", () => {
+    const wrapper = mountSidebar({ surface: "sessions" });
+    const active = wrapper
+      .findAll('[role="tab"]')
+      .filter((t) => t.attributes("aria-selected") === "true");
+    expect(active).toHaveLength(1);
+    expect(active[0]!.text()).toBe("Sessions");
   });
 
   it("selects neither toggle inside a workspace", () => {

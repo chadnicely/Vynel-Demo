@@ -21,7 +21,6 @@ const props = defineProps<{
   presenceLabel: string;
   theme: "dark" | "light";
   sidebarOpen: boolean;
-  dockOpen: boolean;
   tasksOpen: boolean;
   openTaskCount: number;
   workspaces: { id: string; name: string }[];
@@ -85,7 +84,9 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
     label: "View",
     items: [
       { id: "toggle-sidebar", kind: "checkbox", label: "Show navigation", checked: props.sidebarOpen },
-      { id: "toggle-dock", kind: "checkbox", label: "Show side panel", checked: props.dockOpen },
+      // The old Conversations side panel is superseded by the Sessions view
+      // (locked decision 0b) — the menu entry opens the library instead.
+      { id: "go-sessions", label: "Sessions" },
       { id: "toggle-tasks", kind: "checkbox", label: "Show tasks", checked: props.tasksOpen },
       { id: "sep-4", kind: "separator" },
       { id: "toggle-theme", label: props.theme === "dark" ? "Light theme" : "Dark theme" },
@@ -98,6 +99,7 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
     items: [
       { id: "go-home", label: "Home" },
       { id: "go-chat", label: "Chat" },
+      { id: "go-sessions", label: "Sessions" },
       { id: "go-workspace", label: "Workspace" },
     ],
   },

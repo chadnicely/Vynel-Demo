@@ -10,7 +10,6 @@ function mountTitleBar(overrides: Record<string, unknown> = {}) {
       presenceLabel: "assistant idle",
       theme: "dark",
       sidebarOpen: true,
-      dockOpen: false,
       tasksOpen: false,
       openTaskCount: 0,
       workspaces: [{ id: "w1", name: "vynel" }],
