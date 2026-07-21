@@ -51,6 +51,14 @@ type XMcp = {
   // user-scoped brain tool that doesn't live under `/routing/` (e.g. creating a
   // workspace) opts in here so it lands in `generatedRoutingMcpTools`.
   rootSurface?: boolean
+  // ALSO expose this tool on WORKSPACE INTERACTIVE chat streams (session-library
+  // Slice ④b): the tool keeps whatever surface the path/rootSurface split gives
+  // it AND joins `generatedWorkspaceInteractiveMcpTools` — which only the
+  // interactive workspace chat stream attaches (via
+  // `vynelWorkspaceInteractiveDescriptor`). Background workspace turns (schedule
+  // fires, delegated runs) compose the plain workspace descriptor and never see
+  // these tools.
+  workspaceInteractiveSurface?: boolean
 }
 
 type OpenApiObjectSchema = {
@@ -111,6 +119,8 @@ type ToolEntry = {
   // SEPARATE array so the normal chat turn's server stays byte-for-byte; only the
   // GLOBAL-ROOT turn's server gets them.
   isRouting: boolean
+  // Slice ④b: additionally emitted into `generatedWorkspaceInteractiveMcpTools`.
+  isWorkspaceInteractive: boolean
 }
 
 const entries: ToolEntry[] = []
@@ -155,6 +165,7 @@ for (const [pathKey, methods] of Object.entries(paths)) {
       bodyFields,
       isMutating,
       isRouting: pathKey.startsWith('/routing/') || mcp.rootSurface === true,
+      isWorkspaceInteractive: mcp.workspaceInteractiveSurface === true,
     })
   }
 }
@@ -287,10 +298,21 @@ function buildBodySource(entry: ToolEntry): string {
     return `        const requestBody: string | undefined = undefined`
   }
   const names = entry.bodyFields.map((f) => `'${f.name}'`).join(', ')
+  // Ambient workspace grounding (Slice ④b) — mirrors buildPathSource's
+  // `scope.workspaceId` fallback: on the workspace surface a `workspaceId` body
+  // field is stamped from the turn's own scope when the model omits it, so a
+  // workspace-spawned call inherits its creator's ground without the model
+  // needing to know the id. On the root surface `scope.workspaceId` is absent
+  // and the field stays omitted (the shipped global behavior).
+  const workspaceFallback = entry.bodyFields.some((f) => f.name === 'workspaceId')
+    ? `\n        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+          bodyObj['workspaceId'] = scope.workspaceId
+        }`
+    : ''
   return `        const bodyObj: Record<string, unknown> = {}
         for (const k of [${names}]) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
-        }
+        }${workspaceFallback}
         const requestBody = JSON.stringify(bodyObj)`
 }
 
@@ -374,6 +396,7 @@ type McpToolFn = (
   const body = allEntries.map(renderToolEntry).join('\n\n')
   const nonRouting = allEntries.filter((e) => !e.isRouting)
   const routing = allEntries.filter((e) => e.isRouting)
+  const workspaceInteractive = allEntries.filter((e) => e.isWorkspaceInteractive)
   const footer =
     `\n\n// Workspace-scoped tools — the normal chat turn's in-process server.\n` +
     `export const generatedMcpTools: McpToolFactory[] = [\n${nonRouting
@@ -382,6 +405,13 @@ type McpToolFn = (
     `\n// Routing tools (agent-base Slice 4) — the GLOBAL-ROOT turn's server ONLY.\n` +
     `// Kept OUT of generatedMcpTools so the normal chat turn stays byte-for-byte.\n` +
     `export const generatedRoutingMcpTools: McpToolFactory[] = [\n${routing
+      .map((e) => `  ${e.exportName},`)
+      .join('\n')}\n]\n` +
+    `\n// Session-library Slice ④b — tools ALSO exposed on WORKSPACE INTERACTIVE\n` +
+    `// chat streams (x-mcp.workspaceInteractiveSurface). Only the interactive\n` +
+    `// stream's descriptor composes this array; background workspace turns\n` +
+    `// (schedule fires, delegated runs) never see it.\n` +
+    `export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [\n${workspaceInteractive
       .map((e) => `  ${e.exportName},`)
       .join('\n')}\n]\n`
   return header + body + footer

@@ -4,9 +4,12 @@
 // wrappers around the generated-array builders — the generator + parity pipeline
 // stay untouched; only this thin descriptor layer is new.
 //
-// TWO descriptors because the `vynel` server carries a DIFFERENT toolset per turn
-// type, both under the same `mcp__vynel__*` prefix (they never coexist in one turn):
-//   - workspace turn  → the full route registry (`buildInProcessMcpServer`)
+// THREE descriptors because the `vynel` server carries a DIFFERENT toolset per turn
+// type, all under the same `mcp__vynel__*` prefix (they never coexist in one turn):
+//   - workspace turn (background: schedule fires, delegated runs)
+//       → the full route registry (`buildInProcessMcpServer`)
+//   - workspace INTERACTIVE chat stream (Slice ④b)
+//       → the registry + the session-spawning tools (`buildWorkspaceInteractiveMcpServer`)
 //   - global-root turn → the routing tools only (`buildGlobalRootMcpServer`)
 //
 // `context.db` is `unknown` in the dependency-light contract; this is the producer
@@ -15,7 +18,11 @@
 import type { Database } from '@vynel/db'
 import type { McpFeatureDescriptor, SessionToolContext } from '@vynel/mcp-contract'
 import type { McpScope } from './mcp-types.js'
-import { buildInProcessMcpServer, buildGlobalRootMcpServer } from './build-in-process-server.js'
+import {
+  buildInProcessMcpServer,
+  buildGlobalRootMcpServer,
+  buildWorkspaceInteractiveMcpServer,
+} from './build-in-process-server.js'
 
 // The MCP tools each capability owns (server name `vynel` → `mcp__vynel__<x-mcp
 // name>`); the composer denies a capability's tools when that capability is off.
@@ -79,13 +86,36 @@ function toMcpScope(context: SessionToolContext): McpScope {
 // `remove_knowledge_source`) are exposed with `x-mcp.mutatingApproved` (auto —
 // no card, per the current approval stance). When the real approval card lands,
 // they move here so the composer unions them into the backstop.
+// One prompt contribution for both workspace descriptors — the interactive
+// variant differs ONLY in its toolset, never in its standing guidance.
+const contributeWorkspacePrompt: NonNullable<McpFeatureDescriptor['contributePrompt']> = (
+  _context,
+  enabledCapabilityIds,
+) => (enabledCapabilityIds?.has('tasks') === true ? TASKS_PROMPT_INSTRUCTIONS : null)
+
 export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
   build: (context) => buildInProcessMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
   capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
-  contributePrompt: (_context, enabledCapabilityIds) =>
-    enabledCapabilityIds?.has('tasks') === true ? TASKS_PROMPT_INSTRUCTIONS : null,
+  contributePrompt: contributeWorkspacePrompt,
+}
+
+// The workspace INTERACTIVE chat stream's variant (session-library Slice ④b):
+// everything `vynelWorkspaceDescriptor` carries PLUS the session-spawning tools
+// (create_session / list_sessions / send_task_to_session — the
+// `generatedWorkspaceInteractiveMcpTools` set). Composed ONLY by the interactive
+// stream (`streams/chat-turn.ts`, and the /context report that mirrors it) —
+// background workspace turns (schedule fires, delegated runs) keep the plain
+// workspace descriptor and never see the spawning tools. The spawning tools are
+// mutatingApproved-auto (Chad's "Claude manages freely" precedent, like the root
+// surface), so `mutatingToolNames` stays empty here too.
+export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {
+  serverName: 'vynel',
+  build: (context) => buildWorkspaceInteractiveMcpServer(toMcpScope(context), context.appRequest),
+  mutatingToolNames: [],
+  capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
+  contributePrompt: contributeWorkspacePrompt,
 }
 
 // The brain's tools for a GLOBAL-ROOT turn: the routing tools (SEE workspaces +

@@ -289,6 +289,91 @@ describe('POST /sessions/spawned (Slice ④ — create_session)', () => {
     })
   })
 
+  it('grounds a WORKSPACE-origin create in that workspace (Slice ④b): cwd = the workspace path, primary + segment carry the id', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-spawned-ws-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const ws = insertWorkspace(db, {
+          id: randomUUID(),
+          userId: user.id,
+          name: 'Acme',
+          kind: 'personal',
+          path: `/tmp/vynel/acme-${randomUUID()}`,
+          isArchived: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastAccessedAt: new Date(),
+        })
+        const primingInputs: StartChatSessionInput[] = []
+        const app = makeHarness(
+          db,
+          new TurnEventBroadcaster(),
+          makePrimingProvider('sdk-spawned-ws', primingInputs),
+        )
+
+        const res = await app.request('/sessions/spawned', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            name: 'Acme research',
+            purpose: 'Dig into the backlog.',
+            workspaceId: ws.id,
+          }),
+        })
+        expect(res.status).toBe(200)
+
+        // The priming turn ran in the WORKSPACE's path, not the global dir.
+        expect(primingInputs[0]!.workspacePath).toBe(ws.path)
+
+        // The created session carries the workspace on primary + segment.
+        const segment = findChatSessionById(db, 'sdk-spawned-ws')
+        expect(segment?.workspaceId).toBe(ws.id)
+        expect(segment?.scope).toBe('spawned')
+        const spawned = findSpawnedSessionBySegmentId(db, {
+          userId: user.id,
+          sessionId: 'sdk-spawned-ws',
+        })
+        expect(spawned?.workspaceId).toBe(ws.id)
+      })
+    })
+  })
+
+  it("404s a workspaceId that is unknown or another user's (no enumeration leak)", async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-spawned-404-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        seedUser(db) // the resolved local user
+        const stranger = seedUser(db)
+        const foreignWs = insertWorkspace(db, {
+          id: randomUUID(),
+          userId: stranger.id,
+          name: 'Theirs',
+          kind: 'personal',
+          path: `/tmp/vynel/${randomUUID()}`,
+          isArchived: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastAccessedAt: new Date(),
+        })
+        const app = makeHarness(db, new TurnEventBroadcaster(), makePrimingProvider('sdk-never'))
+
+        const postSpawned = (workspaceId: string) =>
+          app.request('/sessions/spawned', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name: 'N', purpose: 'p', workspaceId }),
+          })
+
+        expect((await postSpawned(randomUUID())).status).toBe(404)
+        // Not-owned answers exactly like unknown.
+        expect((await postSpawned(foreignWs.id)).status).toBe(404)
+        // Nothing was created on either failure.
+        expect(findChatSessionById(db, 'sdk-never')).toBeNull()
+      })
+    })
+  })
+
   it('validates the body (empty name rejected)', async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)

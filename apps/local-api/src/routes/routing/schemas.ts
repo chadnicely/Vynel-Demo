@@ -44,6 +44,11 @@ export const SendTaskToSessionRequestSchema = z.object({
   targetSessionId: z.string().min(1),
   /** The task to send — becomes a turn on the spawned session's conversation. */
   task: z.string().min(1).max(50000),
+  /** Slice ④b: the CALLING workspace (ownership-checked) — the job's parent is
+   *  then that workspace's primary conversation, so the report returns to the
+   *  creator. Absent = a global-root call (the shipped v1 behavior). The
+   *  workspace surface stamps this ambiently from the turn's scope. */
+  workspaceId: z.string().min(1).optional(),
 })
 
 export const SendTaskToSessionResponseSchema = z.object({

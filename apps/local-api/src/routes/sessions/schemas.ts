@@ -36,6 +36,10 @@ export const CreateSpawnedSessionRequestSchema = z.object({
   name: z.string().min(1).max(120),
   /** What the session is for — primed into it as carried context. */
   purpose: z.string().min(1).max(50000),
+  /** Slice ④b: the creating workspace — the session inherits ITS ground (path,
+   *  memory, skills). Absent = global-grounded (the shipped v1 behavior). The
+   *  workspace surface stamps this ambiently from the turn's scope. */
+  workspaceId: z.string().min(1).optional(),
 })
 
 export const CreateSpawnedSessionResponseSchema = z.object({

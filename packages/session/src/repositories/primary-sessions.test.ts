@@ -132,6 +132,30 @@ describe('primary-sessions repository', () => {
     })
   })
 
+  it('a workspace-grounded SPAWNED row never masquerades as the workspace brain (insert order irrelevant)', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      // The spawned row FIRST — under a scope-filterless query, rowid order
+      // would return it and the regression would hide (the Slice-④b bug).
+      insertPrimarySession(
+        db,
+        makePrimarySession(user.id, workspace.id, {
+          scope: 'spawned',
+          currentSdkSessionId: 'sdk-spawned-1',
+        }),
+      )
+      const brain = insertPrimarySession(db, makePrimarySession(user.id, workspace.id))
+
+      const found = findPrimarySessionForWorkspace(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+      })
+      expect(found?.id).toBe(brain.id)
+      expect(found?.scope).toBe('workspace')
+    })
+  })
+
   it('repoints a primary at a new SDK session and records the superseded one', async () => {
     await withTestDatabase((db) => {
       const user = insertUser(db, makeUser())

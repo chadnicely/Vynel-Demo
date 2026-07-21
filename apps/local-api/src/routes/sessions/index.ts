@@ -18,6 +18,7 @@ import { streamSSE } from 'hono/streaming'
 import { NotFoundError } from '@vynel/errors'
 import { getSessionsOverview } from '@vynel/session/overview'
 import { createSpawnedSession } from '@vynel/session/spawned'
+import { getWorkspaceById } from '@vynel/workspaces'
 import { sessionChannelKey } from '@vynel/session/runtime'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { factory } from '../../factory.js'
@@ -50,10 +51,14 @@ export const sessionsApp = factory
       },
       // Slice ④: the SAME op the Sessions panel reads, re-exposed as the
       // root's planning tool — one truth for the user and the model.
+      // Slice ④b: also rides WORKSPACE INTERACTIVE chat streams (the
+      // workspaceInteractiveSurface flag → generatedWorkspaceInteractiveMcpTools,
+      // composed only by the interactive stream's descriptor).
       'x-mcp': {
         exposed: true,
         name: 'list_sessions',
         rootSurface: true,
+        workspaceInteractiveSurface: true,
         description:
           "List every session — yours (scope 'spawned' = sessions you created), the user's " +
           'workspaces, and the assistant thread — with per-session context usage: contextTokens ' +
@@ -83,15 +88,18 @@ export const sessionsApp = factory
             'application/json': { schema: resolver(CreateSpawnedSessionResponseSchema) },
           },
         },
+        404: { description: 'workspaceId given but the workspace is unknown or not owned.' },
       },
       // Uncarded (mutatingApproved without a card): the root's own surface
       // never cards, and Chad's "Claude manages freely" Apps precedent applies
       // to session management (recorded in the module notes).
+      // Slice ④b: also rides WORKSPACE INTERACTIVE chat streams (see list_sessions).
       'x-mcp': {
         exposed: true,
         name: 'create_session',
         mutatingApproved: true,
         rootSurface: true,
+        workspaceInteractiveSurface: true,
         description:
           'Create a NEW session: a normal continuing conversation with its own context, primed ' +
           'with the purpose you give it. Use it to hand off big or parallel work and keep your ' +
@@ -105,14 +113,21 @@ export const sessionsApp = factory
     validator('json', CreateSpawnedSessionRequestSchema),
     ...userScoped,
     async (c) => {
-      const { name, purpose } = c.req.valid('json')
-      // V1 ground (locked fork 1): spawned sessions inherit the GLOBAL root's
-      // scope — its hidden user-data cwd, no workspace.
+      const { name, purpose, workspaceId } = c.req.valid('json')
+      // Ground = the creator's (locked fork 1, extended by Slice ④b): a
+      // workspace-origin call grounds the session in ITS workspace
+      // (ownership-checked — unknown and not-owned both 404); absent →
+      // the global root's hidden user-data cwd, no workspace.
+      const workspace =
+        workspaceId !== undefined
+          ? await getWorkspaceById(c.var.db, workspaceId, c.var.user.id)
+          : null
       const created = await createSpawnedSession(c.var.db, c.var.aiProvider, {
         userId: c.var.user.id,
         name,
         purpose,
-        workspacePath: ensureGlobalRootWorkspaceDir(),
+        workspacePath: workspace === null ? ensureGlobalRootWorkspaceDir() : workspace.path,
+        ...(workspace !== null ? { workspaceId: workspace.id } : {}),
         logger: c.var.logger,
       })
       return c.json({ status: 'created' as const, sessionId: created.sessionId, name: created.name })

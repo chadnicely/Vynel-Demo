@@ -873,6 +873,80 @@ describe('runDelegationClaimAndRunTick', () => {
     })
   })
 
+  it('a WORKSPACE-spawned target reports to ITS workspace primary conversation, not the global root (Slice ④b)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+
+      // The creator: a live WORKSPACE primary (chat segment + link) — the
+      // conversation the report must land on.
+      const wsPrimary = await getOrCreatePrimarySession(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+      })
+      insertChatSession(
+        db,
+        buildNewChatSessionRow({
+          sessionId: 'ws-primary-sdk-1',
+          userId: user.id,
+          workspaceId: workspace.id,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Workspace brain',
+          visibility: 'hidden',
+        }),
+      )
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: wsPrimary.id,
+        userId: user.id,
+        sdkSessionId: 'ws-primary-sdk-1',
+      })
+
+      const created = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-spawned-ws-tick' }),
+        {
+          userId: user.id,
+          name: 'Acme research',
+          purpose: 'dig into the backlog',
+          workspacePath: workspace.path,
+          workspaceId: workspace.id,
+        },
+      )
+      const jobId = enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'ws-primary-sdk-1',
+        targetPrimarySessionId: created.primarySessionId,
+        runCwdPath: workspace.path,
+        taskText: 'dig in',
+      })
+
+      const processed = await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: created.sessionId,
+          resultText: 'Backlog has 4 stale items.',
+        }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+      })
+      expect(processed).toBe(true)
+      expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
+
+      // The report landed on the WORKSPACE primary's transcript…
+      const wsMessages = listChatMessagesForSession(db, 'ws-primary-sdk-1')
+      const report = wsMessages.find((m) => m.sourceKind === 'workspace-manager')
+      expect(report?.sourceLabel).toBe('Acme research')
+      expect(report?.body).toBe('Backlog has 4 stale items.')
+      // …and NOT on the global root's.
+      expect(
+        listChatMessagesForSession(db, globalSessionId).filter(
+          (m) => m.sourceKind === 'workspace-manager',
+        ),
+      ).toEqual([])
+    })
+  })
+
   it('excludeTargetKeys with the spawned primary id holds a same-session job (FIFO per session)', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import type { SessionToolContext } from '@vynel/mcp-contract'
 import { buildInProcessMcpServer } from './build-in-process-server.js'
-import { vynelWorkspaceDescriptor } from './vynel-mcp-feature-descriptor.js'
+import {
+  vynelWorkspaceDescriptor,
+  vynelWorkspaceInteractiveDescriptor,
+} from './vynel-mcp-feature-descriptor.js'
 
 // A minimal SessionToolContext. Building the `vynel` server only CONSTRUCTS the
 // tool objects (handlers close over scope + appRequest); it never queries the DB
@@ -75,6 +78,31 @@ describe('vynelWorkspaceDescriptor', () => {
 
   it('build() returns a live server for a workspace context', () => {
     const server = vynelWorkspaceDescriptor.build(fakeContext())
+    expect(server).not.toBeNull()
+    expect(typeof server).toBe('object')
+  })
+})
+
+describe('vynelWorkspaceInteractiveDescriptor (Slice ④b)', () => {
+  it('mirrors the workspace descriptor in everything but the toolset (same server key, gates, prompt)', () => {
+    expect(vynelWorkspaceInteractiveDescriptor.serverName).toBe('vynel')
+    // The spawning tools are mutatingApproved-auto (the "Claude manages
+    // freely" precedent) — nothing new cards.
+    expect(vynelWorkspaceInteractiveDescriptor.mutatingToolNames).toEqual([])
+    // Same gate table object — capability toggles behave identically on both
+    // workspace surfaces.
+    expect(vynelWorkspaceInteractiveDescriptor.capabilityGatedTools).toBe(
+      vynelWorkspaceDescriptor.capabilityGatedTools,
+    )
+    // Same standing guidance (one shared contributePrompt).
+    const context = fakeContext()
+    expect(vynelWorkspaceInteractiveDescriptor.contributePrompt?.(context, new Set(['tasks']))).toBe(
+      vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['tasks'])),
+    )
+  })
+
+  it('build() returns a live server for a workspace context', () => {
+    const server = vynelWorkspaceInteractiveDescriptor.build(fakeContext())
     expect(server).not.toBeNull()
     expect(typeof server).toBe('object')
   })

@@ -41,7 +41,7 @@
 // from `hono-openapi/zod`, chained methods on `factory.createApp()`.
 
 import { resolver, validator } from 'hono-openapi/zod'
-import { listWorkspacesForUser, getWorkspaceById } from '@vynel/workspaces'
+import { listWorkspacesForUser, getWorkspaceById, findWorkspaceById } from '@vynel/workspaces'
 import { listChannelsForUser, sendToChannel } from '@vynel/channels'
 import { findPrimaryConversation } from '@vynel/session/continuity'
 import { findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
@@ -198,13 +198,20 @@ export const routingApp = factory
             'application/json': { schema: resolver(SendTaskToSessionResponseSchema) },
           },
         },
-        400: { description: 'Routing is only available during an active global-root turn.' },
-        404: { description: 'Target session not found, not owned, or not a spawned session.' },
+        400: { description: 'Routing is only available during an active creator conversation.' },
+        404: {
+          description:
+            'Target session (or the given workspace) not found, not owned, or not a spawned session.',
+        },
       },
+      // Slice ④b: also rides WORKSPACE INTERACTIVE chat streams (the
+      // workspaceInteractiveSurface flag → generatedWorkspaceInteractiveMcpTools,
+      // composed only by the interactive stream's descriptor).
       'x-mcp': {
         exposed: true,
         name: 'send_task_to_session',
         mutatingApproved: true,
+        workspaceInteractiveSurface: true,
         description:
           'Hand a task to a session you created with create_session (its continuing ' +
           'conversation, with its primed purpose and everything it has done since). Use ' +
@@ -220,13 +227,23 @@ export const routingApp = factory
     }),
     validator('json', SendTaskToSessionRequestSchema),
     ...userScoped,
-    (c) => {
-      const { targetSessionId, task } = c.req.valid('json')
+    async (c) => {
+      const { targetSessionId, task, workspaceId } = c.req.valid('json')
 
-      // Same gate as /delegate: the delegating global-root turn is the job's parent.
-      const globalRoot = findPrimaryConversation(c.var.db, { userId: c.var.user.id })
-      if (!globalRoot?.currentSdkSessionId) {
-        throw new ValidationError('Routing is only available during an active global-root turn.')
+      // Slice ④b: the job's parent is the CREATOR conversation — the calling
+      // workspace's primary when `workspaceId` is present (ownership-checked;
+      // unknown and not-owned both 404), else the global root (the shipped
+      // gate, relaxed from "the global root only" to "the creator").
+      const originWorkspace =
+        workspaceId !== undefined
+          ? await getWorkspaceById(c.var.db, workspaceId, c.var.user.id)
+          : null
+      const creator = findPrimaryConversation(c.var.db, {
+        userId: c.var.user.id,
+        workspaceId: originWorkspace?.id ?? null,
+      })
+      if (!creator?.currentSdkSessionId) {
+        throw new ValidationError('Routing is only available during an active creator conversation.')
       }
 
       // Resolve the spawned primary from the tool-facing handle (the current
@@ -243,13 +260,19 @@ export const routingApp = factory
       const origin = parseDelegationOriginHeader(c.req.header(DELEGATION_ORIGIN_HEADER))
       const permissionMode = parseDelegationModeHeader(c.req.header(DELEGATION_MODE_HEADER))
 
+      // The run cwd is the TARGET's ground, set at create (Slice ④b): a
+      // workspace-spawned session runs in its workspace's folder, a
+      // global-spawned one in the root's hidden user-data dir — regardless of
+      // who is sending. A deleted target workspace falls back to the global
+      // dir (graceful, like the tick's name fallback) rather than stranding
+      // the session.
+      const targetWorkspace =
+        spawned.workspaceId !== null ? findWorkspaceById(c.var.db, spawned.workspaceId) : null
       const jobId = enqueueSessionDelegation(c.var.db, {
         userId: c.var.user.id,
-        parentSessionId: globalRoot.currentSdkSessionId,
+        parentSessionId: creator.currentSdkSessionId,
         targetPrimarySessionId: spawned.id,
-        // V1 ground: every spawned session runs in the global root's hidden
-        // user-data dir (the cwd it was created with).
-        runCwdPath: ensureGlobalRootWorkspaceDir(),
+        runCwdPath: targetWorkspace?.path ?? ensureGlobalRootWorkspaceDir(),
         taskText: task,
         ...(origin ? { origin } : {}),
         ...(permissionMode !== undefined ? { permissionMode } : {}),

@@ -24,4 +24,8 @@ export {
   type ExternalTool,
   type ToolResult,
 } from './external-mcp-server.js'
-export { vynelWorkspaceDescriptor, vynelRoutingDescriptor } from './vynel-mcp-feature-descriptor.js'
+export {
+  vynelWorkspaceDescriptor,
+  vynelWorkspaceInteractiveDescriptor,
+  vynelRoutingDescriptor,
+} from './vynel-mcp-feature-descriptor.js'

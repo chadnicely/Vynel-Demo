@@ -8,7 +8,11 @@
 // canary for "did the tool list itself change?".
 
 import { describe, expect, it } from 'vitest'
-import { generatedMcpTools, generatedRoutingMcpTools } from './api-tools.js'
+import {
+  generatedMcpTools,
+  generatedRoutingMcpTools,
+  generatedWorkspaceInteractiveMcpTools,
+} from './api-tools.js'
 
 // The x-mcp-annotated route registry. Sorted to match the generator's
 // stable-order emit. As each feature's routes land, its x-mcp tools join
@@ -117,6 +121,18 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   'speak',
 ] as const
 
+// Slice ④b: the session-spawning tools ALSO ride WORKSPACE INTERACTIVE chat
+// streams — via a THIRD array (`x-mcp.workspaceInteractiveSurface`) that only
+// `vynelWorkspaceInteractiveDescriptor` (streams/chat-turn.ts) composes. They
+// are deliberately NOT in `generatedMcpTools`: that array feeds BACKGROUND
+// workspace turns too (schedule fires via build-schedule-fire-deps), which must
+// never see them (the background-exclusion test below pins this).
+const EXPECTED_WORKSPACE_INTERACTIVE_TOOL_NAMES = [
+  'create_session',
+  'list_sessions',
+  'send_task_to_session',
+] as const
+
 const snakeToCamel = (s: string): string => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
 
 describe('generatedMcpTools', () => {
@@ -143,5 +159,23 @@ describe('generatedRoutingMcpTools', () => {
     expect(generatedRoutingMcpTools.map((f) => f.name).sort()).toEqual(
       EXPECTED_ROUTING_TOOL_NAMES.map(snakeToCamel).sort(),
     )
+  })
+})
+
+describe('generatedWorkspaceInteractiveMcpTools (Slice ④b)', () => {
+  it('exposes exactly the session-spawning tools (by name)', () => {
+    expect(generatedWorkspaceInteractiveMcpTools).toHaveLength(
+      EXPECTED_WORKSPACE_INTERACTIVE_TOOL_NAMES.length,
+    )
+    expect(generatedWorkspaceInteractiveMcpTools.map((f) => f.name).sort()).toEqual(
+      EXPECTED_WORKSPACE_INTERACTIVE_TOOL_NAMES.map(snakeToCamel).sort(),
+    )
+  })
+
+  it('background exclusion holds: none of them leak into generatedMcpTools (the schedule-fire / background-turn array)', () => {
+    const backgroundNames = new Set(generatedMcpTools.map((f) => f.name))
+    for (const name of EXPECTED_WORKSPACE_INTERACTIVE_TOOL_NAMES) {
+      expect(backgroundNames.has(snakeToCamel(name))).toBe(false)
+    }
   })
 })

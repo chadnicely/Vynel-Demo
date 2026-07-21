@@ -1,0 +1,2 @@
+DROP INDEX `uniq_primary_sessions_user_workspace`;--> statement-breakpoint
+CREATE UNIQUE INDEX `uniq_primary_sessions_user_workspace` ON `primary_sessions` (`user_id`,`workspace_id`) WHERE "primary_sessions"."scope" = 'workspace' AND "primary_sessions"."deleted_at" IS NULL;

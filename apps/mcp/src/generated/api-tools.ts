@@ -238,14 +238,18 @@ export const createSession: McpToolFactory = (scope, app) =>
     {
     name: z.string(),
     purpose: z.string(),
+    workspaceId: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/sessions/spawned'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['name', 'purpose']) {
+        for (const k of ['name', 'purpose', 'workspaceId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+          bodyObj['workspaceId'] = scope.workspaceId
         }
         const requestBody = JSON.stringify(bodyObj)
         const url = pathStr + (queryStr ? '?' + queryStr : '')
@@ -1582,14 +1586,18 @@ export const sendTaskToSession: McpToolFactory = (scope, app) =>
     {
     targetSessionId: z.string(),
     task: z.string(),
+    workspaceId: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/routing/delegate-session'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['targetSessionId', 'task']) {
+        for (const k of ['targetSessionId', 'task', 'workspaceId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+          bodyObj['workspaceId'] = scope.workspaceId
         }
         const requestBody = JSON.stringify(bodyObj)
         const url = pathStr + (queryStr ? '?' + queryStr : '')
@@ -1980,4 +1988,14 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   sendTaskToWorkspace,
   sendToChannel,
   speak,
+]
+
+// Session-library Slice ④b — tools ALSO exposed on WORKSPACE INTERACTIVE
+// chat streams (x-mcp.workspaceInteractiveSurface). Only the interactive
+// stream's descriptor composes this array; background workspace turns
+// (schedule fires, delegated runs) never see it.
+export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
+  createSession,
+  listSessions,
+  sendTaskToSession,
 ]

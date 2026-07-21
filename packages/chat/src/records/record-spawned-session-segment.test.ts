@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findChatSessionById } from '../repositories/index.js'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { CHAT_SESSION_CREATED, type ChatSessionCreatedPayload } from '../chat-events.js'
@@ -64,6 +65,42 @@ describe('recordSpawnedSessionSegment (core)', () => {
         sessionId: sdkSessionId,
         providerId: 'claude',
       })
+    })
+  })
+
+  it('threads a creating workspace onto the segment + the outbox payload (Slice ④b)', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const now = new Date()
+      const workspace = insertWorkspace(db, {
+        id: randomUUID(),
+        userId: user.id,
+        name: 'Acme',
+        kind: 'personal',
+        path: `/tmp/vynel/${randomUUID()}`,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+        lastAccessedAt: now,
+      })
+      const sdkSessionId = `sdk-${randomUUID()}`
+
+      const segment = recordSpawnedSessionSegment(db, {
+        sessionId: sdkSessionId,
+        userId: user.id,
+        providerId: 'claude',
+        name: 'Acme research',
+        workspaceId: workspace.id,
+      })
+
+      // Workspace-grounded, everything else identical to the global shape.
+      expect(segment.workspaceId).toBe(workspace.id)
+      expect(segment.scope).toBe('spawned')
+      expect(segment.visibility).toBe('listed')
+      expect(segment.title).toBe('Acme research')
+
+      const events = listOutboxEventsByType(db, CHAT_SESSION_CREATED)
+      expect((events[0]!.payload as ChatSessionCreatedPayload).workspaceId).toBe(workspace.id)
     })
   })
 })

@@ -13,10 +13,12 @@
 //      segment — the session lists, meters, and chains from birth; the FIRST
 //      segment's title IS the session's name.
 //
-// Grounding (locked fork 1): a spawned session inherits its creator's scope.
-// V1 exposes the tool on the GLOBAL root only, so `workspaceId` is null and
-// `workspacePath` is the global root's hidden user-data cwd — the same
-// memory/settings ground as the brain. The caller (the route) resolves it.
+// Grounding (locked fork 1, extended by Slice ④b): a spawned session inherits
+// its creator's scope. A GLOBAL-root creation passes no `workspaceId` and the
+// global root's hidden user-data cwd as `workspacePath` (the same
+// memory/settings ground as the brain); a WORKSPACE creation passes its
+// workspace id + that workspace's path (its memory/skills/CLAUDE.md ground).
+// The caller (the route) resolves both together.
 
 import type { Database } from '@vynel/db'
 import type { AiAgentProvider } from '@vynel/providers'
@@ -33,8 +35,11 @@ export type CreateSpawnedSessionInput = {
   name: string
   /** What this session is for — seeded into the priming turn as carried context. */
   purpose: string
-  /** The session's SDK cwd — v1: the global root's hidden user-data dir (the caller resolves it). */
+  /** The session's SDK cwd — the creator's ground: the global root's hidden
+   *  user-data dir, or the creating workspace's path (the caller resolves it). */
   workspacePath: string
+  /** The creating workspace (Slice ④b) — absent = global-grounded (v1 behavior). */
+  workspaceId?: string
   logger?: Logger
 }
 
@@ -65,7 +70,7 @@ export async function createSpawnedSession(
   const primary = primarySessionsRepository.insertPrimarySession(db, {
     id: crypto.randomUUID(),
     userId: input.userId,
-    workspaceId: null,
+    workspaceId: input.workspaceId ?? null,
     scope: 'spawned',
     currentSdkSessionId: null,
     supersededFromSdkSessionId: null,
@@ -85,6 +90,7 @@ export async function createSpawnedSession(
     userId: input.userId,
     providerId: DEFAULT_PROVIDER_ID,
     name: input.name,
+    workspaceId: input.workspaceId ?? null,
   })
 
   return { primarySessionId: primary.id, sessionId, name: input.name }

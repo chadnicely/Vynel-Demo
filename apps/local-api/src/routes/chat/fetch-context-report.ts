@@ -13,14 +13,16 @@ import { composeSessionMcpServers } from '../../sessions/compose-session-mcp-ser
 export async function fetchSessionContextReport(c: Context<AppEnv>): Promise<string | null> {
   // Same MCP attachment the chat turn uses (streams/chat-turn.ts — descriptors
   // AND enabled-capability set), so the /context report counts the workspace +
-  // notebook tools accurately. Dynamic import keeps the SDK out of module load.
-  const { vynelWorkspaceDescriptor } = await import('@vynel/mcp')
+  // notebook tools accurately — including the session-spawning tools the
+  // INTERACTIVE stream carries (Slice ④b). Dynamic import keeps the SDK out of
+  // module load.
+  const { vynelWorkspaceInteractiveDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
   const enabledCapabilityIds = new Set(
     listEnabledCapabilities(c.var.db, c.var.workspace!.id).map((capability) => capability.id),
   )
   const composedMcp = composeSessionMcpServers(
-    [vynelWorkspaceDescriptor, notebookFeatureDescriptor],
+    [vynelWorkspaceInteractiveDescriptor, notebookFeatureDescriptor],
     {
       db: c.var.db,
       userId: c.var.user.id,

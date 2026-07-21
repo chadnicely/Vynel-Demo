@@ -95,6 +95,31 @@ session's context suits it; check list_sessions' context numbers before choosing
 - Overview: spawned entries list with scope 'spawned' + title = name; UI label.
 - Tools: descriptor parity (api-tools regen), route tests (create/enqueue/404s).
 
+## 4b — Workspace-root spawning (Chad, 2026-07-21: "needs to be available on the
+## workspace level as well")
+
+- **Ground = the creator's, literally:** `createSpawnedSession` grows optional
+  `workspaceId` — threaded onto the primary AND the segment; the cwd = the workspace's
+  path (its memory/skills/CLAUDE.md ground). Global calls stay exactly as shipped
+  (workspaceId null, hidden root cwd). The overview then shows the workspace name on
+  workspace-spawned entries for free.
+- **Tool exposure:** the three tools reach WORKSPACE interactive streams through the
+  existing surface mechanism (however the generator splits root vs workspace tool sets —
+  follow it, update the workspace pin). Background turns still excluded.
+- **Route guards:** create/delegate-session accept an optional ownership-checked
+  workspaceId from the workspace turn (the workspace composer's ambient context); the
+  active-global-root guard relaxes to "an active creator conversation exists".
+- **DECISION (as-built, reviewer-flagged):** `workspaceId` is MODEL-VISIBLE on both
+  surfaces, not ambient-only — deliberately: it is what lets the GLOBAL root spawn a
+  session grounded in a chosen workspace ("create a session in letterman for X"), and a
+  workspace turn target a sibling it owns. The route ownership check (404, no enumeration
+  leak) is the gate; tenancy is Phase-1 single-user and every id is ownership-verified.
+  Ambient stamping fills the field only when the model omits it.
+- **Reports go to the CREATOR:** the tick's completed branch resolves the spawned
+  primary's OWN workspaceId — workspace-spawned → push to that workspace's primary
+  conversation; global-spawned → the global root (as shipped). No job-row change.
+- Pool/stop/boot recovery: unchanged (target key is the spawned primary id).
+
 ## Deferred (recorded)
 
 - `stop_session_task` (above — needs the trace key surfaced to the model first).

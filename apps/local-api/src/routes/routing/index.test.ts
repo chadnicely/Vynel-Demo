@@ -348,13 +348,44 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
     } as unknown as AiAgentProvider
   }
 
-  async function seedSpawnedSession(db: Database, userId: string, sdkSessionId = 'sdk-sp-1') {
+  async function seedSpawnedSession(
+    db: Database,
+    userId: string,
+    sdkSessionId = 'sdk-sp-1',
+    workspace?: { id: string; path: string },
+  ) {
     return createSpawnedSession(db, makePrimingProvider(sdkSessionId), {
       userId,
       name: 'Research: pricing',
       purpose: 'compare pricing pages',
-      workspacePath: '/tmp/vynel/global-root',
+      workspacePath: workspace?.path ?? '/tmp/vynel/global-root',
+      ...(workspace !== undefined ? { workspaceId: workspace.id } : {}),
     })
+  }
+
+  // A live WORKSPACE primary (the ④b creator conversation) — the workspace
+  // sibling of seedLinkedGlobalRoot.
+  async function seedLinkedWorkspacePrimary(
+    db: Database,
+    userId: string,
+    workspaceId: string,
+    sdkSessionId = 'ws-primary-1',
+  ) {
+    const primary = await getOrCreatePrimarySession(db, { userId, workspaceId })
+    insertChatSession(
+      db,
+      buildNewChatSessionRow({
+        sessionId: sdkSessionId,
+        userId,
+        workspaceId,
+        providerId: 'claude',
+        startedAt: new Date(),
+        title: 'Workspace brain',
+        visibility: 'hidden',
+      }),
+    )
+    linkPrimarySessionToSdkSession(db, { primarySessionId: primary.id, userId, sdkSessionId })
+    return sdkSessionId
   }
 
   it('enqueues a SESSION-target job keyed by the spawned primary, run cwd = the global-root dir', async () => {
@@ -382,6 +413,100 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
         expect(job?.workspaceName).toBeNull()
         expect(job?.workspacePath).toBe(path.join(dataDir, 'global-root'))
         expect(job?.parentSessionId).toBe('g-1')
+      })
+    })
+  })
+
+  it('a WORKSPACE-origin call (Slice ④b) parents the job on the workspace primary and runs in the TARGET session ground — no global root needed', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-delegate-ws-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const workspace = seedWorkspace(db, user.id)
+        // Deliberately NO global root: the relaxed guard accepts an active
+        // CREATOR conversation — here, the workspace primary.
+        const wsPrimarySdkId = await seedLinkedWorkspacePrimary(db, user.id, workspace.id)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-ws', workspace)
+        const app = makeHarness(db)
+
+        const res = await postJson(app, '/routing/delegate-session', {
+          targetSessionId: spawned.sessionId,
+          task: 'dig into the backlog',
+          workspaceId: workspace.id,
+        })
+        expect(res.status).toBe(200)
+        const { jobId } = (await res.json()) as { jobId: string }
+
+        const job = findDelegationJobById(db, jobId)
+        expect(job?.status).toBe('pending')
+        expect(job?.targetPrimarySessionId).toBe(spawned.primarySessionId)
+        // Parent = the WORKSPACE primary's current SDK session (the creator).
+        expect(job?.parentSessionId).toBe(wsPrimarySdkId)
+        // Run cwd = the TARGET's ground (its creating workspace's path).
+        expect(job?.workspacePath).toBe(workspace.path)
+
+        // A GLOBAL-spawned target keeps ITS ground (the hidden global dir)
+        // even when a workspace sends the task — cwd follows the target.
+        const globalSpawned = await seedSpawnedSession(db, user.id, 'sdk-sp-global')
+        const res2 = await postJson(app, '/routing/delegate-session', {
+          targetSessionId: globalSpawned.sessionId,
+          task: 't',
+          workspaceId: workspace.id,
+        })
+        expect(res2.status).toBe(200)
+        const { jobId: jobId2 } = (await res2.json()) as { jobId: string }
+        expect(findDelegationJobById(db, jobId2)?.workspacePath).toBe(
+          path.join(dataDir, 'global-root'),
+        )
+      })
+    })
+  })
+
+  it('400s a workspace-origin call whose workspace has no active primary conversation (even with a live global root)', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-delegate-noprimary-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const workspace = seedWorkspace(db, user.id)
+        await seedLinkedGlobalRoot(db, user.id) // present, but NOT the creator here
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-np', workspace)
+        const app = makeHarness(db)
+
+        const res = await postJson(app, '/routing/delegate-session', {
+          targetSessionId: spawned.sessionId,
+          task: 't',
+          workspaceId: workspace.id,
+        })
+        expect(res.status).toBe(400)
+      })
+    })
+  })
+
+  it("404s a workspace-origin call with an unknown or another user's workspaceId", async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-delegate-404-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        await seedLinkedGlobalRoot(db, user.id)
+        const spawned = await seedSpawnedSession(db, user.id)
+        const stranger = seedUser(db)
+        const foreignWs = seedWorkspace(db, stranger.id, 'Theirs')
+        const app = makeHarness(db)
+
+        const unknown = await postJson(app, '/routing/delegate-session', {
+          targetSessionId: spawned.sessionId,
+          task: 't',
+          workspaceId: randomUUID(),
+        })
+        expect(unknown.status).toBe(404)
+
+        // Not-owned answers exactly like unknown (no enumeration leak).
+        const crossUser = await postJson(app, '/routing/delegate-session', {
+          targetSessionId: spawned.sessionId,
+          task: 't',
+          workspaceId: foreignWs.id,
+        })
+        expect(crossUser.status).toBe(404)
       })
     })
   })

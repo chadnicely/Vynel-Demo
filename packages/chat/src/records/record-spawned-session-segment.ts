@@ -10,9 +10,11 @@
 // later swap segments keep the stock hidden title and the chain fold surfaces
 // this one).
 //
-// Grounding: spawned sessions inherit the creator's scope — v1 exposes the
-// tool on the GLOBAL root only, so `workspaceId` is NULL (the session runs in
-// the root's hidden user-data cwd, same ground as the brain).
+// Grounding: spawned sessions inherit the creator's scope (Slice ④b) — a
+// GLOBAL-root creation passes no `workspaceId` (the session runs in the root's
+// hidden user-data cwd, same ground as the brain); a WORKSPACE creation passes
+// its workspace id, so the segment lists under that workspace (the overview
+// then shows the workspace name for free).
 //
 // Like the swap sibling: the segment starts EMPTY (0 messages) — the priming
 // exchange lives only in the runtime's session storage; the first delegated
@@ -35,6 +37,8 @@ export type RecordSpawnedSessionSegmentInput = {
   providerId: AiAgentProviderId
   /** The spawned session's name — the first segment's title IS the identity. */
   name: string
+  /** The creator's workspace (Slice ④b) — absent/null = global-grounded (v1). */
+  workspaceId?: string | null
   /** When the segment was started. Defaults to now. */
   startedAt?: Date
 }
@@ -44,9 +48,10 @@ export function recordSpawnedSessionSegment(
   input: RecordSpawnedSessionSegmentInput,
 ): ChatSession {
   const startedAt = input.startedAt ?? new Date()
+  const workspaceId = input.workspaceId ?? null
   const payload: ChatSessionCreatedPayload = {
     userId: input.userId,
-    workspaceId: null,
+    workspaceId,
     sessionId: input.sessionId,
     providerId: input.providerId,
   }
@@ -56,7 +61,7 @@ export function recordSpawnedSessionSegment(
       ...buildNewChatSessionRow({
         sessionId: input.sessionId,
         userId: input.userId,
-        workspaceId: null,
+        workspaceId,
         providerId: input.providerId,
         startedAt,
         title: input.name,

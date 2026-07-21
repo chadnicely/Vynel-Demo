@@ -1,9 +1,11 @@
 // `runDelegationClaimAndRunTick` — claims ONE pending delegation job and runs it to a
 // terminal state (brain-tree Chapter 1, async core). The CONSUMER half of the durable
 // queue: the in-process `delegation-service` calls this on a poll; it claims atomically,
-// runs the workspace-root turn, pushes the report UP to the global root, and marks the
-// job done/failed. Mirrors the core precedent `runScheduleClaimAndFireTick`; the
-// apps/local-api `delegation-service` poll loop is its only production caller.
+// runs the workspace-root turn, pushes the report UP to the CREATOR's conversation
+// (the spawning workspace's primary for a workspace-spawned session target — Slice ④b;
+// the global root otherwise), and marks the job done/failed. Mirrors the core precedent
+// `runScheduleClaimAndFireTick`; the apps/local-api `delegation-service` poll loop is
+// its only production caller.
 //
 // REUSES, UNCHANGED, the synchronous delegation path — `routeRequest` (the timeout-raced
 // coordinator) + `delegateToWorkspaceRoot` (run + workspace-side persist). The sync drain
@@ -182,11 +184,16 @@ export async function runDelegationClaimAndRunTick(
     // hidden title falls back to 'Session').
     let targetName: string
     let managerName: string | undefined
+    // Slice ④b: a SESSION target's own workspace grounding (null for a
+    // global-spawned target and every workspace-target job) — the completed
+    // branch below routes the report to the CREATOR's conversation with it.
+    let spawnedTargetWorkspaceId: string | null = null
     if (claimed.targetPrimarySessionId !== null) {
       const targetPrimary = primarySessionsRepository.findPrimarySessionById(
         db,
         claimed.targetPrimarySessionId,
       )
+      spawnedTargetWorkspaceId = targetPrimary?.workspaceId ?? null
       const currentSegment =
         targetPrimary?.currentSdkSessionId != null
           ? findChatSessionById(db, targetPrimary.currentSdkSessionId)
@@ -340,14 +347,21 @@ export async function runDelegationClaimAndRunTick(
         }
       }
 
-      // Swap-safe: re-resolve the CURRENT global root at push time (it may have swapped
+      // Reports go to the CREATOR (Slice ④b): a workspace-spawned session
+      // target reports to ITS workspace's primary conversation; a
+      // global-spawned target — and every workspace-target job — to the
+      // global root, as shipped. Swap-safe either way: re-resolve the CURRENT
+      // creator conversation at push time (it may have compaction-swapped
       // between enqueue and now) — NOT the job's enqueue-time parentSessionId.
-      const globalSessionId = findPrimaryConversation(db, {
+      const creatorSessionId = findPrimaryConversation(db, {
         userId: claimed.userId,
+        ...(spawnedTargetWorkspaceId !== null
+          ? { workspaceId: spawnedTargetWorkspaceId }
+          : {}),
       })?.currentSdkSessionId
-      if (globalSessionId) {
+      if (creatorSessionId) {
         const pushed = recordPushedReportMessage(db, {
-          globalRootSessionId: globalSessionId,
+          globalRootSessionId: creatorSessionId,
           body: userReply,
           workspaceName: targetName,
           ...(managerName !== undefined ? { managerName } : {}),
@@ -356,13 +370,13 @@ export async function runDelegationClaimAndRunTick(
         if (!pushed) {
           deps.logger.warn(
             { jobId: claimed.id },
-            'delegation report push skipped — global-root session row missing',
+            'delegation report push skipped — creator conversation session row missing',
           )
         }
       } else {
         deps.logger.warn(
           { jobId: claimed.id },
-          'delegation report push skipped — no live global-root session',
+          'delegation report push skipped — no live creator conversation',
         )
       }
       completeDelegationJob(db, claimed.id, outcome.result, new Date())
@@ -398,7 +412,7 @@ export async function runDelegationClaimAndRunTick(
 
       deps.logger.info(
         { jobId: claimed.id, resultPreview: userReply.slice(0, 120) },
-        'delegation: completed — reply pushed to the global root',
+        'delegation: completed — reply pushed to the creator conversation',
       )
     } else if (outcome.status === 'timed-out') {
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())

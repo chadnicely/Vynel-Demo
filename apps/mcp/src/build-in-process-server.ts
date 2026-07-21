@@ -15,7 +15,11 @@
 
 import { createSdkMcpServer, type SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk'
 import type { McpScope, HonoAppRequestFn } from './mcp-types.js'
-import { generatedMcpTools, generatedRoutingMcpTools } from './generated/api-tools.js'
+import {
+  generatedMcpTools,
+  generatedRoutingMcpTools,
+  generatedWorkspaceInteractiveMcpTools,
+} from './generated/api-tools.js'
 
 export function buildInProcessMcpServer(
   scope: McpScope,
@@ -59,6 +63,36 @@ export function buildGlobalRootMcpServer(
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK widening at the factory boundary (see buildInProcessMcpServer).
   const tools = generatedRoutingMcpTools.map((factory) => factory(scope, app) as SdkMcpToolDefinition<any>)
+  return createSdkMcpServer({
+    name: 'vynel',
+    version: '1.0.0',
+    tools,
+  })
+}
+
+// `buildWorkspaceInteractiveMcpServer` — the `vynel` server for a WORKSPACE
+// INTERACTIVE chat stream (session-library Slice ④b): the full workspace
+// registry PLUS the session-spawning tools (create_session / list_sessions /
+// send_task_to_session), so a workspace root can spawn and drive sessions in
+// its own ground. A SEPARATE builder — not a widening of `generatedMcpTools` —
+// because that array also feeds BACKGROUND workspace turns (schedule fires via
+// `build-schedule-fire-deps`), which must never see the spawning tools; the
+// interactive stream opts in by composing `vynelWorkspaceInteractiveDescriptor`
+// (the ask-descriptor precedent: interactive-only features are a call-site
+// descriptor choice). Same server key (`vynel`) — one turn ever builds one.
+export function buildWorkspaceInteractiveMcpServer(
+  scope: McpScope,
+  app: HonoAppRequestFn,
+): ReturnType<typeof createSdkMcpServer> {
+  if (generatedMcpTools.length === 0) {
+    throw new Error(
+      'buildWorkspaceInteractiveMcpServer: generatedMcpTools is empty — run `pnpm api:generate` to populate the registry.',
+    )
+  }
+  const tools = [...generatedMcpTools, ...generatedWorkspaceInteractiveMcpTools].map(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK widening at the factory boundary (see buildInProcessMcpServer).
+    (factory) => factory(scope, app) as SdkMcpToolDefinition<any>,
+  )
   return createSdkMcpServer({
     name: 'vynel',
     version: '1.0.0',

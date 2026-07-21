@@ -43,9 +43,11 @@ import { workspaces } from '@vynel/db/schema/workspaces'
 // session (voice-jarvis piece 1 — the Jarvis session is continuous too). The
 // continuity MECHANISM (detect-pressure + seed-fresh swap) is scope-agnostic,
 // so any kind added here gets continuity for free. `'spawned'` (session-library
-// Slice ④) is a session the ROOT creates as a tool — MANY per user by design,
-// so it deliberately has NO liveness unique index (the partial indexes below
-// don't cover it). Agents (keyed by a scopeRef) are a later kind — deferred.
+// Slice ④) is a session a ROOT creates as a tool — MANY per user (and, since
+// Slice ④b, many per creating workspace: a workspace-spawned row carries its
+// workspace's id) by design, so it deliberately has NO liveness unique index
+// (every partial index below is scope-gated away from it). Agents (keyed by a
+// scopeRef) are a later kind — deferred.
 export type PrimarySessionScope = 'global' | 'workspace' | 'voice' | 'spawned'
 
 export const primarySessions = table(
@@ -77,13 +79,16 @@ export const primarySessions = table(
     byWorkspace: index('idx_primary_sessions_workspace').on(t.workspaceId),
     byDeletedAt: index('idx_primary_sessions_deleted_at').on(t.deletedAt),
 
-    // One LIVE primary per workspace. Partial on `deleted_at IS NULL` so a
-    // soft-deleted primary's workspace can get a fresh primary (the
-    // `installed_skills` / `agents` partial-unique precedent). Works
-    // identically in Postgres Phase 2.
+    // One LIVE WORKSPACE-scope primary (the workspace's brain) per workspace.
+    // Partial on `deleted_at IS NULL` so a soft-deleted primary's workspace can
+    // get a fresh primary (the `installed_skills` / `agents` partial-unique
+    // precedent). Scope-gated (Slice ④b, migration 0013): workspace-SPAWNED
+    // primaries also carry a workspaceId and are MANY per workspace — without
+    // the gate this index capped them at one and collided them with the brain.
+    // Works identically in Postgres Phase 2.
     uniqueLivePrimaryPerWorkspace: uniqueIndex('uniq_primary_sessions_user_workspace')
       .on(t.userId, t.workspaceId)
-      .where(sql`${t.deletedAt} IS NULL`),
+      .where(sql`${t.scope} = 'workspace' AND ${t.deletedAt} IS NULL`),
 
     // One LIVE global primary per user (Slice 3b). The global primary's workspaceId is
     // NULL, and SQLite treats NULLs as distinct in a unique index, so the

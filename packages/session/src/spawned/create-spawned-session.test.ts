@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import type { StartChatSessionInput } from '@vynel/providers'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
@@ -72,6 +73,55 @@ describe('createSpawnedSession', () => {
       expect(segment?.title).toBe('Research: pricing pages')
       expect(segment?.visibility).toBe('listed')
       expect(segment?.scope).toBe('spawned')
+    })
+  })
+
+  it('grounds a WORKSPACE-created session in its workspace (Slice ④b): primary + segment carry the id, cwd = the workspace path', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const now = new Date()
+      const workspace = insertWorkspace(db, {
+        id: randomUUID(),
+        userId: user.id,
+        name: 'Acme',
+        kind: 'personal',
+        path: `/tmp/vynel/acme-${randomUUID()}`,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+        lastAccessedAt: now,
+      })
+      const primingInputs: StartChatSessionInput[] = []
+
+      const created = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({
+          seededSessionId: 'sdk-ws-spawned',
+          startChatSessionInputs: primingInputs,
+        }),
+        {
+          userId: user.id,
+          name: 'Acme research',
+          purpose: 'Dig into the Acme backlog.',
+          workspacePath: workspace.path,
+          workspaceId: workspace.id,
+        },
+      )
+
+      // The priming turn ran in the WORKSPACE's ground.
+      expect(primingInputs[0]!.workspacePath).toBe(workspace.path)
+
+      // Primary AND segment carry the creating workspace.
+      const primary = primarySessionsRepository.findPrimarySessionById(
+        db,
+        created.primarySessionId,
+      )
+      expect(primary?.scope).toBe('spawned')
+      expect(primary?.workspaceId).toBe(workspace.id)
+      const segment = findChatSessionById(db, 'sdk-ws-spawned')
+      expect(segment?.workspaceId).toBe(workspace.id)
+      expect(segment?.scope).toBe('spawned')
+      expect(segment?.visibility).toBe('listed')
     })
   })
 

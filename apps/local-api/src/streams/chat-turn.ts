@@ -38,13 +38,16 @@ export async function streamChatTurn(
   c: Context<AppEnv>,
   input: StartChatTurnInput,
 ): Promise<Response> {
-  // Compose THIS chat session's MCP attachment. A workspace turn gets the full
-  // route-derived `vynel` server (auto-allowed via the `mcp__vynel__*` wildcard);
-  // a disabled capability's tools are DENIED via the descriptor's capabilityGatedTools
-  // + the enabled-capability set. The composer is the single per-turn step for
-  // servers + allow + deny; the system prompt still comes from composeSessionCapabilities
-  // below (memory snapshot etc.). Dynamic import keeps the heavy SDK out of module load.
-  const { vynelWorkspaceDescriptor } = await import('@vynel/mcp')
+  // Compose THIS chat session's MCP attachment. An INTERACTIVE workspace turn
+  // gets the full route-derived `vynel` server PLUS the session-spawning tools
+  // (Slice ④b — the interactive descriptor; background workspace turns compose
+  // `vynelWorkspaceDescriptor` and never see them), auto-allowed via the
+  // `mcp__vynel__*` wildcard; a disabled capability's tools are DENIED via the
+  // descriptor's capabilityGatedTools + the enabled-capability set. The composer
+  // is the single per-turn step for servers + allow + deny; the system prompt
+  // still comes from composeSessionCapabilities below (memory snapshot etc.).
+  // Dynamic import keeps the heavy SDK out of module load.
+  const { vynelWorkspaceInteractiveDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
   // ask_user attaches to INTERACTIVE app turns only (this stream + the global
   // chat stream) — never schedule fires or channel turns, where nobody is
@@ -73,7 +76,7 @@ export async function streamChatTurn(
   )
   const composedMcp = composeSessionMcpServers(
     [
-      vynelWorkspaceDescriptor,
+      vynelWorkspaceInteractiveDescriptor,
       notebookFeatureDescriptor,
       askFeatureDescriptor,
       ...sshFeatureDescriptors,

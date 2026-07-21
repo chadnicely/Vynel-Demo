@@ -10304,6 +10304,7 @@ export interface operations {
                 "application/json": {
                     targetSessionId: string;
                     task: string;
+                    workspaceId?: string;
                 };
             };
         };
@@ -10322,14 +10323,14 @@ export interface operations {
                     };
                 };
             };
-            /** @description Routing is only available during an active global-root turn. */
+            /** @description Routing is only available during an active creator conversation. */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Target session not found, not owned, or not a spawned session. */
+            /** @description Target session (or the given workspace) not found, not owned, or not a spawned session. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10616,6 +10617,7 @@ export interface operations {
                 "application/json": {
                     name: string;
                     purpose: string;
+                    workspaceId?: string;
                 };
             };
         };
@@ -10633,6 +10635,13 @@ export interface operations {
                         name: string;
                     };
                 };
+            };
+            /** @description workspaceId given but the workspace is unknown or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

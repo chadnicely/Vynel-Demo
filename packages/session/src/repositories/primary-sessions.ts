@@ -58,8 +58,12 @@ export type FindPrimarySessionForWorkspaceInput = {
   workspaceId: string
 }
 
-// The single live primary for a (user, workspace) — null if none exists yet.
-// The partial unique index guarantees at most one live row.
+// The single live WORKSPACE-scope primary (the workspace's brain) for a
+// (user, workspace) — null if none exists yet. The scope-gated partial unique
+// index guarantees at most one live row; the query filters scope to match
+// (Slice ④b: workspace-SPAWNED primaries also carry a workspaceId and are many
+// per workspace — without the scope filter one of them could masquerade as the
+// brain here and in getOrCreateContinuingSession's find-live).
 export function findPrimarySessionForWorkspace(
   db: Database,
   input: FindPrimarySessionForWorkspaceInput,
@@ -71,6 +75,7 @@ export function findPrimarySessionForWorkspace(
       and(
         eq(primarySessions.userId, input.userId),
         eq(primarySessions.workspaceId, input.workspaceId),
+        eq(primarySessions.scope, 'workspace'),
         isNull(primarySessions.deletedAt),
       ),
     )

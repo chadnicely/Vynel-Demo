@@ -34,6 +34,15 @@ export interface McpExtension {
    * live under `/routing/` (e.g. registering a workspace) sets this to `true`.
    */
   rootSurface?: boolean
+  /**
+   * ALSO expose this tool on WORKSPACE INTERACTIVE chat streams (session-library
+   * Slice ④b): the tool keeps whatever surface the path/rootSurface split gives
+   * it AND joins `generatedWorkspaceInteractiveMcpTools` — composed only by
+   * `vynelWorkspaceInteractiveDescriptor` (streams/chat-turn.ts). Background
+   * workspace turns (schedule fires, delegated runs) compose the plain workspace
+   * descriptor and never see these tools.
+   */
+  workspaceInteractiveSurface?: boolean
 }
 
 // The `hono-openapi` describeRoute accepts a wide options object plus

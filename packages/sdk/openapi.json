@@ -19783,10 +19783,10 @@
             }
           },
           "400": {
-            "description": "Routing is only available during an active global-root turn."
+            "description": "Routing is only available during an active creator conversation."
           },
           "404": {
-            "description": "Target session not found, not owned, or not a spawned session."
+            "description": "Target session (or the given workspace) not found, not owned, or not a spawned session."
           }
         },
         "operationId": "postRoutingDelegate-session",
@@ -19800,6 +19800,7 @@
           "exposed": true,
           "name": "send_task_to_session",
           "mutatingApproved": true,
+          "workspaceInteractiveSurface": true,
           "description": "Hand a task to a session you created with create_session (its continuing conversation, with its primed purpose and everything it has done since). Use list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to a session with room, or create a new one. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the session runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. Tasks sent to the SAME session run one at a time, in order; different sessions run in parallel. If the task needs an irreversible action, that action PAUSES for the user to approve; the task continues once they decide."
         },
         "requestBody": {
@@ -19816,6 +19817,10 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 50000
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [
@@ -20617,6 +20622,7 @@
           "exposed": true,
           "name": "list_sessions",
           "rootSurface": true,
+          "workspaceInteractiveSurface": true,
           "description": "List every session — yours (scope 'spawned' = sessions you created), the user's workspaces, and the assistant thread — with per-session context usage: contextTokens used of contextWindow. Check these numbers BEFORE choosing where to send work: a session near its window is a poor target; create a new one instead. Each entry’s sessionId is the handle send_task_to_session accepts. Read-only."
         }
       }
@@ -20650,6 +20656,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "workspaceId given but the workspace is unknown or not owned."
           }
         },
         "operationId": "postSessionsSpawned",
@@ -20664,6 +20673,7 @@
           "name": "create_session",
           "mutatingApproved": true,
           "rootSurface": true,
+          "workspaceInteractiveSurface": true,
           "description": "Create a NEW session: a normal continuing conversation with its own context, primed with the purpose you give it. Use it to hand off big or parallel work and keep your own context free — prefer send_task_to_workspace when the task belongs to a specific workspace's ongoing context, and a new session for standalone or cross-cutting work. Check list_sessions first: reuse an existing suitable session instead of creating duplicates. Returns { sessionId, name } — pass sessionId to send_task_to_session. The session appears in the user’s Sessions panel immediately."
         },
         "requestBody": {
@@ -20681,6 +20691,10 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 50000
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [
