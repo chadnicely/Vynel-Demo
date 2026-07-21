@@ -13,7 +13,9 @@ const TRACE_POLL_MS = 2_500;
 // can't extend), and — because TanStack re-evaluates refetchInterval only on
 // query updates — the keep-alive tick is also what notices a dropped stream and
 // restores fast polling.
-const TRACE_KEEP_ALIVE_MS = TRACE_POLL_MS * 4;
+// Exported: the activity monitor's session-transcript query uses the SAME
+// cadence, so a mid-turn attach unfreezes identically for both source kinds.
+export const TRACE_KEEP_ALIVE_MS = TRACE_POLL_MS * 4;
 
 export function useDelegationTrace(
   partialSessionId: MaybeRefOrGetter<string | null>,

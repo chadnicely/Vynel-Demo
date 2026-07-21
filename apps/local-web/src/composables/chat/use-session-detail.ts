@@ -2,7 +2,7 @@ import { computed, toValue } from "vue";
 import type { MaybeRefOrGetter } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { useVynel } from "../use-vynel.js";
-import { sessionKeys } from "./session-keys.js";
+import { sessionKeys, sessionScopeKey } from "./session-keys.js";
 import type { SessionScope } from "./session-scope.js";
 
 // One session's full detail (session + messages + tool calls). A workspace
@@ -21,7 +21,9 @@ export function useSessionDetail(
   const resolvedScope = computed(() => toValue(scope));
   const id = computed(() => toValue(sessionId));
   return useQuery({
-    queryKey: computed(() => sessionKeys.detail(id.value ?? "none")),
+    queryKey: computed(() =>
+      sessionKeys.detail(sessionScopeKey(resolvedScope.value), id.value ?? "none"),
+    ),
     queryFn: () => {
       const currentId = id.value;
       if (currentId === null)
