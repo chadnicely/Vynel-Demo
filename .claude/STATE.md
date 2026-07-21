@@ -3,7 +3,47 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21d): SLICE 3 SESSIONS PANEL + CONTEXT VISIBILITY BUILT — gate GREEN 2762t, reviewed CLEAN (2 should-fixes folded); NEXT: Chad smoke (Slices 2+3 together) → Slice 4 module notes (the session-library tools)
+## ⏭ NEXT ACTION (2026-07-21e): SLICE 4 SESSION TOOLS BUILT — gate GREEN 2786t, reviewed APPROVE (empirical migration round-trip; 1 spec-reconcile folded); THE SESSION-LIBRARY ARC'S TOOL LAYER IS LIVE. NEXT: Chad's big smoke (spawn sessions for real) → then candidates: workspace-root spawning · monitor arc · detached-run lease
+
+**Slice ④ built per docs/module-notes/session-tools.md (subagent-built, independently
+adversarially reviewed; the notes carry the as-built decisions + reviewer nits):**
+- **'spawned' scope** on BOTH unions (TS-only, no migration; many-per-user — deliberately no
+  liveness index). UI label "Session"; overview lists spawned entries natively.
+- **createSpawnedSession** (`@vynel/session/spawned`): the priming-seed rails reused
+  (runSeededSwapSession w/ purpose-as-seed) → primary scope 'spawned' + linked + NEW
+  recordSpawnedSessionSegment (listed, title=name, workspaceId NULL, outbox co-commit).
+  Ground = the global root's hidden cwd (fork: inherits creator; v1 global-root-only).
+- **Queue generalized — migration 0012_delegation_session_targets** (TABLE RECREATE:
+  +nullable targetPrimarySessionId, 3 workspace cols→nullable; **drizzle's generated INSERT
+  SELECT was BROKEN — selected the new column from the old table — hand-fixed**; reviewer
+  proved the round-trip empirically on a fresh DB: rows byte-identical, indexes/FKs/cascade
+  intact). enqueueSessionDelegation (exactly-one-target); claim exclusion NULL-SAFE across
+  both columns (bare NOT IN would drop every row with a NULL column — the isNull disjuncts);
+  pool key = activeTargetKeys (the recorded Slice-② rename landed).
+- **delegateToSpawnedSession** — line-for-line parity with the workspace runner (shared
+  pipeline, swap-safe resume of the spawned primary's CURRENT sdk id, mid-turn swap link,
+  stop-wins, breaker, feed scopeKind 'global', session-channel tee); both-null legacy rows
+  fail cleanly (never stuck claimed); orphaned-target → failed (tested).
+- **Tools (routing surface, global-root streams only v1):** create_session (POST
+  /sessions/spawned, UNCARDED — Apps precedent, structurally verified) · list_sessions
+  (x-mcp on GET /sessions/overview — the model reads the SAME context numbers the panel
+  shows) · send_task_to_session (POST /routing/delegate-session). **stop_session_task
+  DELIBERATELY NOT SHIPPED** (the stop route keys on partialSessionId which the model never
+  holds — notes reconciled; human stop covers session jobs, tested). 52 MCP tools, parity
+  pins updated.
+- Reviewer nits RECORDED in the notes (stale create-handle after swap — list_sessions
+  recovers · name fallbacks differ route-vs-tick · " · " in a name vs the color-key parse ·
+  tick 433 lines · create's 3 writes not one tx). Earlier same-day: model picker grew
+  FABLE 5 + thinking picker widened to ALL FIVE SDK levels (`a6d061e`, Chad); default-model
+  SETTING recorded for the settings arc.
+**⏭ CHAD SMOKE (the arc's payoff): in global chat — "create a session to research X" → a
+"Session" entry appears in the Sessions panel (named, metered) · "send that session a task"
++ delegate to a workspace simultaneously → both run (pool), reports arrive distilled ·
+same-session double-send → FIFO · Watch the spawned session's live turn · ask "which
+sessions are running low on context?" → the model reads list_sessions' numbers. Then the
+follow-on candidates above.**
+
+## (prev) NEXT ACTION (2026-07-21d): SLICE 3 SESSIONS PANEL BUILT — COMMITTED `0822f3b`+`4972d22` (+ picker catalog `a6d061e`)
 
 **Slice ③ built per docs/module-notes/sessions-panel.md (all four forks = my recommendations,
 Chad-approved; + his composer follow-up §5). Five parts:**

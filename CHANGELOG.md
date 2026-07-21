@@ -55,6 +55,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude can now spin up its own sessions.** Ask for something big and Claude can create
+  a dedicated session for it — a full conversation with its own memory and its own context
+  window — name it, hand it tasks, and keep working while it runs. Spawned sessions appear
+  in the Sessions page like any other (named, metered, watchable), several can work in
+  parallel, tasks to the same session run in order, and results come back to your chat as
+  short summaries. Claude also sees each session's context usage, so it can decide when to
+  start a fresh one instead of overfilling an old one.
+
 - **A Sessions page that shows everything Claude is doing.** A new "Sessions" section in the
   sidebar lists every conversation — the Assistant itself, each workspace, all sorted by last
   use — with a context meter on each one, a live dot when it's working, and a Watch button
