@@ -3,7 +3,28 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔵 NEXT ACTION (2026-07-21P): ARC SMOKED & CONFIRMED BY CHAD (screenshot: workspace chat → send_task_to_session → the session's report lands BACK IN THE WORKSPACE THREAD attributed + chipped; plain Home/Chat/Sessions menus live; session FIFO explained by Sarah correctly). **CHAD IS PREPARING AN ISSUE LIST "with proper instruction" — the next session's FIRST job is to receive + work that list.** Until it arrives, touch nothing new; the candidate queue (below) waits behind it.
+## ⏭ NEXT ACTION (2026-07-21Q): WATCH PIPELINE SCOPING SHIPPED — `12b90bd`; gate GREEN 2866t, reviewed CLEAN; Chad's issue list PART 1 done. NEXT: Chad re-smoke chips → then THE COMMS ARC (part 2, spec'd in the notes)
+
+**Chad's "proper instruction" arrived (2026-07-21 evening) as TWO parts, now in
+docs/module-notes/sessions-surface.md:**
+- **PART 1 BUILT (`12b90bd`): the watch PIPELINE scoping rules** — Global → Workspace →
+  Session → Agent; a thread chips ONLY its direct children, never the delegation that
+  targeted itself. Discriminator: received trace = this thread holds the key's
+  user+global-root task row (the only two writers are the target-side runners — verified
+  exhaustive). Session view = agent chips only. Panel = the pipeline drill: trace →
+  session (NEW spawnedTargetSession on the trace envelope, tenant-checked) → agent, Back
+  walks up; the monitor binds the ACTIVE node's source (baseSource→activeSource refactor,
+  reviewer-verified re-arm on Back). RECORDED: mid-turn-swap discriminator edge (notes) ·
+  duplicate "Open <session>" chips on multi-reply traces (first-only when it bites) ·
+  ThreadStream 376 lines (scroll-windowing extraction next touch) · ONE FLAKY gate run
+  seen (UNIQUE chat_sessions.id via handle-session-started under vitest parallelism —
+  passed on rerun ×2; find + fix the fixed-id seed when it recurs).
+- **PART 2 = THE COMMS ARC (next major work)**: the reverse flow — a child completing
+  reports REAL data to its requester (not "routed ✅" + a detached report later); the
+  parent is AWARE in its flow and notifies ITS parent up the chain (agent → session →
+  workspace → global). Forks to settle at arc-open are listed in the notes.**
+
+## (prev) 🔵 NEXT ACTION (2026-07-21P): ARC SMOKED & CONFIRMED BY CHAD (screenshot: workspace chat → send_task_to_session → the session's report lands BACK IN THE WORKSPACE THREAD attributed + chipped; plain Home/Chat/Sessions menus live; session FIFO explained by Sarah correctly). **CHAD IS PREPARING AN ISSUE LIST "with proper instruction" — the next session's FIRST job is to receive + work that list.** Until it arrives, touch nothing new; the candidate queue (below) waits behind it.
 
 **Candidate queue AFTER Chad's list: ① inter-session comms arc (parked in
 docs/module-notes/sessions-surface.md — open with module notes + the forks: message-vs-task
