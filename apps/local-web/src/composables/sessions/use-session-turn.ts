@@ -1,4 +1,4 @@
-import { ref, toValue, type MaybeRefOrGetter } from "vue";
+import { computed, ref, shallowRef, toValue, type MaybeRefOrGetter } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import type { ChatTurnEvent } from "@vynel/contracts/chat/chat-http";
 import type { ChatModelId } from "@vynel/contracts/chat/chat-models";
@@ -8,17 +8,17 @@ import { useActivityStore } from "../../stores/activity-store.js";
 import { readChatTurnEvents } from "../chat/chat-turn-stream.js";
 import { sessionKeys } from "../chat/session-keys.js";
 import {
-  applyTraceStreamEvent,
-  createLiveTraceState,
-} from "../delegations/fold-trace-stream.js";
+  applyChatTurnEvent,
+  createActiveTurnView,
+} from "../chat/active-turn-view.js";
+import type { ActiveTurnView } from "../chat/active-turn-view.js";
 
 // Drives one user turn INTO a spawned session (`POST /sessions/:id/turn` —
 // sessions-surface Slice ③). Same ChatTurnEvent frames as the chat turn, PLUS
 // an optional leading `turn-queued` sentinel when the turn is parked behind a
 // running delegated task (locked decision 3 — the composer says "queued", it
-// never rejects). Events fold through the monitor's own trace fold (no third
-// fold): the thread merges this overlay over `useActivityMonitor`'s entries,
-// which dedupe by id when the monitor's session channel carries the same turn.
+// never rejects). Events fold through the SAME live-turn view every chat
+// surface renders (active-turn-view → ThreadStream/LiveTurn) — no third fold.
 //
 // The sentinel is not a ChatTurnEvent kind — widen the decoded stream at the
 // transport boundary, exactly like the server's `turn-stream-ended` precedent.
@@ -34,19 +34,23 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
   const queryClient = useQueryClient();
   const activity = useActivityStore();
 
-  const state = ref(createLiveTraceState());
-  const isStreaming = ref(false);
+  /** The in-flight turn's renderable view — null when no turn is running
+   *  (ThreadStream's activeTurn contract). */
+  const view = shallowRef<ActiveTurnView | null>(null);
   /** Parked behind a running delegated task on this session — clears the
    *  moment the first real event arrives. */
   const isQueued = ref(false);
   const errorText = ref<string | null>(null);
   let abortController: AbortController | null = null;
 
+  const isStreaming = computed(
+    () => view.value !== null && view.value.status === "streaming",
+  );
+
   async function startTurn(userMessageText: string): Promise<void> {
-    if (isStreaming.value) return;
+    if (view.value !== null) return;
     const id = toValue(sessionId);
-    state.value = createLiveTraceState();
-    isStreaming.value = true;
+    view.value = createActiveTurnView();
     isQueued.value = false;
     errorText.value = null;
     activity.turnStarted();
@@ -86,8 +90,10 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
           continue;
         }
         isQueued.value = false;
+        if (view.value !== null) {
+          view.value = applyChatTurnEvent(view.value, event);
+        }
         if (event.kind === "turn-stream-ended") break;
-        state.value = applyTraceStreamEvent(state.value, event);
       }
     } catch (turnError) {
       // An abort is the user's own stop; a real drop must be SAID. Either way
@@ -99,17 +105,16 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
             : "The turn stream dropped — the reply lands in the transcript.";
       }
     } finally {
-      isStreaming.value = false;
       isQueued.value = false;
       activity.turnEnded();
       abortController = null;
     }
 
-    // Settle (the monitor's order): the persisted rows land first, then the
+    // Settle (the chat-turn order): the persisted rows land first, then the
     // overlay clears — nothing reflows to empty in between. `sessionKeys.all`
-    // also refreshes the overview, so the library's meters follow the turn.
+    // also refreshes the overview, so the library's percentages follow.
     await queryClient.invalidateQueries({ queryKey: sessionKeys.all });
-    state.value = createLiveTraceState();
+    view.value = null;
   }
 
   /** Client-side stop only — the session-turn surface has no interrupt route
@@ -119,5 +124,5 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
     abortController?.abort();
   }
 
-  return { state, isStreaming, isQueued, errorText, startTurn, interrupt };
+  return { view, isStreaming, isQueued, errorText, startTurn, interrupt };
 }

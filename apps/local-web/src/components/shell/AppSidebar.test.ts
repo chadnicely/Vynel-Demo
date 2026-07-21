@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import AppSidebar from "./AppSidebar.vue";
 
+// The sidebar is ONE plain menu list (the segmented Home/Chat pill died with
+// Chad's "no special menus" call) — the shell passes Home/Chat/Sessions as
+// ordinary items at the top of sectionItems and marks the active row.
 const sections = [
+  { id: "home", label: "Home" },
+  { id: "chat", label: "Chat" },
+  { id: "sessions", label: "Sessions" },
   { id: "channels", label: "Channels" },
   { id: "memory", label: "Memory" },
 ];
@@ -10,7 +16,6 @@ const sections = [
 function mountSidebar(overrides: Record<string, unknown> = {}) {
   return mount(AppSidebar, {
     props: {
-      surface: "chat",
       sectionTitle: "Menu",
       sectionItems: sections,
       activeSectionId: null,
@@ -20,47 +25,46 @@ function mountSidebar(overrides: Record<string, unknown> = {}) {
   });
 }
 
+function menuButtons(wrapper: ReturnType<typeof mountSidebar>) {
+  return wrapper.findAll("ul button");
+}
+
 describe("AppSidebar", () => {
-  it("renders the Home/Chat/Sessions toggle and marks the active surface", () => {
-    const wrapper = mountSidebar({ surface: "chat" });
-    const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs.map((t) => t.text())).toEqual(["Home", "Chat", "Sessions"]);
-    const active = tabs.filter((t) => t.attributes("aria-selected") === "true");
-    expect(active).toHaveLength(1);
-    expect(active[0]!.text()).toBe("Chat");
-  });
-
-  it("marks the Sessions toggle on the sessions surface", () => {
-    const wrapper = mountSidebar({ surface: "sessions" });
-    const active = wrapper
-      .findAll('[role="tab"]')
-      .filter((t) => t.attributes("aria-selected") === "true");
-    expect(active).toHaveLength(1);
-    expect(active[0]!.text()).toBe("Sessions");
-  });
-
-  it("selects neither toggle inside a workspace", () => {
-    const wrapper = mountSidebar({ surface: "workspace" });
-    const active = wrapper
-      .findAll('[role="tab"]')
-      .filter((t) => t.attributes("aria-selected") === "true");
-    expect(active).toHaveLength(0);
-  });
-
-  it("emits select-surface when a toggle is clicked", async () => {
+  it("renders every menu item as a plain row, in order — no pill toggle", () => {
     const wrapper = mountSidebar();
-    await wrapper.findAll('[role="tab"]')[0]!.trigger("click");
-    expect(wrapper.emitted("select-surface")).toEqual([["home"]]);
+    expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
+    expect(menuButtons(wrapper).map((b) => b.text())).toEqual([
+      "Home",
+      "Chat",
+      "Sessions",
+      "Channels",
+      "Memory",
+    ]);
   });
 
-  it("renders sections and emits select-section on click", async () => {
+  it("marks the active row with aria-current", () => {
+    const wrapper = mountSidebar({ activeSectionId: "sessions" });
+    const current = menuButtons(wrapper).filter(
+      (b) => b.attributes("aria-current") === "page",
+    );
+    expect(current).toHaveLength(1);
+    expect(current[0]!.text()).toBe("Sessions");
+  });
+
+  it("marks nothing when no row is active", () => {
+    const wrapper = mountSidebar({ activeSectionId: null });
+    const current = menuButtons(wrapper).filter(
+      (b) => b.attributes("aria-current") === "page",
+    );
+    expect(current).toHaveLength(0);
+  });
+
+  it("emits select-section for any row, surface items included", async () => {
     const wrapper = mountSidebar();
-    const sectionButtons = wrapper
-      .findAll("button")
-      .filter((b) => ["Channels", "Memory"].includes(b.text()));
-    expect(sectionButtons).toHaveLength(2);
-    await sectionButtons[0]!.trigger("click");
-    expect(wrapper.emitted("select-section")).toEqual([["channels"]]);
+    const buttons = menuButtons(wrapper);
+    await buttons[0]!.trigger("click");
+    await buttons[3]!.trigger("click");
+    expect(wrapper.emitted("select-section")).toEqual([["home"], ["channels"]]);
   });
 
   it("emits open-account from the account row", async () => {

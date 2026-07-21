@@ -1,19 +1,24 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ArrowLeft } from "lucide-vue-next";
 import { PresenceDot } from "@vynel/ui";
-import { useActivityMonitor } from "../../composables/activity/use-activity-monitor.js";
-import { useSessionTurn } from "../../composables/sessions/use-session-turn.js";
-import { mergeTraceEntries } from "../../composables/delegations/fold-trace-stream.js";
-import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
-import ActivityEntriesList from "../activity/ActivityEntriesList.vue";
+import ThreadStream from "../chat/ThreadStream.vue";
 import AppComposer from "../chat/AppComposer.vue";
+import QueuedMessageChips from "../chat/QueuedMessageChips.vue";
+import { useSessionDetail } from "../../composables/chat/use-session-detail.js";
+import { useSessionTurn } from "../../composables/sessions/use-session-turn.js";
+import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
+import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
+import { useActivityStore } from "../../stores/activity-store.js";
+import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
+import { formatSdkError } from "../../utils/format-sdk-error.js";
 
-// One session's FULL chat-style view inside the Sessions library (Slice ③):
-// the settled transcript + live overlay through the ONE monitor seam, plus a
-// composer when the session is directly chattable (a spawned session's chain
-// head). Superseded chain parts and primary transcripts render view-only —
-// the host says where chat continues.
+// A session opened from the Sessions list renders as a NORMAL CHAT — the same
+// ThreadStream/MessageRow path the continue-session chats use (Chad: "no
+// special menus, it's simple"). Settled rows come from the session detail
+// (`root.getSession` — owner-gated, any scope); a composer-driven turn streams
+// through the shared live-turn view. A composer appears only when the session
+// is directly chattable (a spawned chain head — locked decisions 1–3);
+// superseded chain parts render view-only with the head hint.
 const props = defineProps<{
   sessionId: string;
   title: string;
@@ -23,36 +28,52 @@ const props = defineProps<{
   viewOnlyNote: string | null;
 }>();
 
-const emit = defineEmits<{
-  back: [];
-}>();
-
+const activity = useActivityStore();
 const activityMonitor = useActivityMonitorStore();
-
-// The monitor renders history + the session channel's live turns (a delegated
-// task streaming into this session shows up here without any wiring). The
-// composer's own turn folds beside it; the id-dedupe merge keeps one list.
-const monitor = useActivityMonitor(() => ({
-  kind: "session" as const,
-  id: props.sessionId,
-}));
 const turn = useSessionTurn(() => props.sessionId);
 
-const entries = computed(() =>
-  mergeTraceEntries(monitor.entries.value, turn.state.value.entries),
+// A turn running in this session OUTSIDE this composer (a delegated task, a
+// queued job draining) — reported by the activity feed with the session's sdk
+// id. While one runs, poll the thread so its rows appear live (the views'
+// liveness rule; rows persist per chunk server-side).
+// KNOWN + ACCEPTED (reviewer note): both this match and the host's pane key
+// are the OPENED segment id — a mid-turn compaction swap moves the chain onto
+// a fresh segment this pane doesn't track, so the poll stops and the thread
+// freezes until the session is reopened from the list (which always resolves
+// the current head). Rare, self-healing on reopen; re-keying live would need
+// the overview refetch loop wired through the pane.
+const hasBackgroundTurnHere = computed(() =>
+  Object.values(activity.serverTurns).some(
+    (serverTurn) => serverTurn.sessionId === props.sessionId,
+  ),
 );
-const agentActivity = computed(() => ({
-  ...monitor.agentActivity.value,
-  ...turn.state.value.agentActivity,
-}));
-const pendingApprovalToolName = computed(
-  () =>
-    turn.state.value.pendingApprovalToolName ??
-    monitor.pendingApprovalToolName.value,
+
+const detailQuery = useSessionDetail(
+  { kind: "global" },
+  () => props.sessionId,
+  () => (hasBackgroundTurnHere.value && !turn.isStreaming.value ? 4000 : false),
 );
-const isStreaming = computed(
-  () => turn.isStreaming.value || monitor.isStreaming.value,
+const messages = computed(() => detailQuery.data.value?.messages ?? []);
+const toolCallsByMessageId = computed(
+  () => detailQuery.data.value?.toolCallsByMessageId ?? {},
 );
+
+const decideApproval = useDecideApproval();
+
+function onDecideApproval(
+  approvalRequestId: string,
+  decision: "approved" | "denied",
+) {
+  decideApproval.mutate(
+    decision === "approved"
+      ? { providerApprovalId: approvalRequestId, kind: "approved" }
+      : {
+          providerApprovalId: approvalRequestId,
+          kind: "denied",
+          reason: "Denied from chat.",
+        },
+  );
+}
 
 // The composer runs text-only (`allow-attachments=false` — the session-turn
 // route takes no files), so a send is always just its text.
@@ -60,45 +81,31 @@ function sendMessage(text: string) {
   void turn.startTurn(text);
 }
 
-// An agent drill-down opens the shared monitor overlay focused on that agent
-// (the same node stack every Watch surface uses).
-function watchAgent(toolUseId: string) {
-  activityMonitor.openSession(props.sessionId, props.title);
-  activityMonitor.focusAgent(toolUseId);
-}
+// Mid-turn sends QUEUE and fire in order as each turn settles (the chat views'
+// contract — ChatComposer clears the draft on emit, so the host must never
+// drop a send). Text-only surface: the attachments half rides along empty.
+const queuedSend = useQueuedSend(turn.view, sendMessage);
 </script>
 
 <template>
   <div class="session-thread">
-    <header class="thread-header">
-      <button
-        type="button"
-        class="back-button"
-        aria-label="Back to all sessions"
-        @click="emit('back')"
-      >
-        <ArrowLeft :size="14" />
-        Sessions
-      </button>
-      <p class="thread-title">{{ props.title }}</p>
-      <PresenceDot v-if="isStreaming" state="live" label="live" />
-    </header>
-
     <div class="thread-body">
-      <!-- Only the MONITOR's error belongs to the list (its states are
-           exclusive — a composer-turn failure must never blank the
-           transcript); the turn's own error renders beside the composer. -->
-      <ActivityEntriesList
-        kind="session"
-        :entries="entries"
-        :agent-activity="agentActivity"
-        :pending-approval-tool-name="pendingApprovalToolName"
-        :error-text="monitor.errorText.value"
-        :is-loading="false"
-        :is-working="false"
-        :is-streaming="isStreaming"
-        :has-ended="monitor.hasEnded.value"
-        @watch-agent="watchAgent"
+      <p v-if="detailQuery.isPending.value" class="state-note">Loading…</p>
+      <!-- A failed transcript read must be SAID — an empty thread over a live
+           composer would read as a blank conversation. -->
+      <p v-else-if="detailQuery.isError.value" class="state-note is-error">
+        {{ formatSdkError(detailQuery.error.value) }}
+      </p>
+      <ThreadStream
+        v-else
+        class="thread-slot"
+        :messages="messages"
+        :tool-calls-by-message-id="toolCallsByMessageId"
+        :active-turn="turn.view.value"
+        :assistant-name="props.title"
+        @decide-approval="onDecideApproval"
+        @open-session="activityMonitor.openTrace"
+        @watch-agent="activityMonitor.openAgentDirect"
       />
     </div>
 
@@ -107,6 +114,10 @@ function watchAgent(toolUseId: string) {
     </p>
 
     <footer v-if="props.chattable" class="composer-dock">
+      <QueuedMessageChips
+        :queued="queuedSend.queued.value"
+        @remove="queuedSend.removeQueued"
+      />
       <p v-if="turn.isQueued.value" class="queued-note">
         <PresenceDot state="live" />
         Working on a task — your message is queued.
@@ -118,7 +129,7 @@ function watchAgent(toolUseId: string) {
         :streaming="turn.isStreaming.value"
         :placeholder="`Message ${props.title}…`"
         :allow-attachments="false"
-        @send="sendMessage"
+        @send="queuedSend.submit"
         @interrupt="turn.interrupt"
       />
     </footer>
@@ -134,57 +145,24 @@ function watchAgent(toolUseId: string) {
   background: var(--bg-shell);
 }
 
-.thread-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 24px;
-  border-bottom: 1px solid var(--hair);
-}
-
-.back-button {
-  appearance: none;
-  border: 1px solid var(--hair);
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
-  border-radius: 99px;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 11.5px/1.5 var(--font-ui);
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.back-button:hover {
-  color: var(--ink-1);
-  border-color: var(--hair-strong);
-  background: var(--row-hover);
-}
-
-.back-button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
-}
-
-.thread-title {
-  margin: 0;
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ink-1);
-  font: 600 13px/1.5 var(--font-ui);
-}
-
 .thread-body {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  padding: 18px 24px;
+}
+
+.thread-slot {
+  height: 100%;
+}
+
+.state-note {
+  margin: 16px 0 0;
+  text-align: center;
+  color: var(--ink-3);
+  font: 400 12.5px/1.6 var(--font-ui);
+}
+
+.state-note.is-error {
+  color: var(--danger);
 }
 
 /* Locked decision 2 made visible: a dead chain part never grows a composer —

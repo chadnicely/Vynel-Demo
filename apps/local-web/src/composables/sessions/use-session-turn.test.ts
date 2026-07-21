@@ -95,17 +95,19 @@ describe("useSessionTurn", () => {
     });
     await settle();
     expect(turn().isQueued.value).toBe(false);
-    expect(turn().state.value.entries).toHaveLength(1);
-    expect(turn().state.value.entries[0]!.body).toBe("Three tiers.");
+    // The SHARED live-turn view (active-turn-view) carries the streamed text.
+    expect(turn().view.value?.segments).toHaveLength(1);
+    expect(turn().view.value?.segments[0]!.text).toBe("Three tiers.");
 
     handle.push("turn-stream-ended", {});
     handle.close();
     await started;
 
-    // Settled clean: overlay swapped for the (refetched) persisted rows.
+    // Settled clean: the view clears AFTER the refetch lands (the chat-turn
+    // order — nothing reflows to empty in between).
     expect(turn().isStreaming.value).toBe(false);
     expect(turn().errorText.value).toBeNull();
-    expect(turn().state.value.entries).toHaveLength(0);
+    expect(turn().view.value).toBeNull();
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["chat-sessions"],
     });

@@ -89,28 +89,50 @@ async function mountShell(initialPath = "/") {
   return { wrapper, router };
 }
 
+/** The sidebar's plain menu rows (the segmented pill died — Chad's "no
+ *  special menus"): Home / Chat / Sessions lead the one list. */
+function menuItems(wrapper: Awaited<ReturnType<typeof mountShell>>["wrapper"]) {
+  return wrapper.findAll("nav ul button");
+}
+
+function menuItem(
+  wrapper: Awaited<ReturnType<typeof mountShell>>["wrapper"],
+  label: string,
+) {
+  return menuItems(wrapper).find((button) => button.text() === label);
+}
+
+function currentMenuItems(
+  wrapper: Awaited<ReturnType<typeof mountShell>>["wrapper"],
+) {
+  return menuItems(wrapper).filter(
+    (button) => button.attributes("aria-current") === "page",
+  );
+}
+
 describe("app shell", () => {
-  // The shell was reinvented into a desktop layout: the sidebar carries a
-  // Home/Chat/Sessions mode toggle (no "Workspace" tab — a room is entered via
-  // the title-bar workspace switcher). These tests track that model.
-  it("redirects / to Home and shows the Home/Chat/Sessions toggle", async () => {
+  // The shell was reinvented into a desktop layout: Home / Chat / Sessions are
+  // ORDINARY sidebar menu items at the top of the one list — no pill toggle,
+  // no "Workspace" tab (a room is entered via the title-bar switcher).
+  it("redirects / to Home; the menu leads with Home, Chat, Sessions as plain items", async () => {
     const { wrapper, router } = await mountShell();
 
     expect(router.currentRoute.value.name).toBe("home");
-    const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs.map((tab) => tab.text())).toEqual(["Home", "Chat", "Sessions"]);
+    expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
+    expect(
+      menuItems(wrapper)
+        .slice(0, 3)
+        .map((button) => button.text()),
+    ).toEqual(["Home", "Chat", "Sessions"]);
     expect(wrapper.text()).toContain(
       "everything your assistant does shows up here",
     );
   });
 
-  it("clicking the Chat toggle swaps the routed view", async () => {
+  it("clicking the Chat menu item swaps the routed view", async () => {
     const { wrapper, router } = await mountShell();
 
-    const chatTab = wrapper
-      .findAll('[role="tab"]')
-      .find((tab) => tab.text() === "Chat");
-    await chatTab!.trigger("click");
+    await menuItem(wrapper, "Chat")!.trigger("click");
     // The navigation lazy-loads the view chunk — settle the dynamic import first.
     await vi.dynamicImportSettled();
     await flushPromises();
@@ -125,13 +147,10 @@ describe("app shell", () => {
     expect(wrapper.text()).toContain("Reachable on");
   });
 
-  it("clicking the Sessions toggle routes to the session library", async () => {
+  it("clicking the Sessions menu item routes to the session library", async () => {
     const { wrapper, router } = await mountShell();
 
-    const sessionsTab = wrapper
-      .findAll('[role="tab"]')
-      .find((tab) => tab.text() === "Sessions");
-    await sessionsTab!.trigger("click");
+    await menuItem(wrapper, "Sessions")!.trigger("click");
     await vi.dynamicImportSettled();
     await flushPromises();
 
@@ -141,45 +160,42 @@ describe("app shell", () => {
     expect(wrapper.text()).toContain("No conversations yet");
   });
 
-  it("marks the toggle for the current global surface", async () => {
-    const { wrapper } = await mountShell("/chat");
+  it("marks the menu row for the current surface — Home, Chat, Sessions", async () => {
+    const home = await mountShell("/home");
+    expect(currentMenuItems(home.wrapper).map((b) => b.text())).toEqual([
+      "Home",
+    ]);
 
-    const selected = wrapper
-      .findAll('[role="tab"]')
-      .filter((tab) => tab.attributes("aria-selected") === "true");
-    expect(selected).toHaveLength(1);
-    expect(selected[0]!.text()).toBe("Chat");
+    const chat = await mountShell("/chat");
+    expect(currentMenuItems(chat.wrapper).map((b) => b.text())).toEqual([
+      "Chat",
+    ]);
+
+    const sessions = await mountShell("/sessions");
+    expect(currentMenuItems(sessions.wrapper).map((b) => b.text())).toEqual([
+      "Sessions",
+    ]);
   });
 
-  it("marks the Sessions toggle on the session library", async () => {
-    const { wrapper } = await mountShell("/sessions");
-
-    const selected = wrapper
-      .findAll('[role="tab"]')
-      .filter((tab) => tab.attributes("aria-selected") === "true");
-    expect(selected).toHaveLength(1);
-    expect(selected[0]!.text()).toBe("Sessions");
-  });
-
-  it("selects neither toggle inside a workspace (the switcher carries the scope)", async () => {
+  it("marks no menu row inside a workspace thread (the switcher carries the scope)", async () => {
     const { wrapper } = await mountShell("/workspace");
 
-    const selected = wrapper
-      .findAll('[role="tab"]')
-      .filter((tab) => tab.attributes("aria-selected") === "true");
-    expect(selected).toHaveLength(0);
+    expect(currentMenuItems(wrapper)).toHaveLength(0);
   });
 
-  it("the trio still renders inside a workspace, and Sessions opens the room's library", async () => {
+  it("the trio still leads the menu inside a workspace, and Sessions opens the room's library", async () => {
     const { wrapper, router } = await mountShell("/workspace");
 
-    const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs.map((tab) => tab.text())).toEqual(["Home", "Chat", "Sessions"]);
+    expect(
+      menuItems(wrapper)
+        .slice(0, 3)
+        .map((button) => button.text()),
+    ).toEqual(["Home", "Chat", "Sessions"]);
 
     // No workspace exists in this harness (empty list), so the scope resolves
     // global — the point pinned here is the ROUTING, per-scope filtering is
     // pinned in sessions-view.test.ts.
-    await tabs[2]!.trigger("click");
+    await menuItem(wrapper, "Sessions")!.trigger("click");
     await vi.dynamicImportSettled();
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("sessions");

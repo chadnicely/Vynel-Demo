@@ -140,12 +140,10 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         :default-width="230"
       >
         <AppSidebar
-          :surface="surface"
           :section-title="sectionTitle"
           :section-items="sectionItems"
           :active-section-id="activeSection"
           :account-name="accountName"
-          @select-surface="selectSurface"
           @select-section="(id) => (activeSection = id)"
           @open-account="lastAction = 'open-account'"
         />

@@ -8,40 +8,28 @@ import type {
   SessionsOverviewSegment,
 } from "@vynel/contracts/chat/sessions-overview";
 import { useSessionsOverview } from "../composables/sessions/use-sessions-overview.js";
-import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useActivityStore } from "../stores/activity-store.js";
-import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
-import SectionHeader from "../components/sections/SectionHeader.vue";
 import SessionRow from "../components/sessions/SessionRow.vue";
 import SessionThreadView from "../components/sessions/SessionThreadView.vue";
-import { sessionScopeLabel } from "../components/sessions/session-scope-label.js";
 
-// The Sessions view — the routed session library (Home | Chat | Sessions).
-// Lists every session in the CURRENT scope, newest first: in a workspace
-// (`?workspace=<id>`) the room's primary chain + its spawned children; in
-// global, everything. Opening an entry:
-//   - a spawned session → the full thread view, directly chattable (head);
-//   - a chain part that was superseded → the thread view, read-only
-//     (locked decision 2 — chat always lands on the head);
-//   - a global/workspace PRIMARY → its chat IS the Chat nav; navigate there.
+// The Sessions view (Home | Chat | Sessions) — the OLD Conversations-panel
+// shape, kept simple (Chad): a narrow list of plain rows beside the canvas,
+// and the selected session opened as a normal chat. Scope:
+//   - global — ONLY the global root's own child sessions (spawned,
+//     workspace-less); workspace sessions live in their room, and the brain's
+//     own thread IS the Chat nav.
+//   - a workspace (`?workspace=<id>`) — the room's conversation + its sessions.
+// Opening: a spawned session chats directly at its head; a superseded chain
+// part is view-only (locked decision 2); a primary routes to its Chat.
 const route = useRoute();
 const router = useRouter();
 const ui = useUiStore();
 const activity = useActivityStore();
-const activityMonitor = useActivityMonitorStore();
 
 const workspaceScopeId = computed(() =>
   typeof route.query.workspace === "string" ? route.query.workspace : null,
-);
-
-const workspacesQuery = useWorkspaceList();
-const scopeWorkspaceName = computed(
-  () =>
-    (workspacesQuery.data.value ?? []).find(
-      (workspace) => workspace.id === workspaceScopeId.value,
-    )?.name ?? null,
 );
 
 const overviewQuery = useSessionsOverview(true, () =>
@@ -51,10 +39,16 @@ const overviewQuery = useSessionsOverview(true, () =>
 const entries = computed<SessionsOverviewEntry[]>(() => {
   const all = overviewQuery.data.value ?? [];
   const scopeId = workspaceScopeId.value;
-  if (scopeId === null) return all;
-  // The room's own sessions: its primary chain and the spawned sessions
-  // grounded in it — both carry the workspace id on their overview entry.
-  return all.filter((entry) => entry.workspaceId === scopeId);
+  if (scopeId !== null) {
+    // The room's own sessions: its primary chain and the spawned sessions
+    // grounded in it — both carry the workspace id on their overview entry.
+    return all.filter((entry) => entry.workspaceId === scopeId);
+  }
+  // Global: only the root's own children. The Assistant thread is the Chat
+  // nav; workspace conversations belong to their rooms.
+  return all.filter(
+    (entry) => entry.scope === "spawned" && entry.workspaceId === null,
+  );
 });
 
 const errorText = computed(() =>
@@ -63,17 +57,21 @@ const errorText = computed(() =>
     : null,
 );
 
-const subtitle = computed(() =>
-  workspaceScopeId.value === null
-    ? "Every conversation, how much room it has left, and what's running now"
-    : `Everything running in ${scopeWorkspaceName.value ?? "this workspace"} — its conversation and its sessions`,
-);
-
+/** A turn running in this entry's session right now: its room's turn for the
+ *  workspace conversation, or (any scope) a server turn on one of the entry's
+ *  chain segments — how a spawned session's delegated task lights the dot. */
 function isWorking(entry: SessionsOverviewEntry): boolean {
-  if (entry.scope === "global") return activity.hasGlobalServerTurn;
-  if (entry.scope === "workspace" && entry.workspaceId !== null)
-    return activity.hasServerTurnInWorkspace(entry.workspaceId);
-  return false;
+  if (
+    entry.scope === "workspace" &&
+    entry.workspaceId !== null &&
+    activity.hasServerTurnInWorkspace(entry.workspaceId)
+  ) {
+    return true;
+  }
+  const segmentIds = new Set(entry.segments.map((segment) => segment.sessionId));
+  return Object.values(activity.serverTurns).some(
+    (turn) => turn.sessionId !== null && segmentIds.has(turn.sessionId),
+  );
 }
 
 // ── Opening ────────────────────────────────────────────────────────
@@ -92,20 +90,10 @@ watch(workspaceScopeId, () => {
   openThread.value = null;
 });
 
-function primaryViewOnlyNote(entry: SessionsOverviewEntry): string {
-  return entry.scope === "global"
-    ? "This part of the conversation was continued — chat carries on in Chat."
-    : "This part of the conversation was continued — chat carries on in this workspace's Chat.";
-}
-
+// No 'global' branch: the filters above keep the brain's thread off this list
+// entirely (its chat IS the Chat nav) — only rooms and spawned/agent sessions
+// can arrive here.
 function openEntry(entry: SessionsOverviewEntry) {
-  if (entry.scope === "global") {
-    // The brain's chat IS the Chat nav — no second composer onto one thread.
-    ui.globalChat.target = "continuous";
-    ui.globalChat.mainView = "chat";
-    void router.push({ name: "chat" });
-    return;
-  }
   if (entry.scope === "workspace") {
     if (entry.workspaceId !== null) ui.activeWorkspaceId = entry.workspaceId;
     ui.workspaceChat.target = "continuous";
@@ -140,83 +128,131 @@ function openSegment(
     title: `${entry.title} · earlier part`,
     chattable: false,
     viewOnlyNote:
-      entry.scope === "spawned" || entry.scope === "agent"
-        ? "This part of the conversation was continued — chat carries on at the newest part."
-        : primaryViewOnlyNote(entry),
+      entry.scope === "workspace"
+        ? "This part of the conversation was continued — chat carries on in this workspace's Chat."
+        : "This part of the conversation was continued — chat carries on at the newest part.",
   };
-}
-
-function openWatch(entry: SessionsOverviewEntry) {
-  activityMonitor.openSession(
-    entry.sessionId,
-    `${sessionScopeLabel(entry)} · ${entry.title}`,
-  );
 }
 </script>
 
 <template>
-  <SessionThreadView
-    v-if="openThread"
-    :session-id="openThread.sessionId"
-    :title="openThread.title"
-    :chattable="openThread.chattable"
-    :view-only-note="openThread.viewOnlyNote"
-    @back="openThread = null"
-  />
+  <div class="sessions-view">
+    <aside class="sessions-list">
+      <header class="panel-header">
+        <p class="panel-title">Sessions</p>
+      </header>
 
-  <div v-else class="sessions-view">
-    <div class="sessions-column flex flex-col gap-2.5">
-      <SectionHeader :icon="History" title="Sessions" :subtitle="subtitle" />
+      <div class="list-body">
+        <p v-if="overviewQuery.isPending.value" class="state-note">
+          Loading conversations…
+        </p>
 
-      <p
-        v-if="overviewQuery.isPending.value"
-        class="state-note m-0 text-center text-xs text-ink-3"
-      >
-        Loading conversations…
-      </p>
+        <p v-else-if="errorText" class="error-note">{{ errorText }}</p>
 
-      <p
-        v-else-if="errorText"
-        class="error-note m-0 text-center text-xs text-danger"
-      >
-        {{ errorText }}
-      </p>
+        <p v-else-if="entries.length === 0" class="state-note">
+          No conversations yet — sessions you spin up land here.
+        </p>
 
-      <EmptyState
-        v-else-if="entries.length === 0"
-        title="No conversations yet"
-        hint="Start talking to Claude and every conversation shows up here."
-      >
-        <template #icon>
-          <History :size="22" />
+        <template v-else>
+          <SessionRow
+            v-for="entry in entries"
+            :key="entry.sessionId"
+            :entry="entry"
+            :is-active="openThread?.sessionId === entry.sessionId"
+            :is-working="isWorking(entry)"
+            @open="openEntry(entry)"
+            @open-segment="(segment) => openSegment(entry, segment)"
+          />
         </template>
-      </EmptyState>
-
-      <div v-else class="rows flex flex-col gap-2">
-        <SessionRow
-          v-for="entry in entries"
-          :key="entry.sessionId"
-          :entry="entry"
-          :is-working="isWorking(entry)"
-          @open="openEntry(entry)"
-          @open-segment="(segment) => openSegment(entry, segment)"
-          @watch="openWatch(entry)"
-        />
       </div>
-    </div>
+    </aside>
+
+    <main class="session-pane">
+      <SessionThreadView
+        v-if="openThread"
+        :key="openThread.sessionId"
+        :session-id="openThread.sessionId"
+        :title="openThread.title"
+        :chattable="openThread.chattable"
+        :view-only-note="openThread.viewOnlyNote"
+      />
+      <div v-else class="pane-empty">
+        <EmptyState
+          title="Pick a session"
+          hint="Open one from the list to read it — and talk to it right there."
+        >
+          <template #icon>
+            <History :size="22" />
+          </template>
+        </EmptyState>
+      </div>
+    </main>
   </div>
 </template>
 
 <style scoped>
 .sessions-view {
   height: 100%;
-  overflow-y: auto;
+  display: flex;
+  min-height: 0;
   background: var(--bg-shell);
 }
 
-.sessions-column {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 44px 40px;
+/* The old Conversations-panel shape: a narrow plain list beside the canvas. */
+.sessions-list {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  width: 280px;
+  flex: none;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--hair);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.panel-title {
+  margin: 0;
+  color: var(--ink-2);
+  font: 600 12px/1.5 var(--font-ui);
+}
+
+.list-body {
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.state-note {
+  margin: 16px 8px 0;
+  text-align: center;
+  color: var(--ink-3);
+  font: 400 12px/1.5 var(--font-ui);
+}
+
+.error-note {
+  margin: 16px 8px 0;
+  text-align: center;
+  color: var(--danger);
+  font: 400 12px/1.5 var(--font-ui);
+}
+
+.session-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pane-empty {
+  height: 100%;
+  display: grid;
+  place-items: center;
 }
 </style>

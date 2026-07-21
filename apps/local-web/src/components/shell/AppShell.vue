@@ -8,7 +8,9 @@ import {
   CalendarClock,
   FolderTree,
   History,
+  House,
   ListChecks,
+  MessageCircle,
   Radio,
   Server,
   Settings2,
@@ -129,13 +131,19 @@ const openTaskCount = computed(
       .length,
 );
 
-// ── Sidebar sections (contextual to the scope). Icons come from the app so
-// @vynel/ui stays icon-set-free. ──
+// ── Sidebar menu (contextual to the scope). Icons come from the app so
+// @vynel/ui stays icon-set-free. Home / Chat / Sessions are ORDINARY menu
+// items at the top (Chad killed the segmented pill — "no special menus");
+// they behave exactly as the pill did, in both scopes. ──
+const SURFACE_ITEMS: SidebarItem[] = [
+  { id: "home", label: "Home", icon: House },
+  { id: "chat", label: "Chat", icon: MessageCircle },
+  { id: "sessions", label: "Sessions", icon: History },
+];
 const GLOBAL_SECTIONS: SidebarItem[] = [
   { id: "channels", label: "Channels", icon: Radio },
   { id: "schedules", label: "Schedules", icon: CalendarClock },
   { id: "tasks", label: "Tasks", icon: ListChecks },
-  { id: "sessions", label: "Sessions", icon: History },
   { id: "ssh-servers", label: "Servers", icon: Server },
   { id: "knowledge", label: "Knowledge", icon: FolderTree },
   { id: "memory", label: "Memory", icon: Brain },
@@ -169,22 +177,25 @@ const WORKSPACE_SECTION_ITEMS: SidebarItem[] = WORKSPACE_SECTIONS.map(
       : { id: section.id, label: section.label };
   },
 );
-const sectionItems = computed(() =>
-  inWorkspaceScope.value ? WORKSPACE_SECTION_ITEMS : GLOBAL_SECTIONS,
-);
+const sectionItems = computed(() => [
+  ...SURFACE_ITEMS,
+  ...(inWorkspaceScope.value ? WORKSPACE_SECTION_ITEMS : GLOBAL_SECTIONS),
+]);
 const sectionTitle = computed(() =>
   inWorkspaceScope.value
     ? (activeWorkspaceName.value ?? "Workspace")
     : "Menu",
 );
 const activeSectionId = computed(() => {
-  if (surface.value === "home") return null;
-  // On the global library the menu's own Sessions entry lights up (the
-  // workspace section list has no sessions item — nothing to mark there).
-  if (surface.value === "sessions")
-    return sessionsWorkspaceId.value === null ? "sessions" : null;
+  if (surface.value === "home") return "home";
+  if (surface.value === "sessions") return "sessions";
   const view = scopeShell.value.mainView;
-  return typeof view === "string" && view !== "chat" ? view : null;
+  if (typeof view !== "string") return null;
+  if (view !== "chat") return view;
+  // The thread itself: the global chat marks the Chat item; a workspace
+  // thread marks nothing — the menu's Chat item leads to the GLOBAL chat
+  // (the pill's behavior), so lighting it there would mislead.
+  return surface.value === "chat" ? "chat" : null;
 });
 
 // ── Navigation handlers (write shared ui-store + route; the views react). ──
@@ -223,11 +234,11 @@ function selectGlobal() {
 }
 // Only the workspace sections live on a workspace; global-only views (account,
 // application) always route to the global chat surface — otherwise a workspace
-// canvas can't render them and silently falls back to the thread. The menu's
-// Sessions entry is a slim doorway into the routed library.
+// canvas can't render them and silently falls back to the thread. Home / Chat /
+// Sessions are ordinary menu rows that route like the old pill did.
 function selectSection(id: string) {
-  if (id === "sessions") {
-    openSessions();
+  if (id === "home" || id === "chat" || id === "sessions") {
+    selectSurface(id);
     return;
   }
   if (inWorkspaceScope.value && WORKSPACE_SECTION_IDS.has(id)) {
@@ -363,12 +374,10 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
         :max-width="380"
       >
         <AppSidebar
-          :surface="surface"
           :section-title="sectionTitle"
           :section-items="sectionItems"
           :active-section-id="activeSectionId"
           :account-name="accountName"
-          @select-surface="selectSurface"
           @select-section="selectSection"
           @open-account="openAccount"
         />

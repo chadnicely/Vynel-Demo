@@ -1,9 +1,11 @@
-// The routed session library (sessions-surface Slice ③b): scope-filtered
-// listing, the open decisions (spawned → chattable thread · superseded chain
-// part → view-only · primary → its Chat), the session-turn composer over
-// `POST /sessions/:id/turn` (queued sentinel included), and the coverage
-// carried over from the retired left-nav SessionsSection (identity labels,
-// context meter, working dot, Watch → the monitor store).
+// The routed session library (sessions-surface Slice ③b, simplified layout):
+// the two-pane Conversations-panel shape — plain list rows (name, time, small
+// context %, working dot) beside the selected session rendered as a NORMAL
+// chat (ThreadStream). Pins: the scope filters (global = ONLY the root's own
+// child sessions; a workspace = its conversation + its sessions), the open
+// decisions (spawned → chattable · superseded part → view-only · primary →
+// its Chat), the session-turn composer (queued sentinel, error notes), and
+// the carried list intents (percent-hidden-until-usage, chain pins).
 
 import { describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
@@ -14,7 +16,6 @@ import { vynelClientKey } from "../plugins/vynel-client.js";
 import type { VynelClient } from "@vynel/sdk";
 import type { SessionsOverviewEntry } from "@vynel/contracts/chat/sessions-overview";
 import { useActivityStore } from "../stores/activity-store.js";
-import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import SessionsView from "./SessionsView.vue";
 
@@ -24,7 +25,7 @@ function sseFrame(kind: string, payload: object): Uint8Array {
   );
 }
 
-/** A controllable SSE body: the test pushes frames / closes. */
+/** A controllable SSE body: the test pushes frames / fails / closes. */
 function makeStreamHandle() {
   let controller!: ReadableStreamDefaultController<Uint8Array>;
   const stream = new ReadableStream<Uint8Array>({
@@ -45,8 +46,8 @@ function makeSegment(
   overrides: Partial<SessionsOverviewEntry["segments"][number]> = {},
 ) {
   return {
-    sessionId: "seg-1",
-    title: "Ongoing conversation",
+    sessionId: "sp-1",
+    title: "Research: pricing",
     startedAt: "2026-07-20T10:00:00.000Z",
     lastMessageAt: "2026-07-21T10:00:00.000Z",
     contextTokens: 40_000,
@@ -56,15 +57,16 @@ function makeSegment(
   };
 }
 
+/** A spawned, global-grounded entry — the global list's native citizen. */
 function makeEntry(
   overrides: Partial<SessionsOverviewEntry> = {},
 ): SessionsOverviewEntry {
   return {
-    sessionId: "seg-1",
-    scope: "global",
+    sessionId: "sp-1",
+    scope: "spawned",
     workspaceId: null,
     workspaceName: null,
-    title: "Ongoing conversation",
+    title: "Research: pricing",
     model: "claude-opus-4-8",
     contextTokens: 40_000,
     contextWindow: 200_000,
@@ -74,15 +76,24 @@ function makeEntry(
   };
 }
 
+/** Full wire-shaped message rows — MessageRow renders the real contract. */
 function makeTranscript(messages: Array<{ id: string; body: string }>) {
   return {
     session: { id: "sdk-1" },
     messages: messages.map((message) => ({
       id: message.id,
+      sessionId: "sp-1",
       role: "assistant",
-      sourceKind: null,
-      sourceLabel: null,
       body: message.body,
+      thinkingBody: null,
+      inputTokens: null,
+      outputTokens: null,
+      attachedImagesMetadata: null,
+      errorCode: null,
+      errorMessage: null,
+      startedAt: "2026-07-21T09:00:00.000Z",
+      completedAt: "2026-07-21T09:00:01.000Z",
+      createdAt: "2026-07-21T09:00:00.000Z",
     })),
     toolCallsByMessageId: {},
   };
@@ -95,11 +106,15 @@ async function mountView(
     onTurnRequest?: () => ReadableStream<Uint8Array>;
     /** Overrides the turn POST's response envelope (e.g. a stale-handle 404). */
     turnResponse?: { ok: boolean; status: number };
+    /** The transcript read fails (stale handle, deleted session). */
+    detailError?: string;
   } = {},
 ) {
-  const getSession = vi.fn(async () =>
-    makeTranscript([{ id: "m-1", body: "Earlier findings." }]),
-  );
+  const getSession = vi.fn(async () => {
+    if (options.detailError !== undefined)
+      throw new Error(options.detailError);
+    return makeTranscript([{ id: "m-1", body: "Earlier findings." }]);
+  });
   const turnCalls: Array<{ path: string; init: Record<string, unknown> }> = [];
   const POST = vi.fn(async (path: string, init: Record<string, unknown>) => {
     turnCalls.push({ path, init });
@@ -110,21 +125,7 @@ async function mountView(
   });
   const client = {
     sessions: { overview: async () => entries },
-    workspaces: {
-      list: async () => [
-        { id: "w1", name: "Marketing", isArchived: false },
-        { id: "w2", name: "Legal", isArchived: false },
-      ],
-    },
-    root: {
-      getSession,
-      getTrace: async () => ({ status: "completed", entries: [] }),
-    },
-    // The monitor's session channel — parked open (no frames) by default.
-    GET: vi.fn(async () => ({
-      data: makeStreamHandle().stream,
-      response: { ok: true, status: 200 },
-    })),
+    root: { getSession },
     POST,
   } as unknown as VynelClient;
 
@@ -153,10 +154,24 @@ async function mountView(
   return { wrapper, pinia, router, getSession, turnCalls };
 }
 
+/** Open the first (or given) list row and settle the pane. */
+async function openRow(
+  wrapper: Awaited<ReturnType<typeof mountView>>["wrapper"],
+  index = 0,
+) {
+  await wrapper.findAll(".session-row")[index]!.trigger("click");
+  await flushPromises();
+}
+
 describe("SessionsView", () => {
-  it("lists every scope in global: the brain as Assistant, rooms and spawned sessions by name", async () => {
+  it("global lists ONLY the root's own child sessions — no Assistant row, no workspace rows", async () => {
     const { wrapper } = await mountView([
-      makeEntry(),
+      makeEntry({
+        sessionId: "root-1",
+        scope: "global",
+        title: "Assistant",
+        segments: [makeSegment({ sessionId: "root-1", title: "Assistant" })],
+      }),
       makeEntry({
         sessionId: "ws-1",
         scope: "workspace",
@@ -165,24 +180,28 @@ describe("SessionsView", () => {
         title: "Launch plan",
         segments: [makeSegment({ sessionId: "ws-1", title: "Launch plan" })],
       }),
+      makeEntry(),
       makeEntry({
-        sessionId: "sp-1",
+        sessionId: "sp-2",
         scope: "spawned",
-        title: "Research: pricing",
-        segments: [makeSegment({ sessionId: "sp-1", title: "Research: pricing" })],
+        workspaceId: "w1",
+        workspaceName: "Marketing",
+        title: "Room-grounded session",
+        segments: [
+          makeSegment({ sessionId: "sp-2", title: "Room-grounded session" }),
+        ],
       }),
     ]);
 
     const rows = wrapper.findAll(".session-row");
-    expect(rows).toHaveLength(3);
-    expect(rows[0]!.text()).toContain("Assistant");
-    expect(rows[1]!.text()).toContain("Marketing");
-    expect(rows[1]!.text()).toContain("Launch plan");
-    expect(rows[2]!.text()).toContain("Session");
-    expect(rows[2]!.text()).toContain("Research: pricing");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.text()).toContain("Research: pricing");
+    expect(wrapper.text()).not.toContain("Assistant");
+    expect(wrapper.text()).not.toContain("Launch plan");
+    expect(wrapper.text()).not.toContain("Room-grounded session");
   });
 
-  it("a workspace scope lists only that room's sessions — its chain and its spawned children", async () => {
+  it("a workspace scope lists that room's conversation and its sessions only", async () => {
     const { wrapper } = await mountView(
       [
         makeEntry(),
@@ -192,13 +211,15 @@ describe("SessionsView", () => {
           workspaceId: "w1",
           workspaceName: "Marketing",
           title: "Launch plan",
+          segments: [makeSegment({ sessionId: "ws-1", title: "Launch plan" })],
         }),
         makeEntry({
-          sessionId: "sp-1",
+          sessionId: "sp-2",
           scope: "spawned",
           workspaceId: "w1",
           workspaceName: "Marketing",
-          title: "Research: pricing",
+          title: "Room session",
+          segments: [makeSegment({ sessionId: "sp-2", title: "Room session" })],
         }),
         makeEntry({
           sessionId: "ws-2",
@@ -206,6 +227,7 @@ describe("SessionsView", () => {
           workspaceId: "w2",
           workspaceName: "Legal",
           title: "Contracts",
+          segments: [makeSegment({ sessionId: "ws-2", title: "Contracts" })],
         }),
       ],
       { path: "/sessions?workspace=w1" },
@@ -214,32 +236,32 @@ describe("SessionsView", () => {
     const rows = wrapper.findAll(".session-row");
     expect(rows).toHaveLength(2);
     expect(wrapper.text()).toContain("Launch plan");
-    expect(wrapper.text()).toContain("Research: pricing");
-    expect(wrapper.text()).not.toContain("Assistant");
+    expect(wrapper.text()).toContain("Room session");
+    expect(wrapper.text()).not.toContain("Research: pricing");
     expect(wrapper.text()).not.toContain("Contracts");
-    expect(wrapper.text()).toContain("Marketing");
   });
 
-  it("shows the context meter with the occupancy and the friendly tooltip", async () => {
+  it("shows the small context percentage only once a session has reported usage", async () => {
+    const silent = await mountView([makeEntry({ contextTokens: null })]);
+    expect(silent.wrapper.find(".context-percent").exists()).toBe(false);
+
     const { wrapper } = await mountView([
       makeEntry({ contextTokens: 166_000, contextWindow: 200_000 }),
     ]);
-
-    const meter = wrapper.get(".context-meter");
-    expect(meter.attributes("aria-valuenow")).toBe("83");
-    expect(meter.attributes("title")).toBe(
+    const percent = wrapper.get(".context-percent");
+    expect(percent.text()).toBe("83%");
+    expect(percent.attributes("title")).toBe(
       "~166k of 200k · continues automatically near 85%",
     );
   });
 
-  it("lights the working dot from the activity feed, per scope", async () => {
+  it("lights the working dot when the feed reports a turn on the entry's session", async () => {
     const { wrapper, pinia } = await mountView([
       makeEntry(),
       makeEntry({
-        sessionId: "ws-1",
-        scope: "workspace",
-        workspaceId: "w1",
-        workspaceName: "Marketing",
+        sessionId: "sp-2",
+        segments: [makeSegment({ sessionId: "sp-2", title: "Quiet one" })],
+        title: "Quiet one",
       }),
     ]);
     expect(wrapper.findAll(".working-dot")).toHaveLength(0);
@@ -248,85 +270,77 @@ describe("SessionsView", () => {
     activity.applyServerActivity({
       kind: "turn-started",
       turnId: "t1",
-      scopeKind: "workspace",
-      workspaceId: "w1",
-      sessionId: "ws-1",
+      scopeKind: "global",
+      workspaceId: null,
+      sessionId: "sp-1",
       origin: "web",
       startedAt: "2026-07-21T10:00:00.000Z",
     });
     await flushPromises();
 
     const rows = wrapper.findAll(".session-row");
-    expect(rows[0]!.find(".working-dot").exists()).toBe(false);
-    expect(rows[1]!.find(".working-dot").exists()).toBe(true);
+    expect(rows[0]!.find(".working-dot").exists()).toBe(true);
+    expect(rows[1]!.find(".working-dot").exists()).toBe(false);
   });
 
-  it("Watch opens the live overlay for that session, labeled by its identity", async () => {
-    const { wrapper, pinia } = await mountView([
+  it("expands a continued conversation into its chain with fork percentages", async () => {
+    const { wrapper } = await mountView([
       makeEntry({
-        sessionId: "ws-1",
-        scope: "workspace",
-        workspaceId: "w1",
-        workspaceName: "Marketing",
-        title: "Launch plan",
+        sessionId: "sp-2",
+        contextTokens: 20_000,
+        segments: [
+          makeSegment({
+            sessionId: "sp-1",
+            contextTokens: 166_000,
+            isCurrent: false,
+          }),
+          makeSegment({
+            sessionId: "sp-2",
+            contextTokens: 20_000,
+            continuedFromSessionId: "sp-1",
+          }),
+        ],
       }),
     ]);
 
-    await wrapper.get(".watch-button").trigger("click");
+    // Collapsed by default; the sub-line says it continued.
+    expect(wrapper.find(".session-chain").exists()).toBe(false);
+    expect(wrapper.text()).toContain("continued 1×");
 
-    const monitorStore = useActivityMonitorStore(pinia);
-    expect(monitorStore.current).toEqual({
-      kind: "session",
-      sessionId: "ws-1",
-      title: "Marketing · Launch plan",
-    });
+    await wrapper.get(".chain-toggle").trigger("click");
+    const chain = wrapper.get(".session-chain");
+    expect(chain.findAll(".chain-node")).toHaveLength(2);
+    // The hop wears the PREDECESSOR's fork-time occupancy.
+    expect(chain.get(".chain-hop-percent").text()).toBe("83%");
+    expect(chain.text()).toContain("current");
+    expect(chain.text()).toContain("continued automatically");
   });
 
-  it("opening a spawned session shows the full thread with a composer", async () => {
-    const { wrapper, getSession } = await mountView([
-      makeEntry({
-        sessionId: "sp-1",
-        scope: "spawned",
-        title: "Research: pricing",
-        segments: [makeSegment({ sessionId: "sp-1", title: "Research: pricing" })],
-      }),
-    ]);
+  it("opening a spawned session renders it as a normal chat with a composer, beside the list", async () => {
+    const { wrapper, getSession } = await mountView([makeEntry()]);
 
-    await wrapper.get(".open-button").trigger("click");
-    await flushPromises();
+    await openRow(wrapper);
 
-    // The transcript renders through the monitor seam (root read, any scope).
+    // The transcript renders through the NORMAL chat path (ThreadStream/
+    // MessageRow) — the root read serves any owned session.
     expect(getSession).toHaveBeenCalledWith("sp-1");
+    expect(wrapper.find(".thread-stream").exists()).toBe(true);
     expect(wrapper.text()).toContain("Earlier findings.");
     expect(wrapper.find("textarea").exists()).toBe(true);
     expect(wrapper.find(".view-only-note").exists()).toBe(false);
-    // Text-only surface: the attach affordance is gone entirely (the route
-    // takes no files — nothing to lose a typed message to).
+    // Text-only surface: the attach affordance is gone entirely.
     expect(wrapper.find('[aria-label="Attach files"]').exists()).toBe(false);
-
-    // Back returns to the list.
-    await wrapper.get(".back-button").trigger("click");
-    expect(wrapper.findAll(".session-row")).toHaveLength(1);
+    // Two-pane: the list stays put and marks the open row.
+    expect(wrapper.get(".session-row").classes()).toContain("is-active");
   });
 
-  it("sending posts to the session-turn route and shows the queued state on the sentinel", async () => {
+  it("sending posts to the session-turn route, shows queued on the sentinel, then streams", async () => {
     const turnStream = makeStreamHandle();
-    const { wrapper, turnCalls } = await mountView(
-      [
-        makeEntry({
-          sessionId: "sp-1",
-          scope: "spawned",
-          title: "Research: pricing",
-          segments: [
-            makeSegment({ sessionId: "sp-1", title: "Research: pricing" }),
-          ],
-        }),
-      ],
-      { onTurnRequest: () => turnStream.stream },
-    );
+    const { wrapper, turnCalls } = await mountView([makeEntry()], {
+      onTurnRequest: () => turnStream.stream,
+    });
 
-    await wrapper.get(".open-button").trigger("click");
-    await flushPromises();
+    await openRow(wrapper);
 
     const input = wrapper.get("textarea");
     await input.setValue("What did you find?");
@@ -348,7 +362,8 @@ describe("SessionsView", () => {
       "Working on a task — your message is queued.",
     );
 
-    // The first real frame clears the queued note and streams the reply.
+    // The first real frame clears the queued note; the reply streams through
+    // the shared live-turn view (LiveTurn), not a special renderer.
     turnStream.push("text-chunk", {
       kind: "text-chunk",
       messageId: "m-live",
@@ -361,32 +376,75 @@ describe("SessionsView", () => {
     expect(wrapper.text()).toContain("Found three pricing tiers.");
   });
 
+  it("a mid-turn send QUEUES (visible chip) and fires after the turn settles — nothing lost", async () => {
+    const streams = [makeStreamHandle(), makeStreamHandle()];
+    let turnIndex = 0;
+    const { wrapper, turnCalls } = await mountView([makeEntry()], {
+      onTurnRequest: () => streams[turnIndex++]!.stream,
+    });
+
+    await openRow(wrapper);
+
+    const input = wrapper.get("textarea");
+    await input.setValue("first question");
+    await input.trigger("keydown", { key: "Enter" });
+    await flushPromises();
+    expect(turnCalls).toHaveLength(1);
+
+    // Second send while the first turn streams — queued, not eaten (the
+    // composer clears the draft on emit; the host owns the queue).
+    await input.setValue("second question");
+    await input.trigger("keydown", { key: "Enter" });
+    await flushPromises();
+    expect(turnCalls).toHaveLength(1);
+    expect(wrapper.text()).toContain("Queued — sends when this reply finishes");
+    expect(wrapper.text()).toContain("second question");
+
+    // The first turn completes → the queue drains in order.
+    streams[0]!.push("session-completed", {
+      kind: "session-completed",
+      sessionId: "sp-1",
+    });
+    streams[0]!.push("turn-stream-ended", {});
+    streams[0]!.close();
+    await flushPromises();
+
+    expect(turnCalls).toHaveLength(2);
+    expect(turnCalls[1]!.init).toMatchObject({
+      body: { userMessageText: "second question" },
+    });
+    expect(wrapper.text()).not.toContain(
+      "Queued — sends when this reply finishes",
+    );
+  });
+
+  it("a failed transcript read is SAID — a note, not an empty conversation", async () => {
+    const { wrapper } = await mountView([makeEntry()], {
+      detailError: "Session not found.",
+    });
+
+    await openRow(wrapper);
+
+    expect(wrapper.find(".thread-stream").exists()).toBe(false);
+    expect(wrapper.get(".state-note.is-error").text()).toContain(
+      "Session not found.",
+    );
+  });
+
   it("a failed turn keeps the transcript rendered and says the error beside the composer", async () => {
     const turnStream = makeStreamHandle();
-    const { wrapper } = await mountView(
-      [
-        makeEntry({
-          sessionId: "sp-1",
-          scope: "spawned",
-          title: "Research: pricing",
-          segments: [
-            makeSegment({ sessionId: "sp-1", title: "Research: pricing" }),
-          ],
-        }),
-      ],
-      { onTurnRequest: () => turnStream.stream },
-    );
+    const { wrapper } = await mountView([makeEntry()], {
+      onTurnRequest: () => turnStream.stream,
+    });
 
-    await wrapper.get(".open-button").trigger("click");
-    await flushPromises();
+    await openRow(wrapper);
 
     const input = wrapper.get("textarea");
     await input.setValue("hello");
     await input.trigger("keydown", { key: "Enter" });
     await flushPromises();
 
-    // The stream drops mid-turn — the thread must NOT blank (the list's
-    // states are exclusive; the turn error lives beside the composer).
+    // The stream drops mid-turn — the thread must NOT blank.
     turnStream.failWith(new Error("network gone"));
     await flushPromises();
 
@@ -395,22 +453,11 @@ describe("SessionsView", () => {
   });
 
   it("a stale-handle 404 reads as 'the session moved', transcript intact", async () => {
-    const { wrapper } = await mountView(
-      [
-        makeEntry({
-          sessionId: "sp-1",
-          scope: "spawned",
-          title: "Research: pricing",
-          segments: [
-            makeSegment({ sessionId: "sp-1", title: "Research: pricing" }),
-          ],
-        }),
-      ],
-      { turnResponse: { ok: false, status: 404 } },
-    );
+    const { wrapper } = await mountView([makeEntry()], {
+      turnResponse: { ok: false, status: 404 },
+    });
 
-    await wrapper.get(".open-button").trigger("click");
-    await flushPromises();
+    await openRow(wrapper);
 
     const input = wrapper.get("textarea");
     await input.setValue("hello");
@@ -423,57 +470,12 @@ describe("SessionsView", () => {
     );
   });
 
-  it("hides the context meter until a session has reported usage", async () => {
-    const { wrapper } = await mountView([makeEntry({ contextTokens: null })]);
-
-    expect(wrapper.find(".context-meter").exists()).toBe(false);
-  });
-
-  it("expands a continued conversation into its chain with fork percentages", async () => {
-    const { wrapper } = await mountView([
-      makeEntry({
-        sessionId: "seg-2",
-        contextTokens: 20_000,
-        segments: [
-          makeSegment({
-            sessionId: "seg-1",
-            contextTokens: 166_000,
-            isCurrent: false,
-          }),
-          makeSegment({
-            sessionId: "seg-2",
-            contextTokens: 20_000,
-            continuedFromSessionId: "seg-1",
-          }),
-        ],
-      }),
-    ]);
-
-    // Collapsed by default; the sub-line says it continued.
-    expect(wrapper.find(".session-chain").exists()).toBe(false);
-    expect(wrapper.text()).toContain("continued 1×");
-
-    await wrapper.get(".chain-toggle").trigger("click");
-    const chain = wrapper.get(".session-chain");
-    expect(chain.findAll(".chain-node")).toHaveLength(2);
-    // The hop wears the PREDECESSOR's fork-time occupancy.
-    expect(chain.get(".chain-hop-percent").text()).toBe("83%");
-    expect(chain.text()).toContain("current");
-    expect(chain.text()).toContain("continued automatically");
-  });
-
   it("a superseded chain part opens view-only — no composer, chat continues at the head", async () => {
     const { wrapper } = await mountView([
       makeEntry({
         sessionId: "sp-2",
-        scope: "spawned",
-        title: "Research: pricing",
         segments: [
-          makeSegment({
-            sessionId: "sp-1",
-            title: "Research: pricing",
-            isCurrent: false,
-          }),
+          makeSegment({ sessionId: "sp-1", isCurrent: false }),
           makeSegment({
             sessionId: "sp-2",
             title: "Continued conversation",
@@ -494,35 +496,33 @@ describe("SessionsView", () => {
     );
   });
 
-  it("a primary entry routes to its Chat — global to the brain, a room to its workspace", async () => {
-    const { wrapper, router, pinia } = await mountView([
-      makeEntry(),
-      makeEntry({
-        sessionId: "ws-1",
-        scope: "workspace",
-        workspaceId: "w1",
-        workspaceName: "Marketing",
-        title: "Launch plan",
-      }),
-    ]);
+  it("a workspace conversation row routes to that room's Chat", async () => {
+    const { wrapper, router, pinia } = await mountView(
+      [
+        makeEntry({
+          sessionId: "ws-1",
+          scope: "workspace",
+          workspaceId: "w1",
+          workspaceName: "Marketing",
+          title: "Launch plan",
+          segments: [makeSegment({ sessionId: "ws-1", title: "Launch plan" })],
+        }),
+      ],
+      { path: "/sessions?workspace=w1" },
+    );
 
-    await wrapper.findAll(".open-button")[0]!.trigger("click");
-    // The target routes lazy-load their view chunk — settle the import first.
+    await wrapper.get(".session-row").trigger("click");
+    // The target route lazy-loads its view chunk — settle the import first.
     await vi.dynamicImportSettled();
     await flushPromises();
-    expect(router.currentRoute.value.name).toBe("chat");
 
-    await router.push("/sessions");
-    await flushPromises();
-    await wrapper.findAll(".open-button")[1]!.trigger("click");
-    await vi.dynamicImportSettled();
-    await flushPromises();
     expect(router.currentRoute.value.name).toBe("workspace");
     expect(useUiStore(pinia).activeWorkspaceId).toBe("w1");
   });
 
-  it("invites conversation when there is nothing yet", async () => {
+  it("invites conversation when there is nothing yet, and hints the empty pane", async () => {
     const { wrapper } = await mountView([]);
     expect(wrapper.text()).toContain("No conversations yet");
+    expect(wrapper.text()).toContain("Pick a session");
   });
 });
