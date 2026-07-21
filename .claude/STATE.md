@@ -3,7 +3,34 @@
 **Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-21Q): WATCH PIPELINE SCOPING SHIPPED — `12b90bd`; gate GREEN 2866t, reviewed CLEAN; Chad's issue list PART 1 done. NEXT: Chad re-smoke chips → then THE COMMS ARC (part 2, spec'd in the notes)
+## 🌅 NEXT ACTION (2026-07-22 MORNING): CHAD'S SMOKE — the overnight run shipped the COMMS ARC (`d82eebb`) on top of the pipeline scoping (`12b90bd`); gate GREEN 533f/2900t; the machine was SHUT DOWN by instruction after this commit
+
+**OVERNIGHT (Chad: "complete the remaining parts and the communication mcp… shutdown… in
+the morning I will smoke test"): the session-communications arc built per
+docs/module-notes/session-comms.md (forks settled autonomously, all recorded there —
+vocabulary=reports-only · addressing=requester-mediated/server-stamped ·
+awareness=a REAL turn via the delegation queue · tree topology=no cycles).
+Subagent-built + adversarially reviewed; 1 must-fix + 3 hardenings FOLDED (delivery rows
+chip-less — the discriminator widened to any attributed inbound row · completed jobs can
+never flip failed · complete→enqueue→mark ONE transaction · global deliveries serialize
+behind GLOBAL_ROOT_DELIVERY_TARGET_KEY). Migration 0015 job_kind additive. 53 MCP tools
+(+report_to_requester, plain workspace array via the new rootSurface:false opt-out; the
+global root never has it). recordPushedReportMessage now DEAD in production (delete next
+touch). Channel delivery unchanged (completion-time, immediate).**
+**⏭ CHAD'S MORNING SMOKE: ① restart the app (migration 0015 applies on boot) · ② global →
+send a task to letterman → when it completes, the report arrives as Sarah ACTUALLY
+REPORTING IN (an inbound message + the assistant's own reply absorbing it) — not a
+detached row · ③ the chain: global → letterman → "have the test session do X" → session
+completes → letterman gets the notify turn → Sarah passes the REAL result up via
+report_to_requester → your global chat gets the real data as a processed turn · ④ chips:
+delivery rows are chip-less; the pipeline drill (trace → session → agent, Back) works ·
+⑤ Telegram replies still arrive immediately. DEFERRED overnight (deliberately, recorded):
+as-built docs refresh · housekeeping bundle (detached-run lease · tick split ·
+onDecideApproval ×3 · AppShell/ThreadStream size) · settings arc · monitor tree · the
+UNIQUE chat_sessions.id test flake (seen once, passing reruns — find the fixed-id seed
+when it recurs).**
+
+## (prev) ⏭ NEXT ACTION (2026-07-21Q): WATCH PIPELINE SCOPING SHIPPED — `12b90bd`; gate GREEN 2866t, reviewed CLEAN; Chad's issue list PART 1 done
 
 **Chad's "proper instruction" arrived (2026-07-21 evening) as TWO parts, now in
 docs/module-notes/sessions-surface.md:**
