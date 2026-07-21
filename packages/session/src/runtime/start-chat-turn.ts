@@ -26,6 +26,7 @@ import {
   attachedImagesMetadataFor,
   type AttachedImageBytes,
   type ChatTurnEvent,
+  type NewSessionOptions,
   type StructuralLogger,
 } from '@vynel/chat'
 import { captureCompactionSummary } from '../continuity/index.js'
@@ -34,7 +35,10 @@ import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 
 export type StartChatTurnInput = {
   userId: string
-  workspaceId: string
+  /** Null for a SPAWNED session's user turn (sessions-surface Slice ③a) — its
+   *  ground is the run cwd and its rows persist workspace-less, matching the
+   *  delegated spawned runner byte-for-byte. Non-null for every workspace turn. */
+  workspaceId: string | null
   workspacePath: string
   providerId: AiAgentProviderId
   /** Omit to start a new session; provide to resume an existing one. */
@@ -76,6 +80,13 @@ export type StartChatTurnInput = {
    * floor). See the C4 seam.
    */
   alwaysRequireApprovalToolNames?: string[]
+  /**
+   * Presentation overrides for a session row created MID-TURN — an SDK
+   * compaction swap on a resumed spawned session keeps the stock hidden
+   * presentation (the `delegateToSpawnedSession` shape). Omitted by the
+   * workspace path → defaults (`'listed'`, auto-titled).
+   */
+  newSessionOptions?: NewSessionOptions
 }
 
 export type StartChatTurnDeps = {
@@ -162,6 +173,7 @@ export async function* startChatTurn(
     workspacePath: input.workspacePath,
     providerId: input.providerId,
     isNewSession: !input.resumeSessionId,
+    ...(input.newSessionOptions !== undefined ? { newSessionOptions: input.newSessionOptions } : {}),
     ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
   })
   yield* deps.turnEvents !== undefined

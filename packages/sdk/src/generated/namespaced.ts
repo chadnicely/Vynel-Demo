@@ -1025,6 +1025,14 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  startTurn: async (sessionId: NonNullable<paths["/sessions/{sessionId}/turn"]["post"]['parameters']>['path']["sessionId"], input: NonNullable<paths["/sessions/{sessionId}/turn"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/sessions/{sessionId}/turn", {
+      params: { path: { sessionId: sessionId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   streamSession: async (sessionId: NonNullable<paths["/sessions/{sessionId}/stream"]["get"]['parameters']>['path']["sessionId"]) => {
     const { data, error, response } = await client["GET"]("/sessions/{sessionId}/stream", {
       params: { path: { sessionId: sessionId } },

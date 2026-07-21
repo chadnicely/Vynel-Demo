@@ -4,7 +4,7 @@
 // `consumeSessionEventStream` from here to persist a turn's messages.
 
 // Shared types + outbox event constants.
-export type { StructuralLogger } from './chat-types.js'
+export type { StructuralLogger, NewSessionOptions } from './chat-types.js'
 export type {
   ChatSession,
   NewChatSession,

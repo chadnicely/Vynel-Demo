@@ -41,8 +41,12 @@ export async function buildScheduleFireDeps(
   const announceFiredTurn: typeof startChatTurn = async function* (turnDb, input, turnDeps) {
     const activity = activityFeed.begin({
       userId: input.userId,
-      scopeKind: 'workspace',
-      workspaceId: input.workspaceId,
+      // A fired schedule turn is always workspace-scoped; the runner input's
+      // widened `string | null` (spawned-session turns, Slice ③a) can't occur
+      // here — the null branch is type-narrowing only (the tick's shape).
+      ...(input.workspaceId !== null
+        ? { scopeKind: 'workspace' as const, workspaceId: input.workspaceId }
+        : { scopeKind: 'global' as const }),
       ...(input.resumeSessionId !== undefined ? { sessionId: input.resumeSessionId } : {}),
       origin: 'schedule',
     })

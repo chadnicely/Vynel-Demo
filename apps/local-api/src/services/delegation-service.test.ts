@@ -25,6 +25,7 @@ vi.mock('@vynel/orchestration', () => ({
   failOrphanedClaimedDelegations: reclaimMock,
 }))
 
+import { SessionTargetLocks } from '@vynel/session/delegation'
 import { startDelegationService } from './delegation-service.js'
 
 function fakeOptions() {
@@ -40,6 +41,9 @@ function fakeOptions() {
       mutatingToolNames: [],
       systemPromptAppend: '',
     })),
+    // The REAL lock registry (Slice ③a — the shared single-writer state the
+    // pool now holds its target keys in); pure in-memory, so no mock needed.
+    targetLocks: new SessionTargetLocks(),
   }
 }
 
@@ -128,6 +132,49 @@ describe('startDelegationService', () => {
     // already see ws-A in the exclusion set.
     expect(exclusionSeenByCall[0]).toEqual([])
     expect(exclusionSeenByCall[1]).toEqual(['ws-A'])
+    service.stop()
+  })
+
+  it('a claimed run holds its target lock in the SHARED registry for the run’s life', async () => {
+    // Slice ③a: the held-target state is the injected SessionTargetLocks — the
+    // session-turn route queues on the same keys, so a run must hold its key
+    // from claim to settle and free it after.
+    const resolvers: Array<(processed: boolean) => void> = []
+    tickMock.mockImplementation((_db: unknown, deps: TickDeps) => {
+      if (resolvers.length === 0) {
+        deps.onRunStarted?.({ jobId: 'job-a', targetKey: 'ws-A' })
+        return new Promise<boolean>((resolve) => resolvers.push(resolve))
+      }
+      return Promise.resolve(false)
+    })
+    const options = fakeOptions()
+    const service = startDelegationService(options)
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(options.targetLocks.isBusy('ws-A')).toBe(true)
+
+    resolvers[0]!(true)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(options.targetLocks.isBusy('ws-A')).toBe(false)
+    service.stop()
+  })
+
+  it('a target held EXTERNALLY (a user turn on that session) is excluded from the claim', async () => {
+    const exclusionSeenByCall: string[][] = []
+    tickMock.mockImplementation((_db: unknown, deps: TickDeps) => {
+      exclusionSeenByCall.push([...(deps.excludeTargetKeys ?? [])])
+      return Promise.resolve(false)
+    })
+    const options = fakeOptions()
+    const releaseUserTurn = await options.targetLocks.acquire('spawned-primary-1')
+    const service = startDelegationService(options)
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(exclusionSeenByCall[0]).toEqual(['spawned-primary-1'])
+
+    releaseUserTurn()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(exclusionSeenByCall[1]).toEqual([])
     service.stop()
   })
 

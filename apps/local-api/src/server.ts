@@ -42,7 +42,11 @@ import { startOutboxRelayService } from './services/outbox-relay-service.js'
 import { startDelegationService } from './services/delegation-service.js'
 import { buildDelegatedTurnMcpComposer } from './sessions/build-workspace-background-mcp.js'
 import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
-import { TurnEventBroadcaster, DelegationCancelRegistry } from '@vynel/session/delegation'
+import {
+  TurnEventBroadcaster,
+  DelegationCancelRegistry,
+  SessionTargetLocks,
+} from '@vynel/session/delegation'
 import { SessionActivityFeed } from '@vynel/session/runtime'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 
@@ -94,6 +98,11 @@ export async function boot(): Promise<void> {
   // ONE delegation stop bridge per process — the delegation tick registers each
   // claimed run; the /root delegation-stop route cancels through it.
   const delegationCancels = new DelegationCancelRegistry()
+  // ONE per-target single-writer lock registry per process — the delegation
+  // pool holds each claimed run's target key in it, and the session-turn route
+  // FIFO-queues user turns on the same keys (sessions-surface Slice ③a: a user
+  // turn and a delegated run never write one spawned session concurrently).
+  const sessionTargetLocks = new SessionTargetLocks()
 
   // The hub link (accounts) — only when a hub is configured; the refresh
   // token lives in the OS credential store, never a file.
@@ -125,6 +134,7 @@ export async function boot(): Promise<void> {
     turnEvents,
     activityFeed,
     delegationCancels,
+    sessionTargetLocks,
     appSupervisor,
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
     sshMasterKeyBase64: sshMasterKey,
@@ -168,6 +178,7 @@ export async function boot(): Promise<void> {
     turnEvents,
     cancelRegistry: delegationCancels,
     composeWorkspaceMcpServers,
+    targetLocks: sessionTargetLocks,
   })
   // The stale-approval reaper (surface-up's unanswered bound) — denies the provider
   // approval so a parked turn resumes, then marks the row timed-out.

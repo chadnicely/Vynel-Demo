@@ -57,3 +57,4 @@ export {
   type DelegationCancelHandle,
   type RequestCancelResult,
 } from './delegation-cancel-registry.js'
+export { SessionTargetLocks } from './session-target-locks.js'

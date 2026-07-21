@@ -10,7 +10,9 @@
 // conversation is a single SDK session — single-writer, the workspace-side analogue of
 // the root-turn-lock). Parallelism happens across workspaces only; FIFO holds within
 // each workspace via the claim's exclusion filter. (The atomic DB claim still prevents
-// two ticks claiming the SAME job.)
+// two ticks claiming the SAME job.) The held-target state lives in the injected
+// SessionTargetLocks — SHARED with the session-turn route (Slice ③a) so a user turn
+// into a spawned session and a delegated run to it can never overlap.
 //
 // MCP: every routed turn attaches the BACKGROUND workspace set via the injected
 // `composeWorkspaceMcpServers` (built by `buildWorkspaceBackgroundMcpComposer` in
@@ -24,7 +26,11 @@ import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
 import { failOrphanedClaimedDelegations } from '@vynel/orchestration'
 import { runDelegationClaimAndRunTick } from '@vynel/session/delegation'
-import type { TurnEventBroadcaster, DelegationCancelRegistry } from '@vynel/session/delegation'
+import type {
+  TurnEventBroadcaster,
+  DelegationCancelRegistry,
+  SessionTargetLocks,
+} from '@vynel/session/delegation'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { DelegatedTurnMcpComposer } from '../sessions/build-workspace-background-mcp.js'
 
@@ -56,11 +62,26 @@ export interface DelegationServiceOptions {
    *  turn never runs bare against a session that has the vynel tools (the
    *  deferred-tool "server disconnected" class). */
   composeWorkspaceMcpServers: DelegatedTurnMcpComposer
+  /** The process-wide single-writer lock per target — SHARED with the api
+   *  routes (sessions-surface Slice ③a): a user turn into a spawned session
+   *  holds the same key a delegated run to it would claim, so the two can
+   *  never write one resumed SDK session concurrently. REQUIRED: the pool's
+   *  same-target exclusion reads `busyKeys()` and every claimed run holds its
+   *  key for the run's life. */
+  targetLocks: SessionTargetLocks
 }
 
 export function startDelegationService(options: DelegationServiceOptions): { stop: () => void } {
-  const { db, logger, provider, activityFeed, turnEvents, cancelRegistry, composeWorkspaceMcpServers } =
-    options
+  const {
+    db,
+    logger,
+    provider,
+    activityFeed,
+    turnEvents,
+    cancelRegistry,
+    composeWorkspaceMcpServers,
+    targetLocks,
+  } = options
 
   // Reclaim jobs orphaned in `claimed` by a prior crash/restart mid-run: mark them FAILED — NOT
   // re-run (exactly-once preserved; the Ch1 decision was no-RE-EXECUTE, not no-cleanup). At
@@ -74,12 +95,12 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
     )
   }
 
-  // The pool state: how many runs live, and WHICH targets they hold (the
-  // same-target exclusion — a target key is a workspace id or a spawned
-  // primary id, Slice ④). In-process only — same trust level as the old
-  // serial guard; the Phase-2 multi-process swap point is a DB-side lease.
+  // The pool's run count lives here; WHICH targets are held lives in the
+  // SHARED `targetLocks` (a target key is a workspace id or a spawned primary
+  // id, Slice ④ — and, since Slice ③a, a key a user turn may hold too).
+  // In-process only — same trust level as the old serial guard; the Phase-2
+  // multi-process swap point is a DB-side lease.
   let activeRunCount = 0
-  const activeTargetKeys = new Set<string>()
 
   const pollTimer = setInterval(() => {
     // Fill free capacity each tick. The claim (and its onRunStarted) executes
@@ -88,16 +109,29 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
     // the count, and an empty claim breaks without reserving anything.
     while (activeRunCount < MAX_CONCURRENT_DELEGATIONS) {
       let claimedTargetKey: string | null = null
+      let releaseTargetLock: (() => void) | null = null
+      let releaseWanted = false
       void runDelegationClaimAndRunTick(db, {
         provider,
         logger,
         activityFeed,
         composeWorkspaceMcpServers,
-        excludeTargetKeys: activeTargetKeys,
+        // Snapshot read synchronously per launch — `acquire` below registers a
+        // claimed key synchronously, so the next loop iteration (and the next
+        // poll) sees it excluded, exactly like the old in-closure Set.
+        excludeTargetKeys: targetLocks.busyKeys(),
         onRunStarted: ({ targetKey }) => {
           claimedTargetKey = targetKey
           activeRunCount += 1
-          activeTargetKeys.add(targetKey)
+          // The claim excluded every busy key, so the lock is FREE here:
+          // `acquire` registers the holder synchronously inside this call
+          // (the pool's sync-claim contract holds); only the release fn
+          // arrives on a microtask — always ahead of the run's `.finally`,
+          // which was queued after it.
+          void targetLocks.acquire(targetKey).then((release) => {
+            if (releaseWanted) release()
+            else releaseTargetLock = release
+          })
         },
         ...(turnEvents !== undefined ? { turnEvents } : {}),
         ...(cancelRegistry !== undefined ? { cancelRegistry } : {}),
@@ -111,7 +145,18 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
           // that failure mode into a correctly-freed slot.
           if (claimedTargetKey !== null) {
             activeRunCount -= 1
-            activeTargetKeys.delete(claimedTargetKey)
+            if (releaseTargetLock !== null) {
+              releaseTargetLock()
+            } else {
+              // Should be unreachable (see the acquire comment) — self-heal by
+              // releasing the moment the fn arrives, and log loudly: a held
+              // key would silently starve that target forever.
+              releaseWanted = true
+              logger.error(
+                { targetKey: claimedTargetKey },
+                'delegation pool: run settled before its target lock resolved (sync-claim contract regressed) — releasing on arrival',
+              )
+            }
           }
         })
       if (claimedTargetKey === null) break // queue empty, or every pending target is busy

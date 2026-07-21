@@ -20774,6 +20774,81 @@
         "x-sdk-name": "sessions.streamSession"
       }
     },
+    "/sessions/{sessionId}/turn": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "SSE stream of the turn’s ChatTurnEvents; a `turn-queued` sentinel precedes a turn parked behind a running task; `turn-stream-ended` closes the stream."
+          },
+          "404": {
+            "description": "Unknown session, not owned, or not a spawned session."
+          }
+        },
+        "operationId": "postSessionsBySessionIdTurn",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Run an interactive user turn on a spawned session — SSE ChatTurnEvents.",
+        "x-sdk-name": "sessions.startTurn",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userMessageText": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "claude-fable-5",
+                      "claude-opus-4-8",
+                      "claude-sonnet-4-6",
+                      "claude-haiku-4-5"
+                    ]
+                  },
+                  "thinkingEffort": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ]
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "ask",
+                      "auto",
+                      "bypass"
+                    ]
+                  }
+                },
+                "required": [
+                  "userMessageText"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/hub/session": {
       "get": {
         "responses": {

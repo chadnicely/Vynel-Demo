@@ -3,6 +3,9 @@
 // is the HTTP boundary's validation of the same shape).
 
 import { z } from 'zod'
+import { CHAT_MODEL_IDS } from '@vynel/contracts/chat/chat-models'
+import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
+import { SESSION_MODES, type SessionMode } from '@vynel/session'
 
 export const SessionsOverviewSegmentSchema = z.object({
   sessionId: z.string(),
@@ -48,4 +51,25 @@ export const CreateSpawnedSessionResponseSchema = z.object({
    *  `send_task_to_session` accepts. */
   sessionId: z.string(),
   name: z.string(),
+})
+
+// ── Interactive session turns (sessions-surface Slice ③a) ──────────
+
+// Derived from @vynel/session's canonical SESSION_MODES so the route enum
+// can't drift from the SessionMode union (the chat-schemas precedent).
+const SESSION_MODE_VALUES = SESSION_MODES.map((entry) => entry.mode) as [
+  SessionMode,
+  ...SessionMode[],
+]
+
+export const StartSessionTurnRequestSchema = z.object({
+  /** The user's message — a direct turn into the spawned session's chain head. */
+  userMessageText: z.string().min(1).max(50000),
+  /** The model to run this turn. Omit to inherit the provider default. */
+  model: z.enum(CHAT_MODEL_IDS).optional(),
+  /** Reasoning effort for this turn. Omit for the adaptive default. */
+  thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
+  /** The user-facing session mode — same resolution as the workspace chat
+   *  stream (`toPermissionMode`, default `DEFAULT_SESSION_MODE` when omitted). */
+  mode: z.enum(SESSION_MODE_VALUES).optional(),
 })

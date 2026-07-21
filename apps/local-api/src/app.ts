@@ -52,7 +52,11 @@ import { routingApp } from './routes/routing/index.js'
 import { voiceApp } from './routes/voice/index.js'
 import { dashboardApp } from './routes/dashboard/index.js'
 import { sessionsApp } from './routes/sessions/index.js'
-import { TurnEventBroadcaster, DelegationCancelRegistry } from '@vynel/session/delegation'
+import {
+  TurnEventBroadcaster,
+  DelegationCancelRegistry,
+  SessionTargetLocks,
+} from '@vynel/session/delegation'
 import { SessionActivityFeed } from '@vynel/session/runtime'
 import { activityApp } from './routes/activity/index.js'
 
@@ -88,6 +92,10 @@ export interface CreateAppOptions {
   // The delegation stop bridge shared with the delegation service (its tick
   // registers each claimed run). Same wiring shape as `turnEvents`.
   readonly delegationCancels?: DelegationCancelRegistry
+  // The per-target single-writer lock registry shared with the delegation
+  // service (the session-turn route queues user turns behind its claimed
+  // runs). Same wiring shape as `turnEvents`.
+  readonly sessionTargetLocks?: SessionTargetLocks
   // The daemon's hub-account session — present only when VYNEL_HUB_URL is
   // configured (server.ts); the /hub routes answer `not-configured` without it.
   readonly hubSession?: HubSession
@@ -121,6 +129,8 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   const activityFeed = options.activityFeed ?? new SessionActivityFeed()
   // The delegation stop bridge — one per process (see CreateAppOptions).
   const delegationCancels = options.delegationCancels ?? new DelegationCancelRegistry()
+  // The per-target single-writer locks — one per process (see CreateAppOptions).
+  const sessionTargetLocks = options.sessionTargetLocks ?? new SessionTargetLocks()
   // The ask blocking bridge's in-memory half — one per process, like fileWatcher.
   const askWaiters = options.askWaiters ?? new PendingAskRegistry()
   // The app supervisor — one per process; a SELF-exit publishes its runtime
@@ -141,6 +151,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('turnEvents', turnEvents)
     c.set('activityFeed', activityFeed)
     c.set('delegationCancels', delegationCancels)
+    c.set('sessionTargetLocks', sessionTargetLocks)
     c.set('askWaiters', askWaiters)
     c.set('appSupervisor', appSupervisor)
     c.set('sshMasterKey', options.sshMasterKeyBase64 ?? null)

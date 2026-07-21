@@ -41,7 +41,7 @@
 // from `hono-openapi/zod`, chained methods on `factory.createApp()`.
 
 import { resolver, validator } from 'hono-openapi/zod'
-import { listWorkspacesForUser, getWorkspaceById, findWorkspaceById } from '@vynel/workspaces'
+import { listWorkspacesForUser, getWorkspaceById } from '@vynel/workspaces'
 import { listChannelsForUser, sendToChannel } from '@vynel/channels'
 import { findPrimaryConversation } from '@vynel/session/continuity'
 import { findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
@@ -69,7 +69,7 @@ import {
   ListRoutingChannelsResponseSchema,
   SendToChannelResponseSchema,
 } from './schemas.js'
-import { ensureGlobalRootWorkspaceDir } from '../../sessions/global-root-workspace.js'
+import { resolveSpawnedSessionRunCwd } from '../../sessions/spawned-session-ground.js'
 
 export const routingApp = factory
   .createApp()
@@ -267,19 +267,14 @@ export const routingApp = factory
       const origin = parseDelegationOriginHeader(c.req.header(DELEGATION_ORIGIN_HEADER))
       const permissionMode = parseDelegationModeHeader(c.req.header(DELEGATION_MODE_HEADER))
 
-      // The run cwd is the TARGET's ground, set at create (Slice ④b): a
-      // workspace-spawned session runs in its workspace's folder, a
-      // global-spawned one in the root's hidden user-data dir — regardless of
-      // who is sending. A deleted target workspace falls back to the global
-      // dir (graceful, like the tick's name fallback) rather than stranding
-      // the session.
-      const targetWorkspace =
-        spawned.workspaceId !== null ? findWorkspaceById(c.var.db, spawned.workspaceId) : null
+      // The run cwd is the TARGET's ground, set at create (Slice ④b) —
+      // resolved by the shared one-home (deleted-workspace fallback included),
+      // the same read the interactive session-turn stream makes (Slice ③a).
       const jobId = enqueueSessionDelegation(c.var.db, {
         userId: c.var.user.id,
         parentSessionId: creator.currentSdkSessionId,
         targetPrimarySessionId: spawned.id,
-        runCwdPath: targetWorkspace?.path ?? ensureGlobalRootWorkspaceDir(),
+        runCwdPath: resolveSpawnedSessionRunCwd(c.var.db, spawned),
         taskText: task,
         ...(origin ? { origin } : {}),
         ...(permissionMode !== undefined ? { permissionMode } : {}),

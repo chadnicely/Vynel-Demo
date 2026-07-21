@@ -24,7 +24,11 @@ import type { AppProcessSupervisor } from '@vynel/apps'
 import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
-import type { TurnEventBroadcaster, DelegationCancelRegistry } from '@vynel/session/delegation'
+import type {
+  TurnEventBroadcaster,
+  DelegationCancelRegistry,
+  SessionTargetLocks,
+} from '@vynel/session/delegation'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
@@ -70,6 +74,11 @@ export interface AppEnv {
     // stop route flags it cancelled + interrupts its session. One instance per
     // process, shared with the delegation service via `server.ts`.
     delegationCancels: DelegationCancelRegistry
+    // The single-writer lock per delegation target (a workspace id or a
+    // spawned primary id) — the session-turn route queues user turns on it
+    // while the delegation pool holds its claimed keys in it. One instance per
+    // process, shared with the delegation service via `server.ts`.
+    sessionTargetLocks: SessionTargetLocks
     // Set by the chat-session-resolver middleware (the session-scoped handler
     // bundle's triple-check) — present only inside `/chat/sessions/:sessionId`
     // routes, absent everywhere else.

@@ -7,6 +7,8 @@
 //                     and the planning model read the SAME context numbers
 //   POST /spawned  -> `create_session` (x-mcp, rootSurface) — the root spawns
 //                     a normal continuing session as a tool
+//   POST /:sessionId/turn -> the user chats DIRECTLY into a spawned session
+//                     (sessions-surface Slice ③a; SSE, no x-mcp)
 //
 // Thin by design: parse → call the session-tier op → return. The overview op
 // returns the wire shape directly (ISO dates), so the panel and the tool read
@@ -25,13 +27,15 @@ import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { ensureGlobalRootWorkspaceDir } from '../../sessions/global-root-workspace.js'
+import { streamSpawnedSessionTurn } from '../../streams/session-turn.js'
 import {
   SessionsOverviewResponseSchema,
   CreateSpawnedSessionRequestSchema,
   CreateSpawnedSessionResponseSchema,
+  StartSessionTurnRequestSchema,
 } from './schemas.js'
 
-const SessionStreamParamSchema = z.object({ sessionId: z.string().min(1) })
+const SessionIdParamSchema = z.object({ sessionId: z.string().min(1) })
 
 export const sessionsApp = factory
   .createApp()
@@ -154,7 +158,7 @@ export const sessionsApp = factory
       },
       // No x-mcp — SSE streaming is not a tool surface.
     }),
-    validator('param', SessionStreamParamSchema),
+    validator('param', SessionIdParamSchema),
     ...userScoped,
     (c) => {
       const { sessionId } = c.req.valid('param')
@@ -185,5 +189,37 @@ export const sessionsApp = factory
           stream.onAbort(finish)
         })
       })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // POST /:sessionId/turn — chat DIRECTLY into a spawned session (Slice ③a).
+  // :sessionId is the handle list_sessions/create_session hand out (the
+  // entry's CURRENT segment id); the turn resumes the chain HEAD with the
+  // session's BACKGROUND toolset and FIFO-queues behind a running delegated
+  // task on the same session (the three locked decisions — see the stream).
+  // ──────────────────────────────────────────────────────────────────
+  .post(
+    '/:sessionId/turn',
+    describeRoute({
+      tags: ['sessions'],
+      summary: 'Run an interactive user turn on a spawned session — SSE ChatTurnEvents.',
+      'x-sdk-name': 'sessions.startTurn',
+      responses: {
+        200: {
+          description:
+            'SSE stream of the turn’s ChatTurnEvents; a `turn-queued` sentinel precedes a ' +
+            'turn parked behind a running task; `turn-stream-ended` closes the stream.',
+        },
+        404: { description: 'Unknown session, not owned, or not a spawned session.' },
+      },
+      // No x-mcp — this is the UI's chat surface, not a tool (the model's door
+      // into a session is send_task_to_session).
+    }),
+    validator('param', SessionIdParamSchema),
+    validator('json', StartSessionTurnRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const { sessionId } = c.req.valid('param')
+      return streamSpawnedSessionTurn(c, sessionId, c.req.valid('json'))
     },
   )

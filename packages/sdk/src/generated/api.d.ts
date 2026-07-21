@@ -2406,6 +2406,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessions/{sessionId}/turn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run an interactive user turn on a spawned session — SSE ChatTurnEvents. */
+        post: operations["postSessionsBySessionIdTurn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/hub/session": {
         parameters: {
             query?: never;
@@ -10672,6 +10689,45 @@ export interface operations {
                 content?: never;
             };
             /** @description Unknown session, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postSessionsBySessionIdTurn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    userMessageText: string;
+                    /** @enum {string} */
+                    model?: "claude-fable-5" | "claude-opus-4-8" | "claude-sonnet-4-6" | "claude-haiku-4-5";
+                    /** @enum {string} */
+                    thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+                    /** @enum {string} */
+                    mode?: "ask" | "auto" | "bypass";
+                };
+            };
+        };
+        responses: {
+            /** @description SSE stream of the turn’s ChatTurnEvents; a `turn-queued` sentinel precedes a turn parked behind a running task; `turn-stream-ended` closes the stream. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown session, not owned, or not a spawned session. */
             404: {
                 headers: {
                     [name: string]: unknown;
