@@ -96,7 +96,8 @@ describe('bridgePrimarySession', () => {
       // The provider summarized the OLD session; the fresh session was seeded
       // with the carry.
       expect(summarizeSession).toHaveBeenCalledWith('sdk-old')
-      expect(startSeededSession).toHaveBeenCalledWith('GOAL: ship. NEXT: continue.')
+      // The superseded id rides along so the chat side can stamp the chain link.
+      expect(startSeededSession).toHaveBeenCalledWith('GOAL: ship. NEXT: continue.', 'sdk-old')
 
       // Primary repointed to the fresh session; the superseded one recorded.
       const reloaded = findPrimarySessionById(db, primary.id)

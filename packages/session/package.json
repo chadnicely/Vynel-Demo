@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./runtime": "./src/runtime/index.ts",
     "./continuity": "./src/continuity/index.ts",
-    "./delegation": "./src/delegation/index.ts"
+    "./delegation": "./src/delegation/index.ts",
+    "./overview": "./src/overview/index.ts"
   },
   "scripts": {
     "build": "tsc",

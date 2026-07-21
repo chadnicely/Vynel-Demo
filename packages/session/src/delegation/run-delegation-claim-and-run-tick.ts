@@ -184,7 +184,9 @@ export async function runDelegationClaimAndRunTick(
         ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
         approvalHandler: handler,
         // Live observing: publish the turn's events on its trace channel; the end
-        // closes any attached observe stream (drained or threw alike).
+        // closes any attached observe stream (drained or threw alike). The same
+        // broadcaster also feeds the session-keyed channel (Watch everywhere).
+        ...(turnEvents !== undefined ? { turnEvents } : {}),
         ...(turnEvents !== undefined && partialSessionId !== undefined
           ? {
               observer: {

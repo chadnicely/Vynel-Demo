@@ -183,6 +183,8 @@ export async function streamGlobalRootTurn(
         {
           db: c.var.db,
           logger: c.var.logger,
+          // The brain's turns tee onto their session channel (Watch everywhere).
+          turnEvents: c.var.turnEvents,
           // Resolve the global root + ensure its hidden cwd, INSIDE the lock (the
           // runner calls this) — apps/local-api owns the env-coupled user-data-dir read.
           resolveTarget: async () => {
@@ -200,6 +202,7 @@ export async function streamGlobalRootTurn(
             ? { attachedImages: input.attachedImages }
             : {}),
           ...(input.model !== undefined ? { model: input.model } : {}),
+          ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
           ...(permissionMode !== undefined ? { permissionMode } : {}),
           // A voice turn also RECORDS its origin — the transcript shows "via Voice".
           ...(input.voice === true ? { voice: true, originChannel: 'voice' as const } : {}),

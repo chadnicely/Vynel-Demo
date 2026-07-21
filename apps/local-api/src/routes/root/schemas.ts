@@ -13,6 +13,7 @@
 
 import { z } from 'zod'
 import { CHAT_MODEL_IDS } from '@vynel/contracts/chat/chat-models'
+import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
 import { SESSION_MODES, type SessionMode } from '@vynel/session'
 import {
   ChatToolCallSchema,
@@ -40,6 +41,8 @@ export const StartGlobalRootTurnRequestSchema = z
       .string()
       .refine((value) => CHAT_MODEL_IDS.includes(value), 'Unsupported model.')
       .optional(),
+    // Reasoning effort for this turn (the composer's picker; Slice ③). Omitted = Auto.
+    thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
     // The user-facing session mode (surface-up step 1). Governs the brain's own tools
     // this turn AND is threaded onto any delegation it enqueues (the mode header →
     // `delegation_jobs.permissionMode`). Omitted → the brain's bypass default.

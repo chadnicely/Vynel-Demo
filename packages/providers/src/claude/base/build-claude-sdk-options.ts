@@ -13,6 +13,8 @@ export type BuildClaudeSdkOptionsInput = {
   resumeSessionId?: string
   /** The Claude model to run (Agent SDK `options.model`). Omit for the CLI default. */
   model?: string
+  /** Reasoning effort (Agent SDK `options.effort`). Omit for the adaptive default. */
+  thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   permissionMode: ClaudePermissionMode
   allowedToolNames: string[]
   deniedToolNames: string[]
@@ -127,6 +129,9 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
   }
   if (input.model !== undefined) {
     options.model = input.model
+  }
+  if (input.thinkingEffort !== undefined) {
+    options.effort = input.thinkingEffort
   }
   // The SDK requires this acknowledgement flag whenever bypassPermissions is set.
   if (sdkPermissionMode === 'bypassPermissions') {

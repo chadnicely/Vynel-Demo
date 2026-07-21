@@ -74,6 +74,47 @@ describe("ChatComposer", () => {
     expect(wrapper.emitted("voice")).toHaveLength(1);
   });
 
+  it("shows the thinking chip only when efforts are provided, and emits the pick", async () => {
+    const bare = mount(ChatComposer, { props: baseProps });
+    expect(bare.find('[aria-label="Thinking"]').exists()).toBe(false);
+
+    const wrapper = mount(ChatComposer, {
+      props: {
+        ...baseProps,
+        efforts: [
+          { id: "auto", label: "Auto" },
+          { id: "high", label: "High" },
+        ],
+        effortId: "auto",
+      },
+    });
+
+    await wrapper.find('[aria-label="Thinking"]').trigger("click");
+    const rows = wrapper.findAll(".menu-row");
+    await rows[1]!.trigger("click");
+
+    expect(wrapper.emitted("update:effortId")).toEqual([["high"]]);
+  });
+
+  it("shows the context ring only when the host passes an occupancy", () => {
+    const bare = mount(ChatComposer, { props: baseProps });
+    expect(bare.find(".context-ring").exists()).toBe(false);
+
+    const wrapper = mount(ChatComposer, {
+      props: {
+        ...baseProps,
+        contextFraction: 0.83,
+        contextTooltip: "~166k of 200k · continues automatically near 85%",
+      },
+    });
+
+    const ring = wrapper.get(".context-ring");
+    expect(ring.classes()).toContain("is-warn");
+    expect(ring.attributes("title")).toBe(
+      "~166k of 200k · continues automatically near 85%",
+    );
+  });
+
   it("renders the notice line when the host passes one", () => {
     const wrapper = mount(ChatComposer, {
       props: { ...baseProps, notice: "Microphone access was denied." },

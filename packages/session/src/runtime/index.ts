@@ -17,7 +17,11 @@ export {
 // Slice-3 apps/api edge composes MCP + capabilities + agents, resolves the
 // primary, and drives this generator (the workspace counterpart of the
 // global-root core; it takes an OPAQUE pre-composed `mcpServers`).
-export { startChatTurn, type StartChatTurnInput } from './start-chat-turn.js'
+export {
+  startChatTurn,
+  type StartChatTurnInput,
+  type StartChatTurnDeps,
+} from './start-chat-turn.js'
 
 // Primary-as-thread resolution + continuity-application (the durable
 // workspace-brain identity). Resolve the primary BEFORE the turn; link + apply
@@ -66,3 +70,11 @@ export {
   type BeginTurnActivityInput,
   type SessionTurnActivityHandle,
 } from './session-activity-feed.js'
+
+// The session-keyed live turn channel (Watch everywhere, Slice ③) — runners
+// tee their events through the wrapper; the SSE observe route subscribes by
+// `sessionChannelKey`.
+export {
+  sessionChannelKey,
+  publishTurnEventsToSessionChannel,
+} from './session-turn-channel.js'

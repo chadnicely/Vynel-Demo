@@ -8,6 +8,8 @@ export { default as CodeBlock } from "./components/CodeBlock.vue";
 export { default as CommandPalette } from "./components/CommandPalette.vue";
 export { default as ConfirmButton } from "./components/ConfirmButton.vue";
 export { default as ContextMenu } from "./components/ContextMenu.vue";
+export { default as ContextMeter } from "./components/ContextMeter.vue";
+export { default as ContextRing } from "./components/ContextRing.vue";
 export { default as DropdownMenu } from "./components/DropdownMenu.vue";
 export { default as EmptyState } from "./components/EmptyState.vue";
 export { default as IconButton } from "./components/IconButton.vue";

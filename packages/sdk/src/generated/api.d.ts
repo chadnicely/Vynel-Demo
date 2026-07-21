@@ -2338,6 +2338,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessions/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every session across scopes — continuity chains folded into single entries, newest first. */
+        get: operations["getSessionsOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sessions/{sessionId}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Observe a session's live turn — streams its ChatTurnEvents via SSE. */
+        get: operations["getSessionsBySessionIdStream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/hub/session": {
         parameters: {
             query?: never;
@@ -5103,6 +5137,8 @@ export interface operations {
                         base64Data: string;
                     }[];
                     model?: string;
+                    /** @enum {string} */
+                    thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
                     /** @enum {string} */
                     mode?: "ask" | "auto" | "bypass";
                 };
@@ -10114,6 +10150,8 @@ export interface operations {
                     }[];
                     model?: string;
                     /** @enum {string} */
+                    thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+                    /** @enum {string} */
                     mode?: "ask" | "auto" | "bypass";
                     voice?: boolean;
                 };
@@ -10443,6 +10481,73 @@ export interface operations {
                         }[];
                     };
                 };
+            };
+        };
+    };
+    getSessionsOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of session entries (chain segments nested), sorted by last use. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sessionId: string;
+                        /** @enum {string} */
+                        scope: "global" | "workspace" | "agent";
+                        workspaceId: string | null;
+                        workspaceName: string | null;
+                        title: string;
+                        model: string | null;
+                        contextTokens: number | null;
+                        contextWindow: number;
+                        lastMessageAt: string;
+                        segments: {
+                            sessionId: string;
+                            title: string;
+                            startedAt: string;
+                            lastMessageAt: string;
+                            contextTokens: number | null;
+                            continuedFromSessionId: string | null;
+                            isCurrent: boolean;
+                        }[];
+                    }[];
+                };
+            };
+        };
+    };
+    getSessionsBySessionIdStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream of the session’s live events; turn-stream-ended per turn. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown session, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

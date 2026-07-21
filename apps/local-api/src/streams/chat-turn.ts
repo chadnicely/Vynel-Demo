@@ -151,6 +151,7 @@ export async function streamChatTurn(
         userMessageText: input.userMessageText,
         ...(input.attachedImages !== undefined ? { attachedImages: input.attachedImages } : {}),
         ...(input.model !== undefined ? { model: input.model } : {}),
+        ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
         // Map the user-facing session mode → provider permission mode. The
         // default is resolved here (DEFAULT_SESSION_MODE today; the persisted
         // per-user setting once that lands). The irreversible floor still cards
@@ -177,7 +178,8 @@ export async function streamChatTurn(
         // options clean for the common no-agents turn.
         ...(Object.keys(sessionAgents).length > 0 ? { agents: sessionAgents } : {}),
       },
-      { logger: c.var.logger },
+      // turnEvents: the turn tees onto its session channel (Watch everywhere).
+      { logger: c.var.logger, turnEvents: c.var.turnEvents },
     )
     // Announce this turn on the session-activity feed so OTHER surfaces (a
     // second tab, the workspace thread elsewhere) go live while it runs.

@@ -110,6 +110,8 @@ describe('bridgePrimarySessionAfterTurn', () => {
       const segment = findChatSessionById(db, 'sdk-fresh')
       expect(segment?.totalMessageCount).toBe(0)
       expect(segment?.visibility).toBe('hidden')
+      // The continuity chain link — the sessions panel's A ──▶ B edge.
+      expect(segment?.continuedFromSessionId).toBe('sdk-old')
       expect(listChatSessionsForWorkspace(db, workspace.id).map((s) => s.id)).not.toContain(
         'sdk-fresh',
       )

@@ -29,6 +29,8 @@ import {
   type StructuralLogger,
 } from '@vynel/chat'
 import { captureCompactionSummary } from '../continuity/index.js'
+import type { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
+import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 
 export type StartChatTurnInput = {
   userId: string
@@ -42,6 +44,8 @@ export type StartChatTurnInput = {
   attachedImages?: AttachedImageBytes[]
   /** The model to run this turn (per-chat picker). Omit to inherit the CLI default. */
   model?: string
+  /** Reasoning effort for this turn (the composer's picker). Omit = Auto. */
+  thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   /** Provider permission mode (the route maps the user-facing `SessionMode`
    *  here via `@vynel/session`'s `toPermissionMode`). Forwarded to the provider. */
   permissionMode: ClaudePermissionMode
@@ -74,10 +78,18 @@ export type StartChatTurnInput = {
   alwaysRequireApprovalToolNames?: string[]
 }
 
+export type StartChatTurnDeps = {
+  logger?: StructuralLogger
+  /** The shared live-turn pub/sub — when present, the turn's events tee onto
+   *  its `session:<id>` channel so ANY observer can Watch it (session-library
+   *  Slice ③). Omit → stream-only (tests, callers without live observers). */
+  turnEvents?: TurnEventBroadcaster
+}
+
 export async function* startChatTurn(
   db: Database,
   input: StartChatTurnInput,
-  deps: { logger?: StructuralLogger } = {},
+  deps: StartChatTurnDeps = {},
 ): AsyncIterable<ChatTurnEvent> {
   const userMessageId = crypto.randomUUID()
   const attachedImages = input.attachedImages ?? []
@@ -101,6 +113,7 @@ export async function* startChatTurn(
     userMessageText: input.userMessageText,
     ...(chatMessageImages !== undefined ? { attachedImages: chatMessageImages } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
+    ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
     permissionMode: input.permissionMode,
     allowedToolNames: [],
     deniedToolNames: input.deniedToolNames ?? [],
@@ -133,8 +146,9 @@ export async function* startChatTurn(
 
   // 3. Consume the normalized events; consumer persists the user message in the
   //    session-started handler (FK-safe), writes the image bytes to disk once
-  //    the session id exists, and yields UI events.
-  yield* consumeSessionEventStream({
+  //    the session id exists, and yields UI events — teed onto the session's
+  //    live channel when a broadcaster is wired (Watch everywhere).
+  const turnStream = consumeSessionEventStream({
     db,
     sessionEventStream,
     userMessageInput: {
@@ -150,4 +164,7 @@ export async function* startChatTurn(
     isNewSession: !input.resumeSessionId,
     ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
   })
+  yield* deps.turnEvents !== undefined
+    ? publishTurnEventsToSessionChannel(turnStream, deps.turnEvents)
+    : turnStream
 }

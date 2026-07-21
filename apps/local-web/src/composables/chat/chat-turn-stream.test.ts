@@ -88,6 +88,48 @@ describe("streamChatTurnEvents", () => {
     });
   });
 
+  it("carries the thinking effort on both scopes' bodies only when picked", async () => {
+    const workspace = fakeClient(streamFromChunks([FRAMES]));
+    await collect(
+      streamChatTurnEvents(workspace.client, {
+        scope: { kind: "workspace", workspaceId: "ws1" },
+        userMessageText: "hello",
+        thinkingEffort: "high",
+        signal: new AbortController().signal,
+      }),
+    );
+    expect(workspace.captured[0]?.init.body).toEqual({
+      userMessageText: "hello",
+      thinkingEffort: "high",
+    });
+
+    const global = fakeClient(streamFromChunks([FRAMES]));
+    await collect(
+      streamChatTurnEvents(global.client, {
+        scope: { kind: "global" },
+        userMessageText: "hello",
+        thinkingEffort: "low",
+        signal: new AbortController().signal,
+      }),
+    );
+    expect(global.captured[0]?.init.body).toEqual({
+      userMessageText: "hello",
+      thinkingEffort: "low",
+    });
+
+    // Auto = the field never leaves the client (pinned by the earlier
+    // exact-body assertions too — no thinkingEffort key when unset).
+    const auto = fakeClient(streamFromChunks([FRAMES]));
+    await collect(
+      streamChatTurnEvents(auto.client, {
+        scope: { kind: "global" },
+        userMessageText: "hello",
+        signal: new AbortController().signal,
+      }),
+    );
+    expect(auto.captured[0]?.init.body).toEqual({ userMessageText: "hello" });
+  });
+
   it("decodes events even when frames are split across byte chunks", async () => {
     const mid = Math.floor(FRAMES.length / 2);
     const { client } = fakeClient(

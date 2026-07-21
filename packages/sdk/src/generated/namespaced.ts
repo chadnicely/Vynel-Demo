@@ -1005,6 +1005,20 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  sessions: {
+  overview: async () => {
+    const { data, error, response } = await client["GET"]("/sessions/overview")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  streamSession: async (sessionId: NonNullable<paths["/sessions/{sessionId}/stream"]["get"]['parameters']>['path']["sessionId"]) => {
+    const { data, error, response } = await client["GET"]("/sessions/{sessionId}/stream", {
+      params: { path: { sessionId: sessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   skills: {
   disable: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable"]["post"]['parameters']>['path']["workspaceId"], installedSkillId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable"]["post"]['parameters']>['path']["installedSkillId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable", {

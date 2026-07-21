@@ -238,6 +238,9 @@ describe('makeNamespaced — shape', () => {
       'routing',
       'schedules',
       'schedulesUser',
+      // test: correct expectation — session-library Slice ③ added `sessions`
+      // (GET /sessions/overview, the unified session list).
+      'sessions',
       'skills',
       'sshServers',
       'tasks',

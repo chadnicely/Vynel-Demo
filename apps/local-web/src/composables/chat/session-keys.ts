@@ -6,6 +6,9 @@ export const sessionKeys = {
   list: (scopeKey: string) => [...sessionKeys.lists(), scopeKey] as const,
   details: () => [...sessionKeys.all, "detail"] as const,
   detail: (sessionId: string) => [...sessionKeys.details(), sessionId] as const,
+  // Under `all` on purpose: every turn-end invalidation (use-chat-turn) also
+  // refreshes the cross-scope overview — no second invalidation site.
+  overview: () => [...sessionKeys.all, "overview"] as const,
 };
 
 export function sessionScopeKey(scope: SessionScope): string {

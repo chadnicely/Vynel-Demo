@@ -41,6 +41,12 @@ export type StartChatSessionInput = {
    *  Claude Code CLI default. Maps to the Agent SDK `options.model`. */
   model?: string
 
+  /** Reasoning effort for this turn (the composer's picker). Maps to the
+   *  Agent SDK `options.effort`; the SDK silently downgrades a level the
+   *  model doesn't support. Omit ("Auto") for the adaptive default —
+   *  byte-for-byte today's behavior. */
+  thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
   /** Permission mode for this session — see `ClaudePermissionMode`. */
   permissionMode: ClaudePermissionMode
 

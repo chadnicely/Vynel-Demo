@@ -140,6 +140,32 @@ export function listRecentChatSessionsForUser(
     .all()
 }
 
+// Every session the sessions-overview reads: BOTH visibilities (hidden swap
+// segments become chain MEMBERS there, never standalone entries), archived +
+// soft-deleted excluded. Larger cap than the sidebar lists — chains consume
+// rows here but collapse into single entries in the overview.
+const OVERVIEW_LIST_LIMIT = 500
+
+export function listAllChatSessionsForUser(
+  db: Database,
+  input: { userId: string; limit?: number },
+): ChatSession[] {
+  const cap = Math.min(input.limit ?? OVERVIEW_LIST_LIMIT, OVERVIEW_LIST_LIMIT)
+  return db
+    .select()
+    .from(chatSessions)
+    .where(
+      and(
+        eq(chatSessions.userId, input.userId),
+        eq(chatSessions.isArchived, false),
+        isNull(chatSessions.deletedAt),
+      ),
+    )
+    .orderBy(sql`${chatSessions.lastMessageAt} desc`)
+    .limit(cap)
+    .all()
+}
+
 export function insertChatSession(db: Database, newSession: NewChatSession): ChatSession {
   const [inserted] = db.insert(chatSessions).values(newSession).returning().all()
   if (!inserted) throw new Error('insertChatSession: no row returned')

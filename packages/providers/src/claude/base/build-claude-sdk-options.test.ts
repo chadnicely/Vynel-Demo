@@ -39,6 +39,18 @@ describe('buildClaudeSdkOptions', () => {
     expect(options.allowDangerouslySkipPermissions).toBeUndefined()
   })
 
+  it('maps thinkingEffort to the SDK effort option; omitted = adaptive default (absent)', () => {
+    const withEffort = buildClaudeSdkOptions({
+      ...base,
+      permissionMode: 'ask',
+      thinkingEffort: 'medium',
+    })
+    expect(withEffort.effort).toBe('medium')
+    // Auto = the field never reaches the SDK — today's behavior byte-for-byte.
+    const withoutEffort = buildClaudeSdkOptions({ ...base, permissionMode: 'ask' })
+    expect(withoutEffort.effort).toBeUndefined()
+  })
+
   it('passes resumeSessionId through as the SDK resume option', () => {
     const options = buildClaudeSdkOptions({
       ...base,

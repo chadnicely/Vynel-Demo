@@ -8,6 +8,7 @@
 
 import { z } from 'zod'
 import { CHAT_MODEL_IDS } from '@vynel/contracts/chat/chat-models'
+import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
 import { SESSION_MODES, type SessionMode } from '@vynel/session'
 
 // ~5 MB once base64 is decoded (base64 inflates ~4/3). Per-attachment, generous
@@ -87,6 +88,9 @@ export const StartChatTurnRequestSchema = z.object({
     .string()
     .refine((value) => CHAT_MODEL_IDS.includes(value), 'Unsupported model.')
     .optional(),
+  // Reasoning effort for this turn (the composer's picker; Slice ③). Omitted =
+  // Auto (the SDK's adaptive default — unchanged behavior).
+  thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
   // The user-facing session mode (values from SESSION_MODE_VALUES above). The
   // server maps it to the provider permission mode (`toPermissionMode`) and
   // resolves the default when omitted (the persisted setting, else `ask`).

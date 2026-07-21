@@ -404,6 +404,10 @@ describe('consumeSessionEventStream — chunks + tool use + usage', () => {
       expect(assistant?.inputTokens).toBe(1200 + 8000 + 800)
       expect(assistant?.outputTokens).toBe(300)
 
+      // The session-level occupancy mirror (the sessions panel's number)
+      // follows the same report.
+      expect(findChatSessionById(db, 'session-c')?.lastContextTokens).toBe(1200 + 8000 + 800)
+
       // The forwarded event carries the cache split for the live context breakdown.
       const usage = events.find((e) => e.kind === 'usage-reported')
       expect(usage).toMatchObject({
@@ -477,6 +481,8 @@ describe('consumeSessionEventStream — chunks + tool use + usage', () => {
       // clobber the first. The last (msg-b) is the session's current occupancy.
       expect(findChatMessageById(db, 'msg-a')?.inputTokens).toBe(50 + 60000)
       expect(findChatMessageById(db, 'msg-b')?.inputTokens).toBe(80 + 90000)
+      // The session mirror keeps the LATEST report only.
+      expect(findChatSessionById(db, 'session-m')?.lastContextTokens).toBe(80 + 90000)
     })
   })
 

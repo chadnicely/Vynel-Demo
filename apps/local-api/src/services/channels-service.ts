@@ -35,6 +35,7 @@ import type { Logger } from 'pino'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { HonoAppRequestFn } from '../factory.js'
 import { runGlobalRootTurn } from '../sessions/run-global-root-turn.js'
+import type { TurnEventBroadcaster } from '@vynel/session/delegation'
 
 const POLLING_INTERVAL_MS = 5_000
 const DELIVERY_INTERVAL_MS = 2_000
@@ -50,10 +51,13 @@ export interface ChannelsServiceOptions {
   /** The shared turn-liveness registry — a channel turn announces itself so the
    *  open app goes live while it runs (shared with `createApp` via server.ts). */
   activityFeed: SessionActivityFeed
+  /** The shared live-turn pub/sub — channel turns tee onto their session
+   *  channel so they are watchable like any other (Slice ③). */
+  turnEvents?: TurnEventBroadcaster
 }
 
 export function startChannelsService(options: ChannelsServiceOptions): { stop: () => void } {
-  const { db, logger, appRequest, activityFeed } = options
+  const { db, logger, appRequest, activityFeed, turnEvents } = options
 
   const turnDeps: ProcessInboundDeps = {
     logger,
@@ -62,7 +66,10 @@ export function startChannelsService(options: ChannelsServiceOptions): { stop: (
     // path passes it); `logger` + `appRequest` are the service's. The runner
     // serializes root turns per user (the firehose lock lives in the core).
     runRootTurn: (turnDb, input) =>
-      runGlobalRootTurn({ db: turnDb, logger, appRequest, activityFeed }, input),
+      runGlobalRootTurn(
+        { db: turnDb, logger, appRequest, activityFeed, ...(turnEvents !== undefined ? { turnEvents } : {}) },
+        input,
+      ),
     // KLONE decoupled the approvals leaf: `resolveApproval` is injected here (the
     // channels leaf never imports @vynel/approvals). The channel approval-reply path
     // passes a nullable `workspaceId` faithfully; the current resolve is user-scoped

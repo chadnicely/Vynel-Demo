@@ -82,7 +82,7 @@ export async function bridgePrimarySessionAfterTurn(
           model: SWAP_CARRY_MODEL,
           ...(logger !== undefined ? { logger } : {}),
         }),
-      startSeededSession: async (carry) => {
+      startSeededSession: async (carry, fromSdkSessionId) => {
         const seededSessionId = await runSeededSwapSession(provider, {
           workspacePath: input.workspacePath,
           carry,
@@ -104,6 +104,9 @@ export async function bridgePrimarySessionAfterTurn(
           userId: input.userId,
           workspaceId: input.workspaceId,
           providerId: input.providerId,
+          // The continuity chain link — the sessions panel renders A ──%──▶ B
+          // from this stamp (the superseded segment is the predecessor).
+          continuedFromSessionId: fromSdkSessionId,
         })
         return seededSessionId
       },

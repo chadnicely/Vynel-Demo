@@ -37,6 +37,9 @@ export type RecordSwapSegmentSessionInput = {
   userId: string
   workspaceId: string
   providerId: AiAgentProviderId
+  /** The superseded session this segment continues — the continuity chain
+   *  link the sessions panel renders. Omitted only by legacy callers. */
+  continuedFromSessionId?: string
   /** When the segment was started. Defaults to now. */
   startedAt?: Date
 }
@@ -60,9 +63,8 @@ export function recordSwapSegmentSession(
   }
 
   return withTransaction(db, (tx) => {
-    const segment = chatRepository.insertChatSession(
-      tx,
-      buildNewChatSessionRow({
+    const segment = chatRepository.insertChatSession(tx, {
+      ...buildNewChatSessionRow({
         sessionId: input.sessionId,
         userId: input.userId,
         workspaceId: input.workspaceId,
@@ -74,7 +76,12 @@ export function recordSwapSegmentSession(
         // entry, not a growing chain of "Continued conversation" rows (Slice 2).
         visibility: 'hidden',
       }),
-    )
+      // The chain link stays OFF the shared builder — a normal first turn has
+      // no predecessor; only a swap segment carries one.
+      ...(input.continuedFromSessionId !== undefined
+        ? { continuedFromSessionId: input.continuedFromSessionId }
+        : {}),
+    })
     insertOutboxEvent(tx, {
       id: crypto.randomUUID(),
       type: CHAT_SESSION_CREATED,

@@ -68,6 +68,16 @@ export const chatSessions = table(
     // The explicit session-type discriminator — see `ChatSessionScope` above.
     scope: text().$type<ChatSessionScope>().notNull().default('workspace'),
     isArchived: boolean().notNull(),
+    // The session's CURRENT context occupancy — the full input side of the
+    // latest assistant request (input + cache read + cache creation), written
+    // by handle-usage-reported beside its per-message write. Null until the
+    // first usage report. Numerator of the UI context meter and the root's
+    // planning number (`contextWindowForModel(model)` is the denominator).
+    lastContextTokens: integer(),
+    // The continuity chain link: the session id this swap segment CONTINUED
+    // from, stamped by recordSwapSegmentSession at swap time. Null = chain
+    // head. LOOSE ref (no FK) — segments purge independently.
+    continuedFromSessionId: text(),
     deletedAt: timestamp(), // soft-delete (D14); null = active
     totalMessageCount: integer().notNull(),
     totalInputTokens: integer().notNull(),

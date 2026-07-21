@@ -6631,6 +6631,16 @@
                   "model": {
                     "type": "string"
                   },
+                  "thinkingEffort": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ]
+                  },
                   "mode": {
                     "type": "string",
                     "enum": [
@@ -19558,6 +19568,16 @@
                   "model": {
                     "type": "string"
                   },
+                  "thinkingEffort": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ]
+                  },
                   "mode": {
                     "type": "string",
                     "enum": [
@@ -20385,6 +20405,163 @@
         "parameters": [],
         "summary": "Get the Home dashboard's aggregate read (workspaces + recent chat activity + upcoming schedules + tasks).",
         "x-sdk-name": "dashboard.getOverview"
+      }
+    },
+    "/sessions/overview": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of session entries (chain segments nested), sorted by last use.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sessionId": {
+                        "type": "string"
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "global",
+                          "workspace",
+                          "agent"
+                        ]
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "workspaceName": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "model": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "contextTokens": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "contextWindow": {
+                        "type": "integer"
+                      },
+                      "lastMessageAt": {
+                        "type": "string"
+                      },
+                      "segments": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "sessionId": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "startedAt": {
+                              "type": "string"
+                            },
+                            "lastMessageAt": {
+                              "type": "string"
+                            },
+                            "contextTokens": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "continuedFromSessionId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "isCurrent": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "sessionId",
+                            "title",
+                            "startedAt",
+                            "lastMessageAt",
+                            "contextTokens",
+                            "continuedFromSessionId",
+                            "isCurrent"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "sessionId",
+                      "scope",
+                      "workspaceId",
+                      "workspaceName",
+                      "title",
+                      "model",
+                      "contextTokens",
+                      "contextWindow",
+                      "lastMessageAt",
+                      "segments"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getSessionsOverview",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [],
+        "summary": "List every session across scopes — continuity chains folded into single entries, newest first.",
+        "x-sdk-name": "sessions.overview"
+      }
+    },
+    "/sessions/{sessionId}/stream": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "SSE stream of the session’s live events; turn-stream-ended per turn."
+          },
+          "404": {
+            "description": "Unknown session, or not owned."
+          }
+        },
+        "operationId": "getSessionsBySessionIdStream",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Observe a session's live turn — streams its ChatTurnEvents via SSE.",
+        "x-sdk-name": "sessions.streamSession"
       }
     },
     "/hub/session": {

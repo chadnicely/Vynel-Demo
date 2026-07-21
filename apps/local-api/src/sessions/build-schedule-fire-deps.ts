@@ -18,6 +18,7 @@
 import { listEnabledCapabilities } from '@vynel/capabilities'
 import { startChatTurn, composeSessionCapabilities } from '@vynel/session/runtime'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
+import type { TurnEventBroadcaster } from '@vynel/session/delegation'
 import type { FireScheduleDeps } from '@vynel/schedules'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
@@ -29,6 +30,7 @@ export async function buildScheduleFireDeps(
   appRequest: HonoAppRequestFn,
   logger: Logger,
   activityFeed: SessionActivityFeed,
+  turnEvents?: TurnEventBroadcaster,
 ): Promise<FireScheduleDeps> {
   // Dynamic import — the descriptor's `build` closure wraps the generated tool
   // registry in the SDK's `createSdkMcpServer`; deferring the load keeps the
@@ -49,7 +51,10 @@ export async function buildScheduleFireDeps(
       origin: 'schedule',
     })
     try {
-      for await (const event of startChatTurn(turnDb, input, turnDeps)) {
+      for await (const event of startChatTurn(turnDb, input, {
+        ...turnDeps,
+        ...(turnEvents !== undefined ? { turnEvents } : {}),
+      })) {
         if (event.kind === 'session-created') activity.sessionResolved(event.session.id)
         else if (event.kind === 'user-message-persisted')
           activity.sessionResolved(event.message.sessionId)

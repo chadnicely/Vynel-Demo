@@ -137,7 +137,7 @@ export async function boot(): Promise<void> {
   // The per-minute schedule poll — claims due schedules + fires each via a
   // headless workspace turn. MCP-intrinsic, so it lives in the api process (not
   // the worker). Stopped on shutdown, like the file watcher.
-  const schedulesService = await startSchedulesService({ db, logger, appRequest, activityFeed })
+  const schedulesService = await startSchedulesService({ db, logger, appRequest, activityFeed, turnEvents })
   // Watcher restore + catch-up scan for every registered knowledge source, plus
   // the in-process embeddings tick (the desktop app runs no apps/worker).
   const knowledgeIndexingService = startKnowledgeIndexingService({ db, logger, fileWatcher })
@@ -148,7 +148,7 @@ export async function boot(): Promise<void> {
   // pending inbound message and queue the answer; send queued outbound messages.
   // Sub-minute cadence + MCP-intrinsic processing, so it lives in the api process
   // (not the worker); `appRequest` re-enters the api from each processing turn.
-  const channelsService = startChannelsService({ db, logger, appRequest, activityFeed })
+  const channelsService = startChannelsService({ db, logger, appRequest, activityFeed, turnEvents })
   // The delegation claim-and-run tick — claims one pending routing job per tick,
   // runs it as a workspace turn, records the terminal state; at startup it fails
   // the jobs a crash left stuck `claimed`. Same api-process reasoning as above.

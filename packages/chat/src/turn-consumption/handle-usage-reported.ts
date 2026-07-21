@@ -50,12 +50,17 @@ export function handleUsageReported(input: HandleUsageReportedInput): HandleUsag
       inputTokensDelta: event.inputTokens,
       outputTokensDelta: event.outputTokens,
     })
-  }
-  // Persist the session model once (constant per session; reported on every assistant
-  // message). Drives the UI context-window denominator.
-  if (sessionId && event.model && event.model !== sessionModel) {
-    chatRepository.updateChatSession(db, sessionId, { model: event.model })
-    sessionModel = event.model
+    // The session-level occupancy mirror — the sessions panel + the root's
+    // list_sessions read it without joining messages. Overwritten per report;
+    // the LAST of a turn IS the current occupancy. The model rides the same
+    // update when it first reports (constant per session; drives the
+    // context-window denominator).
+    const advancedModel = event.model && event.model !== sessionModel ? event.model : null
+    chatRepository.updateChatSession(db, sessionId, {
+      lastContextTokens: contextTokens,
+      ...(advancedModel !== null ? { model: advancedModel } : {}),
+    })
+    if (advancedModel !== null) sessionModel = advancedModel
   }
   // Persist occupancy onto the assistant message this usage belongs to (by messageId);
   // fall back to the most-recent assistant row if the id didn't resolve (defensive —

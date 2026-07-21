@@ -76,6 +76,10 @@ export function useChatTurn(options: {
         // Both scopes carry the composer's session mode — a global turn's mode also
         // governs any delegation the brain enqueues (surface-up step 1).
         mode: ui.composerMode,
+        // Auto means "omit the field" — the provider's adaptive default.
+        ...(ui.composerThinkingEffort !== "auto"
+          ? { thinkingEffort: ui.composerThinkingEffort }
+          : {}),
         signal: abortController.signal,
         // Global root manages its own thread. A workspace turn continues its
         // primary, resumes a picked session, or starts fresh.

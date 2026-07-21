@@ -7,6 +7,7 @@ export interface ComposerOption {
 
 <script setup lang="ts">
 import { nextTick, ref, watch } from "vue";
+import ContextRing from "./ContextRing.vue";
 import SelectChip from "./SelectChip.vue";
 
 // THE chat input, used by every chat surface: multiline draft, model + mode
@@ -23,6 +24,12 @@ const props = defineProps<{
   modelId: string;
   modes: ComposerOption[];
   modeId: string;
+  /** Thinking-effort choices — the chip renders only when both are provided. */
+  efforts?: ComposerOption[] | undefined;
+  effortId?: string | undefined;
+  /** Context-window occupancy 0..1 — the ring renders only when non-null. */
+  contextFraction?: number | null | undefined;
+  contextTooltip?: string | undefined;
   showVoice?: boolean | undefined;
   /** True while the host is dictating into the draft — the mic pulses. */
   voiceActive?: boolean | undefined;
@@ -36,6 +43,7 @@ const emit = defineEmits<{
   voice: [];
   "update:modelId": [id: string];
   "update:modeId": [id: string];
+  "update:effortId": [id: string];
 }>();
 
 const draft = defineModel<string>("draft", { default: "" });
@@ -217,6 +225,18 @@ function onDrop(event: DragEvent) {
         @update:model-value="(id) => emit('update:modeId', id)"
       />
 
+      <template v-if="props.efforts && props.effortId !== undefined">
+        <span class="divider" aria-hidden="true" />
+
+        <SelectChip
+          :options="props.efforts"
+          :model-value="props.effortId"
+          label="Thinking"
+          opens-up
+          @update:model-value="(id) => emit('update:effortId', id)"
+        />
+      </template>
+
       <button
         v-if="props.showVoice"
         type="button"
@@ -251,6 +271,13 @@ function onDrop(event: DragEvent) {
       </button>
 
       <span class="spacer" />
+
+      <ContextRing
+        v-if="props.contextFraction != null"
+        class="context-slot"
+        :fraction="props.contextFraction"
+        :tooltip="props.contextTooltip"
+      />
 
       <button
         v-if="props.streaming"
@@ -452,6 +479,10 @@ function onDrop(event: DragEvent) {
 
 .spacer {
   flex: 1;
+}
+
+.context-slot {
+  margin-right: 4px;
 }
 
 .send-button {

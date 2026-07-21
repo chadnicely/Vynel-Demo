@@ -86,6 +86,31 @@ describe('recordSwapSegmentSession (core)', () => {
         sessionId: freshSdkSessionId,
         providerId: 'claude',
       })
+      // No predecessor passed → chain head.
+      expect(segment.continuedFromSessionId).toBeNull()
+    })
+  })
+
+  it('stamps the continuity chain link when the superseded session is passed', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const predecessorId = `sdk-${randomUUID()}`
+      const freshSdkSessionId = `sdk-${randomUUID()}`
+
+      const segment = recordSwapSegmentSession(db, {
+        sessionId: freshSdkSessionId,
+        userId: user.id,
+        workspaceId: workspace.id,
+        providerId: 'claude',
+        continuedFromSessionId: predecessorId,
+      })
+
+      expect(segment.continuedFromSessionId).toBe(predecessorId)
+      // LOOSE ref by design — the predecessor row need not exist.
+      expect(findChatSessionById(db, freshSdkSessionId)?.continuedFromSessionId).toBe(
+        predecessorId,
+      )
     })
   })
 })

@@ -31,6 +31,7 @@ import {
   type SessionActivityFeed,
   type SessionSink,
 } from '@vynel/session/runtime'
+import type { TurnEventBroadcaster } from '@vynel/session/delegation'
 import type { DelegationOrigin } from '@vynel/orchestration'
 import type { HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
@@ -50,6 +51,9 @@ export interface RunGlobalRootTurnDeps {
   /** The turn-liveness registry — a background channel turn must announce
    *  itself so the open app surfaces it live (the web has no other signal). */
   activityFeed: SessionActivityFeed
+  /** The shared live-turn pub/sub — the background turn tees onto its session
+   *  channel so it is watchable like any other (Slice ③). */
+  turnEvents?: TurnEventBroadcaster
 }
 
 export interface RunGlobalRootTurnInput {
@@ -208,6 +212,7 @@ export async function runGlobalRootTurn(
       {
         db: deps.db,
         logger: deps.logger,
+        ...(deps.turnEvents !== undefined ? { turnEvents: deps.turnEvents } : {}),
         // Resolve the global root + ensure its hidden cwd, INSIDE the lock (the runner
         // calls this) — apps/local-api owns the env-coupled user-data-dir read.
         resolveTarget: async () => {

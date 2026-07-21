@@ -35,6 +35,8 @@ import type { SessionPermissionMode } from '../session-mode.js'
 import type { SessionSink } from './session-types.js'
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { runUnderRootTurnLock } from './root-turn-lock.js'
+import type { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
+import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 
 /**
  * The resolved global-root conversation target — what `resolveTarget` returns.
@@ -60,6 +62,10 @@ export interface RunGlobalRootTurnCoreDeps {
    * per-user lock.
    */
   resolveTarget: () => Promise<GlobalRootTarget>
+  /** The shared live-turn pub/sub — when present, the turn's events tee onto
+   *  its `session:<id>` channel (Watch everywhere, session-library Slice ③).
+   *  Omit → sink-only (tests). */
+  turnEvents?: TurnEventBroadcaster
 }
 
 export interface RunGlobalRootTurnCoreInput {
@@ -70,6 +76,8 @@ export interface RunGlobalRootTurnCoreInput {
    *  workspace turn uses). */
   attachedImages?: AttachedImageBytes[]
   model?: string
+  /** Reasoning effort for this turn (the composer's picker). Omit = Auto. */
+  thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   /** The provider permission mode for the brain's OWN tools this turn (the caller maps
    *  the user-facing `SessionMode` via `toPermissionMode`). Omit for the pre-mode
    *  default, `bypass-with-behavior-gate` — the brain's routing tools run silently and
@@ -158,6 +166,7 @@ export async function runGlobalRootTurnCore(
         userMessageText: providerUserMessageText,
         ...(attachedImages.length > 0 ? { attachedImages } : {}),
         ...(input.model !== undefined ? { model: input.model } : {}),
+        ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
         permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
         // Empty native allowlist + the MCP wildcards => the routing tools (+ the
         // read-only desktop tools when present). The manager has no native tools.
@@ -210,7 +219,13 @@ export async function runGlobalRootTurnCore(
         logger: deps.logger,
       })
 
-      for await (const event of turnStream) {
+      // Tee onto the session's live channel when a broadcaster is wired —
+      // the brain's turns are watchable like any other (Slice ③).
+      const observedStream =
+        deps.turnEvents !== undefined
+          ? publishTurnEventsToSessionChannel(turnStream, deps.turnEvents)
+          : turnStream
+      for await (const event of observedStream) {
         // Link the root to the SDK session whenever a NEW (or compaction-swapped)
         // segment is created — `session-created` fires only on the new-session branch,
         // exactly when the root's currentSdkSessionId must advance to the live segment.

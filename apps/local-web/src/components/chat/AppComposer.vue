@@ -4,7 +4,9 @@ import { ChatComposer } from "@vynel/ui";
 import { SESSION_MODES } from "@vynel/session";
 import type { SessionMode } from "@vynel/session";
 import { CHAT_MODELS } from "@vynel/contracts/chat/chat-models";
+import { THINKING_EFFORT_OPTIONS } from "@vynel/contracts/chat/thinking-effort";
 import { useUiStore } from "../../stores/ui-store.js";
+import type { ComposerThinkingEffort } from "../../stores/ui-store.js";
 import { useDictation } from "../../composables/voice/use-dictation.js";
 import { filesToTurnAttachments } from "../../composables/chat/turn-attachments.js";
 import type { TurnAttachmentInput } from "../../composables/chat/turn-attachments.js";
@@ -18,6 +20,9 @@ import type { TurnAttachmentInput } from "../../composables/chat/turn-attachment
 const props = defineProps<{
   streaming?: boolean | undefined;
   placeholder?: string | undefined;
+  /** The active session's context occupancy 0..1 — null hides the ring. */
+  contextFraction?: number | null | undefined;
+  contextTooltip?: string | null | undefined;
 }>();
 
 const emit = defineEmits<{
@@ -38,6 +43,8 @@ const modeOptions = SESSION_MODES.map((mode) => ({
   id: mode.mode,
   label: mode.label,
 }));
+
+const effortOptions = [...THINKING_EFFORT_OPTIONS];
 
 const notice = computed(
   () => attachmentNotice.value ?? dictation.error.value ?? undefined,
@@ -77,11 +84,18 @@ async function onSend(text: string, files: File[]) {
     :model-id="ui.composerModelId"
     :modes="modeOptions"
     :mode-id="ui.composerMode"
+    :efforts="effortOptions"
+    :effort-id="ui.composerThinkingEffort"
+    :context-fraction="props.contextFraction ?? null"
+    :context-tooltip="props.contextTooltip ?? undefined"
     show-voice
     :voice-active="dictation.isDictating.value"
     :notice="notice"
     @update:model-id="(id) => (ui.composerModelId = id)"
     @update:mode-id="(id) => (ui.composerMode = id as SessionMode)"
+    @update:effort-id="
+      (id) => (ui.composerThinkingEffort = id as ComposerThinkingEffort)
+    "
     @send="onSend"
     @interrupt="emit('interrupt')"
     @voice="dictation.toggle"

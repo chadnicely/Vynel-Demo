@@ -18,6 +18,7 @@ import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
+import { useContextOccupancy } from "../composables/chat/use-context-occupancy.js";
 import { useQueuedSend } from "../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import type { SessionScope } from "../composables/chat/session-scope.js";
@@ -159,13 +160,21 @@ const showsWelcome = computed(
   () => messages.value.length === 0 && activeTurn.value === null,
 );
 
-// "account" is global-only — the workspace menu never sets it, but the type
-// excludes it here so the shell union stays one shared shape.
+// The composer's context ring — settled from the sessions overview, ticking
+// live on the in-flight turn's usage reports.
+const occupancy = useContextOccupancy(
+  () => activeSessionId.value,
+  () => activeTurn.value,
+);
+
+// "account"/"sessions" are global-only — the workspace menu never sets them,
+// but the type excludes them here so the shell union stays one shared shape.
 const activeSection = computed<WorkspaceSectionId | null>(() =>
   typeof shell.mainView === "string" &&
   shell.mainView !== "chat" &&
   shell.mainView !== "application" &&
-  shell.mainView !== "account"
+  shell.mainView !== "account" &&
+  shell.mainView !== "sessions"
     ? shell.mainView
     : null,
 );
@@ -299,6 +308,8 @@ function openContinuous() {
               ? `Ask ${activeWorkspace.managerName} for anything…`
               : `Ask about ${activeWorkspace?.name ?? 'this workspace'}…`
           "
+          :context-fraction="occupancy.fraction.value"
+          :context-tooltip="occupancy.tooltip.value"
           @send="queuedSend.submit"
           @interrupt="chatTurn.interrupt"
         />

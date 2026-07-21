@@ -34,6 +34,8 @@ import { linkPrimarySessionToSdkSession } from '../continuity/index.js'
 import { resolvePrimaryConversationTarget } from '../runtime/index.js'
 import type { Logger } from 'pino'
 import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
+import type { TurnEventBroadcaster } from './turn-event-broadcaster.js'
+import { publishTurnEventsToSessionChannel } from '../runtime/session-turn-channel.js'
 
 // How a routed (background) turn should behave — appended to the SYSTEM prompt, never
 // the task text (the task persists verbatim to the transcript). Steers the model to
@@ -82,6 +84,11 @@ export type DelegateToWorkspaceRootInput = {
     onTurnEvent: (event: ChatTurnEvent) => void
     onTurnEnded: () => void
   }
+  /** The shared live-turn pub/sub — when present, the routed turn's events
+   *  ALSO tee onto the workspace session's `session:<id>` channel (Watch
+   *  everywhere, Slice ③). The job-keyed trace observer above stays — the
+   *  stop path and the Watch-a-task panel anchor on it. */
+  turnEvents?: TurnEventBroadcaster
   /** The RUNNING SDK session id, as learned (and re-learned on a mid-turn swap) —
    *  the tick feeds the cancel registry with it so a user Stop can interrupt
    *  exactly this session. */
@@ -160,8 +167,14 @@ export async function delegateToWorkspaceRoot(
   let wasInterrupted = false
   let streamError: { code: string; message: string } | null = null
 
+  // Tee onto the workspace session's live channel when a broadcaster is wired.
+  const observedTurnStream =
+    input.turnEvents !== undefined
+      ? publishTurnEventsToSessionChannel(turnStream, input.turnEvents)
+      : turnStream
+
   try {
-    for await (const event of turnStream) {
+    for await (const event of observedTurnStream) {
       // Contained: a broken observer must never break the producing turn (the
       // broadcaster already guards its subscribers; this guards the seam itself).
       try {

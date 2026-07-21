@@ -51,6 +51,7 @@ import { rootApp } from './routes/root/index.js'
 import { routingApp } from './routes/routing/index.js'
 import { voiceApp } from './routes/voice/index.js'
 import { dashboardApp } from './routes/dashboard/index.js'
+import { sessionsApp } from './routes/sessions/index.js'
 import { TurnEventBroadcaster, DelegationCancelRegistry } from '@vynel/session/delegation'
 import { SessionActivityFeed } from '@vynel/session/runtime'
 import { activityApp } from './routes/activity/index.js'
@@ -231,6 +232,8 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/activity', activityApp)
   app.route('/voice', voiceApp)
   app.route('/dashboard', dashboardApp)
+  // The unified session list (session-library Slice ③) — user-scoped.
+  app.route('/sessions', sessionsApp)
   app.route('/hub', hubApp)
   // Bare `/workspaces` mounts AFTER every `/workspaces/:workspaceId/*` sub-app
   // (source order) so the param-scoped feature routes keep precedence.

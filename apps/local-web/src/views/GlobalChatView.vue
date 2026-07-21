@@ -17,6 +17,7 @@ import MarketplaceSection from "../components/sections/MarketplaceSection.vue";
 import MemorySection from "../components/sections/MemorySection.vue";
 import NotebookSection from "../components/sections/NotebookSection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
+import SessionsSection from "../components/sessions/SessionsSection.vue";
 import SshServersSection from "../components/sections/SshServersSection.vue";
 import TasksSection from "../components/sections/TasksSection.vue";
 import TasksPanel from "../components/tasks/TasksPanel.vue";
@@ -26,6 +27,7 @@ import { useSessionList } from "../composables/chat/use-session-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
+import { useContextOccupancy } from "../composables/chat/use-context-occupancy.js";
 import { useQueuedSend } from "../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
@@ -54,6 +56,7 @@ const GLOBAL_SECTION_IDS = [
   "channels",
   "schedules",
   "tasks",
+  "sessions",
   "ssh-servers",
   "knowledge",
   "memory",
@@ -209,6 +212,13 @@ const showsWelcome = computed(
   () => messages.value.length === 0 && activeTurn.value === null,
 );
 
+// The composer's context ring — settled from the sessions overview, ticking
+// live on the in-flight turn's usage reports.
+const occupancy = useContextOccupancy(
+  () => activeSessionId.value,
+  () => activeTurn.value,
+);
+
 function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
   // A fresh conversation's session id arrives via `session-created` — the turn's
   // onSessionCreated binds the shell to it; no synchronous binding here.
@@ -289,6 +299,8 @@ function openContinuous() {
           v-else-if="shell.mainView === 'tasks'"
           :scope="{ kind: 'global' }"
         />
+        <!-- Sessions is core continuity visibility (like tasks) — no tier gate. -->
+        <SessionsSection v-else-if="shell.mainView === 'sessions'" />
         <template v-else-if="shell.mainView === 'ssh-servers'">
           <LockedFeatureCard
             v-if="isLocked('ssh')"
@@ -409,6 +421,8 @@ function openContinuous() {
         <AppComposer
           :streaming="chatTurn.isStreaming.value"
           :placeholder="`Ask ${ASSISTANT_NAME} for anything…`"
+          :context-fraction="occupancy.fraction.value"
+          :context-tooltip="occupancy.tooltip.value"
           @send="queuedSend.submit"
           @interrupt="chatTurn.interrupt"
         />

@@ -105,4 +105,22 @@ describe("ui-store composer selections", () => {
     setActivePinia(createPinia());
     expect(useUiStore().composerModelId).toBe("claude-haiku-4-5");
   });
+
+  it("persists the thinking effort and restores it on a fresh store", async () => {
+    const ui = useUiStore();
+    expect(ui.composerThinkingEffort).toBe("auto");
+
+    ui.composerThinkingEffort = "high";
+    await nextTick();
+    expect(localStorage.getItem("vynel.composer-thinking-effort")).toBe("high");
+
+    setActivePinia(createPinia());
+    expect(useUiStore().composerThinkingEffort).toBe("high");
+  });
+
+  it("falls back to Auto for a stored effort outside the picker catalog", () => {
+    // 'xhigh' is a real API level but NOT a picker choice — fail closed.
+    localStorage.setItem("vynel.composer-thinking-effort", "xhigh");
+    expect(useUiStore().composerThinkingEffort).toBe("auto");
+  });
 });

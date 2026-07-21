@@ -37,8 +37,10 @@ export type BridgePrimarySessionInput = {
 export type BridgePrimarySessionDeps = {
   /** Distill the pre-swap session into the carry summary (provider-owned). */
   summarizeSession: (sdkSessionId: string) => Promise<string | null>
-  /** Start a fresh session seeded with the carry; resolves the NEW SDK session id. */
-  startSeededSession: (carrySummary: string) => Promise<string>
+  /** Start a fresh session seeded with the carry; resolves the NEW SDK session
+   *  id. Receives the superseded session's id so the chat side can stamp the
+   *  continuity chain link on the recorded segment. */
+  startSeededSession: (carrySummary: string, fromSdkSessionId: string) => Promise<string>
   logger?: StructuralLogger
 }
 
@@ -78,7 +80,7 @@ export async function bridgePrimarySession(
   // 2. Start a fresh session seeded with the carry; capture the new id AFTER it runs.
   //    (Async SDK call — stays OUTSIDE the transaction; a sync better-sqlite3
   //    txn cannot span an await.)
-  const toSdkSessionId = await deps.startSeededSession(summary)
+  const toSdkSessionId = await deps.startSeededSession(summary, fromSdkSessionId)
 
   const payload: SessionSwappedEventPayload = {
     primarySessionId: primary.id,

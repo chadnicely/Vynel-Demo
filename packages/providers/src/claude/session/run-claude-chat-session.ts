@@ -69,6 +69,7 @@ export async function* runClaudeChatSession(
     ...(alwaysRequireApprovalToolNames !== undefined ? { alwaysRequireApprovalToolNames } : {}),
     ...(input.resumeSessionId !== undefined ? { resumeSessionId: input.resumeSessionId } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
+    ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
     ...(input.mcpServers !== undefined
       ? {
           mcpServers: input.mcpServers as Parameters<typeof buildClaudeSdkOptions>[0]['mcpServers'],

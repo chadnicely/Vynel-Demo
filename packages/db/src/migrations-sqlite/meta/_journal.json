@@ -78,6 +78,13 @@
       "when": 1784422553970,
       "tag": "0010_subagent_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1784588489920,
+      "tag": "0011_session_context_chain",
+      "breakpoints": true
     }
   ]
 }

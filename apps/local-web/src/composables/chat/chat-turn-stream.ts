@@ -1,4 +1,5 @@
 import type { ChatTurnEvent } from "@vynel/contracts/chat/chat-http";
+import type { ThinkingEffortLevel } from "@vynel/contracts/chat/thinking-effort";
 import type { SessionMode } from "@vynel/session";
 import { SdkError, type VynelClient } from "@vynel/sdk";
 import type { SessionScope } from "./session-scope.js";
@@ -30,6 +31,9 @@ export interface StartTurnInput {
   /** The user-facing session mode (approval behavior). Both scopes — a global turn's
    *  mode also governs any delegation the brain enqueues (surface-up step 1). */
   mode?: SessionMode;
+  /** The composer's thinking-effort pick. Both scopes; omitted = Auto (the
+   *  provider's adaptive default — today's behavior, byte-for-byte). */
+  thinkingEffort?: ThinkingEffortLevel;
   /** This turn came in by VOICE — the brain answers short + spoken (global scope). */
   voice?: boolean;
   signal: AbortSignal;
@@ -50,6 +54,9 @@ export async function* streamChatTurnEvents(
               : {}),
             ...(input.model ? { model: input.model } : {}),
             ...(input.mode ? { mode: input.mode } : {}),
+            ...(input.thinkingEffort
+              ? { thinkingEffort: input.thinkingEffort }
+              : {}),
             ...(input.voice ? { voice: true } : {}),
           },
           parseAs: "stream",
@@ -68,6 +75,9 @@ export async function* streamChatTurnEvents(
               ? { resumeSessionId: input.resumeSessionId }
               : {}),
             ...(input.mode ? { mode: input.mode } : {}),
+            ...(input.thinkingEffort
+              ? { thinkingEffort: input.thinkingEffort }
+              : {}),
           },
           parseAs: "stream",
           signal: input.signal,

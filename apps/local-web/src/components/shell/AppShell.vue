@@ -7,6 +7,7 @@ import {
   Brain,
   CalendarClock,
   FolderTree,
+  History,
   ListChecks,
   Radio,
   Server,
@@ -26,6 +27,7 @@ import ApprovalNotifier from "./ApprovalNotifier.vue";
 import AskNotifier from "../asks/AskNotifier.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import SessionViewerPanel from "../session-viewer/SessionViewerPanel.vue";
+import SessionWatchPanel from "../sessions/SessionWatchPanel.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 import { WORKSPACE_SECTIONS } from "../workspace/workspace-sections.js";
 import { useUiStore } from "../../stores/ui-store.js";
@@ -121,6 +123,7 @@ const GLOBAL_SECTIONS: SidebarItem[] = [
   { id: "channels", label: "Channels", icon: Radio },
   { id: "schedules", label: "Schedules", icon: CalendarClock },
   { id: "tasks", label: "Tasks", icon: ListChecks },
+  { id: "sessions", label: "Sessions", icon: History },
   { id: "ssh-servers", label: "Servers", icon: Server },
   { id: "knowledge", label: "Knowledge", icon: FolderTree },
   { id: "memory", label: "Memory", icon: Brain },
@@ -346,6 +349,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
     />
 
     <SessionViewerPanel />
+    <SessionWatchPanel />
     <ApprovalNotifier />
     <AskNotifier />
     <VoiceOverlay />
