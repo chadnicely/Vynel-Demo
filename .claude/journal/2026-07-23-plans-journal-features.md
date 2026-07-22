@@ -35,7 +35,21 @@ Two net-new leaves built on the Tasks template (module notes: `docs/module-notes
 - Pins swept for a new capability: capabilities catalog tests ×3 files, SDK namespace list, MCP
   tool-name list, descriptor gate/prompt test.
 
-## Deferred (Chad to green-light)
+## Round 2 (same day): UI + CLI (Chad: "complete the ui and cli as well")
 
-UI surfaces (plans/journal panels + dashboard cards) and CLI commands — recorded in both module
-notes. Global root keeps zero plan/journal tools (router precedent).
+PlansSection/JournalSection on both scopes (day-grouped, `format-day-label.ts` — the CLIENT
+owns "today", never the server), PlanRow reusing TaskStatusControl (same status vocabulary —
+the reviewer's catch: the control hard-coded "task" in its aria-labels, fixed with a `noun`
+prop), vue-query composables, CLI `vynel plans|journal` command groups over the user-scoped SDK
+namespaces with a shared `day-flag.ts` date-flag home. Reviewer clean; 2 should-fixes folded
+(day-label unit tests + the noun prop).
+
+**Learning:** commander's `.exitOverride()` does NOT propagate to subcommands already created —
+a flag-validation test through `parseAsync` hits `process.exit`; test the parser function
+(`toDayKey`) directly instead.
+
+## Deferred
+
+Dashboard cards · journal "load older" past the 100-row cap · inline journal edit ·
+calendar-validity sweep on the day-key regex (admits `2026-13-40`). Global root keeps zero
+plan/journal tools (router precedent).

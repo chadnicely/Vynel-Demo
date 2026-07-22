@@ -26,6 +26,8 @@ import NotebookSection from "../sections/NotebookSection.vue";
 import SchedulesSection from "../sections/SchedulesSection.vue";
 import SshServersSection from "../sections/SshServersSection.vue";
 import TasksSection from "../sections/TasksSection.vue";
+import PlansSection from "../sections/PlansSection.vue";
+import JournalSection from "../sections/JournalSection.vue";
 import { WORKSPACE_SECTIONS } from "./workspace-sections.js";
 import type {
   WorkspaceSectionId,
@@ -90,9 +92,17 @@ const skills = computed(() => skillsQuery.data.value ?? []);
       :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
     />
   </template>
-  <!-- Tasks is core assistant plumbing (like notebook) — no tier gate. -->
+  <!-- Tasks/Plans/Journal are core assistant plumbing (like notebook) — no tier gate. -->
   <TasksSection
     v-else-if="props.section === 'tasks'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
+  <PlansSection
+    v-else-if="props.section === 'plans'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
+  <JournalSection
+    v-else-if="props.section === 'journal'"
     :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
   />
   <template v-else-if="props.section === 'apps'">

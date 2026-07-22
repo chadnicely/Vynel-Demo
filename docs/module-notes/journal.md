@@ -74,8 +74,21 @@ User door additionally: POST (scope union, source `'user'`), PATCH `:entryId`
 - **Date-range list (`from`/`to`) ships in v1** — "understand the flow of daily works" is
   inherently a range read, unlike plans.
 
+### UI + CLI (built 2026-07-23, Chad's green light)
+
+- **JournalSection** (`apps/local-web/src/components/sections/JournalSection.vue` +
+  `JournalEntryRow.vue`) — both scopes, day-grouped newest-first (`utils/format-day-label.ts`),
+  prose-first rows with writer chips, textarea composer (date defaults to today), hover delete
+  (the user's door — matching the append-only agent contract). **No inline edit in v1** — the
+  journal reads as a record; delete covers a bad entry.
+- Composables `composables/journal/*` (vue-query). Icons: `NotebookPen`.
+- **CLI** `vynel journal list [--date|--from|--to] | add [--date default-today|-w] | delete`
+  (`apps/cli/src/journal-commands.ts`).
+
 ## Deferred (deliberate)
 
-- UI (journal panel / day-grouped view) + CLI — Chad to green-light the surfaces.
+- Inline entry editing in the panel (PATCH exists on the user door; add on real pull).
+- Pagination / "load older" past the 100-row default cap — journal is the surface that will hit
+  it first; a date-range picker rides the same touch.
 - Cross-workspace daily digest ("what happened everywhere yesterday") — a formatted composite
   read; the user-scoped list already answers it raw.

@@ -1,16 +1,20 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { Check, Circle, CircleDotDashed } from "lucide-vue-next";
 import type { TaskStatus } from "@vynel/contracts/tasks/task-http";
 
 // The one home for the status cycle: every click walks open → in-progress →
-// done → open, so a task is never stuck without a way back. Two sizes: the
+// done → open, so a row is never stuck without a way back. Two sizes: the
 // section rows wear it as their size-9 icon tile; the side panel compacts it.
+// Plans share the same status vocabulary, so PlanRow wears this control too —
+// `noun` keeps the accessible labels honest about what is cycling.
 const props = withDefaults(
   defineProps<{
     status: TaskStatus;
     size?: "tile" | "compact";
+    noun?: "task" | "plan";
   }>(),
-  { size: "tile" },
+  { size: "tile", noun: "task" },
 );
 
 const emit = defineEmits<{
@@ -23,11 +27,14 @@ const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
   done: "open",
 };
 
-const ACTION_LABELS: Record<TaskStatus, string> = {
-  open: "Start this task",
-  "in-progress": "Mark this task done",
-  done: "Reopen this task",
-};
+const actionLabel = computed(() => {
+  const labels: Record<TaskStatus, string> = {
+    open: `Start this ${props.noun}`,
+    "in-progress": `Mark this ${props.noun} done`,
+    done: `Reopen this ${props.noun}`,
+  };
+  return labels[props.status];
+});
 
 const STATUS_TINTS: Record<TaskStatus, string> = {
   open: "border border-hair bg-panel text-ink-3 hover:border-hair-strong hover:text-ink-1",
@@ -44,8 +51,8 @@ const STATUS_TINTS: Record<TaskStatus, string> = {
       STATUS_TINTS[props.status],
       props.size === 'tile' ? 'size-9 rounded-md' : 'size-5 rounded-full',
     ]"
-    :title="ACTION_LABELS[props.status]"
-    :aria-label="ACTION_LABELS[props.status]"
+    :title="actionLabel"
+    :aria-label="actionLabel"
     @click="emit('change', NEXT_STATUS[props.status])"
   >
     <Check v-if="props.status === 'done'" :size="props.size === 'tile' ? 16 : 12" />

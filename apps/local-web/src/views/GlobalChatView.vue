@@ -19,6 +19,8 @@ import NotebookSection from "../components/sections/NotebookSection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
 import SshServersSection from "../components/sections/SshServersSection.vue";
 import TasksSection from "../components/sections/TasksSection.vue";
+import PlansSection from "../components/sections/PlansSection.vue";
+import JournalSection from "../components/sections/JournalSection.vue";
 import TasksPanel from "../components/tasks/TasksPanel.vue";
 import { useChannels } from "../composables/channels/use-channels.js";
 import { useHubFeatures } from "../composables/hub/use-hub-features.js";
@@ -54,6 +56,8 @@ const GLOBAL_SECTION_IDS = [
   "channels",
   "schedules",
   "tasks",
+  "plans",
+  "journal",
   "ssh-servers",
   "knowledge",
   "memory",
@@ -252,9 +256,17 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           />
           <SchedulesSection v-else :scope="{ kind: 'global' }" />
         </template>
-        <!-- Tasks is core assistant plumbing (like notebook) — no tier gate. -->
+        <!-- Tasks/Plans/Journal are core assistant plumbing (like notebook) — no tier gate. -->
         <TasksSection
           v-else-if="shell.mainView === 'tasks'"
+          :scope="{ kind: 'global' }"
+        />
+        <PlansSection
+          v-else-if="shell.mainView === 'plans'"
+          :scope="{ kind: 'global' }"
+        />
+        <JournalSection
+          v-else-if="shell.mainView === 'journal'"
           :scope="{ kind: 'global' }"
         />
         <template v-else-if="shell.mainView === 'ssh-servers'">

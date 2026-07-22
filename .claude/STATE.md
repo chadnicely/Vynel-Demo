@@ -25,14 +25,27 @@ template, notes in docs/module-notes/plans.md + journal.md, learning in
   descriptor gates tools AND prompt sections together — contributeWorkspacePrompt generalized to
   an ordered per-capability section list (tasks → plans → journal, tested). 61 MCP tools
   (was 53). Global root: zero plan/journal tools (router precedent).
-- **DEFERRED for Chad's green-light (recorded in both notes): UI surfaces (panels/sections/
-  dashboard cards) + CLI commands.**
+- **UI + CLI BUILT (same day, Chad's green light; gate GREEN 562f/3062t, reviewed clean, 2
+  should-fixes FOLDED — format-day-label unit tests + TaskStatusControl `noun` prop so plan
+  rows stop announcing "task" to screen readers): PlansSection + JournalSection on BOTH scopes
+  (day-grouped newest-first via NEW utils/format-day-label.ts — the client owns "today";
+  composers default to today; PlanRow REUSES TaskStatusControl — one home for the status
+  cycle), sidebar/menu/icon wiring (CalendarRange/NotebookPen), composables/plans+journal
+  (vue-query), CLI `vynel plans list|add|done|reopen|move|delete` + `vynel journal
+  list|add|delete` over `plansUser`/`journalUser` (day-flag.ts = the shared date-flag home).
+  Reviewer nits RECORDED in the module notes (regex admits impossible dates — sweep the
+  pattern home next touch · journal 100-row cap needs "load older" first · composer today
+  captured at mount · dashboard cards not built).**
 **⏭ CHAD SMOKE: restart the app (migrations 0016+0017 apply on boot) · workspace chat → "plan
 tomorrow: ship the newsletter, three tasks under it" → create_plan + create_task(planId) fire
 uncarded, list_plans shows the day · "what's planned for tomorrow?" → reads back · "log today's
 progress in the journal" → add_journal_entry; new session → "what happened yesterday?" →
 list_journal_entries range read · Capabilities panel shows Plans + Journal toggles; toggling one
-off drops its tools AND its prompt section next turn.**
+off drops its tools AND its prompt section next turn · **UI: sidebar shows Plans + Journal in
+both scopes → Plans: add "Launch day" for tomorrow → appears under a "Tomorrow" header, status
+tile cycles, Claude/You chips right · Journal: write an entry → lands under "Today", delete on
+hover · CLI: `vynel plans add "Bookkeeping" --date 2026-07-25` then `vynel plans list` ·
+`vynel journal add "smoke note"` then `vynel journal list --date <today>`.**
 
 **OVERNIGHT (Chad: "complete the remaining parts and the communication mcp… shutdown… in
 the morning I will smoke test"): the session-communications arc built per

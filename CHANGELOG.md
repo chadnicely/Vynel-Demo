@@ -15,14 +15,19 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   current through new tools (`create_plan`, `update_plan`, `complete_plan`, `list_plans`,
   `list_my_plans`), and `list_tasks` can list one plan's work items. Like tasks, plans exist per
   workspace and globally, you keep the delete key, and provenance (Claude vs you) can't be
-  spoofed. Toggleable per workspace as the new **Plans** capability (on by default).
+  spoofed. Toggleable per workspace as the new **Plans** capability (on by default). A **Plans
+  view** joins the menu on both surfaces — days grouped newest-first (Today / Tomorrow /
+  Yesterday labels), an inline "Plan a day…" composer with a date picker, the same
+  status-cycle tile tasks use — plus `vynel plans list|add|done|reopen|move|delete` in the CLI.
 
 - **A daily work journal Claude writes and reads.** Dated entries record what happened and what
   was decided each day; when Claude picks work back up it reads the recent entries to understand
   the flow. New tools: `add_journal_entry`, `list_journal_entries` (day or date-range reads),
   `list_my_journal_entries`. The journal is **append-only for Claude** — editing or deleting
   history is yours alone (panel/CLI doors). Toggleable per workspace as the new **Journal**
-  capability (on by default).
+  capability (on by default). A **Journal view** joins the menu on both surfaces — entries
+  grouped by day, a "What happened today…" composer, writer chips (Claude / you), hover-delete
+  (your door only) — plus `vynel journal list|add|delete` in the CLI (day + date-range reads).
 
 - **Claude can now use the desktop by hand — click, type, scroll, drag at a point.** When Claude
   is working from a screenshot (an app with no readable accessibility tree), it can now act the way

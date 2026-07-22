@@ -80,8 +80,25 @@ writes uncarded (`mutatingApproved` — low-stakes, visible, reversible), agent 
 - **No plan→task cascade** — completing a plan does NOT touch its tasks (loose coupling both
   ways); the assistant closes tasks individually as it works.
 
+### UI + CLI (built 2026-07-23, Chad's green light)
+
+- **PlansSection** (`apps/local-web/src/components/sections/PlansSection.vue` + `PlanRow.vue`) —
+  both scopes (workspace drawer + global menu), day-grouped newest-first with friendly labels
+  (`utils/format-day-label.ts` — the client owns "today"), inline composer (title + date input
+  defaulting to today), hover delete. **Reuses `TaskStatusControl`** (same status vocabulary by
+  design; its `noun` prop keeps the accessible labels honest). Done plans stay dimmed in their
+  day group — no cross-day archive fold (a plan is anchored to its day).
+- Composables `composables/plans/*` (vue-query; invalidates its own key namespace — no Home
+  card yet). Icons: `CalendarRange`.
+- **CLI** `vynel plans list [-s|--date] | add [--date default-today|-w|-d] | done | reopen |
+  move <id> <date> | delete` (`apps/cli/src/plans-commands.ts`; `day-flag.ts` = the date-flag
+  home shared with journal).
+
 ## Deferred (deliberate)
 
-- UI (section/panel/dashboard card) + CLI commands — Chad to green-light the surfaces.
+- Dashboard card (open-plans count on Home) — ride the next dashboard touch.
 - Date-range list queries (`from`/`to`) — exact-day + all is enough for v1.
-- Plan progress rollups (n of m tasks done) — needs a consumer first.
+- Plan progress rollups (n of m tasks done) + tasks nested under a plan row — needs a consumer
+  first; the `planId` filter is data-ready.
+- Calendar-validity check on day keys (regex admits `2026-13-40`) — a sweep across the pattern
+  home + both route schemas when touched next.
