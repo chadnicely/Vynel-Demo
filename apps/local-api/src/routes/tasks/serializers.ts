@@ -16,6 +16,7 @@ export function serializeTaskForResponse(task: Task): TaskResponse {
     status: task.status,
     source: task.source,
     sessionId: task.sessionId,
+    planId: task.planId,
     completedAt: task.completedAt ? task.completedAt.toISOString() : null,
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),

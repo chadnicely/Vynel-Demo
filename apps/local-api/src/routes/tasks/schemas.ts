@@ -11,6 +11,8 @@ export const TaskParamSchema = z.object({
 
 export const ListTasksQuerySchema = z.object({
   status: z.enum(['open', 'in-progress', 'done']).optional(),
+  // Narrow to one plan's work items (loose ref — no FK).
+  planId: z.string().min(1).optional(),
 })
 
 // The workspace-scoped `POST /` body — the AGENT's create door (the route
@@ -19,6 +21,7 @@ export const CreateTaskRequestSchema = z.object({
   title: z.string().min(1).max(200),
   detail: z.string().min(1).max(4000).optional(),
   sessionId: z.string().min(1).optional(),
+  planId: z.string().min(1).optional(),
 })
 
 // The user-scoped `POST /tasks` body — the PANEL/CLI create door (the route
@@ -40,6 +43,8 @@ export const UpdateTaskRequestSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   detail: z.string().max(4000).nullable().optional(),
   status: z.enum(['open', 'in-progress', 'done']).optional(),
+  // Attach to a plan; null detaches.
+  planId: z.string().min(1).nullable().optional(),
 })
 
 // ── Response schemas ────────────────────────────────────────────────
@@ -62,6 +67,8 @@ export const TaskResponseSchema = z.object({
   status: TaskStatusResponseSchema,
   source: TaskSourceResponseSchema,
   sessionId: z.string().nullable(),
+  // Loose cross-feature ref — the plan this task belongs to (no FK).
+  planId: z.string().nullable(),
   completedAt: z.string().nullable(), // ISO-8601 or null
   createdAt: z.string(),
   updatedAt: z.string(),

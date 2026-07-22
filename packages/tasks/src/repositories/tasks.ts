@@ -15,11 +15,18 @@ const MAX_LIST_LIMIT = 200
 
 export function listTasksForWorkspace(
   db: Database,
-  input: { userId: string; workspaceId: string; status?: TaskStatus; limit?: number },
+  input: {
+    userId: string
+    workspaceId: string
+    status?: TaskStatus
+    planId?: string
+    limit?: number
+  },
 ): Task[] {
   const limit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
   const filters = [eq(tasks.userId, input.userId), eq(tasks.workspaceId, input.workspaceId)]
   if (input.status) filters.push(eq(tasks.status, input.status))
+  if (input.planId) filters.push(eq(tasks.planId, input.planId))
   return db
     .select()
     .from(tasks)
@@ -34,11 +41,12 @@ export function listTasksForWorkspace(
 // userId only (the tenant boundary); workspace scope is not narrowed.
 export function listTasksForUser(
   db: Database,
-  input: { userId: string; status?: TaskStatus; limit?: number },
+  input: { userId: string; status?: TaskStatus; planId?: string; limit?: number },
 ): Task[] {
   const limit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
   const filters = [eq(tasks.userId, input.userId)]
   if (input.status) filters.push(eq(tasks.status, input.status))
+  if (input.planId) filters.push(eq(tasks.planId, input.planId))
   return db
     .select()
     .from(tasks)

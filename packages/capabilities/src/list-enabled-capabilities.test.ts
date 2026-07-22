@@ -42,9 +42,17 @@ describe('listEnabledCapabilities', () => {
     await withTestDatabase((db) => {
       const { workspace } = seedUserWorkspace(db)
       const enabled = listEnabledCapabilities(db, workspace.id)
-      // test: correct expectation — the catalog grew: 'tasks' joined as a
-      // fourth defaultEnabled first-party capability (tasks module).
-      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory', 'notebook', 'tasks'])
+      // test: correct expectation — the catalog grew: 'plans' + 'journal'
+      // joined as defaultEnabled first-party capabilities (plans/journal
+      // modules, 2026-07-23; 'tasks' before them).
+      expect(enabled.map((c) => c.id).sort()).toEqual([
+        'journal',
+        'knowledge',
+        'memory',
+        'notebook',
+        'plans',
+        'tasks',
+      ])
     })
   })
 
@@ -58,8 +66,10 @@ describe('listEnabledCapabilities', () => {
         isEnabled: false,
       })
       expect(listEnabledCapabilities(db, workspace.id).map((c) => c.id).sort()).toEqual([
+        'journal',
         'memory',
         'notebook',
+        'plans',
         'tasks',
       ])
     })
@@ -81,7 +91,14 @@ describe('listEnabledCapabilities', () => {
         isEnabled: true,
       })
       const enabled = listEnabledCapabilities(db, workspace.id)
-      expect(enabled.map((c) => c.id).sort()).toEqual(['knowledge', 'memory', 'notebook', 'tasks'])
+      expect(enabled.map((c) => c.id).sort()).toEqual([
+        'journal',
+        'knowledge',
+        'memory',
+        'notebook',
+        'plans',
+        'tasks',
+      ])
       expect(enabled.find((c) => c.id === 'memory')!.displayName).toBe('Memory')
     })
   })
@@ -97,9 +114,11 @@ describe('listEnabledCapabilities', () => {
       })
       // Catalog capabilities resolve by default; the unknown plugin id is skipped.
       expect(listEnabledCapabilities(db, workspace.id).map((c) => c.id).sort()).toEqual([
+        'journal',
         'knowledge',
         'memory',
         'notebook',
+        'plans',
         'tasks',
       ])
     })

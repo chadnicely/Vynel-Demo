@@ -36,6 +36,20 @@ describe('createTask', () => {
     })
   })
 
+  it('stores the loose planId ref when given', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const task = createTask(db, {
+        userId,
+        workspaceId,
+        title: 'Planned work',
+        source: 'assistant',
+        planId: 'plan-1',
+      })
+      expect(task.planId).toBe('plan-1')
+    })
+  })
+
   it('creates a GLOBAL task (null workspaceId)', async () => {
     await withTestDatabase(async (db) => {
       const { userId } = seedUserWorkspace(db)

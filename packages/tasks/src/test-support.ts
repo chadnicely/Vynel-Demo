@@ -52,6 +52,7 @@ export function makeTask(
     status: 'open',
     source: 'assistant',
     sessionId: null,
+    planId: null,
     completedAt: null,
     createdAt: now,
     updatedAt: now,

@@ -633,6 +633,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List plans for the active workspace (owner-scoped). */
+        get: operations["getWorkspacesByWorkspaceIdPlans"];
+        put?: never;
+        /** Create a plan on the active workspace's list (assistant provenance). */
+        post: operations["postWorkspacesByWorkspaceIdPlans"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/plans/{planId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a plan (title, detail, date, or status). */
+        patch: operations["patchWorkspacesByWorkspaceIdPlansByPlanId"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/plans/{planId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a plan done. */
+        post: operations["postWorkspacesByWorkspaceIdPlansByPlanIdComplete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/journal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the active workspace's journal (owner-scoped). */
+        get: operations["getWorkspacesByWorkspaceIdJournal"];
+        put?: never;
+        /** Append an entry to the active workspace's journal (assistant provenance). */
+        post: operations["postWorkspacesByWorkspaceIdJournal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/apps": {
         parameters: {
             query?: never;
@@ -1530,6 +1600,78 @@ export interface paths {
         head?: never;
         /** Update a task the user owns (title, detail, or status). */
         patch: operations["patchTasksByTaskId"];
+        trace?: never;
+    };
+    "/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every plan the user owns — global + workspace. */
+        get: operations["getPlans"];
+        put?: never;
+        /** Create a global or workspace plan (user provenance). */
+        post: operations["postPlans"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/plans/{planId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a plan the user owns (hard delete). */
+        delete: operations["deletePlansByPlanId"];
+        options?: never;
+        head?: never;
+        /** Update a plan the user owns (title, detail, date, or status). */
+        patch: operations["patchPlansByPlanId"];
+        trace?: never;
+    };
+    "/journal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read every journal entry the user owns — global + workspace. */
+        get: operations["getJournal"];
+        put?: never;
+        /** Create a global or workspace journal entry (user provenance). */
+        post: operations["postJournal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/journal/{entryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a journal entry the user owns (hard delete). */
+        delete: operations["deleteJournalByEntryId"];
+        options?: never;
+        head?: never;
+        /** Update a journal entry the user owns (content or date). */
+        patch: operations["patchJournalByEntryId"];
         trace?: never;
     };
     "/asks/pending": {
@@ -4504,6 +4646,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "open" | "in-progress" | "done";
+                planId?: string;
             };
             header?: never;
             path: {
@@ -4530,6 +4673,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        planId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -4560,6 +4704,7 @@ export interface operations {
                     title: string;
                     detail?: string;
                     sessionId?: string;
+                    planId?: string;
                 };
             };
         };
@@ -4581,6 +4726,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        planId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -4620,6 +4766,7 @@ export interface operations {
                     detail?: string | null;
                     /** @enum {string} */
                     status?: "open" | "in-progress" | "done";
+                    planId?: string | null;
                 };
             };
         };
@@ -4641,6 +4788,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        planId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -4692,6 +4840,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        planId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -4699,6 +4848,320 @@ export interface operations {
                 };
             };
             /** @description No such task owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdPlans: {
+        parameters: {
+            query?: {
+                status?: "open" | "in-progress" | "done";
+                planDate?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of Plan. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        planDate: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdPlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title: string;
+                    detail?: string;
+                    planDate: string;
+                    sessionId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Plan created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        planDate: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchWorkspacesByWorkspaceIdPlansByPlanId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    detail?: string | null;
+                    planDate?: string;
+                    /** @enum {string} */
+                    status?: "open" | "in-progress" | "done";
+                };
+            };
+        };
+        responses: {
+            /** @description Plan updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        planDate: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such plan owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdPlansByPlanIdComplete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plan completed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        planDate: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description No such plan owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdJournal: {
+        parameters: {
+            query?: {
+                entryDate?: string;
+                from?: string;
+                to?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of JournalEntry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        entryDate: string;
+                        content: string;
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdJournal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    entryDate: string;
+                    content: string;
+                    sessionId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Journal entry created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        entryDate: string;
+                        content: string;
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6584,7 +7047,7 @@ export interface operations {
                     "application/json": {
                         capabilities: {
                             /** @enum {string} */
-                            id: "memory" | "knowledge" | "notebook" | "tasks";
+                            id: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "journal";
                             displayName: string;
                             description: string;
                             /** @enum {string} */
@@ -6609,7 +7072,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                capabilityId: "memory" | "knowledge" | "notebook" | "tasks";
+                capabilityId: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "journal";
                 workspaceId: string;
             };
             cookie?: never;
@@ -6630,7 +7093,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        id: "memory" | "knowledge" | "notebook" | "tasks";
+                        id: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "journal";
                         displayName: string;
                         description: string;
                         /** @enum {string} */
@@ -7767,6 +8230,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "open" | "in-progress" | "done";
+                planId?: string;
             };
             header?: never;
             path?: never;
@@ -7791,6 +8255,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        planId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -7840,6 +8305,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        planId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -7898,6 +8364,7 @@ export interface operations {
                     detail?: string | null;
                     /** @enum {string} */
                     status?: "open" | "in-progress" | "done";
+                    planId?: string | null;
                 };
             };
         };
@@ -7919,6 +8386,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        planId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -7933,6 +8401,361 @@ export interface operations {
                 content?: never;
             };
             /** @description No such task owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPlans: {
+        parameters: {
+            query?: {
+                status?: "open" | "in-progress" | "done";
+                planDate?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of Plan. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        planDate: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+        };
+    };
+    postPlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    scope: "global";
+                    title: string;
+                    detail?: string;
+                    planDate: string;
+                } | {
+                    /** @constant */
+                    scope: "workspace";
+                    workspaceId: string;
+                    title: string;
+                    detail?: string;
+                    planDate: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Plan created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        planDate: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error, or workspaceId missing for a workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePlansByPlanId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plan deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such plan owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchPlansByPlanId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    detail?: string | null;
+                    planDate?: string;
+                    /** @enum {string} */
+                    status?: "open" | "in-progress" | "done";
+                };
+            };
+        };
+        responses: {
+            /** @description Plan updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        title: string;
+                        detail: string | null;
+                        planDate: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such plan owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getJournal: {
+        parameters: {
+            query?: {
+                entryDate?: string;
+                from?: string;
+                to?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of JournalEntry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        entryDate: string;
+                        content: string;
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+        };
+    };
+    postJournal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    scope: "global";
+                    entryDate: string;
+                    content: string;
+                } | {
+                    /** @constant */
+                    scope: "workspace";
+                    workspaceId: string;
+                    entryDate: string;
+                    content: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Journal entry created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        entryDate: string;
+                        content: string;
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error, or workspaceId missing for a workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteJournalByEntryId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Journal entry deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such journal entry owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchJournalByEntryId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    content?: string;
+                    entryDate?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Journal entry updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        entryDate: string;
+                        content: string;
+                        /** @enum {string} */
+                        source: "assistant" | "user";
+                        sessionId: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such journal entry owned by this user. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10633,6 +11456,7 @@ export interface operations {
                             /** @enum {string} */
                             source: "assistant" | "user";
                             sessionId: string | null;
+                            planId: string | null;
                             completedAt: string | null;
                             createdAt: string;
                             updatedAt: string;
@@ -10648,6 +11472,7 @@ export interface operations {
                             /** @enum {string} */
                             source: "assistant" | "user";
                             sessionId: string | null;
+                            planId: string | null;
                             completedAt: string | null;
                             createdAt: string;
                             updatedAt: string;

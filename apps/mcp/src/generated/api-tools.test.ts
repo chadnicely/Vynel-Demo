@@ -61,12 +61,22 @@ import {
 //     the GLOBAL ROOT (which has no requester) never does. Interactive chats
 //     and schedule fires see it too (same array) but carry no caller-identity
 //     header, so the route answers 400 with an actionable note.
+//   - the plans module (2026-07-23): list_plans + list_my_plans (reads) +
+//     create_plan / update_plan / complete_plan (mutatingApproved — the
+//     date-wise layer above tasks; tasks link via their loose planId).
+//   - the journal module (2026-07-23): list_journal_entries +
+//     list_my_journal_entries (reads) + add_journal_entry (mutatingApproved).
+//     APPEND-ONLY for the agent — the user-scoped edit/delete doors are
+//     deliberately NOT exposed (history stays the user's).
 const EXPECTED_TOOL_NAMES = [
   'add_app',
+  'add_journal_entry',
   'add_memory_from_file',
   'add_to_knowledge',
+  'complete_plan',
   'complete_task',
   'create_memory_entry',
+  'create_plan',
   'create_task',
   'discover_installed_skills_for_provider',
   'get_ai_agent_provider_auth_status',
@@ -84,13 +94,17 @@ const EXPECTED_TOOL_NAMES = [
   'list_channels',
   'list_chat_sessions',
   'list_installed_skills',
+  'list_journal_entries',
   'list_knowledge_documents',
   'list_knowledge_sources',
   'list_memory_entries',
   'list_memory_tags',
   'list_my_channels',
+  'list_my_journal_entries',
+  'list_my_plans',
   'list_my_schedules',
   'list_my_tasks',
+  'list_plans',
   'list_schedule_runs',
   'list_schedule_templates',
   'list_schedules',
@@ -105,6 +119,7 @@ const EXPECTED_TOOL_NAMES = [
   'stop_app',
   'update_app',
   'update_memory_entry',
+  'update_plan',
   'update_task',
 ] as const
 

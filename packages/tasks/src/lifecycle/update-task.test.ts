@@ -61,6 +61,19 @@ describe('updateTask', () => {
     })
   })
 
+  it('attaches and detaches a plan via planId', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const task = insertTask(db, makeTask(userId, workspaceId))
+
+      const attached = updateTask(db, { taskId: task.id, userId, planId: 'plan-1' })
+      expect(attached.planId).toBe('plan-1')
+
+      const detached = updateTask(db, { taskId: task.id, userId, planId: null })
+      expect(detached.planId).toBeNull()
+    })
+  })
+
   it('404s identically on missing and not-owned tasks', async () => {
     await withTestDatabase(async (db) => {
       const { userId, workspaceId } = seedUserWorkspace(db)

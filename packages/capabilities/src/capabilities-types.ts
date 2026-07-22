@@ -4,7 +4,7 @@
 // Known first-party capability ids. Marketplace capabilities (Phase C) use an
 // arbitrary plugin id stored as open text in `workspace_capabilities.capabilityId`;
 // they are NOT part of this union — the catalog only describes first-party ones.
-export type CapabilityId = 'memory' | 'knowledge' | 'notebook' | 'tasks'
+export type CapabilityId = 'memory' | 'knowledge' | 'notebook' | 'tasks' | 'plans' | 'journal'
 
 // Phase 1: every capability is workspace-scoped (memory/knowledge are per
 // workspace — "don't use global memory", user directive 2026-06-20). Knowledge

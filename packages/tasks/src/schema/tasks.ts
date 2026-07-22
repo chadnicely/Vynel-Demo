@@ -37,6 +37,10 @@ export const tasks = table(
     // Loose cross-domain ref — the chat session whose turn created the task
     // (data for a future task→session deep-link; NOT a FK).
     sessionId: text(),
+    // Loose cross-feature ref — the plan this task belongs to (`plans` is a
+    // sibling leaf; NO FK by invariant). A deleted plan leaves a dangling id
+    // here harmlessly, like sessionId.
+    planId: text(),
     completedAt: timestamp(), // stamped on → 'done'; cleared when reopened
     createdAt: timestamp().notNull(),
     updatedAt: timestamp().notNull(),

@@ -45,6 +45,21 @@ describe('tasks repository', () => {
     })
   })
 
+  it('filters the workspace list by planId (loose ref)', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      insertTask(db, makeTask(userId, workspaceId, { title: 'planned', planId: 'plan-1' }))
+      insertTask(db, makeTask(userId, workspaceId, { title: 'unplanned' }))
+
+      const rows = listTasksForWorkspace(db, { userId, workspaceId, planId: 'plan-1' })
+      expect(rows.map((r) => r.title)).toEqual(['planned'])
+
+      // The user-scoped list honors the same filter (list_my_tasks's planId).
+      const userRows = listTasksForUser(db, { userId, planId: 'plan-1' })
+      expect(userRows.map((r) => r.title)).toEqual(['planned'])
+    })
+  })
+
   it('updates and hard-deletes', async () => {
     await withTestDatabase(async (db) => {
       const { userId, workspaceId } = seedUserWorkspace(db)

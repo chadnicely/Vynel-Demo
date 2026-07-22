@@ -56,17 +56,19 @@ export const tasksUserApp = factory
         name: 'list_my_tasks',
         description:
           'List every task the user owns — both global (no workspace) and workspace-scoped. ' +
-          'Each has a title, optional detail, status (open / in-progress / done), and who created ' +
-          'it. Optional `status` query filters to one status. Read-only.',
+          'Each has a title, optional detail, status (open / in-progress / done), who created ' +
+          'it, and an optional planId linking it to a plan. Optional `status` query filters to ' +
+          "one status; optional `planId` narrows to one plan's work items. Read-only.",
       },
     }),
     validator('query', ListTasksQuerySchema),
     ...userScoped,
     (c) => {
-      const { status } = c.req.valid('query')
+      const { status, planId } = c.req.valid('query')
       const tasks = listTasksForUser(c.var.db, {
         userId: c.var.user.id,
         ...(status !== undefined ? { status } : {}),
+        ...(planId !== undefined ? { planId } : {}),
       })
       return c.json(tasks.map(serializeTaskForResponse))
     },
@@ -133,6 +135,7 @@ export const tasksUserApp = factory
           ...(body.title !== undefined ? { title: body.title } : {}),
           ...(body.detail !== undefined ? { detail: body.detail } : {}),
           ...(body.status !== undefined ? { status: body.status } : {}),
+          ...(body.planId !== undefined ? { planId: body.planId } : {}),
         },
         { logger: c.var.logger },
       )

@@ -75,6 +75,46 @@ export const addApp: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const addJournalEntry: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'add_journal_entry',
+    "Append a dated entry to the daily work journal when meaningful work lands — what happened, what was decided, and anything the next session needs to know, in plain language the user recognizes. `entryDate` is the day it belongs to (YYYY-MM-DD, usually today); `content` is the entry (≤8000 chars). The journal is append-only for you — you cannot edit or remove entries, so write them as a faithful record, not a draft. Do not narrate the bookkeeping. Side effect: the entry appears in the user's journal.",
+    {
+    workspaceId: z.string(),
+    entryDate: z.string(),
+    content: z.string(),
+    sessionId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/journal'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['entryDate', 'content', 'sessionId']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const addMemoryFromFile: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'add_memory_from_file',
@@ -135,6 +175,41 @@ export const addToKnowledge: McpToolFactory = (scope, app) =>
         const requestBody = JSON.stringify(bodyObj)
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const completePlan: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'complete_plan',
+    "Mark a plan done when its day's work is finished and verified — typically after its linked tasks are complete. The user sees completed plans as the record of what a day delivered.",
+    {
+    planId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/plans/{planId}/complete'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{planId}', encodeURIComponent(String(args['planId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
         const bodyText = await response.text()
         if (!response.ok) {
           return {
@@ -231,6 +306,47 @@ export const createMemoryEntry: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const createPlan: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'create_plan',
+    "Create a plan for a calendar day — use this when the user lays out dated intent (\"tomorrow we tackle the launch\", \"plan Friday for bookkeeping\"). `title` is the short label (≤200 chars); `detail` carries the specifics; `planDate` is the day it belongs to (YYYY-MM-DD, required). Phrase titles in plain language the user recognizes. Break the plan into tasks with create_task, passing this plan's id as `planId`, and move the plan with update_plan / complete_plan as the day's work lands. Side effect: the plan appears in the user's plan list.",
+    {
+    workspaceId: z.string(),
+    title: z.string(),
+    detail: z.string().optional(),
+    planDate: z.string(),
+    sessionId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/plans'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['title', 'detail', 'planDate', 'sessionId']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const createSession: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_session',
@@ -275,12 +391,13 @@ export const createSession: McpToolFactory = (scope, app) =>
 export const createTask: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_task',
-    "Add a task to the workspace's task list. Use this when the user asks for work with more than one step, or agrees to something you will do later — one task per distinct piece of work, phrased in plain language the user recognizes (e.g. \"Write the spring newsletter draft\"), never technical mechanics. `title` is the short label (≤200 chars); `detail` is optional context. New tasks start as status \"open\"; move them with update_task / complete_task as you work. Do not narrate the bookkeeping — just keep the list current. Side effect: the task appears in the user's task panel and dashboard.",
+    "Add a task to the workspace's task list. Use this when the user asks for work with more than one step, or agrees to something you will do later — one task per distinct piece of work, phrased in plain language the user recognizes (e.g. \"Write the spring newsletter draft\"), never technical mechanics. `title` is the short label (≤200 chars); `detail` is optional context; `planId` links the task to a plan (list_plans) when it is part of one. New tasks start as status \"open\"; move them with update_task / complete_task as you work. Do not narrate the bookkeeping — just keep the list current. Side effect: the task appears in the user's task panel and dashboard.",
     {
     workspaceId: z.string(),
     title: z.string(),
     detail: z.string().optional(),
     sessionId: z.string().optional(),
+    planId: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
@@ -288,7 +405,7 @@ export const createTask: McpToolFactory = (scope, app) =>
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['title', 'detail', 'sessionId']) {
+        for (const k of ['title', 'detail', 'sessionId', 'planId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -858,6 +975,48 @@ export const listInstalledSkills: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listJournalEntries: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_journal_entries',
+    "Read the workspace's daily work journal, newest first. Each entry is a dated moment (`entryDate` YYYY-MM-DD + prose content) recording what happened and what was decided. Read recent entries when picking work back up to understand the flow of the last days. Optional `entryDate` reads one exact day; `from`/`to` (inclusive) read a range; `limit` caps the count (default 100). Read-only.",
+    {
+    workspaceId: z.string(),
+    entryDate: z.string().optional(),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    limit: z.number().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/journal'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['entryDate', 'from', 'to', 'limit']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const listKnowledgeDocuments: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_knowledge_documents',
@@ -1040,6 +1199,84 @@ export const listMyChannels: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listMyJournalEntries: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_my_journal_entries',
+    "Read every journal entry the user owns — both global (no workspace) and workspace-scoped, newest first. Each entry is a dated moment (`entryDate` YYYY-MM-DD + prose content) recording what happened. Optional `entryDate` reads one exact day; `from`/`to` (inclusive) read a range; `limit` caps the count. Read-only.",
+    {
+    entryDate: z.string().optional(),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    limit: z.number().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/journal'
+        const queryParams = new URLSearchParams()
+        for (const k of ['entryDate', 'from', 'to', 'limit']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listMyPlans: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_my_plans',
+    "List every plan the user owns — both global (no workspace) and workspace-scoped, newest day first. Each has a title, optional detail, `planDate` (YYYY-MM-DD), status (open / in-progress / done), and who created it. Optional `status` and `planDate` queries narrow the list. Read-only.",
+    {
+    status: z.enum(['open', 'in-progress', 'done']).optional(),
+    planDate: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/plans'
+        const queryParams = new URLSearchParams()
+        for (const k of ['status', 'planDate']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const listMySchedules: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_my_schedules',
@@ -1073,15 +1310,56 @@ export const listMySchedules: McpToolFactory = (scope, app) =>
 export const listMyTasks: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_my_tasks',
-    "List every task the user owns — both global (no workspace) and workspace-scoped. Each has a title, optional detail, status (open / in-progress / done), and who created it. Optional `status` query filters to one status. Read-only.",
+    "List every task the user owns — both global (no workspace) and workspace-scoped. Each has a title, optional detail, status (open / in-progress / done), who created it, and an optional planId linking it to a plan. Optional `status` query filters to one status; optional `planId` narrows to one plan's work items. Read-only.",
     {
     status: z.enum(['open', 'in-progress', 'done']).optional(),
+    planId: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/tasks'
         const queryParams = new URLSearchParams()
-        for (const k of ['status']) {
+        for (const k of ['status', 'planId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listPlans: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_plans',
+    "List the active workspace's plans (owner-scoped), newest day first. A plan is what is planned for a calendar day — title, optional detail, `planDate` (YYYY-MM-DD), status (open / in-progress / done), and who created it. Optional `status` filters to one status; optional `planDate` narrows to one day. A plan's work items are the tasks whose `planId` points at it (list_tasks with `planId`). Check this when the user asks what is planned, or before planning new dated work. Read-only.",
+    {
+    workspaceId: z.string(),
+    status: z.enum(['open', 'in-progress', 'done']).optional(),
+    planDate: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/plans'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['status', 'planDate']) {
           const v = args[k]
           if (v !== undefined && v !== null) queryParams.set(k, String(v))
         }
@@ -1309,17 +1587,18 @@ export const listSessions: McpToolFactory = (scope, app) =>
 export const listTasks: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_tasks',
-    "List the active workspace's task list (owner-scoped). Each task has a title, optional detail, status (open / in-progress / done), and who created it (assistant or user). Optional `status` query filters to one status. Check this at the start of multi-step work to see what is already tracked. Read-only.",
+    "List the active workspace's task list (owner-scoped). Each task has a title, optional detail, status (open / in-progress / done), who created it (assistant or user), and an optional planId linking it to a plan. Optional `status` query filters to one status; optional `planId` narrows to one plan's work items. Check this at the start of multi-step work to see what is already tracked. Read-only.",
     {
     workspaceId: z.string(),
     status: z.enum(['open', 'in-progress', 'done']).optional(),
+    planId: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         let pathStr = '/workspaces/{workspaceId}/tasks'
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryParams = new URLSearchParams()
-        for (const k of ['status']) {
+        for (const k of ['status', 'planId']) {
           const v = args[k]
           if (v !== undefined && v !== null) queryParams.set(k, String(v))
         }
@@ -1927,16 +2206,60 @@ export const updateMemoryEntry: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const updatePlan: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'update_plan',
+    "Update a plan. Set status \"in-progress\" when its day's work starts, back to \"open\" if it stalls, or \"done\" when everything landed (complete_plan is the shortcut). `planDate` moves the plan to another day when the user reschedules; title/detail edits keep the wording current. Statuses: open / in-progress / done.",
+    {
+    planId: z.string(),
+    workspaceId: z.string(),
+    title: z.string().optional(),
+    detail: z.string().nullable().optional(),
+    planDate: z.string().optional(),
+    status: z.enum(['open', 'in-progress', 'done']).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/plans/{planId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{planId}', encodeURIComponent(String(args['planId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['title', 'detail', 'planDate', 'status']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const updateTask: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'update_task',
-    "Update a task on the workspace's list. Set status \"in-progress\" when you start working on it, back to \"open\" if you stop, or \"done\" when finished (complete_task is the shortcut for that). Title/detail edits keep the wording current if the work changes shape. Statuses: open / in-progress / done.",
+    "Update a task on the workspace's list. Set status \"in-progress\" when you start working on it, back to \"open\" if you stop, or \"done\" when finished (complete_task is the shortcut for that). Title/detail edits keep the wording current if the work changes shape; `planId` attaches the task to a plan (null detaches). Statuses: open / in-progress / done.",
     {
     taskId: z.string(),
     workspaceId: z.string(),
     title: z.string().optional(),
     detail: z.string().nullable().optional(),
     status: z.enum(['open', 'in-progress', 'done']).optional(),
+    planId: z.string().nullable().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
@@ -1945,7 +2268,7 @@ export const updateTask: McpToolFactory = (scope, app) =>
         pathStr = pathStr.replace('{taskId}', encodeURIComponent(String(args['taskId'] ?? '')))
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['title', 'detail', 'status']) {
+        for (const k of ['title', 'detail', 'status', 'planId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -1972,10 +2295,13 @@ export const updateTask: McpToolFactory = (scope, app) =>
 // Workspace-scoped tools — the normal chat turn's in-process server.
 export const generatedMcpTools: McpToolFactory[] = [
   addApp,
+  addJournalEntry,
   addMemoryFromFile,
   addToKnowledge,
+  completePlan,
   completeTask,
   createMemoryEntry,
+  createPlan,
   createTask,
   discoverInstalledSkillsForProvider,
   getAiAgentProviderAuthStatus,
@@ -1993,13 +2319,17 @@ export const generatedMcpTools: McpToolFactory[] = [
   listChannels,
   listChatSessions,
   listInstalledSkills,
+  listJournalEntries,
   listKnowledgeDocuments,
   listKnowledgeSources,
   listMemoryEntries,
   listMemoryTags,
   listMyChannels,
+  listMyJournalEntries,
+  listMyPlans,
   listMySchedules,
   listMyTasks,
+  listPlans,
   listScheduleRuns,
   listScheduleTemplates,
   listSchedules,
@@ -2014,6 +2344,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   stopApp,
   updateApp,
   updateMemoryEntry,
+  updatePlan,
   updateTask,
 ]
 

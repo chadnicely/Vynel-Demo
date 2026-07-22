@@ -63,15 +63,54 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__complete_task',
       'mcp__vynel__list_my_tasks',
     ])
+    // `plans` and `journal` gate their whole toolsets the same way (plans +
+    // journal modules, 2026-07-23). The journal agent door is append+read
+    // only — exactly these three tools exist to gate.
+    expect(vynelWorkspaceDescriptor.capabilityGatedTools?.plans).toEqual([
+      'mcp__vynel__list_plans',
+      'mcp__vynel__create_plan',
+      'mcp__vynel__update_plan',
+      'mcp__vynel__complete_plan',
+      'mcp__vynel__list_my_plans',
+    ])
+    expect(vynelWorkspaceDescriptor.capabilityGatedTools?.journal).toEqual([
+      'mcp__vynel__list_journal_entries',
+      'mcp__vynel__add_journal_entry',
+      'mcp__vynel__list_my_journal_entries',
+    ])
   })
 
-  it('contributes the task discipline ONLY when the tasks capability is enabled', () => {
+  it('contributes each capability discipline ONLY when that capability is enabled', () => {
     const context = fakeContext()
     const withTasks = vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['tasks']))
     expect(withTasks).toContain('list_tasks')
     expect(withTasks).toContain('complete_task')
-    // Tasks off (other capabilities on) → no standing line steering the model
-    // into denied tools. An undefined set (no capability info) also drops it.
+    // Only the enabled capability's section — no plans/journal lines steering
+    // the model into denied tools.
+    expect(withTasks).not.toContain('create_plan')
+    expect(withTasks).not.toContain('add_journal_entry')
+
+    const withPlans = vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['plans']))
+    expect(withPlans).toContain('create_plan')
+    expect(withPlans).not.toContain('list_tasks')
+
+    const withJournal = vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['journal']))
+    expect(withJournal).toContain('add_journal_entry')
+    expect(withJournal).not.toContain('create_plan')
+
+    // All three on → all three sections, stable order (tasks → plans → journal).
+    const all = vynelWorkspaceDescriptor.contributePrompt?.(
+      context,
+      new Set(['tasks', 'plans', 'journal']),
+    )
+    expect(all).toContain('## Task list')
+    expect(all).toContain('## Plans')
+    expect(all).toContain('## Work journal')
+    expect(all!.indexOf('## Task list')).toBeLessThan(all!.indexOf('## Plans'))
+    expect(all!.indexOf('## Plans')).toBeLessThan(all!.indexOf('## Work journal'))
+
+    // None of the prompt-bearing capabilities on (others on) → no standing
+    // section at all. An undefined set (no capability info) also drops them.
     expect(vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['memory']))).toBeNull()
     expect(vynelWorkspaceDescriptor.contributePrompt?.(context)).toBeNull()
   })

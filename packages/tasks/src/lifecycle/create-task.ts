@@ -21,6 +21,7 @@ export interface CreateTaskInput {
   detail?: string
   source: TaskSource
   sessionId?: string // the chat session whose turn created the task
+  planId?: string // loose ref — the plan this task belongs to (NO FK)
 }
 
 export function createTask(
@@ -53,6 +54,7 @@ export function createTask(
       status: 'open',
       source: input.source,
       sessionId: input.sessionId ?? null,
+      planId: input.planId ?? null,
       completedAt: null,
       createdAt: now,
       updatedAt: now,

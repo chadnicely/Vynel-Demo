@@ -1,9 +1,38 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-21.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-23.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🌅 NEXT ACTION (2026-07-22 MORNING): CHAD'S SMOKE — the overnight run shipped the COMMS ARC (`d82eebb`) on top of the pipeline scoping (`12b90bd`); gate GREEN 533f/2900t; the machine was SHUT DOWN by instruction after this commit
+## ⏭ NEXT ACTION (2026-07-23): PLANS + JOURNAL FEATURES SHIPPED — gate GREEN 557f/3034t, reviewed (1 should-fix FOLDED); NEXT: Chad smoke, then decide the UI/CLI surfaces
+
+**Chad's ask ("2 new features like task — Plan and Journal"): two net-new leaves on the Tasks
+template, notes in docs/module-notes/plans.md + journal.md, learning in
+.claude/journal/2026-07-23-plans-journal-features.md.**
+- **`@vynel/plans`** (migration `0016_plans`): date-wise plans — `planDate` text YYYY-MM-DD,
+  tasks-style status/source/completedAt rule, outbox plan.* events, two-door routes
+  (`/workspaces/:id/plans` agent door + `/plans` user door), tools list_plans / create_plan /
+  update_plan / complete_plan / list_my_plans (writes mutatingApproved, delete user-only).
+  **`tasks.planId` loose text ref landed in the same migration** (additive ALTER, NO FK) —
+  create/update/list thread it on BOTH task doors; list_tasks + list_my_tasks take a `planId`
+  filter (the reviewer's should-fix: the shared query schema advertised it on the user door
+  while the handler ignored it — folded by threading it through listTasksForUser).
+- **`@vynel/journal`** (migration `0017_journal_entries`): daily work journal — many dated
+  entries per day (entryDate + content ≤8000), day/from/to reads newest-first. **Agent door
+  APPEND+READ ONLY** (add_journal_entry / list_journal_entries + list_my_journal_entries on the
+  user door) — edit/delete are user-door only BY DESIGN (history stays the user's; pinned by a
+  route test asserting PATCH/DELETE aren't mounted on the agent door).
+- **Capabilities `plans` + `journal`** (defaultEnabled, catalog + route enum + CapabilityId);
+  descriptor gates tools AND prompt sections together — contributeWorkspacePrompt generalized to
+  an ordered per-capability section list (tasks → plans → journal, tested). 61 MCP tools
+  (was 53). Global root: zero plan/journal tools (router precedent).
+- **DEFERRED for Chad's green-light (recorded in both notes): UI surfaces (panels/sections/
+  dashboard cards) + CLI commands.**
+**⏭ CHAD SMOKE: restart the app (migrations 0016+0017 apply on boot) · workspace chat → "plan
+tomorrow: ship the newsletter, three tasks under it" → create_plan + create_task(planId) fire
+uncarded, list_plans shows the day · "what's planned for tomorrow?" → reads back · "log today's
+progress in the journal" → add_journal_entry; new session → "what happened yesterday?" →
+list_journal_entries range read · Capabilities panel shows Plans + Journal toggles; toggling one
+off drops its tools AND its prompt section next turn.**
 
 **OVERNIGHT (Chad: "complete the remaining parts and the communication mcp… shutdown… in
 the morning I will smoke test"): the session-communications arc built per

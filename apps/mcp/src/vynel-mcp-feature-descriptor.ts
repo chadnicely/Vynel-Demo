@@ -55,13 +55,25 @@ const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly string[]>> 
     'mcp__vynel__complete_task',
     'mcp__vynel__list_my_tasks',
   ],
+  plans: [
+    'mcp__vynel__list_plans',
+    'mcp__vynel__create_plan',
+    'mcp__vynel__update_plan',
+    'mcp__vynel__complete_plan',
+    'mcp__vynel__list_my_plans',
+  ],
+  journal: [
+    'mcp__vynel__list_journal_entries',
+    'mcp__vynel__add_journal_entry',
+    'mcp__vynel__list_my_journal_entries',
+  ],
 }
 
-// The standing task-list discipline for a workspace turn. Self-contained (the
-// tools it names are this descriptor's own) and dropped when the `tasks`
-// capability is off — the capability-aware contributePrompt below reads the
-// same enabled-set the composer gates the tools with, so the prompt and the
-// tools can never disagree.
+// The standing per-capability disciplines for a workspace turn. Each section
+// is self-contained (the tools it names are this descriptor's own) and
+// dropped when its capability is off — the capability-aware contributePrompt
+// below reads the same enabled-set the composer gates the tools with, so the
+// prompt and the tools can never disagree.
 const TASKS_PROMPT_INSTRUCTIONS = [
   '## Task list',
   'The user sees a task list you maintain (create_task / update_task / complete_task / ' +
@@ -71,6 +83,32 @@ const TASKS_PROMPT_INSTRUCTIONS = [
     'moment it is finished and verified. Keep the list current as you go; never narrate the ' +
     'bookkeeping.',
 ].join('\n')
+
+const PLANS_PROMPT_INSTRUCTIONS = [
+  '## Plans',
+  'The user keeps date-wise plans (create_plan / update_plan / complete_plan / list_plans) — ' +
+    'what each calendar day is for. When the user lays out dated intent, capture it as a plan ' +
+    "(planDate YYYY-MM-DD) and break its work into tasks linked via the task's planId. Check " +
+    'list_plans when asked what is planned or before planning dated work; complete a plan when ' +
+    "its day's work has landed. Never narrate the bookkeeping.",
+].join('\n')
+
+const JOURNAL_PROMPT_INSTRUCTIONS = [
+  '## Work journal',
+  'The user keeps a daily work journal (add_journal_entry / list_journal_entries). When you ' +
+    'pick work back up, read the recent entries to understand the flow of the last days. When ' +
+    'meaningful work lands, append one dated entry (entryDate YYYY-MM-DD) saying what happened ' +
+    'and what was decided, in plain language. The journal is append-only for you — write ' +
+    'entries as a faithful record; never narrate the bookkeeping.',
+].join('\n')
+
+// Section order is stable (tasks → plans → journal) so the composed prompt
+// never reshuffles between turns.
+const CAPABILITY_PROMPT_SECTIONS: readonly { capabilityId: string; section: string }[] = [
+  { capabilityId: 'tasks', section: TASKS_PROMPT_INSTRUCTIONS },
+  { capabilityId: 'plans', section: PLANS_PROMPT_INSTRUCTIONS },
+  { capabilityId: 'journal', section: JOURNAL_PROMPT_INSTRUCTIONS },
+]
 
 function toMcpScope(context: SessionToolContext): McpScope {
   return {
@@ -91,7 +129,12 @@ function toMcpScope(context: SessionToolContext): McpScope {
 const contributeWorkspacePrompt: NonNullable<McpFeatureDescriptor['contributePrompt']> = (
   _context,
   enabledCapabilityIds,
-) => (enabledCapabilityIds?.has('tasks') === true ? TASKS_PROMPT_INSTRUCTIONS : null)
+) => {
+  const sections = CAPABILITY_PROMPT_SECTIONS.filter(
+    (entry) => enabledCapabilityIds?.has(entry.capabilityId) === true,
+  ).map((entry) => entry.section)
+  return sections.length > 0 ? sections.join('\n\n') : null
+}
 
 export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',

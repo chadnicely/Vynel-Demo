@@ -4949,6 +4949,12 @@
                           "null"
                         ]
                       },
+                      "planId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "completedAt": {
                         "type": [
                           "string",
@@ -4971,6 +4977,7 @@
                       "status",
                       "source",
                       "sessionId",
+                      "planId",
                       "completedAt",
                       "createdAt",
                       "updatedAt"
@@ -5002,6 +5009,14 @@
             }
           },
           {
+            "in": "query",
+            "name": "planId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
             "schema": {
               "type": "string"
             },
@@ -5015,7 +5030,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "list_tasks",
-          "description": "List the active workspace's task list (owner-scoped). Each task has a title, optional detail, status (open / in-progress / done), and who created it (assistant or user). Optional `status` query filters to one status. Check this at the start of multi-step work to see what is already tracked. Read-only."
+          "description": "List the active workspace's task list (owner-scoped). Each task has a title, optional detail, status (open / in-progress / done), who created it (assistant or user), and an optional planId linking it to a plan. Optional `status` query filters to one status; optional `planId` narrows to one plan's work items. Check this at the start of multi-step work to see what is already tracked. Read-only."
         }
       },
       "post": {
@@ -5069,6 +5084,12 @@
                         "null"
                       ]
                     },
+                    "planId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -5091,6 +5112,7 @@
                     "status",
                     "source",
                     "sessionId",
+                    "planId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -5125,7 +5147,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "create_task",
-          "description": "Add a task to the workspace's task list. Use this when the user asks for work with more than one step, or agrees to something you will do later — one task per distinct piece of work, phrased in plain language the user recognizes (e.g. \"Write the spring newsletter draft\"), never technical mechanics. `title` is the short label (≤200 chars); `detail` is optional context. New tasks start as status \"open\"; move them with update_task / complete_task as you work. Do not narrate the bookkeeping — just keep the list current. Side effect: the task appears in the user's task panel and dashboard.",
+          "description": "Add a task to the workspace's task list. Use this when the user asks for work with more than one step, or agrees to something you will do later — one task per distinct piece of work, phrased in plain language the user recognizes (e.g. \"Write the spring newsletter draft\"), never technical mechanics. `title` is the short label (≤200 chars); `detail` is optional context; `planId` links the task to a plan (list_plans) when it is part of one. New tasks start as status \"open\"; move them with update_task / complete_task as you work. Do not narrate the bookkeeping — just keep the list current. Side effect: the task appears in the user's task panel and dashboard.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -5145,6 +5167,10 @@
                     "maxLength": 4000
                   },
                   "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "planId": {
                     "type": "string",
                     "minLength": 1
                   }
@@ -5210,6 +5236,12 @@
                         "null"
                       ]
                     },
+                    "planId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -5232,6 +5264,7 @@
                     "status",
                     "source",
                     "sessionId",
+                    "planId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -5275,7 +5308,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "update_task",
-          "description": "Update a task on the workspace's list. Set status \"in-progress\" when you start working on it, back to \"open\" if you stop, or \"done\" when finished (complete_task is the shortcut for that). Title/detail edits keep the wording current if the work changes shape. Statuses: open / in-progress / done.",
+          "description": "Update a task on the workspace's list. Set status \"in-progress\" when you start working on it, back to \"open\" if you stop, or \"done\" when finished (complete_task is the shortcut for that). Title/detail edits keep the wording current if the work changes shape; `planId` attaches the task to a plan (null detaches). Statuses: open / in-progress / done.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -5303,6 +5336,13 @@
                       "in-progress",
                       "done"
                     ]
+                  },
+                  "planId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1
                   }
                 }
               }
@@ -5363,6 +5403,12 @@
                         "null"
                       ]
                     },
+                    "planId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -5385,6 +5431,7 @@
                     "status",
                     "source",
                     "sessionId",
+                    "planId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -5427,6 +5474,820 @@
           "name": "complete_task",
           "description": "Mark a task done the moment its work is finished and verified — not before. The user sees completed tasks on their dashboard as the record of what you've delivered.",
           "mutatingApproved": true
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/plans": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of Plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "detail": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "planDate": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "in-progress",
+                          "done"
+                        ]
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "assistant",
+                          "user"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "completedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "title",
+                      "detail",
+                      "planDate",
+                      "status",
+                      "source",
+                      "sessionId",
+                      "completedAt",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdPlans",
+        "tags": [
+          "plans"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "in-progress",
+                "done"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "planDate",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List plans for the active workspace (owner-scoped).",
+        "x-sdk-name": "plans.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_plans",
+          "description": "List the active workspace's plans (owner-scoped), newest day first. A plan is what is planned for a calendar day — title, optional detail, `planDate` (YYYY-MM-DD), status (open / in-progress / done), and who created it. Optional `status` filters to one status; optional `planDate` narrows to one day. A plan's work items are the tasks whose `planId` points at it (list_tasks with `planId`). Check this when the user asks what is planned, or before planning new dated work. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Plan created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "planDate": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "detail",
+                    "planDate",
+                    "status",
+                    "source",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdPlans",
+        "tags": [
+          "plans"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Create a plan on the active workspace's list (assistant provenance).",
+        "x-sdk-name": "plans.create",
+        "x-mcp": {
+          "exposed": true,
+          "name": "create_plan",
+          "description": "Create a plan for a calendar day — use this when the user lays out dated intent (\"tomorrow we tackle the launch\", \"plan Friday for bookkeeping\"). `title` is the short label (≤200 chars); `detail` carries the specifics; `planDate` is the day it belongs to (YYYY-MM-DD, required). Phrase titles in plain language the user recognizes. Break the plan into tasks with create_task, passing this plan's id as `planId`, and move the plan with update_plan / complete_plan as the day's work lands. Side effect: the plan appears in the user's plan list.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "detail": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "planDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "planDate"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/plans/{planId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Plan updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "planDate": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "detail",
+                    "planDate",
+                    "status",
+                    "source",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "No such plan owned by this user."
+          }
+        },
+        "operationId": "patchWorkspacesByWorkspaceIdPlansByPlanId",
+        "tags": [
+          "plans"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "planId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Update a plan (title, detail, date, or status).",
+        "x-sdk-name": "plans.update",
+        "x-mcp": {
+          "exposed": true,
+          "name": "update_plan",
+          "description": "Update a plan. Set status \"in-progress\" when its day's work starts, back to \"open\" if it stalls, or \"done\" when everything landed (complete_plan is the shortcut). `planDate` moves the plan to another day when the user reschedules; title/detail edits keep the wording current. Statuses: open / in-progress / done.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "detail": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 4000
+                  },
+                  "planDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "in-progress",
+                      "done"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/plans/{planId}/complete": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Plan completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "planDate": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "detail",
+                    "planDate",
+                    "status",
+                    "source",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such plan owned by this user."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdPlansByPlanIdComplete",
+        "tags": [
+          "plans"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "planId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Mark a plan done.",
+        "x-sdk-name": "plans.complete",
+        "x-mcp": {
+          "exposed": true,
+          "name": "complete_plan",
+          "description": "Mark a plan done when its day's work is finished and verified — typically after its linked tasks are complete. The user sees completed plans as the record of what a day delivered.",
+          "mutatingApproved": true
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/journal": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of JournalEntry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "entryDate": {
+                        "type": "string"
+                      },
+                      "content": {
+                        "type": "string"
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "assistant",
+                          "user"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "entryDate",
+                      "content",
+                      "source",
+                      "sessionId",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdJournal",
+        "tags": [
+          "journal"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "entryDate",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Read the active workspace's journal (owner-scoped).",
+        "x-sdk-name": "journal.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_journal_entries",
+          "description": "Read the workspace's daily work journal, newest first. Each entry is a dated moment (`entryDate` YYYY-MM-DD + prose content) recording what happened and what was decided. Read recent entries when picking work back up to understand the flow of the last days. Optional `entryDate` reads one exact day; `from`/`to` (inclusive) read a range; `limit` caps the count (default 100). Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Journal entry created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "entryDate": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "entryDate",
+                    "content",
+                    "source",
+                    "sessionId",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdJournal",
+        "tags": [
+          "journal"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Append an entry to the active workspace's journal (assistant provenance).",
+        "x-sdk-name": "journal.create",
+        "x-mcp": {
+          "exposed": true,
+          "name": "add_journal_entry",
+          "description": "Append a dated entry to the daily work journal when meaningful work lands — what happened, what was decided, and anything the next session needs to know, in plain language the user recognizes. `entryDate` is the day it belongs to (YYYY-MM-DD, usually today); `content` is the entry (≤8000 chars). The journal is append-only for you — you cannot edit or remove entries, so write them as a faithful record, not a draft. Do not narrate the bookkeeping. Side effect: the entry appears in the user's journal.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "entryDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8000
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "entryDate",
+                  "content"
+                ]
+              }
+            }
+          }
         }
       }
     },
@@ -9855,7 +10716,9 @@
                               "memory",
                               "knowledge",
                               "notebook",
-                              "tasks"
+                              "tasks",
+                              "plans",
+                              "journal"
                             ]
                           },
                           "displayName": {
@@ -9933,7 +10796,9 @@
                         "memory",
                         "knowledge",
                         "notebook",
-                        "tasks"
+                        "tasks",
+                        "plans",
+                        "journal"
                       ]
                     },
                     "displayName": {
@@ -9988,7 +10853,9 @@
                 "memory",
                 "knowledge",
                 "notebook",
-                "tasks"
+                "tasks",
+                "plans",
+                "journal"
               ]
             },
             "required": true
@@ -12931,6 +13798,12 @@
                           "null"
                         ]
                       },
+                      "planId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "completedAt": {
                         "type": [
                           "string",
@@ -12953,6 +13826,7 @@
                       "status",
                       "source",
                       "sessionId",
+                      "planId",
                       "completedAt",
                       "createdAt",
                       "updatedAt"
@@ -12979,6 +13853,14 @@
                 "done"
               ]
             }
+          },
+          {
+            "in": "query",
+            "name": "planId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         ],
         "summary": "List every task the user owns — global + workspace.",
@@ -12986,7 +13868,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "list_my_tasks",
-          "description": "List every task the user owns — both global (no workspace) and workspace-scoped. Each has a title, optional detail, status (open / in-progress / done), and who created it. Optional `status` query filters to one status. Read-only."
+          "description": "List every task the user owns — both global (no workspace) and workspace-scoped. Each has a title, optional detail, status (open / in-progress / done), who created it, and an optional planId linking it to a plan. Optional `status` query filters to one status; optional `planId` narrows to one plan's work items. Read-only."
         }
       },
       "post": {
@@ -13040,6 +13922,12 @@
                         "null"
                       ]
                     },
+                    "planId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -13062,6 +13950,7 @@
                     "status",
                     "source",
                     "sessionId",
+                    "planId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -13196,6 +14085,12 @@
                         "null"
                       ]
                     },
+                    "planId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -13218,6 +14113,7 @@
                     "status",
                     "source",
                     "sessionId",
+                    "planId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -13275,6 +14171,13 @@
                       "in-progress",
                       "done"
                     ]
+                  },
+                  "planId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1
                   }
                 }
               }
@@ -13308,6 +14211,859 @@
         ],
         "summary": "Delete a task the user owns (hard delete).",
         "x-sdk-name": "tasksUser.delete"
+      }
+    },
+    "/plans": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of Plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "detail": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "planDate": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "in-progress",
+                          "done"
+                        ]
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "assistant",
+                          "user"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "completedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "title",
+                      "detail",
+                      "planDate",
+                      "status",
+                      "source",
+                      "sessionId",
+                      "completedAt",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getPlans",
+        "tags": [
+          "plans"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "in-progress",
+                "done"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "planDate",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          }
+        ],
+        "summary": "List every plan the user owns — global + workspace.",
+        "x-sdk-name": "plansUser.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_my_plans",
+          "description": "List every plan the user owns — both global (no workspace) and workspace-scoped, newest day first. Each has a title, optional detail, `planDate` (YYYY-MM-DD), status (open / in-progress / done), and who created it. Optional `status` and `planDate` queries narrow the list. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Plan created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "planDate": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "detail",
+                    "planDate",
+                    "status",
+                    "source",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or workspaceId missing for a workspace scope."
+          }
+        },
+        "operationId": "postPlans",
+        "tags": [
+          "plans"
+        ],
+        "parameters": [],
+        "summary": "Create a global or workspace plan (user provenance).",
+        "x-sdk-name": "plansUser.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "global"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "detail": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4000
+                      },
+                      "planDate": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "title",
+                      "planDate"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "workspace"
+                      },
+                      "workspaceId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "detail": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4000
+                      },
+                      "planDate": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "workspaceId",
+                      "title",
+                      "planDate"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plans/{planId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Plan updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "planDate": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "detail",
+                    "planDate",
+                    "status",
+                    "source",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "No such plan owned by this user."
+          }
+        },
+        "operationId": "patchPlansByPlanId",
+        "tags": [
+          "plans"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "planId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Update a plan the user owns (title, detail, date, or status).",
+        "x-sdk-name": "plansUser.update",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "detail": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 4000
+                  },
+                  "planDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "in-progress",
+                      "done"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Plan deleted."
+          },
+          "404": {
+            "description": "No such plan owned by this user."
+          }
+        },
+        "operationId": "deletePlansByPlanId",
+        "tags": [
+          "plans"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "planId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Delete a plan the user owns (hard delete).",
+        "x-sdk-name": "plansUser.delete"
+      }
+    },
+    "/journal": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of JournalEntry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "entryDate": {
+                        "type": "string"
+                      },
+                      "content": {
+                        "type": "string"
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "assistant",
+                          "user"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "entryDate",
+                      "content",
+                      "source",
+                      "sessionId",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getJournal",
+        "tags": [
+          "journal"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "entryDate",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "summary": "Read every journal entry the user owns — global + workspace.",
+        "x-sdk-name": "journalUser.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_my_journal_entries",
+          "description": "Read every journal entry the user owns — both global (no workspace) and workspace-scoped, newest first. Each entry is a dated moment (`entryDate` YYYY-MM-DD + prose content) recording what happened. Optional `entryDate` reads one exact day; `from`/`to` (inclusive) read a range; `limit` caps the count. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Journal entry created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "entryDate": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "entryDate",
+                    "content",
+                    "source",
+                    "sessionId",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or workspaceId missing for a workspace scope."
+          }
+        },
+        "operationId": "postJournal",
+        "tags": [
+          "journal"
+        ],
+        "parameters": [],
+        "summary": "Create a global or workspace journal entry (user provenance).",
+        "x-sdk-name": "journalUser.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "global"
+                      },
+                      "entryDate": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 8000
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "entryDate",
+                      "content"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "const": "workspace"
+                      },
+                      "workspaceId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "entryDate": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 8000
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "workspaceId",
+                      "entryDate",
+                      "content"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/journal/{entryId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Journal entry updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "entryDate": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "assistant",
+                        "user"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "entryDate",
+                    "content",
+                    "source",
+                    "sessionId",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "No such journal entry owned by this user."
+          }
+        },
+        "operationId": "patchJournalByEntryId",
+        "tags": [
+          "journal"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entryId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Update a journal entry the user owns (content or date).",
+        "x-sdk-name": "journalUser.update",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8000
+                  },
+                  "entryDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Journal entry deleted."
+          },
+          "404": {
+            "description": "No such journal entry owned by this user."
+          }
+        },
+        "operationId": "deleteJournalByEntryId",
+        "tags": [
+          "journal"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entryId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Delete a journal entry the user owns (hard delete).",
+        "x-sdk-name": "journalUser.delete"
       }
     },
     "/asks/pending": {
@@ -20505,6 +22261,12 @@
                               "null"
                             ]
                           },
+                          "planId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "completedAt": {
                             "type": [
                               "string",
@@ -20527,6 +22289,7 @@
                           "status",
                           "source",
                           "sessionId",
+                          "planId",
                           "completedAt",
                           "createdAt",
                           "updatedAt"
@@ -20580,6 +22343,12 @@
                               "null"
                             ]
                           },
+                          "planId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "completedAt": {
                             "type": [
                               "string",
@@ -20602,6 +22371,7 @@
                           "status",
                           "source",
                           "sessionId",
+                          "planId",
                           "completedAt",
                           "createdAt",
                           "updatedAt"

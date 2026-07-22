@@ -20,6 +20,8 @@ export interface TaskResponse {
   status: TaskStatus
   source: TaskSource
   sessionId: string | null
+  // Loose cross-feature ref — the plan this task belongs to (no FK).
+  planId: string | null
   /** ISO-8601 or null */
   completedAt: string | null
   /** ISO-8601 */

@@ -28,6 +28,10 @@ import { schedulesApp } from './routes/schedules/index.js'
 import { schedulesUserApp } from './routes/schedules/user-scoped.js'
 import { tasksApp } from './routes/tasks/index.js'
 import { tasksUserApp } from './routes/tasks/user-scoped.js'
+import { plansApp } from './routes/plans/index.js'
+import { plansUserApp } from './routes/plans/user-scoped.js'
+import { journalApp } from './routes/journal/index.js'
+import { journalUserApp } from './routes/journal/user-scoped.js'
 import { asksApp } from './routes/asks/index.js'
 import { sshServersApp } from './routes/ssh-servers/index.js'
 import { PendingAskRegistry } from '@vynel/asks'
@@ -209,8 +213,11 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/workspaces/:workspaceId/channels', channelsApp)
   app.route('/workspaces/:workspaceId/schedules', schedulesApp)
   // Tasks are NOT feature-gated — the task list is part of the core "one
-  // brain you can trust" experience, like chat and workspaces.
+  // brain you can trust" experience, like chat and workspaces. Plans and the
+  // journal ride the same reasoning (the date-wise layer + the daily record).
   app.route('/workspaces/:workspaceId/tasks', tasksApp)
+  app.route('/workspaces/:workspaceId/plans', plansApp)
+  app.route('/workspaces/:workspaceId/journal', journalApp)
   app.route('/workspaces/:workspaceId/apps', workspaceAppsApp)
   app.route('/workspaces/:workspaceId/chat', chatApp)
   app.route('/workspaces/:workspaceId/files', filesApp)
@@ -227,7 +234,10 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/schedules', schedulesUserApp)
   // `/tasks` spans a user's whole set (both scopes) — the panel + dashboard +
   // CLI surface; global tasks are creatable, listable, and manageable here.
+  // `/plans` + `/journal` are its date-wise + daily-record twins.
   app.route('/tasks', tasksUserApp)
+  app.route('/plans', plansUserApp)
+  app.route('/journal', journalUserApp)
   // `/asks` — the ask_user answering surface (always the user; the agent's
   // surface is the `vynel-ask` descriptor tool). Core plumbing, not gated.
   app.route('/asks', asksApp)

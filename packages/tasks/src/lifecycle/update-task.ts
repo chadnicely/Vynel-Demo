@@ -26,6 +26,7 @@ export interface UpdateTaskInput {
   title?: string
   detail?: string | null
   status?: TaskStatus
+  planId?: string | null // null detaches the task from its plan
 }
 
 export function updateTask(
@@ -61,6 +62,8 @@ export function updateTask(
     }
     patch.detail = detail
   }
+
+  if (input.planId !== undefined) patch.planId = input.planId
 
   const isCompleting = input.status === 'done' && task.status !== 'done'
   if (input.status !== undefined) {

@@ -8,14 +8,14 @@ import type { Task, TaskStatus } from '../repositories/index.js'
 
 export function listTasks(
   db: Database,
-  input: { userId: string; workspaceId: string; status?: TaskStatus },
+  input: { userId: string; workspaceId: string; status?: TaskStatus; planId?: string },
 ): Task[] {
   return tasksRepository.listTasksForWorkspace(db, input)
 }
 
 export function listTasksForUser(
   db: Database,
-  input: { userId: string; status?: TaskStatus },
+  input: { userId: string; status?: TaskStatus; planId?: string },
 ): Task[] {
   return tasksRepository.listTasksForUser(db, input)
 }

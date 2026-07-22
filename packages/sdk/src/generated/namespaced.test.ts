@@ -227,12 +227,18 @@ describe('makeNamespaced — shape', () => {
       'dashboard',
       'files',
       'hub',
+      // test: correct expectation — the plans + journal modules (2026-07-23)
+      // added their two-door namespaces (agent + user surfaces each).
+      'journal',
+      'journalUser',
       'knowledge',
       'marketplace',
       'marketplaceUser',
       'memory',
       'notebook',
       'onboarding',
+      'plans',
+      'plansUser',
       'providers',
       'root',
       'routing',

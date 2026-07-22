@@ -9,6 +9,21 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Plans — date-wise planning next to your task list.** Each plan belongs to a calendar day
+  (title, details, a date, and open / in-progress / done status), and tasks can now link to a
+  plan — so "what is Friday for, and what's left of it" is one question. Claude keeps plans
+  current through new tools (`create_plan`, `update_plan`, `complete_plan`, `list_plans`,
+  `list_my_plans`), and `list_tasks` can list one plan's work items. Like tasks, plans exist per
+  workspace and globally, you keep the delete key, and provenance (Claude vs you) can't be
+  spoofed. Toggleable per workspace as the new **Plans** capability (on by default).
+
+- **A daily work journal Claude writes and reads.** Dated entries record what happened and what
+  was decided each day; when Claude picks work back up it reads the recent entries to understand
+  the flow. New tools: `add_journal_entry`, `list_journal_entries` (day or date-range reads),
+  `list_my_journal_entries`. The journal is **append-only for Claude** — editing or deleting
+  history is yours alone (panel/CLI doors). Toggleable per workspace as the new **Journal**
+  capability (on by default).
+
 - **Claude can now use the desktop by hand — click, type, scroll, drag at a point.** When Claude
   is working from a screenshot (an app with no readable accessibility tree), it can now act the way
   a person does: click where it sees, type, press keys and shortcuts ("enter", "ctrl+c"), scroll,

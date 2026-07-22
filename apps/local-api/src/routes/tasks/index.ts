@@ -59,19 +59,21 @@ export const tasksApp = factory
         name: 'list_tasks',
         description:
           "List the active workspace's task list (owner-scoped). Each task has a title, optional " +
-          'detail, status (open / in-progress / done), and who created it (assistant or user). ' +
-          'Optional `status` query filters to one status. Check this at the start of multi-step ' +
-          'work to see what is already tracked. Read-only.',
+          'detail, status (open / in-progress / done), who created it (assistant or user), and an ' +
+          'optional planId linking it to a plan. Optional `status` query filters to one status; ' +
+          "optional `planId` narrows to one plan's work items. Check this at the start of " +
+          'multi-step work to see what is already tracked. Read-only.',
       },
     }),
     validator('query', ListTasksQuerySchema),
     ...workspaceScoped,
     (c) => {
-      const { status } = c.req.valid('query')
+      const { status, planId } = c.req.valid('query')
       const tasks = listTasks(c.var.db, {
         userId: c.var.user.id,
         workspaceId: c.var.workspace!.id,
         ...(status !== undefined ? { status } : {}),
+        ...(planId !== undefined ? { planId } : {}),
       })
       return c.json(tasks.map(serializeTaskForResponse))
     },
@@ -99,7 +101,8 @@ export const tasksApp = factory
           'more than one step, or agrees to something you will do later — one task per distinct ' +
           'piece of work, phrased in plain language the user recognizes (e.g. "Write the spring ' +
           'newsletter draft"), never technical mechanics. `title` is the short label (≤200 chars); ' +
-          '`detail` is optional context. New tasks start as status "open"; move them with ' +
+          '`detail` is optional context; `planId` links the task to a plan (list_plans) when it ' +
+          'is part of one. New tasks start as status "open"; move them with ' +
           'update_task / complete_task as you work. Do not narrate the bookkeeping — just keep the ' +
           "list current. Side effect: the task appears in the user's task panel and dashboard.",
         mutatingApproved: true,
@@ -118,6 +121,7 @@ export const tasksApp = factory
           source: 'assistant',
           ...(body.detail !== undefined ? { detail: body.detail } : {}),
           ...(body.sessionId !== undefined ? { sessionId: body.sessionId } : {}),
+          ...(body.planId !== undefined ? { planId: body.planId } : {}),
         },
         { logger: c.var.logger },
       )
@@ -146,7 +150,8 @@ export const tasksApp = factory
           'Update a task on the workspace\'s list. Set status "in-progress" when you start ' +
           'working on it, back to "open" if you stop, or "done" when finished (complete_task is ' +
           'the shortcut for that). Title/detail edits keep the wording current if the work ' +
-          'changes shape. Statuses: open / in-progress / done.',
+          'changes shape; `planId` attaches the task to a plan (null detaches). Statuses: ' +
+          'open / in-progress / done.',
         mutatingApproved: true,
       },
     }),
@@ -163,6 +168,7 @@ export const tasksApp = factory
           ...(body.title !== undefined ? { title: body.title } : {}),
           ...(body.detail !== undefined ? { detail: body.detail } : {}),
           ...(body.status !== undefined ? { status: body.status } : {}),
+          ...(body.planId !== undefined ? { planId: body.planId } : {}),
         },
         { logger: c.var.logger },
       )

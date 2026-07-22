@@ -45,6 +45,24 @@ export const CAPABILITY_CATALOG: readonly Capability[] = [
     isFirstParty: true,
     defaultEnabled: true,
   },
+  {
+    id: 'plans',
+    displayName: 'Plans',
+    description:
+      'Date-wise plans the assistant helps keep — what each day is for, with its tasks linked underneath.',
+    scope: 'workspace',
+    isFirstParty: true,
+    defaultEnabled: true,
+  },
+  {
+    id: 'journal',
+    displayName: 'Journal',
+    description:
+      'A daily work journal the assistant writes and reads — what happened each day, so it can pick threads back up.',
+    scope: 'workspace',
+    isFirstParty: true,
+    defaultEnabled: true,
+  },
 ] as const
 
 // `find*` — returns null when the id isn't a known first-party capability

@@ -113,6 +113,20 @@
       "when": 1784622701678,
       "tag": "0015_delegation_job_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1784758853296,
+      "tag": "0016_plans",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1784758872567,
+      "tag": "0017_journal_entries",
+      "breakpoints": true
     }
   ]
 }
