@@ -1,11 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
+import { createPinia, type Pinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import type { VynelClient } from "@vynel/sdk";
+import { useUiStore } from "../../stores/ui-store.js";
 import PlansSection from "./PlansSection.vue";
 import { localDayKey } from "../../utils/format-day-label.js";
 import type { SectionScope } from "./section-scope.js";
+
+afterEach(() => {
+  document.body.innerHTML = "";
+});
 
 function makePlan(overrides: Record<string, unknown> = {}) {
   return {
@@ -25,11 +31,16 @@ function makePlan(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function mountSection(scope: SectionScope, client: VynelClient) {
-  return mount(PlansSection, {
+function mountSection(
+  scope: SectionScope,
+  client: VynelClient,
+): { wrapper: ReturnType<typeof mount>; pinia: Pinia } {
+  const pinia = createPinia();
+  const wrapper = mount(PlansSection, {
     props: { scope },
     global: {
       plugins: [
+        pinia,
         [
           VueQueryPlugin,
           {
@@ -41,7 +52,9 @@ function mountSection(scope: SectionScope, client: VynelClient) {
       ],
       provide: { [vynelClientKey as symbol]: client },
     },
+    attachTo: document.body,
   });
+  return { wrapper, pinia };
 }
 
 describe("PlansSection", () => {
@@ -62,7 +75,7 @@ describe("PlansSection", () => {
       },
     } as unknown as VynelClient;
 
-    const wrapper = mountSection({ kind: "workspace", workspaceId: "w1" }, client);
+    const { wrapper } = mountSection({ kind: "workspace", workspaceId: "w1" }, client);
     await flushPromises();
 
     const rows = wrapper.findAll(".row");
@@ -89,7 +102,7 @@ describe("PlansSection", () => {
       },
     } as unknown as VynelClient;
 
-    const wrapper = mountSection({ kind: "workspace", workspaceId: "w1" }, client);
+    const { wrapper } = mountSection({ kind: "workspace", workspaceId: "w1" }, client);
     await flushPromises();
 
     const input = wrapper.get('input[aria-label="New plan title"]');
@@ -123,7 +136,7 @@ describe("PlansSection", () => {
       },
     } as unknown as VynelClient;
 
-    const wrapper = mountSection({ kind: "global" }, client);
+    const { wrapper } = mountSection({ kind: "global" }, client);
     await flushPromises();
 
     // The shared status control speaks "plan" here (the noun prop).
@@ -148,7 +161,7 @@ describe("PlansSection", () => {
       },
     } as unknown as VynelClient;
 
-    const wrapper = mountSection({ kind: "global" }, client);
+    const { wrapper } = mountSection({ kind: "global" }, client);
     await flushPromises();
 
     await wrapper
@@ -159,12 +172,68 @@ describe("PlansSection", () => {
     expect(deleteCalls).toEqual(["p1"]);
   });
 
+  it("View routes to the SHARED plan viewer (sets viewingPlanId)", async () => {
+    const client = {
+      plansUser: { list: async () => [makePlan()] },
+    } as unknown as VynelClient;
+
+    const { wrapper, pinia } = mountSection({ kind: "global" }, client);
+    await flushPromises();
+
+    await wrapper
+      .get('[aria-label="View Ship the spring campaign"]')
+      .trigger("click");
+
+    expect(useUiStore(pinia).viewingPlanId).toBe("p1");
+  });
+
+  it("Edit opens the edit dialog prefilled and saves the patch", async () => {
+    const updateCalls: unknown[] = [];
+    const client = {
+      plansUser: {
+        list: async () => [makePlan()],
+        update: async (planId: string, patch: unknown) => {
+          updateCalls.push([planId, patch]);
+          return makePlan({ title: "Renamed" });
+        },
+      },
+    } as unknown as VynelClient;
+
+    const { wrapper } = mountSection({ kind: "global" }, client);
+    await flushPromises();
+
+    await wrapper
+      .get('[aria-label="Edit Ship the spring campaign"]')
+      .trigger("click");
+    await flushPromises();
+
+    // The dialog portals to body, prefilled from the row. Scope to the
+    // dialog — the section's own composer inputs are also in body.
+    expect(document.body.textContent).toContain("Edit plan");
+    const titleInput = document.body.querySelector<HTMLInputElement>(
+      '[role="dialog"] input[type="text"]',
+    );
+    expect(titleInput?.value).toBe("Ship the spring campaign");
+
+    titleInput!.value = "Renamed";
+    titleInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    const save = [
+      ...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+    ].find((button) => button.textContent?.trim() === "Save");
+    save!.click();
+    await flushPromises();
+
+    expect(updateCalls).toEqual([
+      ["p1", { title: "Renamed", planDate: "2026-07-23", detail: null }],
+    ]);
+  });
+
   it("invites planning when there is nothing yet", async () => {
     const client = {
       plansUser: { list: async () => [] },
     } as unknown as VynelClient;
 
-    const wrapper = mountSection({ kind: "global" }, client);
+    const { wrapper } = mountSection({ kind: "global" }, client);
     await flushPromises();
 
     expect(wrapper.text()).toContain("No days planned yet");

@@ -1,18 +1,21 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { X } from "lucide-vue-next";
 import type { TaskResponse, TaskStatus } from "@vynel/contracts/tasks/task-http";
 import TaskStatusControl from "../tasks/TaskStatusControl.vue";
+import RowActions from "./RowActions.vue";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 
 // One task card (ChannelsSection row idiom): the status tile cycles in place,
-// the chip says who put it on the list, delete reveals on hover.
+// the chip says who put it on the list, the fixed-width action cluster
+// (View · Edit · Delete) reveals on hover.
 const props = defineProps<{
   task: TaskResponse;
 }>();
 
 const emit = defineEmits<{
   "change-status": [status: TaskStatus];
+  view: [];
+  edit: [];
   delete: [];
 }>();
 
@@ -54,14 +57,11 @@ const subtext = computed(() => {
         {{ subtext }}
       </p>
     </div>
-    <button
-      type="button"
-      class="delete-button shrink-0 cursor-default rounded-md p-1 text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
-      :title="`Delete ${props.task.title}`"
-      :aria-label="`Delete ${props.task.title}`"
-      @click="emit('delete')"
-    >
-      <X :size="14" />
-    </button>
+    <RowActions
+      :subject="props.task.title"
+      @view="emit('view')"
+      @edit="emit('edit')"
+      @delete="emit('delete')"
+    />
   </div>
 </template>

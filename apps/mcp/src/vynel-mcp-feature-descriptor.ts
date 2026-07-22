@@ -91,6 +91,11 @@ const PLANS_PROMPT_INSTRUCTIONS = [
     "(planDate YYYY-MM-DD) and break its work into tasks linked via the task's planId. Check " +
     'list_plans when asked what is planned or before planning dated work; complete a plan when ' +
     "its day's work has landed. Never narrate the bookkeeping.",
+  'When a plan is worth the user\'s review — you just created or reshaped one — link it in ' +
+    'your reply as [<plan title>](vynel://plan/<planId>); in the Vynel app it opens a review ' +
+    'card showing the plan and its work items (other surfaces, e.g. Telegram, see plain text ' +
+    'or a dead link — mention the plan by name there instead). Link at most one or two per ' +
+    'reply, where it reads naturally.',
 ].join('\n')
 
 const JOURNAL_PROMPT_INSTRUCTIONS = [

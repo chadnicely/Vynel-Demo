@@ -92,6 +92,9 @@ describe('vynelWorkspaceDescriptor', () => {
 
     const withPlans = vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['plans']))
     expect(withPlans).toContain('create_plan')
+    // The in-app deep-link teaching (the web shell's PlanViewDialog) rides
+    // the plans section — present exactly when plans is on.
+    expect(withPlans).toContain('vynel://plan/')
     expect(withPlans).not.toContain('list_tasks')
 
     const withJournal = vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['journal']))

@@ -1,10 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
+import { createPinia, type Pinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import type { VynelClient } from "@vynel/sdk";
+import { useUiStore } from "../../stores/ui-store.js";
 import TasksSection from "./TasksSection.vue";
 import type { SectionScope } from "./section-scope.js";
+
+afterEach(() => {
+  document.body.innerHTML = "";
+});
 
 function makeTask(overrides: Record<string, unknown> = {}) {
   return {
@@ -16,6 +22,7 @@ function makeTask(overrides: Record<string, unknown> = {}) {
     status: "open",
     source: "user",
     sessionId: null,
+    planId: null,
     completedAt: null,
     createdAt: "2026-07-05T10:00:00.000Z",
     updatedAt: "2026-07-05T10:00:00.000Z",
@@ -23,11 +30,16 @@ function makeTask(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function mountSection(scope: SectionScope, client: VynelClient) {
-  return mount(TasksSection, {
+function mountSection(
+  scope: SectionScope,
+  client: VynelClient,
+): { wrapper: ReturnType<typeof mount>; pinia: Pinia } {
+  const pinia = createPinia();
+  const wrapper = mount(TasksSection, {
     props: { scope },
     global: {
       plugins: [
+        pinia,
         [
           VueQueryPlugin,
           {
@@ -39,7 +51,9 @@ function mountSection(scope: SectionScope, client: VynelClient) {
       ],
       provide: { [vynelClientKey as symbol]: client },
     },
+    attachTo: document.body,
   });
+  return { wrapper, pinia };
 }
 
 describe("TasksSection", () => {
@@ -59,7 +73,7 @@ describe("TasksSection", () => {
       },
     } as unknown as VynelClient;
 
-    const wrapper = mountSection({ kind: "workspace", workspaceId: "w1" }, client);
+    const { wrapper } = mountSection({ kind: "workspace", workspaceId: "w1" }, client);
     await flushPromises();
 
     const rows = wrapper.findAll(".row");
@@ -84,7 +98,7 @@ describe("TasksSection", () => {
       },
     } as unknown as VynelClient;
 
-    const wrapper = mountSection({ kind: "workspace", workspaceId: "w1" }, client);
+    const { wrapper } = mountSection({ kind: "workspace", workspaceId: "w1" }, client);
     await flushPromises();
 
     const input = wrapper.get('input[aria-label="New task title"]');
@@ -113,7 +127,7 @@ describe("TasksSection", () => {
       },
     } as unknown as VynelClient;
 
-    const wrapper = mountSection({ kind: "global" }, client);
+    const { wrapper } = mountSection({ kind: "global" }, client);
     await flushPromises();
 
     await wrapper.get('[aria-label="Start this task"]').trigger("click");
@@ -141,7 +155,7 @@ describe("TasksSection", () => {
       },
     } as unknown as VynelClient;
 
-    const wrapper = mountSection({ kind: "global" }, client);
+    const { wrapper } = mountSection({ kind: "global" }, client);
     await flushPromises();
 
     // Collapsed by default — the archive never crowds the live list.
@@ -165,7 +179,7 @@ describe("TasksSection", () => {
       },
     } as unknown as VynelClient;
 
-    const wrapper = mountSection({ kind: "global" }, client);
+    const { wrapper } = mountSection({ kind: "global" }, client);
     await flushPromises();
 
     await wrapper
@@ -176,12 +190,111 @@ describe("TasksSection", () => {
     expect(deleteCalls).toEqual(["t1"]);
   });
 
+  it("View opens the task dialog with a LIVE status cycle; its plan chip routes to the shared plan viewer", async () => {
+    // Mutable backing list — the update mock rewrites it, the refetch serves
+    // it, and the dialog must track the LIVE row (a stale snapshot would
+    // re-send the same transition forever).
+    const rows = [makeTask({ detail: "Cover the spring menu.", planId: "p_1" })];
+    const updateCalls: unknown[] = [];
+    const client = {
+      tasksUser: {
+        // Fresh array per fetch — returning the cached reference would defeat
+        // vue-query's structural sharing and hide the update.
+        list: async () => [...rows],
+        update: async (taskId: string, patch: { status: string }) => {
+          updateCalls.push([taskId, patch]);
+          rows[0] = makeTask({
+            detail: "Cover the spring menu.",
+            planId: "p_1",
+            status: patch.status,
+          });
+          return rows[0];
+        },
+      },
+    } as unknown as VynelClient;
+
+    const { wrapper, pinia } = mountSection({ kind: "global" }, client);
+    await flushPromises();
+
+    await wrapper
+      .get('[aria-label="View Ship the launch email"]')
+      .trigger("click");
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("Cover the spring menu.");
+
+    const dialogStatus = () =>
+      document.body.querySelector<HTMLButtonElement>(
+        '[role="dialog"] .status-control',
+      );
+    dialogStatus()!.click();
+    // The invalidate → refetch → re-render chain crosses several ticks; wait
+    // until the dialog actually shows the new status before cycling again.
+    await vi.waitFor(() =>
+      expect(
+        document.body.querySelector('[role="dialog"]')?.textContent,
+      ).toContain("in-progress"),
+    );
+    dialogStatus()!.click();
+    await flushPromises();
+
+    // Two clicks advance TWO transitions — the dialog re-resolved the row.
+    expect(updateCalls).toEqual([
+      ["t1", { status: "in-progress" }],
+      ["t1", { status: "done" }],
+    ]);
+
+    const planChip = document.body.querySelector<HTMLButtonElement>(
+      '[aria-label="View the linked plan"]',
+    );
+    planChip!.click();
+    expect(useUiStore(pinia).viewingPlanId).toBe("p_1");
+  });
+
+  it("Edit opens the edit dialog prefilled and saves the patch", async () => {
+    const updateCalls: unknown[] = [];
+    const client = {
+      tasksUser: {
+        list: async () => [makeTask()],
+        update: async (taskId: string, patch: unknown) => {
+          updateCalls.push([taskId, patch]);
+          return makeTask({ title: "Renamed" });
+        },
+      },
+    } as unknown as VynelClient;
+
+    const { wrapper } = mountSection({ kind: "global" }, client);
+    await flushPromises();
+
+    await wrapper
+      .get('[aria-label="Edit Ship the launch email"]')
+      .trigger("click");
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("Edit task");
+    // Scope to the dialog — the section's own composer input is also in body.
+    const titleInput = document.body.querySelector<HTMLInputElement>(
+      '[role="dialog"] input[type="text"]',
+    );
+    expect(titleInput?.value).toBe("Ship the launch email");
+
+    titleInput!.value = "Renamed";
+    titleInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    const save = [
+      ...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+    ].find((button) => button.textContent?.trim() === "Save");
+    save!.click();
+    await flushPromises();
+
+    expect(updateCalls).toEqual([["t1", { title: "Renamed", detail: null }]]);
+  });
+
   it("invites adding when there is nothing yet", async () => {
     const client = {
       tasksUser: { list: async () => [] },
     } as unknown as VynelClient;
 
-    const wrapper = mountSection({ kind: "global" }, client);
+    const { wrapper } = mountSection({ kind: "global" }, client);
     await flushPromises();
 
     expect(wrapper.text()).toContain("Nothing on the list");

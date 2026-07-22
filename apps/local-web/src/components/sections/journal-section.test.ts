@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
@@ -22,6 +22,10 @@ function makeEntry(overrides: Record<string, unknown> = {}) {
   };
 }
 
+afterEach(() => {
+  document.body.innerHTML = "";
+});
+
 function mountSection(scope: SectionScope, client: VynelClient) {
   return mount(JournalSection, {
     props: { scope },
@@ -38,6 +42,7 @@ function mountSection(scope: SectionScope, client: VynelClient) {
       ],
       provide: { [vynelClientKey as symbol]: client },
     },
+    attachTo: document.body,
   });
 }
 
@@ -120,11 +125,73 @@ describe("JournalSection", () => {
     await flushPromises();
 
     await wrapper
-      .get('[aria-label="Delete this journal entry"]')
+      .get('[aria-label="Delete this 2026-07-23 journal entry"]')
       .trigger("click");
     await flushPromises();
 
     expect(deleteCalls).toEqual(["j1"]);
+  });
+
+  it("View opens the full-entry dialog", async () => {
+    const client = {
+      journalUser: {
+        list: async () => [
+          makeEntry({ content: "A long record of the day's work." }),
+        ],
+      },
+    } as unknown as VynelClient;
+
+    const wrapper = mountSection({ kind: "global" }, client);
+    await flushPromises();
+
+    await wrapper
+      .get('[aria-label="View this 2026-07-23 journal entry"]')
+      .trigger("click");
+    await flushPromises();
+
+    const dialog = document.body.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain("A long record of the day's work.");
+    expect(dialog?.textContent).toContain("2026-07-23");
+  });
+
+  it("Edit opens the edit dialog prefilled and saves the patch", async () => {
+    const updateCalls: unknown[] = [];
+    const client = {
+      journalUser: {
+        list: async () => [makeEntry()],
+        update: async (entryId: string, patch: unknown) => {
+          updateCalls.push([entryId, patch]);
+          return makeEntry({ content: "Corrected" });
+        },
+      },
+    } as unknown as VynelClient;
+
+    const wrapper = mountSection({ kind: "global" }, client);
+    await flushPromises();
+
+    await wrapper
+      .get('[aria-label="Edit this 2026-07-23 journal entry"]')
+      .trigger("click");
+    await flushPromises();
+
+    // Scope to the dialog — the section's own composer is also in body.
+    expect(document.body.textContent).toContain("Edit journal entry");
+    const contentInput = document.body.querySelector<HTMLTextAreaElement>(
+      '[role="dialog"] textarea',
+    );
+    expect(contentInput?.value).toBe("Shipped the newsletter draft.");
+
+    contentInput!.value = "Corrected";
+    contentInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    const save = [
+      ...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+    ].find((button) => button.textContent?.trim() === "Save");
+    save!.click();
+    await flushPromises();
+
+    expect(updateCalls).toEqual([
+      ["j1", { content: "Corrected", entryDate: "2026-07-23" }],
+    ]);
   });
 
   it("invites writing when there is nothing yet", async () => {

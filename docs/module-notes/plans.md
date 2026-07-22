@@ -94,9 +94,30 @@ writes uncarded (`mutatingApproved` — low-stakes, visible, reversible), agent 
   move <id> <date> | delete` (`apps/cli/src/plans-commands.ts`; `day-flag.ts` = the date-flag
   home shared with journal).
 
+### Chat-linkable review + View/Edit (built 2026-07-23 round 3, Chad's ask)
+
+- **The `vynel://plan/<id>` deep link**: `MarkdownText` (packages/ui) allows the `vynel:` scheme
+  (DOMPurify 3.4 default allowlist + vynel — re-derive on a DOMPurify bump);
+  `use-app-link-router.ts` = ONE capture-phase document listener AppShell installs (scheme
+  matched case-insensitively; prevented before any navigation). The prompt section teaches
+  Claude to link `[<title>](vynel://plan/<planId>)` when a plan deserves review, with a
+  surface caveat (channels see plain text).
+- **`PlanViewDialog`** (components/plans/) — ONE shared instance in AppShell keyed off
+  `ui.viewingPlanId`; shows the plan (live status cycle) + its WORK ITEMS (tasks by loose
+  planId, live cycling, n/m done rollup). Opened by chat links, the list View action, and a
+  task dialog's "View plan" chip. Distinguishes not-found (successful read) from load error.
+- **View/Edit on the list** via the shared fixed-width `RowActions` cluster
+  (components/sections/RowActions.vue — View · Eye / Edit · Pencil / Delete · X, w-[84px], all
+  three lists align); `EditPlanDialog` (title/date/detail; empty detail clears via null).
+- **PIN (learned here): a VIEW dialog resolves its row LIVE from the list query by id** — a
+  snapshot prop freezes the status tile after one transition (the TaskViewDialog bug the
+  reviewer caught); edit dialogs snapshot deliberately (a form starts from the clicked state).
+
 ## Deferred (deliberate)
 
 - Dashboard card (open-plans count on Home) — ride the next dashboard touch.
+- A `surface` discriminator on `SessionToolContext` so link teaching can gate to app-connected
+  turns instead of the wording caveat.
 - Date-range list queries (`from`/`to`) — exact-day + all is enough for v1.
 - Plan progress rollups (n of m tasks done) + tasks nested under a plan row — needs a consumer
   first; the `planId` filter is data-ready.

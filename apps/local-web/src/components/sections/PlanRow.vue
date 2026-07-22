@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { X } from "lucide-vue-next";
 import type { PlanResponse, PlanStatus } from "@vynel/contracts/plans/plan-http";
 import TaskStatusControl from "../tasks/TaskStatusControl.vue";
+import RowActions from "./RowActions.vue";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 
 // One plan card (the TaskRow idiom). Plans deliberately share the tasks
 // status vocabulary, so the status tile is the SAME control — one home for
-// the open → in-progress → done cycle.
+// the open → in-progress → done cycle. The fixed-width action cluster
+// (View · Edit · Delete) reveals on hover.
 const props = defineProps<{
   plan: PlanResponse;
 }>();
 
 const emit = defineEmits<{
   "change-status": [status: PlanStatus];
+  view: [];
+  edit: [];
   delete: [];
 }>();
 
@@ -56,14 +59,11 @@ const subtext = computed(() => {
         {{ subtext }}
       </p>
     </div>
-    <button
-      type="button"
-      class="delete-button shrink-0 cursor-default rounded-md p-1 text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
-      :title="`Delete ${props.plan.title}`"
-      :aria-label="`Delete ${props.plan.title}`"
-      @click="emit('delete')"
-    >
-      <X :size="14" />
-    </button>
+    <RowActions
+      :subject="props.plan.title"
+      @view="emit('view')"
+      @edit="emit('edit')"
+      @delete="emit('delete')"
+    />
   </div>
 </template>

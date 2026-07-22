@@ -7,6 +7,8 @@ import { useTasks } from "../../composables/tasks/use-tasks.js";
 import { useCreateTask } from "../../composables/tasks/use-create-task.js";
 import { useUpdateTask } from "../../composables/tasks/use-update-task.js";
 import { useDeleteTask } from "../../composables/tasks/use-delete-task.js";
+import TaskViewDialog from "../tasks/TaskViewDialog.vue";
+import EditTaskDialog from "../tasks/EditTaskDialog.vue";
 import SectionHeader from "./SectionHeader.vue";
 import TaskRow from "./TaskRow.vue";
 import type { SectionScope } from "./section-scope.js";
@@ -61,6 +63,12 @@ function removeTask(task: TaskResponse) {
 }
 
 const isDoneOpen = ref(false);
+
+// View/Edit open over the ROW the action came from; the list stays put.
+// View holds the ID (the dialog resolves the live row itself); Edit holds
+// the snapshot deliberately — an edit form starts from the clicked state.
+const viewingTaskId = ref<string | null>(null);
+const editingTask = ref<TaskResponse | null>(null);
 </script>
 
 <template>
@@ -98,6 +106,8 @@ const isDoneOpen = ref(false);
         :key="task.id"
         :task="task"
         @change-status="changeStatus(task, $event)"
+        @view="viewingTaskId = task.id"
+        @edit="editingTask = task"
         @delete="removeTask(task)"
       />
     </div>
@@ -132,9 +142,22 @@ const isDoneOpen = ref(false);
           :key="task.id"
           :task="task"
           @change-status="changeStatus(task, $event)"
+          @view="viewingTaskId = task.id"
+          @edit="editingTask = task"
           @delete="removeTask(task)"
         />
       </div>
     </div>
+
+    <TaskViewDialog
+      :open="viewingTaskId !== null"
+      :task-id="viewingTaskId"
+      @close="viewingTaskId = null"
+    />
+    <EditTaskDialog
+      :open="editingTask !== null"
+      :task="editingTask"
+      @close="editingTask = null"
+    />
   </div>
 </template>

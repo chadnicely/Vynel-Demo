@@ -6,6 +6,8 @@ import type { JournalEntryResponse } from "@vynel/contracts/journal/journal-http
 import { useJournalEntries } from "../../composables/journal/use-journal-entries.js";
 import { useCreateJournalEntry } from "../../composables/journal/use-create-journal-entry.js";
 import { useDeleteJournalEntry } from "../../composables/journal/use-delete-journal-entry.js";
+import JournalEntryViewDialog from "../journal/JournalEntryViewDialog.vue";
+import EditJournalEntryDialog from "../journal/EditJournalEntryDialog.vue";
 import {
   formatDayLabel,
   localDayKey,
@@ -17,8 +19,8 @@ import type { SectionScope } from "./section-scope.js";
 // The journal section, on either surface: the daily record Claude writes and
 // reads. Entries group under day headers (newest first — the list read the
 // API already returns); the composer appends inline with a date defaulting
-// to today. Editing is deliberately absent from v1 — the journal reads as a
-// record; delete covers a bad entry.
+// to today. View/Edit/Delete are the USER's doors — the agent's surface
+// stays append-only.
 const props = defineProps<{
   scope: SectionScope;
 }>();
@@ -75,6 +77,10 @@ function addEntry() {
 function removeEntry(entry: JournalEntryResponse) {
   deleteEntry.mutate({ entryId: entry.id });
 }
+
+// View/Edit open over the ROW the action came from; the list stays put.
+const viewingEntry = ref<JournalEntryResponse | null>(null);
+const editingEntry = ref<JournalEntryResponse | null>(null);
 </script>
 
 <template>
@@ -126,6 +132,8 @@ function removeEntry(entry: JournalEntryResponse) {
             v-for="entry in group.entries"
             :key="entry.id"
             :entry="entry"
+            @view="viewingEntry = entry"
+            @edit="editingEntry = entry"
             @delete="removeEntry(entry)"
           />
         </div>
@@ -141,5 +149,16 @@ function removeEntry(entry: JournalEntryResponse) {
         <NotebookPen :size="22" />
       </template>
     </EmptyState>
+
+    <JournalEntryViewDialog
+      :open="viewingEntry !== null"
+      :entry="viewingEntry"
+      @close="viewingEntry = null"
+    />
+    <EditJournalEntryDialog
+      :open="editingEntry !== null"
+      :entry="editingEntry"
+      @close="editingEntry = null"
+    />
   </div>
 </template>

@@ -44,6 +44,16 @@ describe("MarkdownText", () => {
     expect(href ?? "").not.toContain("javascript:");
   });
 
+  it("keeps in-app vynel:// links through sanitizing (the shell's link router owns the click)", () => {
+    const wrapper = mount(MarkdownText, {
+      props: { source: "Review [Launch day](vynel://plan/p_1) before Friday." },
+    });
+
+    const link = wrapper.get("a");
+    expect(link.attributes("href")).toBe("vynel://plan/p_1");
+    expect(link.text()).toBe("Launch day");
+  });
+
   it("renders task-list markers as checkboxes", () => {
     const wrapper = mount(MarkdownText, {
       props: { source: "- [x] Export ledger\n- [ ] Call the accountant" },

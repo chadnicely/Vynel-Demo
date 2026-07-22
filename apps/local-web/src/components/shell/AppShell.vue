@@ -32,6 +32,8 @@ import AskNotifier from "../asks/AskNotifier.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import ActivityMonitorPanel from "../activity/ActivityMonitorPanel.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
+import PlanViewDialog from "../plans/PlanViewDialog.vue";
+import { useAppLinkRouter } from "../../composables/use-app-link-router.js";
 import { WORKSPACE_SECTIONS } from "../workspace/workspace-sections.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import { useActivityStore } from "../../stores/activity-store.js";
@@ -51,6 +53,9 @@ const router = useRouter();
 
 const ui = useUiStore();
 const activity = useActivityStore();
+// One capture-phase listener for in-app vynel:// links (plan links in
+// assistant markdown, anywhere they render).
+useAppLinkRouter();
 const workspacesQuery = useWorkspaceList();
 const currentUserQuery = useCurrentUser();
 const pendingApprovalsQuery = usePendingApprovals();
@@ -410,6 +415,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
     <ApprovalNotifier />
     <AskNotifier />
     <VoiceOverlay />
+    <!-- The SHARED plan review dialog — chat vynel://plan links, list View
+         actions, and task plan chips all open this one instance. -->
+    <PlanViewDialog />
     <CreateWorkspaceDialog
       :open="isCreateWorkspaceOpen"
       @close="isCreateWorkspaceOpen = false"

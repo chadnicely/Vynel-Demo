@@ -48,8 +48,28 @@ namespaces with a shared `day-flag.ts` date-flag home. Reviewer clean; 2 should-
 a flag-validation test through `parseAsync` hits `process.exit`; test the parser function
 (`toDayKey`) directly instead.
 
+## Round 3 (same day): chat-linkable plan review + View/Edit everywhere
+
+Chad: "component that can show plan… claude can link it in chat… edit and view option on both
+lists… fixed width same for task." Built: the `vynel://plan/<id>` scheme (DOMPurify allowlist
+widen in MarkdownText + ONE capture-phase link router in AppShell), the shared PlanViewDialog
+(ui-store keyed; plan + live work items), View/Edit/Delete via a fixed-width RowActions cluster
+on all three lists, per-feature view/edit dialogs, prompt teaching for the link syntax.
+
+**Learnings:**
+- **View dialogs resolve rows LIVE by id; edit dialogs snapshot.** The reviewer caught the
+  snapshot-prop TaskViewDialog freezing its status cycle after one transition — the control
+  computes the next transition from the displayed status, so stale display = same request
+  forever.
+- A widened DOMPurify `ALLOWED_URI_REGEXP` must be re-derived from the INSTALLED version's
+  default (ours had silently dropped `matrix:` — tighter, but the comment lied).
+- vue-query test mocks with mutable backing state must return a fresh array per fetch —
+  structural sharing swallows in-place mutations of the cached reference.
+- DOMPurify admits `VYNEL://` (case-insensitive), so scheme routing must match
+  case-insensitively too.
+
 ## Deferred
 
-Dashboard cards · journal "load older" past the 100-row cap · inline journal edit ·
-calendar-validity sweep on the day-key regex (admits `2026-13-40`). Global root keeps zero
-plan/journal tools (router precedent).
+Dashboard cards · journal "load older" past the 100-row cap · calendar-validity sweep on the
+day-key regex (admits `2026-13-40`) · a `surface` field on SessionToolContext so link teaching
+can gate to app-connected turns. Global root keeps zero plan/journal tools (router precedent).

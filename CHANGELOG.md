@@ -9,6 +9,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude can now hand you a plan to review, right in chat.** When Claude creates or reshapes
+  a plan it can link it in its reply; clicking opens a review card showing the day, the
+  details, and the plan's work items — with live status tiles you can check off without
+  leaving the conversation. The same card opens from the Plans list and from a task's
+  "View plan" chip.
+
+- **Every list row now has View · Edit · Delete.** Tasks, plans, and journal entries all carry
+  the same fixed-width action cluster (rows line up column-clean): View opens the full detail
+  dialog (a task's shows its linked plan; a journal entry's shows the whole text), Edit opens
+  a proper edit form (title/detail for tasks; title/day/details for plans; text/day for
+  journal entries — journal editing remains yours alone, never Claude's).
+
 - **Plans — date-wise planning next to your task list.** Each plan belongs to a calendar day
   (title, details, a date, and open / in-progress / done status), and tasks can now link to a
   plan — so "what is Friday for, and what's left of it" is one question. Claude keeps plans

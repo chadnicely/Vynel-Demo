@@ -3,10 +3,12 @@ import { computed, ref } from "vue";
 import { CalendarRange, Plus } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import type { PlanResponse, PlanStatus } from "@vynel/contracts/plans/plan-http";
+import { useUiStore } from "../../stores/ui-store.js";
 import { usePlans } from "../../composables/plans/use-plans.js";
 import { useCreatePlan } from "../../composables/plans/use-create-plan.js";
 import { useUpdatePlan } from "../../composables/plans/use-update-plan.js";
 import { useDeletePlan } from "../../composables/plans/use-delete-plan.js";
+import EditPlanDialog from "../plans/EditPlanDialog.vue";
 import {
   formatDayLabel,
   localDayKey,
@@ -81,6 +83,15 @@ function changeStatus(plan: PlanResponse, status: PlanStatus) {
 function removePlan(plan: PlanResponse) {
   deletePlan.mutate({ planId: plan.id });
 }
+
+// View routes to the SHARED PlanViewDialog (AppShell mounts it once) — the
+// same dialog a chat `vynel://plan/<id>` link opens. Edit stays local.
+const ui = useUiStore();
+const editingPlan = ref<PlanResponse | null>(null);
+
+function viewPlan(plan: PlanResponse) {
+  ui.viewingPlanId = plan.id;
+}
 </script>
 
 <template>
@@ -131,6 +142,8 @@ function removePlan(plan: PlanResponse) {
             :key="plan.id"
             :plan="plan"
             @change-status="changeStatus(plan, $event)"
+            @view="viewPlan(plan)"
+            @edit="editingPlan = plan"
             @delete="removePlan(plan)"
           />
         </div>
@@ -146,5 +159,11 @@ function removePlan(plan: PlanResponse) {
         <CalendarRange :size="22" />
       </template>
     </EmptyState>
+
+    <EditPlanDialog
+      :open="editingPlan !== null"
+      :plan="editingPlan"
+      @close="editingPlan = null"
+    />
   </div>
 </template>

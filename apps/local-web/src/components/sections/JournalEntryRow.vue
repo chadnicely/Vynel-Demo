@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { X } from "lucide-vue-next";
 import type { JournalEntryResponse } from "@vynel/contracts/journal/journal-http";
+import RowActions from "./RowActions.vue";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 
 // One journal entry (the TaskRow idiom, prose-first): the content is the
-// star, the chip says who wrote it, delete reveals on hover (the user's
-// door — Claude can never remove history).
+// star, the chip says who wrote it, the fixed-width action cluster
+// (View · Edit · Delete) reveals on hover — all three are the USER's doors;
+// Claude can never rewrite or remove history.
 const props = defineProps<{
   entry: JournalEntryResponse;
 }>();
 
 const emit = defineEmits<{
+  view: [];
+  edit: [];
   delete: [];
 }>();
 </script>
@@ -33,14 +36,12 @@ const emit = defineEmits<{
         }}</span>
       </div>
     </div>
-    <button
-      type="button"
-      class="delete-button shrink-0 cursor-default rounded-md p-1 text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
-      title="Delete this journal entry"
-      aria-label="Delete this journal entry"
-      @click="emit('delete')"
-    >
-      <X :size="14" />
-    </button>
+    <!-- The day in the label keeps sibling rows' accessible names distinct. -->
+    <RowActions
+      :subject="`this ${props.entry.entryDate} journal entry`"
+      @view="emit('view')"
+      @edit="emit('edit')"
+      @delete="emit('delete')"
+    />
   </div>
 </template>

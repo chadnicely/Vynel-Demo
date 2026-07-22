@@ -3,7 +3,38 @@
 **Updated 2026-07-23.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-23): PLANS + JOURNAL FEATURES SHIPPED — gate GREEN 557f/3034t, reviewed (1 should-fix FOLDED); NEXT: Chad smoke, then decide the UI/CLI surfaces
+## ⏭ NEXT ACTION (2026-07-23 round 3): CHAT-LINKABLE PLAN REVIEW + VIEW/EDIT ON ALL LISTS — gate GREEN 566f/3076t, reviewed (1 REAL bug + all should-fixes FOLDED); NEXT: CHAD SMOKE (below)
+
+**Chad's round-3 ask ("component that can show plan… claude can link it in chat… edit and view
+on both lists… fixed width same for task") — built on the round-1/2 arc:**
+- **`vynel://plan/<id>` chat links**: MarkdownText (packages/ui) allows the `vynel:` scheme
+  (DOMPurify 3.4 default + vynel, comment pins re-derivation on bump); NEW
+  `use-app-link-router.ts` = ONE capture-phase document listener in AppShell (case-insensitive
+  scheme match, preventDefault before any navigation); the plans prompt section TEACHES the
+  link syntax (with a channels-see-plain-text caveat — SessionToolContext has no surface field
+  yet, recorded). create_plan returns the id so the model can link immediately.
+- **NEW shared `PlanViewDialog`** (ONE instance in AppShell, keyed off NEW `ui.viewingPlanId`):
+  plan + live status cycle + its WORK ITEMS (tasks by loose planId, live cycling, n/m done).
+  Opened by chat links, list View, and TaskViewDialog's "View plan" chip. Not-found only on a
+  SUCCESSFUL read (error gets its own state).
+- **View/Edit/Delete on ALL THREE lists** via NEW fixed-width `RowActions` cluster (w-[84px] —
+  rows align; hover-reveal, keyboard-discoverable). NEW dialogs: TaskViewDialog +
+  EditTaskDialog · EditPlanDialog · JournalEntryViewDialog + EditJournalEntryDialog (+
+  use-update-journal-entry). Journal edit/delete stay USER-only (append-only agent contract).
+- **REVIEWER'S REAL CATCH (folded + pinned by test): a VIEW dialog must resolve its row LIVE
+  from the list query by id — the snapshot-prop version froze the status tile after one
+  transition** (second click re-sent the same status). Edit dialogs snapshot deliberately.
+  Also folded: regexp comment truth (matrix kept) · case-insensitive scheme match ·
+  error-vs-deleted states · dated journal aria-labels · softened link teaching.
+  TEST LESSON: a mutable list mock must return `[...rows]` per fetch — returning the cached
+  reference defeats vue-query structural sharing and hides updates.
+**⏭ CHAD SMOKE (round 3): chat → "plan tomorrow: launch, 3 tasks under it, link it" → reply
+carries a clickable plan link → review card opens with work items; tick one off IN the card ·
+Plans list → View (same card) / Edit (form) · Tasks list → View → "View plan" chip hops to the
+plan card · Journal → View (full text) / Edit (your door) · rows align column-clean across all
+three lists.**
+
+## (prev) ⏭ NEXT ACTION (2026-07-23): PLANS + JOURNAL FEATURES SHIPPED — gate GREEN 557f/3034t, reviewed (1 should-fix FOLDED); UI+CLI round 2 shipped same day (see prev entry)
 
 **Chad's ask ("2 new features like task — Plan and Journal"): two net-new leaves on the Tasks
 template, notes in docs/module-notes/plans.md + journal.md, learning in

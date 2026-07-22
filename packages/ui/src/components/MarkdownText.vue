@@ -61,6 +61,14 @@ const rendered = computed(() => {
   void isHighlighterReady.value;
   return DOMPurify.sanitize(
     renderTaskCheckboxes(markdown.render(props.source)),
+    // DOMPurify 3.4's default URI allowlist plus the app's own `vynel:`
+    // scheme — in-app deep links (e.g. `vynel://plan/<id>`) the shell's link
+    // router intercepts. Everything else (javascript:, data:, …) still
+    // strips. Re-derive from the library default on a DOMPurify bump.
+    {
+      ALLOWED_URI_REGEXP:
+        /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix|vynel):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+    },
   );
 });
 </script>

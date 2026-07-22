@@ -85,9 +85,14 @@ User door additionally: POST (scope union, source `'user'`), PATCH `:entryId`
 - **CLI** `vynel journal list [--date|--from|--to] | add [--date default-today|-w] | delete`
   (`apps/cli/src/journal-commands.ts`).
 
-## Deferred (deliberate)
+### View/Edit (built 2026-07-23 round 3, Chad's ask)
 
-- Inline entry editing in the panel (PATCH exists on the user door; add on real pull).
+- Rows wear the shared fixed-width `RowActions` cluster (View/Edit/Delete, aligned with tasks
+  and plans; the entry's day in the aria labels keeps sibling rows distinct).
+- `JournalEntryViewDialog` (full-entry read) + `EditJournalEntryDialog` (content/day) — both
+  USER doors over `journalUser.update`/`delete`; the agent's surface stays append-only.
+
+## Deferred (deliberate)
 - Pagination / "load older" past the 100-row default cap — journal is the surface that will hit
   it first; a date-range picker rides the same touch.
 - Cross-workspace daily digest ("what happened everywhere yesterday") — a formatted composite

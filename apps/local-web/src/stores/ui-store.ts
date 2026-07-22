@@ -104,6 +104,12 @@ export const useUiStore = defineStore("ui", () => {
   // until the user asks for the list.
   const isTasksPanelOpen = ref(false);
 
+  // The plan being viewed in the SHARED PlanViewDialog (AppShell mounts it once)
+  // — set from a chat `vynel://plan/<id>` link, a list row's View action, or a
+  // task's plan chip; null = closed. One home so every surface opens the same
+  // review dialog.
+  const viewingPlanId = ref<string | null>(null);
+
   const globalChat = reactive<ChatShellState>({
     mainView: "chat",
     target: "continuous",
@@ -141,6 +147,7 @@ export const useUiStore = defineStore("ui", () => {
     toggleTheme,
     activeWorkspaceId,
     isTasksPanelOpen,
+    viewingPlanId,
     globalChat,
     workspaceChat,
     composerModelId,
