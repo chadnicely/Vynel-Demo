@@ -17,6 +17,7 @@ import { enqueueChannelStatus } from '../delivery/enqueue-channel-status.js'
 import { enqueueApprovalRequest } from '../delivery/enqueue-approval-request.js'
 import { resolveChannelAdapter } from '../adapters/channel-adapter-registry.js'
 import { extractErrorMessage } from '../adapters/extract-error-message.js'
+import { readInboundContext, describeSender } from './read-inbound-context.js'
 import type { Database } from '@vynel/db'
 import type { Channel, ChannelInboundMessage } from '../repositories/index.js'
 import type { BotCredentials, ProcessInboundDeps } from '../channels-types.js'
@@ -36,6 +37,17 @@ export async function routeAsChatTurn(
     externalSenderId: input.message.externalSenderId,
     externalChatContextId: input.message.externalChatContextId,
   }
+
+  // Group awareness (channels-groups.md): in a room, the model AND the
+  // transcript must know WHO asked — the owner's brain serves the whole
+  // room, so a group turn opens with a speaker line. DMs are unchanged.
+  const context = readInboundContext(input.message)
+  const isGroupOrigin = context.chatContextKind === 'group'
+  const speakerLine = isGroupOrigin
+    ? `[Group message from ${describeSender(input.message, context)} in ${
+        context.chatContextTitle !== null ? `"${context.chatContextTitle}"` : 'a group chat'
+      }]\n\n`
+    : ''
 
   // "Bot is typing…" while the root works — best-effort, never fails the turn. Refreshed on a
   // timer because Telegram's action expires after ~5s.
@@ -60,7 +72,7 @@ export async function routeAsChatTurn(
     // directly or delegates (carrying the origin); its answer is the reply we deliver now.
     const rootTurnResult = await deps.runRootTurn(db, {
       userId: input.channel.userId,
-      userMessageText: input.message.messageBody,
+      userMessageText: speakerLine + input.message.messageBody,
       origin,
       // The persisted user row records HOW this arrived ("via Telegram").
       originChannel: input.channel.channelKind,
@@ -68,7 +80,16 @@ export async function routeAsChatTurn(
       // approval in the core (web notifier) and PARKS the turn — push the card back to
       // the sender too, with full inbound context (reply-to + typed-reply correlation).
       // Best-effort: a push failure narrows the surface to web, never fails the turn.
+      // NEVER into a group (Chad's decision 3, channels-groups.md): any room
+      // member could tap a button posted there — the card stays app-only.
       onApprovalRequested: (approval) => {
+        if (isGroupOrigin) {
+          deps.logger?.info(
+            { approvalRequestId: approval.approvalRequestId, channelId: input.channel.id },
+            'group-origin approval kept app-only (never posted into a group)',
+          )
+          return
+        }
         try {
           enqueueApprovalRequest(db, {
             channel: input.channel,
@@ -85,11 +106,16 @@ export async function routeAsChatTurn(
     })
     // Deliver the root's answer — the direct reply, or its "handed it off" ack if it delegated (the
     // delegation's report follows later via the claim-and-run tick). Skip an empty answer.
+    // In a group the reply THREADS onto the asking message, so the answer
+    // visibly attaches to who asked.
     if (rootTurnResult.resultText.trim() !== '') {
       enqueueChannelReply(db, {
         channel: input.channel,
         message: input.message,
         body: rootTurnResult.resultText,
+        ...(isGroupOrigin
+          ? { replyToExternalMessageId: input.message.externalMessageId }
+          : {}),
       })
     }
   } catch (err) {

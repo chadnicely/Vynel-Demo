@@ -56,6 +56,15 @@ export const AddAllowedSenderRequestSchema = z.object({
   scopeContextId: z.string().optional(),
 })
 
+export const GroupParamSchema = z.object({
+  channelId: z.string().min(1),
+  groupId: z.string().min(1),
+})
+
+export const SetGroupPolicyRequestSchema = z.object({
+  memberPolicy: z.enum(['everyone', 'allowlist']),
+})
+
 export const InboundHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   // Keyset cursor: (receivedAt as ms epoch, id). Both required to page.
@@ -110,6 +119,20 @@ export const ChannelUserLinkSchema = z.object({
 })
 
 export const ChannelUserLinkListResponseSchema = z.array(ChannelUserLinkSchema)
+
+export const ChannelChatGroupSchema = z.object({
+  id: z.string(),
+  channelId: z.string(),
+  externalChatContextId: z.string(),
+  title: z.string().nullable(),
+  status: z.enum(['pending', 'approved', 'ignored']),
+  memberPolicy: z.enum(['everyone', 'allowlist']),
+  firstSeenAt: z.string(),
+  lastInboundAt: z.string().nullable(),
+  approvedAt: z.string().nullable(),
+})
+
+export const ChannelChatGroupListResponseSchema = z.array(ChannelChatGroupSchema)
 
 const InboundIntentKindSchema = z.enum([
   'chat-turn',

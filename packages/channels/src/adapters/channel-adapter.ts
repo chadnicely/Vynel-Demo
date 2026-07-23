@@ -25,6 +25,13 @@ export interface NormalizedInboundMessage {
   externalSenderHandle: string | null
   externalSenderDisplayName: string | null
   externalChatContextId: string
+  // Group awareness (channels-groups.md): a DM context vs a group room.
+  // DMs are ALWAYS 'dm' + isBotMentioned true (a DM is inherently addressed
+  // to the bot); groups report the room title and whether this message
+  // explicitly addresses the bot (@mention or a reply to its message).
+  chatContextKind: 'dm' | 'group'
+  chatContextTitle: string | null
+  isBotMentioned: boolean
   messageBody: string
   messageMetadata: Record<string, unknown>
   receivedAt: Date
@@ -47,6 +54,11 @@ export abstract class ChannelAdapter {
     channelId: string
     botCredentials: BotCredentials
     sinceCursor?: string // opaque per-kind cursor (Telegram update offset)
+    // The bot's own identity in the channel (from the channel row's stored
+    // botMetadata) — lets the adapter detect @mentions / replies-to-the-bot
+    // in groups without a per-poll identity fetch. Absent = mention
+    // detection degrades to false in groups (DMs unaffected).
+    botIdentity?: { externalId: string; handle: string }
   }): Promise<{ messages: NormalizedInboundMessage[]; nextCursor: string }>
 
   abstract sendMessage(input: {

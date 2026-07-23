@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude can now join your group chats.** Add your Telegram bot to a group and @mention it
+  once — the group appears in the channel's Manage dialog for you to approve or ignore
+  (no chat IDs to copy). In an approved group, Claude answers when @mentioned or replied to,
+  threads its answer onto the asking message, and tells you who in the room asked. Each group
+  has its own access setting: everyone in the group, or only your allowed senders. Approval
+  cards never post into a group — those stay in the app, where only you can decide.
+
 - **Channels wear their real brand marks and got a Manage door.** Every channel row now shows
   the channel's actual brand icon (Telegram's paper-plane in Telegram blue), a clear
   Healthy / Attention / Paused pill, and a Manage action. The new Manage dialog lets you

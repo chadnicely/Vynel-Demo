@@ -49,6 +49,7 @@ function makeHarness(clientOverrides: Record<string, unknown> = {}) {
     channelsUser: {
       list: async () => [makeChannel()],
       listAllowedSenders: async () => [makeSender()],
+      listGroups: async () => [],
       rename: async (channelId: string, input: unknown) => {
         calls.rename!.push([channelId, input]);
         return makeChannel();

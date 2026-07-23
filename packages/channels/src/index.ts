@@ -30,12 +30,18 @@ export {
   CHANNEL_DISCONNECTED,
   CHANNEL_ENABLED_CHANGED,
   CHANNEL_RENAMED,
+  CHANNEL_GROUP_DISCOVERED,
+  CHANNEL_GROUP_STATUS_CHANGED,
+  CHANNEL_GROUP_POLICY_CHANGED,
 } from './channels-events.js'
 export type {
   ChannelConnectedPayload,
   ChannelDisconnectedPayload,
   ChannelEnabledChangedPayload,
   ChannelRenamedPayload,
+  ChannelGroupDiscoveredPayload,
+  ChannelGroupStatusChangedPayload,
+  ChannelGroupPolicyChangedPayload,
 } from './channels-events.js'
 
 // Connect / list / allowlist / enable ops.
@@ -63,6 +69,13 @@ export { sendToChannel, type SendToChannelInput } from './delivery/send-to-chann
 export { getChannelForUserOrThrow } from './queries/get-channel-for-user.js'
 export { setChannelEnabledForUser } from './lifecycle/set-channel-enabled-for-user.js'
 export { renameChannelForUser } from './lifecycle/rename-channel-for-user.js'
+
+// Group rooms (channels-groups.md): the Manage dialog's approve/ignore/
+// policy surface over the tick-discovered `channel_chat_groups` rows.
+export { listGroupsForUser } from './groups/list-groups-for-user.js'
+export { setGroupStatusForUser } from './groups/set-group-status-for-user.js'
+export { setGroupPolicyForUser } from './groups/set-group-policy-for-user.js'
+export type { ChannelChatGroup } from './repositories/index.js'
 export { disconnectChannelForUser } from './lifecycle/disconnect-channel-for-user.js'
 export {
   addAllowedSenderForUser,

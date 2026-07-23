@@ -56,16 +56,20 @@ const EXPECTED_CHANNELS_METHODS = [
 // Only `list` (list_my_channels) is x-mcp; connect carries the bot token.
 const EXPECTED_CHANNELS_USER_METHODS = [
   'addAllowedSender',
+  'approveGroup',
   'connect',
   'disable',
   'disconnect',
   'enable',
   'get',
   'history',
+  'ignoreGroup',
   'list',
   'listAllowedSenders',
+  'listGroups',
   'removeAllowedSender',
   'rename',
+  'setGroupPolicy',
 ] as const
 
 // The skills namespace's methods, sorted. The 2 read GETs + the 6

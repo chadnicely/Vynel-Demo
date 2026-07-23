@@ -43,6 +43,7 @@ export default defineConfig({
     '../channels/src/schema/channel-user-links.ts',
     '../channels/src/schema/channel-inbound-messages.ts',
     '../channels/src/schema/channel-message-queue.ts',
+    '../channels/src/schema/channel-chat-groups.ts',
     '../schedules/src/schema/schedules.ts',
     '../schedules/src/schema/schedule-runs.ts',
     '../tasks/src/schema/tasks.ts',

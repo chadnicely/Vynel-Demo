@@ -10,6 +10,7 @@ import { useAddAllowedSender } from "../../composables/channels/use-add-allowed-
 import { useRemoveAllowedSender } from "../../composables/channels/use-remove-allowed-sender.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import ChannelBrandIcon from "./ChannelBrandIcon.vue";
+import ChannelGroupsBlock from "./ChannelGroupsBlock.vue";
 import {
   CHANNEL_CATALOG,
   channelConnectionNote,
@@ -249,6 +250,8 @@ function onOpenChange(open: boolean) {
           </button>
         </div>
       </label>
+
+      <ChannelGroupsBlock :channel-id="channel.id" />
 
       <div class="grid gap-1.5">
         <span class="text-[11.5px] font-semibold text-ink-2">

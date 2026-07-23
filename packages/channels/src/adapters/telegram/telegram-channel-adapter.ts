@@ -28,18 +28,29 @@ interface TelegramUser {
   username?: string
 }
 
+interface TelegramChat {
+  id: number
+  // 'private' | 'group' | 'supergroup' | 'channel' (Bot API chat.type).
+  type?: string
+  title?: string
+}
+
 interface TelegramInboundMessage {
   message_id: number
   from?: TelegramUser
-  chat: { id: number }
+  chat: TelegramChat
   text?: string
   date: number
+  // Mention detection inputs: entities locate '@handle' substrings in
+  // `text`; reply_to_message identifies a reply to the bot's own message.
+  entities?: { type: string; offset: number; length: number }[]
+  reply_to_message?: { from?: TelegramUser }
 }
 
 interface TelegramCallbackQuery {
   id: string
   from: TelegramUser
-  message?: { message_id: number; chat: { id: number } }
+  message?: { message_id: number; chat: TelegramChat }
   data?: string
 }
 
@@ -80,6 +91,44 @@ interface TelegramApiClient {
   sendChatAction(chatId: string | number, action: 'typing'): Promise<unknown>
 }
 
+// Telegram 'private' chats are DMs; group/supergroup (and broadcast
+// 'channel' posts, which behave like rooms) are group contexts. An absent
+// type (older payload shapes) reads as a DM — the pre-groups behavior.
+function describeChatContext(chat: TelegramChat): {
+  chatContextKind: 'dm' | 'group'
+  chatContextTitle: string | null
+} {
+  const isGroup = chat.type !== undefined && chat.type !== 'private'
+  return {
+    chatContextKind: isGroup ? 'group' : 'dm',
+    chatContextTitle: chat.title ?? null,
+  }
+}
+
+// A group message addresses the bot when it @mentions its handle (located
+// via mention entities — not a raw substring scan, so "email@bot.dev"
+// never counts) or replies to one of the bot's own messages.
+function isBotAddressed(
+  message: TelegramInboundMessage,
+  botIdentity: { externalId: string; handle: string } | undefined,
+): boolean {
+  if (!botIdentity) return false
+  if (
+    message.reply_to_message?.from &&
+    String(message.reply_to_message.from.id) === botIdentity.externalId
+  ) {
+    return true
+  }
+  if (message.text === undefined || botIdentity.handle === '') return false
+  const expected = `@${botIdentity.handle.toLowerCase()}`
+  for (const entity of message.entities ?? []) {
+    if (entity.type !== 'mention') continue
+    const mention = message.text.slice(entity.offset, entity.offset + entity.length)
+    if (mention.toLowerCase() === expected) return true
+  }
+  return false
+}
+
 export class TelegramChannelAdapter extends ChannelAdapter {
   readonly channelKind: ChannelKind = 'telegram'
 
@@ -107,6 +156,7 @@ export class TelegramChannelAdapter extends ChannelAdapter {
     channelId: string
     botCredentials: BotCredentials
     sinceCursor?: string
+    botIdentity?: { externalId: string; handle: string }
   }): Promise<{ messages: NormalizedInboundMessage[]; nextCursor: string }> {
     const offset = input.sinceCursor ? Number(input.sinceCursor) : 0
     const updates = await this.client(input.botCredentials).getUpdates(0, 100, offset, [
@@ -122,12 +172,17 @@ export class TelegramChannelAdapter extends ChannelAdapter {
       // Text message → a normal inbound (chat turn / typed approval reply).
       const message = update.message
       if (message && typeof message.text === 'string') {
+        const context = describeChatContext(message.chat)
         messages.push({
           externalMessageId: String(message.message_id),
           externalSenderId: message.from ? String(message.from.id) : '',
           externalSenderHandle: message.from?.username ?? null,
           externalSenderDisplayName: message.from?.first_name ?? null,
           externalChatContextId: String(message.chat.id),
+          ...context,
+          isBotMentioned:
+            context.chatContextKind === 'dm' ||
+            isBotAddressed(message, input.botIdentity),
           messageBody: message.text,
           messageMetadata: { date: message.date },
           receivedAt: new Date(message.date * 1000),
@@ -139,8 +194,12 @@ export class TelegramChannelAdapter extends ChannelAdapter {
       // (e.g. "approval:approve:<id>"). The synthetic externalMessageId
       // (`cbq:<id>`) keeps dedup working. The chat context falls back to
       // the sender id (Telegram DM) when the originating message is absent.
+      // A tap on the bot's own button is inherently addressed to the bot.
       const callback = update.callback_query
       if (callback && typeof callback.data === 'string') {
+        const context = callback.message
+          ? describeChatContext(callback.message.chat)
+          : { chatContextKind: 'dm' as const, chatContextTitle: null }
         messages.push({
           externalMessageId: `cbq:${callback.id}`,
           externalSenderId: String(callback.from.id),
@@ -149,6 +208,8 @@ export class TelegramChannelAdapter extends ChannelAdapter {
           externalChatContextId: callback.message
             ? String(callback.message.chat.id)
             : String(callback.from.id),
+          ...context,
+          isBotMentioned: true,
           messageBody: callback.data,
           messageMetadata: { isCallback: true, callbackQueryId: callback.id },
           receivedAt: new Date(),

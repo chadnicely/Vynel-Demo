@@ -18,6 +18,9 @@ export interface EnqueueChannelReplyInput {
   /** The inbound message being replied to — its sender + chat context are the delivery address. */
   message: Pick<ChannelInboundMessage, 'externalSenderId' | 'externalChatContextId'>
   body: string
+  /** Thread the reply onto this message (group rooms — the answer must
+   *  visibly attach to whoever asked). Absent = a plain send (DMs). */
+  replyToExternalMessageId?: string
 }
 
 export function enqueueChannelReply(db: Database, input: EnqueueChannelReplyInput): void {
@@ -27,7 +30,10 @@ export function enqueueChannelReply(db: Database, input: EnqueueChannelReplyInpu
     externalRecipientId: input.message.externalSenderId,
     externalChatContextId: input.message.externalChatContextId,
     messageBody: input.body,
-    messageStructure: '{}', // plain text — no buttons/parseMode
+    messageStructure:
+      input.replyToExternalMessageId !== undefined
+        ? JSON.stringify({ replyToExternalMessageId: input.replyToExternalMessageId })
+        : '{}', // plain text — no buttons/parseMode
     payloadKind: 'chat-stream-final',
     status: 'pending',
     statusMessage: null,

@@ -87,8 +87,78 @@ describe('TelegramChannelAdapter', () => {
     expect(messages[0]?.externalSenderId).toBe('7')
     expect(messages[0]?.externalSenderHandle).toBe('alice')
     expect(messages[0]?.messageBody).toBe('what did the supplier email about?')
+    // No chat.type in the payload → reads as a DM (the pre-groups shape).
+    expect(messages[0]?.chatContextKind).toBe('dm')
+    expect(messages[0]?.isBotMentioned).toBe(true)
     expect(nextCursor).toBe('12') // maxUpdateId 11 + 1
     expect(getUpdates).toHaveBeenCalledWith(0, 100, 5, ['message', 'callback_query'])
+  })
+
+  it('pollForInboundMessages normalizes group context and detects @mentions via entities', async () => {
+    const text = '@bakery_bot what is on the plan? not email@bakery_bot.dev'
+    getUpdates.mockResolvedValue([
+      {
+        update_id: 30,
+        message: {
+          message_id: 8,
+          from: { id: 7, username: 'alice', first_name: 'Alice' },
+          chat: { id: -100777, type: 'supergroup', title: 'Marketing Team' },
+          text,
+          // Only the FIRST @bakery_bot is a mention entity; the email-shaped
+          // substring later has no entity and must not count.
+          entities: [{ type: 'mention', offset: 0, length: 11 }],
+          date: 1_700_000_002,
+        },
+      },
+      {
+        update_id: 31,
+        message: {
+          message_id: 9,
+          from: { id: 8, username: 'bob', first_name: 'Bob' },
+          chat: { id: -100777, type: 'supergroup', title: 'Marketing Team' },
+          text: 'room chatter with no mention',
+          date: 1_700_000_003,
+        },
+      },
+    ])
+    const { messages } = await adapter.pollForInboundMessages({
+      channelId: 'c1',
+      botCredentials: credentials,
+      botIdentity: { externalId: '42', handle: 'bakery_bot' },
+    })
+    expect(messages).toHaveLength(2)
+    expect(messages[0]?.chatContextKind).toBe('group')
+    expect(messages[0]?.chatContextTitle).toBe('Marketing Team')
+    expect(messages[0]?.isBotMentioned).toBe(true)
+    expect(messages[1]?.isBotMentioned).toBe(false)
+  })
+
+  it('a group reply to the bot’s own message counts as addressed; without botIdentity nothing does', async () => {
+    const groupReply = {
+      update_id: 40,
+      message: {
+        message_id: 12,
+        from: { id: 7, username: 'alice', first_name: 'Alice' },
+        chat: { id: -100777, type: 'group', title: 'Marketing Team' },
+        text: 'yes do that',
+        reply_to_message: { from: { id: 42, username: 'bakery_bot', first_name: 'Bakery' } },
+        date: 1_700_000_004,
+      },
+    }
+    getUpdates.mockResolvedValue([groupReply])
+    const withIdentity = await adapter.pollForInboundMessages({
+      channelId: 'c1',
+      botCredentials: credentials,
+      botIdentity: { externalId: '42', handle: 'bakery_bot' },
+    })
+    expect(withIdentity.messages[0]?.isBotMentioned).toBe(true)
+
+    getUpdates.mockResolvedValue([groupReply])
+    const withoutIdentity = await adapter.pollForInboundMessages({
+      channelId: 'c1',
+      botCredentials: credentials,
+    })
+    expect(withoutIdentity.messages[0]?.isBotMentioned).toBe(false)
   })
 
   it('pollForInboundMessages ingests inline-button taps (callback_query) as inbound', async () => {
@@ -113,6 +183,9 @@ describe('TelegramChannelAdapter', () => {
     expect(messages[0]?.externalSenderId).toBe('7')
     expect(messages[0]?.messageBody).toBe('approval:approve:req-123')
     expect(messages[0]?.messageMetadata.isCallback).toBe(true)
+    // A tap on the bot's own button is inherently addressed to the bot.
+    expect(messages[0]?.isBotMentioned).toBe(true)
+    expect(messages[0]?.chatContextKind).toBe('dm')
     expect(nextCursor).toBe('21')
   })
 

@@ -4,6 +4,7 @@ import { listReadyOutboundMessages, findInboundMessageById } from '../repositori
 import {
   seedChannelWithAllowedSender,
   insertPendingChatTurnMessage,
+  insertPendingGroupChatTurnMessage,
   stubTurnDeps,
 } from '../test-support.js'
 
@@ -74,6 +75,51 @@ describe('processInboundMessage — chat-turn routes to the global root (Ch4)', 
       // Reply-to + the typed-reply stamp — "approve" from this sender correlates (§5.7).
       expect(card.messageStructure).toContain(inbound.externalMessageId)
       expect(findInboundMessageById(db, inbound.id)?.routedToApprovalRequestId).toBe('appr-brain-1')
+    })
+  })
+
+  it('a GROUP turn opens with a speaker line and its reply threads onto the asking message', async () => {
+    await withTestDatabase(async (db) => {
+      const { channel } = seedChannelWithAllowedSender(db)
+      const inbound = insertPendingGroupChatTurnMessage(db, channel.id)
+      const deps = stubTurnDeps({ rootTurnResultText: 'Pricing went up 4%.' })
+
+      await processInboundMessage(db, { inboundMessageId: inbound.id }, deps)
+
+      // The model (and the transcript) sees WHO in the room asked.
+      expect(deps.state.rootTurnCalls[0]?.userMessageText).toBe(
+        '[Group message from Alice in "Marketing Team"]\n\n@bot what did the supplier email about?',
+      )
+      // The reply goes to the ROOM, threaded onto the asking message.
+      const queued = listReadyOutboundMessages(db, {})
+      expect(queued).toHaveLength(1)
+      expect(queued[0]?.externalChatContextId).toBe('-100777')
+      expect(JSON.parse(queued[0]!.messageStructure)).toEqual({
+        replyToExternalMessageId: inbound.externalMessageId,
+      })
+    })
+  })
+
+  it('NEVER posts an approval card into a group — the card stays app-only (decision 3)', async () => {
+    await withTestDatabase(async (db) => {
+      const { channel } = seedChannelWithAllowedSender(db)
+      const inbound = insertPendingGroupChatTurnMessage(db, channel.id, 'set up a workspace')
+      const deps = stubTurnDeps({
+        rootTurnResultText: 'Workspace created.',
+        emitApproval: {
+          approvalRequestId: 'appr-group-1',
+          toolName: 'register_workspace',
+          toolInput: { name: 'acme' },
+        },
+      })
+
+      await processInboundMessage(db, { inboundMessageId: inbound.id }, deps)
+
+      // Only the final reply — no approval-request row for the room.
+      const queued = listReadyOutboundMessages(db, {})
+      expect(queued).toHaveLength(1)
+      expect(queued[0]?.payloadKind).toBe('chat-stream-final')
+      expect(findInboundMessageById(db, inbound.id)?.status).toBe('completed')
     })
   })
 

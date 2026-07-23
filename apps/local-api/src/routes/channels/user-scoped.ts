@@ -16,6 +16,10 @@
 //   GET    /:channelId/allowed-senders               -> listAllowedSendersForUser
 //   POST   /:channelId/allowed-senders               -> addAllowedSenderForUser
 //   DELETE /:channelId/allowed-senders/:senderLinkId -> removeAllowedSenderForUser
+//   GET    /:channelId/groups                         -> listGroupsForUser
+//   POST   /:channelId/groups/:groupId/approve        -> setGroupStatusForUser(approved)
+//   POST   /:channelId/groups/:groupId/ignore         -> setGroupStatusForUser(ignored)
+//   PATCH  /:channelId/groups/:groupId                -> setGroupPolicyForUser
 //   GET    /:channelId/history                        -> listChannelHistoryForUser
 //
 // Only the safe-read `GET /` is x-mcp exposed (list_my_channels); no mutating
@@ -37,19 +41,26 @@ import {
   removeAllowedSenderForUser,
   listAllowedSendersForUser,
   listChannelHistoryForUser,
+  listGroupsForUser,
+  setGroupStatusForUser,
+  setGroupPolicyForUser,
 } from '@vynel/channels'
 import { serializeChannelForResponse } from './serializers.js'
 import {
   ChannelParamSchema,
   SenderLinkParamSchema,
+  GroupParamSchema,
   ConnectChannelForUserRequestSchema,
   RenameChannelRequestSchema,
   AddAllowedSenderRequestSchema,
+  SetGroupPolicyRequestSchema,
   InboundHistoryQuerySchema,
   ChannelSchema,
   ChannelListResponseSchema,
   ChannelUserLinkSchema,
   ChannelUserLinkListResponseSchema,
+  ChannelChatGroupSchema,
+  ChannelChatGroupListResponseSchema,
   ChannelInboundMessageListResponseSchema,
 } from './schemas.js'
 
@@ -324,6 +335,116 @@ export const channelsUserApp = factory
         senderLinkId: params.senderLinkId,
       })
       return c.body(null, 204)
+    },
+  )
+  // GET /:channelId/groups — every group room the bot has been seen in.
+  .get(
+    '/:channelId/groups',
+    describeRoute({
+      tags: ['channels'],
+      summary: "List a channel's discovered group rooms (pending, approved, and ignored).",
+      'x-sdk-name': 'channelsUser.listGroups',
+      responses: {
+        200: {
+          description: 'Array of ChannelChatGroup.',
+          content: { 'application/json': { schema: resolver(ChannelChatGroupListResponseSchema) } },
+        },
+        404: { description: 'No such channel owned by this user.' },
+      },
+    }),
+    validator('param', ChannelParamSchema),
+    ...userScoped,
+    (c) => {
+      const groups = listGroupsForUser(c.var.db, {
+        channelId: c.req.valid('param').channelId,
+        userId: c.var.user.id,
+      })
+      return c.json(groups)
+    },
+  )
+  // POST /:channelId/groups/:groupId/approve — let the room's messages route.
+  .post(
+    '/:channelId/groups/:groupId/approve',
+    describeRoute({
+      tags: ['channels'],
+      summary: 'Approve a discovered group — @mentions in it start routing to the assistant.',
+      'x-sdk-name': 'channelsUser.approveGroup',
+      responses: {
+        200: {
+          description: 'Updated ChannelChatGroup.',
+          content: { 'application/json': { schema: resolver(ChannelChatGroupSchema) } },
+        },
+        404: { description: 'No such channel or group owned by this user.' },
+      },
+    }),
+    validator('param', GroupParamSchema),
+    ...userScoped,
+    (c) => {
+      const params = c.req.valid('param')
+      const group = setGroupStatusForUser(c.var.db, {
+        channelId: params.channelId,
+        userId: c.var.user.id,
+        groupId: params.groupId,
+        status: 'approved',
+      })
+      return c.json(group)
+    },
+  )
+  // POST /:channelId/groups/:groupId/ignore — silence the room (or revoke approval).
+  .post(
+    '/:channelId/groups/:groupId/ignore',
+    describeRoute({
+      tags: ['channels'],
+      summary: 'Ignore a group — its messages are skipped (also revokes a prior approval).',
+      'x-sdk-name': 'channelsUser.ignoreGroup',
+      responses: {
+        200: {
+          description: 'Updated ChannelChatGroup.',
+          content: { 'application/json': { schema: resolver(ChannelChatGroupSchema) } },
+        },
+        404: { description: 'No such channel or group owned by this user.' },
+      },
+    }),
+    validator('param', GroupParamSchema),
+    ...userScoped,
+    (c) => {
+      const params = c.req.valid('param')
+      const group = setGroupStatusForUser(c.var.db, {
+        channelId: params.channelId,
+        userId: c.var.user.id,
+        groupId: params.groupId,
+        status: 'ignored',
+      })
+      return c.json(group)
+    },
+  )
+  // PATCH /:channelId/groups/:groupId — who inside the room may talk.
+  .patch(
+    '/:channelId/groups/:groupId',
+    describeRoute({
+      tags: ['channels'],
+      summary: "Set a group's member policy: everyone in the room, or allowed senders only.",
+      'x-sdk-name': 'channelsUser.setGroupPolicy',
+      responses: {
+        200: {
+          description: 'Updated ChannelChatGroup.',
+          content: { 'application/json': { schema: resolver(ChannelChatGroupSchema) } },
+        },
+        404: { description: 'No such channel or group owned by this user.' },
+      },
+    }),
+    validator('param', GroupParamSchema),
+    validator('json', SetGroupPolicyRequestSchema),
+    ...userScoped,
+    (c) => {
+      const params = c.req.valid('param')
+      const group = setGroupPolicyForUser(c.var.db, {
+        channelId: params.channelId,
+        userId: c.var.user.id,
+        groupId: params.groupId,
+        memberPolicy: c.req.valid('json').memberPolicy,
+      })
+      return c.json(group)
     },
   )
   // GET /:channelId/history — inbound history (keyset cursor).

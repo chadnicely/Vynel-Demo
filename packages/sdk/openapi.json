@@ -12566,6 +12566,433 @@
         "x-sdk-name": "channelsUser.removeAllowedSender"
       }
     },
+    "/channels/{channelId}/groups": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of ChannelChatGroup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "channelId": {
+                        "type": "string"
+                      },
+                      "externalChatContextId": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "approved",
+                          "ignored"
+                        ]
+                      },
+                      "memberPolicy": {
+                        "type": "string",
+                        "enum": [
+                          "everyone",
+                          "allowlist"
+                        ]
+                      },
+                      "firstSeenAt": {
+                        "type": "string"
+                      },
+                      "lastInboundAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "approvedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "channelId",
+                      "externalChatContextId",
+                      "title",
+                      "status",
+                      "memberPolicy",
+                      "firstSeenAt",
+                      "lastInboundAt",
+                      "approvedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such channel owned by this user."
+          }
+        },
+        "operationId": "getChannelsByChannelIdGroups",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "List a channel's discovered group rooms (pending, approved, and ignored).",
+        "x-sdk-name": "channelsUser.listGroups"
+      }
+    },
+    "/channels/{channelId}/groups/{groupId}/approve": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Updated ChannelChatGroup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "channelId": {
+                      "type": "string"
+                    },
+                    "externalChatContextId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "ignored"
+                      ]
+                    },
+                    "memberPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "everyone",
+                        "allowlist"
+                      ]
+                    },
+                    "firstSeenAt": {
+                      "type": "string"
+                    },
+                    "lastInboundAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "approvedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "channelId",
+                    "externalChatContextId",
+                    "title",
+                    "status",
+                    "memberPolicy",
+                    "firstSeenAt",
+                    "lastInboundAt",
+                    "approvedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such channel or group owned by this user."
+          }
+        },
+        "operationId": "postChannelsByChannelIdGroupsByGroupIdApprove",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "groupId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Approve a discovered group — @mentions in it start routing to the assistant.",
+        "x-sdk-name": "channelsUser.approveGroup"
+      }
+    },
+    "/channels/{channelId}/groups/{groupId}/ignore": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Updated ChannelChatGroup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "channelId": {
+                      "type": "string"
+                    },
+                    "externalChatContextId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "ignored"
+                      ]
+                    },
+                    "memberPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "everyone",
+                        "allowlist"
+                      ]
+                    },
+                    "firstSeenAt": {
+                      "type": "string"
+                    },
+                    "lastInboundAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "approvedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "channelId",
+                    "externalChatContextId",
+                    "title",
+                    "status",
+                    "memberPolicy",
+                    "firstSeenAt",
+                    "lastInboundAt",
+                    "approvedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such channel or group owned by this user."
+          }
+        },
+        "operationId": "postChannelsByChannelIdGroupsByGroupIdIgnore",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "groupId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Ignore a group — its messages are skipped (also revokes a prior approval).",
+        "x-sdk-name": "channelsUser.ignoreGroup"
+      }
+    },
+    "/channels/{channelId}/groups/{groupId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Updated ChannelChatGroup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "channelId": {
+                      "type": "string"
+                    },
+                    "externalChatContextId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "ignored"
+                      ]
+                    },
+                    "memberPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "everyone",
+                        "allowlist"
+                      ]
+                    },
+                    "firstSeenAt": {
+                      "type": "string"
+                    },
+                    "lastInboundAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "approvedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "channelId",
+                    "externalChatContextId",
+                    "title",
+                    "status",
+                    "memberPolicy",
+                    "firstSeenAt",
+                    "lastInboundAt",
+                    "approvedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such channel or group owned by this user."
+          }
+        },
+        "operationId": "patchChannelsByChannelIdGroupsByGroupId",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "groupId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Set a group's member policy: everyone in the room, or allowed senders only.",
+        "x-sdk-name": "channelsUser.setGroupPolicy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberPolicy": {
+                    "type": "string",
+                    "enum": [
+                      "everyone",
+                      "allowlist"
+                    ]
+                  }
+                },
+                "required": [
+                  "memberPolicy"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/channels/{channelId}/history": {
       "get": {
         "responses": {

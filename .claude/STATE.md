@@ -3,7 +3,45 @@
 **Updated 2026-07-23.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-23 round 4): CHANNELS UI + MANAGE SHIPPED `16517e7` (pushed) — gate GREEN 566f/3085t, reviewed CLEAN (3 should-fixes FOLDED); ZOOM RESEARCHED (feasible); NEXT: CHAD SMOKE (below), then more channel kinds
+## ⏭ NEXT ACTION (2026-07-23 round 5): CHANNEL GROUPS SHIPPED — gate GREEN 568f/3102t, reviewed CLEAN (3 should-fixes FOLDED); NEXT: CHAD GROUP SMOKE (below), then the Zoom adapter arc
+
+**Chad's ask post-smoke ("start implementing group features… zoom also has group chat") —
+3 forks settled by Chad: per-group memberPolicy toggle (everyone default | allowlist) ·
+@mention-only replies (per-group respond-to-all = recorded follow-up) · approvals NEVER post
+into groups. Notes: docs/module-notes/channels-groups.md (as-built + follow-ups).**
+- **NEW `channel_chat_groups`** (migration 0018, additive; UNIQUE (channelId, context)):
+  pending|approved|ignored + memberPolicy. **Discovery-over-configuration: add bot to group,
+  @mention once → pending row (+`channel.group-discovered` outbox co-commit, IF-ABSENT insert =
+  the overlapping-tick net) → Manage dialog Approve/Ignore.** No chat-id pasting.
+- **Adapter contract grew group awareness**: NormalizedInboundMessage +chatContextKind/
+  chatContextTitle/isBotMentioned (REQUIRED); poll input +optional botIdentity. Telegram:
+  entity-located @mention (never substring — email-shaped text can't match) + reply-to-bot;
+  callbacks inherently mentioned; absent chat.type = dm (legacy shape).
+- **Tick group gate BEFORE dedup**: unknown → record+skip · pending/ignored → skip (NO rows —
+  busy rooms can't flood audit) · approved → mention gate → policy ('everyone' = room approval
+  IS permission; 'allowlist' = findAllowedSender scoped to the GROUP context id — zero schema
+  change). Sender/room facts ride messageMetadata JSON (no inbound schema change). Group
+  liveness only moves forward.
+- **Routing**: group turns open with a speaker line ("[Group message from Alice in
+  \"Marketing Team\"]"), replies THREAD onto the asking message (replyToExternalMessageId on
+  enqueueChannelReply), onApprovalRequested early-returns for group origin (logged).
+- **4 routes** (listGroups/approveGroup/ignoreGroup/setGroupPolicy over 3 new groups/ ops,
+  each outbox co-committed; cross-channel groupId = same 404, pinned) · SDK 201 methods,
+  61 MCP tools UNCHANGED · NEW ChannelGroupsBlock.vue in ManageChannelDialog (+3 composables;
+  errors surfaced, select re-syncs on failure) · contracts ChannelChatGroupResponse.
+- **RECORDED (notes)**: /command@bot carries bot_command entity (fold when channel commands
+  ship) · polling setInterval has NO in-flight guard (root cause the if-absent insert nets —
+  own slice) · re-approve idempotency noise · user-scoped.ts 482 lines.
+**⏭ CHAD GROUP SMOKE: add your bot to a Telegram group → @mention it once → Manage dialog
+shows the group "Wants in" → Approve → @mention it again → Claude replies IN THE GROUP,
+threaded onto your message, and your web transcript shows "[Group message from …]" · flip the
+group to "Allowed senders only" → a stranger's @mention is ignored, add them as an allowed
+sender (any handle/name, id required) → it works · Ignore the group → silence · group-origin
+approval cards appear ONLY in the app, never in the room. Then: the Zoom adapter arc
+(docs/module-notes/channels-zoom.md — model ready, needs 'zoom' kind + credential-fields
+connect dialog + the stateful WebSocket adapter).**
+
+## (prev) ⏭ NEXT ACTION (2026-07-23 round 4): CHANNELS UI + MANAGE SHIPPED `16517e7` (pushed) — gate GREEN 566f/3085t, reviewed CLEAN (3 should-fixes FOLDED); ZOOM RESEARCHED (feasible); NEXT: CHAD SMOKE (below), then more channel kinds
 
 **Chad's channels session ("show channel icons · edit/update, allowed users · telegram first,
 then check zoom"), notes in docs/module-notes/channels-ui.md + channels-zoom.md:**

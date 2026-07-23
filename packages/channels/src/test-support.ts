@@ -18,7 +18,7 @@ import type { ProcessInboundDeps } from './channels-types.js'
 // Re-exported for route/integration tests that seed a channel for a SPECIFIC
 // owner/scope directly (the production barrel keeps repositories internal) —
 // the `@vynel/schedules/test-support` `insertSchedule` precedent.
-export { insertChannel } from './repositories/index.js'
+export { insertChannel, insertChannelChatGroup } from './repositories/index.js'
 export type { NewChannel } from './repositories/index.js'
 
 // The outbound-queue reader — lets a cross-domain integration test (e.g.
@@ -125,6 +125,37 @@ export function insertPendingChatTurnMessage(
     externalChatContextId: externalSenderId,
     messageBody,
     messageMetadata: '{}',
+    intentKind: 'chat-turn',
+    routedToChatSessionId: null,
+    routedToApprovalRequestId: null,
+    status: 'pending',
+    statusMessage: null,
+    receivedAt: new Date(),
+    processedAt: null,
+  })
+}
+
+// A pending chat-turn that arrived FROM A GROUP ROOM: chat context ≠ sender,
+// and the tick-stamped sender/room facts ride the metadata
+// (channels-groups.md — the routing slice reads them for attribution).
+export function insertPendingGroupChatTurnMessage(
+  db: Database,
+  channelId: string,
+  messageBody = '@bot what did the supplier email about?',
+): ChannelInboundMessage {
+  return channelsRepository.insertInboundMessage(db, {
+    id: randomUUID(),
+    channelId,
+    externalMessageId: `m-${randomUUID()}`,
+    externalSenderId: 'alice-1',
+    externalChatContextId: '-100777',
+    messageBody,
+    messageMetadata: JSON.stringify({
+      senderHandle: 'alice',
+      senderDisplayName: 'Alice',
+      chatContextKind: 'group',
+      chatContextTitle: 'Marketing Team',
+    }),
     intentKind: 'chat-turn',
     routedToChatSessionId: null,
     routedToApprovalRequestId: null,

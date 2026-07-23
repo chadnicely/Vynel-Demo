@@ -50,6 +50,25 @@ export interface ChannelUserLinkResponse {
   addedAt: string
 }
 
+export type ChannelGroupStatus = 'pending' | 'approved' | 'ignored'
+
+export type ChannelGroupMemberPolicy = 'everyone' | 'allowlist'
+
+export interface ChannelChatGroupResponse {
+  id: string
+  channelId: string
+  externalChatContextId: string
+  title: string | null
+  status: ChannelGroupStatus
+  memberPolicy: ChannelGroupMemberPolicy
+  /** ISO-8601 */
+  firstSeenAt: string
+  /** ISO-8601 */
+  lastInboundAt: string | null
+  /** ISO-8601 */
+  approvedAt: string | null
+}
+
 export type InboundIntentKind = 'chat-turn' | 'approval-reply' | 'channel-command' | 'ignored'
 
 export type InboundMessageStatus = 'pending' | 'routed' | 'completed' | 'failed' | 'ignored'

@@ -255,6 +255,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  approveGroup: async (channelId: NonNullable<paths["/channels/{channelId}/groups/{groupId}/approve"]["post"]['parameters']>['path']["channelId"], groupId: NonNullable<paths["/channels/{channelId}/groups/{groupId}/approve"]["post"]['parameters']>['path']["groupId"]) => {
+    const { data, error, response } = await client["POST"]("/channels/{channelId}/groups/{groupId}/approve", {
+      params: { path: { channelId: channelId, groupId: groupId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   connect: async (input: NonNullable<paths["/channels"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/channels", {
       body: input,
@@ -297,6 +304,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  ignoreGroup: async (channelId: NonNullable<paths["/channels/{channelId}/groups/{groupId}/ignore"]["post"]['parameters']>['path']["channelId"], groupId: NonNullable<paths["/channels/{channelId}/groups/{groupId}/ignore"]["post"]['parameters']>['path']["groupId"]) => {
+    const { data, error, response } = await client["POST"]("/channels/{channelId}/groups/{groupId}/ignore", {
+      params: { path: { channelId: channelId, groupId: groupId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   list: async () => {
     const { data, error, response } = await client["GET"]("/channels")
     if (error || data === undefined) throw new SdkError(response, error ?? data)
@@ -304,6 +318,13 @@ export function makeNamespaced(client: Client<paths>) {
   },
   listAllowedSenders: async (channelId: NonNullable<paths["/channels/{channelId}/allowed-senders"]["get"]['parameters']>['path']["channelId"]) => {
     const { data, error, response } = await client["GET"]("/channels/{channelId}/allowed-senders", {
+      params: { path: { channelId: channelId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listGroups: async (channelId: NonNullable<paths["/channels/{channelId}/groups"]["get"]['parameters']>['path']["channelId"]) => {
+    const { data, error, response } = await client["GET"]("/channels/{channelId}/groups", {
       params: { path: { channelId: channelId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
@@ -319,6 +340,14 @@ export function makeNamespaced(client: Client<paths>) {
   rename: async (channelId: NonNullable<paths["/channels/{channelId}"]["patch"]['parameters']>['path']["channelId"], input: NonNullable<paths["/channels/{channelId}"]["patch"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PATCH"]("/channels/{channelId}", {
       params: { path: { channelId: channelId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  setGroupPolicy: async (channelId: NonNullable<paths["/channels/{channelId}/groups/{groupId}"]["patch"]['parameters']>['path']["channelId"], groupId: NonNullable<paths["/channels/{channelId}/groups/{groupId}"]["patch"]['parameters']>['path']["groupId"], input: NonNullable<paths["/channels/{channelId}/groups/{groupId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/channels/{channelId}/groups/{groupId}", {
+      params: { path: { channelId: channelId, groupId: groupId } },
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

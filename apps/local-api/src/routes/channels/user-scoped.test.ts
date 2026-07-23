@@ -29,6 +29,7 @@ import {
   makeWorkspace,
   seedChannel,
   insertChannel,
+  insertChannelChatGroup,
   type NewChannel,
 } from '@vynel/channels/test-support'
 import { createApp } from '../../app.js'
@@ -217,6 +218,43 @@ describe('user-scoped channels routes', () => {
     })
   })
 
+  it('manages a discovered GROUP end-to-end: list / approve / policy / ignore', async () => {
+    await withTestDatabase(async (db) => {
+      const localUser = insertUser(db, makeUser())
+      const channel = seedChannelRow(db, localUser.id, null)
+      const group = insertChannelChatGroup(db, {
+        id: randomUUID(),
+        channelId: channel.id,
+        externalChatContextId: '-100777',
+        title: 'Marketing Team',
+        status: 'pending',
+        memberPolicy: 'everyone',
+        firstSeenAt: new Date(),
+        lastInboundAt: null,
+        approvedAt: null,
+      })
+      const app = createApp({ db, logger: silentLogger })
+      const base = `/channels/${channel.id}/groups`
+
+      const listed = (await (await app.request(base)).json()) as { id: string; status: string }[]
+      expect(listed).toHaveLength(1)
+      expect(listed[0]?.status).toBe('pending')
+
+      const approved = await app.request(`${base}/${group.id}/approve`, { method: 'POST' })
+      expect(((await approved.json()) as { status: string }).status).toBe('approved')
+
+      const patched = await app.request(`${base}/${group.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ memberPolicy: 'allowlist' }),
+      })
+      expect(((await patched.json()) as { memberPolicy: string }).memberPolicy).toBe('allowlist')
+
+      const ignored = await app.request(`${base}/${group.id}/ignore`, { method: 'POST' })
+      expect(((await ignored.json()) as { status: string }).status).toBe('ignored')
+    })
+  })
+
   it('TENANT ISOLATION: a user cannot see or act on another user’s channel (404)', async () => {
     await withTestDatabase(async (db) => {
       // Attacker = the resolved local user; MUST be inserted first (findSingleLocalUser = first row).
@@ -247,6 +285,22 @@ describe('user-scoped channels routes', () => {
         (await app.request(`/channels/${victim.id}/allowed-senders`, jsonPost({ externalSenderId: '9' }))).status,
       ).toBe(404)
       expect((await app.request(`/channels/${victim.id}/history`)).status).toBe(404)
+      expect((await app.request(`/channels/${victim.id}/groups`)).status).toBe(404)
+      expect(
+        (await app.request(`/channels/${victim.id}/groups/g1/approve`, { method: 'POST' })).status,
+      ).toBe(404)
+      expect(
+        (await app.request(`/channels/${victim.id}/groups/g1/ignore`, { method: 'POST' })).status,
+      ).toBe(404)
+      expect(
+        (
+          await app.request(`/channels/${victim.id}/groups/g1`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ memberPolicy: 'allowlist' }),
+          })
+        ).status,
+      ).toBe(404)
       // Each rejected op threw in the guard BEFORE its repo mutation, so the
       // victim's channel was never touched (the DELETE/enable/disable all 404'd).
     })

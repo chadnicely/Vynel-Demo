@@ -1446,6 +1446,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channelId}/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a channel's discovered group rooms (pending, approved, and ignored). */
+        get: operations["getChannelsByChannelIdGroups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channelId}/groups/{groupId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a discovered group — @mentions in it start routing to the assistant. */
+        post: operations["postChannelsByChannelIdGroupsByGroupIdApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channelId}/groups/{groupId}/ignore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ignore a group — its messages are skipped (also revokes a prior approval). */
+        post: operations["postChannelsByChannelIdGroupsByGroupIdIgnore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channelId}/groups/{groupId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set a group's member policy: everyone in the room, or allowed senders only. */
+        patch: operations["patchChannelsByChannelIdGroupsByGroupId"];
+        trace?: never;
+    };
     "/channels/{channelId}/history": {
         parameters: {
             query?: never;
@@ -7799,6 +7867,180 @@ export interface operations {
                 content?: never;
             };
             /** @description No such channel owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getChannelsByChannelIdGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of ChannelChatGroup. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        channelId: string;
+                        externalChatContextId: string;
+                        title: string | null;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "ignored";
+                        /** @enum {string} */
+                        memberPolicy: "everyone" | "allowlist";
+                        firstSeenAt: string;
+                        lastInboundAt: string | null;
+                        approvedAt: string | null;
+                    }[];
+                };
+            };
+            /** @description No such channel owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postChannelsByChannelIdGroupsByGroupIdApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated ChannelChatGroup. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        channelId: string;
+                        externalChatContextId: string;
+                        title: string | null;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "ignored";
+                        /** @enum {string} */
+                        memberPolicy: "everyone" | "allowlist";
+                        firstSeenAt: string;
+                        lastInboundAt: string | null;
+                        approvedAt: string | null;
+                    };
+                };
+            };
+            /** @description No such channel or group owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postChannelsByChannelIdGroupsByGroupIdIgnore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated ChannelChatGroup. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        channelId: string;
+                        externalChatContextId: string;
+                        title: string | null;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "ignored";
+                        /** @enum {string} */
+                        memberPolicy: "everyone" | "allowlist";
+                        firstSeenAt: string;
+                        lastInboundAt: string | null;
+                        approvedAt: string | null;
+                    };
+                };
+            };
+            /** @description No such channel or group owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchChannelsByChannelIdGroupsByGroupId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    memberPolicy: "everyone" | "allowlist";
+                };
+            };
+        };
+        responses: {
+            /** @description Updated ChannelChatGroup. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        channelId: string;
+                        externalChatContextId: string;
+                        title: string | null;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "ignored";
+                        /** @enum {string} */
+                        memberPolicy: "everyone" | "allowlist";
+                        firstSeenAt: string;
+                        lastInboundAt: string | null;
+                        approvedAt: string | null;
+                    };
+                };
+            };
+            /** @description No such channel or group owned by this user. */
             404: {
                 headers: {
                     [name: string]: unknown;
