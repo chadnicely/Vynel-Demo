@@ -155,12 +155,56 @@ describe("ui-store scope tabs", () => {
     const tab = ui.addWorkspaceTab("ws-a");
     tab.shell.mainView = "knowledge";
     tab.shell.target = "fresh";
+    ui.setTabColor(tab.id, 2);
 
     ui.retargetTab(tab.id, "ws-b");
 
     expect(tab.workspaceId).toBe("ws-b");
     expect(tab.shell.mainView).toBe("chat");
     expect(tab.shell.target).toBe("continuous");
+    // The color belongs to the TAB, not the room — it rides along.
+    expect(tab.colorSlot).toBe(2);
+  });
+
+  it("a picked tab color persists and restores; junk stored slots fail to auto", async () => {
+    const ui = useUiStore();
+    const tab = ui.addWorkspaceTab("ws-a");
+
+    ui.setTabColor(tab.id, 3);
+    await nextTick();
+
+    setActivePinia(createPinia());
+    const restored = useUiStore();
+    expect(restored.tabs[1]!.colorSlot).toBe(3);
+
+    // A slot outside the palette (a downgraded build, hand-edited storage)
+    // must not render a broken var() — it falls back to auto. A pre-color
+    // strip (no colorSlot key at all — the shipped v1 shape) restores as
+    // auto the same way.
+    localStorage.setItem(
+      "vynel.tabs",
+      JSON.stringify({
+        tabs: [
+          { id: "global", workspaceId: null },
+          { id: "t1", workspaceId: "ws-a", colorSlot: 99 },
+          { id: "t2", workspaceId: "ws-b" },
+        ],
+        activeTabId: "t1",
+      }),
+    );
+    setActivePinia(createPinia());
+    const reread = useUiStore();
+    expect(reread.tabs[1]!.colorSlot).toBeNull();
+    expect(reread.tabs[2]!.colorSlot).toBeNull();
+    expect(reread.tabs[2]!.workspaceId).toBe("ws-b");
+  });
+
+  it("the Global tab refuses a color — its mark stays neutral", () => {
+    const ui = useUiStore();
+
+    ui.setTabColor(GLOBAL_TAB_ID, 3);
+
+    expect(ui.globalTab.colorSlot).toBeNull();
   });
 
   it("re-picking the tab's own room is a no-op — its place stays put", () => {

@@ -26,6 +26,23 @@ row below the title bar.
   Global tab; deep-linked `/workspace` with no room falls back to the global chat; deleted
   workspaces take their tabs with them once the list loads.
 
+## Polish round (same day)
+
+Chad: "make the tabs bigger … options so that user can colorize them, all tab size can be
+same … make the workspace switching beautiful — when they hover they can see switch options."
+
+- **Uniform browser-style tabs** — every tab (Global included) is `w-44` on a 40px strip,
+  `overflow-x-auto` when they overflow. Switch-chevron + close reveal on hover/focus
+  (opacity, not display — stays keyboard-reachable); the active tab wears an accent
+  underline.
+- **Per-tab color** — `colorSlot` on `ShellTab` (persisted, sanitized to 1..`WORKSPACE_
+  ACCENT_SLOTS`, null = the name-hash auto accent). Picked from a `TabColorSwatches` row in
+  the tab dropdown, rendered through a new `footer` slot on `@vynel/ui`'s DropdownMenu —
+  footer clicks deliberately don't close the menu, so color picks live-preview on the strip.
+  The color belongs to the TAB (survives retarget); the Global tab refuses color (neutral
+  anchor; gold stays reserved for presence). Pick-menu workspace rows wear their accent dot
+  via a tiny `h()` functional icon component.
+
 ## Learnings
 
 - **Keyed RouterView + snapshot binding beats "active" accessors.** Closing the active tab

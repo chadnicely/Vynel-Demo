@@ -1,5 +1,6 @@
 import { computed, ref, watch } from "vue";
 import { defineStore } from "pinia";
+import { WORKSPACE_ACCENT_SLOTS } from "@vynel/ui";
 import { DEFAULT_SESSION_MODE, SESSION_MODES } from "@vynel/session";
 import type { SessionMode } from "@vynel/session";
 import { CHAT_MODELS, DEFAULT_CHAT_MODEL } from "@vynel/contracts/chat/chat-models";
@@ -40,6 +41,9 @@ export interface ChatShellState {
 export interface ShellTab {
   id: string;
   workspaceId: string | null;
+  /** User-picked accent (a `--ws-*` slot, 1..N); null = auto (name hash).
+   *  A TAB's color, deliberately — it survives retargeting the tab. */
+  colorSlot: number | null;
   shell: ChatShellState;
   /** Where the tab last was, restored on re-activation. Runtime only. */
   lastRoutePath: string | null;
@@ -90,6 +94,7 @@ function makeGlobalTab(): ShellTab {
   return {
     id: GLOBAL_TAB_ID,
     workspaceId: null,
+    colorSlot: null,
     shell: freshShell(),
     lastRoutePath: null,
   };
@@ -99,9 +104,20 @@ function makeWorkspaceTab(workspaceId: string): ShellTab {
   return {
     id: crypto.randomUUID(),
     workspaceId,
+    colorSlot: null,
     shell: freshShell(),
     lastRoutePath: null,
   };
+}
+
+// Fail-closed like every stored value: junk becomes auto, never a broken var().
+function sanitizeColorSlot(value: unknown): number | null {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= WORKSPACE_ACCENT_SLOTS
+    ? value
+    : null;
 }
 
 // Fail-closed restore: junk storage seeds the default single Global tab
@@ -112,12 +128,12 @@ function readStoredTabs(): { tabs: ShellTab[]; activeTabId: string } {
   if (raw !== null) {
     try {
       const parsed = JSON.parse(raw) as {
-        tabs?: { id?: unknown; workspaceId?: unknown }[];
+        tabs?: { id?: unknown; workspaceId?: unknown; colorSlot?: unknown }[];
         activeTabId?: unknown;
       };
       const workspaceTabs = (parsed.tabs ?? [])
         .filter(
-          (tab): tab is { id: string; workspaceId: string } =>
+          (tab): tab is { id: string; workspaceId: string; colorSlot?: unknown } =>
             typeof tab.id === "string" &&
             tab.id !== GLOBAL_TAB_ID &&
             typeof tab.workspaceId === "string",
@@ -125,6 +141,7 @@ function readStoredTabs(): { tabs: ShellTab[]; activeTabId: string } {
         .map((tab) => ({
           id: tab.id,
           workspaceId: tab.workspaceId,
+          colorSlot: sanitizeColorSlot(tab.colorSlot),
           shell: freshShell(),
           lastRoutePath: null,
         }));
@@ -185,6 +202,7 @@ export const useUiStore = defineStore("ui", () => {
       tabs: tabs.value.map((tab) => ({
         id: tab.id,
         workspaceId: tab.workspaceId,
+        colorSlot: tab.colorSlot,
       })),
       activeTabId: activeTabId.value,
     }),
@@ -234,6 +252,14 @@ export const useUiStore = defineStore("ui", () => {
     tab.shell.mainView = "chat";
     tab.shell.target = "continuous";
     tab.lastRoutePath = null;
+  }
+
+  // Paint a tab: a `--ws-*` slot, or null to return to the name-derived auto
+  // accent. The Global tab stays neutral — its mark is the identity anchor.
+  function setTabColor(tabId: string, colorSlot: number | null) {
+    const tab = tabs.value.find((row) => row.id === tabId);
+    if (tab === undefined || tab.id === GLOBAL_TAB_ID) return;
+    tab.colorSlot = sanitizeColorSlot(colorSlot);
   }
 
   // "Open workspace X" from anywhere (Home cards, the hero deck, a session
@@ -306,6 +332,7 @@ export const useUiStore = defineStore("ui", () => {
     addWorkspaceTab,
     closeTab,
     retargetTab,
+    setTabColor,
     openWorkspaceTab,
     pruneWorkspaceTabs,
     isTasksPanelOpen,

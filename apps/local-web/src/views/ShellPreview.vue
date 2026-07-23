@@ -39,9 +39,9 @@ const accountName = "Chad Subedi";
 
 // The preview's stand-in tab strip — a pinned Global tab plus one tab per
 // selected room, mirroring the real shell's wiring shape.
-const previewTabs = ref<{ id: string; workspaceId: string | null }[]>([
-  { id: "global", workspaceId: null },
-]);
+const previewTabs = ref<
+  { id: string; workspaceId: string | null; colorSlot: number | null }[]
+>([{ id: "global", workspaceId: null, colorSlot: null }]);
 const activeTabId = ref("global");
 
 function selectTab(tabId: string) {
@@ -56,7 +56,11 @@ function closeTab(tabId: string) {
   if (activeTabId.value === tabId) selectTab("global");
 }
 function addTab(workspaceId: string) {
-  const tab = { id: `tab-${workspaceId}-${previewTabs.value.length}`, workspaceId };
+  const tab = {
+    id: `tab-${workspaceId}-${previewTabs.value.length}`,
+    workspaceId,
+    colorSlot: null,
+  };
   previewTabs.value.push(tab);
   activeTabId.value = tab.id;
   selectWorkspace(workspaceId);
@@ -65,6 +69,10 @@ function retargetTab(tabId: string, workspaceId: string) {
   const tab = previewTabs.value.find((t) => t.id === tabId);
   if (tab) tab.workspaceId = workspaceId;
   if (activeTabId.value === tabId) selectWorkspace(workspaceId);
+}
+function colorTab(tabId: string, colorSlot: number | null) {
+  const tab = previewTabs.value.find((t) => t.id === tabId);
+  if (tab) tab.colorSlot = colorSlot;
 }
 
 const contextTitle = computed(() =>
@@ -165,6 +173,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       @select-tab="selectTab"
       @close-tab="closeTab"
       @retarget-tab="retargetTab"
+      @color-tab="colorTab"
       @add-tab="addTab"
       @create-workspace="lastAction = 'create-workspace'"
     />

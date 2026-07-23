@@ -18,6 +18,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   Your set of open tabs survives restarting the app. (The workspace switcher that used to
   live in the title bar is gone — the tabs are the switcher now.)
 
+- **Tabs got prettier — and yours to color.** Tabs are bigger now and all the same size,
+  like a browser. Hover a tab and its controls appear: the arrow to switch that tab to a
+  different workspace (each room in the list shows its color dot) and the close button.
+  Open the arrow menu and you'll also find **Tab color** — pick from the palette to paint
+  a tab so your rooms are recognizable at a glance, or leave it on Automatic. Your picks
+  are remembered, and the active tab wears its color as an underline.
+
 - **Zoom channel groundwork (parked as "coming soon").** The full Zoom Team Chat adapter is
   built — WebSocket event listening (no public URL needed), markdown replies, group-chat
   support riding the same approve-a-group flow, auto-detected account ID — but live testing

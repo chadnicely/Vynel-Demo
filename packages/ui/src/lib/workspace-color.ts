@@ -14,7 +14,8 @@
 // when there's no persona. So the workspace name is the LAST segment. If that
 // format ever changes, this normalizer must change with it.
 
-const WORKSPACE_ACCENT_SLOTS = 6;
+/** How many `--ws-*` accent tokens exist — pickers iterate 1..N. */
+export const WORKSPACE_ACCENT_SLOTS = 6;
 
 /** Extract the workspace name from `sourceLabel` (its LAST " · " segment — the
  *  label is "<manager> · <workspace>"), display case preserved. The one home

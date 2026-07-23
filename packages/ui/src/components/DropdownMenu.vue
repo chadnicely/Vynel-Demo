@@ -105,6 +105,9 @@ const open = defineModel<boolean>("open", { default: false });
             </span>
           </DropdownMenuItem>
         </template>
+        <!-- Free-form rows after the items (e.g. a swatch picker). Clicks
+             inside don't auto-close — deliberate, so live-preview picks work. -->
+        <slot name="footer" />
       </DropdownMenuContent>
     </DropdownMenuPortal>
   </DropdownMenuRoot>

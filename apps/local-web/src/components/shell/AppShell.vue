@@ -380,6 +380,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       @select-tab="selectTab"
       @close-tab="closeTab"
       @retarget-tab="retargetTab"
+      @color-tab="ui.setTabColor"
       @add-tab="addTab"
       @create-workspace="isCreateWorkspaceOpen = true"
     />
@@ -440,7 +441,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 <style scoped>
 .app-shell {
   display: grid;
-  grid-template-rows: 40px 36px 1fr 22px;
+  grid-template-rows: 40px 40px 1fr 22px;
   height: 100vh;
   background: var(--bg-shell);
   color: var(--ink-1);

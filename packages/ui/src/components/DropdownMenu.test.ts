@@ -37,4 +37,34 @@ describe("DropdownMenu", () => {
     await wrapper.vm.$nextTick();
     expect(wrapper.emitted("select")).toEqual([["new"]]);
   });
+
+  it("renders the footer slot after the items; footer clicks don't close or select", async () => {
+    const wrapper = mount(DropdownMenu, {
+      props: { items, open: true },
+      slots: {
+        trigger: '<button type="button">Menu</button>',
+        footer: '<div data-testid="footer-row"><button type="button">Swatch</button></div>',
+      },
+      attachTo: document.body,
+    });
+    await wrapper.vm.$nextTick();
+
+    const footer = document.body.querySelector('[data-testid="footer-row"]');
+    expect(footer).not.toBeNull();
+
+    // Order: the footer follows the last menu item.
+    const menuItems = document.body.querySelectorAll('[role="menuitem"]');
+    const lastItem = menuItems[menuItems.length - 1]!;
+    expect(
+      lastItem.compareDocumentPosition(footer!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // A free-form footer control is not a menu item: clicking it emits no
+    // `select` and the menu stays open (live-preview contract).
+    (footer!.querySelector("button") as HTMLElement).click();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.emitted("select")).toBeUndefined();
+    expect(document.body.querySelector('[role="menu"]')).not.toBeNull();
+  });
 });

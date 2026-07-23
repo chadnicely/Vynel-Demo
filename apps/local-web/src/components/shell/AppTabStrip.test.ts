@@ -11,8 +11,8 @@ function mountStrip(overrides: Record<string, unknown> = {}) {
   return mount(AppTabStrip, {
     props: {
       tabs: [
-        { id: "global", workspaceId: null },
-        { id: "t1", workspaceId: "w1" },
+        { id: "global", workspaceId: null, colorSlot: null },
+        { id: "t1", workspaceId: "w1", colorSlot: null },
       ],
       activeTabId: "global",
       workspaces: WORKSPACES,
@@ -64,12 +64,35 @@ describe("AppTabStrip", () => {
   it("a stale workspace id still renders a tab (as plain Workspace)", () => {
     const wrapper = mountStrip({
       tabs: [
-        { id: "global", workspaceId: null },
-        { id: "t9", workspaceId: "gone" },
+        { id: "global", workspaceId: null, colorSlot: null },
+        { id: "t9", workspaceId: "gone", colorSlot: null },
       ],
     });
 
     expect(tabName(wrapper.findAll('[role="tab"]')[1]!)).toBe("Workspace");
+  });
+
+  it("tabs are uniform width — Global and rooms alike", () => {
+    const wrapper = mountStrip();
+
+    const containers = wrapper.findAll('[role="tablist"] > .group');
+    expect(containers).toHaveLength(2);
+    for (const container of containers) {
+      expect(container.classes()).toContain("w-44");
+    }
+  });
+
+  it("a user-picked color slot paints the tab over the auto accent", () => {
+    const wrapper = mountStrip({
+      tabs: [
+        { id: "global", workspaceId: null, colorSlot: null },
+        { id: "t1", workspaceId: "w1", colorSlot: 3 },
+      ],
+      activeTabId: "t1",
+    });
+
+    const roomTab = wrapper.findAll('[role="tab"]')[1]!;
+    expect(roomTab.find("span").attributes("style")).toContain("--ws-3");
   });
 
   it("offers the add-tab menu trigger and a per-tab workspace switcher", () => {
