@@ -6,7 +6,7 @@
 
 import { z } from 'zod'
 
-const ChannelKindSchema = z.enum(['telegram', 'discord'])
+const ChannelKindSchema = z.enum(['telegram', 'discord', 'zoom'])
 
 export const ChannelParamSchema = z.object({
   channelId: z.string().min(1),

@@ -2695,7 +2695,8 @@
                         "type": "string",
                         "enum": [
                           "telegram",
-                          "discord"
+                          "discord",
+                          "zoom"
                         ]
                       },
                       "displayName": {
@@ -2816,7 +2817,8 @@
                       "type": "string",
                       "enum": [
                         "telegram",
-                        "discord"
+                        "discord",
+                        "zoom"
                       ]
                     },
                     "displayName": {
@@ -2916,7 +2918,8 @@
                     "type": "string",
                     "enum": [
                       "telegram",
-                      "discord"
+                      "discord",
+                      "zoom"
                     ]
                   },
                   "displayName": {
@@ -3009,7 +3012,8 @@
                       "type": "string",
                       "enum": [
                         "telegram",
-                        "discord"
+                        "discord",
+                        "zoom"
                       ]
                     },
                     "displayName": {
@@ -3133,7 +3137,8 @@
                       "type": "string",
                       "enum": [
                         "telegram",
-                        "discord"
+                        "discord",
+                        "zoom"
                       ]
                     },
                     "displayName": {
@@ -7669,6 +7674,7 @@
                               "voice",
                               "telegram",
                               "discord",
+                              "zoom",
                               null
                             ]
                           },
@@ -11562,7 +11568,8 @@
                         "type": "string",
                         "enum": [
                           "telegram",
-                          "discord"
+                          "discord",
+                          "zoom"
                         ]
                       },
                       "displayName": {
@@ -11669,7 +11676,8 @@
                       "type": "string",
                       "enum": [
                         "telegram",
-                        "discord"
+                        "discord",
+                        "zoom"
                       ]
                     },
                     "displayName": {
@@ -11763,7 +11771,8 @@
                         "type": "string",
                         "enum": [
                           "telegram",
-                          "discord"
+                          "discord",
+                          "zoom"
                         ]
                       },
                       "displayName": {
@@ -11804,7 +11813,8 @@
                         "type": "string",
                         "enum": [
                           "telegram",
-                          "discord"
+                          "discord",
+                          "zoom"
                         ]
                       },
                       "displayName": {
@@ -11864,7 +11874,8 @@
                       "type": "string",
                       "enum": [
                         "telegram",
-                        "discord"
+                        "discord",
+                        "zoom"
                       ]
                     },
                     "displayName": {
@@ -11978,7 +11989,8 @@
                       "type": "string",
                       "enum": [
                         "telegram",
-                        "discord"
+                        "discord",
+                        "zoom"
                       ]
                     },
                     "displayName": {
@@ -12140,7 +12152,8 @@
                       "type": "string",
                       "enum": [
                         "telegram",
-                        "discord"
+                        "discord",
+                        "zoom"
                       ]
                     },
                     "displayName": {
@@ -12256,7 +12269,8 @@
                       "type": "string",
                       "enum": [
                         "telegram",
-                        "discord"
+                        "discord",
+                        "zoom"
                       ]
                     },
                     "displayName": {
@@ -20851,6 +20865,7 @@
                               "voice",
                               "telegram",
                               "discord",
+                              "zoom",
                               null
                             ]
                           },
@@ -21464,6 +21479,7 @@
                               "voice",
                               "telegram",
                               "discord",
+                              "zoom",
                               null
                             ]
                           },
@@ -22310,7 +22326,8 @@
                         "type": "string",
                         "enum": [
                           "telegram",
-                          "discord"
+                          "discord",
+                          "zoom"
                         ]
                       }
                     },

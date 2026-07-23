@@ -20,7 +20,7 @@ import { table, id, text, timestamp, boolean, index } from '@vynel/db/dialect'
 import { users } from '@vynel/db/schema/users'
 import { workspaces } from '@vynel/db/schema/workspaces'
 
-export type ChannelKind = 'telegram' | 'discord' // discord = Phase 1.5
+export type ChannelKind = 'telegram' | 'discord' | 'zoom' // discord = Phase 1.5
 
 export type ChannelConnectionStatus =
   | 'healthy' // last poll succeeded

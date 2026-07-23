@@ -18,9 +18,11 @@
     "@vynel/errors": "workspace:*",
     "@vynel/providers": "workspace:*",
     "drizzle-orm": "^0.45.0",
-    "telegraf": "^4.16.3"
+    "telegraf": "^4.16.3",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.1",
     "@vynel/testing": "workspace:*",
     "typescript": "^5.6.0"
   }

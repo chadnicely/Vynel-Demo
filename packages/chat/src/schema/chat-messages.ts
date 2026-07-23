@@ -33,7 +33,7 @@ export type ChatMessageSourceKind = 'user' | 'global-root' | 'workspace-manager'
 // Null = the app's own composer (web is the default surface, so it wears no
 // badge). Distinct from sourceKind (WHO wrote it in the session tree): origin
 // is HOW it reached the brain.
-export type ChatMessageOriginChannel = 'voice' | 'telegram' | 'discord'
+export type ChatMessageOriginChannel = 'voice' | 'telegram' | 'discord' | 'zoom'
 
 export type AttachedImageMetadata = {
   /** Relative to <workspace.path>/.vynel/transcripts/<sessionId>/images/. */

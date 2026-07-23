@@ -84,7 +84,7 @@ export interface ChatMessageResponse {
   /** The inbound channel a USER row arrived through ('voice'/'telegram'/'discord');
    *  null/absent = the app composer (no badge). Distinct from sourceKind: origin is
    *  HOW the message reached the brain, not who wrote it. */
-  originChannel?: 'voice' | 'telegram' | 'discord' | null
+  originChannel?: 'voice' | 'telegram' | 'discord' | 'zoom' | null
   /** Brain-tree delegation correlation key (Ch3) — present on a bubbled-up report row so
    *  the surface can open its condensed trace; null/absent on ordinary rows. */
   partialSessionId?: string | null

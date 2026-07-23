@@ -23,6 +23,7 @@ const TARGET_FORMAT_RULES: Record<ReportDeliveryTarget, string> = {
     'It will be sent as a Telegram message. Plain text only — no markdown headings, tables, or code blocks. Keep it under 900 characters.',
   discord:
     'It will be sent as a Discord message. Simple markdown only (bold, short lists). Keep it under 1500 characters.',
+  zoom: 'It will be sent as a Zoom Team Chat message. Simple markdown only (bold, short lists). Keep it under 1200 characters.',
 }
 
 function buildPrompt(input: SummarizeReportInput): string {

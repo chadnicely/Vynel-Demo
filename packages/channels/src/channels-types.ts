@@ -46,7 +46,7 @@ export interface ProcessInboundDeps {
       origin: { channelId: string; externalSenderId: string; externalChatContextId: string }
       /** The inbound channel's kind — stamped on the persisted user row so the
        *  transcript shows HOW the message arrived ("via Telegram"). */
-      originChannel?: 'telegram' | 'discord'
+      originChannel?: 'telegram' | 'discord' | 'zoom'
       onApprovalRequested?: (approval: {
         approvalRequestId: string
         toolName: string

@@ -103,7 +103,7 @@ export interface RunGlobalRootTurnCoreInput {
   /** The inbound channel this turn arrived through — stamped on the persisted
    *  user row ("via Voice" / "via Telegram"). Set by the EDGES (the SSE route
    *  maps `voice`, the channel runner its kind); the core only passes it through. */
-  originChannel?: 'voice' | 'telegram' | 'discord'
+  originChannel?: 'voice' | 'telegram' | 'discord' | 'zoom'
   /** REPORT-DELIVERY notify turn (session-comms): attribute this turn's rows —
    *  the inbound message reads as coming FROM the reporting child
    *  ('workspace-manager' + its label), trace-keyed. Omit → rows stay null

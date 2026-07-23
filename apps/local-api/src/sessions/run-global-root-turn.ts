@@ -73,7 +73,7 @@ export interface RunGlobalRootTurnInput {
   /** Set when a CHANNEL drove this turn (Ch4) — threaded onto any delegation the root enqueues. */
   origin?: DelegationOrigin
   /** The inbound channel's kind — stamped on the persisted user row ("via Telegram"). */
-  originChannel?: 'telegram' | 'discord'
+  originChannel?: 'telegram' | 'discord' | 'zoom'
   /** REPORT-DELIVERY notify turn (session-comms): the inbound message is a
    *  child's report — attribute its row as coming FROM that child. Omit → the
    *  shipped channel-turn rows, byte-for-byte. */

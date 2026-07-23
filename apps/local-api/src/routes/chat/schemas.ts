@@ -165,7 +165,7 @@ export const ChatMessageSchema = z.object({
   sourceKind: ChatMessageSourceKindSchema.nullable(),
   sourceLabel: z.string().nullable(),
   // The inbound channel a USER row arrived through; null = the app composer.
-  originChannel: z.enum(['voice', 'telegram', 'discord']).nullable(),
+  originChannel: z.enum(['voice', 'telegram', 'discord', 'zoom']).nullable(),
   partialSessionId: z.string().nullable(),
   // Serve-time enrichment (both session-detail reads — root AND workspace, one
   // content contract): the delegated task's short label for the Watch chip.

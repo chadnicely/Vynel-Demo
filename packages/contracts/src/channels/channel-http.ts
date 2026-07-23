@@ -6,7 +6,7 @@
 // the workspaces/approvals cast-from-contracts pattern). Promoted to
 // `@vynel/contracts` on the `apps/web` second-consumer trigger.
 
-export type ChannelKind = 'telegram' | 'discord'
+export type ChannelKind = 'telegram' | 'discord' | 'zoom'
 
 export type ChannelConnectionStatus =
   | 'healthy'

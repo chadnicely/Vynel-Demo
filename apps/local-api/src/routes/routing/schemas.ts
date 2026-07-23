@@ -89,7 +89,7 @@ export const ReportToRequesterResponseSchema = z.object({
 
 // Local enum (the root-schemas precedent of redeclaring small unions) — the
 // channels route file keeps its ChannelKindSchema private.
-const RoutingChannelKindSchema = z.enum(['telegram', 'discord'])
+const RoutingChannelKindSchema = z.enum(['telegram', 'discord', 'zoom'])
 
 /** One channel send target — id + display name + kind. */
 export const RoutingChannelTargetSchema = z.object({

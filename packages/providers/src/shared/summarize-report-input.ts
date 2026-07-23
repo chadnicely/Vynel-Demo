@@ -9,7 +9,7 @@
 import type { ProviderLogger } from './provider-logger.js'
 
 /** Where the reply will be shown — drives the format instructions. */
-export type ReportDeliveryTarget = 'chat' | 'telegram' | 'discord'
+export type ReportDeliveryTarget = 'chat' | 'telegram' | 'discord' | 'zoom'
 
 export type SummarizeReportInput = {
   /** The delegated workspace's folder — the dispatch cwd. */

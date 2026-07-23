@@ -3,7 +3,45 @@
 **Updated 2026-07-23.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-23 round 5): CHANNEL GROUPS SHIPPED — gate GREEN 568f/3102t, reviewed CLEAN (3 should-fixes FOLDED); NEXT: CHAD GROUP SMOKE (below), then the Zoom adapter arc
+## ⏭ NEXT ACTION (2026-07-23 round 6): ZOOM CHANNEL SHIPPED — gate GREEN 569f/3119t, reviewed CLEAN (2 should-fixes FOLDED); groups arc CONFIRMED live by Chad (real traffic) + group-command fix `0c198fb`; NEXT: CHAD ZOOM SMOKE (below)
+
+**Chad: "We can start zoom" (after live-confirming groups). Built per
+docs/module-notes/channels-zoom.md (As-built + Review-folds sections are the truth):**
+- **`ZoomChannelAdapter`** (`adapters/zoom/`: zoom-api / zoom-event-socket / zoom-channel-
+  adapter): the STATEFUL shape — one WebSocket per connected channel (wss://ws.zoom.us,
+  subscriptionId + client_credentials token, 25s heartbeat), bot_notification frames
+  normalized defensively + buffered, `pollForInboundMessages` DRAINS per tick (zero pipeline
+  change). Dead sockets recreated next tick; **CONNECTING grace 30s** (no teardown-per-tick
+  token loop — reviewer catch, readyState-0 pinned); **self-scheduled unref'd reap timer**
+  (the LAST channel's socket dies 60s after polling stops — reviewer catch, fake-timer
+  pinned); buffer capped 500; send/edit over Chatbot Messages API with per-app token cache.
+  Capabilities: EDIT yes · buttons no v1 (approvals = typed approve/deny; enqueue gates on
+  supportsInlineButtons) · typing no. Groups ride the groups arc as-is (toJid @conference. =
+  group, title = channelName, bot_notification inherently addressed). New dep `ws`.
+- **'zoom' in EVERY union** (schema/contracts/route enums/SessionTurnOrigin/
+  ReportDeliveryTarget+format rule/MessageRow badge/GlobalChatView label/ProcessInboundDeps/
+  run-global-root-turn) — the two exhaustive-map guards caught their sites at typecheck.
+  SDK regenerated (201 methods, 61 tools unchanged).
+- **Connect dialog fully catalog-driven**: entries carry defaultName + credentialFields[] +
+  allowedSenderField — telegram 1 field, ZOOM 5 (clientId/clientSecret/botJid/accountId/
+  subscriptionId), discord unavailable. The telegram-hardcode nit CLOSED. Zoom has NO
+  initial-sender field (JIDs unknowable — add from Manage). Zoom brand mark added.
+- **RECORDED (zoom notes)**: interactive buttons + app_mention subscription later ·
+  recently-ignored-senders quick-allow in Manage (zoom onboarding wants it) · verify on the
+  real account: bot_notification messageId presence, token-response field casing, WS content
+  string-vs-object (both handled) · rotation staleness nits. ONE gate flake seen (the known
+  chat_sessions UNIQUE seed), clean on two reruns.
+**⏭ CHAD ZOOM SMOKE: marketplace.zoom.us → Build App → Team Chat app → imchat:bot scope →
+Features: enable Team Chat subscription (get Bot JID) + Event Subscriptions in WEBSOCKET mode
+subscribing bot_notification (get subscription id) → copy clientId/secret/accountId · Vynel →
+Channels → Connect → Zoom card → paste the 5 values → Connect verifies via token grant ·
+1:1 chat with the bot in Zoom → message arrives (first one lands IGNORED — add yourself as
+allowed sender from Manage with your userJid from the ignored row… OR just check the reply
+works after adding) · reply arrives in Zoom · add the bot to a Team Chat channel → it shows
+in Manage → Groups → approve → slash-invoke it in the channel → threaded reply · transcript
+shows "via Zoom".**
+
+## (prev) ⏭ NEXT ACTION (2026-07-23 round 5): CHANNEL GROUPS SHIPPED — gate GREEN 568f/3102t, reviewed CLEAN (3 should-fixes FOLDED); NEXT: CHAD GROUP SMOKE (below), then the Zoom adapter arc
 
 **Chad's ask post-smoke ("start implementing group features… zoom also has group chat") —
 3 forks settled by Chad: per-group memberPolicy toggle (everyone default | allowlist) ·

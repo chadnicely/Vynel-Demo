@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Zoom is now a channel.** Connect your Zoom Team Chat bot (a Marketplace app with five
+  copy-paste credentials — no public URL, no port forwarding: Vynel listens over Zoom's
+  WebSocket event feed) and message Claude from Zoom like you do from Telegram. 1:1 bot chats
+  and Team Chat channels both work — channels ride the same approve-a-group flow, replies
+  support Zoom markdown, and approval requests arrive as text you answer with "approve" or
+  "deny". The connect dialog now shows each channel's own credential form, and transcripts
+  mark messages that arrived "via Zoom".
+
 - **Claude can now join your group chats.** Add your Telegram bot to a group and @mention it
   once — the group appears in the channel's Manage dialog for you to approve or ignore
   (no chat IDs to copy). In an approved group, Claude answers when @mentioned or replied to,

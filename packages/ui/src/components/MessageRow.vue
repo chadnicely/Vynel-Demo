@@ -70,6 +70,7 @@ const ORIGIN_LABELS: Record<
   voice: "Voice",
   telegram: "Telegram",
   discord: "Discord",
+  zoom: "Zoom",
 };
 
 const originBadge = computed(() => {

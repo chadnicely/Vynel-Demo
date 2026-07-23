@@ -150,6 +150,8 @@ const backgroundTurnLabel = computed(() => {
       return "Replying on Telegram…";
     case "discord":
       return "Replying on Discord…";
+    case "zoom":
+      return "Replying on Zoom…";
     case "voice":
       return "Answering by voice…";
     default:

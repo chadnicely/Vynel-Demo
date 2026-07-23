@@ -3874,7 +3874,7 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        channelKind: "telegram" | "discord";
+                        channelKind: "telegram" | "discord" | "zoom";
                         displayName: string;
                         botMetadata: {
                             [key: string]: unknown;
@@ -3912,7 +3912,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    channelKind: "telegram" | "discord";
+                    channelKind: "telegram" | "discord" | "zoom";
                     displayName: string;
                     botCredentials: {
                         [key: string]: string;
@@ -3933,7 +3933,7 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        channelKind: "telegram" | "discord";
+                        channelKind: "telegram" | "discord" | "zoom";
                         displayName: string;
                         botMetadata: {
                             [key: string]: unknown;
@@ -4016,7 +4016,7 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        channelKind: "telegram" | "discord";
+                        channelKind: "telegram" | "discord" | "zoom";
                         displayName: string;
                         botMetadata: {
                             [key: string]: unknown;
@@ -4064,7 +4064,7 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        channelKind: "telegram" | "discord";
+                        channelKind: "telegram" | "discord" | "zoom";
                         displayName: string;
                         botMetadata: {
                             [key: string]: unknown;
@@ -5810,7 +5810,7 @@ export interface operations {
                             sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
                             sourceLabel: string | null;
                             /** @enum {string|null} */
-                            originChannel: "voice" | "telegram" | "discord" | null;
+                            originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
                             partialSessionId: string | null;
                             delegationTaskLabel?: string | null;
                             thinkingBody: string | null;
@@ -7455,7 +7455,7 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        channelKind: "telegram" | "discord";
+                        channelKind: "telegram" | "discord" | "zoom";
                         displayName: string;
                         botMetadata: {
                             [key: string]: unknown;
@@ -7486,7 +7486,7 @@ export interface operations {
                     /** @constant */
                     scope: "global";
                     /** @enum {string} */
-                    channelKind: "telegram" | "discord";
+                    channelKind: "telegram" | "discord" | "zoom";
                     displayName: string;
                     botCredentials: {
                         [key: string]: string;
@@ -7497,7 +7497,7 @@ export interface operations {
                     scope: "workspace";
                     workspaceId: string;
                     /** @enum {string} */
-                    channelKind: "telegram" | "discord";
+                    channelKind: "telegram" | "discord" | "zoom";
                     displayName: string;
                     botCredentials: {
                         [key: string]: string;
@@ -7518,7 +7518,7 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        channelKind: "telegram" | "discord";
+                        channelKind: "telegram" | "discord" | "zoom";
                         displayName: string;
                         botMetadata: {
                             [key: string]: unknown;
@@ -7565,7 +7565,7 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        channelKind: "telegram" | "discord";
+                        channelKind: "telegram" | "discord" | "zoom";
                         displayName: string;
                         botMetadata: {
                             [key: string]: unknown;
@@ -7645,7 +7645,7 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        channelKind: "telegram" | "discord";
+                        channelKind: "telegram" | "discord" | "zoom";
                         displayName: string;
                         botMetadata: {
                             [key: string]: unknown;
@@ -7692,7 +7692,7 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        channelKind: "telegram" | "discord";
+                        channelKind: "telegram" | "discord" | "zoom";
                         displayName: string;
                         botMetadata: {
                             [key: string]: unknown;
@@ -7739,7 +7739,7 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        channelKind: "telegram" | "discord";
+                        channelKind: "telegram" | "discord" | "zoom";
                         displayName: string;
                         botMetadata: {
                             [key: string]: unknown;
@@ -11023,7 +11023,7 @@ export interface operations {
                             sourceLabel: string | null;
                             partialSessionId: string | null;
                             /** @enum {string|null} */
-                            originChannel: "voice" | "telegram" | "discord" | null;
+                            originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
                             attachedImagesMetadata: {
                                 filename: string;
                                 mimeType: string;
@@ -11205,7 +11205,7 @@ export interface operations {
                             sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
                             sourceLabel: string | null;
                             /** @enum {string|null} */
-                            originChannel: "voice" | "telegram" | "discord" | null;
+                            originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
                             partialSessionId: string | null;
                             delegationTaskLabel?: string | null;
                             thinkingBody: string | null;
@@ -11569,7 +11569,7 @@ export interface operations {
                         id: string;
                         name: string;
                         /** @enum {string} */
-                        kind: "telegram" | "discord";
+                        kind: "telegram" | "discord" | "zoom";
                     }[];
                 };
             };

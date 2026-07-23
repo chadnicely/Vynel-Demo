@@ -55,6 +55,56 @@ it at v1.
   recorded nit: today it hardcodes telegram's single-token form; Zoom needs 5 fields).
 - Catalog entry + `ChannelBrandIcon` mark for zoom — one entry + one SVG path, by design.
 
+## As-built (2026-07-23)
+
+- **`ZoomChannelAdapter`** (`adapters/zoom/`): the recommended stateful shape — one
+  `ZoomEventSocket` per connected channel (25s heartbeat, buffered `bot_notification`
+  normalization, defensive frame parsing that never throws into the process), drained by
+  `pollForInboundMessages`; dead sockets recreated on the next tick; idle connections (unpolled
+  60s — disabled/disconnected channels) reaped; send/edit over the Chatbot Messages API with a
+  per-app cached token (no grant-per-message). Network boundary injectable (fetch + socket
+  factory) — tested without mocks of modules.
+- Capabilities: editing YES (streaming-look possible later) · buttons NO v1 (approval cards
+  degrade to typed approve/deny — `enqueueApprovalRequest` gates on `supportsInlineButtons`) ·
+  typing NO (no such API).
+- Group model rides the groups arc as-is: `toJid` on `@conference.` = group (title =
+  `channelName`); every `bot_notification` is inherently addressed → `isBotMentioned` true.
+  DM `toJid == userJid` keeps the `scopeContextId == senderId` allowlist assumption.
+- `'zoom'` threaded through EVERY kind/origin union (schema `$type`, contracts, route enums,
+  `SessionTurnOrigin`, `ReportDeliveryTarget` + its format rule, MessageRow badge, GlobalChatView
+  label). The exhaustive-map guards caught two sites at typecheck — the design working.
+- Connect dialog is now fully catalog-driven: per-kind credential FIELDS (`credentialFields` +
+  `allowedSenderField` on the catalog entry — the recorded telegram-hardcode nit CLOSED). Zoom
+  entry = 5 fields; no initial-sender field (JIDs aren't user-knowable — senders are added from
+  Manage after their first message shows up ignored).
+- New dep: `ws` (+`@types/ws`) in `@vynel/channels`.
+
+### Review folds (2026-07-23, reviewed CLEAN 0 must-fix)
+
+Folded: **CONNECTING grace** (a handshaking socket within 30s counts alive — tearing it down
+each 5s tick would loop token grants forever; stuck handshakes recycle past the window; pinned
+by a readyState-0 test) · **self-scheduled reap timer** (unref'd; the LAST channel's socket no
+longer lives until process exit when polling stops — timer clears when the map empties;
+fake-timer test) · buffer capped at 500 oldest-drop · accountId cross-check in normalization ·
+cursor-pointer on selectable kind cards.
+
+RECORDED (nits, not built): empty `message_id` from a successful send is kept (throwing would
+re-send a DELIVERED message — duplicate > missing id; bites only editMessage later) ·
+credential rotation staleness (socket identity + send-token cache refresh on expiry/reap, not
+on rotation) · same-millisecond synthetic-id collision (unreachable in practice) · the ws
+double-cast at the factory seam · edits render markdown literally (matches telegram edit).
+
+### Recorded follow-ups (zoom)
+
+- Interactive messages (buttons) + `interactive_message_actions` → approval cards with taps.
+- `team_chat.app_mention` subscription → responding to @mentions in channels the bot wasn't
+  slash-invoked in (needs the event added to the Marketplace subscription).
+- Surface recently-ignored senders in Manage for one-tap allow (Zoom onboarding depends on it
+  more than Telegram — JIDs are opaque).
+- Verify on Chad's real account: bot_notification `messageId` presence, exact `Expire_in`
+  casing in the token response (we read `expires_in`, fall back 3600s), and whether the WS
+  frame's `content` arrives as string or object (both handled).
+
 Sources: [Zoom WebSockets](https://developers.zoom.us/docs/api/websockets/) ·
 [Chatbot API](https://developers.zoom.us/docs/api/chatbot/) ·
 [Chatbot events](https://developers.zoom.us/docs/api/chatbot/events/) ·

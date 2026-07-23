@@ -93,4 +93,56 @@ describe("ConnectChannelDialog", () => {
     expect(connect.disabled).toBe(true);
     expect(dialog.textContent).toContain("Coming soon");
   });
+
+  it("selecting Zoom swaps in its five credential fields and connects with the full bag", async () => {
+    const { connectCalls } = makeHarness();
+    await flushPromises();
+
+    const dialog = dialogElement();
+    [...dialog.querySelectorAll("button")]
+      .find((b) => b.textContent?.includes("Zoom"))!
+      .click();
+    await flushPromises();
+
+    // Name reseeds for the kind; the sender field (Telegram-only) is gone.
+    const nameInput = dialog.querySelector<HTMLInputElement>('input[maxlength="120"]')!;
+    expect(nameInput.value).toBe("My Zoom");
+    expect(dialog.textContent).not.toContain("Telegram user ID");
+
+    const values: Record<string, string> = {
+      "Client ID": "cid",
+      "Client secret": "shh",
+      "Bot JID": "bot@xmpp.zoom.us",
+      "Account ID": "acc-1",
+      "Event subscription ID": "sub-1",
+    };
+    for (const label of Object.keys(values)) {
+      const labelElement = [...dialog.querySelectorAll("label")].find((l) =>
+        l.textContent?.includes(label),
+      )!;
+      const input = labelElement.querySelector("input")!;
+      input.value = values[label]!;
+      input.dispatchEvent(new Event("input"));
+    }
+    await flushPromises();
+
+    [...dialog.querySelectorAll("button")]
+      .forEach((b) => b.textContent === "Connect" && b.click());
+    await flushPromises();
+
+    expect(connectCalls).toEqual([
+      {
+        scope: "global",
+        channelKind: "zoom",
+        displayName: "My Zoom",
+        botCredentials: {
+          clientId: "cid",
+          clientSecret: "shh",
+          botJid: "bot@xmpp.zoom.us",
+          accountId: "acc-1",
+          subscriptionId: "sub-1",
+        },
+      },
+    ]);
+  });
 });

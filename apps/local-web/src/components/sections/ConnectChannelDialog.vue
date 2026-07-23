@@ -9,15 +9,10 @@ import ChannelBrandIcon from "../channels/ChannelBrandIcon.vue";
 import { CHANNEL_CATALOG } from "../channels/channel-catalog.js";
 import type { SectionScope } from "./section-scope.js";
 
-const CATALOG_ENTRIES = Object.entries(CHANNEL_CATALOG) as [
-  ChannelKind,
-  (typeof CHANNEL_CATALOG)[ChannelKind],
-][];
-
-// Connect a channel: pick the kind (Telegram today; Discord is on the
-// roadmap), name it, paste the bot token, choose where it lives (everywhere,
-// or one workspace). The token flows straight to the connect route and is
-// never echoed back.
+// Connect a channel — fully catalog-driven: pick an available kind, fill
+// ITS credential fields (Telegram = one token; Zoom = the five Marketplace
+// values), name it, choose where it lives. Credentials flow straight to
+// the connect route and are never echoed back.
 const props = defineProps<{
   open: boolean;
   /** Where the dialog was opened from — pre-selects the scope. */
@@ -29,8 +24,16 @@ const emit = defineEmits<{
   connected: [];
 }>();
 
-const displayName = ref("My Telegram");
-const botToken = ref("");
+const CATALOG_ENTRIES = Object.entries(CHANNEL_CATALOG) as [
+  ChannelKind,
+  (typeof CHANNEL_CATALOG)[ChannelKind],
+][];
+
+const selectedKind = ref<ChannelKind>("telegram");
+const entry = computed(() => CHANNEL_CATALOG[selectedKind.value]);
+
+const displayName = ref("");
+const credentialValues = ref<Record<string, string>>({});
 const allowedSenderId = ref("");
 // "global" or a workspaceId — the select's simple value shape.
 const scopeChoice = ref<string>("global");
@@ -42,6 +45,19 @@ const workspaces = computed(() =>
 
 const connectChannel = useConnectChannel();
 
+function seedForKind(kind: ChannelKind) {
+  displayName.value = CHANNEL_CATALOG[kind].defaultName;
+  credentialValues.value = {};
+  allowedSenderId.value = "";
+}
+
+function selectKind(kind: ChannelKind) {
+  if (!CHANNEL_CATALOG[kind].available || kind === selectedKind.value) return;
+  selectedKind.value = kind;
+  seedForKind(kind);
+  connectChannel.reset();
+}
+
 // A fresh dialog per open — and the scope follows where it was opened from.
 // `immediate` covers a dialog mounted already-open (the watcher would
 // otherwise never seed the scope).
@@ -49,9 +65,8 @@ watch(
   () => props.open,
   (open) => {
     if (!open) return;
-    displayName.value = "My Telegram";
-    botToken.value = "";
-    allowedSenderId.value = "";
+    selectedKind.value = "telegram";
+    seedForKind("telegram");
     scopeChoice.value =
       props.defaultScope.kind === "workspace"
         ? props.defaultScope.workspaceId
@@ -64,7 +79,9 @@ watch(
 const canConnect = computed(
   () =>
     displayName.value.trim().length > 0 &&
-    botToken.value.trim().length > 0 &&
+    entry.value.credentialFields.every(
+      (field) => (credentialValues.value[field.key] ?? "").trim().length > 0,
+    ) &&
     !connectChannel.isPending.value,
 );
 
@@ -76,12 +93,20 @@ const errorMessage = computed(() =>
 
 function connect() {
   if (!canConnect.value) return;
+  const botCredentials = Object.fromEntries(
+    entry.value.credentialFields.map((field) => [
+      field.key,
+      (credentialValues.value[field.key] ?? "").trim(),
+    ]),
+  );
   const senderId = allowedSenderId.value.trim();
   const shared = {
-    channelKind: "telegram" as const,
+    channelKind: selectedKind.value,
     displayName: displayName.value.trim(),
-    botCredentials: { botToken: botToken.value.trim() },
-    ...(senderId.length > 0 ? { initialAllowedSenderId: senderId } : {}),
+    botCredentials,
+    ...(entry.value.allowedSenderField !== null && senderId.length > 0
+      ? { initialAllowedSenderId: senderId }
+      : {}),
   };
   connectChannel.mutate(
     scopeChoice.value === "global"
@@ -106,26 +131,32 @@ function onOpenChange(open: boolean) {
     @update:open="onOpenChange"
   >
     <div class="flex flex-col gap-3.5 pt-1">
-      <div class="grid grid-cols-2 gap-2">
-        <div
-          v-for="[kind, entry] in CATALOG_ENTRIES"
+      <div class="grid grid-cols-3 gap-2">
+        <component
+          :is="kindEntry.available ? 'button' : 'div'"
+          v-for="[kind, kindEntry] in CATALOG_ENTRIES"
           :key="kind"
-          class="flex items-center gap-2.5 rounded-md p-2.5"
+          :type="kindEntry.available ? 'button' : undefined"
+          class="flex items-center gap-2.5 rounded-md p-2.5 text-left"
           :class="
-            entry.available
-              ? 'border border-gold bg-gold-soft'
-              : 'border border-hair bg-panel opacity-55'
+            !kindEntry.available
+              ? 'cursor-default border border-hair bg-panel opacity-55'
+              : kind === selectedKind
+                ? 'cursor-pointer border border-gold bg-gold-soft'
+                : 'cursor-pointer border border-hair bg-panel transition hover:border-hair-strong'
           "
-          :aria-disabled="!entry.available || undefined"
+          :aria-disabled="!kindEntry.available || undefined"
+          :aria-pressed="kindEntry.available ? kind === selectedKind : undefined"
+          @click="selectKind(kind)"
         >
           <span class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-raised">
             <ChannelBrandIcon :kind="kind" :size="15" />
           </span>
           <span class="grid min-w-0 gap-px">
-            <span class="text-[12.5px] font-semibold text-ink-1">{{ entry.label }}</span>
-            <span class="text-[10.5px] text-ink-3">{{ entry.tagline }}</span>
+            <span class="text-[12.5px] font-semibold text-ink-1">{{ kindEntry.label }}</span>
+            <span class="truncate text-[10.5px] text-ink-3">{{ kindEntry.tagline }}</span>
           </span>
-        </div>
+        </component>
       </div>
 
       <label class="grid gap-1.5">
@@ -140,37 +171,36 @@ function onOpenChange(open: boolean) {
         />
       </label>
 
-      <label class="grid gap-1.5">
-        <span class="text-[11.5px] font-semibold text-ink-2">Bot token</span>
+      <label
+        v-for="field in entry.credentialFields"
+        :key="`${selectedKind}:${field.key}`"
+        class="grid gap-1.5"
+      >
+        <span class="text-[11.5px] font-semibold text-ink-2">{{ field.label }}</span>
         <input
-          v-model="botToken"
-          type="password"
-          placeholder="123456:ABC-…"
-          autocomplete="new-password"
+          v-model="credentialValues[field.key]"
+          :type="field.secret ? 'password' : 'text'"
+          :placeholder="field.placeholder"
+          :autocomplete="field.secret ? 'new-password' : undefined"
           class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
           @keydown.enter.prevent="connect"
         />
-        <span class="text-[11px] text-ink-3">
-          {{ CHANNEL_CATALOG.telegram.connectHint }}
-        </span>
       </label>
+      <span class="text-[11px] text-ink-3">{{ entry.connectHint }}</span>
 
-      <label class="grid gap-1.5">
+      <label v-if="entry.allowedSenderField" class="grid gap-1.5">
         <span class="text-[11.5px] font-semibold text-ink-2">
-          Your Telegram user ID
+          {{ entry.allowedSenderField.label }}
           <span class="text-[10px] font-medium uppercase tracking-wide text-ink-3">optional</span>
         </span>
         <input
           v-model="allowedSenderId"
           type="text"
-          placeholder="e.g. 123456789"
+          :placeholder="entry.allowedSenderField.placeholder"
           class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
           @keydown.enter.prevent="connect"
         />
-        <span class="text-[11px] text-ink-3">
-          Only allowed senders can talk to Claude. Add yourself now (ask
-          @userinfobot for your ID) or approve senders later.
-        </span>
+        <span class="text-[11px] text-ink-3">{{ entry.allowedSenderField.hint }}</span>
       </label>
 
       <label class="grid gap-1.5">

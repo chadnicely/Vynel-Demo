@@ -20,6 +20,7 @@ export type SessionTurnOrigin =
   | 'voice'
   | 'telegram'
   | 'discord'
+  | 'zoom'
   | 'schedule'
   | 'delegation'
 
