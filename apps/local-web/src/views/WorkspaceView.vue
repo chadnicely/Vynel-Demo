@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { FolderTree, Sparkles } from "lucide-vue-next";
 import { EmptyState, IconButton } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
@@ -26,46 +26,27 @@ import { useActivityStore } from "../stores/activity-store.js";
 import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
 
 // The workspace room — same continuous-first chat as global, scoped to one
-// workspace. Panels beside the canvas: menu (persistent) · files.
+// workspace. Panels beside the canvas: menu (persistent) · files. The shell
+// keys this view per tab, so this instance binds ITS tab for its whole
+// lifetime — never the "active" accessors, which flip to the next tab a beat
+// before the keyed remount tears this view down. A retarget mutates the same
+// tab in place (reactive); a stale-workspace tab is pruned by the shell.
 const ui = useUiStore();
-const shell = ui.workspaceChat;
+const tab = ui.activeTab;
+const shell = tab.shell;
 const activityMonitor = useActivityMonitorStore();
 
 const workspacesQuery = useWorkspaceList();
 const workspaces = computed(() => workspacesQuery.data.value ?? []);
 
-// Land on a real workspace so the tab never opens dead. Reconciles once the
-// list has loaded: a persisted id that no longer exists (a prior run, or a
-// leftover demo id) falls back to the first workspace, or null when there are
-// none — otherwise the stale id 404s every workspace-scoped request.
-watch(
-  [workspaces, () => workspacesQuery.isSuccess.value] as const,
-  ([rows, loaded]) => {
-    if (!loaded) return;
-    const stored = ui.activeWorkspaceId;
-    if (stored !== null && rows.some((row) => row.id === stored)) return;
-    ui.activeWorkspaceId = rows[0]?.id ?? null;
-  },
-  { immediate: true },
-);
-
-// Switching rooms returns to that room's continuous chat.
-watch(
-  () => ui.activeWorkspaceId,
-  () => {
-    shell.target = "continuous";
-    shell.mainView = "chat";
-  },
-);
-
 const activeWorkspace = computed(
-  () => workspaces.value.find((row) => row.id === ui.activeWorkspaceId) ?? null,
+  () => workspaces.value.find((row) => row.id === tab.workspaceId) ?? null,
 );
 
 const scope = computed<SessionScope>(() =>
-  ui.activeWorkspaceId === null
+  tab.workspaceId === null
     ? { kind: "global" }
-    : { kind: "workspace", workspaceId: ui.activeWorkspaceId },
+    : { kind: "workspace", workspaceId: tab.workspaceId },
 );
 
 const isFilesPanelOpen = ref(false);
@@ -85,7 +66,7 @@ const activeSessionId = computed<string | null>(() => {
 const inFlightQuery = useInFlightDelegations();
 const hasInFlightDelegationHere = computed(() =>
   (inFlightQuery.data.value ?? []).some(
-    (delegation) => delegation.workspaceId === ui.activeWorkspaceId,
+    (delegation) => delegation.workspaceId === tab.workspaceId,
   ),
 );
 
@@ -104,8 +85,8 @@ const activity = useActivityStore();
 const hasBackgroundTurnHere = computed(
   () =>
     !chatTurn.isStreaming.value &&
-    ui.activeWorkspaceId !== null &&
-    activity.hasServerTurnInWorkspace(ui.activeWorkspaceId),
+    tab.workspaceId !== null &&
+    activity.hasServerTurnInWorkspace(tab.workspaceId),
 );
 
 const detailQuery = useSessionDetail(
@@ -203,7 +184,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       >
         <WorkspaceSectionPanel
           :section="activeSection"
-          :workspace-id="ui.activeWorkspaceId ?? ''"
+          :workspace-id="tab.workspaceId ?? ''"
         />
       </div>
     </div>
@@ -212,7 +193,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       v-else-if="openFile"
       :key="openFile.filePath"
       class="canvas"
-      :workspace-id="ui.activeWorkspaceId ?? ''"
+      :workspace-id="tab.workspaceId ?? ''"
       :file-path="openFile.filePath"
       @close="shell.mainView = 'chat'"
     />
@@ -279,7 +260,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
     <FilesPanel
       v-if="isFilesPanelOpen && !activeSection"
       :workspace-name="activeWorkspace?.name ?? 'Workspace'"
-      :workspace-id="ui.activeWorkspaceId ?? ''"
+      :workspace-id="tab.workspaceId ?? ''"
       :active-file-path="openFile?.filePath ?? null"
       @close="isFilesPanelOpen = false"
       @open-file="openFileOnCanvas"

@@ -15,6 +15,7 @@ import {
 } from "@vynel/ui";
 import type { CommandItem } from "@vynel/ui";
 import AppTitleBar from "../components/shell/AppTitleBar.vue";
+import AppTabStrip from "../components/shell/AppTabStrip.vue";
 import AppSidebar from "../components/shell/AppSidebar.vue";
 import AppStatusBar from "../components/shell/AppStatusBar.vue";
 import { useUiStore } from "../stores/ui-store.js";
@@ -35,6 +36,36 @@ const activeWorkspaceName = computed(
   () => workspaces.find((w) => w.id === activeWorkspaceId.value)?.name ?? null,
 );
 const accountName = "Chad Subedi";
+
+// The preview's stand-in tab strip — a pinned Global tab plus one tab per
+// selected room, mirroring the real shell's wiring shape.
+const previewTabs = ref<{ id: string; workspaceId: string | null }[]>([
+  { id: "global", workspaceId: null },
+]);
+const activeTabId = ref("global");
+
+function selectTab(tabId: string) {
+  activeTabId.value = tabId;
+  const workspaceId = previewTabs.value.find((t) => t.id === tabId)
+    ?.workspaceId;
+  if (workspaceId != null) selectWorkspace(workspaceId);
+  else selectSurface("chat");
+}
+function closeTab(tabId: string) {
+  previewTabs.value = previewTabs.value.filter((t) => t.id !== tabId);
+  if (activeTabId.value === tabId) selectTab("global");
+}
+function addTab(workspaceId: string) {
+  const tab = { id: `tab-${workspaceId}-${previewTabs.value.length}`, workspaceId };
+  previewTabs.value.push(tab);
+  activeTabId.value = tab.id;
+  selectWorkspace(workspaceId);
+}
+function retargetTab(tabId: string, workspaceId: string) {
+  const tab = previewTabs.value.find((t) => t.id === tabId);
+  if (tab) tab.workspaceId = workspaceId;
+  if (activeTabId.value === tabId) selectWorkspace(workspaceId);
+}
 
 const contextTitle = computed(() =>
   surface.value === "workspace"
@@ -124,11 +155,17 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :sidebar-open="sidebarOpen"
       :tasks-open="false"
       :open-task-count="3"
-      :workspaces="workspaces"
-      :active-workspace-id="activeWorkspaceId"
       @command="runCommand"
-      @select-workspace="selectWorkspace"
-      @select-global="selectSurface('chat')"
+    />
+
+    <AppTabStrip
+      :tabs="previewTabs"
+      :active-tab-id="activeTabId"
+      :workspaces="workspaces"
+      @select-tab="selectTab"
+      @close-tab="closeTab"
+      @retarget-tab="retargetTab"
+      @add-tab="addTab"
       @create-workspace="lastAction = 'create-workspace'"
     />
 

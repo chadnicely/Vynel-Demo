@@ -51,12 +51,12 @@ function openSession(workspaceId: string | null) {
     void router.push({ name: "chat" });
     return;
   }
-  ui.activeWorkspaceId = workspaceId;
+  ui.openWorkspaceTab(workspaceId);
   void router.push({ name: "workspace" });
 }
 
 function openWorkspace(workspaceId: string) {
-  ui.activeWorkspaceId = workspaceId;
+  ui.openWorkspaceTab(workspaceId);
   void router.push({ name: "workspace" });
 }
 

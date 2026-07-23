@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
@@ -7,9 +7,21 @@ import { createAppRouter } from "./router.js";
 import { vynelClientKey } from "./plugins/vynel-client.js";
 import type { VynelClient } from "@vynel/sdk";
 
+// One workspace row, complete enough for the strip, sidebar, and room view
+// (the welcome hero reads `kind` through WORKSPACE_KIND_BUNDLES).
+const DEMO_WORKSPACE = {
+  id: "ws-marketing",
+  name: "Marketing",
+  kind: "project",
+  managerName: "Sage",
+  isArchived: false,
+};
+
 // The shell touches the approvals + workspaces surfaces at mount (notifier,
 // titlebar presence) — give it a quiet fake client instead of the network.
-function makeFakeVynelClient(): VynelClient {
+function makeFakeVynelClient(
+  workspaces: (typeof DEMO_WORKSPACE)[] = [],
+): VynelClient {
   const noConversation = async () => ({
     rootSessionId: null,
     currentSdkSessionId: null,
@@ -21,7 +33,7 @@ function makeFakeVynelClient(): VynelClient {
     approvals: { listPending: async () => [] },
     // The ask notifier polls alongside approvals from the shell.
     asks: { listPending: async () => [] },
-    workspaces: { list: async () => [] },
+    workspaces: { list: async () => workspaces },
     channelsUser: { list: async () => [] },
     // The shell reads the tasks list for the title-bar badge.
     tasksUser: { list: async () => [] },
@@ -64,10 +76,22 @@ function makeFakeVynelClient(): VynelClient {
   } as unknown as VynelClient;
 }
 
-async function mountShell(initialPath = "/") {
+async function mountShell(
+  initialPath = "/",
+  workspaces: (typeof DEMO_WORKSPACE)[] = [],
+  // Production (main.ts) mounts WITHOUT awaiting router.isReady() — the shell
+  // sees the START location first and the router resolves the browser URL as
+  // its initial navigation. Cold-start tests mirror that ordering exactly:
+  // stamp the URL, mount, no push (jsdom shares one window.history, so an
+  // unawaited push would race the router's own initial navigation).
+  { settleRouterBeforeMount = true } = {},
+) {
+  window.history.replaceState(null, "", initialPath);
   const router = createAppRouter();
-  await router.push(initialPath);
-  await router.isReady();
+  if (settleRouterBeforeMount) {
+    await router.push(initialPath);
+    await router.isReady();
+  }
   const wrapper = mount(App, {
     global: {
       plugins: [
@@ -82,9 +106,10 @@ async function mountShell(initialPath = "/") {
           },
         ],
       ],
-      provide: { [vynelClientKey as symbol]: makeFakeVynelClient() },
+      provide: { [vynelClientKey as symbol]: makeFakeVynelClient(workspaces) },
     },
   });
+  await router.isReady();
   await flushPromises();
   return { wrapper, router };
 }
@@ -110,15 +135,32 @@ function currentMenuItems(
   );
 }
 
+/** The strip's visible tab names — the label spans, without the monograms. */
+function stripTabNames(
+  wrapper: Awaited<ReturnType<typeof mountShell>>["wrapper"],
+) {
+  return wrapper
+    .findAll('[role="tab"]')
+    .map((tab) => tab.find(".truncate").text());
+}
+
 describe("app shell", () => {
+  // The scope-tab strip persists in localStorage — every mount must start
+  // from a clean slate or tabs leak between tests.
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   // The shell was reinvented into a desktop layout: Home / Chat / Sessions are
-  // ORDINARY sidebar menu items at the top of the one list — no pill toggle,
-  // no "Workspace" tab (a room is entered via the title-bar switcher).
-  it("redirects / to Home; the menu leads with Home, Chat, Sessions as plain items", async () => {
+  // ORDINARY sidebar menu items at the top of the one list — no pill toggle.
+  // A room is entered via the SCOPE TAB STRIP below the title bar (test:
+  // correct expectation — the strip is a real tablist now; the dead assertion
+  // pinned the old segmented pill's absence, which the menu items still cover).
+  it("redirects / to Home; the strip leads with Global; the menu leads with the trio", async () => {
     const { wrapper, router } = await mountShell();
 
     expect(router.currentRoute.value.name).toBe("home");
-    expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
+    expect(stripTabNames(wrapper)).toEqual(["Global"]);
     expect(
       menuItems(wrapper)
         .slice(0, 3)
@@ -177,30 +219,146 @@ describe("app shell", () => {
     ]);
   });
 
-  // test: correct expectation — Chat follows the scope now (Chad, 2026-07-21):
-  // a workspace thread marks the Chat row (was: nothing, when the row led to
-  // the global thread).
-  it("marks the Chat row inside a workspace thread (Chat follows the scope)", async () => {
-    const { wrapper } = await mountShell("/workspace");
+  // test: correct expectation — scope now lives on the TAB STRIP. A /workspace
+  // deep link with no workspace tab open has no room to show; it falls back to
+  // the global chat instead of rendering a dead room. Mounted in PRODUCTION
+  // ordering (before the router settles) — the reconcile must not race
+  // router.isReady().
+  it("deep-linking /workspace with no workspace tab falls back to the global chat", async () => {
+    const { wrapper, router } = await mountShell("/workspace", [], {
+      settleRouterBeforeMount: false,
+    });
+    await vi.dynamicImportSettled();
+    await flushPromises();
 
-    expect(currentMenuItems(wrapper).map((button) => button.text())).toEqual(["Chat"]);
+    expect(router.currentRoute.value.name).toBe("chat");
+    expect(currentMenuItems(wrapper).map((button) => button.text())).toEqual([
+      "Chat",
+    ]);
   });
 
-  it("the trio still leads the menu inside a workspace, and Sessions opens the room's library", async () => {
-    const { wrapper, router } = await mountShell("/workspace");
+  // Cold start always lands on a global place (/ → /home) — a restored active
+  // WORKSPACE tab must hand scope back to the Global tab (the URL wins), never
+  // render Home's canvas against a workspace sidebar.
+  it("cold-starting at / with a restored workspace tab returns scope to Global", async () => {
+    localStorage.setItem(
+      "vynel.tabs",
+      JSON.stringify({
+        tabs: [
+          { id: "global", workspaceId: null },
+          { id: "tab-1", workspaceId: DEMO_WORKSPACE.id },
+        ],
+        activeTabId: "tab-1",
+      }),
+    );
+    const { wrapper, router } = await mountShell("/", [DEMO_WORKSPACE], {
+      settleRouterBeforeMount: false,
+    });
+    await vi.dynamicImportSettled();
+    await flushPromises();
 
+    expect(router.currentRoute.value.name).toBe("home");
+    // The workspace tab survives on the strip; the sidebar is the GLOBAL menu
+    // ("Application" only exists there).
+    expect(stripTabNames(wrapper)).toEqual(["Global", "Marketing"]);
+    expect(menuItem(wrapper, "Application")).toBeDefined();
+  });
+
+  it("switching tabs restores each tab's last route", async () => {
+    localStorage.setItem(
+      "vynel.tabs",
+      JSON.stringify({
+        tabs: [
+          { id: "global", workspaceId: null },
+          { id: "tab-1", workspaceId: DEMO_WORKSPACE.id },
+        ],
+        activeTabId: "tab-1",
+      }),
+    );
+    const { wrapper, router } = await mountShell("/workspace", [
+      DEMO_WORKSPACE,
+    ]);
+    await vi.dynamicImportSettled();
+    await flushPromises();
+
+    // Park the room tab on its scoped session library…
+    await menuItem(wrapper, "Sessions")!.trigger("click");
+    await vi.dynamicImportSettled();
+    await flushPromises();
+    expect(router.currentRoute.value.query.workspace).toBe(DEMO_WORKSPACE.id);
+
+    // …hop to the Global tab (its default place, the chat)…
+    await wrapper.findAll('[role="tab"]')[0]!.trigger("click");
+    await vi.dynamicImportSettled();
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("chat");
+
+    // …and returning to the room tab restores the library, not the default.
+    await wrapper.findAll('[role="tab"]')[1]!.trigger("click");
+    await vi.dynamicImportSettled();
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("sessions");
+    expect(router.currentRoute.value.query.workspace).toBe(DEMO_WORKSPACE.id);
+  });
+
+  // A persisted workspace tab restores the room: its tab on the strip, the
+  // room's sidebar sections, and the room-scoped session library.
+  it("a workspace tab shows the room — strip name, Chat marked, scoped Sessions", async () => {
+    localStorage.setItem(
+      "vynel.tabs",
+      JSON.stringify({
+        tabs: [
+          { id: "global", workspaceId: null },
+          { id: "tab-1", workspaceId: DEMO_WORKSPACE.id },
+        ],
+        activeTabId: "tab-1",
+      }),
+    );
+    const { wrapper, router } = await mountShell("/workspace", [
+      DEMO_WORKSPACE,
+    ]);
+    await vi.dynamicImportSettled();
+    await flushPromises();
+
+    expect(stripTabNames(wrapper)).toEqual(["Global", "Marketing"]);
+    expect(currentMenuItems(wrapper).map((button) => button.text())).toEqual([
+      "Chat",
+    ]);
     expect(
       menuItems(wrapper)
         .slice(0, 3)
         .map((button) => button.text()),
     ).toEqual(["Home", "Chat", "Sessions"]);
 
-    // No workspace exists in this harness (empty list), so the scope resolves
-    // global — the point pinned here is the ROUTING, per-scope filtering is
-    // pinned in sessions-view.test.ts.
     await menuItem(wrapper, "Sessions")!.trigger("click");
     await vi.dynamicImportSettled();
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("sessions");
+    expect(router.currentRoute.value.query.workspace).toBe(DEMO_WORKSPACE.id);
+  });
+
+  it("closing the room's tab returns to the Global tab and its chat", async () => {
+    localStorage.setItem(
+      "vynel.tabs",
+      JSON.stringify({
+        tabs: [
+          { id: "global", workspaceId: null },
+          { id: "tab-1", workspaceId: DEMO_WORKSPACE.id },
+        ],
+        activeTabId: "tab-1",
+      }),
+    );
+    const { wrapper, router } = await mountShell("/workspace", [
+      DEMO_WORKSPACE,
+    ]);
+    await vi.dynamicImportSettled();
+    await flushPromises();
+
+    await wrapper.find('[aria-label="Close Marketing"]').trigger("click");
+    await vi.dynamicImportSettled();
+    await flushPromises();
+
+    expect(stripTabNames(wrapper)).toEqual(["Global"]);
+    expect(router.currentRoute.value.name).toBe("chat");
   });
 });

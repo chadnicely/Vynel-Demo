@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { nextTick } from "vue";
 import { createPinia, setActivePinia } from "pinia";
-import { useUiStore } from "./ui-store.js";
+import { GLOBAL_TAB_ID, useUiStore } from "./ui-store.js";
 
 describe("ui-store theme", () => {
   beforeEach(() => {
@@ -36,39 +36,168 @@ describe("ui-store theme", () => {
   });
 });
 
-describe("ui-store active workspace", () => {
+// test: the single active-workspace selection became the scope tab strip —
+// the pinned Global tab plus workspace tabs, each with its own canvas shell.
+describe("ui-store scope tabs", () => {
   beforeEach(() => {
     localStorage.clear();
     setActivePinia(createPinia());
   });
 
-  it("restores a persisted workspace id on a fresh store", () => {
+  it("starts with only the pinned Global tab active", () => {
+    const ui = useUiStore();
+
+    expect(ui.tabs.map((tab) => tab.workspaceId)).toEqual([null]);
+    expect(ui.activeTabId).toBe(GLOBAL_TAB_ID);
+    expect(ui.activeWorkspaceId).toBeNull();
+  });
+
+  it("adds a workspace tab, activates it, and persists the strip", async () => {
+    const ui = useUiStore();
+
+    const tab = ui.addWorkspaceTab("ws-marketing");
+    await nextTick();
+
+    expect(ui.activeTabId).toBe(tab.id);
+    expect(ui.activeWorkspaceId).toBe("ws-marketing");
+    const stored = JSON.parse(localStorage.getItem("vynel.tabs")!) as {
+      tabs: { workspaceId: string | null }[];
+      activeTabId: string;
+    };
+    expect(stored.tabs.map((row) => row.workspaceId)).toEqual([
+      null,
+      "ws-marketing",
+    ]);
+    expect(stored.activeTabId).toBe(tab.id);
+  });
+
+  it("restores the persisted strip on a fresh store", async () => {
+    const ui = useUiStore();
+    const tab = ui.addWorkspaceTab("ws-marketing");
+    await nextTick();
+
+    setActivePinia(createPinia());
+    const restored = useUiStore();
+
+    expect(restored.tabs.map((row) => row.workspaceId)).toEqual([
+      null,
+      "ws-marketing",
+    ]);
+    expect(restored.activeTabId).toBe(tab.id);
+  });
+
+  it("falls back to the lone Global tab on junk storage", () => {
+    localStorage.setItem("vynel.tabs", "{not json");
+
+    const ui = useUiStore();
+
+    expect(ui.tabs.map((tab) => tab.workspaceId)).toEqual([null]);
+    expect(ui.activeTabId).toBe(GLOBAL_TAB_ID);
+  });
+
+  it("migrates the legacy active-workspace key into a workspace tab, once", () => {
     localStorage.setItem("vynel.active-workspace", "demo-ws-marketing");
 
     const ui = useUiStore();
 
     expect(ui.activeWorkspaceId).toBe("demo-ws-marketing");
-  });
-
-  it("persists a workspace selection", async () => {
-    const ui = useUiStore();
-
-    ui.activeWorkspaceId = "demo-ws-bookkeeping";
-    await nextTick();
-
-    expect(localStorage.getItem("vynel.active-workspace")).toBe(
-      "demo-ws-bookkeeping",
-    );
-  });
-
-  it("removes the key when the selection clears", async () => {
-    localStorage.setItem("vynel.active-workspace", "demo-ws-marketing");
-    const ui = useUiStore();
-
-    ui.activeWorkspaceId = null;
-    await nextTick();
-
+    expect(ui.tabs).toHaveLength(2);
     expect(localStorage.getItem("vynel.active-workspace")).toBeNull();
+  });
+
+  it("a migrated strip survives an immediate reload (write-through persist)", () => {
+    localStorage.setItem("vynel.active-workspace", "demo-ws-marketing");
+    useUiStore();
+
+    // Reload with no structural change in between — the legacy key is already
+    // deleted, so only the write-through keeps the migrated tab alive.
+    setActivePinia(createPinia());
+    const restored = useUiStore();
+
+    expect(restored.activeWorkspaceId).toBe("demo-ws-marketing");
+    expect(restored.tabs).toHaveLength(2);
+  });
+
+  it("never closes the Global tab", () => {
+    const ui = useUiStore();
+
+    ui.closeTab(GLOBAL_TAB_ID);
+
+    expect(ui.tabs).toHaveLength(1);
+  });
+
+  it("closing the active tab hands focus to its right neighbor, else left", () => {
+    const ui = useUiStore();
+    const first = ui.addWorkspaceTab("ws-a");
+    const second = ui.addWorkspaceTab("ws-b");
+
+    ui.activateTab(first.id);
+    ui.closeTab(first.id);
+    expect(ui.activeTabId).toBe(second.id);
+
+    ui.closeTab(second.id);
+    expect(ui.activeTabId).toBe(GLOBAL_TAB_ID);
+  });
+
+  it("closing an inactive tab keeps the active one", () => {
+    const ui = useUiStore();
+    const first = ui.addWorkspaceTab("ws-a");
+    const second = ui.addWorkspaceTab("ws-b");
+
+    ui.activateTab(second.id);
+    ui.closeTab(first.id);
+
+    expect(ui.activeTabId).toBe(second.id);
+  });
+
+  it("retargeting a tab points it at the new room's continuous chat", () => {
+    const ui = useUiStore();
+    const tab = ui.addWorkspaceTab("ws-a");
+    tab.shell.mainView = "knowledge";
+    tab.shell.target = "fresh";
+
+    ui.retargetTab(tab.id, "ws-b");
+
+    expect(tab.workspaceId).toBe("ws-b");
+    expect(tab.shell.mainView).toBe("chat");
+    expect(tab.shell.target).toBe("continuous");
+  });
+
+  it("re-picking the tab's own room is a no-op — its place stays put", () => {
+    const ui = useUiStore();
+    const tab = ui.addWorkspaceTab("ws-a");
+    tab.shell.mainView = "knowledge";
+    tab.lastRoutePath = "/sessions?workspace=ws-a";
+
+    ui.retargetTab(tab.id, "ws-a");
+
+    expect(tab.shell.mainView).toBe("knowledge");
+    expect(tab.lastRoutePath).toBe("/sessions?workspace=ws-a");
+  });
+
+  it("openWorkspaceTab focuses an existing tab for the room, else opens one", () => {
+    const ui = useUiStore();
+    const existing = ui.addWorkspaceTab("ws-a");
+    ui.activateTab(GLOBAL_TAB_ID);
+
+    expect(ui.openWorkspaceTab("ws-a").id).toBe(existing.id);
+    expect(ui.activeTabId).toBe(existing.id);
+
+    const opened = ui.openWorkspaceTab("ws-b");
+    expect(opened.id).not.toBe(existing.id);
+    expect(ui.tabs).toHaveLength(3);
+  });
+
+  it("prunes tabs whose workspace no longer exists and refocuses Global", () => {
+    const ui = useUiStore();
+    ui.addWorkspaceTab("ws-kept");
+    const stale = ui.addWorkspaceTab("ws-deleted");
+    ui.activateTab(stale.id);
+
+    ui.pruneWorkspaceTabs(["ws-kept"]);
+
+    expect(ui.tabs.map((tab) => tab.workspaceId)).toEqual([null, "ws-kept"]);
+    expect(ui.activeTabId).toBe(GLOBAL_TAB_ID);
   });
 });
 

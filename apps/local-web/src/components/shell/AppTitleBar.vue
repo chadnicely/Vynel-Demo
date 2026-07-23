@@ -1,20 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ChevronsUpDown, ListChecks } from "lucide-vue-next";
-import {
-  DropdownMenu,
-  PresenceDot,
-  workspaceAccentVar,
-  workspaceMonogram,
-} from "@vynel/ui";
+import { ListChecks } from "lucide-vue-next";
+import { DropdownMenu, PresenceDot } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
 
 // The desktop title bar with an integrated menu (the Windows 11 / VS Code
-// pattern — one bar carries identity, menus, the workspace switcher, window
-// title, presence, and the window controls). Data-blind: it renders menus +
-// emits `command`; the shell decides what each id does. Window controls drive
-// the frameless Tauri window (no-op in the browser).
+// pattern — one bar carries identity, menus, window title, presence, and the
+// window controls). Workspace navigation lives on the tab strip below, not
+// here. Data-blind: it renders menus + emits `command`; the shell decides
+// what each id does. Window controls drive the frameless Tauri window (no-op
+// in the browser).
 const props = defineProps<{
   title: string;
   presenceState: "idle" | "live" | "attention";
@@ -23,43 +19,13 @@ const props = defineProps<{
   sidebarOpen: boolean;
   tasksOpen: boolean;
   openTaskCount: number;
-  workspaces: { id: string; name: string }[];
-  activeWorkspaceId: string | null;
 }>();
 
 const emit = defineEmits<{
   command: [id: string];
-  "select-workspace": [id: string];
-  "select-global": [];
-  "create-workspace": [];
 }>();
 
 const controls = useWindowControls();
-
-const inWorkspace = computed(() => props.activeWorkspaceId !== null);
-const activeWorkspaceName = computed(
-  () =>
-    props.workspaces.find((w) => w.id === props.activeWorkspaceId)?.name ?? null,
-);
-
-const workspaceMenu = computed<MenuItemModel[]>(() => [
-  { id: "global", label: "Global chat" },
-  ...(props.workspaces.length > 0
-    ? [{ id: "ws-label", kind: "label" as const, label: "Workspaces" }]
-    : []),
-  ...props.workspaces.map((workspace) => ({
-    id: `ws:${workspace.id}`,
-    label: workspace.name,
-  })),
-  { id: "sep", kind: "separator" as const },
-  { id: "new-workspace", label: "New workspace" },
-]);
-
-function onWorkspaceSelect(id: string) {
-  if (id === "new-workspace") emit("create-workspace");
-  else if (id === "global") emit("select-global");
-  else if (id.startsWith("ws:")) emit("select-workspace", id.slice(3));
-}
 
 const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
   {
@@ -150,36 +116,6 @@ function onMenuCommand(id: string) {
         </template>
       </DropdownMenu>
     </nav>
-
-    <!-- Workspace switcher (sits after the menu bar) -->
-    <span class="mx-1.5 h-4 w-px bg-hair" aria-hidden="true" />
-    <DropdownMenu
-      :items="workspaceMenu"
-      align="start"
-      @select="onWorkspaceSelect"
-    >
-      <template #trigger>
-        <button
-          type="button"
-          class="flex items-center gap-1.5 rounded-sm py-1 pl-1 pr-1.5 text-sm transition hover:bg-row-hover data-[state=open]:bg-row-active"
-        >
-          <span
-            class="grid size-4 shrink-0 place-items-center rounded-[3px] text-[9px] font-semibold text-white"
-            :style="{
-              background: inWorkspace
-                ? workspaceAccentVar(activeWorkspaceName ?? '')
-                : 'var(--ink-3)',
-            }"
-          >
-            {{ inWorkspace ? workspaceMonogram(activeWorkspaceName ?? "") : "⌂" }}
-          </span>
-          <span :class="inWorkspace ? 'text-ink-1' : 'text-ink-2'">
-            {{ inWorkspace ? activeWorkspaceName : "Global chat" }}
-          </span>
-          <ChevronsUpDown :size="12" class="text-ink-3" />
-        </button>
-      </template>
-    </DropdownMenu>
 
     <!-- Center: window title + presence (the drag region) -->
     <div

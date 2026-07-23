@@ -12,13 +12,13 @@ function mountTitleBar(overrides: Record<string, unknown> = {}) {
       sidebarOpen: true,
       tasksOpen: false,
       openTaskCount: 0,
-      workspaces: [{ id: "w1", name: "vynel" }],
-      activeWorkspaceId: null,
       ...overrides,
     },
   });
 }
 
+// test: the workspace switcher moved off the title bar onto the tab strip
+// (AppTabStrip) — the bar keeps identity, menus, title, and window controls.
 describe("AppTitleBar", () => {
   it("renders the menu bar and window controls", () => {
     const wrapper = mountTitleBar();
@@ -32,13 +32,8 @@ describe("AppTitleBar", () => {
     }
   });
 
-  it("shows the global scope in the switcher when no workspace is active", () => {
-    const wrapper = mountTitleBar({ activeWorkspaceId: null });
-    expect(wrapper.text()).toContain("Global chat");
-  });
-
-  it("shows the active workspace name in the switcher", () => {
-    const wrapper = mountTitleBar({ activeWorkspaceId: "w1" });
-    expect(wrapper.text()).toContain("vynel");
+  it("shows the window title", () => {
+    const wrapper = mountTitleBar({ title: "Marketing" });
+    expect(wrapper.text()).toContain("Marketing");
   });
 });

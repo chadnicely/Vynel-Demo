@@ -73,7 +73,8 @@ function isGlobalSection(view: unknown): view is GlobalSectionId {
 }
 
 const ui = useUiStore();
-const shell = ui.globalChat;
+// The global chat only ever renders on the pinned Global tab — bind its shell.
+const shell = ui.globalTab.shell;
 const activityMonitor = useActivityMonitorStore();
 
 // Tier gating: a locked section renders the upgrade card in place of its
@@ -114,7 +115,7 @@ const userFirstName = computed(() =>
 const router = useRouter();
 
 function openWorkspace(workspaceId: string) {
-  ui.activeWorkspaceId = workspaceId;
+  ui.openWorkspaceTab(workspaceId);
   void router.push({ name: "workspace" });
 }
 

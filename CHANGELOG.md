@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Tabs! Keep several rooms open at once.** A new tab strip sits under the title bar: the
+  first tab is always your Global chat, and every other tab is a workspace room. Click `+`
+  to open a room in its own tab, use the little arrow on a tab to point it at a different
+  workspace, and close tabs you're done with. Each tab remembers its own place — the section
+  you had open, the conversation you were in — so you can genuinely multitask: leave the
+  bakery room mid-task, answer something in Global, and come back to exactly where you were.
+  Your set of open tabs survives restarting the app. (The workspace switcher that used to
+  live in the title bar is gone — the tabs are the switcher now.)
+
 - **Zoom channel groundwork (parked as "coming soon").** The full Zoom Team Chat adapter is
   built — WebSocket event listening (no public URL needed), markdown replies, group-chat
   support riding the same approve-a-group flow, auto-detected account ID — but live testing

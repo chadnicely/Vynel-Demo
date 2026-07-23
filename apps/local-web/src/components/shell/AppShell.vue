@@ -24,6 +24,7 @@ import {
 import { CommandPalette, ResizablePanel } from "@vynel/ui";
 import type { CommandItem } from "@vynel/ui";
 import AppTitleBar from "./AppTitleBar.vue";
+import AppTabStrip from "./AppTabStrip.vue";
 import AppSidebar from "./AppSidebar.vue";
 import type { SidebarItem } from "./AppSidebar.vue";
 import AppStatusBar from "./AppStatusBar.vue";
@@ -35,7 +36,8 @@ import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 import PlanViewDialog from "../plans/PlanViewDialog.vue";
 import { useAppLinkRouter } from "../../composables/use-app-link-router.js";
 import { WORKSPACE_SECTIONS } from "../workspace/workspace-sections.js";
-import { useUiStore } from "../../stores/ui-store.js";
+import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
+import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
@@ -70,33 +72,23 @@ const surface = computed<"home" | "chat" | "sessions" | "workspace">(() => {
     ? name
     : "chat";
 });
-// The Sessions view's scope rides its query — a workspace-scoped library keeps
-// the room's context (switcher, sections) while it's open.
-const sessionsWorkspaceId = computed(() =>
-  route.name === "sessions" && typeof route.query.workspace === "string"
-    ? route.query.workspace
-    : null,
-);
-const inWorkspaceScope = computed(
-  () => surface.value === "workspace" || sessionsWorkspaceId.value !== null,
-);
-const scopeShell = computed(() =>
-  inWorkspaceScope.value ? ui.workspaceChat : ui.globalChat,
-);
+// Scope follows the ACTIVE TAB: the pinned Global tab or a workspace room.
+// Everything contextual (sidebar menu, session library scope, the canvas
+// shell) derives from it.
+const inWorkspaceScope = computed(() => ui.activeTab.workspaceId !== null);
+const scopeShell = computed(() => ui.activeTab.shell);
 
+const allWorkspaces = computed(() => workspacesQuery.data.value ?? []);
 const activeWorkspaces = computed(() =>
-  (workspacesQuery.data.value ?? []).filter((w) => !w.isArchived),
+  allWorkspaces.value.filter((w) => !w.isArchived),
 );
-const switcherWorkspaces = computed(() =>
+const workspaceOptions = computed(() =>
   activeWorkspaces.value.map((w) => ({ id: w.id, name: w.name })),
 );
 const activeWorkspaceName = computed(
   () =>
-    activeWorkspaces.value.find((w) => w.id === ui.activeWorkspaceId)?.name ??
+    allWorkspaces.value.find((w) => w.id === ui.activeWorkspaceId)?.name ??
     null,
-);
-const barWorkspaceId = computed(() =>
-  surface.value === "workspace" ? ui.activeWorkspaceId : sessionsWorkspaceId.value,
 );
 
 const contextTitle = computed(() => {
@@ -208,9 +200,18 @@ const activeSectionId = computed(() => {
   return "chat";
 });
 
+// ── Tab lifecycle — store mutations, boot/route reconcile, and per-tab route
+// restoration all live in the composable (one home). ──
+const { selectTab, closeTab, addTab, retargetTab } = useScopeTabs(
+  allWorkspaces,
+  () => workspacesQuery.isSuccess.value,
+);
+
 // ── Navigation handlers (write shared ui-store + route; the views react). ──
 function selectSurface(id: string) {
   if (id === "home") {
+    // Home is a global place — it lives on the pinned Global tab.
+    ui.activateTab(GLOBAL_TAB_ID);
     void router.push({ name: "home" });
   } else if (id === "sessions") {
     openSessions();
@@ -218,35 +219,23 @@ function selectSurface(id: string) {
     // Chat follows the scope: a workspace room's Chat is ITS continuing
     // conversation — never a silent jump to the global thread (Chad,
     // 2026-07-21 live feedback).
-    ui.workspaceChat.mainView = "chat";
+    ui.activeTab.shell.mainView = "chat";
     void router.push({ name: "workspace" });
   } else {
-    ui.globalChat.mainView = "chat";
+    ui.activeTab.shell.mainView = "chat";
     void router.push({ name: "chat" });
   }
 }
 
-// The library follows where you are: a workspace room's Sessions lists that
-// room's sessions (its primary chain + its spawned children); everywhere else
-// lists everything.
+// The library follows the tab: a workspace room's Sessions lists that room's
+// sessions (its primary chain + its spawned children); the Global tab lists
+// everything.
 function openSessions() {
-  const workspaceId =
-    surface.value === "workspace"
-      ? ui.activeWorkspaceId
-      : sessionsWorkspaceId.value;
+  const workspaceId = ui.activeTab.workspaceId;
   void router.push({
     name: "sessions",
     ...(workspaceId !== null ? { query: { workspace: workspaceId } } : {}),
   });
-}
-function selectWorkspace(id: string) {
-  ui.activeWorkspaceId = id;
-  ui.workspaceChat.mainView = "chat";
-  void router.push({ name: "workspace" });
-}
-function selectGlobal() {
-  ui.globalChat.mainView = "chat";
-  void router.push({ name: "chat" });
 }
 // Only the workspace sections live on a workspace; global-only views (account,
 // application) always route to the global chat surface — otherwise a workspace
@@ -258,10 +247,13 @@ function selectSection(id: string) {
     return;
   }
   if (inWorkspaceScope.value && WORKSPACE_SECTION_IDS.has(id)) {
-    ui.workspaceChat.mainView = id as typeof ui.workspaceChat.mainView;
+    ui.activeTab.shell.mainView = id as typeof ui.activeTab.shell.mainView;
     if (route.name !== "workspace") void router.push({ name: "workspace" });
   } else {
-    ui.globalChat.mainView = id as typeof ui.globalChat.mainView;
+    // Global-only views (account, application, the global sections) always
+    // render on the pinned Global tab.
+    ui.activateTab(GLOBAL_TAB_ID);
+    ui.globalTab.shell.mainView = id as typeof ui.globalTab.shell.mainView;
     if (route.name !== "chat") void router.push({ name: "chat" });
   }
 }
@@ -275,7 +267,7 @@ const isCreateWorkspaceOpen = ref(false);
 
 function onWorkspaceCreated(workspace: WorkspaceResponse) {
   isCreateWorkspaceOpen.value = false;
-  selectWorkspace(workspace.id);
+  addTab(workspace.id);
 }
 
 function runCommand(id: string) {
@@ -302,13 +294,15 @@ function runCommand(id: string) {
       openSessions();
       break;
     case "go-workspace": {
-      const first = switcherWorkspaces.value[0];
-      if (first) selectWorkspace(first.id);
+      const openTab = ui.tabs.find((tab) => tab.workspaceId !== null);
+      if (openTab !== undefined) selectTab(openTab.id);
+      else if (workspaceOptions.value[0]) addTab(workspaceOptions.value[0].id);
       break;
     }
     case "new-chat":
-      ui.globalChat.target = "fresh";
-      ui.globalChat.mainView = "chat";
+      ui.activateTab(GLOBAL_TAB_ID);
+      ui.globalTab.shell.target = "fresh";
+      ui.globalTab.shell.mainView = "chat";
       void router.push({ name: "chat" });
       break;
     case "new-workspace":
@@ -332,7 +326,7 @@ const paletteCommands = computed<CommandItem[]>(() => [
   { id: "go-home", label: "Go to Home", group: "Go" },
   { id: "go-chat", label: "Go to Chat", group: "Go" },
   { id: "go-sessions", label: "Go to Sessions", group: "Go" },
-  ...switcherWorkspaces.value.map((w) => ({
+  ...workspaceOptions.value.map((w) => ({
     id: `ws:${w.id}`,
     label: w.name,
     hint: "Workspace",
@@ -348,8 +342,12 @@ const paletteCommands = computed<CommandItem[]>(() => [
 ]);
 
 function onPaletteSelect(id: string) {
-  if (id.startsWith("ws:")) selectWorkspace(id.slice(3));
-  else runCommand(id);
+  if (id.startsWith("ws:")) {
+    ui.openWorkspaceTab(id.slice(3));
+    void router.push({ name: "workspace" });
+  } else {
+    runCommand(id);
+  }
 }
 
 function onGlobalKeydown(event: KeyboardEvent) {
@@ -372,11 +370,17 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :sidebar-open="isSidebarOpen"
       :tasks-open="ui.isTasksPanelOpen"
       :open-task-count="openTaskCount"
-      :workspaces="switcherWorkspaces"
-      :active-workspace-id="barWorkspaceId"
       @command="runCommand"
-      @select-workspace="selectWorkspace"
-      @select-global="selectGlobal"
+    />
+
+    <AppTabStrip
+      :tabs="ui.tabs"
+      :active-tab-id="ui.activeTabId"
+      :workspaces="workspaceOptions"
+      @select-tab="selectTab"
+      @close-tab="closeTab"
+      @retarget-tab="retargetTab"
+      @add-tab="addTab"
       @create-workspace="isCreateWorkspaceOpen = true"
     />
 
@@ -400,7 +404,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       </ResizablePanel>
 
       <main class="canvas-wrap">
-        <RouterView />
+        <!-- Keyed per tab: each tab is its own view instance, so a view can
+             safely bind to its tab's shell for its whole lifetime. -->
+        <RouterView :key="ui.activeTabId" />
       </main>
     </div>
 
@@ -434,7 +440,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 <style scoped>
 .app-shell {
   display: grid;
-  grid-template-rows: 40px 1fr 22px;
+  grid-template-rows: 40px 36px 1fr 22px;
   height: 100vh;
   background: var(--bg-shell);
   color: var(--ink-1);
