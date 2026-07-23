@@ -162,6 +162,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :theme="ui.theme"
       :sidebar-open="sidebarOpen"
       :tasks-open="false"
+      :browser-open="false"
       :open-task-count="3"
       @command="runCommand"
     />

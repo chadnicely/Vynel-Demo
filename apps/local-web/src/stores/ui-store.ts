@@ -317,6 +317,11 @@ export const useUiStore = defineStore("ui", () => {
     localStorage.setItem(COMPOSER_THINKING_EFFORT_STORAGE_KEY, value),
   );
 
+  // A one-shot seed for the chat composer — another surface (the browser
+  // view's "Ask Claude" note) drops text here; the composer consumes and
+  // clears it, so the user reviews before sending.
+  const composerSeed = ref<string | null>(null);
+
   // The Jarvis voice overlay — opens on the daemon's wake event or the mic button.
   const isVoiceOverlayOpen = ref(false);
 
@@ -340,6 +345,7 @@ export const useUiStore = defineStore("ui", () => {
     composerModelId,
     composerMode,
     composerThinkingEffort,
+    composerSeed,
     isVoiceOverlayOpen,
   };
 });

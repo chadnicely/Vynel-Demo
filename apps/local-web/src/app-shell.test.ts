@@ -337,6 +337,28 @@ describe("app shell", () => {
     expect(router.currentRoute.value.query.workspace).toBe(DEMO_WORKSPACE.id);
   });
 
+  // Browser mode is a focus takeover: chat left, page right, chrome gone —
+  // and closing restores every piece.
+  it("browser mode tucks the chrome away and restores it on close", async () => {
+    const { wrapper, router } = await mountShell();
+
+    await wrapper.find('[aria-label="Toggle browser view"]').trigger("click");
+    await vi.dynamicImportSettled();
+    await flushPromises();
+
+    expect(router.currentRoute.value.name).toBe("chat");
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0);
+    expect(menuItems(wrapper)).toHaveLength(0);
+    expect(wrapper.find('[aria-label="Browser view"]').exists()).toBe(true);
+
+    await wrapper.find('[aria-label="Close browser view"]').trigger("click");
+    await flushPromises();
+
+    expect(stripTabNames(wrapper)).toEqual(["Global"]);
+    expect(menuItems(wrapper).length).toBeGreaterThan(0);
+    expect(wrapper.find('[aria-label="Browser view"]').exists()).toBe(false);
+  });
+
   it("closing the room's tab returns to the Global tab and its chat", async () => {
     localStorage.setItem(
       "vynel.tabs",

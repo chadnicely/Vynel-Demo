@@ -31,6 +31,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   icon showing what it affects. The old Assistant and Go menus are gone; everything they
   held still lives in the command palette (⌘K), the tab strip, and the sidebar.
 
+- **Browser view — see your app next to the conversation.** A new globe button in the
+  title bar opens a lightweight browser: your chat stays on the left, the page on the
+  right, and the rest of the chrome tucks away until you close it. Hit `+` to open one of
+  the room's running apps (one click, no URL to remember) or type any address. Best part:
+  the **Ask Claude** button on a page — write what you want changed ("make the header
+  sticky") and it lands in your chat draft with the page's name and address attached, ready
+  to review and send. Selecting an exact element on the page to point Claude at is coming
+  next.
+
 - **Menus finished their icon column — and shortcuts speak your platform.** Every row in
   the Vynel menu now carries its icon (Settings and Account wear the same icons as the
   sidebar, so the vocabulary matches everywhere), and shortcut hints show what your

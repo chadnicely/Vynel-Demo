@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   Bot,
@@ -26,6 +26,7 @@ import type { CommandItem } from "@vynel/ui";
 import AppTitleBar from "./AppTitleBar.vue";
 import AppTabStrip from "./AppTabStrip.vue";
 import AppSidebar from "./AppSidebar.vue";
+import BrowserPanel from "../browser/BrowserPanel.vue";
 import type { SidebarItem } from "./AppSidebar.vue";
 import AppStatusBar from "./AppStatusBar.vue";
 import ApprovalNotifier from "./ApprovalNotifier.vue";
@@ -41,6 +42,7 @@ import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
 import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
 import { useActivityStore } from "../../stores/activity-store.js";
+import { useBrowserStore } from "../../stores/browser-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
@@ -57,6 +59,7 @@ const router = useRouter();
 
 const ui = useUiStore();
 const activity = useActivityStore();
+const browser = useBrowserStore();
 // Ctrl/⌘+Q closes the window from anywhere — same controls the title bar drives.
 const windowControls = useWindowControls();
 // One capture-phase listener for in-app vynel:// links (plan links in
@@ -269,6 +272,16 @@ const isSidebarOpen = ref(true);
 const isPaletteOpen = ref(false);
 const isCreateWorkspaceOpen = ref(false);
 
+// A note parked while no composer was on screen must not materialize in some
+// future, wrong-scope draft — closing the browser view discards unconsumed
+// seeds (covers the panel's own close button too).
+watch(
+  () => browser.isOpen,
+  (open) => {
+    if (!open) ui.composerSeed = null;
+  },
+);
+
 function onWorkspaceCreated(workspace: WorkspaceResponse) {
   isCreateWorkspaceOpen.value = false;
   addTab(workspace.id);
@@ -283,10 +296,22 @@ function runCommand(id: string) {
       isPaletteOpen.value = true;
       break;
     case "toggle-sidebar":
-      isSidebarOpen.value = !isSidebarOpen.value;
+      // Hidden by browser mode anyway — flipping the state invisibly would
+      // surprise on restore.
+      if (!browser.isOpen) isSidebarOpen.value = !isSidebarOpen.value;
       break;
     case "toggle-tasks":
       ui.isTasksPanelOpen = !ui.isTasksPanelOpen;
+      break;
+    case "toggle-browser":
+      if (browser.isOpen) {
+        browser.closeView();
+      } else {
+        // Browser mode pairs the page with the scope's CHAT — land there
+        // before the chrome tucks away.
+        browser.openView();
+        selectSurface("chat");
+      }
       break;
     case "go-home":
       void router.push({ name: "home" });
@@ -338,6 +363,7 @@ const paletteCommands = computed<CommandItem[]>(() => [
   { id: "toggle-theme", label: "Toggle theme", group: "View", keywords: "dark light" },
   { id: "toggle-sidebar", label: "Toggle navigation", group: "View" },
   { id: "toggle-tasks", label: "Toggle tasks", group: "View" },
+  { id: "toggle-browser", label: "Browser view", group: "View", keywords: "web app page" },
 ]);
 
 function onPaletteSelect(id: string) {
@@ -374,7 +400,15 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 </script>
 
 <template>
-  <div class="app-shell">
+  <!-- Browser mode is a focus TAKEOVER: the scope strip and sidebar tuck
+       away (their grid row collapses), chat keeps the left, the page takes
+       the right. Closing restores every piece — nothing is torn down. -->
+  <div
+    class="app-shell"
+    :style="{
+      gridTemplateRows: browser.isOpen ? '40px 1fr 22px' : '40px 40px 1fr 22px',
+    }"
+  >
     <AppTitleBar
       :title="contextTitle"
       :presence-state="presenceState"
@@ -382,11 +416,13 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :theme="ui.theme"
       :sidebar-open="isSidebarOpen"
       :tasks-open="ui.isTasksPanelOpen"
+      :browser-open="browser.isOpen"
       :open-task-count="openTaskCount"
       @command="runCommand"
     />
 
     <AppTabStrip
+      v-if="!browser.isOpen"
       :tabs="ui.tabs"
       :active-tab-id="ui.activeTabId"
       :workspaces="workspaceOptions"
@@ -400,7 +436,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 
     <div class="app-body">
       <ResizablePanel
-        v-if="isSidebarOpen"
+        v-if="isSidebarOpen && !browser.isOpen"
         side="left"
         storage-key="vynel.sidebar.width"
         :default-width="240"
@@ -422,6 +458,17 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
              safely bind to its tab's shell for its whole lifetime. -->
         <RouterView :key="ui.activeTabId" />
       </main>
+
+      <ResizablePanel
+        v-if="browser.isOpen"
+        side="right"
+        storage-key="vynel.browser.width"
+        :default-width="640"
+        :min-width="380"
+        :max-width="1100"
+      >
+        <BrowserPanel />
+      </ResizablePanel>
     </div>
 
     <AppStatusBar
@@ -454,7 +501,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 <style scoped>
 .app-shell {
   display: grid;
-  grid-template-rows: 40px 40px 1fr 22px;
+  /* Rows come from the template binding — browser mode collapses the strip. */
   height: 100vh;
   background: var(--bg-shell);
   color: var(--ink-1);

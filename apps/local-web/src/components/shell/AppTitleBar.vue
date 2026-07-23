@@ -3,6 +3,7 @@ import { computed } from "vue";
 import {
   Command,
   FolderPlus,
+  Globe,
   ListChecks,
   Moon,
   PanelLeft,
@@ -29,6 +30,7 @@ const props = defineProps<{
   theme: "dark" | "light";
   sidebarOpen: boolean;
   tasksOpen: boolean;
+  browserOpen: boolean;
   openTaskCount: number;
 }>();
 
@@ -147,6 +149,18 @@ function onMenuCommand(id: string) {
       <PresenceDot :state="props.presenceState" :label="props.presenceLabel" />
       <span class="truncate text-xs text-ink-2">{{ props.title }}</span>
     </div>
+
+    <!-- The browser-view toggle — chat left, page right, chrome tucked away. -->
+    <button
+      type="button"
+      aria-label="Toggle browser view"
+      class="grid size-7 shrink-0 place-items-center self-center rounded-sm transition hover:bg-row-hover hover:text-ink-1"
+      :class="props.browserOpen ? 'bg-row-active text-ink-1' : 'text-ink-3'"
+      title="Browser view"
+      @click="emit('command', 'toggle-browser')"
+    >
+      <Globe :size="15" />
+    </button>
 
     <!-- The tasks dock toggle (Chad's right-side icon) — badge counts open work. -->
     <button

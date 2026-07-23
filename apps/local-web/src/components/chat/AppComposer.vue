@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { ChatComposer } from "@vynel/ui";
 import { SESSION_MODES } from "@vynel/session";
 import type { SessionMode } from "@vynel/session";
@@ -42,6 +42,19 @@ const ui = useUiStore();
 const draft = ref("");
 const dictation = useDictation(draft);
 const attachmentNotice = ref<string | null>(null);
+
+// One-shot seed from another surface (the browser view's "Ask Claude" note):
+// lands IN the draft for the user to review — never auto-sends. Appends
+// below anything already typed, and clears so it seeds exactly once.
+watch(
+  () => ui.composerSeed,
+  (seed) => {
+    if (seed === null) return;
+    draft.value = draft.value === "" ? seed : `${draft.value}\n${seed}`;
+    ui.composerSeed = null;
+  },
+  { immediate: true },
+);
 
 // The composer prop is mutable; the contract list is readonly — copy once.
 const modelOptions = [...CHAT_MODELS];
