@@ -94,55 +94,25 @@ describe("ConnectChannelDialog", () => {
     expect(dialog.textContent).toContain("Coming soon");
   });
 
-  it("selecting Zoom swaps in its five credential fields and connects with the full bag", async () => {
-    const { connectCalls } = makeHarness();
+  // test: correct expectation — Zoom was connectable when built, then PARKED
+  // (Chad, 2026-07-24: bot_notification isn't offered over WebSocket on his
+  // account; adapter kept, catalog flipped to available:false). Selecting it
+  // must be a no-op until it's unparked.
+  it("Zoom is parked: shown as coming soon and not selectable", async () => {
+    makeHarness();
     await flushPromises();
 
     const dialog = dialogElement();
-    [...dialog.querySelectorAll("button")]
-      .find((b) => b.textContent?.includes("Zoom"))!
-      .click();
-    await flushPromises();
+    const zoomCard = [...dialog.querySelectorAll("[aria-disabled]")].find((el) =>
+      el.textContent?.includes("Zoom"),
+    );
+    expect(zoomCard).toBeDefined();
 
-    // Name reseeds for the kind; the sender field (Telegram-only) is gone.
+    // Clicking an unavailable card changes nothing — Telegram stays selected.
+    (zoomCard as HTMLElement).click();
+    await flushPromises();
     const nameInput = dialog.querySelector<HTMLInputElement>('input[maxlength="120"]')!;
-    expect(nameInput.value).toBe("My Zoom");
-    expect(dialog.textContent).not.toContain("Telegram user ID");
-
-    // Account ID stays EMPTY — it's optional (auto-detected from the token).
-    const values: Record<string, string> = {
-      "Client ID": "cid",
-      "Client secret": "shh",
-      "Bot JID": "bot@xmpp.zoom.us",
-      "Event subscription ID": "sub-1",
-    };
-    for (const label of Object.keys(values)) {
-      const labelElement = [...dialog.querySelectorAll("label")].find((l) =>
-        l.textContent?.includes(label),
-      )!;
-      const input = labelElement.querySelector("input")!;
-      input.value = values[label]!;
-      input.dispatchEvent(new Event("input"));
-    }
-    await flushPromises();
-
-    [...dialog.querySelectorAll("button")]
-      .forEach((b) => b.textContent === "Connect" && b.click());
-    await flushPromises();
-
-    // The empty optional field is OMITTED from the bag, not sent as "".
-    expect(connectCalls).toEqual([
-      {
-        scope: "global",
-        channelKind: "zoom",
-        displayName: "My Zoom",
-        botCredentials: {
-          clientId: "cid",
-          clientSecret: "shh",
-          botJid: "bot@xmpp.zoom.us",
-          subscriptionId: "sub-1",
-        },
-      },
-    ]);
+    expect(nameInput.value).toBe("My Telegram");
+    expect(dialog.textContent).toContain("Bot token");
   });
 });

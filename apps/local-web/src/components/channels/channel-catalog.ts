@@ -54,10 +54,14 @@ export const CHANNEL_CATALOG: Record<ChannelKind, ChannelCatalogEntry> = {
   },
   zoom: {
     label: "Zoom",
-    tagline: "Team Chat, no public URL needed",
+    tagline: "Coming soon",
     connectHint:
       "Create a General App on marketplace.zoom.us: Features → Surface → enable Zoom Chat + Chat Subscription (gives the Bot JID), scope imchat:bot, and an Event Subscription in WebSocket mode (its wss:// URL carries the subscription ID). Your Account ID is detected automatically. Values stay on this computer.",
-    available: true,
+    // PARKED (Chad, 2026-07-24): the adapter + pipeline are fully built, but
+    // Zoom's event subscriptions on his account don't offer bot_notification
+    // over WebSocket (wire-verified — docs/module-notes/channels-zoom.md
+    // "parked" section). Flip to true to resume; everything else is ready.
+    available: false,
     defaultName: "My Zoom",
     credentialFields: [
       { key: "clientId", label: "Client ID", placeholder: "from App Credentials" },

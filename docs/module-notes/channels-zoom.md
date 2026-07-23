@@ -117,6 +117,27 @@ credential keys; the socket entry is now created AFTER the first token grant (id
 the resolved id). Catalog: the field is last, optional, labeled auto-detected; the connect
 dialog omits empty optional fields from the bag (`optional` on ChannelCredentialField).
 
+### PARKED (Chad, 2026-07-24) — wire-verified: no bot events over WS on his account
+
+Live debugging with a sole-listener wire probe (the app's channel paused — **Zoom allows ONE
+consumer per subscription id**; a second connect kicks the first with "Connected in another
+place") established, empirically:
+- Token grant + WebSocket + `build_connection` all work; the chatbot token's claims are
+  `{aud, uid, ver, auid, nbf, iss, gno, exp, type:2, iat}` — **no `aid`** (fix round 3's
+  learn-from-notification design confirmed necessary).
+- **The Event Types catalog on Chad's account does NOT offer `bot_notification`** (searching
+  "bot" yields only Team Chat Channel Chatbot Added/Removed membership events). 32 account
+  chat events (Chat Message ×4 + Team Chat ×28) subscribed → messaging produced ZERO frames.
+- Remaining unknown: the app's Local Test/authorization state (was "Not ready"); an
+  unauthorized app emits nothing regardless. Chad chose to park rather than continue
+  console archaeology.
+
+**Decision: catalog `zoom.available = false` ("Coming soon") — ONE flag. Adapter, unions,
+routes, tests, learn-account-id machinery all stay live and green. His connected Zoom channel
+row remains, PAUSED (disabled via API during probing). To resume: authorize the app (Local
+Test → Add), re-probe for the actual event name, adapt `zoom-event-socket` if it's a
+`chat_message.*` shape, flip the flag.**
+
 ### Recorded follow-ups (zoom)
 
 - Interactive messages (buttons) + `interactive_message_actions` → approval cards with taps.

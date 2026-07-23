@@ -3,7 +3,30 @@
 **Updated 2026-07-23.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-23 round 6): ZOOM CHANNEL SHIPPED — gate GREEN 569f/3119t, reviewed CLEAN (2 should-fixes FOLDED); groups arc CONFIRMED live by Chad (real traffic) + group-command fix `0c198fb`; NEXT: CHAD ZOOM SMOKE (below)
+## ⏭ NEXT ACTION (2026-07-24): ZOOM PARKED ("coming soon", ONE catalog flag) after live wire-debugging — Chad's call; TELEGRAM (DM + groups) fully live and confirmed; NEXT: whatever Chad opens (channels arc is CLOSED for now)
+
+**The Zoom connect attempt became a live debugging session (full findings in
+docs/module-notes/channels-zoom.md "PARKED" section): connect succeeded (after fix rounds 2+3
+— accountId auto-detect via token `aid` FAILED empirically, the chatbot token has NO aid claim
+→ replaced with LEARN-from-bot_notification `57a8cf9`, verified necessary by wire-captured
+token claims) but NO events ever arrived. Sole-listener wire probe (app channel paused —
+**Zoom = ONE consumer per subscription id**, second connect kicks first) proved:
+`bot_notification` is NOT in his account's Event Types catalog (only chatbot Added/Removed
+membership events); 32 subscribed account chat events produced ZERO frames on messaging;
+Local Test/authorization was possibly never completed ("Not ready"). Chad: "keep the code,
+comment zoom out".**
+- **The park = `zoom.available: false`** in channel-catalog.ts (renders "Coming soon" like
+  discord, not selectable — dialog test recast with the spec-change comment). EVERYTHING else
+  stays live + green: adapter (+learn-account-id), unions, routes, SDK, tests. His Zoom
+  channel row remains, PAUSED (disabled via local API during probing).
+- **To UNPARK: authorize the app (Local Test → Add) → re-run the sole-listener probe
+  (.data/zoom-probe.cjs pattern in git history / notes) → read the ACTUAL event name+payload →
+  adapt zoom-event-socket if it's chat_message.* shaped → flip the flag.**
+**Channels arc summary (this session, all pushed): channels UI+manage `16517e7` · groups
+`7aecbac`+`ede06eb`(privacy-mode discovery fix)+`0c198fb`(group /cmd fix) — CONFIRMED live
+with real Telegram traffic · zoom `425e895`+`ef8a4a2`+`57a8cf9`+the park.**
+
+## (prev) ⏭ NEXT ACTION (2026-07-23 round 6): ZOOM CHANNEL SHIPPED — gate GREEN 569f/3119t, reviewed CLEAN (2 should-fixes FOLDED); groups arc CONFIRMED live by Chad (real traffic) + group-command fix `0c198fb`; NEXT: CHAD ZOOM SMOKE (below)
 
 **Chad: "We can start zoom" (after live-confirming groups). Built per
 docs/module-notes/channels-zoom.md (As-built + Review-folds sections are the truth):**
