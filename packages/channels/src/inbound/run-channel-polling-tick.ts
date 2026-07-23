@@ -249,7 +249,9 @@ export async function runChannelPollingTick(
             chatContextTitle: message.chatContextTitle,
           }),
           // Non-allowed senders are stored as 'ignored' for the audit trail.
-          intentKind: isAllowed ? deriveIntentKind(message.messageBody) : 'ignored',
+          intentKind: isAllowed
+            ? deriveIntentKind(message.messageBody, message.chatContextKind)
+            : 'ignored',
           routedToChatSessionId: null,
           routedToApprovalRequestId: null,
           status: isAllowed ? 'pending' : 'ignored',

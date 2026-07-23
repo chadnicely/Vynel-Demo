@@ -117,6 +117,11 @@ Fix (root cause, not patch):
   event-time `firstSeenAt` ever matters (today: tick-time, drift ≤ one poll).
 - Bare `/plan` (suffix-less) is NOT addressed by design (multi-bot rooms); the dialog copy
   teaches the `/cmd@bot` form.
+- **Chad's live confirm (2026-07-23) caught the last wart, folded same day**: a group
+  `/ask@bot …` classified `channel-command` → the Phase-1.5 NO-OP swallowed it silently
+  while the dialog copy TAUGHT that form. `deriveIntentKind` now takes `chatContextKind` —
+  in a group a slash command is addressed speech (`chat-turn`); DM commands + approval
+  keywords unchanged.
 - `user-scoped.ts` is 482 lines (Hono single-chain constraint; longest offender — split if the
   chain ever allows).
 - Zoom adapter arc consumes this model as-is (docs/module-notes/channels-zoom.md).

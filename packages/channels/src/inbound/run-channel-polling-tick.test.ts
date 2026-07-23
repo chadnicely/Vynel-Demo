@@ -263,6 +263,9 @@ describe('runChannelPollingTick', () => {
             // room's approval is the permission under 'everyone'.
             groupInbound({ externalMessageId: 'g-hit', externalSenderId: '999' }),
             groupInbound({ externalMessageId: 'g-chatter', isBotMentioned: false }),
+            // An addressed /command — in a group it's speech, not the
+            // channel-command no-op (silence would be the bug).
+            groupInbound({ externalMessageId: 'g-cmd', messageBody: '/ask@bot what is up' }),
           ],
           nextCursor: '13',
         }),
@@ -270,12 +273,13 @@ describe('runChannelPollingTick', () => {
       await runChannelPollingTick(db)
 
       const rows = listInboundMessagesForChannel(db, channel.id, {})
-      expect(rows).toHaveLength(1)
-      expect(rows[0]?.externalMessageId).toBe('g-hit')
-      expect(rows[0]?.status).toBe('pending')
-      expect(rows[0]?.intentKind).toBe('chat-turn')
+      expect(rows).toHaveLength(2)
+      const byId = new Map(rows.map((r) => [r.externalMessageId, r]))
+      expect(byId.get('g-hit')?.status).toBe('pending')
+      expect(byId.get('g-hit')?.intentKind).toBe('chat-turn')
+      expect(byId.get('g-cmd')?.intentKind).toBe('chat-turn')
       // Sender + room facts ride the metadata for the routing slice.
-      const metadata = JSON.parse(rows[0]!.messageMetadata) as Record<string, unknown>
+      const metadata = JSON.parse(byId.get('g-hit')!.messageMetadata) as Record<string, unknown>
       expect(metadata.chatContextKind).toBe('group')
       expect(metadata.chatContextTitle).toBe('Marketing Team')
       expect(metadata.senderDisplayName).toBe('Owner')
