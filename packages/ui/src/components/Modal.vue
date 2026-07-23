@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onUnmounted, watch } from "vue";
 import {
   DialogClose,
   DialogContent,
@@ -9,6 +10,7 @@ import {
   DialogTitle,
   VisuallyHidden,
 } from "reka-ui";
+import { reportModalOpenChange } from "./modal-registry.js";
 
 // One accessible modal base (focus-trap, Esc, scroll-lock, backdrop — all from
 // Reka's Dialog). Replaces the per-dialog Teleport/backdrop copy-paste. Body is
@@ -24,6 +26,16 @@ const props = withDefaults(
 );
 
 const open = defineModel<boolean>("open", { required: true });
+
+// Every open/close reports to the shared registry (see modal-registry.ts) —
+// a mounted-open modal counts too, and unmounting while open balances out.
+if (open.value) reportModalOpenChange(true);
+watch(open, (isOpen, wasOpen) => {
+  if (isOpen !== wasOpen) reportModalOpenChange(isOpen);
+});
+onUnmounted(() => {
+  if (open.value) reportModalOpenChange(false);
+});
 
 const sizeClass: Record<NonNullable<typeof props.size>, string> = {
   sm: "max-w-sm",

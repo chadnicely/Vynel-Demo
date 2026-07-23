@@ -29,6 +29,7 @@ export type {
 } from "./components/AgentActivityPane.vue";
 export { deriveSettledAgentActivity } from "./tool-cards/subagent-activity.js";
 export { describeDesktopStep } from "./tool-cards/desktop-step-presenter.js";
+export { useOpenModalCount } from "./components/modal-registry.js";
 export { default as Tooltip } from "./components/Tooltip.vue";
 export { default as VoiceOrb } from "./components/VoiceOrb.vue";
 export { default as WorkspaceColorSwatches } from "./components/WorkspaceColorSwatches.vue";

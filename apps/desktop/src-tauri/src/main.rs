@@ -6,6 +6,7 @@
 
 use tauri::Manager;
 
+mod browser;
 mod daemon;
 mod windows;
 
@@ -16,6 +17,13 @@ fn main() {
     let jarvis_only = std::env::args().any(|arg| arg == "--jarvis-only");
 
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            browser::browser_open,
+            browser::browser_navigate,
+            browser::browser_set_bounds,
+            browser::browser_set_visible,
+            browser::browser_close,
+        ])
         .setup(move |app| {
             let handle = app.handle().clone();
             if cfg!(debug_assertions) {

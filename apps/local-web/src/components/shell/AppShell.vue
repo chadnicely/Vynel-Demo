@@ -21,7 +21,7 @@ import {
   UserRound,
   Wrench,
 } from "lucide-vue-next";
-import { CommandPalette, ResizablePanel } from "@vynel/ui";
+import { CommandPalette, ResizablePanel, useOpenModalCount } from "@vynel/ui";
 import type { CommandItem } from "@vynel/ui";
 import AppTitleBar from "./AppTitleBar.vue";
 import AppTabStrip from "./AppTabStrip.vue";
@@ -43,6 +43,7 @@ import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
+import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
@@ -282,6 +283,28 @@ watch(
   },
 );
 
+// The native page webview draws above ALL HTML — whenever a shell overlay is
+// up, the page yields so the overlay is actually visible. Every Modal-based
+// dialog (ask wizard, plan review, create-workspace, task dialogs…) reports
+// through the shared registry; the non-Modal overlays (palette, voice,
+// monitor, the menu bar's dropdowns) are wired explicitly. Toasts don't hide
+// the page; they dock left instead.
+const activityMonitor = useActivityMonitorStore();
+const openModalCount = useOpenModalCount();
+const areTitleBarMenusOpen = ref(false);
+watch(
+  () =>
+    isPaletteOpen.value ||
+    ui.isVoiceOverlayOpen ||
+    activityMonitor.isOpen ||
+    openModalCount.value > 0 ||
+    areTitleBarMenusOpen.value,
+  (overlayUp) => {
+    browser.isObscured = overlayUp;
+  },
+  { immediate: true },
+);
+
 function onWorkspaceCreated(workspace: WorkspaceResponse) {
   isCreateWorkspaceOpen.value = false;
   addTab(workspace.id);
@@ -419,6 +442,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :browser-open="browser.isOpen"
       :open-task-count="openTaskCount"
       @command="runCommand"
+      @menus-open="areTitleBarMenusOpen = $event"
     />
 
     <AppTabStrip

@@ -31,6 +31,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   icon showing what it affects. The old Assistant and Go menus are gone; everything they
   held still lives in the command palette (⌘K), the tab strip, and the sidebar.
 
+- **The browser view now loads ANY site on desktop.** The first version used an embedded
+  frame, which many sites (Google included) refuse to appear in. On the desktop app the
+  page now renders in a real native web view — google.com, docs, dashboards, anything —
+  while chat stays on the left. Approval cards and questions dock on the chat side while
+  the browser is open, so nothing important can hide behind a web page.
+
 - **Browser view — see your app next to the conversation.** A new globe button in the
   title bar opens a lightweight browser: your chat stays on the left, the page on the
   right, and the rest of the chrome tucks away until you close it. Hit `+` to open one of

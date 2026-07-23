@@ -4,11 +4,15 @@ import { ApprovalCard } from "@vynel/ui";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
 import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
+import { useBrowserStore } from "../../stores/browser-store.js";
 
 // Approvals are notifications (Chad's directive): whatever view is open, a
 // pending approval slides in here, decidable on the spot. Polls the REAL
-// approvals API — this surface is live end-to-end today.
+// approvals API — this surface is live end-to-end today. In browser mode
+// the toasts dock LEFT over the chat — the right side is the native page
+// webview, which draws above all HTML and would swallow them.
 const MAX_VISIBLE = 3;
+const browser = useBrowserStore();
 
 const pendingQuery = usePendingApprovals();
 const decideApproval = useDecideApproval();
@@ -42,7 +46,11 @@ function decide(providerApprovalId: string, kind: "approved" | "denied") {
 </script>
 
 <template>
-  <div class="approval-notifier" aria-live="polite">
+  <div
+    class="approval-notifier"
+    :class="{ 'dock-start': browser.isOpen }"
+    aria-live="polite"
+  >
     <TransitionGroup name="toast">
       <ApprovalCard
         v-for="approval in visible"
@@ -77,6 +85,13 @@ function decide(providerApprovalId: string, kind: "approved" | "denied") {
   gap: 8px;
   align-content: end;
   pointer-events: none;
+}
+
+/* Browser mode: the native page webview owns the right side and draws above
+   all HTML — the toasts dock left, over the chat, so they stay decidable. */
+.dock-start {
+  right: auto;
+  left: 14px;
 }
 
 .toast {

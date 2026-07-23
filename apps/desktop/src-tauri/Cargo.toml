@@ -10,4 +10,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# `unstable` unlocks multiwebview (Window::add_child) — the embedded browser
+# is a native child webview, because an <iframe> obeys X-Frame-Options and
+# most real sites refuse to embed.
+tauri = { version = "2", features = ["unstable"] }

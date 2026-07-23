@@ -24,6 +24,26 @@ a later phase.
   hosts the panel; closing restores everything (pure v-if/state).
 - `useWorkspaceApps` now accepts a null workspaceId (query idle) — the Global tab has no apps.
 
+## Native webview round (same day)
+
+Chad hit the iframe wall immediately — google.com renders blank (X-Frame-Options). "As it's
+a desktop app, yes that's what I asked to implement." So the page now renders in a NATIVE
+Tauri child webview on desktop; the iframe stays as the browser-dev fallback.
+
+- **Rust** (`apps/desktop/src-tauri/src/browser.rs`, first real commands in the thin shell):
+  `browser_open` (idempotent create-or-navigate at logical bounds) / `navigate` /
+  `set_bounds` / `set_visible` / `close`, child webview `embedded-browser` on the main
+  window; `tauri` gains the `unstable` feature (multiwebview). Hard guard in Rust too:
+  http(s) only.
+- **`use-embedded-browser.ts`** — the withGlobalTauri seam (no npm dep, no-op in a plain
+  browser, mirrors `use-window-controls`): glues the webview to the viewport div's rect
+  (CSS px = logical px) via ResizeObserver; tracks url + obscured; closes on unmount.
+- **Z-order discipline** — a native webview draws above ALL HTML. Shell overlays (palette,
+  dialogs, voice, activity monitor) and the panel's own dropdowns report into
+  `browser.isObscured` → the page hides while they're up. Approval/Ask toasts instead DOCK
+  LEFT over the chat in browser mode (`.dock-start`) — an approval card must never be
+  invisible behind a web page.
+
 ## Learnings
 
 - The apps feature already carried everything the browser needed (`port` → localhost URL,

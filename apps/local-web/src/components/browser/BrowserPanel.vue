@@ -13,6 +13,7 @@ import type { MenuItemModel } from "@vynel/ui";
 import { useBrowserStore } from "../../stores/browser-store.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import { useWorkspaceApps } from "../../composables/workspace-apps/use-workspace-apps.js";
+import { useEmbeddedBrowser } from "../../composables/browser/use-embedded-browser.js";
 
 // The lightweight browser panel (right side of browser mode): small page
 // tabs, an address bar, and the page in a sandboxed iframe. `+` offers the
@@ -108,9 +109,48 @@ function hostOf(url: string): string {
   }
 }
 
+// ── The page surface. Desktop: a NATIVE child webview glued to the viewport
+// div (real sites refuse iframes; a native webview loads anything). Browser
+// dev: the sandboxed iframe fallback below. ──
+const native = useEmbeddedBrowser();
+
+watch(
+  () => (browser.isOpen ? (browser.activeTab?.url ?? "") : ""),
+  (url) => {
+    if (!native.isNative) return;
+    if (url === "") native.hide();
+    // Waits a tick so a freshly-mounted viewport div has real bounds.
+    else void nextTick(() => native.show(url));
+  },
+  { immediate: true },
+);
+
+// The panel's own dropdowns portal OVER the page area — count them as
+// obscuring, along with whatever the shell reports (palette, dialogs).
+const openPanelMenuCount = ref(0);
+
+function onMenuOpenChange(open: boolean) {
+  openPanelMenuCount.value += open ? 1 : -1;
+}
+
+watch(
+  () => browser.isObscured || openPanelMenuCount.value > 0,
+  (obscured) => native.setObscured(obscured),
+  { immediate: true },
+);
+
 // Bumping the key remounts the iframe — the only reload a cross-origin
-// frame allows us.
+// frame allows us. Native reload = re-show (navigates in place).
 const reloadCount = ref(0);
+
+function reloadPage() {
+  if (native.isNative) {
+    const url = browser.activeTab?.url ?? "";
+    if (url !== "") native.show(url);
+    return;
+  }
+  reloadCount.value += 1;
+}
 
 // ── "Ask Claude" — the note lands in the LEFT chat's composer as a draft. ──
 const isNoteOpen = ref(false);
@@ -164,7 +204,12 @@ function sendNote() {
         </button>
       </div>
 
-      <DropdownMenu :items="addMenu" align="start" @select="onAddMenuSelect">
+      <DropdownMenu
+        :items="addMenu"
+        align="start"
+        @select="onAddMenuSelect"
+        @update:open="onMenuOpenChange"
+      >
         <template #trigger>
           <button
             type="button"
@@ -189,7 +234,7 @@ function sendNote() {
       v-if="browser.activeTab !== null"
       class="flex h-10 shrink-0 items-center gap-1.5 border-b border-hair px-2"
     >
-      <IconButton label="Reload page" @click="reloadCount += 1">
+      <IconButton label="Reload page" @click="reloadPage">
         <RotateCw :size="14" />
       </IconButton>
       <form class="min-w-0 flex-1" @submit.prevent="onAddressSubmit">
@@ -269,6 +314,15 @@ function sendNote() {
           <Globe :size="22" />
         </template>
       </EmptyState>
+      <!-- Desktop: the native webview renders OVER this surface, glued to
+           its rectangle; the div is the measuring stick (and what shows in
+           the beat while an overlay hides the page). -->
+      <div
+        v-else-if="native.isNative"
+        :ref="(el) => (native.viewport.value = el as HTMLElement | null)"
+        class="h-full w-full"
+        data-testid="native-page-viewport"
+      />
       <iframe
         v-else
         :key="`${browser.activeTab.id}:${reloadCount}`"

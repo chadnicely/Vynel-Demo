@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import {
   Command,
   FolderPlus,
@@ -36,9 +36,18 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   command: [id: string];
+  /** True while any menu-bar dropdown is open — the shell's native browser
+   *  webview yields, since portaled menu content can reach the page area. */
+  "menus-open": [open: boolean];
 }>();
 
 const controls = useWindowControls();
+
+const openMenuCount = ref(0);
+function onMenuOpenChange(open: boolean) {
+  openMenuCount.value = Math.max(0, openMenuCount.value + (open ? 1 : -1));
+  emit("menus-open", openMenuCount.value > 0);
+}
 
 // Two menus only (Chad's cleanup, 2026-07-24): Vynel = the app (create,
 // settings, account, quit); View = how the window looks, each row wearing an
@@ -129,6 +138,7 @@ function onMenuCommand(id: string) {
         align="start"
         @select="onMenuCommand"
         @toggle="(id) => emit('command', id)"
+        @update:open="onMenuOpenChange"
       >
         <template #trigger>
           <button

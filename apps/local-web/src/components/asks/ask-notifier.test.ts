@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
+import { createPinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import type { VynelClient } from "@vynel/sdk";
@@ -44,6 +45,8 @@ function makeHarness(asks: AskRequestResponse[] = [PENDING_ASK]) {
   const wrapper = mount(AskNotifier, {
     global: {
       plugins: [
+        // The notifier reads the browser store (to dock left in browser mode).
+        createPinia(),
         [
           VueQueryPlugin,
           {

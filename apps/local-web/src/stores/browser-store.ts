@@ -31,6 +31,10 @@ function safeTabUrl(raw: string): string {
 // the view restores the shell untouched, and a fresh session starts clean.
 export const useBrowserStore = defineStore("browser", () => {
   const isOpen = ref(false);
+  // Shell overlays (palette, dialogs, monitor) draw UNDER a native page
+  // webview — while one is up, the page yields. The shell reports here; the
+  // panel relays it to the desktop seam.
+  const isObscured = ref(false);
   const tabs = ref<BrowserTab[]>([]);
   const activeTabId = ref<string | null>(null);
 
@@ -95,6 +99,7 @@ export const useBrowserStore = defineStore("browser", () => {
 
   return {
     isOpen,
+    isObscured,
     tabs,
     activeTabId,
     activeTab,

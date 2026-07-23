@@ -5,10 +5,12 @@ import { usePendingAsks } from "../../composables/asks/use-pending-asks.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
 import { useDismissAsk } from "../../composables/asks/use-dismiss-ask.js";
 import AskWizardDialog from "./AskWizardDialog.vue";
+import { useBrowserStore } from "../../stores/browser-store.js";
 
 // Asks surface like approvals (the notifier precedent): whatever view is
 // open, the newest pending ask slides in bottom-right, answerable on the
 // spot. One card at a time — v1 keeps concurrent asks as a "+N more" note.
+const browser = useBrowserStore();
 const pendingQuery = usePendingAsks();
 const approvalsQuery = usePendingApprovals();
 const dismissAsk = useDismissAsk();
@@ -48,7 +50,10 @@ function dismiss() {
 <template>
   <div
     class="ask-notifier"
-    :class="{ 'beside-approvals': besideApprovals }"
+    :class="{
+      'beside-approvals': besideApprovals,
+      'dock-start': browser.isOpen,
+    }"
     aria-live="polite"
   >
     <Transition name="toast">
@@ -114,6 +119,18 @@ function dismiss() {
 
 .beside-approvals {
   right: 366px;
+}
+
+/* Browser mode: dock left over the chat (the native page webview owns the
+   right and draws above all HTML). Beside-approvals flips with it. */
+.dock-start {
+  right: auto;
+  left: 14px;
+}
+
+.dock-start.beside-approvals {
+  right: auto;
+  left: 366px;
 }
 
 .toast {
