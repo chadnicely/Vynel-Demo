@@ -80,7 +80,9 @@ const canConnect = computed(
   () =>
     displayName.value.trim().length > 0 &&
     entry.value.credentialFields.every(
-      (field) => (credentialValues.value[field.key] ?? "").trim().length > 0,
+      (field) =>
+        field.optional === true ||
+        (credentialValues.value[field.key] ?? "").trim().length > 0,
     ) &&
     !connectChannel.isPending.value,
 );
@@ -93,11 +95,12 @@ const errorMessage = computed(() =>
 
 function connect() {
   if (!canConnect.value) return;
+  // Optional fields left empty stay OUT of the bag (the adapter treats a
+  // present value as an explicit override).
   const botCredentials = Object.fromEntries(
-    entry.value.credentialFields.map((field) => [
-      field.key,
-      (credentialValues.value[field.key] ?? "").trim(),
-    ]),
+    entry.value.credentialFields
+      .map((field) => [field.key, (credentialValues.value[field.key] ?? "").trim()])
+      .filter(([, value]) => value !== ""),
   );
   const senderId = allowedSenderId.value.trim();
   const shared = {

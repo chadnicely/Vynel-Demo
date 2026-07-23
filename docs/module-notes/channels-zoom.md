@@ -94,6 +94,17 @@ credential rotation staleness (socket identity + send-token cache refresh on exp
 on rotation) · same-millisecond synthetic-id collision (unreachable in practice) · the ws
 double-cast at the factory seam · edits render markdown literally (matches telegram edit).
 
+### Fix round 2 (2026-07-23, Chad's setup): Account ID auto-detected
+
+**Chad couldn't find the Account ID anywhere in Zoom's console (it barely surfaces it). Root
+fix: nobody should have to.** Zoom access tokens are JWTs whose payload carries the account id
+as the `aid` claim — `fetchZoomAccessToken` now decodes it (best-effort, never throws), the
+adapter's `resolveAccountId` prefers a typed value and falls back to the claim, and an
+underivable id fails verify with an actionable message. `accountId` dropped from the REQUIRED
+credential keys; the socket entry is now created AFTER the first token grant (identity needs
+the resolved id). Catalog: the field is last, optional, labeled auto-detected; the connect
+dialog omits empty optional fields from the bag (`optional` on ChannelCredentialField).
+
 ### Recorded follow-ups (zoom)
 
 - Interactive messages (buttons) + `interactive_message_actions` → approval cards with taps.

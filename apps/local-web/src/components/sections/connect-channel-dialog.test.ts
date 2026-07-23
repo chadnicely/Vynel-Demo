@@ -109,11 +109,11 @@ describe("ConnectChannelDialog", () => {
     expect(nameInput.value).toBe("My Zoom");
     expect(dialog.textContent).not.toContain("Telegram user ID");
 
+    // Account ID stays EMPTY — it's optional (auto-detected from the token).
     const values: Record<string, string> = {
       "Client ID": "cid",
       "Client secret": "shh",
       "Bot JID": "bot@xmpp.zoom.us",
-      "Account ID": "acc-1",
       "Event subscription ID": "sub-1",
     };
     for (const label of Object.keys(values)) {
@@ -130,6 +130,7 @@ describe("ConnectChannelDialog", () => {
       .forEach((b) => b.textContent === "Connect" && b.click());
     await flushPromises();
 
+    // The empty optional field is OMITTED from the bag, not sent as "".
     expect(connectCalls).toEqual([
       {
         scope: "global",
@@ -139,7 +140,6 @@ describe("ConnectChannelDialog", () => {
           clientId: "cid",
           clientSecret: "shh",
           botJid: "bot@xmpp.zoom.us",
-          accountId: "acc-1",
           subscriptionId: "sub-1",
         },
       },

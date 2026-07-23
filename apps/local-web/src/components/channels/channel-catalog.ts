@@ -16,6 +16,8 @@ export interface ChannelCredentialField {
   placeholder?: string;
   /** Render as a password input (never echoed). */
   secret?: boolean;
+  /** Connect doesn't require it; left empty it's omitted from the bag. */
+  optional?: boolean;
 }
 
 export interface ChannelCatalogEntry {
@@ -54,15 +56,15 @@ export const CHANNEL_CATALOG: Record<ChannelKind, ChannelCatalogEntry> = {
     label: "Zoom",
     tagline: "Team Chat, no public URL needed",
     connectHint:
-      "Create a Team Chat app on marketplace.zoom.us with the imchat:bot scope, set its Event Subscription to WebSocket mode, then copy these five values from the app's Credentials and Features pages. They stay on this computer.",
+      "Create a General App on marketplace.zoom.us: Features → Surface → enable Zoom Chat + Chat Subscription (gives the Bot JID), scope imchat:bot, and an Event Subscription in WebSocket mode (its wss:// URL carries the subscription ID). Your Account ID is detected automatically. Values stay on this computer.",
     available: true,
     defaultName: "My Zoom",
     credentialFields: [
       { key: "clientId", label: "Client ID", placeholder: "from App Credentials" },
       { key: "clientSecret", label: "Client secret", secret: true },
       { key: "botJid", label: "Bot JID", placeholder: "…@xmpp.zoom.us" },
-      { key: "accountId", label: "Account ID" },
-      { key: "subscriptionId", label: "Event subscription ID", placeholder: "from Features → Event Subscriptions" },
+      { key: "subscriptionId", label: "Event subscription ID", placeholder: "from Features → Access → Event Subscriptions" },
+      { key: "accountId", label: "Account ID (auto-detected — leave empty)", optional: true },
     ],
     // Zoom sender JIDs aren't user-knowable upfront — senders are added
     // from the Manage dialog after their first message.

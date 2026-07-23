@@ -14,6 +14,11 @@ export interface ZoomAccessToken {
   /** Epoch ms when the token stops being trusted (issued lifetime ~1h;
    *  callers refresh ahead of this). */
   expiresAtMs: number
+  /** The account the app belongs to, decoded from the token's `aid` JWT
+   *  claim — Zoom's console barely surfaces the Account ID, so the adapter
+   *  detects it instead of making the user hunt for it. Null when the
+   *  token isn't a decodable JWT (fall back to a user-supplied value). */
+  accountId: string | null
 }
 
 // Refresh 5 minutes before the announced expiry — the OpenClaw-precedent
@@ -40,6 +45,22 @@ export async function fetchZoomAccessToken(
   return {
     accessToken: body.access_token,
     expiresAtMs: Date.now() + Math.max(lifetimeMs - TOKEN_REFRESH_MARGIN_MS, 60_000),
+    accountId: decodeTokenAccountId(body.access_token),
+  }
+}
+
+// Zoom access tokens are JWTs; the payload's `aid` claim is the account id.
+// Best-effort by design — any malformed shape reads as null, never a throw.
+function decodeTokenAccountId(accessToken: string): string | null {
+  const segments = accessToken.split('.')
+  if (segments.length < 2) return null
+  try {
+    const payload = JSON.parse(
+      Buffer.from(segments[1]!, 'base64url').toString('utf8'),
+    ) as Record<string, unknown>
+    return typeof payload.aid === 'string' && payload.aid !== '' ? payload.aid : null
+  } catch {
+    return null
   }
 }
 

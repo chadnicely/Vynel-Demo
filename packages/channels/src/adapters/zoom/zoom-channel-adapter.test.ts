@@ -7,12 +7,18 @@ import { ZoomChannelAdapter } from './zoom-channel-adapter.js'
 import { normalizeBotNotification, ZOOM_SOCKET_OPEN } from './zoom-event-socket.js'
 import type { ZoomSocket } from './zoom-event-socket.js'
 
+// No accountId — the adapter detects it from the token's `aid` claim (the
+// console barely surfaces it; a typed value is only an override).
 const credentials = {
   clientId: 'cid',
   clientSecret: 'shh-secret',
   botJid: 'v1robot@xmpp.zoom.us',
-  accountId: 'acc-1',
   subscriptionId: 'sub-1',
+}
+
+// A JWT-shaped access token whose payload carries the account id claim.
+function fakeJwt(aid = 'acc-1'): string {
+  return `head.${Buffer.from(JSON.stringify({ aid })).toString('base64url')}.sig`
 }
 
 class FakeZoomSocket implements ZoomSocket {
@@ -43,7 +49,7 @@ class FakeZoomSocket implements ZoomSocket {
   }
 }
 
-function tokenResponse(token = 'tok-1'): Response {
+function tokenResponse(token = fakeJwt()): Response {
   return new Response(JSON.stringify({ access_token: token, expires_in: 3600 }), { status: 200 })
 }
 
@@ -99,6 +105,41 @@ describe('ZoomChannelAdapter', () => {
     }
   })
 
+  it('a typed accountId OVERRIDES the token claim; an underivable one fails actionably', async () => {
+    const overrideCalls: { url: string; init: RequestInit }[] = []
+    const overrideFetch = vi.fn(async (url: string, init?: RequestInit) => {
+      overrideCalls.push({ url, init: init ?? {} })
+      if (url.includes('oauth/token')) return tokenResponse()
+      return new Response(JSON.stringify({ message_id: 'zm-1' }), { status: 200 })
+    })
+    const adapter = new ZoomChannelAdapter(
+      overrideFetch as unknown as typeof fetch,
+      () => new FakeZoomSocket('unused'),
+    )
+    await adapter.sendMessage({
+      botCredentials: { ...credentials, accountId: 'acc-typed' },
+      recipientId: 'u@x',
+      chatContextId: 'u@x',
+      messageBody: 'hi',
+      messageStructure: {},
+    })
+    const send = overrideCalls.find((c) => c.url.includes('/im/chat/messages'))!
+    expect((JSON.parse(String(send.init.body)) as { account_id: string }).account_id).toBe(
+      'acc-typed',
+    )
+
+    // Opaque (non-JWT) token + nothing typed → a clear, actionable invalid.
+    const opaque = new ZoomChannelAdapter(
+      vi.fn(async () => tokenResponse('opaque-token')) as unknown as typeof fetch,
+      () => new FakeZoomSocket('unused'),
+    )
+    const result = await opaque.verifyCredentials({ botCredentials: credentials })
+    expect(result.kind).toBe('invalid')
+    if (result.kind === 'invalid') {
+      expect(result.reasonMessage).toContain('Account ID')
+    }
+  })
+
   it('missing credential keys are rejected before any network call', async () => {
     const { adapter, fetchFn } = makeHarness()
     const result = await adapter.verifyCredentials({
@@ -118,7 +159,7 @@ describe('ZoomChannelAdapter', () => {
     expect(first.messages).toHaveLength(0)
     expect(sockets).toHaveLength(1)
     expect(sockets[0]!.url).toContain('subscriptionId=sub-1')
-    expect(sockets[0]!.url).toContain('access_token=tok-1')
+    expect(sockets[0]!.url).toContain('access_token=head.')
 
     sockets[0]!.emit(
       'message',
@@ -188,7 +229,7 @@ describe('ZoomChannelAdapter', () => {
     const calls: { url: string; init: RequestInit }[] = []
     const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init: init ?? {} })
-      if (url.includes('oauth/token')) return tokenResponse('send-tok')
+      if (url.includes('oauth/token')) return tokenResponse()
       return new Response(JSON.stringify({ message_id: 'zm-9' }), { status: 200 })
     })
     const adapter = new ZoomChannelAdapter(
@@ -206,6 +247,8 @@ describe('ZoomChannelAdapter', () => {
     const send = calls.find((c) => c.url.includes('/im/chat/messages'))!
     const body = JSON.parse(String(send.init.body)) as Record<string, unknown>
     expect(body.robot_jid).toBe(credentials.botJid)
+    // The account id came off the token's `aid` claim — nobody typed it.
+    expect(body.account_id).toBe('acc-1')
     expect(body.to_jid).toBe('room@conference.xmpp.zoom.us')
     expect(body.is_markdown_support).toBe(true)
     expect(body.reply_to).toBe('zm-1')

@@ -28,15 +28,14 @@ import type {
 } from '../channel-adapter.js'
 import type { ChannelKind } from '../../repositories/index.js'
 
-const REQUIRED_CREDENTIAL_KEYS = [
-  'clientId',
-  'clientSecret',
-  'botJid',
-  'accountId',
-  'subscriptionId',
-] as const
+// `accountId` is deliberately NOT required: Zoom's console barely surfaces
+// it, so the adapter decodes it from the token's `aid` claim and a typed
+// value is only an override.
+const REQUIRED_CREDENTIAL_KEYS = ['clientId', 'clientSecret', 'botJid', 'subscriptionId'] as const
 
-type ZoomCredentials = Record<(typeof REQUIRED_CREDENTIAL_KEYS)[number], string>
+type ZoomCredentials = Record<(typeof REQUIRED_CREDENTIAL_KEYS)[number], string> & {
+  accountId?: string
+}
 
 // A connection unpolled this long belongs to a disabled/disconnected
 // channel — reap it (the poll tick is the liveness signal).
@@ -78,21 +77,32 @@ export class ZoomChannelAdapter extends ChannelAdapter {
     return botCredentials as ZoomCredentials
   }
 
+  // A typed-in accountId wins; otherwise the token's decoded `aid` claim.
+  private resolveAccountId(credentials: ZoomCredentials, token: ZoomAccessToken): string {
+    if (typeof credentials.accountId === 'string' && credentials.accountId !== '') {
+      return credentials.accountId
+    }
+    if (token.accountId !== null) return token.accountId
+    throw new Error(
+      'zoom account id could not be detected from the token — enter it in the Account ID field',
+    )
+  }
+
   async verifyCredentials(input: {
     botCredentials: BotCredentials
   }): Promise<VerifyCredentialsResult> {
     try {
       const credentials = this.requireCredentials(input.botCredentials)
-      await fetchZoomAccessToken(credentials, this.fetchFn)
+      const token = await fetchZoomAccessToken(credentials, this.fetchFn)
       // Zoom has no cheap "who am I" for chatbots — a successful grant IS
-      // the verification; identity facts come from the credential bag.
+      // the verification; the account id comes off the token itself.
       return {
         kind: 'valid',
         botDisplayName: 'Zoom Team Chat',
         botHandle: credentials.botJid,
         botMetadata: {
           botJid: credentials.botJid,
-          accountId: credentials.accountId,
+          accountId: this.resolveAccountId(credentials, token),
           subscriptionId: credentials.subscriptionId,
         },
       }
@@ -125,24 +135,35 @@ export class ZoomChannelAdapter extends ChannelAdapter {
     credentials: ZoomCredentials,
   ): Promise<ZoomChannelConnection> {
     let connection = this.connections.get(channelId)
+    const tokenExpired =
+      connection === undefined ||
+      connection.token === null ||
+      Date.now() >= connection.token.expiresAtMs
+    if (connection !== undefined && connection.socket.isAlive() && !tokenExpired) {
+      return connection
+    }
+    // (Re)connect with a fresh token — covers first poll, expiry, and any
+    // dropped socket. Events missed while down are LOST (Zoom no-replay).
+    // The socket's identity needs the account id, which may only be known
+    // from the token — so the entry is created AFTER the grant.
+    const token = await fetchZoomAccessToken(credentials, this.fetchFn)
     if (connection === undefined) {
       connection = {
         socket: new ZoomEventSocket(
-          { robotJid: credentials.botJid, accountId: credentials.accountId },
+          {
+            robotJid: credentials.botJid,
+            accountId: this.resolveAccountId(credentials, token),
+          },
           this.socketFactory,
         ),
-        token: null,
+        token,
         lastPolledAtMs: Date.now(),
       }
       this.connections.set(channelId, connection)
+    } else {
+      connection.token = token
     }
-    const tokenExpired = connection.token === null || Date.now() >= connection.token.expiresAtMs
-    if (!connection.socket.isAlive() || tokenExpired) {
-      // (Re)connect with a fresh token — covers first poll, expiry, and any
-      // dropped socket. Events missed while down are LOST (Zoom no-replay).
-      connection.token = await fetchZoomAccessToken(credentials, this.fetchFn)
-      connection.socket.connect(credentials.subscriptionId, connection.token.accessToken)
-    }
+    connection.socket.connect(credentials.subscriptionId, token.accessToken)
     return connection
   }
 
@@ -193,7 +214,7 @@ export class ZoomChannelAdapter extends ChannelAdapter {
       {
         accessToken: token.accessToken,
         robotJid: credentials.botJid,
-        accountId: credentials.accountId,
+        accountId: this.resolveAccountId(credentials, token),
         toJid: input.chatContextId,
         text: input.messageBody,
         isMarkdown: input.messageStructure.parseMode === 'markdown',
@@ -218,7 +239,7 @@ export class ZoomChannelAdapter extends ChannelAdapter {
       {
         accessToken: token.accessToken,
         robotJid: credentials.botJid,
-        accountId: credentials.accountId,
+        accountId: this.resolveAccountId(credentials, token),
         toJid: input.chatContextId,
         text: input.newMessageBody,
         isMarkdown: false,
