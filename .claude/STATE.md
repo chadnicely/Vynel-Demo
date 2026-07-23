@@ -3,7 +3,45 @@
 **Updated 2026-07-23.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-23 round 3): CHAT-LINKABLE PLAN REVIEW + VIEW/EDIT ON ALL LISTS — gate GREEN 566f/3076t, reviewed (1 REAL bug + all should-fixes FOLDED); NEXT: CHAD SMOKE (below)
+## ⏭ NEXT ACTION (2026-07-23 round 4): CHANNELS UI + MANAGE SHIPPED `16517e7` (pushed) — gate GREEN 566f/3085t, reviewed CLEAN (3 should-fixes FOLDED); ZOOM RESEARCHED (feasible); NEXT: CHAD SMOKE (below), then more channel kinds
+
+**Chad's channels session ("show channel icons · edit/update, allowed users · telegram first,
+then check zoom"), notes in docs/module-notes/channels-ui.md + channels-zoom.md:**
+- **Brand marks**: NEW `components/channels/` — ChannelBrandIcon.vue (simple-icons SVG in brand
+  color) + `channel-catalog.ts` = the ONE home for kind presentation (label/tagline/connectHint/
+  available + isChannelHealthy/channelConnectionNote/channelStatusPill); absorbed + DELETED
+  chat/channel-presentation.ts. Section rows, connect dialog, welcome hero all ride it.
+- **STRICT scope visibility (Chad's explicit rule)**: global list = ONLY null-workspace
+  channels; workspace list = ONLY its own. Scope chips died. Old own+global filter test
+  RECAST with the spec-change comment.
+- **ManageChannelDialog** (+5 composables): rename · pause/resume pill · allowed-senders
+  list/add/remove (arm-to-confirm) over the EXISTING routes (enable/disable + allowlist CRUD
+  had zero UI). Channel row resolves LIVE from the list query by id (the PlanViewDialog
+  lesson); name input seeds ONCE per open keyed on "open + row resolved" (row may still be
+  loading at open).
+- **NEW `PATCH /channels/:channelId`** (rename — the one missing API piece) over NEW
+  `renameChannelForUser` + `channel.renamed` outbox event (co-commit, tenant-404 pinned);
+  boundary `.trim()` (reviewer). SDK regenerated (197 methods, `channelsUser.rename`;
+  namespaced pin +rename); 61 MCP tools UNCHANGED (route not x-mcp).
+- **RECORDED (notes)**: connect dialog hardcodes telegram's credential form — needs per-kind
+  credential FIELDS before a second connectable kind · pause pill aria (WCAG 2.5.3) ·
+  ManageChannelDialog 366 lines · stray vite timestamp artifact deleted (consider gitignore
+  pattern — left .gitignore alone, it holds Chad's uncommitted .notes/ edit).
+- **ZOOM (docs/module-notes/channels-zoom.md): FEASIBLE local-first** — Team Chat bot +
+  Zoom **WebSocket event delivery** (wss://ws.zoom.us, subscriptionId + client-credentials
+  token, 30s heartbeat, ~55min refresh; working precedent: OpenClaw's Zoom plugin). Send =
+  POST /v2/im/chat/messages (markdown + EDIT → streaming-look possible; buttons yes; typing
+  no). **Recommended adapter shape: stateful ZoomChannelAdapter owns the socket + buffers;
+  pollForInboundMessages drains per tick — zero pipeline change.** No replay on disconnect
+  (recorded). Prereqs: 'zoom' in ChannelKind unions + catalog entry + credential-fields
+  indirection.
+**⏭ CHAD SMOKE (channels): Channels section → rows wear the Telegram brand mark + status pill ·
+gear (Manage) → rename → row updates · pill Active↔Paused → polling actually pauses/resumes ·
+add your Telegram user ID as allowed sender, then remove (X arms "Sure?") · global menu shows
+ONLY global channels, workspace drawer ONLY its own · connect dialog: Telegram card branded,
+Discord "coming soon". Then decide: build the Zoom adapter next, or another kind first?**
+
+## (prev) ⏭ NEXT ACTION (2026-07-23 round 3): CHAT-LINKABLE PLAN REVIEW + VIEW/EDIT ON ALL LISTS — gate GREEN 566f/3076t, reviewed (1 REAL bug + all should-fixes FOLDED); NEXT: CHAD SMOKE (below)
 
 **Chad's round-3 ask ("component that can show plan… claude can link it in chat… edit and view
 on both lists… fixed width same for task") — built on the round-1/2 arc:**
