@@ -6,11 +6,15 @@ import {
   ListChecks,
   Moon,
   PanelLeft,
+  Power,
+  Settings2,
   Sun,
+  UserRound,
 } from "lucide-vue-next";
 import { DropdownMenu, PresenceDot } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
+import { shortcutHint } from "../../utils/shortcut-label.js";
 
 // The desktop title bar with an integrated menu (the Windows 11 / VS Code
 // pattern — one bar carries identity, menus, window title, presence, and the
@@ -43,12 +47,23 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
   {
     label: "Vynel",
     items: [
-      { id: "new-workspace", label: "New workspace", shortcut: "⌘⇧N", icon: FolderPlus },
+      {
+        id: "new-workspace",
+        label: "New workspace",
+        shortcut: shortcutHint("N", { shift: true }),
+        icon: FolderPlus,
+      },
       { id: "sep-1", kind: "separator" },
-      { id: "settings", label: "Settings", shortcut: "⌘," },
-      { id: "account", label: "Account" },
+      { id: "settings", label: "Settings", shortcut: shortcutHint(","), icon: Settings2 },
+      { id: "account", label: "Account", icon: UserRound },
       { id: "sep-2", kind: "separator" },
-      { id: "quit", label: "Quit Vynel", shortcut: "⌘Q", danger: true },
+      {
+        id: "quit",
+        label: "Quit Vynel",
+        shortcut: shortcutHint("Q"),
+        icon: Power,
+        danger: true,
+      },
     ],
   },
   {
@@ -71,7 +86,7 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
       {
         id: "command-palette",
         label: "Command palette",
-        shortcut: "⌘K",
+        shortcut: shortcutHint("K"),
         icon: Command,
       },
     ],

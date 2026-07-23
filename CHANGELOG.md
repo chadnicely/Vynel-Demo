@@ -31,6 +31,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   icon showing what it affects. The old Assistant and Go menus are gone; everything they
   held still lives in the command palette (⌘K), the tab strip, and the sidebar.
 
+- **Menus finished their icon column — and shortcuts speak your platform.** Every row in
+  the Vynel menu now carries its icon (Settings and Account wear the same icons as the
+  sidebar, so the vocabulary matches everywhere), and shortcut hints show what your
+  keyboard actually has: Windows and Linux see "Ctrl+Shift+N", Macs see "⌘⇧N".
+
 - **Zoom channel groundwork (parked as "coming soon").** The full Zoom Team Chat adapter is
   built — WebSocket event listening (no public URL needed), markdown replies, group-chat
   support riding the same approve-a-group flow, auto-detected account ID — but live testing

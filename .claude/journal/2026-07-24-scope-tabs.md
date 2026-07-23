@@ -55,6 +55,10 @@ gone (not relational); attach icons showing how the view will look."
   New chat / Start voice and the Go rows stay reachable via the command palette (which gained
   Toggle tasks for parity).
 - `@vynel/ui` DropdownMenu checkbox rows learned to render `item.icon` (item rows already did).
+- **Icon-finish round:** the Vynel menu's remaining rows got icons (Settings2/UserRound
+  reuse the sidebar's vocabulary; Power for Quit), and hardcoded ⌘ hints became
+  `shortcutHint()` (`utils/shortcut-label.ts`) — platform-true labels ("Ctrl+Shift+N" on
+  Windows/Linux, "⌘⇧N" on Mac) over the same metaKey||ctrlKey bindings.
 
 ## Learnings
 

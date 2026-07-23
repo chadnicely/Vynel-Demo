@@ -35,9 +35,11 @@ import ActivityMonitorPanel from "../activity/ActivityMonitorPanel.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 import PlanViewDialog from "../plans/PlanViewDialog.vue";
 import { useAppLinkRouter } from "../../composables/use-app-link-router.js";
+import { useWindowControls } from "../../composables/shell/use-window-controls.js";
 import { WORKSPACE_SECTIONS } from "../workspace/workspace-sections.js";
 import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
 import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
+import { shortcutHint } from "../../utils/shortcut-label.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
@@ -55,6 +57,8 @@ const router = useRouter();
 
 const ui = useUiStore();
 const activity = useActivityStore();
+// Ctrl/⌘+Q closes the window from anywhere — same controls the title bar drives.
+const windowControls = useWindowControls();
 // One capture-phase listener for in-app vynel:// links (plan links in
 // assistant markdown, anywhere they render).
 useAppLinkRouter();
@@ -314,7 +318,7 @@ function runCommand(id: string) {
 }
 
 const paletteCommands = computed<CommandItem[]>(() => [
-  { id: "new-chat", label: "New chat", group: "Assistant", shortcut: "⌘N" },
+  { id: "new-chat", label: "New chat", group: "Assistant", shortcut: shortcutHint("N") },
   { id: "new-workspace", label: "New workspace", group: "Assistant" },
   { id: "start-voice", label: "Start voice", group: "Assistant" },
   { id: "go-home", label: "Go to Home", group: "Go" },
@@ -345,9 +349,9 @@ function onPaletteSelect(id: string) {
   }
 }
 
-// The bound shortcuts. ⌘N/⌘⇧N are advertised in the menus and palette — an
-// advertised keystroke that does nothing reads as "the app is broken", so
-// they are real bindings, not decoration.
+// The bound shortcuts. Every hint the menus advertise (K, N/⇧N, comma, Q)
+// is a real binding — an advertised keystroke that does nothing reads as
+// "the app is broken".
 function onGlobalKeydown(event: KeyboardEvent) {
   if (!(event.metaKey || event.ctrlKey)) return;
   const key = event.key.toLowerCase();
@@ -357,6 +361,12 @@ function onGlobalKeydown(event: KeyboardEvent) {
   } else if (key === "n") {
     event.preventDefault();
     runCommand(event.shiftKey ? "new-workspace" : "new-chat");
+  } else if (key === ",") {
+    event.preventDefault();
+    runCommand("settings");
+  } else if (key === "q") {
+    event.preventDefault();
+    windowControls.close();
   }
 }
 onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
