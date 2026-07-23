@@ -128,16 +128,71 @@ describe('ZoomChannelAdapter', () => {
       'acc-typed',
     )
 
-    // Opaque (non-JWT) token + nothing typed → a clear, actionable invalid.
+    // Opaque (non-JWT) token + nothing typed: connect still SUCCEEDS (the
+    // account id arrives with the first bot_notification); only an actual
+    // SEND before any inbound rejects, actionably.
     const opaque = new ZoomChannelAdapter(
       vi.fn(async () => tokenResponse('opaque-token')) as unknown as typeof fetch,
       () => new FakeZoomSocket('unused'),
     )
     const result = await opaque.verifyCredentials({ botCredentials: credentials })
-    expect(result.kind).toBe('invalid')
-    if (result.kind === 'invalid') {
-      expect(result.reasonMessage).toContain('Account ID')
-    }
+    expect(result.kind).toBe('valid')
+    if (result.kind === 'valid') expect(result.botMetadata.accountId).toBeNull()
+    await expect(
+      opaque.sendMessage({
+        botCredentials: credentials,
+        recipientId: 'u@x',
+        chatContextId: 'u@x',
+        messageBody: 'hi',
+        messageStructure: {},
+      }),
+    ).rejects.toThrow(/Account ID/)
+  })
+
+  it('LEARNS the account id from the first bot_notification when the token lacks it', async () => {
+    const calls: { url: string; init: RequestInit }[] = []
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init: init ?? {} })
+      if (url.includes('oauth/token')) return tokenResponse('opaque-token')
+      return new Response(JSON.stringify({ message_id: 'zm-1' }), { status: 200 })
+    })
+    const sockets: FakeZoomSocket[] = []
+    const adapter = new ZoomChannelAdapter(fetchFn as unknown as typeof fetch, (url) => {
+      const socket = new FakeZoomSocket(url)
+      sockets.push(socket)
+      return socket
+    })
+
+    await adapter.pollForInboundMessages({ channelId: 'ch-1', botCredentials: credentials })
+    sockets[0]!.emit(
+      'message',
+      botNotificationFrame({
+        robotJid: credentials.botJid,
+        accountId: 'acc-learned',
+        toJid: 'user77@xmpp.zoom.us',
+        userJid: 'user77@xmpp.zoom.us',
+        cmd: 'hello',
+        timestamp: 1_784_800_000_000,
+      }),
+    )
+    const drained = await adapter.pollForInboundMessages({
+      channelId: 'ch-1',
+      botCredentials: credentials,
+    })
+    expect(drained.messages).toHaveLength(1)
+
+    // The reply now knows the account id nobody ever typed.
+    await adapter.sendMessage({
+      botCredentials: credentials,
+      recipientId: 'user77@xmpp.zoom.us',
+      chatContextId: 'user77@xmpp.zoom.us',
+      messageBody: 'hi back',
+      messageStructure: {},
+    })
+    const send = calls.find((c) => c.url.includes('/im/chat/messages'))!
+    expect((JSON.parse(String(send.init.body)) as { account_id: string }).account_id).toBe(
+      'acc-learned',
+    )
   })
 
   it('missing credential keys are rejected before any network call', async () => {

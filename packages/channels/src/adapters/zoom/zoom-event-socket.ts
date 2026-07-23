@@ -35,7 +35,10 @@ const MAX_BUFFERED_MESSAGES = 500
 
 export interface ZoomBotIdentity {
   robotJid: string
-  accountId: string
+  // Null until known: Zoom's console barely surfaces the account id and the
+  // chatbot token may not carry it either — every bot_notification DOES, so
+  // the socket LEARNS it from the first frame and reports it upward.
+  accountId: string | null
 }
 
 export class ZoomEventSocket {
@@ -47,6 +50,7 @@ export class ZoomEventSocket {
   constructor(
     private readonly identity: ZoomBotIdentity,
     private readonly socketFactory: ZoomSocketFactory,
+    private readonly onAccountIdLearned?: (accountId: string) => void,
   ) {}
 
   /** OPEN, or still CONNECTING within the grace window. */
@@ -107,6 +111,14 @@ export class ZoomEventSocket {
     if (content === null || content.event !== 'bot_notification') return
     const message = normalizeBotNotification(content.payload, this.identity)
     if (message === null) return
+    // First frame teaches the account id (send/edit needs it).
+    if (this.identity.accountId === null && isRecord(content.payload)) {
+      const learned = content.payload.accountId
+      if (typeof learned === 'string' && learned !== '') {
+        this.identity.accountId = learned
+        this.onAccountIdLearned?.(learned)
+      }
+    }
     if (this.buffer.length >= MAX_BUFFERED_MESSAGES) this.buffer.shift()
     this.buffer.push(message)
   }
@@ -130,7 +142,15 @@ export function normalizeBotNotification(
   // Cross-account safety: a frame for another robot is not ours.
   if (typeof payload.robotJid === 'string' && payload.robotJid !== identity.robotJid) return null
 
-  if (typeof payload.accountId === 'string' && payload.accountId !== identity.accountId) return null
+  // Cross-account safety once the account is KNOWN; before that (accountId
+  // still null) the first frame is what teaches it.
+  if (
+    identity.accountId !== null &&
+    typeof payload.accountId === 'string' &&
+    payload.accountId !== identity.accountId
+  ) {
+    return null
+  }
 
   const timestamp = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now()
   const isGroup = toJid.includes('@conference.')

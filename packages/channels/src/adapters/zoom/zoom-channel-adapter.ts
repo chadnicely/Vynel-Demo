@@ -6,8 +6,10 @@
 // changes (the recommended shape, channels-zoom.md). Tokens come from the
 // client_credentials grant and refresh ahead of expiry by reconnecting.
 //
-// Credentials bag: { clientId, clientSecret, botJid, accountId,
-// subscriptionId } — all strings, opaque to the rest of the system.
+// Credentials bag: { clientId, clientSecret, botJid, subscriptionId } +
+// optional accountId override — all strings, opaque to the rest of the
+// system. The account id normally arrives by itself: token `aid` claim
+// when present, else learned from the first bot_notification.
 
 import WebSocket from 'ws'
 import { ChannelAdapter } from '../channel-adapter.js'
@@ -59,6 +61,11 @@ export class ZoomChannelAdapter extends ChannelAdapter {
   // live (and buffer) until process exit. unref'd so it never holds the
   // process open; cleared when the map empties.
   private reapTimer: ReturnType<typeof setInterval> | undefined
+  // Account ids LEARNED from bot_notification frames (per app/clientId) —
+  // the console barely surfaces the id and the chatbot token may not carry
+  // it, but every notification does. In-memory only: after a restart the
+  // first inbound re-teaches it (and inbound always precedes a reply).
+  private readonly learnedAccountIds = new Map<string, string>()
 
   constructor(
     private readonly fetchFn: FetchFn = (...args) => globalThis.fetch(...args),
@@ -77,14 +84,24 @@ export class ZoomChannelAdapter extends ChannelAdapter {
     return botCredentials as ZoomCredentials
   }
 
-  // A typed-in accountId wins; otherwise the token's decoded `aid` claim.
-  private resolveAccountId(credentials: ZoomCredentials, token: ZoomAccessToken): string {
+  // Typed-in wins → learned from a bot_notification → the token's decoded
+  // `aid` claim. Null = not yet known (fine everywhere except an actual
+  // send, and inbound always precedes a reply).
+  private findAccountId(
+    credentials: ZoomCredentials,
+    token: ZoomAccessToken | null,
+  ): string | null {
     if (typeof credentials.accountId === 'string' && credentials.accountId !== '') {
       return credentials.accountId
     }
-    if (token.accountId !== null) return token.accountId
+    return this.learnedAccountIds.get(credentials.clientId) ?? token?.accountId ?? null
+  }
+
+  private requireAccountId(credentials: ZoomCredentials, token: ZoomAccessToken): string {
+    const accountId = this.findAccountId(credentials, token)
+    if (accountId !== null) return accountId
     throw new Error(
-      'zoom account id could not be detected from the token — enter it in the Account ID field',
+      'zoom account id unknown yet — send the bot a message in Zoom first (it teaches the account id), or enter it in the Account ID field',
     )
   }
 
@@ -95,14 +112,15 @@ export class ZoomChannelAdapter extends ChannelAdapter {
       const credentials = this.requireCredentials(input.botCredentials)
       const token = await fetchZoomAccessToken(credentials, this.fetchFn)
       // Zoom has no cheap "who am I" for chatbots — a successful grant IS
-      // the verification; the account id comes off the token itself.
+      // the verification. The account id may still be unknown here (null);
+      // the first bot_notification teaches it before any reply needs it.
       return {
         kind: 'valid',
         botDisplayName: 'Zoom Team Chat',
         botHandle: credentials.botJid,
         botMetadata: {
           botJid: credentials.botJid,
-          accountId: this.resolveAccountId(credentials, token),
+          accountId: this.findAccountId(credentials, token),
           subscriptionId: credentials.subscriptionId,
         },
       }
@@ -152,9 +170,10 @@ export class ZoomChannelAdapter extends ChannelAdapter {
         socket: new ZoomEventSocket(
           {
             robotJid: credentials.botJid,
-            accountId: this.resolveAccountId(credentials, token),
+            accountId: this.findAccountId(credentials, token),
           },
           this.socketFactory,
+          (learned) => this.learnedAccountIds.set(credentials.clientId, learned),
         ),
         token,
         lastPolledAtMs: Date.now(),
@@ -214,7 +233,7 @@ export class ZoomChannelAdapter extends ChannelAdapter {
       {
         accessToken: token.accessToken,
         robotJid: credentials.botJid,
-        accountId: this.resolveAccountId(credentials, token),
+        accountId: this.requireAccountId(credentials, token),
         toJid: input.chatContextId,
         text: input.messageBody,
         isMarkdown: input.messageStructure.parseMode === 'markdown',
@@ -239,7 +258,7 @@ export class ZoomChannelAdapter extends ChannelAdapter {
       {
         accessToken: token.accessToken,
         robotJid: credentials.botJid,
-        accountId: this.resolveAccountId(credentials, token),
+        accountId: this.requireAccountId(credentials, token),
         toJid: input.chatContextId,
         text: input.newMessageBody,
         isMarkdown: false,

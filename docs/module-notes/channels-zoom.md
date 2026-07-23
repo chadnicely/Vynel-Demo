@@ -94,6 +94,18 @@ credential rotation staleness (socket identity + send-token cache refresh on exp
 on rotation) · same-millisecond synthetic-id collision (unreachable in practice) · the ws
 double-cast at the factory seam · edits render markdown literally (matches telegram edit).
 
+### Fix round 3 (2026-07-24, Chad's connect attempt): the chatbot token carries NO `aid`
+
+Chad's real token granted fine but decoded to no account id (client_credentials chatbot
+tokens are app-level) — round 2's claim-decode alone wasn't enough. **The account id is now
+never fatal at connect: every `bot_notification` payload carries `accountId`, so the socket
+LEARNS it from the first frame** (`onAccountIdLearned` → adapter's per-clientId
+`learnedAccountIds`) and the resolution chain is typed override → learned → token claim.
+Verify succeeds with a null id; only a SEND before any inbound throws (actionable message).
+The cross-account frame check activates once the id is known. In-memory only — after a
+restart the first inbound re-teaches (inbound precedes replies; the queue's backoff covers
+the rare proactive-send-first race). Field stays optional in the connect form as an override.
+
 ### Fix round 2 (2026-07-23, Chad's setup): Account ID auto-detected
 
 **Chad couldn't find the Account ID anywhere in Zoom's console (it barely surfaces it). Root
