@@ -48,6 +48,58 @@ function deriveBotIdentity(channel: Channel): { externalId: string; handle: stri
   }
 }
 
+// The ONE discovery home (message path + bot-added sightings): record an
+// unknown room `pending` and co-commit the discovery event. The if-absent
+// insert is the unique-index net: an overlapping tick's lost race degrades
+// to "already recorded" (no event, no thrown poll). Returns whether a NEW
+// row was recorded.
+function recordGroupDiscovery(
+  db: Database,
+  channel: Channel,
+  sighting: { externalChatContextId: string; title: string | null; seenAt: Date },
+  logger: StructuralLogger | undefined,
+): boolean {
+  const discovered = withTransaction(db, (tx) => {
+    const group = channelsRepository.insertChannelChatGroupIfAbsent(tx, {
+      id: randomUUID(),
+      channelId: channel.id,
+      externalChatContextId: sighting.externalChatContextId,
+      title: sighting.title,
+      status: 'pending',
+      memberPolicy: 'everyone',
+      firstSeenAt: sighting.seenAt,
+      lastInboundAt: sighting.seenAt,
+      approvedAt: null,
+    })
+    if (group === null) return false
+    const payload: ChannelGroupDiscoveredPayload = {
+      channelId: channel.id,
+      userId: channel.userId,
+      workspaceId: channel.workspaceId,
+      channelKind: channel.channelKind,
+      groupId: group.id,
+      externalChatContextId: group.externalChatContextId,
+      title: group.title,
+      discoveredAt: group.firstSeenAt.toISOString(),
+    }
+    insertOutboxEvent(tx, {
+      id: randomUUID(),
+      type: CHANNEL_GROUP_DISCOVERED,
+      payload,
+      createdAt: group.firstSeenAt,
+      processedAt: null,
+    })
+    return true
+  })
+  if (discovered) {
+    logger?.info(
+      { channelId: channel.id, chatContextId: sighting.externalChatContextId },
+      'channel group discovered (pending approval)',
+    )
+  }
+  return discovered
+}
+
 // The group gate (channels-groups.md): resolves a group message against the
 // channel's known groups. 'skip' = no inbound row at all; 'process' = run
 // the normal per-sender allowlist (an approved group with 'allowlist'
@@ -68,48 +120,18 @@ function resolveGroupMessage(
 
   // First sight of this room → record it pending + co-commit the discovery
   // event. The triggering message itself is NOT enqueued — the pending
-  // group card in the Manage dialog is the visible outcome. The if-absent
-  // insert is the unique-index net: an overlapping tick's lost race
-  // degrades to "already recorded" (no event, no thrown poll).
+  // group card in the Manage dialog is the visible outcome.
   if (existing === null) {
-    const discovered = withTransaction(db, (tx) => {
-      const group = channelsRepository.insertChannelChatGroupIfAbsent(tx, {
-        id: randomUUID(),
-        channelId: channel.id,
+    recordGroupDiscovery(
+      db,
+      channel,
+      {
         externalChatContextId: message.externalChatContextId,
         title: message.chatContextTitle,
-        status: 'pending',
-        memberPolicy: 'everyone',
-        firstSeenAt: message.receivedAt,
-        lastInboundAt: message.receivedAt,
-        approvedAt: null,
-      })
-      if (group === null) return false
-      const payload: ChannelGroupDiscoveredPayload = {
-        channelId: channel.id,
-        userId: channel.userId,
-        workspaceId: channel.workspaceId,
-        channelKind: channel.channelKind,
-        groupId: group.id,
-        externalChatContextId: group.externalChatContextId,
-        title: group.title,
-        discoveredAt: group.firstSeenAt.toISOString(),
-      }
-      insertOutboxEvent(tx, {
-        id: randomUUID(),
-        type: CHANNEL_GROUP_DISCOVERED,
-        payload,
-        createdAt: group.firstSeenAt,
-        processedAt: null,
-      })
-      return true
-    })
-    if (discovered) {
-      logger?.info(
-        { channelId: channel.id, chatContextId: message.externalChatContextId },
-        'channel group discovered (pending approval)',
-      )
-    }
+        seenAt: message.receivedAt,
+      },
+      logger,
+    )
     return { kind: 'skip' }
   }
 
@@ -146,12 +168,41 @@ export async function runChannelPollingTick(
       const adapter = resolveChannelAdapter(channel.channelKind)
       const credentials = JSON.parse(channel.botCredentials) as BotCredentials
       const botIdentity = deriveBotIdentity(channel)
-      const { messages, nextCursor } = await adapter.pollForInboundMessages({
+      const { messages, nextCursor, groupSightings } = await adapter.pollForInboundMessages({
         channelId: channel.id,
         botCredentials: credentials,
         ...(channel.lastPolledCursor !== null ? { sinceCursor: channel.lastPolledCursor } : {}),
         ...(botIdentity !== null ? { botIdentity } : {}),
       })
+
+      // Bot-added sightings discover groups WITHOUT a routable message —
+      // the privacy-mode-proof ritual (adding the bot is enough). Processed
+      // before the messages so an add + mention in one batch discovers once.
+      for (const sighting of groupSightings ?? []) {
+        const known = channelsRepository.findChannelChatGroup(db, {
+          channelId: channel.id,
+          externalChatContextId: sighting.externalChatContextId,
+        })
+        if (known === null) {
+          recordGroupDiscovery(
+            db,
+            channel,
+            {
+              externalChatContextId: sighting.externalChatContextId,
+              title: sighting.chatContextTitle,
+              seenAt: new Date(),
+            },
+            deps.logger,
+          )
+        } else if (
+          sighting.chatContextTitle !== null &&
+          sighting.chatContextTitle !== known.title
+        ) {
+          channelsRepository.updateChannelChatGroup(db, known.id, {
+            title: sighting.chatContextTitle,
+          })
+        }
+      }
 
       let lastInboundAt = channel.lastInboundAt
       for (const message of messages) {

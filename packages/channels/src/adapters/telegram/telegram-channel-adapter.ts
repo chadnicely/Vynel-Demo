@@ -14,51 +14,20 @@
 import { Telegram } from 'telegraf'
 import { ChannelAdapter } from '../channel-adapter.js'
 import { extractErrorMessage } from '../extract-error-message.js'
+import {
+  describeChatContext,
+  isBotAddressed,
+  deriveGroupSighting,
+} from './telegram-normalization.js'
+import type { TelegramUser, TelegramUpdate } from './telegram-normalization.js'
 import type {
   BotCredentials,
   VerifyCredentialsResult,
   NormalizedInboundMessage,
+  NormalizedGroupSighting,
   NormalizedMessageStructure,
 } from '../channel-adapter.js'
 import type { ChannelKind } from '../../repositories/index.js'
-
-interface TelegramUser {
-  id: number
-  first_name: string
-  username?: string
-}
-
-interface TelegramChat {
-  id: number
-  // 'private' | 'group' | 'supergroup' | 'channel' (Bot API chat.type).
-  type?: string
-  title?: string
-}
-
-interface TelegramInboundMessage {
-  message_id: number
-  from?: TelegramUser
-  chat: TelegramChat
-  text?: string
-  date: number
-  // Mention detection inputs: entities locate '@handle' substrings in
-  // `text`; reply_to_message identifies a reply to the bot's own message.
-  entities?: { type: string; offset: number; length: number }[]
-  reply_to_message?: { from?: TelegramUser }
-}
-
-interface TelegramCallbackQuery {
-  id: string
-  from: TelegramUser
-  message?: { message_id: number; chat: TelegramChat }
-  data?: string
-}
-
-interface TelegramUpdate {
-  update_id: number
-  message?: TelegramInboundMessage
-  callback_query?: TelegramCallbackQuery
-}
 
 interface TelegramSendExtra {
   parse_mode?: 'Markdown'
@@ -91,44 +60,6 @@ interface TelegramApiClient {
   sendChatAction(chatId: string | number, action: 'typing'): Promise<unknown>
 }
 
-// Telegram 'private' chats are DMs; group/supergroup (and broadcast
-// 'channel' posts, which behave like rooms) are group contexts. An absent
-// type (older payload shapes) reads as a DM — the pre-groups behavior.
-function describeChatContext(chat: TelegramChat): {
-  chatContextKind: 'dm' | 'group'
-  chatContextTitle: string | null
-} {
-  const isGroup = chat.type !== undefined && chat.type !== 'private'
-  return {
-    chatContextKind: isGroup ? 'group' : 'dm',
-    chatContextTitle: chat.title ?? null,
-  }
-}
-
-// A group message addresses the bot when it @mentions its handle (located
-// via mention entities — not a raw substring scan, so "email@bot.dev"
-// never counts) or replies to one of the bot's own messages.
-function isBotAddressed(
-  message: TelegramInboundMessage,
-  botIdentity: { externalId: string; handle: string } | undefined,
-): boolean {
-  if (!botIdentity) return false
-  if (
-    message.reply_to_message?.from &&
-    String(message.reply_to_message.from.id) === botIdentity.externalId
-  ) {
-    return true
-  }
-  if (message.text === undefined || botIdentity.handle === '') return false
-  const expected = `@${botIdentity.handle.toLowerCase()}`
-  for (const entity of message.entities ?? []) {
-    if (entity.type !== 'mention') continue
-    const mention = message.text.slice(entity.offset, entity.offset + entity.length)
-    if (mention.toLowerCase() === expected) return true
-  }
-  return false
-}
-
 export class TelegramChannelAdapter extends ChannelAdapter {
   readonly channelKind: ChannelKind = 'telegram'
 
@@ -157,17 +88,31 @@ export class TelegramChannelAdapter extends ChannelAdapter {
     botCredentials: BotCredentials
     sinceCursor?: string
     botIdentity?: { externalId: string; handle: string }
-  }): Promise<{ messages: NormalizedInboundMessage[]; nextCursor: string }> {
+  }): Promise<{
+    messages: NormalizedInboundMessage[]
+    nextCursor: string
+    groupSightings?: NormalizedGroupSighting[]
+  }> {
     const offset = input.sinceCursor ? Number(input.sinceCursor) : 0
     const updates = await this.client(input.botCredentials).getUpdates(0, 100, offset, [
       'message',
       'callback_query',
+      'my_chat_member',
     ])
 
     const messages: NormalizedInboundMessage[] = []
+    const groupSightings: { externalChatContextId: string; chatContextTitle: string | null }[] = []
     let maxUpdateId = offset > 0 ? offset - 1 : 0
     for (const update of updates) {
       if (update.update_id > maxUpdateId) maxUpdateId = update.update_id
+
+      // Bot added to a group → a sighting (works under privacy mode, where
+      // a plain "@bot …" group text would never arrive).
+      if (update.my_chat_member) {
+        const sighting = deriveGroupSighting(update.my_chat_member)
+        if (sighting) groupSightings.push(sighting)
+        continue
+      }
 
       // Text message → a normal inbound (chat turn / typed approval reply).
       const message = update.message
@@ -219,7 +164,7 @@ export class TelegramChannelAdapter extends ChannelAdapter {
     // Advance the cursor past the highest update we saw (Telegram confirms
     // updates < offset on the next poll). No updates → keep the prior cursor.
     const nextCursor = updates.length > 0 ? String(maxUpdateId + 1) : (input.sinceCursor ?? '0')
-    return { messages, nextCursor }
+    return { messages, nextCursor, groupSightings }
   }
 
   async sendMessage(input: {

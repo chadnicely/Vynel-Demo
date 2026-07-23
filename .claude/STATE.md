@@ -32,12 +32,24 @@ into groups. Notes: docs/module-notes/channels-groups.md (as-built + follow-ups)
 - **RECORDED (notes)**: /command@bot carries bot_command entity (fold when channel commands
   ship) · polling setInterval has NO in-flight guard (root cause the if-absent insert nets —
   own slice) · re-approve idempotency noise · user-scoped.ts 482 lines.
-**⏭ CHAD GROUP SMOKE: add your bot to a Telegram group → @mention it once → Manage dialog
-shows the group "Wants in" → Approve → @mention it again → Claude replies IN THE GROUP,
-threaded onto your message, and your web transcript shows "[Group message from …]" · flip the
-group to "Allowed senders only" → a stranger's @mention is ignored, add them as an allowed
-sender (any handle/name, id required) → it works · Ignore the group → silence · group-origin
-approval cards appear ONLY in the app, never in the room. Then: the Zoom adapter arc
+**FIX ROUND (same day — Chad's smoke FAILED, root-caused from his live DB): the @mention
+NEVER ARRIVED — Telegram default bot privacy mode delivers group bots ONLY /commands
+addressed to them, replies to their messages, and SERVICE updates; never plain "@bot …"
+texts. The mention-discovery ritual was a false premise. Fixed (reviewed CLEAN, folds in):
+discovery rides `my_chat_member` (privacy-proof — ADDING the bot is the ritual; adapter
+grew `groupSightings` on the poll result; ONE recordGroupDiscovery home, both paths) ·
+`/cmd@bot` counts as addressed (bot_command entity suffix-match — '@' in the needle makes
+false positives impossible) · wire shapes + 3 pure helpers split to
+telegram-normalization.ts (size rule) · dialog copy teaches reality (add-the-bot empty
+state; replies + /cmd@bot work as-is; @mentions need bot-as-admin OR /setprivacy Disable +
+remove/re-add). RECORDED: left/kicked lingers approved (surface "bot removed" later) ·
+sighting seenAt = tick-time · bare /plan not addressed by design.**
+**⏭ CHAD GROUP SMOKE (retest): restart api → the group you ALREADY added: send
+`/start@<botname>` in it (or remove + re-add the bot) → Manage dialog shows it "Wants in"
+→ Approve → REPLY to any bot message or `/ask@<botname>` → Claude answers IN THE GROUP,
+threaded; web transcript shows "[Group message from …]" · for plain @mentions: make the bot
+group admin (or BotFather /setprivacy Disable + re-add) then @mention works · allowlist
+policy + never-post-approvals checks as before. Then: the Zoom adapter arc
 (docs/module-notes/channels-zoom.md — model ready, needs 'zoom' kind + credential-fields
 connect dialog + the stateful WebSocket adapter).**
 

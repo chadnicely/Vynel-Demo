@@ -122,8 +122,15 @@ const STATUS_CHIPS: Record<
       v-else-if="!groupsQuery.isPending.value"
       class="m-0 rounded-md border border-dashed border-hair px-2.5 py-2 text-[11.5px] text-ink-3"
     >
-      No groups yet — add the bot to a group and @mention it once, and the
-      group appears here for approval.
+      No groups yet — add the bot to a group and it appears here for approval
+      within a few seconds.
+    </p>
+
+    <p v-if="groups.length > 0" class="m-0 text-[11px] text-ink-3">
+      In a group, Claude answers replies to its messages and commands
+      addressed to it (like /ask@your_bot). For it to also see @mentions,
+      make the bot a group admin — or tell @BotFather /setprivacy → Disable,
+      then remove and re-add the bot.
     </p>
 
     <p v-if="errorMessage" class="m-0 text-xs text-danger" role="alert">

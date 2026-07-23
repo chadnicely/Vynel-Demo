@@ -91,7 +91,66 @@ describe('TelegramChannelAdapter', () => {
     expect(messages[0]?.chatContextKind).toBe('dm')
     expect(messages[0]?.isBotMentioned).toBe(true)
     expect(nextCursor).toBe('12') // maxUpdateId 11 + 1
-    expect(getUpdates).toHaveBeenCalledWith(0, 100, 5, ['message', 'callback_query'])
+    expect(getUpdates).toHaveBeenCalledWith(0, 100, 5, ['message', 'callback_query', 'my_chat_member'])
+  })
+
+  it('a bot-added my_chat_member update becomes a group SIGHTING (privacy-mode-proof discovery)', async () => {
+    getUpdates.mockResolvedValue([
+      {
+        update_id: 50,
+        my_chat_member: {
+          chat: { id: -100777, type: 'supergroup', title: 'Marketing Team' },
+          new_chat_member: { status: 'member' },
+        },
+      },
+      // Removed from another group — NOT a sighting.
+      {
+        update_id: 51,
+        my_chat_member: {
+          chat: { id: -100888, type: 'group', title: 'Old Room' },
+          new_chat_member: { status: 'left' },
+        },
+      },
+      // Blocked in a DM — NOT a sighting (not a group).
+      {
+        update_id: 52,
+        my_chat_member: {
+          chat: { id: 7, type: 'private' },
+          new_chat_member: { status: 'kicked' },
+        },
+      },
+    ])
+    const { messages, groupSightings, nextCursor } = await adapter.pollForInboundMessages({
+      channelId: 'c1',
+      botCredentials: credentials,
+    })
+    expect(messages).toHaveLength(0)
+    expect(groupSightings).toEqual([
+      { externalChatContextId: '-100777', chatContextTitle: 'Marketing Team' },
+    ])
+    expect(nextCursor).toBe('53') // service updates advance the cursor too
+  })
+
+  it('a /command addressed to the bot counts as addressed (the privacy-mode text that DOES arrive)', async () => {
+    getUpdates.mockResolvedValue([
+      {
+        update_id: 60,
+        message: {
+          message_id: 15,
+          from: { id: 7, username: 'alice', first_name: 'Alice' },
+          chat: { id: -100777, type: 'supergroup', title: 'Marketing Team' },
+          text: '/plan@bakery_bot ship the newsletter',
+          entities: [{ type: 'bot_command', offset: 0, length: 16 }],
+          date: 1_700_000_005,
+        },
+      },
+    ])
+    const { messages } = await adapter.pollForInboundMessages({
+      channelId: 'c1',
+      botCredentials: credentials,
+      botIdentity: { externalId: '42', handle: 'bakery_bot' },
+    })
+    expect(messages[0]?.isBotMentioned).toBe(true)
   })
 
   it('pollForInboundMessages normalizes group context and detects @mentions via entities', async () => {

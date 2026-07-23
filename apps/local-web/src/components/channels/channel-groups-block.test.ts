@@ -67,7 +67,13 @@ describe("ChannelGroupsBlock", () => {
   it("teaches the discovery ritual when no groups exist", async () => {
     const { wrapper } = makeHarness([]);
     await flushPromises();
-    expect(wrapper.text()).toContain("@mention it once");
+    expect(wrapper.text()).toContain("add the bot to a group");
+  });
+
+  it("teaches the privacy-mode reality once groups exist", async () => {
+    const { wrapper } = makeHarness();
+    await flushPromises();
+    expect(wrapper.text()).toContain("/setprivacy");
   });
 
   it("a pending group shows Approve + Ignore; approving calls the route", async () => {

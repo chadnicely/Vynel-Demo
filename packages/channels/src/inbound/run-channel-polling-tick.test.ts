@@ -23,7 +23,13 @@ import type { ChannelAdapter, NormalizedInboundMessage } from '../adapters/chann
 vi.mock('../adapters/channel-adapter-registry.js', () => ({ resolveChannelAdapter: vi.fn() }))
 
 function makeStubAdapter(
-  outcome: { messages: NormalizedInboundMessage[]; nextCursor: string } | Error,
+  outcome:
+    | {
+        messages: NormalizedInboundMessage[]
+        nextCursor: string
+        groupSightings?: { externalChatContextId: string; chatContextTitle: string | null }[]
+      }
+    | Error,
 ): ChannelAdapter {
   return {
     channelKind: 'telegram',
@@ -214,6 +220,34 @@ describe('runChannelPollingTick', () => {
 
       expect(listChannelChatGroups(db, channel.id)).toHaveLength(1)
       expect(listInboundMessagesForChannel(db, channel.id, {})).toHaveLength(0)
+      expect(listOutboxEventsByType(db, CHANNEL_GROUP_DISCOVERED)).toHaveLength(1)
+    })
+  })
+
+  it('a bot-added SIGHTING discovers the group without any message (privacy-mode path)', async () => {
+    await withTestDatabase(async (db) => {
+      const { channel } = seedChannelWithAllowedSender(db)
+      vi.mocked(resolveChannelAdapter).mockReturnValue(
+        makeStubAdapter({
+          messages: [],
+          nextCursor: '20',
+          groupSightings: [
+            { externalChatContextId: '-100777', chatContextTitle: 'Marketing Team' },
+          ],
+        }),
+      )
+      await runChannelPollingTick(db)
+
+      const group = findChannelChatGroup(db, {
+        channelId: channel.id,
+        externalChatContextId: '-100777',
+      })
+      expect(group?.status).toBe('pending')
+      expect(group?.title).toBe('Marketing Team')
+      expect(listOutboxEventsByType(db, CHANNEL_GROUP_DISCOVERED)).toHaveLength(1)
+      // A repeat sighting (bot promoted to admin, tick overlap) never duplicates.
+      await runChannelPollingTick(db)
+      expect(listChannelChatGroups(db, channel.id)).toHaveLength(1)
       expect(listOutboxEventsByType(db, CHANNEL_GROUP_DISCOVERED)).toHaveLength(1)
     })
   })

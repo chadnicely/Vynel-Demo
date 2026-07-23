@@ -81,6 +81,24 @@ channel) · group liveness only moves FORWARD (out-of-order redelivery can't rew
 failure (render-key bump) + `isPending` guard on policy change · the 4 group routes joined the
 route-level tenant-isolation 404 sweep.
 
+## Fix round (2026-07-23, Chad's smoke): discovery was privacy-mode-blind
+
+**Chad's smoke failed — added the bot + @mentioned, no group appeared. DB check proved the
+@mention NEVER ARRIVED: under Telegram's default bot privacy mode a group bot receives ONLY
+/commands addressed to it, replies to its own messages, and service updates — NOT plain
+"@bot …" texts. The original "@mention it once" ritual was built on a false premise.**
+Fix (root cause, not patch):
+- **Discovery now rides `my_chat_member`** (a SERVICE update, delivered regardless of privacy
+  mode): adding the bot to a group IS the ritual. Adapter contract grew optional
+  `groupSightings` on the poll result; the tick records sightings through the ONE
+  `recordGroupDiscovery` home (shared with the message path); left/kicked + DMs are not
+  sightings; repeat sightings refresh the title only.
+- **`/command@bot` now counts as addressed** (bot_command entity suffix-matched on the
+  handle) — with replies-to-bot, the two texts a privacy-mode bot CAN receive both work.
+- **UI teaches the truth**: empty state says "add the bot to a group"; once groups exist, a
+  note explains replies + /commands work as-is and @mentions need BotFather /setprivacy →
+  Disable + remove/re-add the bot.
+
 ## Recorded follow-ups
 
 - Per-group "respond to all messages" toggle (+ BotFather privacy-mode teaching copy).
@@ -93,6 +111,12 @@ route-level tenant-isolation 404 sweep.
   idempotency noise; the UI hides the button).
 - The polling `setInterval` has NO in-flight guard (channels-service) — overlapping ticks are
   the root cause the if-absent insert nets. Sweep as its own slice.
+- A `left`/`kicked` `my_chat_member` update is (correctly) not a sighting, but a group the bot
+  was REMOVED from lingers approved in the dialog — surface "bot removed" / mark stale.
+- `NormalizedGroupSighting` could carry the wire `my_chat_member.date` as `seenAt` if
+  event-time `firstSeenAt` ever matters (today: tick-time, drift ≤ one poll).
+- Bare `/plan` (suffix-less) is NOT addressed by design (multi-bot rooms); the dialog copy
+  teaches the `/cmd@bot` form.
 - `user-scoped.ts` is 482 lines (Hono single-chain constraint; longest offender — split if the
   chain ever allows).
 - Zoom adapter arc consumes this model as-is (docs/module-notes/channels-zoom.md).

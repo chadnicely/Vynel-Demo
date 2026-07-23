@@ -19,6 +19,17 @@ export type VerifyCredentialsResult =
     }
   | { kind: 'invalid'; reasonMessage: string }
 
+// A group the bot was SEEN IN without a routable message — e.g. Telegram's
+// `my_chat_member` service update when the bot is ADDED to a group, which
+// arrives regardless of bot privacy mode. Discovery must not depend on
+// receiving a text: under Telegram's default privacy mode a group bot never
+// receives a plain "@bot …" message (only commands, replies to it, and
+// service updates), so the add-to-group event IS the reliable ritual.
+export interface NormalizedGroupSighting {
+  externalChatContextId: string
+  chatContextTitle: string | null
+}
+
 export interface NormalizedInboundMessage {
   externalMessageId: string
   externalSenderId: string
@@ -59,7 +70,13 @@ export abstract class ChannelAdapter {
     // in groups without a per-poll identity fetch. Absent = mention
     // detection degrades to false in groups (DMs unaffected).
     botIdentity?: { externalId: string; handle: string }
-  }): Promise<{ messages: NormalizedInboundMessage[]; nextCursor: string }>
+  }): Promise<{
+    messages: NormalizedInboundMessage[]
+    nextCursor: string
+    // Groups sighted without a routable message (bot-added service updates).
+    // Optional — kinds without such a signal simply omit it.
+    groupSightings?: NormalizedGroupSighting[]
+  }>
 
   abstract sendMessage(input: {
     botCredentials: BotCredentials

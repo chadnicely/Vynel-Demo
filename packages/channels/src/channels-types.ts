@@ -82,5 +82,6 @@ export type {
   BotCredentials,
   VerifyCredentialsResult,
   NormalizedInboundMessage,
+  NormalizedGroupSighting,
   NormalizedMessageStructure,
 } from './adapters/channel-adapter.js'
