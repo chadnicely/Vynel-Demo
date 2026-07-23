@@ -19,13 +19,16 @@ function mountTitleBar(overrides: Record<string, unknown> = {}) {
 
 // test: the workspace switcher moved off the title bar onto the tab strip
 // (AppTabStrip) — the bar keeps identity, menus, title, and window controls.
+// test: correct expectation — the bar slimmed to TWO menus (Chad, 2026-07-24):
+// Assistant folded away (New workspace lives under Vynel; the rest is palette
+// territory) and Go died (the tab strip + sidebar are the navigation).
 describe("AppTitleBar", () => {
-  it("renders the menu bar and window controls", () => {
+  it("renders the two-menu bar and window controls", () => {
     const wrapper = mountTitleBar();
     const menuLabels = wrapper
       .findAll("nav button")
       .map((b) => b.text());
-    expect(menuLabels).toEqual(["Vynel", "Assistant", "View", "Go"]);
+    expect(menuLabels).toEqual(["Vynel", "View"]);
 
     for (const label of ["Minimize", "Maximize", "Close"]) {
       expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(true);

@@ -293,12 +293,6 @@ function runCommand(id: string) {
     case "go-sessions":
       openSessions();
       break;
-    case "go-workspace": {
-      const openTab = ui.tabs.find((tab) => tab.workspaceId !== null);
-      if (openTab !== undefined) selectTab(openTab.id);
-      else if (workspaceOptions.value[0]) addTab(workspaceOptions.value[0].id);
-      break;
-    }
     case "new-chat":
       ui.activateTab(GLOBAL_TAB_ID);
       ui.globalTab.shell.target = "fresh";
@@ -339,6 +333,7 @@ const paletteCommands = computed<CommandItem[]>(() => [
   ),
   { id: "toggle-theme", label: "Toggle theme", group: "View", keywords: "dark light" },
   { id: "toggle-sidebar", label: "Toggle navigation", group: "View" },
+  { id: "toggle-tasks", label: "Toggle tasks", group: "View" },
 ]);
 
 function onPaletteSelect(id: string) {
@@ -350,10 +345,18 @@ function onPaletteSelect(id: string) {
   }
 }
 
+// The bound shortcuts. ⌘N/⌘⇧N are advertised in the menus and palette — an
+// advertised keystroke that does nothing reads as "the app is broken", so
+// they are real bindings, not decoration.
 function onGlobalKeydown(event: KeyboardEvent) {
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+  if (!(event.metaKey || event.ctrlKey)) return;
+  const key = event.key.toLowerCase();
+  if (key === "k") {
     event.preventDefault();
     isPaletteOpen.value = true;
+  } else if (key === "n") {
+    event.preventDefault();
+    runCommand(event.shiftKey ? "new-workspace" : "new-chat");
   }
 }
 onMounted(() => window.addEventListener("keydown", onGlobalKeydown));

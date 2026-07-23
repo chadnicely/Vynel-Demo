@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ListChecks } from "lucide-vue-next";
+import {
+  Command,
+  FolderPlus,
+  ListChecks,
+  Moon,
+  PanelLeft,
+  Sun,
+} from "lucide-vue-next";
 import { DropdownMenu, PresenceDot } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
@@ -27,46 +34,46 @@ const emit = defineEmits<{
 
 const controls = useWindowControls();
 
+// Two menus only (Chad's cleanup, 2026-07-24): Vynel = the app (create,
+// settings, account, quit); View = how the window looks, each row wearing an
+// icon of what it changes. Navigation rows (Sessions, tasks) left the bar —
+// the tab strip + sidebar ARE the navigation, and the tasks dock has its own
+// title-bar button.
 const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
   {
     label: "Vynel",
     items: [
+      { id: "new-workspace", label: "New workspace", shortcut: "⌘⇧N", icon: FolderPlus },
+      { id: "sep-1", kind: "separator" },
       { id: "settings", label: "Settings", shortcut: "⌘," },
       { id: "account", label: "Account" },
-      { id: "sep-1", kind: "separator" },
+      { id: "sep-2", kind: "separator" },
       { id: "quit", label: "Quit Vynel", shortcut: "⌘Q", danger: true },
-    ],
-  },
-  {
-    label: "Assistant",
-    items: [
-      { id: "new-chat", label: "New chat", shortcut: "⌘N" },
-      { id: "new-workspace", label: "New workspace", shortcut: "⌘⇧N" },
-      { id: "sep-3", kind: "separator" },
-      { id: "start-voice", label: "Start voice" },
     ],
   },
   {
     label: "View",
     items: [
-      { id: "toggle-sidebar", kind: "checkbox", label: "Show navigation", checked: props.sidebarOpen },
-      // The old Conversations side panel is superseded by the Sessions view
-      // (locked decision 0b) — the menu entry opens the library instead.
-      { id: "go-sessions", label: "Sessions" },
-      { id: "toggle-tasks", kind: "checkbox", label: "Show tasks", checked: props.tasksOpen },
+      {
+        id: "toggle-sidebar",
+        kind: "checkbox",
+        label: "Show navigation",
+        checked: props.sidebarOpen,
+        icon: PanelLeft,
+      },
+      { id: "sep-3", kind: "separator" },
+      {
+        id: "toggle-theme",
+        label: props.theme === "dark" ? "Light theme" : "Dark theme",
+        icon: props.theme === "dark" ? Sun : Moon,
+      },
       { id: "sep-4", kind: "separator" },
-      { id: "toggle-theme", label: props.theme === "dark" ? "Light theme" : "Dark theme" },
-      { id: "sep-5", kind: "separator" },
-      { id: "command-palette", label: "Command palette", shortcut: "⌘K" },
-    ],
-  },
-  {
-    label: "Go",
-    items: [
-      { id: "go-home", label: "Home" },
-      { id: "go-chat", label: "Chat" },
-      { id: "go-sessions", label: "Sessions" },
-      { id: "go-workspace", label: "Workspace" },
+      {
+        id: "command-palette",
+        label: "Command palette",
+        shortcut: "⌘K",
+        icon: Command,
+      },
     ],
   },
 ]);

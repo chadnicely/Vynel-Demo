@@ -25,6 +25,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   a tab so your rooms are recognizable at a glance, or leave it on Automatic. Your picks
   are remembered, and the active tab wears its color as an underline.
 
+- **A calmer menu bar.** Four menus became two. **Vynel** now holds New workspace along
+  with Settings, Account, and Quit; **View** is just the things that change how the window
+  looks — Show navigation, the theme switch, and the Command palette — each with a little
+  icon showing what it affects. The old Assistant and Go menus are gone; everything they
+  held still lives in the command palette (⌘K), the tab strip, and the sidebar.
+
 - **Zoom channel groundwork (parked as "coming soon").** The full Zoom Team Chat adapter is
   built — WebSocket event listening (no public URL needed), markdown replies, group-chat
   support riding the same approve-a-group flow, auto-detected account ID — but live testing

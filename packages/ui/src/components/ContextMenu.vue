@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import {
   ContextMenuCheckboxItem,
   ContextMenuContent,
@@ -30,6 +31,12 @@ const emit = defineEmits<{
   select: [id: string];
   toggle: [id: string, checked: boolean];
 }>();
+
+// Same column rule as DropdownMenu: when checkbox rows coexist with plain
+// items, plain items reserve the check column so icons/labels align.
+const hasCheckboxRow = computed(() =>
+  props.items.some((item) => item.kind === "checkbox"),
+);
 </script>
 
 <template>
@@ -74,6 +81,7 @@ const emit = defineEmits<{
                 <path d="M20 6 9 17l-5-5" />
               </svg>
             </span>
+            <component :is="item.icon" v-if="item.icon" :class="menuIconClass" />
             <span class="flex-1">{{ item.label }}</span>
             <span v-if="item.shortcut" :class="menuShortcutClass">
               {{ item.shortcut }}
@@ -85,6 +93,11 @@ const emit = defineEmits<{
             :class="[menuItemClass, item.danger ? menuItemDangerClass : '']"
             @select="emit('select', item.id)"
           >
+            <span
+              v-if="hasCheckboxRow"
+              class="size-4 shrink-0"
+              aria-hidden="true"
+            />
             <component :is="item.icon" v-if="item.icon" :class="menuIconClass" />
             <span class="flex-1">{{ item.label }}</span>
             <span v-if="item.shortcut" :class="menuShortcutClass">

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { h } from "vue";
 import { mount } from "@vue/test-utils";
 import DropdownMenu from "./DropdownMenu.vue";
 import type { MenuItemModel } from "./menu-shared.js";
@@ -36,6 +37,32 @@ describe("DropdownMenu", () => {
     (menuItems[0] as HTMLElement).click();
     await wrapper.vm.$nextTick();
     expect(wrapper.emitted("select")).toEqual([["new"]]);
+  });
+
+  it("renders an icon on checkbox rows; plain siblings reserve the check column", async () => {
+    const icon = () => h("svg", { "data-testid": "row-icon" });
+    const wrapper = mount(DropdownMenu, {
+      props: {
+        items: [
+          { id: "nav", kind: "checkbox", label: "Show navigation", checked: true, icon },
+          { id: "theme", label: "Light theme", icon },
+        ] satisfies MenuItemModel[],
+        open: true,
+      },
+      slots: { trigger: '<button type="button">Menu</button>' },
+      attachTo: document.body,
+    });
+    await wrapper.vm.$nextTick();
+
+    const checkboxRow = document.body.querySelector('[role="menuitemcheckbox"]');
+    expect(checkboxRow).not.toBeNull();
+    expect(checkboxRow!.querySelector('[data-testid="row-icon"]')).not.toBeNull();
+
+    // Mixed menu: the plain row leads with a check-column spacer so the icon
+    // and label columns line up with its checkbox sibling.
+    const itemRow = document.body.querySelector('[role="menuitem"]')!;
+    expect(itemRow.firstElementChild!.classList.contains("size-4")).toBe(true);
+    expect(itemRow.firstElementChild!.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("renders the footer slot after the items; footer clicks don't close or select", async () => {

@@ -43,6 +43,19 @@ same … make the workspace switching beautiful — when they hover they can see
   anchor; gold stays reserved for presence). Pick-menu workspace rows wear their accent dot
   via a tiny `h()` functional icon component.
 
+## Menu cleanup (same day)
+
+Chad: "only one Vynel + View menu; move New workspace inside Vynel; View: Sessions and tasks
+gone (not relational); attach icons showing how the view will look."
+
+- Title bar slimmed 4 menus → 2. **Vynel** = New workspace (FolderPlus) · Settings · Account ·
+  Quit. **View** = Show navigation (PanelLeft) · Light/Dark theme (Sun/Moon) · Command
+  palette (Command) — each row's icon depicts what it changes. Sessions/tasks rows died: the
+  tab strip + sidebar ARE navigation, the tasks dock has its own title-bar button. Assistant's
+  New chat / Start voice and the Go rows stay reachable via the command palette (which gained
+  Toggle tasks for parity).
+- `@vynel/ui` DropdownMenu checkbox rows learned to render `item.icon` (item rows already did).
+
 ## Learnings
 
 - **Keyed RouterView + snapshot binding beats "active" accessors.** Closing the active tab
