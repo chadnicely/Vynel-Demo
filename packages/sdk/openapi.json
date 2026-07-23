@@ -11953,6 +11953,139 @@
         "summary": "Get one channel the user owns (credentials excluded).",
         "x-sdk-name": "channelsUser.get"
       },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Updated Channel (credentials excluded).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "channelKind": {
+                      "type": "string",
+                      "enum": [
+                        "telegram",
+                        "discord"
+                      ]
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "botMetadata": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "connectionStatus": {
+                      "type": "string",
+                      "enum": [
+                        "healthy",
+                        "auth-failed",
+                        "rate-limited",
+                        "network-error",
+                        "misconfigured"
+                      ]
+                    },
+                    "connectionStatusMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lastPolledAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lastInboundAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "isEnabled": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "channelKind",
+                    "displayName",
+                    "botMetadata",
+                    "connectionStatus",
+                    "connectionStatusMessage",
+                    "lastPolledAt",
+                    "lastInboundAt",
+                    "isEnabled",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such channel owned by this user."
+          }
+        },
+        "operationId": "patchChannelsByChannelId",
+        "tags": [
+          "channels"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Rename a channel the user owns.",
+        "x-sdk-name": "channelsUser.rename",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "displayName"
+                ]
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "responses": {
           "204": {

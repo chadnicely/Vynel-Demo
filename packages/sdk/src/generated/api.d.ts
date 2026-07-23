@@ -1373,7 +1373,8 @@ export interface paths {
         delete: operations["deleteChannelsByChannelId"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Rename a channel the user owns. */
+        patch: operations["patchChannelsByChannelId"];
         trace?: never;
     };
     "/channels/{channelId}/enable": {
@@ -7538,6 +7539,59 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No such channel owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchChannelsByChannelId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    displayName: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated Channel (credentials excluded). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        channelKind: "telegram" | "discord";
+                        displayName: string;
+                        botMetadata: {
+                            [key: string]: unknown;
+                        };
+                        /** @enum {string} */
+                        connectionStatus: "healthy" | "auth-failed" | "rate-limited" | "network-error" | "misconfigured";
+                        connectionStatusMessage: string | null;
+                        lastPolledAt: string | null;
+                        lastInboundAt: string | null;
+                        isEnabled: boolean;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
             };
             /** @description No such channel owned by this user. */
             404: {

@@ -170,13 +170,33 @@ describe('user-scoped channels routes', () => {
     })
   })
 
-  it('manages a GLOBAL channel end-to-end: get / disable / enable / allowed-senders / history / delete', async () => {
+  it('manages a GLOBAL channel end-to-end: get / rename / disable / enable / allowed-senders / history / delete', async () => {
     await withTestDatabase(async (db) => {
       const localUser = insertUser(db, makeUser())
       const channel = seedChannelRow(db, localUser.id, null)
       const app = createApp({ db, logger: silentLogger })
 
       expect((await app.request(`/channels/${channel.id}`)).status).toBe(200)
+
+      // Padded name: the boundary trims. Whitespace-only: 400, nothing persists.
+      const renamed = await app.request(`/channels/${channel.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ displayName: '  Renamed Bot  ' }),
+      })
+      expect(renamed.status).toBe(200)
+      const renamedBody = (await renamed.json()) as { displayName: string; botCredentials?: unknown }
+      expect(renamedBody.displayName).toBe('Renamed Bot')
+      expect(renamedBody.botCredentials).toBeUndefined()
+      expect(
+        (
+          await app.request(`/channels/${channel.id}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ displayName: '   ' }),
+          })
+        ).status,
+      ).toBe(400)
 
       const disabled = await app.request(`/channels/${channel.id}/disable`, { method: 'POST' })
       expect(((await disabled.json()) as { isEnabled: boolean }).isEnabled).toBe(false)
@@ -210,6 +230,15 @@ describe('user-scoped channels routes', () => {
 
       // Every id-op on the victim's channel is an identical 404.
       expect((await app.request(`/channels/${victim.id}`)).status).toBe(404)
+      expect(
+        (
+          await app.request(`/channels/${victim.id}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ displayName: 'Hijacked' }),
+          })
+        ).status,
+      ).toBe(404)
       expect((await app.request(`/channels/${victim.id}`, { method: 'DELETE' })).status).toBe(404)
       expect((await app.request(`/channels/${victim.id}/enable`, { method: 'POST' })).status).toBe(404)
       expect((await app.request(`/channels/${victim.id}/disable`, { method: 'POST' })).status).toBe(404)

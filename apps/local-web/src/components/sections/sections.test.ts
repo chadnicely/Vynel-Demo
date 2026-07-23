@@ -87,7 +87,10 @@ describe("ChannelsSection", () => {
     expect(wrapper.find(".invite-button").text()).toContain("Connect Telegram");
   });
 
-  it("shows a workspace room only its own + global channels, with scope chips", async () => {
+  // test: correct expectation for scope visibility — was "workspace = own +
+  // global", now STRICT per Chad's 2026-07-23 rule: each scope lists only its
+  // own channels (docs/module-notes/channels-ui.md).
+  it("a workspace room lists ONLY its own channels — never global or another room's", async () => {
     const client = {
       channelsUser: {
         list: async () => [
@@ -109,10 +112,29 @@ describe("ChannelsSection", () => {
     await flushPromises();
 
     const rows = wrapper.findAll(".row");
-    expect(rows).toHaveLength(2);
-    expect(wrapper.text()).toContain("Global");
-    expect(wrapper.text()).toContain("vynel");
+    expect(rows).toHaveLength(1);
+    expect(wrapper.text()).toContain("Room bot");
+    expect(wrapper.text()).not.toContain("My Telegram");
     expect(wrapper.text()).not.toContain("Other");
+  });
+
+  it("the global menu lists ONLY global (null-workspace) channels", async () => {
+    const client = {
+      channelsUser: {
+        list: async () => [
+          makeChannel(),
+          makeChannel({ id: "c2", workspaceId: "w1", displayName: "Room bot" }),
+        ],
+      },
+      workspaces: { list: async () => [] },
+    } as unknown as VynelClient;
+
+    const wrapper = mountSection(ChannelsSection, { kind: "global" }, client);
+    await flushPromises();
+
+    expect(wrapper.findAll(".row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("My Telegram");
+    expect(wrapper.text()).not.toContain("Room bot");
   });
 
   it("disconnects only on the second, armed click (one click never deletes)", async () => {

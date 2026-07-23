@@ -316,6 +316,14 @@ export function makeNamespaced(client: Client<paths>) {
     if (error) throw new SdkError(response, error)
 
   },
+  rename: async (channelId: NonNullable<paths["/channels/{channelId}"]["patch"]['parameters']>['path']["channelId"], input: NonNullable<paths["/channels/{channelId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/channels/{channelId}", {
+      params: { path: { channelId: channelId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   },
   chat: {
   archiveSession: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/archive"]["post"]['parameters']>['path']["workspaceId"], sessionId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}/archive"]["post"]['parameters']>['path']["sessionId"]) => {

@@ -1,6 +1,6 @@
 // Outbox event type constants + payload interfaces for the
-// `channels` domain — three lifecycle events: `channel.connected`,
-// `channel.disconnected`, `channel.enabled-changed`.
+// `channels` domain — four lifecycle events: `channel.connected`,
+// `channel.disconnected`, `channel.enabled-changed`, `channel.renamed`.
 //
 // Each event row is co-committed in the same sync
 // `withTransaction(db, (tx) => …)` block as the state change via the
@@ -25,6 +25,7 @@ import type { ChannelKind } from './repositories/index.js'
 export const CHANNEL_CONNECTED = 'channel.connected' as const
 export const CHANNEL_DISCONNECTED = 'channel.disconnected' as const
 export const CHANNEL_ENABLED_CHANGED = 'channel.enabled-changed' as const
+export const CHANNEL_RENAMED = 'channel.renamed' as const
 
 export type ChannelConnectedPayload = {
   channelId: string
@@ -49,4 +50,13 @@ export type ChannelEnabledChangedPayload = {
   channelKind: ChannelKind
   isEnabled: boolean
   changedAt: string
+}
+
+export type ChannelRenamedPayload = {
+  channelId: string
+  userId: string
+  workspaceId: string | null
+  channelKind: ChannelKind
+  displayName: string
+  renamedAt: string
 }

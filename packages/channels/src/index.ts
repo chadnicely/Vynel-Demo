@@ -29,11 +29,13 @@ export {
   CHANNEL_CONNECTED,
   CHANNEL_DISCONNECTED,
   CHANNEL_ENABLED_CHANGED,
+  CHANNEL_RENAMED,
 } from './channels-events.js'
 export type {
   ChannelConnectedPayload,
   ChannelDisconnectedPayload,
   ChannelEnabledChangedPayload,
+  ChannelRenamedPayload,
 } from './channels-events.js'
 
 // Connect / list / allowlist / enable ops.
@@ -60,6 +62,7 @@ export { sendToChannel, type SendToChannelInput } from './delivery/send-to-chann
 // via `getChannelForUserOrThrow` — `userId` is the tenant boundary.
 export { getChannelForUserOrThrow } from './queries/get-channel-for-user.js'
 export { setChannelEnabledForUser } from './lifecycle/set-channel-enabled-for-user.js'
+export { renameChannelForUser } from './lifecycle/rename-channel-for-user.js'
 export { disconnectChannelForUser } from './lifecycle/disconnect-channel-for-user.js'
 export {
   addAllowedSenderForUser,

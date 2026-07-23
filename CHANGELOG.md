@@ -9,6 +9,20 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Channels wear their real brand marks and got a Manage door.** Every channel row now shows
+  the channel's actual brand icon (Telegram's paper-plane in Telegram blue), a clear
+  Healthy / Attention / Paused pill, and a Manage action. The new Manage dialog lets you
+  rename a channel, pause and resume it, and curate exactly who's allowed to message the bot
+  (add or remove allowed senders by their Telegram user ID) — all of which previously required
+  disconnecting and starting over, or wasn't possible at all. One catalog now drives how every
+  channel kind presents across the app, so future channels (Discord, Zoom) slot in cleanly.
+
+### Changed
+
+- **Channel lists are strictly scoped.** The global menu lists only global channels; a
+  workspace's drawer lists only that workspace's own — a channel no longer appears in both
+  places (and the redundant scope chips are gone).
+
 - **Claude can now hand you a plan to review, right in chat.** When Claude creates or reshapes
   a plan it can link it in its reply; clicking opens a review card showing the day, the
   details, and the plan's work items — with live status tiles you can check off without

@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { MessageSquare, Send } from "lucide-vue-next";
+import type { ChannelKind } from "@vynel/contracts/channels/channel-http";
 import { Modal } from "@vynel/ui";
 import { useConnectChannel } from "../../composables/channels/use-connect-channel.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
+import ChannelBrandIcon from "../channels/ChannelBrandIcon.vue";
+import { CHANNEL_CATALOG } from "../channels/channel-catalog.js";
 import type { SectionScope } from "./section-scope.js";
+
+const CATALOG_ENTRIES = Object.entries(CHANNEL_CATALOG) as [
+  ChannelKind,
+  (typeof CHANNEL_CATALOG)[ChannelKind],
+][];
 
 // Connect a channel: pick the kind (Telegram today; Discord is on the
 // roadmap), name it, paste the bot token, choose where it lives (everywhere,
@@ -100,22 +107,23 @@ function onOpenChange(open: boolean) {
   >
     <div class="flex flex-col gap-3.5 pt-1">
       <div class="grid grid-cols-2 gap-2">
-        <div class="flex items-center gap-2.5 rounded-md border border-gold bg-gold-soft p-2.5">
-          <span class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-raised text-ink-2">
-            <Send :size="15" />
+        <div
+          v-for="[kind, entry] in CATALOG_ENTRIES"
+          :key="kind"
+          class="flex items-center gap-2.5 rounded-md p-2.5"
+          :class="
+            entry.available
+              ? 'border border-gold bg-gold-soft'
+              : 'border border-hair bg-panel opacity-55'
+          "
+          :aria-disabled="!entry.available || undefined"
+        >
+          <span class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-raised">
+            <ChannelBrandIcon :kind="kind" :size="15" />
           </span>
           <span class="grid min-w-0 gap-px">
-            <span class="text-[12.5px] font-semibold text-ink-1">Telegram</span>
-            <span class="text-[10.5px] text-ink-3">Two minutes with @BotFather</span>
-          </span>
-        </div>
-        <div class="flex items-center gap-2.5 rounded-md border border-hair bg-panel p-2.5 opacity-55" aria-disabled="true">
-          <span class="grid size-[26px] shrink-0 place-items-center rounded-sm border border-hair bg-raised text-ink-2">
-            <MessageSquare :size="15" />
-          </span>
-          <span class="grid min-w-0 gap-px">
-            <span class="text-[12.5px] font-semibold text-ink-1">Discord</span>
-            <span class="text-[10.5px] text-ink-3">Coming soon</span>
+            <span class="text-[12.5px] font-semibold text-ink-1">{{ entry.label }}</span>
+            <span class="text-[10.5px] text-ink-3">{{ entry.tagline }}</span>
           </span>
         </div>
       </div>
@@ -143,8 +151,7 @@ function onOpenChange(open: boolean) {
           @keydown.enter.prevent="connect"
         />
         <span class="text-[11px] text-ink-3">
-          In Telegram, message @BotFather → /newbot → paste the token it gives
-          you. It stays on this computer.
+          {{ CHANNEL_CATALOG.telegram.connectHint }}
         </span>
       </label>
 

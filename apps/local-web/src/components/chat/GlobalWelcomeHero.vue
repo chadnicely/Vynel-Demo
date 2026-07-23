@@ -6,11 +6,11 @@ import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-ht
 import { WORKSPACE_KIND_BUNDLES } from "@vynel/contracts/workspaces/workspace-kind-bundles";
 import { ClaudeMark, workspaceAccentVar } from "@vynel/ui";
 import { greetingForHour } from "../../utils/greeting.js";
+import ChannelBrandIcon from "../channels/ChannelBrandIcon.vue";
 import {
-  CHANNEL_ICONS,
   channelConnectionNote,
   isChannelHealthy,
-} from "./channel-presentation.js";
+} from "../channels/channel-catalog.js";
 
 // The arrival moment — the global chat's face while the thread is empty. The
 // assistant presents itself (the spark + its name + a time-aware personal
@@ -67,10 +67,7 @@ function workspaceNote(workspace: WorkspaceResponse): string {
           <li v-for="channel in reachable" :key="channel.id">
             <div class="deck-card">
               <span class="card-icon">
-                <component
-                  :is="CHANNEL_ICONS[channel.channelKind]"
-                  :size="14"
-                />
+                <ChannelBrandIcon :kind="channel.channelKind" :size="14" />
               </span>
               <span class="card-text">
                 <span class="card-name">{{ channel.displayName }}</span>

@@ -43,6 +43,12 @@ export const ConnectChannelForUserRequestSchema = z.discriminatedUnion('scope', 
   z.object({ scope: z.literal('workspace'), workspaceId: z.string().min(1), ...connectChannelFields }),
 ])
 
+// `.trim()` at the boundary — SDK/CLI callers never pass the UI's trim, and
+// a whitespace-only name must 400, not persist.
+export const RenameChannelRequestSchema = z.object({
+  displayName: z.string().trim().min(1).max(120),
+})
+
 export const AddAllowedSenderRequestSchema = z.object({
   externalSenderId: z.string().min(1),
   externalSenderHandle: z.string().optional(),

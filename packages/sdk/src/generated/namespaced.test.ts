@@ -65,6 +65,7 @@ const EXPECTED_CHANNELS_USER_METHODS = [
   'list',
   'listAllowedSenders',
   'removeAllowedSender',
+  'rename',
 ] as const
 
 // The skills namespace's methods, sorted. The 2 read GETs + the 6

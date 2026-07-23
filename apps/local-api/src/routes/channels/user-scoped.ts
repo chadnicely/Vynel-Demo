@@ -9,6 +9,7 @@
 //   GET    /                                          -> listChannelsForUser         [x-mcp]
 //   POST   /                                          -> connectChannel (scope: global|workspace)
 //   GET    /:channelId                                -> getChannelForUserOrThrow
+//   PATCH  /:channelId                                -> renameChannelForUser
 //   DELETE /:channelId                                -> disconnectChannelForUser
 //   POST   /:channelId/enable                         -> setChannelEnabledForUser(true)
 //   POST   /:channelId/disable                        -> setChannelEnabledForUser(false)
@@ -30,6 +31,7 @@ import {
   listChannelsForUser,
   getChannelForUserOrThrow,
   setChannelEnabledForUser,
+  renameChannelForUser,
   disconnectChannelForUser,
   addAllowedSenderForUser,
   removeAllowedSenderForUser,
@@ -41,6 +43,7 @@ import {
   ChannelParamSchema,
   SenderLinkParamSchema,
   ConnectChannelForUserRequestSchema,
+  RenameChannelRequestSchema,
   AddAllowedSenderRequestSchema,
   InboundHistoryQuerySchema,
   ChannelSchema,
@@ -135,6 +138,33 @@ export const channelsUserApp = factory
     ...userScoped,
     (c) => {
       const channel = getChannelForUserOrThrow(c.var.db, c.req.valid('param').channelId, c.var.user.id)
+      return c.json(serializeChannelForResponse(channel))
+    },
+  )
+  // PATCH /:channelId — rename (the one editable field post-connect).
+  .patch(
+    '/:channelId',
+    describeRoute({
+      tags: ['channels'],
+      summary: 'Rename a channel the user owns.',
+      'x-sdk-name': 'channelsUser.rename',
+      responses: {
+        200: {
+          description: 'Updated Channel (credentials excluded).',
+          content: { 'application/json': { schema: resolver(ChannelSchema) } },
+        },
+        404: { description: 'No such channel owned by this user.' },
+      },
+    }),
+    validator('param', ChannelParamSchema),
+    validator('json', RenameChannelRequestSchema),
+    ...userScoped,
+    (c) => {
+      const channel = renameChannelForUser(c.var.db, {
+        channelId: c.req.valid('param').channelId,
+        userId: c.var.user.id,
+        displayName: c.req.valid('json').displayName,
+      })
       return c.json(serializeChannelForResponse(channel))
     },
   )
