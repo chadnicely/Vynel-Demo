@@ -90,10 +90,17 @@ import {
   SendTaskToSessionResponseSchema,
   ListRoutingChannelsResponseSchema,
   SendToChannelResponseSchema,
+  SendMessageRequestSchema,
+  SendMessageResponseSchema,
   ListBackgroundRunsResponseSchema,
   BackgroundRunDetailSchema,
 } from './schemas.js'
-import { resolveSpawnedSessionRunCwd } from '../../sessions/spawned-session-ground.js'
+import {
+  dispatchTaskToWorkspace,
+  dispatchTaskToSession,
+  dispatchReportToRequester,
+  parseMessageDestination,
+} from './dispatch-message.js'
 
 export const routingApp = factory
   .createApp()
@@ -153,6 +160,7 @@ export const routingApp = factory
         name: 'send_task_to_workspace',
         mutatingApproved: true,
         description:
+          'SUPERSEDED by send_message — prefer that one; this still works but will be removed. ' +
           "Hand a task to a target workspace's own brain (its continuing conversation, with all its " +
           'context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns ' +
           "IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the " +
@@ -170,46 +178,13 @@ export const routingApp = factory
     ...userScoped,
     async (c) => {
       const { targetWorkspaceId, task, model, thinkingEffort } = c.req.valid('json')
-
-      // The global root must be running this turn — its current SDK session is recorded on
-      // the job as the delegation's parent (the session.delegated edge / provenance).
-      const globalRoot = findPrimaryConversation(c.var.db, { userId: c.var.user.id })
-      if (!globalRoot?.currentSdkSessionId) {
-        throw new ValidationError('Routing is only available during an active global-root turn.')
-      }
-
-      // Resolve + ownership-check the target workspace (NotFoundError if not owned).
-      const workspace = await getWorkspaceById(c.var.db, targetWorkspaceId, c.var.user.id)
-
-      // The ORIGIN CHANNEL (brain-tree Ch4) — set by `runGlobalRootTurn` on every routing
-      // request when this turn came from a channel; absent for a web turn. Stamped onto the job
-      // so the report is delivered back to where the user asked (read at the boundary, defensive).
-      const origin = parseDelegationOriginHeader(c.req.header(DELEGATION_ORIGIN_HEADER))
-
-      // The delegating turn's PERMISSION MODE (surface-up step 1) — set by the global-root
-      // runner beside the origin; absent for a pre-mode caller (→ the runner's bypass default).
-      const permissionMode = parseDelegationModeHeader(c.req.header(DELEGATION_MODE_HEADER))
-      const threadId = parseDelegationThreadHeader(c.req.header(DELEGATION_THREAD_HEADER))
-
-      // ENQUEUE + return immediately (brain-tree Chapter 1, async core): hand the task to the
-      // durable queue and free the global root. The delegation-service claims the job, runs
-      // the workspace turn in the background, and pushes the report back up as a message — the
-      // root never blocks and stays context-free.
-      const jobId = enqueueWorkspaceDelegation(c.var.db, {
-        userId: c.var.user.id,
-        parentSessionId: globalRoot.currentSdkSessionId,
-        workspaceId: workspace.id,
-        workspacePath: workspace.path,
-        workspaceName: workspace.name,
-        taskText: task,
-        ...(origin ? { origin } : {}),
-        ...(permissionMode !== undefined ? { permissionMode } : {}),
-        ...(threadId !== undefined ? { threadId } : {}),
+      const { jobId, deliveredTo } = await dispatchTaskToWorkspace(c, {
+        targetWorkspaceId,
+        task,
         ...(model !== undefined ? { model } : {}),
         ...(thinkingEffort !== undefined ? { thinkingEffort } : {}),
       })
-
-      return c.json({ status: 'enqueued' as const, jobId, workspaceName: workspace.name })
+      return c.json({ status: 'enqueued' as const, jobId, workspaceName: deliveredTo })
     },
   )
   // ──────────────────────────────────────────────────────────────────
@@ -243,6 +218,7 @@ export const routingApp = factory
         mutatingApproved: true,
         workspaceInteractiveSurface: true,
         description:
+          'SUPERSEDED by send_message — prefer that one; this still works but will be removed. ' +
           'Hand a task to a session you created with create_session (its continuing ' +
           'conversation, with its primed purpose and everything it has done since). Use ' +
           'list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to ' +
@@ -262,55 +238,14 @@ export const routingApp = factory
     ...userScoped,
     async (c) => {
       const { targetSessionId, task, workspaceId, model, thinkingEffort } = c.req.valid('json')
-
-      // Slice ④b: the job's parent is the CREATOR conversation — the calling
-      // workspace's primary when `workspaceId` is present (ownership-checked;
-      // unknown and not-owned both 404), else the global root (the shipped
-      // gate, relaxed from "the global root only" to "the creator").
-      const originWorkspace =
-        workspaceId !== undefined
-          ? await getWorkspaceById(c.var.db, workspaceId, c.var.user.id)
-          : null
-      const creator = findPrimaryConversation(c.var.db, {
-        userId: c.var.user.id,
-        workspaceId: originWorkspace?.id ?? null,
-      })
-      if (!creator?.currentSdkSessionId) {
-        throw new ValidationError('Routing is only available during an active creator conversation.')
-      }
-
-      // Resolve the spawned primary from the tool-facing handle (the current
-      // segment id). Unknown / not-owned / not-spawned all 404 the same way.
-      const spawned = findSpawnedSessionBySegmentId(c.var.db, {
-        userId: c.var.user.id,
-        sessionId: targetSessionId,
-      })
-      if (spawned === null) {
-        throw new NotFoundError('session', targetSessionId)
-      }
-      const sessionName = findChatSessionById(c.var.db, targetSessionId)?.title ?? 'Session'
-
-      const origin = parseDelegationOriginHeader(c.req.header(DELEGATION_ORIGIN_HEADER))
-      const permissionMode = parseDelegationModeHeader(c.req.header(DELEGATION_MODE_HEADER))
-      const threadId = parseDelegationThreadHeader(c.req.header(DELEGATION_THREAD_HEADER))
-
-      // The run cwd is the TARGET's ground, set at create (Slice ④b) —
-      // resolved by the shared one-home (deleted-workspace fallback included),
-      // the same read the interactive session-turn stream makes (Slice ③a).
-      const jobId = enqueueSessionDelegation(c.var.db, {
-        userId: c.var.user.id,
-        parentSessionId: creator.currentSdkSessionId,
-        targetPrimarySessionId: spawned.id,
-        runCwdPath: resolveSpawnedSessionRunCwd(c.var.db, spawned),
-        taskText: task,
-        ...(origin ? { origin } : {}),
-        ...(permissionMode !== undefined ? { permissionMode } : {}),
-        ...(threadId !== undefined ? { threadId } : {}),
+      const { jobId, deliveredTo } = await dispatchTaskToSession(c, {
+        targetSessionId,
+        task,
+        ...(workspaceId !== undefined ? { workspaceId } : {}),
         ...(model !== undefined ? { model } : {}),
         ...(thinkingEffort !== undefined ? { thinkingEffort } : {}),
       })
-
-      return c.json({ status: 'enqueued' as const, jobId, sessionName })
+      return c.json({ status: 'enqueued' as const, jobId, sessionName: deliveredTo })
     },
   )
   // ──────────────────────────────────────────────────────────────────
@@ -345,6 +280,7 @@ export const routingApp = factory
         mutatingApproved: true,
         rootSurface: false,
         description:
+          'SUPERSEDED by send_message — prefer that one; this still works but will be removed. ' +
           'Report your REAL result up to the conversation that requested this work (your ' +
           'requester). Use it when you finish delegated work, or when a report arrives from a ' +
           'session you delegated to and its outcome should travel further up the chain. Pass ' +
@@ -359,79 +295,7 @@ export const routingApp = factory
     ...userScoped,
     async (c) => {
       const { report } = c.req.valid('json')
-
-      // WHO is reporting — the ambient caller identity the delegated-turn MCP
-      // composer stamped (never model input: fork 2, no mis-addressing). No
-      // header = no requester (interactive chats, schedule fires, the global
-      // root) — an actionable 400, not a silent drop.
-      const caller = parseReportCallerHeader(c.req.header(REPORT_CALLER_HEADER))
-      if (caller === undefined) {
-        throw new ValidationError(
-          'This turn has no requester to report to — report_to_requester works on background ' +
-            '(delegated) turns only. Reply with your findings as text instead.',
-        )
-      }
-
-      let reporterSessionId: string | null
-      let reporterLabel: string
-      let requester: ReportDeliveryRequester
-      if (caller.kind === 'spawned-session') {
-        // A spawned session reports to its CREATOR: its grounding workspace's
-        // primary, else the global root. A gone grounding workspace falls
-        // through to the global root (upward chains terminate there — the ④b
-        // missing-creator precedent, mirrored in the tick's completion path).
-        const spawned = findSpawnedSessionById(c.var.db, {
-          userId: c.var.user.id,
-          primarySessionId: caller.targetPrimarySessionId,
-        })
-        if (spawned === null) {
-          throw new NotFoundError('session', caller.targetPrimarySessionId)
-        }
-        reporterSessionId = spawned.currentSdkSessionId
-        reporterLabel = resolveSpawnedSessionDisplayName(c.var.db, spawned)
-        const groundingWorkspace =
-          spawned.workspaceId !== null
-            ? await getWorkspaceById(c.var.db, spawned.workspaceId, c.var.user.id).catch(() => null)
-            : null
-        requester =
-          groundingWorkspace !== null
-            ? {
-                kind: 'workspace-primary',
-                workspaceId: groundingWorkspace.id,
-                workspacePath: groundingWorkspace.path,
-              }
-            : { kind: 'global-root' }
-      } else {
-        // A workspace primary reports to the global root (the tree's top).
-        const workspace = await getWorkspaceById(c.var.db, caller.workspaceId, c.var.user.id)
-        const primary = findPrimaryConversation(c.var.db, {
-          userId: c.var.user.id,
-          workspaceId: workspace.id,
-        })
-        reporterSessionId = primary?.currentSdkSessionId ?? null
-        reporterLabel = composeManagerSourceLabel(workspace.name, resolveManagerName(workspace))
-        requester = { kind: 'global-root' }
-      }
-      if (reporterSessionId === null) {
-        // The caller is mid-turn on this very conversation, so a missing link
-        // means a corrupt row — fail loud rather than forging provenance.
-        throw new ValidationError(
-          'The calling conversation has no linked session — cannot attribute the report.',
-        )
-      }
-
-      // The report is the SAME chain as the task that produced it — without
-      // this the reply would start a fresh thread and the chain would break at
-      // exactly the hop it exists to connect.
-      const threadId = parseDelegationThreadHeader(c.req.header(DELEGATION_THREAD_HEADER))
-      const jobId = enqueueReportDelivery(c.var.db, {
-        userId: c.var.user.id,
-        ...(threadId !== undefined ? { threadId } : {}),
-        reporterSessionId,
-        reporterLabel,
-        reportBody: report,
-        requester,
-      })
+      const { jobId } = await dispatchReportToRequester(c, { report })
       return c.json({ status: 'enqueued' as const, jobId })
     },
   )
@@ -588,5 +452,91 @@ export const routingApp = factory
       // tell them apart (the query returns null for both).
       if (run === null) throw new NotFoundError('Background run not found')
       return c.json(run)
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // POST /message — send_message: ONE tool for every session-to-session
+  // message, replacing send_task_to_workspace / send_task_to_session /
+  // report_to_requester (all three stay for one release as aliases).
+  //
+  // `workspaceSurface: true` alongside the routing default is what gives it ONE
+  // name on EVERY surface. Routing and workspace are otherwise mutually
+  // exclusive, and a comms tool that is named differently depending on who is
+  // calling forces the model to choose — where choosing wrong is a silent
+  // misroute, not an error.
+  //
+  // `kind` is DERIVED, never an input: "requester" is a report, a workspace or
+  // session target is a task. One less field to get wrong, and it cannot
+  // disagree with the destination.
+  // ──────────────────────────────────────────────────────────────────
+  .post(
+    '/message',
+    describeRoute({
+      tags: ['routing'],
+      summary: 'Send a message to another session — a task down, or a result back up.',
+      'x-sdk-name': 'routing.sendMessage',
+      responses: {
+        200: {
+          description: "{ status: 'enqueued', jobId, deliveredTo, kind }.",
+          content: { 'application/json': { schema: resolver(SendMessageResponseSchema) } },
+        },
+        400: { description: 'Bad destination, or no requester on this turn.' },
+        404: { description: 'Target workspace or session not found, or not owned.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'send_message',
+        mutatingApproved: true,
+        // NOT workspaceInteractiveSurface: the interactive descriptor composes
+        // the registry (the plain workspace array) PLUS the interactive array, so
+        // workspaceSurface alone already reaches interactive turns. Adding the
+        // flag would also breach the standing invariant that interactive-only
+        // tools never leak into the array schedule fires read.
+        workspaceSurface: true,
+        description:
+          'Send a message to another session. This is how sessions talk to each other — use it ' +
+          'instead of describing what you would like to happen.\n\n' +
+          '`to` is one of:\n' +
+          '- `"workspace:<workspaceId>"` — hand a task down to a workspace (ids from ' +
+          'list_routing_workspaces).\n' +
+          '- `"session:<sessionId>"` — hand a task to a session you created (ids from ' +
+          'list_sessions).\n' +
+          '- `"requester"` — pass your RESULT back up to whoever asked you for this work. You ' +
+          'never name them: who asked is resolved from the turn itself, so it cannot be ' +
+          'mis-addressed.\n\n' +
+          '`body` is the task, or the real result — findings, numbers, paths, not just "done". ' +
+          'Returns IMMEDIATELY with { status: "enqueued", jobId }; the other session picks the ' +
+          'message up in its own conversation shortly. Track a task you sent with ' +
+          'list_background_runs / get_background_run. Reporting only works on a background ' +
+          '(delegated) turn — if there is no requester, just reply with your findings as text.',
+      },
+    }),
+    validator('json', SendMessageRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const { to, body, model, thinkingEffort } = c.req.valid('json')
+      const destination = parseMessageDestination(to)
+      const taskOptions = {
+        ...(model !== undefined ? { model } : {}),
+        ...(thinkingEffort !== undefined ? { thinkingEffort } : {}),
+      }
+
+      if (destination.kind === 'requester') {
+        const { jobId, deliveredTo } = await dispatchReportToRequester(c, { report: body })
+        return c.json({ status: 'enqueued' as const, jobId, deliveredTo, kind: 'report' as const })
+      }
+      const { jobId, deliveredTo } =
+        destination.kind === 'workspace'
+          ? await dispatchTaskToWorkspace(c, {
+              targetWorkspaceId: destination.workspaceId,
+              task: body,
+              ...taskOptions,
+            })
+          : await dispatchTaskToSession(c, {
+              targetSessionId: destination.sessionId,
+              task: body,
+              ...taskOptions,
+            })
+      return c.json({ status: 'enqueued' as const, jobId, deliveredTo, kind: 'task' as const })
     },
   )

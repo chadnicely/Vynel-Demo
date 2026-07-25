@@ -126,6 +126,47 @@ function postJson(app: Hono<AppEnv>, path: string, body: unknown, headers: Recor
   })
 }
 
+// Module scope: shared by the report tests and the send_message tests — the
+// same seed defined twice would be a drift waiting to happen.
+function seedManagedWorkspace(db: Database, userId: string, name = 'Acme') {
+  const now = new Date()
+  return insertWorkspace(db, {
+    id: randomUUID(),
+    userId,
+    name,
+    managerName: 'Mark',
+    kind: 'personal',
+    path: `/tmp/vynel/${randomUUID()}`,
+    isArchived: false,
+    createdAt: now,
+    updatedAt: now,
+    lastAccessedAt: now,
+  })
+}
+
+async function seedLinkedWorkspacePrimaryFor(
+  db: Database,
+  userId: string,
+  workspaceId: string,
+  sdkSessionId: string,
+) {
+  const primary = await getOrCreatePrimarySession(db, { userId, workspaceId })
+  insertChatSession(
+    db,
+    buildNewChatSessionRow({
+      sessionId: sdkSessionId,
+      userId,
+      workspaceId,
+      providerId: 'claude',
+      startedAt: new Date(),
+      title: 'Workspace brain',
+      visibility: 'hidden',
+    }),
+  )
+  linkPrimarySessionToSdkSession(db, { primarySessionId: primary.id, userId, sdkSessionId })
+}
+
+
 describe('GET /routing/workspaces', () => {
   it('lists the user workspaces as { id, name } routing targets', async () => {
     await withTestDatabase(async (db) => {
@@ -645,44 +686,6 @@ describe('POST /routing/report (session-comms — report_to_requester)', () => {
     } as unknown as AiAgentProvider
   }
 
-  function seedManagedWorkspace(db: Database, userId: string, name = 'Acme') {
-    const now = new Date()
-    return insertWorkspace(db, {
-      id: randomUUID(),
-      userId,
-      name,
-      managerName: 'Mark',
-      kind: 'personal',
-      path: `/tmp/vynel/${randomUUID()}`,
-      isArchived: false,
-      createdAt: now,
-      updatedAt: now,
-      lastAccessedAt: now,
-    })
-  }
-
-  async function seedLinkedWorkspacePrimaryFor(
-    db: Database,
-    userId: string,
-    workspaceId: string,
-    sdkSessionId: string,
-  ) {
-    const primary = await getOrCreatePrimarySession(db, { userId, workspaceId })
-    insertChatSession(
-      db,
-      buildNewChatSessionRow({
-        sessionId: sdkSessionId,
-        userId,
-        workspaceId,
-        providerId: 'claude',
-        startedAt: new Date(),
-        title: 'Workspace brain',
-        visibility: 'hidden',
-      }),
-    )
-    linkPrimarySessionToSdkSession(db, { primarySessionId: primary.id, userId, sdkSessionId })
-  }
-
   function postReport(app: ReturnType<typeof makeHarness>, report: string, caller?: ReportCaller) {
     return postJson(
       app,
@@ -898,6 +901,93 @@ describe('GET /routing/background-runs (reading back a handed-off task)', () => 
 
       const res = await app.request(`/routing/background-runs/${randomUUID()}`)
       expect(res.status).toBe(404)
+    })
+  })
+})
+
+describe('POST /routing/message (send_message — the unified comms tool)', () => {
+  it('routes "workspace:<id>" as a task down, identically to the old delegate route', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      const parentSessionId = await seedLinkedGlobalRoot(db, user.id)
+      const app = makeHarness(db)
+
+      const res = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 'summarize the docs',
+      })
+      expect(res.status).toBe(200)
+      const out = (await res.json()) as { jobId: string; deliveredTo: string; kind: string }
+      expect(out).toMatchObject({ deliveredTo: 'Acme', kind: 'task' })
+
+      const job = findDelegationJobById(db, out.jobId)
+      expect(job?.taskText).toBe('summarize the docs')
+      expect(job?.workspaceId).toBe(workspace.id)
+      expect(job?.parentSessionId).toBe(parentSessionId)
+      // A first hop seeds its own chain.
+      expect(job?.threadId).toBe(job?.partialSessionId)
+    })
+  })
+
+  // The destination is the model's choice; WHO asked never is. A turn with no
+  // caller identity has no requester, and that must be an actionable 400 rather
+  // than a message delivered somewhere plausible.
+  it('400s "requester" on a turn that has no requester', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      seedWorkspace(db, user.id)
+      const app = makeHarness(db)
+
+      const res = await postJson(app, '/routing/message', {
+        to: 'requester',
+        body: 'here are the findings',
+      })
+      expect(res.status).toBe(400)
+    })
+  })
+
+  it('reports up to the global root when the caller is a workspace primary', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-msg')
+      const app = makeHarness(db)
+
+      const res = await app.request('/routing/message', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          [REPORT_CALLER_HEADER]: serializeReportCaller({
+            kind: 'workspace-primary',
+            workspaceId: workspace.id,
+          }),
+        },
+        body: JSON.stringify({ to: 'requester', body: '12 docs, 3 stale' }),
+      })
+
+      expect(res.status).toBe(200)
+      const out = (await res.json()) as { jobId: string; kind: string }
+      expect(out.kind).toBe('report')
+      const job = findDelegationJobById(db, out.jobId)
+      expect(job?.jobKind).toBe('report-delivery')
+      expect(job?.taskText).toBe('12 docs, 3 stale')
+    })
+  })
+
+  it('rejects a destination it cannot route', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      seedWorkspace(db, user.id)
+      const app = makeHarness(db)
+
+      expect((await postJson(app, '/routing/message', { to: 'nonsense', body: 'x' })).status).toBe(
+        400,
+      )
+      expect((await postJson(app, '/routing/message', { to: 'requester', body: '' })).status).toBe(
+        400,
+      )
     })
   })
 })

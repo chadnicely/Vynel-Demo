@@ -2636,6 +2636,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/routing/message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a message to another session — a task down, or a result back up. */
+        post: operations["postRoutingMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/activity/stream": {
         parameters: {
             query?: never;
@@ -12111,6 +12128,58 @@ export interface operations {
                 };
             };
             /** @description Unknown run, or not owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postRoutingMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    to: string;
+                    body: string;
+                    /** @enum {string} */
+                    model?: "claude-fable-5" | "claude-opus-4-8" | "claude-sonnet-4-6" | "claude-haiku-4-5";
+                    /** @enum {string} */
+                    thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+                };
+            };
+        };
+        responses: {
+            /** @description { status: 'enqueued', jobId, deliveredTo, kind }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "enqueued";
+                        jobId: string;
+                        deliveredTo: string;
+                        /** @enum {string} */
+                        kind: "task" | "report";
+                    };
+                };
+            };
+            /** @description Bad destination, or no requester on this turn. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target workspace or session not found, or not owned. */
             404: {
                 headers: {
                     [name: string]: unknown;

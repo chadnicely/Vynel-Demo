@@ -105,6 +105,38 @@ export const SendToChannelResponseSchema = z.object({
   channelId: z.string(),
 })
 
+// ── The unified session-messaging tool ──────────────────────────────
+
+/** Where a message goes. `requester` carries NO id on purpose: who asked is
+ *  resolved server-side from the caller header, never from model input — a
+ *  mis-set requester would deliver a result to the wrong conversation, and it
+ *  is unrecoverable once sent. `to` names a destination the model legitimately
+ *  CHOSE; it never names who asked. */
+export const MessageDestinationSchema = z
+  .string()
+  .min(1)
+  .regex(
+    /^(requester|workspace:.+|session:.+)$/,
+    'to must be "requester", "workspace:<workspaceId>", or "session:<sessionId>"',
+  )
+
+export const SendMessageRequestSchema = z.object({
+  to: MessageDestinationSchema,
+  /** The task to hand down, or the result to pass back up. */
+  body: z.string().min(1).max(50000),
+  ...DelegationRunPreferenceFields,
+})
+
+export const SendMessageResponseSchema = z.object({
+  status: z.literal('enqueued'),
+  jobId: z.string(),
+  /** What the message was addressed to, resolved — the workspace/session name,
+   *  or the requester's label. Lets the caller confirm where it actually went. */
+  deliveredTo: z.string(),
+  /** 'task' when sent down to a workspace/session, 'report' when passed up. */
+  kind: z.enum(['task', 'report']),
+})
+
 // ── Background runs (reading back a handed-off task) ────────────────
 
 /** The agent-facing status vocabulary — NOT the queue's storage union

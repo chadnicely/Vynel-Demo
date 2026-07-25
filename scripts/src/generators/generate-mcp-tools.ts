@@ -63,6 +63,19 @@ type XMcp = {
   // `vynelWorkspaceInteractiveDescriptor`). Schedule fires and spawned-session
   // targets compose the plain workspace descriptor and never see these tools.
   workspaceInteractiveSurface?: boolean
+  // ALSO keep this tool in the plain workspace array even though it is a ROOT
+  // tool. Routing and workspace are otherwise MUTUALLY EXCLUSIVE
+  // (`nonRouting = !isRouting`), which means one route cannot serve both the
+  // global root and the turns that read the plain array (schedule fires,
+  // spawned sessions, delegated workspace roots). That is fine for a tool that
+  // is genuinely root-only, and wrong for one that every session needs — a
+  // unified comms tool must have ONE name everywhere, or the model has to pick
+  // between near-identical tools and picking wrong is a silent misroute.
+  //
+  // Safe because the generator emits one factory per entry and the arrays only
+  // REFERENCE it — an entry in both arrays is the same export twice, never a
+  // duplicate declaration.
+  workspaceSurface?: boolean
 }
 
 type OpenApiObjectSchema = {
@@ -125,6 +138,7 @@ type ToolEntry = {
   isRouting: boolean
   // Slice ④b: additionally emitted into `generatedWorkspaceInteractiveMcpTools`.
   isWorkspaceInteractive: boolean
+  isWorkspaceSurface: boolean
 }
 
 const entries: ToolEntry[] = []
@@ -171,6 +185,7 @@ for (const [pathKey, methods] of Object.entries(paths)) {
       isRouting:
         (pathKey.startsWith('/routing/') && mcp.rootSurface !== false) || mcp.rootSurface === true,
       isWorkspaceInteractive: mcp.workspaceInteractiveSurface === true,
+      isWorkspaceSurface: mcp.workspaceSurface === true,
     })
   }
 }
@@ -399,7 +414,8 @@ type McpToolFn = (
 
 `
   const body = allEntries.map(renderToolEntry).join('\n\n')
-  const nonRouting = allEntries.filter((e) => !e.isRouting)
+  // A routing tool opts back INTO the workspace array with `workspaceSurface`.
+  const nonRouting = allEntries.filter((e) => !e.isRouting || e.isWorkspaceSurface)
   const routing = allEntries.filter((e) => e.isRouting)
   const workspaceInteractive = allEntries.filter((e) => e.isWorkspaceInteractive)
   const footer =

@@ -22949,7 +22949,7 @@
           "exposed": true,
           "name": "send_task_to_workspace",
           "mutatingApproved": true,
-          "description": "Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. If the task needs an irreversible action (write or edit a file, delete, run a shell command), that action PAUSES for the user to approve — the approval card appears in the app and, for a channel request, in that channel; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults."
+          "description": "SUPERSEDED by send_message — prefer that one; this still works but will be removed. Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. If the task needs an irreversible action (write or edit a file, delete, run a shell command), that action PAUSES for the user to approve — the approval card appears in the app and, for a channel request, in that channel; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults."
         },
         "requestBody": {
           "content": {
@@ -23045,7 +23045,7 @@
           "name": "send_task_to_session",
           "mutatingApproved": true,
           "workspaceInteractiveSurface": true,
-          "description": "Hand a task to a session you created with create_session (its continuing conversation, with its primed purpose and everything it has done since). Use list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to a session with room, or create a new one. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the session runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. Tasks sent to the SAME session run one at a time, in order; different sessions run in parallel. If the task needs an irreversible action, that action PAUSES for the user to approve; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults."
+          "description": "SUPERSEDED by send_message — prefer that one; this still works but will be removed. Hand a task to a session you created with create_session (its continuing conversation, with its primed purpose and everything it has done since). Use list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to a session with room, or create a new one. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the session runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. Tasks sent to the SAME session run one at a time, in order; different sessions run in parallel. If the task needs an irreversible action, that action PAUSES for the user to approve; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults."
         },
         "requestBody": {
           "content": {
@@ -23141,7 +23141,7 @@
           "name": "report_to_requester",
           "mutatingApproved": true,
           "rootSurface": false,
-          "description": "Report your REAL result up to the conversation that requested this work (your requester). Use it when you finish delegated work, or when a report arrives from a session you delegated to and its outcome should travel further up the chain. Pass the actual findings — data, numbers, file paths — not just \"done\". The requester is resolved automatically from who you are; you cannot choose the destination. Returns IMMEDIATELY with { status: 'enqueued' } — your requester absorbs the report in its own conversation a little later. Only works on background (delegated) turns; if it says there is no requester, simply reply with your findings as text instead."
+          "description": "SUPERSEDED by send_message — prefer that one; this still works but will be removed. Report your REAL result up to the conversation that requested this work (your requester). Use it when you finish delegated work, or when a report arrives from a session you delegated to and its outcome should travel further up the chain. Pass the actual findings — data, numbers, file paths — not just \"done\". The requester is resolved automatically from who you are; you cannot choose the destination. Returns IMMEDIATELY with { status: 'enqueued' } — your requester absorbs the report in its own conversation a little later. Only works on background (delegated) turns; if it says there is no requester, simply reply with your findings as text instead."
         },
         "requestBody": {
           "content": {
@@ -23478,6 +23478,111 @@
           "name": "get_background_run",
           "workspaceInteractiveSurface": true,
           "description": "Get one handed-off task by its jobId — its status and the FULL text it reported back (list_background_runs shows only a preview). Use it when a run has completed and you need its actual result, or when it failed and you need the error. Read-only."
+        }
+      }
+    },
+    "/routing/message": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ status: 'enqueued', jobId, deliveredTo, kind }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "enqueued"
+                    },
+                    "jobId": {
+                      "type": "string"
+                    },
+                    "deliveredTo": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "task",
+                        "report"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "jobId",
+                    "deliveredTo",
+                    "kind"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad destination, or no requester on this turn."
+          },
+          "404": {
+            "description": "Target workspace or session not found, or not owned."
+          }
+        },
+        "operationId": "postRoutingMessage",
+        "tags": [
+          "routing"
+        ],
+        "parameters": [],
+        "summary": "Send a message to another session — a task down, or a result back up.",
+        "x-sdk-name": "routing.sendMessage",
+        "x-mcp": {
+          "exposed": true,
+          "name": "send_message",
+          "mutatingApproved": true,
+          "workspaceSurface": true,
+          "description": "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to a session you created (ids from list_sessions).\n- `\"requester\"` — pass your RESULT back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\n`body` is the task, or the real result — findings, numbers, paths, not just \"done\". Returns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_background_runs / get_background_run. Reporting only works on a background (delegated) turn — if there is no requester, just reply with your findings as text."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "pattern": "^(requester|workspace:.+|session:.+)$",
+                    "minLength": 1
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "claude-fable-5",
+                      "claude-opus-4-8",
+                      "claude-sonnet-4-6",
+                      "claude-haiku-4-5"
+                    ]
+                  },
+                  "thinkingEffort": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ]
+                  }
+                },
+                "required": [
+                  "to",
+                  "body"
+                ]
+              }
+            }
+          }
         }
       }
     },

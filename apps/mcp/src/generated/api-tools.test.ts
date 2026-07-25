@@ -74,6 +74,13 @@ import {
 //     because the two surfaces are mutually exclusive and a turn that can arm
 //     a watch must be able to stop it. There is no watchable-events tool: the
 //     catalog is inlined into both create descriptions (see watchable-events.ts).
+//   - send_message (2026-07-26): the ONE session-to-session comms tool,
+//     superseding send_task_to_workspace / send_task_to_session /
+//     report_to_requester (all three kept one release as aliases). It is the
+//     first route to carry `x-mcp.workspaceSurface`, which keeps a ROOT tool in
+//     the plain workspace array too — so it has ONE name on EVERY surface
+//     (routing + workspace + interactive), which is why it appears in all three
+//     expected lists below rather than exactly one.
 const EXPECTED_TOOL_NAMES = [
   'add_app',
   'add_journal_entry',
@@ -123,6 +130,7 @@ const EXPECTED_TOOL_NAMES = [
   'search_chat_messages',
   'search_knowledge',
   'search_memory',
+  'send_message',
   'start_app',
   'stop_app',
   'stop_monitor',
@@ -153,6 +161,7 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   'register_workspace',
   'send_task_to_session',
   'send_task_to_workspace',
+  'send_message',
   'send_to_channel',
   'speak',
   'stop_global_monitor',

@@ -43,6 +43,17 @@ export interface McpExtension {
    * descriptor and never see these tools.
    */
   workspaceInteractiveSurface?: boolean
+  /**
+   * ALSO keep this ROOT tool in the plain workspace array. Routing and workspace
+   * are otherwise mutually exclusive (`nonRouting = !isRouting` in the
+   * generator), so one route cannot serve both the global root and the turns
+   * that read the plain array (schedule fires, spawned sessions, delegated
+   * workspace roots). Correct for a genuinely root-only tool; wrong for one
+   * every session needs — a unified comms tool must have ONE name everywhere,
+   * or the model has to choose between near-identical tools and choosing wrong
+   * is a silent misroute rather than an error.
+   */
+  workspaceSurface?: boolean
 }
 
 // The `hono-openapi` describeRoute accepts a wide options object plus
