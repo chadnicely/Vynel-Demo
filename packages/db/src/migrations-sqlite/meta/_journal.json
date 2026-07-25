@@ -134,6 +134,13 @@
       "when": 1784770538324,
       "tag": "0018_channel_chat_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1785009823333,
+      "tag": "0019_monitors",
+      "breakpoints": true
     }
   ]
 }
