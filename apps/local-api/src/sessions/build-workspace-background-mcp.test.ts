@@ -25,6 +25,15 @@ vi.mock('@vynel/mcp', () => ({
     }),
     mutatingToolNames: [],
   },
+  // A GLOBAL-grounded spawned session inherits the ROOT's toolset (2026-07-26).
+  vynelRoutingDescriptor: {
+    serverName: 'vynel-routing',
+    build: (context: { appRequest: unknown }) => ({
+      marker: 'routing',
+      appRequest: context.appRequest,
+    }),
+    mutatingToolNames: [],
+  },
 }))
 vi.mock('@vynel/instructions', () => ({
   notebookFeatureDescriptor: {
@@ -64,7 +73,11 @@ function dispatcherOf(server: unknown): HonoAppRequestFn {
 }
 
 describe('buildDelegatedTurnMcpComposer', () => {
-  it('routes a workspace-root target to the INTERACTIVE descriptor and a spawned-session target to the plain one', async () => {
+  // SPEC CHANGE (2026-07-26, Chad): a spawned session now inherits its PARENT's
+  // toolset, so BOTH delegated targets get the interactive descriptor. This
+  // reverses the earlier "the leaf, not a router" pin that kept spawning tools
+  // away from spawned sessions.
+  it('routes both delegated targets to the INTERACTIVE descriptor (a spawned session inherits its parent)', async () => {
     const { appRequest } = makeSpyAppRequest()
     const compose = await buildDelegatedTurnMcpComposer(appRequest)
 
@@ -72,7 +85,7 @@ describe('buildDelegatedTurnMcpComposer', () => {
     expect(Object.keys(workspaceRoot.mcpServers)).toEqual(['vynel-interactive', 'vynel-notebook'])
 
     const spawned = compose({ ...target, target: 'spawned-session', targetPrimarySessionId: 'sp-1' })
-    expect(Object.keys(spawned.mcpServers)).toEqual(['vynel-plain', 'vynel-notebook'])
+    expect(Object.keys(spawned.mcpServers)).toEqual(['vynel-interactive', 'vynel-notebook'])
   })
 
   it('stamps the caller-identity header per target (session-comms): workspace-root = the workspace primary, spawned-session = the SESSION', async () => {
@@ -89,7 +102,7 @@ describe('buildDelegatedTurnMcpComposer', () => {
     })
 
     const spawned = compose({ ...target, target: 'spawned-session', targetPrimarySessionId: 'sp-1' })
-    await dispatcherOf(spawned.mcpServers['vynel-plain'])('/routing/report', { method: 'POST' })
+    await dispatcherOf(spawned.mcpServers['vynel-interactive'])('/routing/report', { method: 'POST' })
     expect(parseReportCallerHeader(callerHeaders[1] ?? undefined)).toEqual({
       kind: 'spawned-session',
       targetPrimarySessionId: 'sp-1',
@@ -100,7 +113,7 @@ describe('buildDelegatedTurnMcpComposer', () => {
     const { appRequest, callerHeaders } = makeSpyAppRequest()
     const compose = await buildDelegatedTurnMcpComposer(appRequest)
     const spawned = compose({ ...target, target: 'spawned-session' })
-    await dispatcherOf(spawned.mcpServers['vynel-plain'])('/routing/report', { method: 'POST' })
+    await dispatcherOf(spawned.mcpServers['vynel-interactive'])('/routing/report', { method: 'POST' })
     expect(callerHeaders[0]).toBeNull()
   })
 })

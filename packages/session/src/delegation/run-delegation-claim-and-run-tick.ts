@@ -102,7 +102,7 @@ export interface RunDelegationTickDeps {
   composeWorkspaceMcpServers?: (input: {
     db: Database
     userId: string
-    workspaceId: string
+    workspaceId: string | null
     target: 'workspace-root' | 'spawned-session'
     threadId?: string
     jobId?: string
@@ -302,7 +302,8 @@ export async function runDelegationClaimAndRunTick(
     // The chain this turn belongs to — every hop its tools make continues it.
     const claimedThreadId = resolveThreadIdOf(claimed)
     const mcpAttachment =
-      deps.composeWorkspaceMcpServers !== undefined && mcpGroundingWorkspaceId !== null
+      deps.composeWorkspaceMcpServers !== undefined &&
+      (mcpGroundingWorkspaceId !== null || claimed.targetPrimarySessionId !== null)
         ? deps.composeWorkspaceMcpServers({
             db,
             userId: claimed.userId,

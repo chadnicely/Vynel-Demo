@@ -59,16 +59,27 @@ export async function buildWorkspaceBackgroundMcpComposer(
 // chat has (create_session / list_sessions / send_task_to_session) — the
 // global → workspace → session chain works, and the workspace primary's
 // toolset stops flip-flopping per turn origin (the deferred-tool "dropped
-// again" narrative). A SPAWNED-SESSION target stays on the plain set — it is
-// the leaf doing the work, not a brain that routes further (no session
-// recursion in v1). Schedule fires keep `buildWorkspaceBackgroundMcpComposer`
-// above: a truly autonomous turn never gains spawning tools.
+// again" narrative).
+//
+// A SPAWNED-SESSION target now gets the SAME set (Chad, 2026-07-26: "all of the
+// tools available to his parent will be available to the spawned session, with
+// the same mode"). This REVERSES the earlier "the leaf, not a router" pin —
+// which had kept spawning tools away from spawned sessions so they could not
+// recurse. Chad's call, raised and settled: having a tool is not using it, and
+// the two-hop chains he wants need it. There is deliberately NO depth cap.
+// Permission mode already flows: the delegate routes stamp the caller's mode
+// onto the job row, and the tick runs the turn under it.
+//
+// Schedule fires keep `buildWorkspaceBackgroundMcpComposer` above: a truly
+// autonomous turn never gains spawning tools.
 export type DelegatedTurnTarget = 'workspace-root' | 'spawned-session'
 
 export type DelegatedTurnMcpComposer = (input: {
   db: Database
   userId: string
-  workspaceId: string
+  /** NULL for a GLOBAL-grounded spawned session — it has no workspace, and its
+   *  parent is the global root, so it inherits the ROOT's toolset instead. */
+  workspaceId: string | null
   target: DelegatedTurnTarget
   /** The chain this turn belongs to — stamped onto every request its tools make,
    *  so a hop from inside it CONTINUES the chain instead of starting one. */
@@ -86,7 +97,7 @@ export type DelegatedTurnMcpComposer = (input: {
 export async function buildDelegatedTurnMcpComposer(
   appRequest: HonoAppRequestFn,
 ): Promise<DelegatedTurnMcpComposer> {
-  const { vynelWorkspaceDescriptor, vynelWorkspaceInteractiveDescriptor } = await import(
+  const { vynelWorkspaceInteractiveDescriptor, vynelRoutingDescriptor } = await import(
     '@vynel/mcp'
   )
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
@@ -98,7 +109,7 @@ export async function buildDelegatedTurnMcpComposer(
     // header: the tool then 400s honestly instead of mis-addressing as the
     // workspace primary.
     const caller: ReportCaller | null =
-      target === 'workspace-root'
+      target === 'workspace-root' && workspaceId !== null
         ? { kind: 'workspace-primary', workspaceId }
         : targetPrimarySessionId !== undefined
           ? { kind: 'spawned-session', targetPrimarySessionId }
@@ -115,11 +126,18 @@ export async function buildDelegatedTurnMcpComposer(
       jobId !== undefined
         ? wrapAppRequestWithDelegationJob(threadAwareAppRequest, jobId)
         : threadAwareAppRequest
+    // A GLOBAL-grounded spawned session inherits the GLOBAL ROOT's toolset —
+    // its parent's — because it has no workspace to inherit one from. It used to
+    // get nothing at all, so it could not even report back. `send_message` rides
+    // both surfaces, so reporting works either way.
+    if (workspaceId === null) {
+      return composeSessionMcpServers(
+        [vynelRoutingDescriptor, notebookFeatureDescriptor],
+        { db, userId, appRequest: jobAwareAppRequest },
+      )
+    }
     return composeSessionMcpServers(
-      [
-        target === 'workspace-root' ? vynelWorkspaceInteractiveDescriptor : vynelWorkspaceDescriptor,
-        notebookFeatureDescriptor,
-      ],
+      [vynelWorkspaceInteractiveDescriptor, notebookFeatureDescriptor],
       { db, userId, workspaceId, appRequest: jobAwareAppRequest },
       {
         enabledCapabilityIds: new Set(

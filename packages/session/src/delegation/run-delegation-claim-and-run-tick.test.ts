@@ -381,8 +381,10 @@ describe('runDelegationClaimAndRunTick', () => {
       expect(groundedInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
       await drainPendingReportDeliveries(db)
 
-      // GLOBAL-grounded session target: NOTHING composed — bare stays
-      // CONSISTENT there (its priming attached nothing, no tools to strip).
+      // SPEC CHANGE (2026-07-26, Chad): a GLOBAL-grounded session target now
+      // composes too, with workspaceId NULL — it inherits its parent's toolset,
+      // and the parent of a global-grounded session is the global ROOT. It used
+      // to get nothing at all, which meant it could not even report back.
       composeWorkspaceMcpServers.mockClear()
       const globalGrounded = await createSpawnedSession(
         db,
@@ -407,8 +409,14 @@ describe('runDelegationClaimAndRunTick', () => {
         activityFeed: new SessionActivityFeed(),
         composeWorkspaceMcpServers,
       })
-      expect(composeWorkspaceMcpServers).not.toHaveBeenCalled()
-      expect(globalInputs[0]!).not.toHaveProperty('mcpServers')
+      expect(composeWorkspaceMcpServers).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: null,
+          target: 'spawned-session',
+          targetPrimarySessionId: globalGrounded.primarySessionId,
+        }),
+      )
+      expect(globalInputs[0]!).toHaveProperty('mcpServers')
     })
   })
 
