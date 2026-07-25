@@ -23,6 +23,7 @@ import {
   composeSessionMcpServers,
   type ComposedSessionMcpServers,
 } from './compose-session-mcp-servers.js'
+import { wrapAppRequestWithDelegationThread } from './delegation-thread-header.js'
 import {
   wrapAppRequestWithReportCaller,
   type ReportCaller,
@@ -68,6 +69,9 @@ export type DelegatedTurnMcpComposer = (input: {
   userId: string
   workspaceId: string
   target: DelegatedTurnTarget
+  /** The chain this turn belongs to — stamped onto every request its tools make,
+   *  so a hop from inside it CONTINUES the chain instead of starting one. */
+  threadId?: string
   /** The spawned primary a 'spawned-session' target resumes — required to stamp
    *  that turn's caller-identity header as the SESSION (session-comms fork 2:
    *  a spawned session and its grounding workspace share a workspaceId, but
@@ -82,7 +86,7 @@ export async function buildDelegatedTurnMcpComposer(
     '@vynel/mcp'
   )
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  return ({ db, userId, workspaceId, target, targetPrimarySessionId }) => {
+  return ({ db, userId, workspaceId, target, targetPrimarySessionId, threadId }) => {
     // The caller identity (session-comms): stamped server-side onto every
     // request this routed turn's tools make, so `report_to_requester` resolves
     // the requester from WHO is running — never from model input. A spawned
@@ -97,12 +101,18 @@ export async function buildDelegatedTurnMcpComposer(
           : null
     const callerAwareAppRequest =
       caller !== null ? wrapAppRequestWithReportCaller(appRequest, caller) : appRequest
+    // Chain continuation rides the SAME dispatcher wrapping as the caller
+    // identity — both are ambient turn context the model never sees.
+    const threadAwareAppRequest =
+      threadId !== undefined
+        ? wrapAppRequestWithDelegationThread(callerAwareAppRequest, threadId)
+        : callerAwareAppRequest
     return composeSessionMcpServers(
       [
         target === 'workspace-root' ? vynelWorkspaceInteractiveDescriptor : vynelWorkspaceDescriptor,
         notebookFeatureDescriptor,
       ],
-      { db, userId, workspaceId, appRequest: callerAwareAppRequest },
+      { db, userId, workspaceId, appRequest: threadAwareAppRequest },
       {
         enabledCapabilityIds: new Set(
           listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),

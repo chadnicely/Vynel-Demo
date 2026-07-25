@@ -311,6 +311,37 @@ export function listRecentDelegationJobsForUser(
     .all()
 }
 
+// Every hop of ONE chain, oldest first — the read `partialSessionId` cannot
+// answer (it is per-hop by design). Matches on the stored `threadId` OR on a
+// row whose own `partialSessionId` IS the thread: a chain-starting hop seeds the
+// thread from its own key, and a legacy row (threadId NULL, written before the
+// column existed) is its own thread — the `or` is what lets the migration skip a
+// backfill entirely.
+export function listDelegationJobsByThread(
+  db: Database,
+  input: { userId: string; threadId: string; limit?: number },
+): DelegationJob[] {
+  const cappedLimit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
+  return db
+    .select()
+    .from(delegationJobs)
+    .where(
+      and(
+        eq(delegationJobs.userId, input.userId),
+        or(
+          eq(delegationJobs.threadId, input.threadId),
+          and(
+            isNull(delegationJobs.threadId),
+            eq(delegationJobs.partialSessionId, input.threadId),
+          ),
+        ),
+      ),
+    )
+    .orderBy(asc(delegationJobs.createdAt), asc(delegationJobs.id))
+    .limit(cappedLimit)
+    .all()
+}
+
 // Mark delegations as surfaced into the root's context (exactly-once — a later turn won't
 // re-inject them). Idempotent + a no-op on an empty list.
 export function markDelegationsSurfacedToRoot(

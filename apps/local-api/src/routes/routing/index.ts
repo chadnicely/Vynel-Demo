@@ -72,6 +72,10 @@ import {
   DELEGATION_MODE_HEADER,
 } from '../../sessions/delegation-mode-header.js'
 import {
+  parseDelegationThreadHeader,
+  DELEGATION_THREAD_HEADER,
+} from '../../sessions/delegation-thread-header.js'
+import {
   parseReportCallerHeader,
   REPORT_CALLER_HEADER,
 } from '../../sessions/report-caller-header.js'
@@ -185,6 +189,7 @@ export const routingApp = factory
       // The delegating turn's PERMISSION MODE (surface-up step 1) — set by the global-root
       // runner beside the origin; absent for a pre-mode caller (→ the runner's bypass default).
       const permissionMode = parseDelegationModeHeader(c.req.header(DELEGATION_MODE_HEADER))
+      const threadId = parseDelegationThreadHeader(c.req.header(DELEGATION_THREAD_HEADER))
 
       // ENQUEUE + return immediately (brain-tree Chapter 1, async core): hand the task to the
       // durable queue and free the global root. The delegation-service claims the job, runs
@@ -199,6 +204,7 @@ export const routingApp = factory
         taskText: task,
         ...(origin ? { origin } : {}),
         ...(permissionMode !== undefined ? { permissionMode } : {}),
+        ...(threadId !== undefined ? { threadId } : {}),
         ...(model !== undefined ? { model } : {}),
         ...(thinkingEffort !== undefined ? { thinkingEffort } : {}),
       })
@@ -286,6 +292,7 @@ export const routingApp = factory
 
       const origin = parseDelegationOriginHeader(c.req.header(DELEGATION_ORIGIN_HEADER))
       const permissionMode = parseDelegationModeHeader(c.req.header(DELEGATION_MODE_HEADER))
+      const threadId = parseDelegationThreadHeader(c.req.header(DELEGATION_THREAD_HEADER))
 
       // The run cwd is the TARGET's ground, set at create (Slice ④b) —
       // resolved by the shared one-home (deleted-workspace fallback included),
@@ -298,6 +305,7 @@ export const routingApp = factory
         taskText: task,
         ...(origin ? { origin } : {}),
         ...(permissionMode !== undefined ? { permissionMode } : {}),
+        ...(threadId !== undefined ? { threadId } : {}),
         ...(model !== undefined ? { model } : {}),
         ...(thinkingEffort !== undefined ? { thinkingEffort } : {}),
       })
@@ -412,8 +420,13 @@ export const routingApp = factory
         )
       }
 
+      // The report is the SAME chain as the task that produced it — without
+      // this the reply would start a fresh thread and the chain would break at
+      // exactly the hop it exists to connect.
+      const threadId = parseDelegationThreadHeader(c.req.header(DELEGATION_THREAD_HEADER))
       const jobId = enqueueReportDelivery(c.var.db, {
         userId: c.var.user.id,
+        ...(threadId !== undefined ? { threadId } : {}),
         reporterSessionId,
         reporterLabel,
         reportBody: report,

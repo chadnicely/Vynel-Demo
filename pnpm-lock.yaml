@@ -239,6 +239,9 @@ importers:
       '@vynel/memory':
         specifier: workspace:*
         version: link:../../packages/memory
+      '@vynel/monitors':
+        specifier: workspace:*
+        version: link:../../packages/monitors
       '@vynel/onboarding':
         specifier: workspace:*
         version: link:../../packages/onboarding

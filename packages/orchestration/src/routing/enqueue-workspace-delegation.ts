@@ -13,6 +13,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
+import { resolveThreadId } from './resolve-thread-id.js'
 import type { ThinkingEffortLevel } from '@vynel/contracts/chat/thinking-effort'
 import { insertDelegationJob } from '../repositories/index.js'
 import type { DelegationPermissionMode } from '../orchestration-types.js'
@@ -27,6 +28,9 @@ export interface DelegationOrigin {
 }
 
 export interface EnqueueWorkspaceDelegationInput {
+  /** The chain this hop continues — one task and everything it caused. Omit to
+   *  START a chain (the hop becomes its own thread). See `resolveThreadId`. */
+  threadId?: string
   userId: string
   /** The enqueue-time global-root SDK session id — a LOOSE text ref, not a FK. */
   parentSessionId: string
@@ -69,6 +73,10 @@ export function enqueueWorkspaceDelegation(
     workspaceName: input.workspaceName,
     taskText: input.taskText,
     partialSessionId,
+    threadId: resolveThreadId({
+      ...(input.threadId !== undefined ? { inheritedThreadId: input.threadId } : {}),
+      partialSessionId,
+    }),
     status: 'pending',
     claimedAt: null,
     completedAt: null,

@@ -319,11 +319,15 @@ describe('runDelegationClaimAndRunTick', () => {
       })
       // target 'workspace-root' → the api edge composes the INTERACTIVE set
       // (session-routing trio included — the 2026-07-21 re-decision).
+      // threadId rides along so a hop THIS turn makes continues the chain
+      // instead of starting a fresh one (expect.any: the key is minted at
+      // enqueue, so the test can't know it up front).
       expect(composeWorkspaceMcpServers).toHaveBeenCalledWith({
         db,
         userId: user.id,
         workspaceId: workspace.id,
         target: 'workspace-root',
+        threadId: expect.any(String),
       })
       expect(workspaceInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
       expect(workspaceInputs[0]!.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
@@ -370,6 +374,7 @@ describe('runDelegationClaimAndRunTick', () => {
         workspaceId: workspace.id,
         target: 'spawned-session',
         targetPrimarySessionId: grounded.primarySessionId,
+        threadId: expect.any(String),
       })
       expect(groundedInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
       await drainPendingReportDeliveries(db)

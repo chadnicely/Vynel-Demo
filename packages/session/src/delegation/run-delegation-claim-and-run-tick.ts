@@ -32,6 +32,7 @@ import {
   failDelegationJob,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   markDelegationsSurfacedToRoot,
+  resolveThreadIdOf,
   routeRequest,
   type DelegateForRouting,
   type DelegationJob,
@@ -102,6 +103,7 @@ export interface RunDelegationTickDeps {
     userId: string
     workspaceId: string
     target: 'workspace-root' | 'spawned-session'
+    threadId?: string
     /** The spawned primary a 'spawned-session' target resumes — the api edge
      *  stamps the caller-identity header from it so `report_to_requester`
      *  resolves the SESSION (not just its grounding workspace) and can never
@@ -295,11 +297,14 @@ export async function runDelegationClaimAndRunTick(
     // session's deferred tools get stripped ("server disconnected").
     const mcpGroundingWorkspaceId =
       claimed.targetPrimarySessionId !== null ? spawnedTargetWorkspaceId : claimed.workspaceId
+    // The chain this turn belongs to — every hop its tools make continues it.
+    const claimedThreadId = resolveThreadIdOf(claimed)
     const mcpAttachment =
       deps.composeWorkspaceMcpServers !== undefined && mcpGroundingWorkspaceId !== null
         ? deps.composeWorkspaceMcpServers({
             db,
             userId: claimed.userId,
+            ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
             workspaceId: mcpGroundingWorkspaceId,
             target: claimed.targetPrimarySessionId !== null ? 'spawned-session' : 'workspace-root',
             // The caller identity for `report_to_requester` (session-comms): a
@@ -471,6 +476,7 @@ export async function runDelegationClaimAndRunTick(
           if (deliverableReply) {
             enqueueReportDelivery(tx, {
               userId: claimed.userId,
+              ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
               reporterSessionId: outcome.reference,
               reporterLabel: composeManagerSourceLabel(targetName, managerName),
               reportBody: userReply,

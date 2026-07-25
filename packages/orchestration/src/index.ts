@@ -99,6 +99,16 @@ export {
   type InFlightDelegation,
 } from './queries/list-in-flight-delegations.js'
 
+// The CHAIN key — one task and everything it caused, across every hop.
+// `partialSessionId` stays per-hop (and every existing reader of it is
+// unchanged); `threadId` is the outer envelope.
+export { resolveThreadId, resolveThreadIdOf } from './routing/resolve-thread-id.js'
+export {
+  resolveThreadChain,
+  type ThreadChain,
+  type ThreadChainHop,
+} from './queries/resolve-thread-chain.js'
+
 // What an AGENT can read back about the work it handed off — the reads that make
 // the `jobId` from send_task_to_workspace / send_task_to_session usable.
 export {

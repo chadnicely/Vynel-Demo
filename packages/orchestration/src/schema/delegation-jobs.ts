@@ -101,12 +101,27 @@ export const delegationJobs = table(
     // report) to the requester. Nullable so migration 0015 stays a pure
     // additive ALTER — legacy rows read as tasks byte-for-byte.
     jobKind: text().$type<DelegationJobKind>(),
+    // The CHAIN key: one task and everything it caused, across every hop.
+    //
+    // `partialSessionId` is per-HOP by design — a fresh key per enqueue, so each
+    // hop is independently watchable. That means a two-hop chain (global → ws →
+    // spawned, then reports back up) produced FOUR unrelated keys with nothing
+    // linking them. `threadId` is the outer envelope: minted once when a task
+    // first leaves a session, then carried through every continuation — the task
+    // down, the report up, a re-delegation.
+    //
+    // Nullable so the migration stays a pure additive ALTER. A NULL row reads as
+    // its own thread (see `resolveThreadId`), which is exactly right for legacy
+    // rows: before this existed, every hop WAS its own chain.
+    threadId: text(),
     createdAt: timestamp().notNull(),
   },
   (t) => ({
     // FIFO claim: oldest pending first (status filter + createdAt order).
     statusCreatedIdx: index('idx_delegation_jobs_status_created').on(t.status, t.createdAt),
     userIdx: index('idx_delegation_jobs_user').on(t.userId),
+    // The chain read: every hop of one thread, oldest first.
+    threadIdx: index('idx_delegation_jobs_thread').on(t.threadId, t.createdAt),
   }),
 )
 

@@ -21,6 +21,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
+import { resolveThreadId } from './resolve-thread-id.js'
 import { insertDelegationJob } from '../repositories/index.js'
 
 /** Who receives the notify turn — the conversation that requested the work. */
@@ -34,6 +35,9 @@ export type ReportDeliveryRequester =
   | { kind: 'global-root' }
 
 export interface EnqueueReportDeliveryInput {
+  /** The chain this hop continues — one task and everything it caused. Omit to
+   *  START a chain (the hop becomes its own thread). See `resolveThreadId`. */
+  threadId?: string
   userId: string
   /** The REPORTER's (child's) current sdk session id — provenance, stored in
    *  `parentSessionId` (a LOOSE text ref, never a FK). */
@@ -71,6 +75,10 @@ export function enqueueReportDelivery(db: Database, input: EnqueueReportDelivery
     targetPrimarySessionId: null,
     taskText: input.reportBody,
     partialSessionId,
+    threadId: resolveThreadId({
+      ...(input.threadId !== undefined ? { inheritedThreadId: input.threadId } : {}),
+      partialSessionId,
+    }),
     status: 'pending',
     claimedAt: null,
     completedAt: null,
