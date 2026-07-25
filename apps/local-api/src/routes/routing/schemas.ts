@@ -104,3 +104,28 @@ export const SendToChannelResponseSchema = z.object({
   status: z.literal('sent'),
   channelId: z.string(),
 })
+
+// ── Background runs (reading back a handed-off task) ────────────────
+
+/** The agent-facing status vocabulary — NOT the queue's storage union
+ *  (`claimed` describes a compare-and-swap and means nothing to a model). */
+const BackgroundRunStatusSchema = z.enum(['queued', 'running', 'completed', 'failed'])
+
+export const BackgroundRunSchema = z.object({
+  jobId: z.string(),
+  status: BackgroundRunStatusSchema,
+  target: z.string(),
+  taskLabel: z.string(),
+  partialSessionId: z.string().nullable(),
+  enqueuedAt: z.string(),
+  finishedAt: z.string().nullable(),
+  resultPreview: z.string().nullable(),
+  errorMessage: z.string().nullable(),
+})
+
+export const ListBackgroundRunsResponseSchema = z.array(BackgroundRunSchema)
+
+export const BackgroundRunDetailSchema = BackgroundRunSchema.omit({ resultPreview: true }).extend({
+  result: z.string().nullable(),
+  taskText: z.string(),
+})

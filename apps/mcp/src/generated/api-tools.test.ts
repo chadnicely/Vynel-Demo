@@ -134,6 +134,8 @@ const EXPECTED_TOOL_NAMES = [
 // 2026-07-21 (Slice ④).
 const EXPECTED_ROUTING_TOOL_NAMES = [
   'create_session',
+  'get_background_run',
+  'list_background_runs',
   'list_routing_channels',
   'list_routing_workspaces',
   'list_sessions',
@@ -152,6 +154,10 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
 // targets, which must never see them (the exclusion test below pins this).
 const EXPECTED_WORKSPACE_INTERACTIVE_TOOL_NAMES = [
   'create_session',
+  // The agent that can hand work off must be the agent that can read it back —
+  // a workspace root delegates via send_task_to_session, so it needs these too.
+  'get_background_run',
+  'list_background_runs',
   'list_sessions',
   'send_task_to_session',
 ] as const

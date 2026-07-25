@@ -99,6 +99,16 @@ export {
   type InFlightDelegation,
 } from './queries/list-in-flight-delegations.js'
 
+// What an AGENT can read back about the work it handed off — the reads that make
+// the `jobId` from send_task_to_workspace / send_task_to_session usable.
+export {
+  listBackgroundRuns,
+  getBackgroundRun,
+  type BackgroundRun,
+  type BackgroundRunDetail,
+  type BackgroundRunStatus,
+} from './queries/list-background-runs.js'
+
 // LLM-native routing (Slice 4): the request-down / report-up coordinator the
 // global-root routing MCP tool invokes. Pure — the composing tier injects the
 // by-reference `delegateToLeafSession` as the `delegate` dep.

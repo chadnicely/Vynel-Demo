@@ -1018,6 +1018,18 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getBackgroundRun: async (jobId: NonNullable<paths["/routing/background-runs/{jobId}"]["get"]['parameters']>['path']["jobId"]) => {
+    const { data, error, response } = await client["GET"]("/routing/background-runs/{jobId}", {
+      params: { path: { jobId: jobId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listBackgroundRuns: async () => {
+    const { data, error, response } = await client["GET"]("/routing/background-runs")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   listChannels: async () => {
     const { data, error, response } = await client["GET"]("/routing/channels")
     if (error || data === undefined) throw new SdkError(response, error ?? data)

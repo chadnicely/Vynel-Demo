@@ -281,6 +281,36 @@ export function listInFlightDelegationsForUser(
     .all()
 }
 
+// The user's delegated work, newest-first, across EVERY status — what the agent
+// that enqueued a task can read back about it (`list_background_runs`). The
+// in-flight and unsurfaced-terminal queries above each answer one narrow
+// question for one consumer; this one answers "what did I hand off, and where
+// did it get to", so it spans queued → running → finished in a single list.
+//
+// TASK rows only, matching `listUnsurfacedTerminalDelegationsForUser`: a
+// 'report-delivery' row is the notify MECHANISM, not work anyone handed off —
+// listing it would show the agent its own report being delivered as if it were
+// another task. NULL-safe for legacy rows (NULL jobKind means 'task').
+export function listRecentDelegationJobsForUser(
+  db: Database,
+  userId: string,
+  limit?: number,
+): DelegationJob[] {
+  const cappedLimit = Math.min(limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
+  return db
+    .select()
+    .from(delegationJobs)
+    .where(
+      and(
+        eq(delegationJobs.userId, userId),
+        or(isNull(delegationJobs.jobKind), eq(delegationJobs.jobKind, 'task')),
+      ),
+    )
+    .orderBy(desc(delegationJobs.createdAt), desc(delegationJobs.id))
+    .limit(cappedLimit)
+    .all()
+}
+
 // Mark delegations as surfaced into the root's context (exactly-once — a later turn won't
 // re-inject them). Idempotent + a no-op on an empty list.
 export function markDelegationsSurfacedToRoot(

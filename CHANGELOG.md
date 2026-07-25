@@ -179,6 +179,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   conversation so far — not an empty pane that only fills when the next turn begins — and joining
   mid-turn catches up instead of freezing on a partial reply.
 
+### Added
+
+- **Claude can now check on the work it handed off.** When you ask for something that runs in
+  the background — a task sent to a workspace, or to one of its own sessions — Claude got back
+  a receipt it couldn't do anything with. It can now list everything it started (what it was,
+  where it went, whether it's queued, running, finished or failed) and pull up the full result
+  of any one of them. So "did that finish?" gets a real answer instead of a guess, and Claude
+  can pick work back up where it left off.
+
 ### Fixed
 
 - **Claude can no longer get stuck waiting on a tool that never finishes.** An audit of every

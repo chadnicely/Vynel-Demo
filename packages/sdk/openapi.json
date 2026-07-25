@@ -22428,6 +22428,199 @@
         }
       }
     },
+    "/routing/background-runs": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of background runs with status, target, and a result preview.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "jobId": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "queued",
+                          "running",
+                          "completed",
+                          "failed"
+                        ]
+                      },
+                      "target": {
+                        "type": "string"
+                      },
+                      "taskLabel": {
+                        "type": "string"
+                      },
+                      "partialSessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "enqueuedAt": {
+                        "type": "string"
+                      },
+                      "finishedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "resultPreview": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "errorMessage": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "jobId",
+                      "status",
+                      "target",
+                      "taskLabel",
+                      "partialSessionId",
+                      "enqueuedAt",
+                      "finishedAt",
+                      "resultPreview",
+                      "errorMessage"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getRoutingBackground-runs",
+        "tags": [
+          "routing"
+        ],
+        "parameters": [],
+        "summary": "List the work handed off to workspaces and sessions, newest first.",
+        "x-sdk-name": "routing.listBackgroundRuns",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_background_runs",
+          "workspaceInteractiveSurface": true,
+          "description": "List the tasks you handed off with send_task_to_workspace or send_task_to_session, newest first — each with its jobId, status (queued / running / completed / failed), where it went, and a preview of what it reported back. Use this to check on work you started earlier instead of assuming it finished, and to find the jobId of a run you want the full result for. Read-only."
+        }
+      }
+    },
+    "/routing/background-runs/{jobId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The run, with its complete result and the task as handed off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jobId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "completed",
+                        "failed"
+                      ]
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "taskLabel": {
+                      "type": "string"
+                    },
+                    "partialSessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "enqueuedAt": {
+                      "type": "string"
+                    },
+                    "finishedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errorMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "result": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "taskText": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "jobId",
+                    "status",
+                    "target",
+                    "taskLabel",
+                    "partialSessionId",
+                    "enqueuedAt",
+                    "finishedAt",
+                    "errorMessage",
+                    "result",
+                    "taskText"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown run, or not owned by this user."
+          }
+        },
+        "operationId": "getRoutingBackground-runsByJobId",
+        "tags": [
+          "routing"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "jobId",
+            "required": true
+          }
+        ],
+        "summary": "Get one background run, with the full text it reported back.",
+        "x-sdk-name": "routing.getBackgroundRun",
+        "x-mcp": {
+          "exposed": true,
+          "name": "get_background_run",
+          "workspaceInteractiveSurface": true,
+          "description": "Get one handed-off task by its jobId — its status and the FULL text it reported back (list_background_runs shows only a preview). Use it when a run has completed and you need its actual result, or when it failed and you need the error. Read-only."
+        }
+      }
+    },
     "/activity/stream": {
       "get": {
         "responses": {

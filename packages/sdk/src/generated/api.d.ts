@@ -2532,6 +2532,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/routing/background-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the work handed off to workspaces and sessions, newest first. */
+        get: operations["getRoutingBackground-runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routing/background-runs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one background run, with the full text it reported back. */
+        get: operations["getRoutingBackground-runsByJobId"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/activity/stream": {
         parameters: {
             query?: never;
@@ -11612,6 +11646,78 @@ export interface operations {
                 content?: never;
             };
             /** @description Channel not found or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "getRoutingBackground-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of background runs with status, target, and a result preview. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        jobId: string;
+                        /** @enum {string} */
+                        status: "queued" | "running" | "completed" | "failed";
+                        target: string;
+                        taskLabel: string;
+                        partialSessionId: string | null;
+                        enqueuedAt: string;
+                        finishedAt: string | null;
+                        resultPreview: string | null;
+                        errorMessage: string | null;
+                    }[];
+                };
+            };
+        };
+    };
+    "getRoutingBackground-runsByJobId": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The run, with its complete result and the task as handed off. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        jobId: string;
+                        /** @enum {string} */
+                        status: "queued" | "running" | "completed" | "failed";
+                        target: string;
+                        taskLabel: string;
+                        partialSessionId: string | null;
+                        enqueuedAt: string;
+                        finishedAt: string | null;
+                        errorMessage: string | null;
+                        result: string | null;
+                        taskText: string;
+                    };
+                };
+            };
+            /** @description Unknown run, or not owned by this user. */
             404: {
                 headers: {
                     [name: string]: unknown;

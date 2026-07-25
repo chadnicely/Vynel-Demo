@@ -542,6 +542,39 @@ export const getAppLogs: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const getBackgroundRun: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'get_background_run',
+    "Get one handed-off task by its jobId — its status and the FULL text it reported back (list_background_runs shows only a preview). Use it when a run has completed and you need its actual result, or when it failed and you need the error. Read-only.",
+    {
+    jobId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/routing/background-runs/{jobId}'
+        pathStr = pathStr.replace('{jobId}', encodeURIComponent(String(args['jobId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const getChatSession: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'get_chat_session',
@@ -847,6 +880,36 @@ export const listAvailableSkills: McpToolFactory = (scope, app) =>
       try {
         let pathStr = '/workspaces/{workspaceId}/skills/available'
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listBackgroundRuns: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_background_runs',
+    "List the tasks you handed off with send_task_to_workspace or send_task_to_session, newest first — each with its jobId, status (queued / running / completed / failed), where it went, and a preview of what it reported back. Use this to check on work you started earlier instead of assuming it finished, and to find the jobId of a run you want the full result for. Read-only.",
+    {},
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/routing/background-runs'
         const queryStr = ''
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
@@ -2352,6 +2415,8 @@ export const generatedMcpTools: McpToolFactory[] = [
 // Kept OUT of generatedMcpTools so the normal chat turn stays byte-for-byte.
 export const generatedRoutingMcpTools: McpToolFactory[] = [
   createSession,
+  getBackgroundRun,
+  listBackgroundRuns,
   listRoutingChannels,
   listRoutingWorkspaces,
   listSessions,
@@ -2368,6 +2433,8 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
 // fires and spawned-session targets never see it.
 export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
   createSession,
+  getBackgroundRun,
+  listBackgroundRuns,
   listSessions,
   sendTaskToSession,
 ]

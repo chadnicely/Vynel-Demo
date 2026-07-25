@@ -836,3 +836,68 @@ describe('POST /routing/report (session-comms — report_to_requester)', () => {
     })
   })
 })
+
+describe('GET /routing/background-runs (reading back a handed-off task)', () => {
+  it('lists a delegated task as a run the agent can read, keyed by the jobId it was given', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      const app = makeHarness(db)
+
+      // Hand work off exactly as the agent does — the jobId in this response is
+      // the handle that used to lead nowhere.
+      const delegated = await postJson(app, '/routing/delegate', {
+        targetWorkspaceId: workspace.id,
+        task: 'summarize the docs',
+      })
+      const { jobId } = (await delegated.json()) as { jobId: string }
+
+      const res = await app.request('/routing/background-runs')
+      expect(res.status).toBe(200)
+      const runs = (await res.json()) as { jobId: string; status: string; target: string }[]
+      expect(runs).toHaveLength(1)
+      expect(runs[0]).toMatchObject({ jobId, status: 'queued', target: 'Acme' })
+    })
+  })
+
+  it('serves one run by jobId with the task as handed off', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      const app = makeHarness(db)
+
+      const delegated = await postJson(app, '/routing/delegate', {
+        targetWorkspaceId: workspace.id,
+        task: 'summarize the docs',
+      })
+      const { jobId } = (await delegated.json()) as { jobId: string }
+
+      const res = await app.request(`/routing/background-runs/${jobId}`)
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({
+        jobId,
+        status: 'queued',
+        taskText: 'summarize the docs',
+        result: null,
+      })
+    })
+  })
+
+  // An unknown id must 404 rather than 500 or leak. The OTHER half of this rule
+  // — that a run owned by someone else is indistinguishable from an unknown one
+  // — is pinned a layer down in `list-background-runs.test.ts`, where a second
+  // user's job can be seeded directly (this harness resolves one local user, and
+  // widening the package's public API to seed one here isn't worth it).
+  it('404s an unknown run', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      seedWorkspace(db, user.id)
+      const app = makeHarness(db)
+
+      const res = await app.request(`/routing/background-runs/${randomUUID()}`)
+      expect(res.status).toBe(404)
+    })
+  })
+})

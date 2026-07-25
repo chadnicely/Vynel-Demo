@@ -55,6 +55,8 @@ import {
   enqueueWorkspaceDelegation,
   enqueueSessionDelegation,
   enqueueReportDelivery,
+  listBackgroundRuns,
+  getBackgroundRun,
   type ReportDeliveryRequester,
 } from '@vynel/orchestration'
 import { ValidationError, NotFoundError } from '@vynel/errors'
@@ -84,6 +86,8 @@ import {
   SendTaskToSessionResponseSchema,
   ListRoutingChannelsResponseSchema,
   SendToChannelResponseSchema,
+  ListBackgroundRunsResponseSchema,
+  BackgroundRunDetailSchema,
 } from './schemas.js'
 import { resolveSpawnedSessionRunCwd } from '../../sessions/spawned-session-ground.js'
 
@@ -492,5 +496,84 @@ export const routingApp = factory
       const { channelId, message } = c.req.valid('json')
       sendToChannel(c.var.db, { userId: c.var.user.id, channelId, body: message })
       return c.json({ status: 'sent' as const, channelId })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /background-runs — read back the work this agent handed off
+  //
+  // The delegate routes above return `{ status: 'enqueued', jobId }`, and until
+  // these two reads existed that jobId was a DEAD HANDLE — no tool accepted it.
+  // Both are GETs over queries that already existed for the UI, so they add no
+  // approval surface. `workspaceInteractiveSurface` because a workspace root
+  // delegates too (send_task_to_session rides that same set): the agent that
+  // can hand work off must be the agent that can read it back.
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/background-runs',
+    describeRoute({
+      tags: ['routing'],
+      summary: 'List the work handed off to workspaces and sessions, newest first.',
+      'x-sdk-name': 'routing.listBackgroundRuns',
+      responses: {
+        200: {
+          description: 'Array of background runs with status, target, and a result preview.',
+          content: {
+            'application/json': { schema: resolver(ListBackgroundRunsResponseSchema) },
+          },
+        },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'list_background_runs',
+        workspaceInteractiveSurface: true,
+        description:
+          'List the tasks you handed off with send_task_to_workspace or send_task_to_session, ' +
+          'newest first — each with its jobId, status (queued / running / completed / failed), ' +
+          'where it went, and a preview of what it reported back. Use this to check on work you ' +
+          "started earlier instead of assuming it finished, and to find the jobId of a run you " +
+          'want the full result for. Read-only.',
+      },
+    }),
+    ...userScoped,
+    (c) => c.json(listBackgroundRuns(c.var.db, { userId: c.var.user.id })),
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /background-runs/:jobId — one run, with its FULL result text
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/background-runs/:jobId',
+    describeRoute({
+      tags: ['routing'],
+      summary: 'Get one background run, with the full text it reported back.',
+      'x-sdk-name': 'routing.getBackgroundRun',
+      responses: {
+        200: {
+          description: 'The run, with its complete result and the task as handed off.',
+          content: {
+            'application/json': { schema: resolver(BackgroundRunDetailSchema) },
+          },
+        },
+        404: { description: 'Unknown run, or not owned by this user.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'get_background_run',
+        workspaceInteractiveSurface: true,
+        description:
+          'Get one handed-off task by its jobId — its status and the FULL text it reported back ' +
+          '(list_background_runs shows only a preview). Use it when a run has completed and you ' +
+          'need its actual result, or when it failed and you need the error. Read-only.',
+      },
+    }),
+    ...userScoped,
+    (c) => {
+      const run = getBackgroundRun(c.var.db, {
+        userId: c.var.user.id,
+        jobId: c.req.param('jobId'),
+      })
+      // Unknown and not-owned are the SAME 404 — a probe must not be able to
+      // tell them apart (the query returns null for both).
+      if (run === null) throw new NotFoundError('Background run not found')
+      return c.json(run)
     },
   )
