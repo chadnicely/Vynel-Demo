@@ -9,6 +9,23 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude can now manage your agents and the marketplace from chat.** Ask for a specialist
+  helper and Claude can browse the curated catalog, install it, build a custom agent from
+  scratch, tune its prompt and tools, switch it on or off, or remove it — all through
+  conversation. The marketplace opened up the same way: Claude can browse what's available
+  for a workspace, tell you what an item does, and install or uninstall it for you. It can
+  also read which capabilities (memory, knowledge, tasks…) are on in a workspace, so "why
+  don't you remember things here?" gets a real answer — though switching capabilities on or
+  off deliberately stays a you-only control, as does resolving approvals.
+
+- **Ask mode now truly asks.** Approvals follow one simple rule: in **ask** mode, anything
+  destructive — deleting an agent, removing a knowledge source, uninstalling a marketplace
+  item, registering a new workspace, or acting on your desktop — pauses for your approval
+  card first; in **auto** and **bypass** modes Vynel's own tools run without interruption.
+  Previously the card never appeared in ask mode for Vynel's tools at all, and a couple of
+  tools asked in every mode. Claude's everyday self-tools (saving a memory, adding to
+  knowledge, keeping your task list) no longer ask anywhere — bookkeeping shouldn't knock.
+
 - **Tabs! Keep several rooms open at once.** A new tab strip sits under the title bar: the
   first tab is always your Global chat, and every other tab is a workspace room. Click `+`
   to open a room in its own tab, use the little arrow on a tab to point it at a different

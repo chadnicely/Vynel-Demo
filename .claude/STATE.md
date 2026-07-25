@@ -1,9 +1,91 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-26.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-26 (second session).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-26): SESSION-COMMS + MONITORS SHIPPED (8 feat commits, gate GREEN 581f/3224t) — **TASK 4 NEVER STARTED: the ask-mode approval gate + per-package exposure. START THERE.**
+## ⏭ NEXT ACTION (2026-07-26, session 2): TASK 4 COMPLETE — (a) the ask-mode gate + (b) per-package exposure BOTH SHIPPED (uncommitted, gate GREEN 581f/3232t) — **NEXT: Chad commits, then smokes the ask-mode card live (an ask-mode `remove_knowledge_source` or `delete_agent` must card).**
+
+**Session 2 verified session 1's three DONE claims against the code (all real: browser doors have
+zero callers, the 3 hang bounds exist, dispatch-message.ts routes reports by server-stamped
+headers) and re-ran the gate (green at the old 3224 count) before starting task 4(a).**
+
+### ✅ TASK 4(a) — the ask-mode approval gate (THIS session, needs commit)
+
+- **The mechanism fork is SETTLED by a live smoke (2026-07-26):** in SDK `default` mode a bare
+  `allowedTools` entry auto-approves BEFORE `canUseTool` (the SDK even warns
+  `CAN_USE_TOOL_SHADOWED`) — and a PreToolUse `permissionDecision: 'ask'` DOES override that
+  pre-approval and routes into `canUseTool`. So mechanism (a) from the prior session's fork:
+  `askModeApprovalToolNames` through the existing hook seam. No composer/wildcard rework.
+- **The destructive tier:** generator classifies DELETE-method routes + a new opt-in
+  `x-mcp.destructive` flag → emits `generatedAskModeApprovalToolNames` (today:
+  `remove_knowledge_source` only; future REST deletes join automatically). `mutatingApproved`
+  now means ONLY "may be emitted" — the double-duty is resolved.
+- **Threading (parallel to `mutatingToolNames` everywhere):** descriptor contract (optional
+  field) → 3 vynel descriptors → composer (deduped union; alwaysOn contributes none) → all turn
+  entry-points (chat-turn, session-turn, global-root-turn, run-global-root-turn,
+  fire-schedule [inert under D10, forwarded deliberately], routed-turn-provider-input
+  [REQUIRED field so no producer can omit]) → StartChatSessionInput → buildClaudeSdkOptions →
+  buildClaudePreToolUseHook. Hook cards the tier when mode is `ask` OR `plan-only` (defensive —
+  plan mode's allowedTools honor is unsmoked); auto/bypass run it uncarded.
+- **FLOOR CHANGE (flag to Chad):** `mcp__vynel__create_memory_entry` REMOVED from
+  `TOOLS_ALWAYS_REQUIRING_APPROVAL` per his refinement ("self-tools do NOT need approval") —
+  supersedes the 2026-06-20 memory-writes-card directive. One canUseTool test recast to the new
+  spec (bypass memory write = silent allow). `register_workspace` + desktop `act_on_app` KEPT
+  always-carding (conservative; ask Chad if they should drop to the tier).
+- **Review folds:** fire-schedule forwarding assert; provider-seam end-to-end test (the
+  conditional-spread chain is invisible to excess-property checks — the test pins the OPTIONS
+  the SDK received); plan-only in the tier condition.
+- **Ride-alongs at commit time:** `.gitignore` +`.notes/` line + untracked `docs/how/` predate
+  this session — split or fold deliberately.
+
+### ✅ TASK 4(b) — per-package exposure SHIPPED (same session; Chad's sign-off obtained)
+
+**Chad's calls (AskUserQuestion, this session):** expose ALL useful tools — only
+onboarding/dashboard stay user-surface (approvals never); AND move register_workspace +
+desktop act tools to the ask-only tier (uncarded in auto/bypass).
+
+- **Tier moves:** the x-mcp flag renamed `destructive` → `askApproval` (register_workspace is
+  ask-carded by Chad's call, not because it destroys anything). register_workspace rides the
+  generated tier; vynelRoutingDescriptor + desktopFeatureDescriptor `mutatingToolNames` now
+  BOTH `[]` — nothing Vynel/desktop cards in auto/bypass anymore; the every-mode floor is just
+  Bash/Write/Edit/NotebookEdit.
+- **13 new tools (70 → 83):** agents end-to-end (list/get/list_curated reads + create_agent /
+  install_curated_agent / update_agent / set_agent_enabled + delete_agent [auto ask-tier]),
+  list_capabilities (READ only — the PUT toggle is the approvals-class hazard: an agent
+  re-enabling its own denied tools), workspace marketplace (list/get + install +
+  uninstall_marketplace_item [askApproval — skill uninstall hard-deletes files]; REVERSES D9's
+  no-exposure call per Chad's mandate — the reads are back because install needs itemId).
+- **Deliberately NOT exposed (rationales in the route file headers):** files (native
+  Read/Write/Glob already cover it), asks-answering (human's half), hub (credentials), root
+  (human stop-controls + turn recursion), notebook CRUD (user-curated by design; playbook
+  reads already live via vynel-notebook), ssh register/delete (credential door), activity
+  (SSE), user-scoped marketplace twin (root-surface install deferred — workspace covers the
+  real use), capabilities PUT, onboarding, dashboard, approvals.
+- **Generator bugfix (pre-existing, exposed by update_agent's nullable enums):** a
+  `z.enum([...]).nullable()` body field reaches the spec as enum-with-null-member and the
+  emitter produced `z.enum([..., null])` — invalid source. Now strips the null + appends
+  `.nullable()`.
+- The ask-approval tier is now: delete_agent · register_workspace · remove_knowledge_source ·
+  uninstall_marketplace_item (the FULL set is pinned in vynel-mcp-feature-descriptor.test.ts).
+- **Increment-2 review CLEAN; its 3 should-fixes folded:** stale `destructive` comments renamed;
+  query params named `workspaceId` now get the ambient scope stamp (mirrors the body stamp —
+  without it a workspace turn's list_agents silently returned user-scope only; gained by
+  list_agents + get_agent ONLY, no pre-existing tool changed); the full tier pinned.
+- **Reviewer's deferred notes (not done):** as-built doc book stale on the old no-exposure
+  posture (`.claude/docs/agents/structure.md:132`, `.claude/docs/marketplace/structure.md:128`);
+  generator's numeric-enum `z.enum([1,2])` latent bug (no current route triggers it);
+  `mutatingToolNames` now `[]` on every production descriptor — dormant-but-kept seam.
+
+### ❌ ALSO OUTSTANDING (carried from session 1)
+
+- `channel.message-received` outbox event does not exist (Chad's Telegram monitor example).
+- Remove the three superseded routing tools after one release.
+- `pnpm lint` has never passed (`eslint-plugin-n` missing + 4 real import-type errors).
+- Bug sweep barely started; Chad wants zero bugs before production.
+- Untested at runtime by Chad: monitors end-to-end, send_message, spawned-session tool
+  inheritance — AND now the ask-mode card (needs a live ask-mode `remove_knowledge_source`).
+
+## (prev) ⏭ NEXT ACTION (2026-07-26): SESSION-COMMS + MONITORS SHIPPED (8 feat commits, gate GREEN 581f/3224t) — **TASK 4 NEVER STARTED: the ask-mode approval gate + per-package exposure. START THERE.**
 
 **Chad's 4 asks this session. Three done, the fourth — which he named as the point — untouched.**
 He ended the session to reopen it fresh: *"how much you completed is good. Let's wrap up this
