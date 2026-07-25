@@ -68,6 +68,12 @@ import {
 //     list_my_journal_entries (reads) + add_journal_entry (mutatingApproved).
 //     APPEND-ONLY for the agent — the user-scoped edit/delete doors are
 //     deliberately NOT exposed (history stays the user's).
+//   - the monitors module (2026-07-26): list_monitors + create_monitor +
+//     stop_monitor (mutatingApproved — a monitor is Claude's own bookkeeping).
+//     Every op is DOUBLED on the routing array under a global-flavored name,
+//     because the two surfaces are mutually exclusive and a turn that can arm
+//     a watch must be able to stop it. There is no watchable-events tool: the
+//     catalog is inlined into both create descriptions (see watchable-events.ts).
 const EXPECTED_TOOL_NAMES = [
   'add_app',
   'add_journal_entry',
@@ -76,6 +82,7 @@ const EXPECTED_TOOL_NAMES = [
   'complete_plan',
   'complete_task',
   'create_memory_entry',
+  'create_monitor',
   'create_plan',
   'create_task',
   'discover_installed_skills_for_provider',
@@ -99,6 +106,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_knowledge_sources',
   'list_memory_entries',
   'list_memory_tags',
+  'list_monitors',
   'list_my_channels',
   'list_my_journal_entries',
   'list_my_plans',
@@ -117,6 +125,7 @@ const EXPECTED_TOOL_NAMES = [
   'search_memory',
   'start_app',
   'stop_app',
+  'stop_monitor',
   'update_app',
   'update_memory_entry',
   'update_plan',
@@ -133,9 +142,11 @@ const EXPECTED_TOOL_NAMES = [
 // `list_sessions` (rootSurface) + `send_task_to_session` (/routing/) joined
 // 2026-07-21 (Slice ④).
 const EXPECTED_ROUTING_TOOL_NAMES = [
+  'create_global_monitor',
   'create_session',
   'get_background_run',
   'list_background_runs',
+  'list_global_monitors',
   'list_routing_channels',
   'list_routing_workspaces',
   'list_sessions',
@@ -144,6 +155,7 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   'send_task_to_workspace',
   'send_to_channel',
   'speak',
+  'stop_global_monitor',
 ] as const
 
 // Slice ④b (widened 2026-07-21): the session-routing tools ride workspace-ROOT

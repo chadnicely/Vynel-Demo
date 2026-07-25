@@ -6050,6 +6050,450 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/monitors": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of Monitor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "ownerKind": {
+                        "type": "string",
+                        "enum": [
+                          "global-root",
+                          "workspace-primary",
+                          "spawned-session"
+                        ]
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "eventTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "payloadFilter": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "once",
+                          "recurring"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "armed",
+                          "fired",
+                          "stopped",
+                          "expired"
+                        ]
+                      },
+                      "expiresAt": {
+                        "type": "string"
+                      },
+                      "firedCount": {
+                        "type": "number"
+                      },
+                      "lastFiredAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "workspaceId",
+                      "ownerKind",
+                      "description",
+                      "eventTypes",
+                      "payloadFilter",
+                      "mode",
+                      "status",
+                      "expiresAt",
+                      "firedCount",
+                      "lastFiredAt",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdMonitors",
+        "tags": [
+          "monitors"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "armed",
+                "fired",
+                "stopped",
+                "expired"
+              ]
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List the monitors armed on the active workspace.",
+        "x-sdk-name": "monitors.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_monitors",
+          "description": "List the watches armed on this workspace — what each is waiting for, whether it is still armed, how many times it has fired, and when it expires. Check this before arming another one so you do not duplicate a watch, and to find the id to stop. Optional `status` filters to armed / fired / stopped / expired. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Monitor armed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "ownerKind": {
+                      "type": "string",
+                      "enum": [
+                        "global-root",
+                        "workspace-primary",
+                        "spawned-session"
+                      ]
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "eventTypes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "payloadFilter": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "once",
+                        "recurring"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "armed",
+                        "fired",
+                        "stopped",
+                        "expired"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "firedCount": {
+                      "type": "number"
+                    },
+                    "lastFiredAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "ownerKind",
+                    "description",
+                    "eventTypes",
+                    "payloadFilter",
+                    "mode",
+                    "status",
+                    "expiresAt",
+                    "firedCount",
+                    "lastFiredAt",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or an event type that is not watchable."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdMonitors",
+        "tags": [
+          "monitors"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Arm a watch that wakes this conversation when a matching event lands.",
+        "x-sdk-name": "monitors.create",
+        "x-mcp": {
+          "exposed": true,
+          "name": "create_monitor",
+          "mutatingApproved": true,
+          "description": "Arm a watch that wakes THIS conversation when something happens, so you can start something and get on with other work instead of polling. `description` says what you are waiting for in plain language — it is shown to you when the watch fires. `payloadFilter` narrows to one thing ({\"appId\": \"...\"}) using the filterable fields listed below. `mode` is \"once\" (the default — wake me the first time) or \"recurring\" (wake me every time). `expiresInMs` sets the deadline; it defaults to 24 hours and every monitor has one. Returns the monitor id for stopping it. NOTE: the wake starts a NEW turn on this conversation — it will not interrupt one already running.\n\n`eventTypes` must come from this list:\n- `task.completed` — A task on the user’s task list was marked done. Filterable: taskId, workspaceId, planId.\n- `plan.completed` — A dated plan was completed. Filterable: planId, workspaceId, planDate.\n- `app.started` — A workspace app was started and is running. Filterable: appId, workspaceId.\n- `app.stopped` — A workspace app was stopped. Filterable: appId, workspaceId.\n- `app.crashed` — A workspace app exited unexpectedly — watch this to react to a dev server dying. Filterable: appId, workspaceId.\n- `schedule.run-completed` — A scheduled task finished its run. Filterable: scheduleId, workspaceId.\n- `agent.run-completed` — A configured agent finished a run. Filterable: agentId, workspaceId.\n- `knowledge.document-indexed` — A document finished indexing and is searchable — watch this before searching freshly added sources. Filterable: documentId, workspaceId.\n- `approval.user-resolved` — The user approved or denied an approval card. Filterable: approvalRequestId, workspaceId, resolutionKind.\n- `ask.resolved` — The user answered a question you asked them. Filterable: askId, workspaceId.\n- `channel.connected` — A channel (Telegram, Zoom) finished connecting. Filterable: channelId.\n- `channel.group-discovered` — The bot was added to a group chat and is waiting to be approved. Filterable: channelId, groupId.\n- `workspace.created` — A new workspace was created. Filterable: workspaceId.\n- `monitor.expired` — A monitor reached its deadline. Watch this to learn that a watch you armed died without ever firing (filter firedCount: \"0\"). Filterable: monitorId, workspaceId, firedCount."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "eventTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1,
+                    "maxItems": 20
+                  },
+                  "payloadFilter": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "once",
+                      "recurring"
+                    ]
+                  },
+                  "expiresInMs": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 2592000000
+                  }
+                },
+                "required": [
+                  "description",
+                  "eventTypes"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/monitors/{monitorId}/stop": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Monitor stopped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "ownerKind": {
+                      "type": "string",
+                      "enum": [
+                        "global-root",
+                        "workspace-primary",
+                        "spawned-session"
+                      ]
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "eventTypes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "payloadFilter": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "once",
+                        "recurring"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "armed",
+                        "fired",
+                        "stopped",
+                        "expired"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "firedCount": {
+                      "type": "number"
+                    },
+                    "lastFiredAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "ownerKind",
+                    "description",
+                    "eventTypes",
+                    "payloadFilter",
+                    "mode",
+                    "status",
+                    "expiresAt",
+                    "firedCount",
+                    "lastFiredAt",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The monitor is already fired, stopped, or expired."
+          },
+          "404": {
+            "description": "Monitor not found, or not owned."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdMonitorsByMonitorIdStop",
+        "tags": [
+          "monitors"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "monitorId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Stop an armed monitor.",
+        "x-sdk-name": "monitors.stop",
+        "x-mcp": {
+          "exposed": true,
+          "name": "stop_monitor",
+          "mutatingApproved": true,
+          "description": "Disarm a watch you armed — use it once you no longer care about the thing you were waiting for, so it does not wake you later. Takes the monitor id from create_monitor or list_monitors. Only an armed monitor can be stopped."
+        }
+      }
+    },
     "/workspaces/{workspaceId}/journal": {
       "get": {
         "responses": {
@@ -15252,6 +15696,422 @@
         ],
         "summary": "Delete a plan the user owns (hard delete).",
         "x-sdk-name": "plansUser.delete"
+      }
+    },
+    "/monitors": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of Monitor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "ownerKind": {
+                        "type": "string",
+                        "enum": [
+                          "global-root",
+                          "workspace-primary",
+                          "spawned-session"
+                        ]
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "eventTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "payloadFilter": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "once",
+                          "recurring"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "armed",
+                          "fired",
+                          "stopped",
+                          "expired"
+                        ]
+                      },
+                      "expiresAt": {
+                        "type": "string"
+                      },
+                      "firedCount": {
+                        "type": "number"
+                      },
+                      "lastFiredAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "workspaceId",
+                      "ownerKind",
+                      "description",
+                      "eventTypes",
+                      "payloadFilter",
+                      "mode",
+                      "status",
+                      "expiresAt",
+                      "firedCount",
+                      "lastFiredAt",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getMonitors",
+        "tags": [
+          "monitors"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "armed",
+                "fired",
+                "stopped",
+                "expired"
+              ]
+            }
+          }
+        ],
+        "summary": "List the monitors armed on the global conversation.",
+        "x-sdk-name": "monitorsUser.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_global_monitors",
+          "rootSurface": true,
+          "description": "List the watches armed on THIS global conversation — what each is waiting for, whether it is still armed, how many times it has fired, and when it expires. Shows global monitors only; a workspace's own watches are listed by list_monitors there. Check this before arming another so you do not duplicate a watch. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Monitor armed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "ownerKind": {
+                      "type": "string",
+                      "enum": [
+                        "global-root",
+                        "workspace-primary",
+                        "spawned-session"
+                      ]
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "eventTypes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "payloadFilter": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "once",
+                        "recurring"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "armed",
+                        "fired",
+                        "stopped",
+                        "expired"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "firedCount": {
+                      "type": "number"
+                    },
+                    "lastFiredAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "ownerKind",
+                    "description",
+                    "eventTypes",
+                    "payloadFilter",
+                    "mode",
+                    "status",
+                    "expiresAt",
+                    "firedCount",
+                    "lastFiredAt",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or an event type that is not watchable."
+          }
+        },
+        "operationId": "postMonitors",
+        "tags": [
+          "monitors"
+        ],
+        "parameters": [],
+        "summary": "Arm a watch that wakes the global conversation.",
+        "x-sdk-name": "monitorsUser.create",
+        "x-mcp": {
+          "exposed": true,
+          "name": "create_global_monitor",
+          "rootSurface": true,
+          "mutatingApproved": true,
+          "description": "Arm a watch that wakes THIS conversation when something happens, so you can start something and get on with other work instead of polling. `description` says what you are waiting for in plain language — it is shown to you when the watch fires. `payloadFilter` narrows to one thing ({\"appId\": \"...\"}) using the filterable fields listed below. `mode` is \"once\" (the default — wake me the first time) or \"recurring\" (wake me every time). `expiresInMs` sets the deadline; it defaults to 24 hours and every monitor has one. Returns the monitor id for stopping it. NOTE: the wake starts a NEW turn on this conversation — it will not interrupt one already running.\n\n`eventTypes` must come from this list:\n- `task.completed` — A task on the user’s task list was marked done. Filterable: taskId, workspaceId, planId.\n- `plan.completed` — A dated plan was completed. Filterable: planId, workspaceId, planDate.\n- `app.started` — A workspace app was started and is running. Filterable: appId, workspaceId.\n- `app.stopped` — A workspace app was stopped. Filterable: appId, workspaceId.\n- `app.crashed` — A workspace app exited unexpectedly — watch this to react to a dev server dying. Filterable: appId, workspaceId.\n- `schedule.run-completed` — A scheduled task finished its run. Filterable: scheduleId, workspaceId.\n- `agent.run-completed` — A configured agent finished a run. Filterable: agentId, workspaceId.\n- `knowledge.document-indexed` — A document finished indexing and is searchable — watch this before searching freshly added sources. Filterable: documentId, workspaceId.\n- `approval.user-resolved` — The user approved or denied an approval card. Filterable: approvalRequestId, workspaceId, resolutionKind.\n- `ask.resolved` — The user answered a question you asked them. Filterable: askId, workspaceId.\n- `channel.connected` — A channel (Telegram, Zoom) finished connecting. Filterable: channelId.\n- `channel.group-discovered` — The bot was added to a group chat and is waiting to be approved. Filterable: channelId, groupId.\n- `workspace.created` — A new workspace was created. Filterable: workspaceId.\n- `monitor.expired` — A monitor reached its deadline. Watch this to learn that a watch you armed died without ever firing (filter firedCount: \"0\"). Filterable: monitorId, workspaceId, firedCount."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "eventTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1,
+                    "maxItems": 20
+                  },
+                  "payloadFilter": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "once",
+                      "recurring"
+                    ]
+                  },
+                  "expiresInMs": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 2592000000
+                  }
+                },
+                "required": [
+                  "description",
+                  "eventTypes"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/monitors/{monitorId}/stop": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Monitor stopped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "ownerKind": {
+                      "type": "string",
+                      "enum": [
+                        "global-root",
+                        "workspace-primary",
+                        "spawned-session"
+                      ]
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "eventTypes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "payloadFilter": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "once",
+                        "recurring"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "armed",
+                        "fired",
+                        "stopped",
+                        "expired"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "firedCount": {
+                      "type": "number"
+                    },
+                    "lastFiredAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "ownerKind",
+                    "description",
+                    "eventTypes",
+                    "payloadFilter",
+                    "mode",
+                    "status",
+                    "expiresAt",
+                    "firedCount",
+                    "lastFiredAt",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The monitor is already fired, stopped, or expired."
+          },
+          "404": {
+            "description": "Monitor not found, or not owned."
+          }
+        },
+        "operationId": "postMonitorsByMonitorIdStop",
+        "tags": [
+          "monitors"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "monitorId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Stop an armed monitor.",
+        "x-sdk-name": "monitorsUser.stop",
+        "x-mcp": {
+          "exposed": true,
+          "name": "stop_global_monitor",
+          "rootSurface": true,
+          "mutatingApproved": true,
+          "description": "Disarm a watch you armed — use it once you no longer care about the thing you were waiting for, so it does not wake you later. Takes the monitor id from create_monitor / create_global_monitor or either list. Works for global and workspace monitors alike. Only an armed monitor can be stopped."
+        }
       }
     },
     "/journal": {

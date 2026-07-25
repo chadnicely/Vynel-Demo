@@ -787,6 +787,53 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  monitors: {
+  create: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/monitors"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/monitors"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/monitors", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/monitors"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/monitors"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/monitors", {
+      params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  stop: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/monitors/{monitorId}/stop"]["post"]['parameters']>['path']["workspaceId"], monitorId: NonNullable<paths["/workspaces/{workspaceId}/monitors/{monitorId}/stop"]["post"]['parameters']>['path']["monitorId"]) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/monitors/{monitorId}/stop", {
+      params: { path: { workspaceId: workspaceId, monitorId: monitorId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  monitorsUser: {
+  create: async (input: NonNullable<paths["/monitors"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/monitors", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async (options?: NonNullable<paths["/monitors"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/monitors", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  stop: async (monitorId: NonNullable<paths["/monitors/{monitorId}/stop"]["post"]['parameters']>['path']["monitorId"]) => {
+    const { data, error, response } = await client["POST"]("/monitors/{monitorId}/stop", {
+      params: { path: { monitorId: monitorId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   notebook: {
   createDocument: async (input: NonNullable<paths["/notebook/documents"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/notebook/documents", {

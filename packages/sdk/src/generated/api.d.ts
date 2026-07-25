@@ -685,6 +685,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/monitors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the monitors armed on the active workspace. */
+        get: operations["getWorkspacesByWorkspaceIdMonitors"];
+        put?: never;
+        /** Arm a watch that wakes this conversation when a matching event lands. */
+        post: operations["postWorkspacesByWorkspaceIdMonitors"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/monitors/{monitorId}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop an armed monitor. */
+        post: operations["postWorkspacesByWorkspaceIdMonitorsByMonitorIdStop"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/journal": {
         parameters: {
             query?: never;
@@ -1705,6 +1740,41 @@ export interface paths {
         head?: never;
         /** Update a plan the user owns (title, detail, date, or status). */
         patch: operations["patchPlansByPlanId"];
+        trace?: never;
+    };
+    "/monitors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the monitors armed on the global conversation. */
+        get: operations["getMonitors"];
+        put?: never;
+        /** Arm a watch that wakes the global conversation. */
+        post: operations["postMonitors"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/monitors/{monitorId}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop an armed monitor. */
+        post: operations["postMonitorsByMonitorIdStop"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/journal": {
@@ -5165,6 +5235,177 @@ export interface operations {
                 };
             };
             /** @description No such plan owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdMonitors: {
+        parameters: {
+            query?: {
+                status?: "armed" | "fired" | "stopped" | "expired";
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of Monitor. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        ownerKind: "global-root" | "workspace-primary" | "spawned-session";
+                        description: string;
+                        eventTypes: string[];
+                        payloadFilter: {
+                            [key: string]: string;
+                        } | null;
+                        /** @enum {string} */
+                        mode: "once" | "recurring";
+                        /** @enum {string} */
+                        status: "armed" | "fired" | "stopped" | "expired";
+                        expiresAt: string;
+                        firedCount: number;
+                        lastFiredAt: string | null;
+                        createdAt: string;
+                    }[];
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdMonitors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    description: string;
+                    eventTypes: string[];
+                    payloadFilter?: {
+                        [key: string]: string;
+                    };
+                    /** @enum {string} */
+                    mode?: "once" | "recurring";
+                    expiresInMs?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Monitor armed. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        ownerKind: "global-root" | "workspace-primary" | "spawned-session";
+                        description: string;
+                        eventTypes: string[];
+                        payloadFilter: {
+                            [key: string]: string;
+                        } | null;
+                        /** @enum {string} */
+                        mode: "once" | "recurring";
+                        /** @enum {string} */
+                        status: "armed" | "fired" | "stopped" | "expired";
+                        expiresAt: string;
+                        firedCount: number;
+                        lastFiredAt: string | null;
+                        createdAt: string;
+                    };
+                };
+            };
+            /** @description Validation error, or an event type that is not watchable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdMonitorsByMonitorIdStop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                monitorId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Monitor stopped. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        ownerKind: "global-root" | "workspace-primary" | "spawned-session";
+                        description: string;
+                        eventTypes: string[];
+                        payloadFilter: {
+                            [key: string]: string;
+                        } | null;
+                        /** @enum {string} */
+                        mode: "once" | "recurring";
+                        /** @enum {string} */
+                        status: "armed" | "fired" | "stopped" | "expired";
+                        expiresAt: string;
+                        firedCount: number;
+                        lastFiredAt: string | null;
+                        createdAt: string;
+                    };
+                };
+            };
+            /** @description The monitor is already fired, stopped, or expired. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Monitor not found, or not owned. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8916,6 +9157,158 @@ export interface operations {
                 content?: never;
             };
             /** @description No such plan owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getMonitors: {
+        parameters: {
+            query?: {
+                status?: "armed" | "fired" | "stopped" | "expired";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of Monitor. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        ownerKind: "global-root" | "workspace-primary" | "spawned-session";
+                        description: string;
+                        eventTypes: string[];
+                        payloadFilter: {
+                            [key: string]: string;
+                        } | null;
+                        /** @enum {string} */
+                        mode: "once" | "recurring";
+                        /** @enum {string} */
+                        status: "armed" | "fired" | "stopped" | "expired";
+                        expiresAt: string;
+                        firedCount: number;
+                        lastFiredAt: string | null;
+                        createdAt: string;
+                    }[];
+                };
+            };
+        };
+    };
+    postMonitors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    description: string;
+                    eventTypes: string[];
+                    payloadFilter?: {
+                        [key: string]: string;
+                    };
+                    /** @enum {string} */
+                    mode?: "once" | "recurring";
+                    expiresInMs?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Monitor armed. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        ownerKind: "global-root" | "workspace-primary" | "spawned-session";
+                        description: string;
+                        eventTypes: string[];
+                        payloadFilter: {
+                            [key: string]: string;
+                        } | null;
+                        /** @enum {string} */
+                        mode: "once" | "recurring";
+                        /** @enum {string} */
+                        status: "armed" | "fired" | "stopped" | "expired";
+                        expiresAt: string;
+                        firedCount: number;
+                        lastFiredAt: string | null;
+                        createdAt: string;
+                    };
+                };
+            };
+            /** @description Validation error, or an event type that is not watchable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postMonitorsByMonitorIdStop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                monitorId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Monitor stopped. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        ownerKind: "global-root" | "workspace-primary" | "spawned-session";
+                        description: string;
+                        eventTypes: string[];
+                        payloadFilter: {
+                            [key: string]: string;
+                        } | null;
+                        /** @enum {string} */
+                        mode: "once" | "recurring";
+                        /** @enum {string} */
+                        status: "armed" | "fired" | "stopped" | "expired";
+                        expiresAt: string;
+                        firedCount: number;
+                        lastFiredAt: string | null;
+                        createdAt: string;
+                    };
+                };
+            };
+            /** @description The monitor is already fired, stopped, or expired. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Monitor not found, or not owned. */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -30,6 +30,8 @@ import { tasksApp } from './routes/tasks/index.js'
 import { tasksUserApp } from './routes/tasks/user-scoped.js'
 import { plansApp } from './routes/plans/index.js'
 import { plansUserApp } from './routes/plans/user-scoped.js'
+import { monitorsApp } from './routes/monitors/index.js'
+import { monitorsUserApp } from './routes/monitors/user-scoped.js'
 import { journalApp } from './routes/journal/index.js'
 import { journalUserApp } from './routes/journal/user-scoped.js'
 import { asksApp } from './routes/asks/index.js'
@@ -217,6 +219,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // journal ride the same reasoning (the date-wise layer + the daily record).
   app.route('/workspaces/:workspaceId/tasks', tasksApp)
   app.route('/workspaces/:workspaceId/plans', plansApp)
+  app.route('/workspaces/:workspaceId/monitors', monitorsApp)
   app.route('/workspaces/:workspaceId/journal', journalApp)
   app.route('/workspaces/:workspaceId/apps', workspaceAppsApp)
   app.route('/workspaces/:workspaceId/chat', chatApp)
@@ -237,6 +240,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // `/plans` + `/journal` are its date-wise + daily-record twins.
   app.route('/tasks', tasksUserApp)
   app.route('/plans', plansUserApp)
+  app.route('/monitors', monitorsUserApp)
   app.route('/journal', journalUserApp)
   // `/asks` — the ask_user answering surface (always the user; the agent's
   // surface is the `vynel-ask` descriptor tool). Core plumbing, not gated.

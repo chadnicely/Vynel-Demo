@@ -37,6 +37,7 @@
     "@vynel/mcp": "workspace:*",
     "@vynel/mcp-contract": "workspace:*",
     "@vynel/memory": "workspace:*",
+    "@vynel/monitors": "workspace:*",
     "@vynel/onboarding": "workspace:*",
     "@vynel/orchestration": "workspace:*",
     "@vynel/plans": "workspace:*",

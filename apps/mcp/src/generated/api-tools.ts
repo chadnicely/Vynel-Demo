@@ -263,6 +263,46 @@ export const completeTask: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const createGlobalMonitor: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'create_global_monitor',
+    "Arm a watch that wakes THIS conversation when something happens, so you can start something and get on with other work instead of polling. `description` says what you are waiting for in plain language — it is shown to you when the watch fires. `payloadFilter` narrows to one thing ({\"appId\": \"...\"}) using the filterable fields listed below. `mode` is \"once\" (the default — wake me the first time) or \"recurring\" (wake me every time). `expiresInMs` sets the deadline; it defaults to 24 hours and every monitor has one. Returns the monitor id for stopping it. NOTE: the wake starts a NEW turn on this conversation — it will not interrupt one already running.\n\n`eventTypes` must come from this list:\n- `task.completed` — A task on the user’s task list was marked done. Filterable: taskId, workspaceId, planId.\n- `plan.completed` — A dated plan was completed. Filterable: planId, workspaceId, planDate.\n- `app.started` — A workspace app was started and is running. Filterable: appId, workspaceId.\n- `app.stopped` — A workspace app was stopped. Filterable: appId, workspaceId.\n- `app.crashed` — A workspace app exited unexpectedly — watch this to react to a dev server dying. Filterable: appId, workspaceId.\n- `schedule.run-completed` — A scheduled task finished its run. Filterable: scheduleId, workspaceId.\n- `agent.run-completed` — A configured agent finished a run. Filterable: agentId, workspaceId.\n- `knowledge.document-indexed` — A document finished indexing and is searchable — watch this before searching freshly added sources. Filterable: documentId, workspaceId.\n- `approval.user-resolved` — The user approved or denied an approval card. Filterable: approvalRequestId, workspaceId, resolutionKind.\n- `ask.resolved` — The user answered a question you asked them. Filterable: askId, workspaceId.\n- `channel.connected` — A channel (Telegram, Zoom) finished connecting. Filterable: channelId.\n- `channel.group-discovered` — The bot was added to a group chat and is waiting to be approved. Filterable: channelId, groupId.\n- `workspace.created` — A new workspace was created. Filterable: workspaceId.\n- `monitor.expired` — A monitor reached its deadline. Watch this to learn that a watch you armed died without ever firing (filter firedCount: \"0\"). Filterable: monitorId, workspaceId, firedCount.",
+    {
+    description: z.string(),
+    eventTypes: z.array(z.string()),
+    payloadFilter: z.record(z.unknown()).optional(),
+    mode: z.enum(['once', 'recurring']).optional(),
+    expiresInMs: z.number().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/monitors'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['description', 'eventTypes', 'payloadFilter', 'mode', 'expiresInMs']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const createMemoryEntry: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_memory_entry',
@@ -283,6 +323,48 @@ export const createMemoryEntry: McpToolFactory = (scope, app) =>
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
         for (const k of ['kind', 'title', 'body', 'category', 'section', 'tags']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const createMonitor: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'create_monitor',
+    "Arm a watch that wakes THIS conversation when something happens, so you can start something and get on with other work instead of polling. `description` says what you are waiting for in plain language — it is shown to you when the watch fires. `payloadFilter` narrows to one thing ({\"appId\": \"...\"}) using the filterable fields listed below. `mode` is \"once\" (the default — wake me the first time) or \"recurring\" (wake me every time). `expiresInMs` sets the deadline; it defaults to 24 hours and every monitor has one. Returns the monitor id for stopping it. NOTE: the wake starts a NEW turn on this conversation — it will not interrupt one already running.\n\n`eventTypes` must come from this list:\n- `task.completed` — A task on the user’s task list was marked done. Filterable: taskId, workspaceId, planId.\n- `plan.completed` — A dated plan was completed. Filterable: planId, workspaceId, planDate.\n- `app.started` — A workspace app was started and is running. Filterable: appId, workspaceId.\n- `app.stopped` — A workspace app was stopped. Filterable: appId, workspaceId.\n- `app.crashed` — A workspace app exited unexpectedly — watch this to react to a dev server dying. Filterable: appId, workspaceId.\n- `schedule.run-completed` — A scheduled task finished its run. Filterable: scheduleId, workspaceId.\n- `agent.run-completed` — A configured agent finished a run. Filterable: agentId, workspaceId.\n- `knowledge.document-indexed` — A document finished indexing and is searchable — watch this before searching freshly added sources. Filterable: documentId, workspaceId.\n- `approval.user-resolved` — The user approved or denied an approval card. Filterable: approvalRequestId, workspaceId, resolutionKind.\n- `ask.resolved` — The user answered a question you asked them. Filterable: askId, workspaceId.\n- `channel.connected` — A channel (Telegram, Zoom) finished connecting. Filterable: channelId.\n- `channel.group-discovered` — The bot was added to a group chat and is waiting to be approved. Filterable: channelId, groupId.\n- `workspace.created` — A new workspace was created. Filterable: workspaceId.\n- `monitor.expired` — A monitor reached its deadline. Watch this to learn that a watch you armed died without ever firing (filter firedCount: \"0\"). Filterable: monitorId, workspaceId, firedCount.",
+    {
+    workspaceId: z.string(),
+    description: z.string(),
+    eventTypes: z.array(z.string()),
+    payloadFilter: z.record(z.unknown()).optional(),
+    mode: z.enum(['once', 'recurring']).optional(),
+    expiresInMs: z.number().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/monitors'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['description', 'eventTypes', 'payloadFilter', 'mode', 'expiresInMs']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -1005,6 +1087,43 @@ export const listChatSessions: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listGlobalMonitors: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_global_monitors',
+    "List the watches armed on THIS global conversation — what each is waiting for, whether it is still armed, how many times it has fired, and when it expires. Shows global monitors only; a workspace's own watches are listed by list_monitors there. Check this before arming another so you do not duplicate a watch. Read-only.",
+    {
+    status: z.enum(['armed', 'fired', 'stopped', 'expired']).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/monitors'
+        const queryParams = new URLSearchParams()
+        for (const k of ['status']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const listInstalledSkills: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_installed_skills',
@@ -1211,6 +1330,45 @@ export const listMemoryTags: McpToolFactory = (scope, app) =>
         let pathStr = '/workspaces/{workspaceId}/memory/tags'
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listMonitors: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_monitors',
+    "List the watches armed on this workspace — what each is waiting for, whether it is still armed, how many times it has fired, and when it expires. Check this before arming another one so you do not duplicate a watch, and to find the id to stop. Optional `status` filters to armed / fired / stopped / expired. Read-only.",
+    {
+    workspaceId: z.string(),
+    status: z.enum(['armed', 'fired', 'stopped', 'expired']).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/monitors'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['status']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'GET' })
@@ -2182,6 +2340,74 @@ export const stopApp: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const stopGlobalMonitor: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'stop_global_monitor',
+    "Disarm a watch you armed — use it once you no longer care about the thing you were waiting for, so it does not wake you later. Takes the monitor id from create_monitor / create_global_monitor or either list. Works for global and workspace monitors alike. Only an armed monitor can be stopped.",
+    {
+    monitorId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/monitors/{monitorId}/stop'
+        pathStr = pathStr.replace('{monitorId}', encodeURIComponent(String(args['monitorId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const stopMonitor: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'stop_monitor',
+    "Disarm a watch you armed — use it once you no longer care about the thing you were waiting for, so it does not wake you later. Takes the monitor id from create_monitor or list_monitors. Only an armed monitor can be stopped.",
+    {
+    monitorId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/monitors/{monitorId}/stop'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{monitorId}', encodeURIComponent(String(args['monitorId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const updateApp: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'update_app',
@@ -2364,6 +2590,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   completePlan,
   completeTask,
   createMemoryEntry,
+  createMonitor,
   createPlan,
   createTask,
   discoverInstalledSkillsForProvider,
@@ -2387,6 +2614,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   listKnowledgeSources,
   listMemoryEntries,
   listMemoryTags,
+  listMonitors,
   listMyChannels,
   listMyJournalEntries,
   listMyPlans,
@@ -2405,6 +2633,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   searchMemory,
   startApp,
   stopApp,
+  stopMonitor,
   updateApp,
   updateMemoryEntry,
   updatePlan,
@@ -2414,9 +2643,11 @@ export const generatedMcpTools: McpToolFactory[] = [
 // Routing tools (agent-base Slice 4) — the GLOBAL-ROOT turn's server ONLY.
 // Kept OUT of generatedMcpTools so the normal chat turn stays byte-for-byte.
 export const generatedRoutingMcpTools: McpToolFactory[] = [
+  createGlobalMonitor,
   createSession,
   getBackgroundRun,
   listBackgroundRuns,
+  listGlobalMonitors,
   listRoutingChannels,
   listRoutingWorkspaces,
   listSessions,
@@ -2425,6 +2656,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   sendTaskToWorkspace,
   sendToChannel,
   speak,
+  stopGlobalMonitor,
 ]
 
 // Session-library Slice ④b (widened 2026-07-21) — tools ALSO exposed on

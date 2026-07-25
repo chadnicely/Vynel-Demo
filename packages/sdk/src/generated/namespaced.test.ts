@@ -240,6 +240,10 @@ describe('makeNamespaced — shape', () => {
       'marketplace',
       'marketplaceUser',
       'memory',
+      // the monitors module (2026-07-26) — a two-door namespace like plans:
+      // the workspace surface and its global twin.
+      'monitors',
+      'monitorsUser',
       'notebook',
       'onboarding',
       'plans',
