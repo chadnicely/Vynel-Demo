@@ -1252,6 +1252,9 @@ importers:
       '@vynel/memory':
         specifier: workspace:*
         version: link:../memory
+      '@vynel/monitors':
+        specifier: workspace:*
+        version: link:../monitors
       '@vynel/orchestration':
         specifier: workspace:*
         version: link:../orchestration

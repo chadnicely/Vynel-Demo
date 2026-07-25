@@ -6,10 +6,11 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./runtime": "./src/runtime/index.ts",
     "./continuity": "./src/continuity/index.ts",
     "./delegation": "./src/delegation/index.ts",
+    "./monitors": "./src/monitors/index.ts",
     "./overview": "./src/overview/index.ts",
+    "./runtime": "./src/runtime/index.ts",
     "./spawned": "./src/spawned/index.ts"
   },
   "scripts": {
@@ -26,6 +27,7 @@
     "@vynel/instructions": "workspace:*",
     "@vynel/logger": "workspace:*",
     "@vynel/memory": "workspace:*",
+    "@vynel/monitors": "workspace:*",
     "@vynel/orchestration": "workspace:*",
     "@vynel/providers": "workspace:*",
     "@vynel/workspaces": "workspace:*",

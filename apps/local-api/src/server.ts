@@ -43,6 +43,7 @@ import { startDelegationService } from './services/delegation-service.js'
 import { buildDelegatedTurnMcpComposer } from './sessions/build-workspace-background-mcp.js'
 import { buildGlobalRootReportTurnRunner } from './sessions/run-global-root-turn.js'
 import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
+import { startMonitorsService } from './services/monitors-service.js'
 import {
   TurnEventBroadcaster,
   DelegationCancelRegistry,
@@ -224,6 +225,7 @@ export async function boot(): Promise<void> {
   // The stale-approval reaper (surface-up's unanswered bound) — denies the provider
   // approval so a parked turn resumes, then marks the row timed-out.
   const approvalsRecoveryService = startApprovalsRecoveryService({ db, logger, provider })
+  const monitorsService = startMonitorsService({ db, logger })
   // Boot recovery for asks: the ask_user waiter registry died with the previous
   // process, so every still-pending ask row is unanswerable — expire them once
   // at boot so the UI never shows a zombie wizard (docs/module-notes/ask.md).
@@ -290,6 +292,7 @@ export async function boot(): Promise<void> {
       channelsService.stop()
       delegationService.stop()
       approvalsRecoveryService.stop()
+      monitorsService.stop()
       outboxRelayService.stop()
       // Quitting Vynel never orphans a dev server (docs/module-notes/apps.md).
       void appSupervisor.stopAll()

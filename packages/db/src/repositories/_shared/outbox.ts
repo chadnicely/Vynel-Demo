@@ -6,7 +6,7 @@
 // Phase 1 SYNC return values per the better-sqlite3 transaction contract
 // in `.claude/memory/decisions/phase-1-sync-transactions.md`.
 
-import { and, asc, desc, eq, inArray, isNull, lt } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lt, lte } from 'drizzle-orm'
 import type { Database } from '../../client.js'
 import {
   outboxEvents,
@@ -85,6 +85,34 @@ export function listRecentOutboxEventsByTypes(
     .from(outboxEvents)
     .where(and(...conditions))
     .orderBy(desc(outboxEvents.createdAt))
+    .limit(limit)
+    .all()
+}
+
+// Events in a HALF-OPEN window, oldest first — the monitors tick's read.
+//
+// `(after, through]` is deliberate: exclusive low, inclusive high. Each event
+// then falls in exactly ONE tick window, so a monitor can neither miss an event
+// at a boundary nor see it twice. `listRecentOutboxEventsByTypes` cannot serve
+// this — it is newest-first, which would fire a `once` monitor on the LATEST
+// match rather than the earliest.
+export function listOutboxEventsByTypesInWindow(
+  db: Database,
+  input: { types: string[]; after: Date; through: Date; limit?: number },
+): OutboxEventRow[] {
+  if (input.types.length === 0) return []
+  const limit = Math.min(input.limit ?? 200, 500)
+  return db
+    .select()
+    .from(outboxEvents)
+    .where(
+      and(
+        inArray(outboxEvents.type, input.types),
+        gt(outboxEvents.createdAt, input.after),
+        lte(outboxEvents.createdAt, input.through),
+      ),
+    )
+    .orderBy(asc(outboxEvents.createdAt), asc(outboxEvents.id))
     .limit(limit)
     .all()
 }
