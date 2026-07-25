@@ -108,5 +108,36 @@ the header doing the one job it was built for.
 ## Order
 
 1. ~~`list_background_runs` + `get_background_run`~~ — **DONE** (`d2b61bd`), 63 MCP tools.
-2. `@vynel/monitors` leaf + the three tools + the tick. ← next, blocked only on the fork above.
-3. `channel.message-received` outbox event, so channel watches work.
+2. ~~`@vynel/monitors` leaf~~ — **DONE** (`8749894`): schema + migration 0019, arm/stop ops,
+   scoped list reads, the pure matcher. 19 tests.
+3. ~~The tools~~ — **DONE** (`6e63945`): two doors, 69 MCP tools, 209 SDK methods.
+4. **THE TICK — next, and until it lands a monitor never fires.** Everything else is in place;
+   this is the piece that makes the feature real.
+5. `channel.message-received` outbox event, so Chad's own Telegram example works.
+
+## The tick (what remains)
+
+Runs beside the delegation tick. Per pass:
+
+1. `recordMonitorExpired(db, { now })` — reap deadlines first, so an expired monitor can't fire.
+2. `listArmedMonitors(db)` — oldest watermark first, bounded at 200 so one user can't starve
+   the rest.
+3. Per monitor: read outbox rows in `(lastCheckedAt, tickStartedAt]` whose type it subscribes
+   to, oldest-first. **Exclusive low bound, inclusive high** — every event then falls in exactly
+   one window: no ties, no duplicates, no gaps.
+4. `findFirstMatch` → if matched: **enqueue the wake FIRST**, then `recordMonitorFired` with the
+   returned job id. That order is load-bearing — the inverse loses the wake if the process dies
+   between them, and a monitor marked fired with nobody woken is silent, which is
+   indistinguishable from "nothing happened yet". A duplicate wake is merely noise.
+5. No match → `advanceMonitorWatermark`.
+
+The wake, by owner kind — all three already exist:
+
+| ownerKind | enqueue |
+|---|---|
+| `global-root` | `enqueueReportDelivery({ kind: 'global-root' })` |
+| `workspace-primary` | `enqueueReportDelivery({ kind: 'workspace-primary', workspaceId, workspacePath })` |
+| `spawned-session` | `enqueueSessionDelegation(targetPrimarySessionId)` |
+
+The wake body carries the monitor's `description` and the matched event, so the woken turn knows
+why it was woken and what happened.
