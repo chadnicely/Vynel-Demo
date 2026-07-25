@@ -181,6 +181,25 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude can set a watch and get woken when something happens.** Instead of checking back
+  over and over, Claude can now say "tell me when the migration finishes" or "tell me every
+  time the dev server crashes" and get on with something else — when it happens, that
+  conversation picks itself back up with the news. Watches belong to the conversation that
+  set them, whether that's your main chat, a workspace, or a session Claude spun up, and
+  every one has an expiry so nothing lingers forever.
+
+- **Sessions talk to each other through one clear channel.** Handing work to a workspace,
+  giving a task to a session, and passing a result back up used to be three separate tools
+  with three different shapes. They're now one — Claude picks where the message goes and
+  writes it deliberately, rather than having whatever it happened to say scraped out of the
+  chat and forwarded. Results read like results now, and you won't see the same finding
+  arrive twice.
+
+- **A session Claude spins up now has the same abilities as the one that created it.**
+  Previously a spun-up session could be given work but had none of the tools its parent had
+  — one kind had no tools at all and couldn't even report back what it found. It now
+  inherits its parent's toolset and runs under the same approval mode you picked.
+
 - **Claude can now check on the work it handed off.** When you ask for something that runs in
   the background — a task sent to a workspace, or to one of its own sessions — Claude got back
   a receipt it couldn't do anything with. It can now list everything it started (what it was,

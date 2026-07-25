@@ -1,9 +1,96 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-23.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-26.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-24): ZOOM PARKED ("coming soon", ONE catalog flag) after live wire-debugging — Chad's call; TELEGRAM (DM + groups) fully live and confirmed; NEXT: whatever Chad opens (channels arc is CLOSED for now)
+## ⏭ NEXT ACTION (2026-07-26): SESSION-COMMS + MONITORS SHIPPED (8 feat commits, gate GREEN 581f/3224t) — **TASK 4 NEVER STARTED: the ask-mode approval gate + per-package exposure. START THERE.**
+
+**Chad's 4 asks this session. Three done, the fourth — which he named as the point — untouched.**
+He ended the session to reopen it fresh: *"how much you completed is good. Let's wrap up this
+session, I see you confused."* The confusion was mine: items 3's follow-ons kept expanding and I
+never came back to task 4.
+
+### ✅ DONE
+
+1. **Browser view PARKED** (`588e551`) — both doors removed (title-bar globe + palette item);
+   panel/store/composable/tauri commands kept whole. Unpark = restore those two doors, nothing
+   else was unwired. The modal-registry + notifier-docking root fixes from `9edc322` STAY.
+2. **MCP hang audit** (`588e551`, `docs/module-notes/mcp-tool-hang-audit.md`) — all 61 tools
+   inventoried. Most were already bounded. Three were NOT: `create_session`'s priming drain
+   (now 120s + interrupt), `generateEmbedding`'s first-call model download (bounds the WAIT,
+   never the load — abandoning a half-written model file is the truncated-cache bug), and the
+   external stdio server's raw fetch (150s abort + named timeout). Zoom's 3 fetches swept.
+   **Deliberately NOT done:** a generic timeout on the generated in-process dispatch — that is
+   Hono in-process, so a race cannot cancel the handler and a mutating tool would double-commit.
+3. **Monitors + session-comms** — the arc that ate the session:
+   - `d2b61bd` `list_background_runs` / `get_background_run` — the jobId was a dead handle.
+   - `8749894` **`@vynel/monitors` leaf** (migration 0019) + `6e63945` two scoped doors +
+     `a3a6dbb` **the tick** (armed watches now actually fire). `docs/module-notes/monitors.md`.
+   - `74389a6` **`threadId`** (migration 0020) — `partialSessionId` is PER-HOP by design, so a
+     two-hop chain produced four unrelated keys. threadId is the envelope; a chain-starting hop
+     self-seeds from its own hop key, which is why 0020 needed no backfill.
+   - `63579b3` **`send_message`** — ONE tool for every session-to-session message, replacing
+     send_task_to_workspace / send_task_to_session / report_to_requester (**all three still
+     exposed for ONE release as aliases, descriptions marked SUPERSEDED — remove them next**).
+     Needed a new generator flag `x-mcp.workspaceSurface` so a root tool also rides the plain
+     workspace array (the surfaces were mutually exclusive).
+   - `accd024` **tool-first reporting** (migration 0021) — the tick used to harvest the child's
+     chat reply. Now a turn that reports via the tool marks its own row and the harvest is
+     skipped; the harvest REMAINS as the fallback (silence is worse than a chatty report).
+   - `6bdec01` **spawned sessions inherit the parent's toolset** — Chad's call, reversing the
+     earlier "the leaf, not a router" pin. NO depth cap (raised, he declined). The bigger find:
+     GLOBAL-grounded spawned sessions had NO tools at all and could not even report back.
+   - `23c80c8` fixed a REAL pre-existing flake: the claim orders by (createdAt, id) and the
+     three test enqueues can share a millisecond → random-uuid tie-break. Proven by forcing the
+     collision (3 of 6 runs failed). Enqueue ops now take an injectable clock.
+
+### ❌ TASK 4 — NOT STARTED. This is the next action.
+
+Chad's words: *"expose all the functionalities to Claude for all packages so the user can manage
+them through chat... if on ask mode it will be gated through approval; for auto and bypass no
+approval."* Then refined: **"Vynel MCP approval is for DELETE and anything destructive. Claude's
+self-tools (memory, knowledge, tasks) do NOT need approval."**
+
+**(a) THE GATE DOES NOT EXIST.** `apps/local-api/src/sessions/compose-session-mcp-servers.ts:58-59`
+pushes `mcp__vynel__*` into the SDK's `allowedTools` unconditionally — and `allowedTools` is
+documented as "auto-allowed **without prompting**". So in ask mode NO Vynel tool cards today.
+Only the static floor (`create_memory_entry`) and per-turn `mutatingToolNames`
+(`register_workspace`) card, via the PreToolUse backstop.
+- **Two mechanisms, and the choice needs a 5-minute live smoke first:** does a PreToolUse
+  `permissionDecision: 'ask'` OVERRIDE an `allowedTools` pre-approval in SDK `default` mode?
+  The 2026-06-21 smoke proved it works under `bypassPermissions` — a DIFFERENT mode. If yes →
+  add `askModeApprovalToolNames` beside `alwaysRequireApprovalToolNames` (~20 lines, the set
+  already flows through `buildClaudeSdkOptions` → `buildClaudePreToolUseHook`). If no → stop
+  emitting the wildcard in ask mode and enumerate read-only tools instead (cross-cutting: the
+  composer does not know the permission mode today).
+- **`x-mcp.mutatingApproved` currently means BOTH "may be exposed" AND "runs with no card"** —
+  one flag doing two jobs. Bulk-adding it to expose more routes would silently create a large
+  never-carded surface, the exact inverse of what Chad asked for.
+
+**(b) 13 ROUTE DIRS EXPOSE NOTHING:** activity, agents, approvals, asks, capabilities, dashboard,
+files, hub, marketplace, notebook, onboarding, root, ssh-servers.
+- **`approvals` must NEVER be agent-exposed** — an agent that can resolve its own approval
+  requests defeats the whole gate. Proposed (NOT yet approved by Chad): expose files /
+  ssh-servers / agents / marketplace / notebook; leave hub / onboarding / dashboard / root /
+  activity / capabilities user-surface-only. **Get his sign-off on the table before writing.**
+
+### ❌ ALSO OUTSTANDING
+
+- **`channel.message-received` does not exist** — inbound channel messages route straight to a
+  turn with NO outbox event, so Chad's own Telegram monitor example ("trigger whenever a message
+  happens") cannot be armed. Small additive co-commit at the inbound boundary; also closes an
+  invariant-5 gap independent of monitors.
+- **Remove the three superseded routing tools** after one release.
+- **`pnpm lint` HAS NEVER PASSED** — `eslint-plugin-n` is NOT installed but the config uses
+  `n/no-process-exit`; 419 of 480 errors are "rule not found". Pre-existing (verified by
+  stashing). Plus 4 real `import()`-type-annotation errors in two test files from `94f3eaf`.
+- **Bug sweep barely started** (one round: found + fixed 17 dead imports the dispatch extraction
+  left in routing/index.ts — typecheck missed them because `noUnusedLocals` is off; lint caught
+  them). Chad wants zero bugs before production.
+- **Untested at runtime by Chad**: monitors end-to-end (arm → event → wake), send_message,
+  spawned-session tool inheritance. All green in tests; none smoked live.
+
+## (prev) ⏭ NEXT ACTION (2026-07-24): ZOOM PARKED ("coming soon", ONE catalog flag) after live wire-debugging — Chad's call; TELEGRAM (DM + groups) fully live and confirmed; NEXT: whatever Chad opens (channels arc is CLOSED for now)
 
 **The Zoom connect attempt became a live debugging session (full findings in
 docs/module-notes/channels-zoom.md "PARKED" section): connect succeeded (after fix rounds 2+3
