@@ -43,6 +43,25 @@ describe('runSeededSwapSession', () => {
     expect(seedInput.model).toBe('claude-haiku-4-5')
   })
 
+  // `createSpawnedSession` runs this inside the `create_session` MCP tool, so an
+  // unbounded drain parks the calling agent with no card and no error. The bound
+  // must both FAIL and interrupt — leaving a live turn nobody reads is the other
+  // half of the bug.
+  it('interrupts and throws when the priming turn never terminates', async () => {
+    const provider = new FakeAiAgentProvider()
+    provider.startChatSession = () =>
+      (async function* () {
+        yield { kind: 'session-started' as const, sessionId: 'sdk-stalled' }
+        // Never terminates — a wedged runtime, not a slow answer.
+        await new Promise<never>(() => {})
+      })() as ReturnType<typeof provider.startChatSession>
+
+    await expect(
+      runSeededSwapSession(provider, { workspacePath: '/tmp/ws', carry: 'x', timeoutMs: 20 }),
+    ).rejects.toThrow(/did not finish within 20ms/)
+    expect(provider.interruptedSessionIds).toStrictEqual(['sdk-stalled'])
+  })
+
   it('throws when the runtime assigns no session id', async () => {
     // A provider whose stream yields no session-started event.
     const provider = new FakeAiAgentProvider()

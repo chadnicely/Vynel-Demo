@@ -52,6 +52,13 @@ export interface OpenApiSpec {
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const
 
+// A transport-level backstop, not a per-route budget: every exposed route bounds
+// its own slow work internally, so this only has to outlast the slowest of them
+// — `create_session`, whose priming drain is capped at 120s
+// (`runSeededSwapSession`). Keep this ABOVE that cap, or a legitimate spawn
+// would read as a timeout.
+const DISPATCH_TIMEOUT_MS = 150_000
+
 export type ToolResult = {
   content: Array<{ type: 'text'; text: string }>
   isError?: boolean
@@ -175,6 +182,12 @@ function zodFromPrimitive(type: string, schema: OpenApiSchema): ZodTypeAny {
 // JSON body for mutating tools, dispatch, and shape the result. Any non-2xx
 // or thrown error becomes an `isError` text result (MCP surfaces it to the
 // caller rather than crashing the server).
+//
+// Every dispatch carries a deadline. This is real HTTP to the api, so the
+// signal genuinely CANCELS the request — an unreachable or wedged api would
+// otherwise park the calling MCP client on a promise that never settles, and
+// an outside client (unlike a Vynel turn) has no reaper behind it. The abort
+// surfaces as a normal `isError` result the model can read and act on.
 function makeHandler(
   pathTemplate: string,
   method: string,
@@ -207,13 +220,19 @@ function makeHandler(
       const queryString = query.toString()
       const url = path + (queryString ? `?${queryString}` : '')
 
-      let init: RequestInit = { method }
+      const signal = AbortSignal.timeout(DISPATCH_TIMEOUT_MS)
+      let init: RequestInit = { method, signal }
       if (method !== 'GET' && bodyFieldNames.length > 0) {
         const body: Record<string, unknown> = {}
         for (const name of bodyFieldNames) {
           if (args[name] !== undefined) body[name] = args[name]
         }
-        init = { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+        init = {
+          method,
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+          signal,
+        }
       }
 
       const response = await dispatch(url, init)
@@ -223,10 +242,15 @@ function makeHandler(
       }
       return { content: [{ type: 'text', text }] }
     } catch (err) {
-      return {
-        content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
-        isError: true,
-      }
+      // An abort reads as "This operation was aborted" — useless to the model.
+      // Name what actually happened so it can decide to retry or report.
+      const isTimeout = err instanceof Error && err.name === 'TimeoutError'
+      const text = isTimeout
+        ? `The request timed out after ${DISPATCH_TIMEOUT_MS}ms — the Vynel api did not respond. Report this rather than retrying immediately.`
+        : err instanceof Error
+          ? err.message
+          : String(err)
+      return { content: [{ type: 'text', text }], isError: true }
     }
   }
 }

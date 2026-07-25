@@ -29,6 +29,14 @@ function safeTabUrl(raw: string): string {
 // The lightweight browser view — a focus MODE over the shell (chat left,
 // page right, chrome hidden), not a place. Runtime-only on purpose: closing
 // the view restores the shell untouched, and a fresh session starts clean.
+//
+// PARKED (2026-07-26, Chad's call): the view never renders — both doors that
+// called `openView` are gone (the title bar's globe button and the palette's
+// "Browser view" item), so `isOpen` stays false and the shell's browser wiring
+// (the panel branch, the composer-seed reset, the `isObscured` overlay watch)
+// is inert. The implementation stays whole because the native-webview approach
+// needs rework, not deletion. To UNPARK: restore those two doors — nothing
+// else was unwired.
 export const useBrowserStore = defineStore("browser", () => {
   const isOpen = ref(false);
   // Shell overlays (palette, dialogs, monitor) draw UNDER a native page

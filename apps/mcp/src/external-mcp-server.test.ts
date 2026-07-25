@@ -131,4 +131,31 @@ describe('collectExternalTools — dispatch', () => {
     expect(result.isError).toBe(true)
     expect(result.content[0]?.text).toContain('Error 404')
   })
+
+  // An outside MCP client has no approvals reaper behind it — a wedged api would
+  // park it forever. Every dispatch carries a cancelling deadline, reads and
+  // mutations alike.
+  it('carries an abort signal on every dispatch', async () => {
+    const { dispatch, calls } = capturingDispatch(new Response('ok', { status: 200 }))
+    const tools = collectExternalTools(spec, dispatch)
+    await tools.find((t) => t.name === 'search_knowledge')!.handler({ workspaceId: 'w', query: 'q' })
+    await tools.find((t) => t.name === 'create_thing')!.handler({ title: 'hello' })
+
+    expect(calls[0]?.init?.signal).toBeInstanceOf(AbortSignal)
+    expect(calls[1]?.init?.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('names the timeout instead of leaking "operation was aborted"', async () => {
+    const timingOutDispatch: FetchDispatch = async () => {
+      throw Object.assign(new Error('The operation was aborted'), { name: 'TimeoutError' })
+    }
+    const search = collectExternalTools(spec, timingOutDispatch).find(
+      (t) => t.name === 'search_knowledge',
+    )!
+    const result = await search.handler({ workspaceId: 'w', query: 'q' })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0]?.text).toContain('timed out')
+    expect(result.content[0]?.text).toContain('did not respond')
+  })
 })

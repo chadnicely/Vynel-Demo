@@ -11,7 +11,6 @@ function mountTitleBar(overrides: Record<string, unknown> = {}) {
       theme: "dark",
       sidebarOpen: true,
       tasksOpen: false,
-      browserOpen: false,
       openTaskCount: 0,
       ...overrides,
     },

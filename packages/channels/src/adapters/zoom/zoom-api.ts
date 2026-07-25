@@ -25,6 +25,12 @@ export interface ZoomAccessToken {
 // margin, wide enough that an in-flight send never crosses the boundary.
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000
 
+// A stalled Zoom request never rejects on its own, and these run on the channel
+// poll tick — one wedged call would hold the tick open indefinitely. 15s is well
+// past Zoom's normal latency while still failing fast enough that the next tick
+// retries. (The `speak` daemon's 4s bound is the same discipline, tighter budget.)
+const ZOOM_REQUEST_TIMEOUT_MS = 15_000
+
 export async function fetchZoomAccessToken(
   input: { clientId: string; clientSecret: string },
   fetchFn: FetchFn,
@@ -33,6 +39,7 @@ export async function fetchZoomAccessToken(
   const response = await fetchFn('https://zoom.us/oauth/token?grant_type=client_credentials', {
     method: 'POST',
     headers: { authorization: `Basic ${basic}` },
+    signal: AbortSignal.timeout(ZOOM_REQUEST_TIMEOUT_MS),
   })
   if (!response.ok) {
     throw new Error(`zoom token grant failed: ${response.status} ${await safeBodyText(response)}`)
@@ -93,6 +100,7 @@ export async function sendZoomChatbotMessage(
       ...(input.replyToMessageId !== undefined ? { reply_to: input.replyToMessageId } : {}),
       content: { body: [{ type: 'message', text: input.text }] },
     }),
+    signal: AbortSignal.timeout(ZOOM_REQUEST_TIMEOUT_MS),
   })
   if (!response.ok) {
     throw new Error(`zoom send failed: ${response.status} ${await safeBodyText(response)}`)
@@ -120,6 +128,7 @@ export async function editZoomChatbotMessage(
         ...(input.isMarkdown ? { is_markdown_support: true } : {}),
         content: { body: [{ type: 'message', text: input.text }] },
       }),
+      signal: AbortSignal.timeout(ZOOM_REQUEST_TIMEOUT_MS),
     },
   )
   if (!response.ok) {

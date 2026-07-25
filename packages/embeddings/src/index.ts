@@ -101,8 +101,41 @@ async function getEmbeddingPipeline(): Promise<FeatureExtractionPipeline> {
   return pipelinePromise
 }
 
+// The first `generateEmbedding()` of a process DOWNLOADS the model (~23 MB from
+// the HF Hub). A stalled download never rejects, so without this bound the
+// caller waits forever — and the callers are MCP tools (`search_knowledge`,
+// `search_memory`, `add_to_knowledge`, `add_memory_from_file`), which means a
+// parked agent with no card, no error, and nothing for the user to act on.
+const MODEL_LOAD_TIMEOUT_MS = 120_000
+
+// Bound the WAIT, never the load. `pipeline()` takes no AbortSignal, and
+// abandoning a half-written model file is exactly the truncated-cache failure
+// documented above — worse, a retry would start a SECOND download over the same
+// path. So the in-flight promise keeps running (the next call attaches to it and
+// may well find it warm); only this caller gives up.
+async function awaitEmbeddingPipeline(): Promise<FeatureExtractionPipeline> {
+  let timer: NodeJS.Timeout | undefined
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `@vynel/embeddings: the embedding model did not finish loading within ${MODEL_LOAD_TIMEOUT_MS}ms. ` +
+              'It downloads on first use — check the network connection and try again; the download continues in the background.',
+          ),
+        ),
+      MODEL_LOAD_TIMEOUT_MS,
+    )
+  })
+  try {
+    return await Promise.race([getEmbeddingPipeline(), deadline])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function generateEmbedding(text: string): Promise<Buffer> {
-  const extractor = await getEmbeddingPipeline()
+  const extractor = await awaitEmbeddingPipeline()
   const output = await extractor(text, { pooling: 'mean', normalize: true })
   // After mean-pooling + L2-normalization, `output.data` is a Float32Array
   // of length EMBEDDING_DIMENSIONS.

@@ -326,16 +326,6 @@ function runCommand(id: string) {
     case "toggle-tasks":
       ui.isTasksPanelOpen = !ui.isTasksPanelOpen;
       break;
-    case "toggle-browser":
-      if (browser.isOpen) {
-        browser.closeView();
-      } else {
-        // Browser mode pairs the page with the scope's CHAT — land there
-        // before the chrome tucks away.
-        browser.openView();
-        selectSurface("chat");
-      }
-      break;
     case "go-home":
       void router.push({ name: "home" });
       break;
@@ -386,7 +376,6 @@ const paletteCommands = computed<CommandItem[]>(() => [
   { id: "toggle-theme", label: "Toggle theme", group: "View", keywords: "dark light" },
   { id: "toggle-sidebar", label: "Toggle navigation", group: "View" },
   { id: "toggle-tasks", label: "Toggle tasks", group: "View" },
-  { id: "toggle-browser", label: "Browser view", group: "View", keywords: "web app page" },
 ]);
 
 function onPaletteSelect(id: string) {
@@ -439,7 +428,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :theme="ui.theme"
       :sidebar-open="isSidebarOpen"
       :tasks-open="ui.isTasksPanelOpen"
-      :browser-open="browser.isOpen"
       :open-task-count="openTaskCount"
       @command="runCommand"
       @menus-open="areTitleBarMenusOpen = $event"

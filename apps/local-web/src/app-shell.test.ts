@@ -337,26 +337,17 @@ describe("app shell", () => {
     expect(router.currentRoute.value.query.workspace).toBe(DEMO_WORKSPACE.id);
   });
 
-  // Browser mode is a focus takeover: chat left, page right, chrome gone —
-  // and closing restores every piece.
-  it("browser mode tucks the chrome away and restores it on close", async () => {
-    const { wrapper, router } = await mountShell();
+  // SPEC CHANGE (2026-07-26): the browser view is PARKED — the old test drove
+  // the title bar's globe toggle into browser mode. Both doors are gone, so
+  // what's pinned now is that the view is unreachable and the shell keeps its
+  // full chrome. (The panel/store implementation stays tested on its own.)
+  it("the parked browser view has no door in the shell", async () => {
+    const { wrapper } = await mountShell();
 
-    await wrapper.find('[aria-label="Toggle browser view"]').trigger("click");
-    await vi.dynamicImportSettled();
-    await flushPromises();
-
-    expect(router.currentRoute.value.name).toBe("chat");
-    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0);
-    expect(menuItems(wrapper)).toHaveLength(0);
-    expect(wrapper.find('[aria-label="Browser view"]').exists()).toBe(true);
-
-    await wrapper.find('[aria-label="Close browser view"]').trigger("click");
-    await flushPromises();
-
+    expect(wrapper.find('[aria-label="Toggle browser view"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="Browser view"]').exists()).toBe(false);
     expect(stripTabNames(wrapper)).toEqual(["Global"]);
     expect(menuItems(wrapper).length).toBeGreaterThan(0);
-    expect(wrapper.find('[aria-label="Browser view"]').exists()).toBe(false);
   });
 
   it("closing the room's tab returns to the Global tab and its chat", async () => {

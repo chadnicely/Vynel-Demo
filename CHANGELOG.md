@@ -31,20 +31,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   icon showing what it affects. The old Assistant and Go menus are gone; everything they
   held still lives in the command palette (⌘K), the tab strip, and the sidebar.
 
-- **The browser view now loads ANY site on desktop.** The first version used an embedded
-  frame, which many sites (Google included) refuse to appear in. On the desktop app the
-  page now renders in a real native web view — google.com, docs, dashboards, anything —
-  while chat stays on the left. Approval cards and questions dock on the chat side while
-  the browser is open, so nothing important can hide behind a web page.
-
-- **Browser view — see your app next to the conversation.** A new globe button in the
-  title bar opens a lightweight browser: your chat stays on the left, the page on the
-  right, and the rest of the chrome tucks away until you close it. Hit `+` to open one of
-  the room's running apps (one click, no URL to remember) or type any address. Best part:
-  the **Ask Claude** button on a page — write what you want changed ("make the header
-  sticky") and it lands in your chat draft with the page's name and address attached, ready
-  to review and send. Selecting an exact element on the page to point Claude at is coming
-  next.
+- **Browser view (parked — not in this release).** A browser panel that put a live page
+  beside your chat, with an **Ask Claude** button to send a note about the page straight to
+  your draft. Two versions were built — an embedded frame, then a real native web view for
+  the desktop app — but the native page draws above everything else in the window, and
+  keeping it from covering dialogs and menus proved fragile enough to be worth redoing
+  rather than shipping. The globe button is gone for now; the work is kept and will return.
+  The fixes it produced along the way — approval cards and questions docking to the side of
+  the chat, and every dialog reporting itself so nothing can hide behind it — stay.
 
 - **Menus finished their icon column — and shortcuts speak your platform.** Every row in
   the Vynel menu now carries its icon (Settings and Account wear the same icons as the
@@ -186,6 +180,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   mid-turn catches up instead of freezing on a partial reply.
 
 ### Fixed
+
+- **Claude can no longer get stuck waiting on a tool that never finishes.** An audit of every
+  tool the assistant can call turned up three places where a stall meant waiting forever with
+  nothing to show you — no error, no card, just silence. Creating a session now gives up (and
+  cleanly cancels) if the new session doesn't come up; the first search of your knowledge or
+  memory no longer waits indefinitely on the one-time search-model download (it says so and
+  keeps downloading in the background); and Vynel's tools served to outside apps now time out
+  with a message that says what happened. Zoom calls got the same treatment. Everything else
+  checked out — hand-offs return immediately, apps already force-stop, and unanswered approval
+  cards were already being cleaned up.
 
 - **A workspace can now route handed-off work into sessions.** Asking your assistant to have a
   workspace send work into a created session used to dead-end — the workspace's background run

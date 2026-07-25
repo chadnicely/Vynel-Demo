@@ -135,8 +135,12 @@ export class FakeAiAgentProvider extends AiAgentProvider {
     this.resolveApprovalDecision?.(decision)
     return Promise.resolve()
   }
-  interruptChatSession(): never {
-    throw new Error('FakeAiAgentProvider.interruptChatSession not implemented')
+  /** Records instead of throwing: interrupt is a real path now (a drain that
+   *  hits its deadline cancels the turn), so a test asserts WHAT was interrupted. */
+  readonly interruptedSessionIds: string[] = []
+  interruptChatSession(sessionId: string): Promise<void> {
+    this.interruptedSessionIds.push(sessionId)
+    return Promise.resolve()
   }
   fetchPersistedSessionTranscript(): never {
     throw new Error('FakeAiAgentProvider.fetchPersistedSessionTranscript not implemented')
