@@ -30,6 +30,7 @@ import {
   completeDelegationJob,
   enqueueReportDelivery,
   failDelegationJob,
+  findDelegationJobById,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   markDelegationsSurfacedToRoot,
   resolveThreadIdOf,
@@ -104,6 +105,7 @@ export interface RunDelegationTickDeps {
     workspaceId: string
     target: 'workspace-root' | 'spawned-session'
     threadId?: string
+    jobId?: string
     /** The spawned primary a 'spawned-session' target resumes — the api edge
      *  stamps the caller-identity header from it so `report_to_requester`
      *  resolves the SESSION (not just its grounding workspace) and can never
@@ -305,6 +307,7 @@ export async function runDelegationClaimAndRunTick(
             db,
             userId: claimed.userId,
             ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+            jobId: claimed.id,
             workspaceId: mcpGroundingWorkspaceId,
             target: claimed.targetPrimarySessionId !== null ? 'spawned-session' : 'workspace-root',
             // The caller identity for `report_to_requester` (session-comms): a
@@ -469,7 +472,13 @@ export async function runDelegationClaimAndRunTick(
       // next-turn catch-up). Failure falls back to completing ALONE,
       // unsurfaced — the catch-up net still carries the report, and a
       // delivery hiccup can never flip a FINISHED turn to failed.
-      const deliverableReply = userReply.trim() !== ''
+      // TOOL-FIRST REPORTING: a turn that reported through the tool has already
+      // sent what it meant to send, in its own words. Harvesting its chat reply
+      // on top would wake the requester twice with overlapping content — and the
+      // harvested copy is the chattier of the two. Re-read the row rather than
+      // trusting the claim-time snapshot: the mark lands DURING the run.
+      const reportedExplicitly = findDelegationJobById(db, claimed.id)?.reportedAt != null
+      const deliverableReply = !reportedExplicitly && userReply.trim() !== ''
       try {
         withTransaction(db, (tx) => {
           completeDelegationJob(tx, claimed.id, outcome.result, new Date())

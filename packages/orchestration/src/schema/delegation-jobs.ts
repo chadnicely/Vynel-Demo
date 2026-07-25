@@ -114,6 +114,12 @@ export const delegationJobs = table(
     // its own thread (see `resolveThreadId`), which is exactly right for legacy
     // rows: before this existed, every hop WAS its own chain.
     threadId: text(),
+    // Set when the running turn reported through the tool instead of leaving
+    // its reply to be harvested. The tick reads it to decide whether to
+    // auto-report at completion — without it a turn that reported explicitly
+    // would ALSO have its chat reply scraped and sent, waking the requester
+    // twice with overlapping content.
+    reportedAt: timestamp(),
     createdAt: timestamp().notNull(),
   },
   (t) => ({

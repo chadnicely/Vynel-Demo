@@ -328,6 +328,7 @@ describe('runDelegationClaimAndRunTick', () => {
         workspaceId: workspace.id,
         target: 'workspace-root',
         threadId: expect.any(String),
+        jobId: expect.any(String),
       })
       expect(workspaceInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
       expect(workspaceInputs[0]!.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
@@ -375,6 +376,7 @@ describe('runDelegationClaimAndRunTick', () => {
         target: 'spawned-session',
         targetPrimarySessionId: grounded.primarySessionId,
         threadId: expect.any(String),
+        jobId: expect.any(String),
       })
       expect(groundedInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
       await drainPendingReportDeliveries(db)

@@ -19,7 +19,7 @@ import type { Database } from '@vynel/db'
 import type { AiAgentProvider, NormalizedSessionEvent } from '@vynel/providers'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { findDelegationJobById } from '@vynel/orchestration'
+import { findDelegationJobById, enqueueWorkspaceDelegation } from '@vynel/orchestration'
 import { createSpawnedSession } from '@vynel/session/spawned'
 import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
 import {
@@ -39,6 +39,7 @@ import {
   DELEGATION_ORIGIN_HEADER,
 } from '../../sessions/delegation-origin-header.js'
 import { DELEGATION_MODE_HEADER } from '../../sessions/delegation-mode-header.js'
+import { DELEGATION_JOB_HEADER } from '../../sessions/delegation-job-header.js'
 import {
   serializeReportCaller,
   REPORT_CALLER_HEADER,
@@ -988,6 +989,72 @@ describe('POST /routing/message (send_message — the unified comms tool)', () =
       expect((await postJson(app, '/routing/message', { to: 'requester', body: '' })).status).toBe(
         400,
       )
+    })
+  })
+})
+
+describe('tool-first reporting (no double report)', () => {
+  // A turn that reports through the tool has already said what it meant to say.
+  // The tick must NOT also harvest its chat reply — that would wake the
+  // requester twice, and the harvested copy is the chattier of the two.
+  it('marks the running job reported so the tick skips the harvest', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-dbl')
+      const app = makeHarness(db)
+
+      // A queue row standing in for the turn that is running right now.
+      const runningJobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'g-1',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'count the docs',
+      })
+      expect(findDelegationJobById(db, runningJobId)?.reportedAt ?? null).toBeNull()
+
+      const res = await app.request('/routing/message', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          [REPORT_CALLER_HEADER]: serializeReportCaller({
+            kind: 'workspace-primary',
+            workspaceId: workspace.id,
+          }),
+          [DELEGATION_JOB_HEADER]: runningJobId,
+        },
+        body: JSON.stringify({ to: 'requester', body: '12 docs, 3 stale' }),
+      })
+
+      expect(res.status).toBe(200)
+      expect(findDelegationJobById(db, runningJobId)?.reportedAt).not.toBeNull()
+    })
+  })
+
+  // No header = not a delegated turn, so there is no row to mark. Must not throw.
+  it('reports fine on a turn with no job header', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-nohdr')
+      const app = makeHarness(db)
+
+      const res = await app.request('/routing/message', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          [REPORT_CALLER_HEADER]: serializeReportCaller({
+            kind: 'workspace-primary',
+            workspaceId: workspace.id,
+          }),
+        },
+        body: JSON.stringify({ to: 'requester', body: 'findings' }),
+      })
+      expect(res.status).toBe(200)
     })
   })
 })

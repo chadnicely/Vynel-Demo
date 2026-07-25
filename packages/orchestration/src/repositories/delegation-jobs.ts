@@ -342,6 +342,16 @@ export function listDelegationJobsByThread(
     .all()
 }
 
+// Record that the running turn reported through the tool. Idempotent — a turn
+// that reports twice keeps the FIRST stamp (the tick only cares whether one
+// happened at all, and the first is the truthful moment).
+export function markDelegationJobReported(db: Database, jobId: string, at: Date): void {
+  db.update(delegationJobs)
+    .set({ reportedAt: at })
+    .where(and(eq(delegationJobs.id, jobId), isNull(delegationJobs.reportedAt)))
+    .run()
+}
+
 // Mark delegations as surfaced into the root's context (exactly-once — a later turn won't
 // re-inject them). Idempotent + a no-op on an empty list.
 export function markDelegationsSurfacedToRoot(

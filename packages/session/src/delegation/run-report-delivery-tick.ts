@@ -76,6 +76,7 @@ export interface RunReportDeliveryDeps {
     workspaceId: string
     target: 'workspace-root' | 'spawned-session'
     threadId?: string
+    jobId?: string
     targetPrimarySessionId?: string
   }) => RoutedTurnMcpAttachment
   runGlobalRootReportTurn?: RunGlobalRootReportTurn

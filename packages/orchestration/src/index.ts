@@ -72,7 +72,7 @@ export {
 // The write-back half of that catch-up: mark the surfaced terminal delegations so the
 // next collect skips them. The session-tier global-root runner calls it AFTER the turn
 // absorbs the reports — paired with the read above.
-export { markDelegationsSurfacedToRoot } from './repositories/index.js'
+export { markDelegationsSurfacedToRoot, markDelegationJobReported } from './repositories/index.js'
 // The trace ANCHOR read — the session-tier trace view (apps' resolve-delegation-trace)
 // starts from the job row keyed by partialSessionId, then composes chat reads itself.
 // Only the anchor is exported; the composed VIEW stays out of this leaf (see below).

@@ -19,6 +19,7 @@ import {
   enqueueWorkspaceDelegation,
   enqueueSessionDelegation,
   enqueueReportDelivery,
+  markDelegationJobReported,
   type ReportDeliveryRequester,
 } from '@vynel/orchestration'
 import { getWorkspaceById, resolveManagerName } from '@vynel/workspaces'
@@ -42,6 +43,10 @@ import {
   parseDelegationThreadHeader,
   DELEGATION_THREAD_HEADER,
 } from '../../sessions/delegation-thread-header.js'
+import {
+  parseDelegationJobHeader,
+  DELEGATION_JOB_HEADER,
+} from '../../sessions/delegation-job-header.js'
 import {
   parseReportCallerHeader,
   REPORT_CALLER_HEADER,
@@ -220,6 +225,15 @@ export async function dispatchReportToRequester(
     // exactly the hop threadId exists to connect.
     ...(threadId !== undefined ? { threadId } : {}),
   })
+
+  // Mark the RUNNING row reported, so the tick does not also harvest this
+  // turn's chat reply and wake the requester a second time. Absent header = not
+  // a delegated turn, so there is no row to mark.
+  const runningJobId = parseDelegationJobHeader(c.req.header(DELEGATION_JOB_HEADER))
+  if (runningJobId !== undefined) {
+    markDelegationJobReported(c.var.db, runningJobId, new Date())
+  }
+
   return { jobId, deliveredTo: requester.kind === 'global-root' ? 'Global' : reporterLabel }
 }
 

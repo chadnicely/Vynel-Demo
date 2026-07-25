@@ -148,6 +148,13 @@
       "when": 1785012404994,
       "tag": "0020_delegation_thread",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1785014918033,
+      "tag": "0021_delegation_reported",
+      "breakpoints": true
     }
   ]
 }
