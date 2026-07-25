@@ -44,41 +44,13 @@
 // from `hono-openapi/zod`, chained methods on `factory.createApp()`.
 
 import { resolver, validator } from 'hono-openapi/zod'
-import { listWorkspacesForUser, getWorkspaceById, resolveManagerName } from '@vynel/workspaces'
+import { listWorkspacesForUser } from '@vynel/workspaces'
 import { listChannelsForUser, sendToChannel } from '@vynel/channels'
-import { findPrimaryConversation } from '@vynel/session/continuity'
-import { findSpawnedSessionById, findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
-import { resolveSpawnedSessionDisplayName } from '@vynel/session/delegation'
-import { composeManagerSourceLabel } from '@vynel/chat'
-import { findChatSessionById } from '@vynel/chat/repositories'
-import {
-  enqueueWorkspaceDelegation,
-  enqueueSessionDelegation,
-  enqueueReportDelivery,
-  listBackgroundRuns,
-  getBackgroundRun,
-  type ReportDeliveryRequester,
-} from '@vynel/orchestration'
-import { ValidationError, NotFoundError } from '@vynel/errors'
+import { listBackgroundRuns, getBackgroundRun } from '@vynel/orchestration'
+import { NotFoundError } from '@vynel/errors'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
-import {
-  parseDelegationOriginHeader,
-  DELEGATION_ORIGIN_HEADER,
-} from '../../sessions/delegation-origin-header.js'
-import {
-  parseDelegationModeHeader,
-  DELEGATION_MODE_HEADER,
-} from '../../sessions/delegation-mode-header.js'
-import {
-  parseDelegationThreadHeader,
-  DELEGATION_THREAD_HEADER,
-} from '../../sessions/delegation-thread-header.js'
-import {
-  parseReportCallerHeader,
-  REPORT_CALLER_HEADER,
-} from '../../sessions/report-caller-header.js'
 import {
   RouteToWorkspaceRequestSchema,
   SendTaskToSessionRequestSchema,
