@@ -65,6 +65,11 @@ describe('resolveThreadChain', () => {
       const user = seedUser(db)
       const workspace = seedWorkspace(db, user.id)
 
+      // Staggered clocks: the chain lists hops by (createdAt, id), so two rows
+      // written in the same millisecond would tie-break on a RANDOM uuid and the
+      // order assertion below would flip about half the time.
+      const enqueuedAt = (offsetMs: number) => ({ now: () => new Date(1_700_000_000_000 + offsetMs) })
+
       // Hop 1 — global sends a task down. Starts the chain.
       const taskJobId = enqueueWorkspaceDelegation(db, {
         userId: user.id,
@@ -73,7 +78,7 @@ describe('resolveThreadChain', () => {
         workspacePath: workspace.path,
         workspaceName: workspace.name,
         taskText: 'summarize the docs',
-      })
+      }, enqueuedAt(0))
       const taskJob = findDelegationJobById(db, taskJobId)!
       // The self-seed: a starting hop's thread IS its own hop key.
       expect(taskJob.threadId).toBe(taskJob.partialSessionId)
@@ -86,7 +91,7 @@ describe('resolveThreadChain', () => {
         reportBody: 'done, 12 docs',
         requester: { kind: 'global-root' },
         threadId: taskJob.threadId!,
-      })
+      }, enqueuedAt(1))
 
       // Anchored from EITHER hop's key, the chain is the same two hops.
       const chain = resolveThreadChain(db, {

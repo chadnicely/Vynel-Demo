@@ -56,7 +56,12 @@ export interface EnqueueWorkspaceDelegationInput {
 export function enqueueWorkspaceDelegation(
   db: Database,
   input: EnqueueWorkspaceDelegationInput,
+  /** Injectable clock. Every row this op writes takes its createdAt from ONE
+   *  read, and a test can stagger enqueues deterministically — the claim orders
+   *  by (createdAt, id), so same-millisecond rows tie-break on a RANDOM uuid. */
+  deps: { now?: () => Date } = {},
 ): string {
+  const now = (deps.now ?? (() => new Date()))()
   const id = randomUUID()
   // The delegation request's correlation key (brain-tree Chapter 2) — minted HERE,
   // once per request, so every message the request later produces (the task, the
@@ -89,7 +94,7 @@ export function enqueueWorkspaceDelegation(
     permissionMode: input.permissionMode ?? null,
     model: input.model ?? null,
     thinkingEffort: input.thinkingEffort ?? null,
-    createdAt: new Date(),
+    createdAt: now,
   })
   return id
 }

@@ -52,13 +52,21 @@ export interface EnqueueReportDeliveryInput {
 }
 
 /** Enqueue a report-delivery job for the requester and return its id. */
-export function enqueueReportDelivery(db: Database, input: EnqueueReportDeliveryInput): string {
+export function enqueueReportDelivery(
+  db: Database,
+  input: EnqueueReportDeliveryInput,
+  /** Injectable clock. Every row this op writes takes its createdAt from ONE
+   *  read, and a test can stagger enqueues deterministically — the claim orders
+   *  by (createdAt, id), so same-millisecond rows tie-break on a RANDOM uuid. */
+  deps: { now?: () => Date } = {},
+): string {
   if (input.reportBody.trim() === '') {
     throw new Error('enqueueReportDelivery: reportBody must be non-empty')
   }
   if (input.reporterSessionId.trim() === '') {
     throw new Error('enqueueReportDelivery: reporterSessionId must be a non-empty id')
   }
+  const now = (deps.now ?? (() => new Date()))()
   const id = randomUUID()
   // A fresh correlation key per delivery — the notify turn's rows share it, so
   // the delivery is queryable (and watchable) as its own trace, distinct from
@@ -92,7 +100,7 @@ export function enqueueReportDelivery(db: Database, input: EnqueueReportDelivery
     model: null,
     thinkingEffort: null,
     jobKind: 'report-delivery',
-    createdAt: new Date(),
+    createdAt: now,
   })
   return id
 }

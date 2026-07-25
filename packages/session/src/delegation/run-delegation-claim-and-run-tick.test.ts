@@ -1341,6 +1341,13 @@ describe('runDelegationClaimAndRunTick', () => {
       await setUpGlobalRoot(db, user.id)
 
       // Two pending GLOBAL deliveries + one workspace task on the queue.
+      //
+      // STAGGERED CLOCKS, deliberately: the claim orders by (createdAt, id), so
+      // three rows enqueued back-to-back can land in ONE millisecond — and the
+      // tie-break is then a random uuid, handing the first claim to the
+      // workspace task about a third of the time. This test asserts FIFO
+      // ordering, so it has to pin the order it is asserting.
+      const enqueuedAt = (offsetMs: number) => ({ now: () => new Date(1_700_000_000_000 + offsetMs) })
       const deliveryIds = [
         enqueueReportDelivery(db, {
           userId: user.id,
@@ -1348,14 +1355,14 @@ describe('runDelegationClaimAndRunTick', () => {
           reporterLabel: 'Session A',
           reportBody: 'report one',
           requester: { kind: 'global-root' },
-        }),
+        }, enqueuedAt(0)),
         enqueueReportDelivery(db, {
           userId: user.id,
           reporterSessionId: 'reporter-2',
           reporterLabel: 'Session B',
           reportBody: 'report two',
           requester: { kind: 'global-root' },
-        }),
+        }, enqueuedAt(1)),
       ]
       enqueueWorkspaceDelegation(db, {
         userId: user.id,
@@ -1364,7 +1371,7 @@ describe('runDelegationClaimAndRunTick', () => {
         workspacePath: workspace.path,
         workspaceName: workspace.name,
         taskText: 'a task that must not starve',
-      })
+      }, enqueuedAt(2))
 
       // Tick A (no exclusion): claims ONE delivery and reports the SHARED
       // synthetic key — what the pool will hold for the run's life.

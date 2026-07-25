@@ -47,12 +47,17 @@ export interface EnqueueSessionDelegationInput {
 export function enqueueSessionDelegation(
   db: Database,
   input: EnqueueSessionDelegationInput,
+  /** Injectable clock. Every row this op writes takes its createdAt from ONE
+   *  read, and a test can stagger enqueues deterministically — the claim orders
+   *  by (createdAt, id), so same-millisecond rows tie-break on a RANDOM uuid. */
+  deps: { now?: () => Date } = {},
 ): string {
   // Exactly-one-target: an empty session target would produce a row with NO
   // target at all (workspaceId is null here by construction) — fail fast.
   if (input.targetPrimarySessionId.trim() === '') {
     throw new Error('enqueueSessionDelegation: targetPrimarySessionId must be a non-empty id')
   }
+  const now = (deps.now ?? (() => new Date()))()
   const id = randomUUID()
   // The correlation key (same contract as the workspace enqueue): minted once per
   // request so the task, the session's reply, and the pushed report share one trace.
@@ -83,7 +88,7 @@ export function enqueueSessionDelegation(
     permissionMode: input.permissionMode ?? null,
     model: input.model ?? null,
     thinkingEffort: input.thinkingEffort ?? null,
-    createdAt: new Date(),
+    createdAt: now,
   })
   return id
 }
