@@ -71,9 +71,42 @@ on the next turn rather than inside the current one. That is the one-shot turn m
 (`run-claude-chat-session.ts:108` — `query({prompt: <string>})`); changing it means streaming-input
 mode, which is a separate brief (option B in `claude-monitor-primitive.md`).
 
+## How a monitor knows which session owns it (settled)
+
+`apps/local-api/src/sessions/report-caller-header.ts` already solves this for `report_to_requester`,
+and the reasoning transfers exactly: caller identity is **ambient turn context the model never
+sees**, server-stamped per turn at compose time, so it *cannot lie*. A model-visible `sessionId`
+input could be mis-set and would mis-address the monitor — the same "no session ids in the tool
+input" fork the report tool already settled.
+
+`ReportCaller` covers two of the four owners:
+
+| owner | identified by | fires via |
+|---|---|---|
+| workspace primary | `x-vynel-report-caller` → `workspace-primary` | `enqueueReportDelivery({kind:'workspace-primary'})` |
+| spawned session | `x-vynel-report-caller` → `spawned-session` | `enqueueSessionDelegation(targetPrimarySessionId)` |
+| global root | header ABSENT | `enqueueReportDelivery({kind:'global-root'})` |
+| interactive workspace chat | header absent + MCP `scope.workspaceId` | — **the open question** |
+
+**All three firing paths already exist** — a monitor firing needs no new tick machinery, it
+enqueues on the proven notify path, and the anti-cascade invariant holds unchanged.
+
+**The one open fork:** an absent header currently means *either* the global root *or* an
+interactive workspace chat. `report_to_requester` doesn't care (neither has a requester, so it
+400s). A monitor does care — an interactive workspace chat should own a workspace-scoped monitor,
+not a global one. Two ways out:
+
+- **(i) Two-door routes** (`/workspaces/:workspaceId/monitors` + `/monitors`), the shape tasks /
+  plans / journal already use. `workspaceId` then arrives from the path via the MCP scope, and the
+  door itself disambiguates. No new header, consistent with three existing leaves.
+- **(ii) Widen the caller header** to stamp interactive turns too. One more producer to keep in
+  sync, but ownership becomes one uniform mechanism instead of two.
+
+**Recommend (i)** — it reuses a shape that is already load-bearing three times over, and it keeps
+the header doing the one job it was built for.
+
 ## Order
 
-1. `list_background_runs` + `get_background_run` — the dead `jobId` handle, one small slice, and a
-   prerequisite for anything that waits on a run.
-2. `@vynel/monitors` leaf + the three tools + the tick.
+1. ~~`list_background_runs` + `get_background_run`~~ — **DONE** (`d2b61bd`), 63 MCP tools.
+2. `@vynel/monitors` leaf + the three tools + the tick. ← next, blocked only on the fork above.
 3. `channel.message-received` outbox event, so channel watches work.
