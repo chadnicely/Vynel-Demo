@@ -60,6 +60,8 @@ export interface FireScheduleDeps {
     // The feature mutating tools to card even under bypass (additive to the
     // provider's static floor) — forwarded to startChatTurn's alwaysRequireApprovalToolNames.
     mutatingToolNames: string[]
+    // The destructive tier — carded ONLY when the fired turn runs in ask mode.
+    askModeApprovalToolNames: string[]
     // The MCP composer's per-feature prompt sections (the notebook/tasks
     // standing lines). Joined with composeSessionCapabilities' prompt in the
     // fired turn — previously dropped (the chat-turn divergence, fixed in the

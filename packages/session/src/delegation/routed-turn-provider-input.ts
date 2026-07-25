@@ -44,6 +44,8 @@ export type RoutedTurnMcpAttachment = {
   deniedMcpToolPatterns: string[]
   /** Feature mutating tools carded even under bypass (additive to the floor). */
   mutatingToolNames: string[]
+  /** The destructive tier — carded ONLY when the routed turn runs in ask mode. */
+  askModeApprovalToolNames: string[]
   /** The MCP composer's per-feature prompt sections (tasks/notebook standing lines). */
   systemPromptAppend: string
 }
@@ -70,6 +72,7 @@ export function routedTurnMcpSessionFields(
   mcpServers?: Record<string, unknown>
   allowedMcpToolPatterns?: string[]
   alwaysRequireApprovalToolNames?: string[]
+  askModeApprovalToolNames?: string[]
 } {
   if (mcpAttachment === undefined) return { deniedToolNames: [] }
   return {
@@ -78,6 +81,9 @@ export function routedTurnMcpSessionFields(
     allowedMcpToolPatterns: mcpAttachment.allowedMcpToolPatterns,
     ...(mcpAttachment.mutatingToolNames.length > 0
       ? { alwaysRequireApprovalToolNames: mcpAttachment.mutatingToolNames }
+      : {}),
+    ...(mcpAttachment.askModeApprovalToolNames.length > 0
+      ? { askModeApprovalToolNames: mcpAttachment.askModeApprovalToolNames }
       : {}),
   }
 }

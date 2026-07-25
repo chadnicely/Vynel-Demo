@@ -59,6 +59,12 @@ export type BuildClaudeSdkOptionsInput = {
    * UNIONED with the static floor there. ADDITIVE; the floor always cards.
    */
   alwaysRequireApprovalToolNames?: ReadonlySet<string>
+  /**
+   * Per-turn destructive tier — cards ONLY when `permissionMode` is `ask`,
+   * via the same PreToolUse backstop (`'ask'` overrides the MCP wildcard's
+   * `allowedTools` pre-approval; live smoke 2026-07-26).
+   */
+  askModeApprovalToolNames?: ReadonlySet<string>
 }
 
 // Vynel permission mode -> SDK `PermissionMode`. `bypass-with-behavior-gate`
@@ -113,7 +119,15 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
     // settings file; do not assume `disableAllHooks` can turn it off.
     hooks: {
       PreToolUse: [
-        { hooks: [buildClaudePreToolUseHook(input.permissionMode, input.alwaysRequireApprovalToolNames)] },
+        {
+          hooks: [
+            buildClaudePreToolUseHook(
+              input.permissionMode,
+              input.alwaysRequireApprovalToolNames,
+              input.askModeApprovalToolNames,
+            ),
+          ],
+        },
       ],
       // Session-continuity Layer 1: capture the compaction summary. Only
       // registered when the caller supplies the (stateful) hook — same

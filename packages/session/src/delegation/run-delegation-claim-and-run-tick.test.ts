@@ -291,6 +291,7 @@ describe('runDelegationClaimAndRunTick', () => {
         allowedMcpToolPatterns: ['mcp__vynel__*'],
         deniedMcpToolPatterns: [],
         mutatingToolNames: [],
+        askModeApprovalToolNames: [],
         systemPromptAppend: '',
       }
       const composeWorkspaceMcpServers = vi.fn(() => attachment)

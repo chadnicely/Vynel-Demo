@@ -12,9 +12,10 @@
 // the old D7): a CLOUD item requires a server-side download + sha256 verify
 // before install, so the dispatch keys on cache membership — a cached
 // cloud item downloads its verified artifact, a bundled item renders its
-// in-code template. **No `x-mcp`** (D9 — skills already exposes
-// `list_available_skills` + `list_installed_skills`; marketplace's reads are
-// the join of those two, redundant for the LLM).
+// in-code template. **All four routes are `x-mcp`-exposed** (task 4b, Chad
+// 2026-07-26 — reverses D9's no-exposure call: install/uninstall are genuinely
+// useful agent tools, and they need the reads for itemId discovery, which the
+// skills lists don't carry).
 //
 // **No error mapping in this file.** Core throws `NotFoundError` from
 // `@vynel/errors`; the single `onError` middleware in `app.ts` maps it.
@@ -55,6 +56,16 @@ export const marketplaceApp = factory
       tags: ['marketplace'],
       summary: 'List marketplace items annotated with install status.',
       'x-sdk-name': 'marketplace.listItems',
+      'x-mcp': {
+        exposed: true,
+        name: 'list_marketplace_items',
+        description:
+          'Browse the marketplace for this workspace — skills and agents the user can install, ' +
+          'each annotated with its install state. Optional filters: `category`, ' +
+          '`publisherTier`, `installState`, `searchQuery`, `sortBy`. Use when the user wants a ' +
+          'capability Vynel does not have yet ("can you do X?") — find the item, then ' +
+          'install_marketplace_item with its id. Read-only.',
+      },
       responses: {
         200: {
           description: 'Annotated marketplace items.',
@@ -89,6 +100,14 @@ export const marketplaceApp = factory
       tags: ['marketplace'],
       summary: 'Get one marketplace item annotated with install status.',
       'x-sdk-name': 'marketplace.getItem',
+      'x-mcp': {
+        exposed: true,
+        name: 'get_marketplace_item',
+        description:
+          'Get one marketplace item by `itemId` (from list_marketplace_items) with its full ' +
+          'description and install state — read it before installing so you can tell the user ' +
+          'what the item does. Read-only.',
+      },
       responses: {
         200: {
           description: 'The annotated marketplace item.',
@@ -120,6 +139,17 @@ export const marketplaceApp = factory
       tags: ['marketplace'],
       summary: 'Install a marketplace item (cloud artifact or bundled skill).',
       'x-sdk-name': 'marketplace.install',
+      'x-mcp': {
+        exposed: true,
+        name: 'install_marketplace_item',
+        description:
+          'Install a marketplace item (a skill or agent) into this workspace. `itemId` from ' +
+          'list_marketplace_items; `scope` "workspace" or "user" (user-scope = available in ' +
+          'every workspace). Cloud artifacts are downloaded and integrity-verified server-side. ' +
+          'Reversible via uninstall_marketplace_item. Side effect: the capability becomes ' +
+          'available in sessions and appears in the user\'s panels.',
+        mutatingApproved: true,
+      },
       responses: {
         201: {
           description: 'The installed skill.',
@@ -158,6 +188,19 @@ export const marketplaceApp = factory
       tags: ['marketplace'],
       summary: 'Uninstall a marketplace item (skill hard-delete or agent soft-delete).',
       'x-sdk-name': 'marketplace.uninstall',
+      // A skill uninstall HARD-DELETES its files — destructive, so it opts into
+      // the ask-approval tier (cards in ask mode; uncarded in auto/bypass).
+      'x-mcp': {
+        exposed: true,
+        name: 'uninstall_marketplace_item',
+        description:
+          'Uninstall a marketplace item from this workspace by `itemId`. A skill uninstall ' +
+          'hard-deletes its files (re-install is possible but any local edits are lost); an ' +
+          'agent uninstall is a soft-delete. Confirm intent when the user names the item ' +
+          'loosely.',
+        mutatingApproved: true,
+        askApproval: true,
+      },
       responses: {
         200: {
           description: 'The removed installation, discriminated by item kind.',

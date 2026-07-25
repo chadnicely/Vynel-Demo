@@ -81,6 +81,14 @@ import {
 //     the plain workspace array too — so it has ONE name on EVERY surface
 //     (routing + workspace + interactive), which is why it appears in all three
 //     expected lists below rather than exactly one.
+//   - task 4b exposure (2026-07-26, Chad: "expose all the useful tools"): the
+//     agents module end-to-end (list/get/curated reads + create / install /
+//     update / set-enabled mutations + delete_agent, which rides the
+//     ask-approval tier via its DELETE method), list_capabilities (READ only —
+//     the toggle stays user-only: an agent re-enabling its own denied tools
+//     defeats the gate), and the workspace marketplace (browse reads +
+//     install + uninstall, the latter ask-tier via x-mcp.askApproval — a skill
+//     uninstall hard-deletes files).
 const EXPECTED_TOOL_NAMES = [
   'add_app',
   'add_journal_entry',
@@ -88,11 +96,16 @@ const EXPECTED_TOOL_NAMES = [
   'add_to_knowledge',
   'complete_plan',
   'complete_task',
+  'create_agent',
   'create_memory_entry',
   'create_monitor',
   'create_plan',
   'create_task',
+  'delete_agent',
   'discover_installed_skills_for_provider',
+  'get_agent',
+  'get_marketplace_item',
+  'install_curated_agent',
   'get_ai_agent_provider_auth_status',
   'get_app_logs',
   'get_chat_session',
@@ -101,12 +114,15 @@ const EXPECTED_TOOL_NAMES = [
   'get_knowledge_document',
   'get_user_preferences',
   'get_workspace',
+  'list_agents',
   'list_ai_agent_providers',
   'list_allowed_senders',
   'list_apps',
   'list_available_skills',
+  'list_capabilities',
   'list_channels',
   'list_chat_sessions',
+  'list_curated_agents',
   'list_installed_skills',
   'list_journal_entries',
   'list_knowledge_documents',
@@ -117,6 +133,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_my_channels',
   'list_my_journal_entries',
   'list_my_plans',
+  'list_marketplace_items',
   'list_my_schedules',
   'list_my_tasks',
   'list_plans',
@@ -125,15 +142,19 @@ const EXPECTED_TOOL_NAMES = [
   'list_schedules',
   'list_tasks',
   'list_workspaces',
+  'install_marketplace_item',
   'remove_knowledge_source',
   'report_to_requester',
   'search_chat_messages',
   'search_knowledge',
   'search_memory',
   'send_message',
+  'set_agent_enabled',
   'start_app',
   'stop_app',
   'stop_monitor',
+  'uninstall_marketplace_item',
+  'update_agent',
   'update_app',
   'update_memory_entry',
   'update_plan',

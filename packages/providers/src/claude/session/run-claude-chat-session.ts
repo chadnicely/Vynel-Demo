@@ -60,6 +60,11 @@ export async function* runClaudeChatSession(
   // ADDITIVE — omitting it never drops the static floor.
   const alwaysRequireApprovalToolNames =
     input.alwaysRequireApprovalToolNames !== undefined ? new Set(input.alwaysRequireApprovalToolNames) : undefined
+  // Ask-mode-only destructive tier — consumed by the PreToolUse backstop alone.
+  // Deliberately NOT passed to `canUseTool`: in ask mode everything that reaches
+  // the callback cards anyway, and in bypass these tools must stay uncarded.
+  const askModeApprovalToolNames =
+    input.askModeApprovalToolNames !== undefined ? new Set(input.askModeApprovalToolNames) : undefined
 
   const sdkOptions = buildClaudeSdkOptions({
     workspacePath: input.workspacePath,
@@ -67,6 +72,7 @@ export async function* runClaudeChatSession(
     allowedToolNames: input.allowedToolNames,
     deniedToolNames: input.deniedToolNames,
     ...(alwaysRequireApprovalToolNames !== undefined ? { alwaysRequireApprovalToolNames } : {}),
+    ...(askModeApprovalToolNames !== undefined ? { askModeApprovalToolNames } : {}),
     ...(input.resumeSessionId !== undefined ? { resumeSessionId: input.resumeSessionId } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),

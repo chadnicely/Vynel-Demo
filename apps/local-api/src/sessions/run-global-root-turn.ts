@@ -278,6 +278,7 @@ export async function runGlobalRootTurn(
         mcpServers: composedMcp.mcpServers,
         allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
         mutatingToolNames: composedMcp.mutatingToolNames,
+        askModeApprovalToolNames: composedMcp.askModeApprovalToolNames,
         mcpSystemPromptAppend: composedMcp.systemPromptAppend,
         ...(agentSlugs.length > 0 ? { agents: sessionAgents } : {}),
       },

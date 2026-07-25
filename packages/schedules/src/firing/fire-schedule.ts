@@ -147,6 +147,11 @@ export async function fireSchedule(
           ...(composedMcp.mutatingToolNames.length > 0
             ? { alwaysRequireApprovalToolNames: composedMcp.mutatingToolNames }
             : {}),
+          // Inert under D10's hardwired bypass — forwarded so a future
+          // configurable fire mode cannot silently drop the destructive tier.
+          ...(composedMcp.askModeApprovalToolNames.length > 0
+            ? { askModeApprovalToolNames: composedMcp.askModeApprovalToolNames }
+            : {}),
         },
         deps.logger !== undefined ? { logger: deps.logger } : {},
       )

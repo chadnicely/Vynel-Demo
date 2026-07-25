@@ -8,9 +8,11 @@
 // validator (from hono-openapi/zod) -> `...workspaceScoped` -> handler.
 // Chained methods on `factory.createApp()`.
 //
-// MCP exposure: NEITHER route carries x-mcp — enabling/disabling a
-// capability is a user action, not an agent tool (the source ported this
-// as an explicit, rationalized decision, not an oversight).
+// MCP exposure: the READ is exposed (task 4b — Claude can tell the user what
+// is on/off and steer them to the right panel). The PUT stays user-only: it
+// toggles the very gates that decide which MCP tools a turn gets, and an agent
+// that can re-enable its own denied tools defeats the gate — the same hazard
+// class that keeps `approvals` unexposed forever.
 //
 // Error mapping: NONE here. Core ops throw typed `VynelError` subclasses;
 // the global `onError` middleware in `app.ts` maps them to HTTP.
@@ -53,6 +55,16 @@ export const capabilitiesApp = factory
       tags: ['capabilities'],
       summary: 'List capabilities and their enabled state for the active workspace.',
       'x-sdk-name': 'capabilities.list',
+      'x-mcp': {
+        exposed: true,
+        name: 'list_capabilities',
+        description:
+          "List the active workspace's capabilities (memory, knowledge, tasks, plans, journal, " +
+          'notebook, …) with their enabled state. Check this when a tool you expected is ' +
+          'missing (its capability may be off) or the user asks what this workspace can do. ' +
+          'Enabling/disabling is done by the user in the app — point them there; there is ' +
+          'deliberately no tool for it. Read-only.',
+      },
       responses: {
         200: {
           description: '{ capabilities: CapabilityStatus[] }.',

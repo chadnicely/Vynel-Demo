@@ -15,6 +15,7 @@ const attachmentWithPrompt: RoutedTurnMcpAttachment = {
   allowedMcpToolPatterns: [],
   deniedMcpToolPatterns: [],
   mutatingToolNames: [],
+  askModeApprovalToolNames: [],
   systemPromptAppend: '## Task list\nkeep it current',
 }
 

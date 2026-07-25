@@ -31,6 +31,9 @@ export interface ComposedSessionMcpServers {
   // Union of every included feature's mutating tools (an `alwaysOn` feature
   // contributes none) — fed into the approval backstop additively.
   mutatingToolNames: string[]
+  // Union of every included feature's destructive tier — cards ONLY in ask mode
+  // (an `alwaysOn` feature contributes none here either).
+  askModeApprovalToolNames: string[]
   // Concatenated self-contained feature prompts. The turn's own base prompt +
   // operating-rules/memory stay with their owners.
   systemPromptAppend: string
@@ -46,6 +49,7 @@ export function composeSessionMcpServers(
   const allowedMcpToolPatterns: string[] = []
   const deniedMcpToolPatterns: string[] = []
   const mutatingToolNames: string[] = []
+  const askModeApprovalToolNames: string[] = []
   const promptSections: string[] = []
 
   for (const descriptor of descriptors) {
@@ -63,6 +67,11 @@ export function composeSessionMcpServers(
     let everyGatedToolDenied = false
     if (descriptor.alwaysOn !== true) {
       mutatingToolNames.push(...descriptor.mutatingToolNames)
+      for (const toolName of descriptor.askModeApprovalToolNames ?? []) {
+        // The vynel descriptors share one generated set, so a two-descriptor
+        // turn would double every name without the guard.
+        if (!askModeApprovalToolNames.includes(toolName)) askModeApprovalToolNames.push(toolName)
+      }
       if (descriptor.capabilityGatedTools !== undefined) {
         const gateEntries = Object.entries(descriptor.capabilityGatedTools)
         const deniedGateEntries = gateEntries.filter(
@@ -90,6 +99,7 @@ export function composeSessionMcpServers(
     allowedMcpToolPatterns,
     deniedMcpToolPatterns,
     mutatingToolNames,
+    askModeApprovalToolNames,
     systemPromptAppend: promptSections.join('\n\n'),
   }
 }

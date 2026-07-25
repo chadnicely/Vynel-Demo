@@ -37,13 +37,15 @@ function contributePrompt(context: SessionToolContext): string {
 }
 
 // Read-only desktop observation always; the MUTATING `act_on_app` is registered
-// only when `enableDesktopActions` is on (default-off). `act_on_app` is declared
-// here so that — once the composer feeds `mutatingToolNames` into the approval
-// backstop — it cards automatically whenever it IS present, closing the spec'd
-// act-approval gap by the same general mechanism as every other mutating tool.
+// only when `enableDesktopActions` is on (default-off). The act tools ride the
+// ASK-approval tier, not the every-mode set — Chad 2026-07-26: "ask mode gates
+// through approval; auto and bypass, no approval" (they previously carded in
+// every mode). Declared unconditionally: the tier is additive, so declaring a
+// tool that isn't registered this turn is harmless.
 export const desktopFeatureDescriptor: McpFeatureDescriptor = {
   serverName: 'desktop',
   build,
-  mutatingToolNames: ['mcp__desktop__act_on_app', 'mcp__desktop__act_on_desktop'],
+  mutatingToolNames: [],
+  askModeApprovalToolNames: ['mcp__desktop__act_on_app', 'mcp__desktop__act_on_desktop'],
   contributePrompt,
 }

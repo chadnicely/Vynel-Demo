@@ -71,22 +71,21 @@ describe('buildClaudeCanUseToolCallback', () => {
     expect((await resultPromise)?.behavior).toBe('allow')
   })
 
-  it('behavior gate: the memory-write tool requires approval under bypass mode (approval default true)', async () => {
-    const { callback, syntheticEventQueue, pendingApprovalRegistry } = setup(
-      'bypass-with-behavior-gate',
-    )
-    const resultPromise = callback(
+  it('behavior gate: the memory-write tool runs WITHOUT a card under bypass (self-tool, 2026-07-26 stance)', async () => {
+    // Spec change: Chad's refined approval stance — "Claude's self-tools
+    // (memory, knowledge, tasks) do NOT need approval" — removed
+    // create_memory_entry from the every-mode floor. Vynel MCP approval now
+    // lives in the ask-mode destructive tier instead.
+    const { callback } = setup('bypass-with-behavior-gate')
+    const result = await callback(
       'mcp__vynel__create_memory_entry',
       { kind: 'note', body: 'remember this' },
       TOOL_OPTIONS,
     )
-
-    const requested = await syntheticEventQueue.dequeue()
-    if (requested.kind !== 'approval-requested') throw new Error('expected approval-requested')
-    expect(requested.toolName).toBe('mcp__vynel__create_memory_entry')
-
-    pendingApprovalRegistry.resolve(requested.approvalRequestId, { kind: 'approved' })
-    expect((await resultPromise)?.behavior).toBe('allow')
+    expect(result).toEqual({
+      behavior: 'allow',
+      updatedInput: { kind: 'note', body: 'remember this' },
+    })
   })
 
   it('behavior gate: a per-turn feature mutating tool (act_on_app) requires approval under bypass', async () => {

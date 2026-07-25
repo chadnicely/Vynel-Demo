@@ -109,14 +109,24 @@ export type StartChatSessionInput = {
 
   /**
    * Tool names that MUST card EVEN under a bypass permission mode — UNIONED with
-   * the provider's static floor (Bash/Write/Edit/NotebookEdit + the route-derived
-   * memory write). Lets a feature's destructive MCP tool (e.g. the desktop
-   * `act_on_app`) card automatically once it declares itself in its descriptor's
-   * `mutatingToolNames`. ADDITIVE — the provider never removes the static floor,
-   * so a missing value cannot drop today's carding. Composed by the caller
-   * (`composeSessionMcpServers`). See the C4 seam + `build-claude-pre-tool-use-hook`.
+   * the provider's static floor (Bash/Write/Edit/NotebookEdit). Lets a feature's
+   * destructive MCP tool (e.g. the desktop `act_on_app`) card automatically once
+   * it declares itself in its descriptor's `mutatingToolNames`. ADDITIVE — the
+   * provider never removes the static floor, so a missing value cannot drop
+   * today's carding. Composed by the caller (`composeSessionMcpServers`). See
+   * the C4 seam + `build-claude-pre-tool-use-hook`.
    */
   alwaysRequireApprovalToolNames?: string[]
+
+  /**
+   * Tool names that card ONLY in `ask` mode — the destructive tier (deletes and
+   * purges) of a feature's MCP surface. In `ask` these are forced through the
+   * approval card even though the MCP wildcard pre-approves them in the SDK's
+   * `allowedTools` (a PreToolUse `'ask'` overrides that pre-approval — live
+   * smoke 2026-07-26); in auto/bypass they run uncarded, per the approval
+   * stance. Composed by the caller (`composeSessionMcpServers`).
+   */
+  askModeApprovalToolNames?: string[]
 
   /**
    * Session-continuity Layer 1 (best-effort bonus). When provided, the

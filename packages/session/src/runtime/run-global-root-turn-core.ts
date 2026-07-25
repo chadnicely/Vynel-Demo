@@ -90,6 +90,8 @@ export interface RunGlobalRootTurnCoreInput {
   allowedMcpToolPatterns: string[]
   /** Feature-declared mutating tools that card even under bypass (additive to the floor). */
   mutatingToolNames: string[]
+  /** The destructive tier — cards ONLY when the root turn runs in ask mode. */
+  askModeApprovalToolNames: string[]
   /** The MCP/feature system-prompt contribution; the core prepends the `global-root` instruction. */
   mcpSystemPromptAppend: string
   /** Enabled USER-scope agents (subagents) for this global session, composed at
@@ -193,6 +195,9 @@ export async function runGlobalRootTurnCore(
         // the static floor) — what makes the desktop act_on_app card once enabled.
         ...(input.mutatingToolNames.length > 0
           ? { alwaysRequireApprovalToolNames: input.mutatingToolNames }
+          : {}),
+        ...(input.askModeApprovalToolNames.length > 0
+          ? { askModeApprovalToolNames: input.askModeApprovalToolNames }
           : {}),
         ...(input.agents !== undefined && Object.keys(input.agents).length > 0
           ? { agents: input.agents }

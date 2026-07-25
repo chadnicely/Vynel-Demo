@@ -27,9 +27,10 @@
 // cross-feature imports (cross-feature composition lives in apps/
 // local-api, mirroring the capabilities-composer precedent).
 //
-// `x-mcp` is intentionally OFF for every route in this unit, mirroring
-// the source decision (read-safe list/get are future candidates, pending
-// per-route scope review — same posture as `approvals`' D16).
+// Every route is `x-mcp`-exposed (task 4b, Chad 2026-07-26: "expose all the
+// useful tools so Claude can manage them through chat") — Claude manages the
+// user's agent roster end-to-end. `delete_agent` rides the ask-approval tier
+// automatically (DELETE method); the other mutations are reversible.
 //
 // Error mapping: NONE here. Core ops throw typed `VynelError`
 // subclasses; the global `onError` middleware maps them.
@@ -73,6 +74,20 @@ export const agentsApp = factory
       tags: ['agents'],
       summary: 'Create an agent (user-built; source "user").',
       'x-sdk-name': 'agents.create',
+      'x-mcp': {
+        exposed: true,
+        name: 'create_agent',
+        description:
+          'Create a custom subagent the user can enable for their sessions. `slug` is the stable ' +
+          'identifier (kebab-case), `name` the display name, `description` when to use it, ' +
+          '`prompt` its system prompt. `scope` is "user" (available everywhere) or "workspace" ' +
+          '(+ `workspaceId`, defaults to the active workspace). Optional: `icon`, `model`, ' +
+          '`effort`, `permissionMode`, `background`, `allowedTools` / `disallowedTools`, ' +
+          '`skillIds` to preload skills. Use when the user asks for a specialist helper (e.g. a ' +
+          'code reviewer, a research agent). The agent must then be enabled (set_agent_enabled) ' +
+          'to join sessions. Side effect: it appears in the user\'s agents panel.',
+        mutatingApproved: true,
+      },
       responses: {
         201: {
           description: 'The created agent (with its preloaded skill ids).',
@@ -133,6 +148,16 @@ export const agentsApp = factory
       tags: ['agents'],
       summary: 'List agents: user-scope ∪ a workspace, or user-scope only (no workspaceId).',
       'x-sdk-name': 'agents.list',
+      'x-mcp': {
+        exposed: true,
+        name: 'list_agents',
+        description:
+          "List the user's agents (custom subagents), newest first — user-scope plus the given " +
+          "workspace's when `workspaceId` is set, user-scope only when omitted. Each row has " +
+          'slug, name, description, enabled state, scope, model/effort overrides, and tool ' +
+          'allow/deny lists. Check this before creating an agent (the slug may already exist) ' +
+          'or when the user asks what helpers they have. Read-only.',
+      },
       responses: {
         200: {
           description:
@@ -169,6 +194,15 @@ export const agentsApp = factory
       tags: ['agents'],
       summary: 'List the Vynel-curated agent catalog (the browse + install source).',
       'x-sdk-name': 'agents.listCurated',
+      'x-mcp': {
+        exposed: true,
+        name: 'list_curated_agents',
+        description:
+          'List the Vynel-curated agent catalog — ready-made specialist agents (slug, name, ' +
+          'description, preloaded skills) the user can install without building their own. ' +
+          'Browse this when the user wants a capability a stock agent covers, then install with ' +
+          'install_curated_agent. Read-only.',
+      },
       responses: {
         200: {
           description: 'The compiled-in curated agent catalog.',
@@ -187,6 +221,16 @@ export const agentsApp = factory
       tags: ['agents'],
       summary: 'Install a Vynel-curated agent from the catalog into a scope.',
       'x-sdk-name': 'agents.installCurated',
+      'x-mcp': {
+        exposed: true,
+        name: 'install_curated_agent',
+        description:
+          'Install a curated agent from the Vynel catalog (list_curated_agents) so the user can ' +
+          'enable it. `slug` picks the catalog entry; `scope` is "user" or "workspace" ' +
+          '(+ `workspaceId`, defaults to the active workspace). Installing is reversible ' +
+          '(delete_agent). Side effect: the agent appears in the user\'s agents panel.',
+        mutatingApproved: true,
+      },
       responses: {
         201: {
           description: 'The installed agent (with its preloaded skill ids).',
@@ -228,6 +272,15 @@ export const agentsApp = factory
       tags: ['agents'],
       summary: 'Get one agent by slug within an exact scope.',
       'x-sdk-name': 'agents.getBySlug',
+      'x-mcp': {
+        exposed: true,
+        name: 'get_agent',
+        description:
+          'Get one agent by `slug` in an exact scope — pass `workspaceId` for a ' +
+          'workspace-scoped agent, omit it for user-scope. Returns the full definition ' +
+          'including the system prompt and preloaded skill ids. Use before update_agent to see ' +
+          'the current shape. Read-only.',
+      },
       responses: {
         200: {
           description: 'The agent (with its preloaded skill ids).',
@@ -265,6 +318,17 @@ export const agentsApp = factory
       tags: ['agents'],
       summary: 'Update an agent (persona, runtime, tools, preloaded skills).',
       'x-sdk-name': 'agents.update',
+      'x-mcp': {
+        exposed: true,
+        name: 'update_agent',
+        description:
+          'Update an existing agent by `agentId` (get it from list_agents). Any field may be ' +
+          'set alone: name, description, prompt, icon, model, effort, permissionMode, ' +
+          'background, allowedTools / disallowedTools, skillIds, enabled. Use when the user ' +
+          'wants an agent tuned (different prompt, different tools) rather than rebuilt. ' +
+          'Edits are reversible by further edits.',
+        mutatingApproved: true,
+      },
       responses: {
         200: {
           description: 'The updated agent.',
@@ -307,6 +371,15 @@ export const agentsApp = factory
       tags: ['agents'],
       summary: 'Enable or disable an agent for the session resolver.',
       'x-sdk-name': 'agents.setEnabled',
+      'x-mcp': {
+        exposed: true,
+        name: 'set_agent_enabled',
+        description:
+          'Enable or disable an agent by `agentId` (`enabled` true/false). Only ENABLED agents ' +
+          'join sessions as invokable subagents; a freshly created or installed agent starts ' +
+          'disabled until the user wants it live. Fully reversible.',
+        mutatingApproved: true,
+      },
       responses: {
         200: {
           description: 'The updated agent.',
@@ -336,6 +409,17 @@ export const agentsApp = factory
       tags: ['agents'],
       summary: 'Soft-delete an agent (retention window before purge).',
       'x-sdk-name': 'agents.delete',
+      // DELETE method → joins the generated ask-approval tier automatically
+      // (cards in ask mode; uncarded in auto/bypass).
+      'x-mcp': {
+        exposed: true,
+        name: 'delete_agent',
+        description:
+          "Delete an agent by `agentId`. Soft-delete with a retention window before purge, but " +
+          'treat it as removal — the agent leaves the user\'s panel and the session resolver ' +
+          'immediately. Confirm intent when the user names the agent loosely (slugs are exact).',
+        mutatingApproved: true,
+      },
       responses: {
         204: { description: 'Soft-deleted.' },
         404: { description: 'Agent not found OR owned by another user.' },

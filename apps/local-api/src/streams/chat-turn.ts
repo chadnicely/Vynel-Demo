@@ -178,6 +178,9 @@ export async function streamChatTurn(
         ...(composedMcp.mutatingToolNames.length > 0
           ? { alwaysRequireApprovalToolNames: composedMcp.mutatingToolNames }
           : {}),
+        ...(composedMcp.askModeApprovalToolNames.length > 0
+          ? { askModeApprovalToolNames: composedMcp.askModeApprovalToolNames }
+          : {}),
         // Only attach when the workspace has enabled agents — keep the SDK
         // options clean for the common no-agents turn.
         ...(Object.keys(sessionAgents).length > 0 ? { agents: sessionAgents } : {}),

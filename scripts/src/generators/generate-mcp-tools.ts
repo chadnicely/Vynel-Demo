@@ -34,7 +34,8 @@ type OpenApiParameter = {
 
 type OpenApiSchema = {
   type?: string | string[]
-  enum?: readonly (string | number | boolean)[]
+  // A nullable zod enum reaches the spec as an enum WITH a null member.
+  enum?: readonly (string | number | boolean | null)[]
   items?: OpenApiSchema
 }
 
@@ -45,7 +46,19 @@ type XMcp = {
   // D7: mutating tools require an explicit per-route approval flag.
   // Spelling deferred to first-mutating-tool per Q8; the generator
   // currently rejects ANY non-GET method, which is the safest gate.
+  //
+  // `mutatingApproved` means ONLY "may be emitted as a tool" — it says nothing
+  // about approval cards. The card question is answered separately: a
+  // DELETE-method route (or one flagged `askApproval`) joins the emitted
+  // ask-mode approval set below. Keeping the two meanings apart is deliberate —
+  // bulk-exposing routes must never silently widen the uncarded surface.
   mutatingApproved?: boolean
+  // Card this tool in ASK mode even though its method is not DELETE. DELETE
+  // routes join the ask-approval set automatically (Chad's stance 2026-07-26:
+  // approval is for "DELETE and anything destructive"); this flag opts in a
+  // non-DELETE route — a POST/PATCH that destroys state, or one Chad wants
+  // carded regardless (register_workspace).
+  askApproval?: boolean
   // Route this tool to the GLOBAL-ROOT ("brain") surface instead of the
   // workspace surface. The default split is path-based (`/routing/*`); a
   // user-scoped brain tool that doesn't live under `/routing/` (e.g. creating a
@@ -132,6 +145,8 @@ type ToolEntry = {
   queryParams: OpenApiParameter[]
   bodyFields: BodyField[] // empty for GETs; populated for mutating tools (D7)
   isMutating: boolean
+  // DELETE-method or `x-mcp.askApproval` — joins `generatedAskModeApprovalToolNames`.
+  isAskApproval: boolean
   // Routing tools (path under `/routing/`, agent-base Slice 4) are kept in a
   // SEPARATE array so the normal chat turn's server stays byte-for-byte; only the
   // GLOBAL-ROOT turn's server gets them.
@@ -182,6 +197,7 @@ for (const [pathKey, methods] of Object.entries(paths)) {
       queryParams: allParams.filter((p) => p.in === 'query'),
       bodyFields,
       isMutating,
+      isAskApproval: upperMethod === 'DELETE' || mcp.askApproval === true,
       isRouting:
         (pathKey.startsWith('/routing/') && mcp.rootSurface !== false) || mcp.rootSurface === true,
       isWorkspaceInteractive: mcp.workspaceInteractiveSurface === true,
@@ -218,10 +234,16 @@ function snakeToCamel(snake: string): string {
 function openApiToZodSource(schema: OpenApiSchema | undefined): string {
   if (!schema) return 'z.any()'
   if (schema.enum && schema.enum.length > 0) {
-    const opts = schema.enum
+    // `z.enum([...]).nullable()` reaches the spec as an enum WITH a null
+    // member — emitting that null into `z.enum` is invalid source. Strip it
+    // and restore the nullability on the emitted schema instead.
+    const nullable = schema.enum.includes(null)
+    const values = schema.enum.filter((v): v is string | number | boolean => v !== null)
+    if (values.length === 0) return 'z.null()'
+    const opts = values
       .map((v) => (typeof v === 'string' ? `'${v.replace(/'/g, "\\'")}'` : String(v)))
       .join(', ')
-    return `z.enum([${opts}])`
+    return `z.enum([${opts}])${nullable ? '.nullable()' : ''}`
   }
   // Nullable shape: `type: ['string', 'null']`.
   if (Array.isArray(schema.type)) {
@@ -367,11 +389,22 @@ function buildQuerySource(entry: ToolEntry): string {
     return `        const queryStr = ''`
   }
   const names = entry.queryParams.map((p) => `'${p.name}'`).join(', ')
+  // Ambient workspace grounding for QUERY params — buildBodySource's
+  // `scope.workspaceId` mirror. Without it, a workspace turn calling
+  // list_agents/get_agent with `workspaceId` omitted silently gets USER-scope
+  // rows only (the model generally does not know its ambient workspace id —
+  // that is the whole point of the stamp). On the root surface
+  // `scope.workspaceId` is absent and the param stays omitted.
+  const workspaceFallback = entry.queryParams.some((p) => p.name === 'workspaceId')
+    ? `\n        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
+        }`
+    : ''
   return `        const queryParams = new URLSearchParams()
         for (const k of [${names}]) {
           const v = args[k]
           if (v !== undefined && v !== null) queryParams.set(k, String(v))
-        }
+        }${workspaceFallback}
         const queryStr = queryParams.toString()`
 }
 
@@ -418,6 +451,7 @@ type McpToolFn = (
   const nonRouting = allEntries.filter((e) => !e.isRouting || e.isWorkspaceSurface)
   const routing = allEntries.filter((e) => e.isRouting)
   const workspaceInteractive = allEntries.filter((e) => e.isWorkspaceInteractive)
+  const askApproval = allEntries.filter((e) => e.isAskApproval)
   const footer =
     `\n\n// Workspace-scoped tools — the normal chat turn's in-process server.\n` +
     `export const generatedMcpTools: McpToolFactory[] = [\n${nonRouting
@@ -434,6 +468,13 @@ type McpToolFn = (
     `// fires and spawned-session targets never see it.\n` +
     `export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [\n${workspaceInteractive
       .map((e) => `  ${e.exportName},`)
+      .join('\n')}\n]\n` +
+    `\n// The ask-approval tier — DELETE-method routes + x-mcp.askApproval opt-ins.\n` +
+    `// Fed into the descriptors' askModeApprovalToolNames: these card ONLY in ask\n` +
+    `// mode (auto/bypass run them uncarded). Full tool names under the 'vynel'\n` +
+    `// server prefix, matching the descriptor layer's hardcoded server name.\n` +
+    `export const generatedAskModeApprovalToolNames: string[] = [\n${askApproval
+      .map((e) => `  'mcp__vynel__${e.name}',`)
       .join('\n')}\n]\n`
   return header + body + footer
 }

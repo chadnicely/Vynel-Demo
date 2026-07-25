@@ -48,6 +48,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function buildClaudePreToolUseHook(
   permissionMode: ClaudePermissionMode,
   alwaysRequireApprovalToolNames?: ReadonlySet<string>,
+  askModeApprovalToolNames?: ReadonlySet<string>,
 ): HookCallback {
   return async (input) => {
     if (input.hook_event_name !== 'PreToolUse') {
@@ -73,10 +74,20 @@ export function buildClaudePreToolUseHook(
     // (`agent_id` present) keeps its own mode — the SDK does NOT clamp it to the
     // parent's `auto` — so the floor still backstops it here, even under auto.
     const floorStandsDown = permissionMode === 'auto' && input.agent_id === undefined
+    // The destructive tier cards in ASK mode only. The `'ask'` decision is what
+    // pulls the call OUT of the MCP wildcard's `allowedTools` pre-approval and
+    // into `canUseTool` (live smoke 2026-07-26 — bare allowedTools entries
+    // otherwise shadow the callback entirely). Auto/bypass run these uncarded.
+    // `plan-only` is included DEFENSIVELY: nothing routes it today, but the MCP
+    // wildcard still rides its allowedTools, and whether SDK plan mode honors
+    // that pre-approval for MCP tools is unsmoked — a card there is strictly
+    // safer than an uncarded delete from a mode documented as non-executing.
+    const destructiveTierApplies = permissionMode === 'ask' || permissionMode === 'plan-only'
     const requiresApprovalCard =
-      !floorStandsDown &&
-      (TOOLS_ALWAYS_REQUIRING_APPROVAL.has(input.tool_name) ||
-        (alwaysRequireApprovalToolNames?.has(input.tool_name) ?? false))
+      (!floorStandsDown &&
+        (TOOLS_ALWAYS_REQUIRING_APPROVAL.has(input.tool_name) ||
+          (alwaysRequireApprovalToolNames?.has(input.tool_name) ?? false))) ||
+      (destructiveTierApplies && (askModeApprovalToolNames?.has(input.tool_name) ?? false))
 
     if (forcedSyncInput === undefined && !requiresApprovalCard) {
       // No opinion — let the normal permission flow + canUseTool gate decide.

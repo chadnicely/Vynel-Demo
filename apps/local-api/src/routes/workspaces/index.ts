@@ -100,11 +100,14 @@ export const workspacesApp = factory
       summary: 'Register an existing directory as a workspace.',
       'x-sdk-name': 'workspaces.register',
       // A brain-surface tool (rootSurface) — the user sets up workspaces from the
-      // global conversation, not from inside a workspace. Mutating → cards.
+      // global conversation, not from inside a workspace. Cards in ask mode only
+      // (Chad 2026-07-26: dropped from the every-mode set — "ask mode gates;
+      // auto and bypass, no approval").
       'x-mcp': {
         exposed: true,
         name: 'register_workspace',
         mutatingApproved: true,
+        askApproval: true,
         rootSurface: true,
         description:
           "Create a new workspace for the user — a project or business area (e.g. 'Bookkeeping', " +

@@ -125,6 +125,9 @@ export async function streamSpawnedSessionTurn(
                 ...(composedMcp.mutatingToolNames.length > 0
                   ? { alwaysRequireApprovalToolNames: composedMcp.mutatingToolNames }
                   : {}),
+                ...(composedMcp.askModeApprovalToolNames.length > 0
+                  ? { askModeApprovalToolNames: composedMcp.askModeApprovalToolNames }
+                  : {}),
               }
             : {}),
           // A mid-turn compaction swap keeps the stock hidden presentation —

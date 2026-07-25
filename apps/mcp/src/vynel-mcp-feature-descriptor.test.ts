@@ -4,6 +4,7 @@ import { buildInProcessMcpServer } from './build-in-process-server.js'
 import {
   vynelWorkspaceDescriptor,
   vynelWorkspaceInteractiveDescriptor,
+  vynelRoutingDescriptor,
 } from './vynel-mcp-feature-descriptor.js'
 
 // A minimal SessionToolContext. Building the `vynel` server only CONSTRUCTS the
@@ -35,9 +36,24 @@ describe('buildInProcessMcpServer', () => {
 describe('vynelWorkspaceDescriptor', () => {
   it('is a well-formed McpFeatureDescriptor for the vynel server', () => {
     expect(vynelWorkspaceDescriptor.serverName).toBe('vynel')
-    // KLONE's mutating vynel tools are auto-approved (x-mcp mutatingApproved), so
-    // nothing cards under bypass yet.
+    // No vynel tool cards in EVERY mode — approval lives in the ask-mode tier.
     expect(vynelWorkspaceDescriptor.mutatingToolNames).toEqual([])
+    // The ask-approval tier (DELETE routes + x-mcp.askApproval) cards in ask
+    // mode only. The FULL set is pinned so a regenerate that drops ANY member
+    // — e.g. register_workspace losing its route flag, the exact tool Chad
+    // wants carded — fails loudly here.
+    expect(vynelWorkspaceDescriptor.askModeApprovalToolNames).toEqual([
+      'mcp__vynel__delete_agent',
+      'mcp__vynel__register_workspace',
+      'mcp__vynel__remove_knowledge_source',
+      'mcp__vynel__uninstall_marketplace_item',
+    ])
+    expect(vynelWorkspaceInteractiveDescriptor.askModeApprovalToolNames).toEqual(
+      vynelWorkspaceDescriptor.askModeApprovalToolNames,
+    )
+    expect(vynelRoutingDescriptor.askModeApprovalToolNames).toEqual(
+      vynelWorkspaceDescriptor.askModeApprovalToolNames,
+    )
     // `knowledge` and `memory` each gate their whole toolset (capability OFF →
     // none of its tools); the gate names use the mcp__vynel__ prefix.
     // test: correct expectation for memory gating — memory grew 6 MCP tools in

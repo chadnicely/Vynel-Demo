@@ -11,13 +11,17 @@
 //     would otherwise skip the prompt entirely (the safety invariant).
 //
 // Hardcoded for Phase 1 — per-skill / per-agent configurability is a
-// Phase 2 design (`docs/blueprints/providers/decisions.md` D12). Memory
-// writes card by default per the 2026-06-20 user directive.
+// Phase 2 design (`docs/blueprints/providers/decisions.md` D12).
+//
+// `mcp__vynel__create_memory_entry` was removed 2026-07-26: Chad's refined
+// approval stance — "Claude's self-tools (memory, knowledge, tasks) do NOT
+// need approval" — supersedes the 2026-06-20 memory-writes-card directive.
+// Vynel MCP approval now lives in the ask-mode destructive tier
+// (`askModeApprovalToolNames`), never in this every-mode floor.
 
 export const TOOLS_ALWAYS_REQUIRING_APPROVAL: ReadonlySet<string> = new Set([
   'Bash',
   'Write',
   'Edit',
   'NotebookEdit',
-  'mcp__vynel__create_memory_entry',
 ])

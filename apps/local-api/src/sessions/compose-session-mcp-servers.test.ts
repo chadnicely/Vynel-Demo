@@ -59,6 +59,26 @@ describe('composeSessionMcpServers', () => {
     expect(composeSessionMcpServers([alwaysOn], context).mutatingToolNames).toEqual([])
   })
 
+  it('unions the ask-mode tier, deduped across descriptors, never for alwaysOn', () => {
+    // The vynel descriptors share ONE generated set — a two-descriptor turn must
+    // not double every name.
+    const first = fakeDescriptor({ askModeApprovalToolNames: ['mcp__vynel__remove_x'] })
+    const second = fakeDescriptor({
+      serverName: 'other',
+      askModeApprovalToolNames: ['mcp__vynel__remove_x', 'mcp__other__remove_y'],
+    })
+    expect(composeSessionMcpServers([first, second], context).askModeApprovalToolNames).toEqual([
+      'mcp__vynel__remove_x',
+      'mcp__other__remove_y',
+    ])
+
+    const alwaysOn = fakeDescriptor({
+      alwaysOn: true,
+      askModeApprovalToolNames: ['mcp__vynel__remove_x'],
+    })
+    expect(composeSessionMcpServers([alwaysOn], context).askModeApprovalToolNames).toEqual([])
+  })
+
   it('concatenates feature prompt contributions', () => {
     const withPrompt = fakeDescriptor({ contributePrompt: () => 'desktop guide' })
     expect(composeSessionMcpServers([withPrompt], context).systemPromptAppend).toBe('desktop guide')
@@ -143,11 +163,11 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
     const composed = composeSessionMcpServers([desktopFeatureDescriptor], context)
     expect(composed.mcpServers).not.toHaveProperty('desktop')
     expect(composed.allowedMcpToolPatterns).toEqual([])
-    expect(composed.mutatingToolNames).toEqual([])
+    expect(composed.askModeApprovalToolNames).toEqual([])
     expect(composed.systemPromptAppend).toBe('')
   })
 
-  it('attaches observation with actions off: server + prompt, act_on_app still declared mutating', () => {
+  it('attaches observation with actions off: server + prompt, act_on_app still in the ask tier', () => {
     const composed = composeSessionMcpServers([desktopFeatureDescriptor], {
       ...context,
       desktopReader: fakeReader,
@@ -155,9 +175,12 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
     })
     expect(composed.mcpServers).toHaveProperty('desktop')
     expect(composed.allowedMcpToolPatterns).toContain('mcp__desktop__*')
-    // The declaration is unconditional (descriptor contract) — the approval
-    // backstop is additive, so declaring an unregistered tool is harmless.
-    expect(composed.mutatingToolNames).toContain('mcp__desktop__act_on_app')
+    // The declaration is unconditional (descriptor contract) — the tier is
+    // additive, so declaring an unregistered tool is harmless.
+    // test: correct expectation — the act tools moved from the every-mode set
+    // to the ask-approval tier (Chad 2026-07-26); was: mutatingToolNames.
+    expect(composed.askModeApprovalToolNames).toContain('mcp__desktop__act_on_app')
+    expect(composed.mutatingToolNames).toEqual([])
     expect(composed.systemPromptAppend).toContain('snapshot_app')
     expect(composed.systemPromptAppend).not.toContain('act_on_app')
   })
@@ -169,7 +192,7 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
       enableDesktopActions: true,
     })
     expect(composed.mcpServers).toHaveProperty('desktop')
-    expect(composed.mutatingToolNames).toContain('mcp__desktop__act_on_app')
+    expect(composed.askModeApprovalToolNames).toContain('mcp__desktop__act_on_app')
     expect(composed.systemPromptAppend).toContain('act_on_app')
   })
 })

@@ -28,6 +28,14 @@ export interface McpExtension {
    */
   mutatingApproved?: boolean
   /**
+   * Card this tool in ASK mode even though its method is not DELETE. DELETE
+   * routes join the generator's ask-approval set automatically (approval is
+   * for "DELETE and anything destructive"); this flag opts in a non-DELETE
+   * route — a destructive POST/PATCH, or one the user wants carded regardless
+   * (register_workspace). Auto/bypass run these tools uncarded.
+   */
+  askApproval?: boolean
+  /**
    * Route this tool to the GLOBAL-ROOT ("brain") surface instead of the
    * workspace surface. The generator's default split is path-based
    * (`/routing/*` → the root's toolset); a user-scoped brain tool that doesn't

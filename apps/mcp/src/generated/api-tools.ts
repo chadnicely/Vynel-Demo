@@ -263,6 +263,58 @@ export const completeTask: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const createAgent: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'create_agent',
+    "Create a custom subagent the user can enable for their sessions. `slug` is the stable identifier (kebab-case), `name` the display name, `description` when to use it, `prompt` its system prompt. `scope` is \"user\" (available everywhere) or \"workspace\" (+ `workspaceId`, defaults to the active workspace). Optional: `icon`, `model`, `effort`, `permissionMode`, `background`, `allowedTools` / `disallowedTools`, `skillIds` to preload skills. Use when the user asks for a specialist helper (e.g. a code reviewer, a research agent). The agent must then be enabled (set_agent_enabled) to join sessions. Side effect: it appears in the user's agents panel.",
+    {
+    slug: z.string(),
+    name: z.string(),
+    description: z.string(),
+    prompt: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+    icon: z.string().optional(),
+    model: z.string().optional(),
+    effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
+    permissionMode: z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto']).optional(),
+    background: z.boolean().optional(),
+    allowedTools: z.array(z.string()).optional(),
+    disallowedTools: z.array(z.string()).optional(),
+    skillIds: z.array(z.string()).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/agents'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['slug', 'name', 'description', 'prompt', 'scope', 'workspaceId', 'icon', 'model', 'effort', 'permissionMode', 'background', 'allowedTools', 'disallowedTools', 'skillIds']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+          bodyObj['workspaceId'] = scope.workspaceId
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const createGlobalMonitor: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_global_monitor',
@@ -511,6 +563,39 @@ export const createTask: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const deleteAgent: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'delete_agent',
+    "Delete an agent by `agentId`. Soft-delete with a retention window before purge, but treat it as removal — the agent leaves the user's panel and the session resolver immediately. Confirm intent when the user names the agent loosely (slugs are exact).",
+    {
+    agentId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/agents/{agentId}'
+        pathStr = pathStr.replace('{agentId}', encodeURIComponent(String(args['agentId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'DELETE' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const discoverInstalledSkillsForProvider: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'discover_installed_skills_for_provider',
@@ -527,6 +612,48 @@ export const discoverInstalledSkillsForProvider: McpToolFactory = (scope, app) =
         for (const k of ['workspacePath']) {
           const v = args[k]
           if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const getAgent: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'get_agent',
+    "Get one agent by `slug` in an exact scope — pass `workspaceId` for a workspace-scoped agent, omit it for user-scope. Returns the full definition including the system prompt and preloaded skill ids. Use before update_agent to see the current shape. Read-only.",
+    {
+    slug: z.string(),
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/agents/{slug}'
+        pathStr = pathStr.replace('{slug}', encodeURIComponent(String(args['slug'] ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['workspaceId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
         }
         const queryStr = queryParams.toString()
         const requestBody: string | undefined = undefined
@@ -790,6 +917,41 @@ export const getKnowledgeDocument: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const getMarketplaceItem: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'get_marketplace_item',
+    "Get one marketplace item by `itemId` (from list_marketplace_items) with its full description and install state — read it before installing so you can tell the user what the item does. Read-only.",
+    {
+    itemId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/marketplace/items/{itemId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{itemId}', encodeURIComponent(String(args['itemId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const getUserPreferences: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'get_user_preferences',
@@ -832,6 +994,126 @@ export const getWorkspace: McpToolFactory = (scope, app) =>
         let pathStr = '/workspaces/{workspaceId}'
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const installCuratedAgent: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'install_curated_agent',
+    "Install a curated agent from the Vynel catalog (list_curated_agents) so the user can enable it. `slug` picks the catalog entry; `scope` is \"user\" or \"workspace\" (+ `workspaceId`, defaults to the active workspace). Installing is reversible (delete_agent). Side effect: the agent appears in the user's agents panel.",
+    {
+    slug: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/agents/curated/install'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['slug', 'scope', 'workspaceId']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+          bodyObj['workspaceId'] = scope.workspaceId
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const installMarketplaceItem: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'install_marketplace_item',
+    "Install a marketplace item (a skill or agent) into this workspace. `itemId` from list_marketplace_items; `scope` \"workspace\" or \"user\" (user-scope = available in every workspace). Cloud artifacts are downloaded and integrity-verified server-side. Reversible via uninstall_marketplace_item. Side effect: the capability becomes available in sessions and appears in the user's panels.",
+    {
+    workspaceId: z.string(),
+    itemId: z.string(),
+    scope: z.enum(['user', 'workspace']),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/marketplace/install'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['itemId', 'scope']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const listAgents: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_agents',
+    "List the user's agents (custom subagents), newest first — user-scope plus the given workspace's when `workspaceId` is set, user-scope only when omitted. Each row has slug, name, description, enabled state, scope, model/effort overrides, and tool allow/deny lists. Check this before creating an agent (the slug may already exist) or when the user asks what helpers they have. Read-only.",
+    {
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/agents'
+        const queryParams = new URLSearchParams()
+        for (const k of ['workspaceId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
+        }
+        const queryStr = queryParams.toString()
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'GET' })
@@ -1014,6 +1296,39 @@ export const listBackgroundRuns: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listCapabilities: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_capabilities',
+    "List the active workspace's capabilities (memory, knowledge, tasks, plans, journal, notebook, …) with their enabled state. Check this when a tool you expected is missing (its capability may be off) or the user asks what this workspace can do. Enabling/disabling is done by the user in the app — point them there; there is deliberately no tool for it. Read-only.",
+    {
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/capabilities'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const listChannels: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_channels',
@@ -1066,6 +1381,36 @@ export const listChatSessions: McpToolFactory = (scope, app) =>
           if (v !== undefined && v !== null) queryParams.set(k, String(v))
         }
         const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listCuratedAgents: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_curated_agents',
+    "List the Vynel-curated agent catalog — ready-made specialist agents (slug, name, description, preloaded skills) the user can install without building their own. Browse this when the user wants a capability a stock agent covers, then install with install_curated_agent. Read-only.",
+    {},
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/agents/curated'
+        const queryStr = ''
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'GET' })
@@ -1254,6 +1599,49 @@ export const listKnowledgeSources: McpToolFactory = (scope, app) =>
         let pathStr = '/workspaces/{workspaceId}/knowledge/sources'
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listMarketplaceItems: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_marketplace_items',
+    "Browse the marketplace for this workspace — skills and agents the user can install, each annotated with its install state. Optional filters: `category`, `publisherTier`, `installState`, `searchQuery`, `sortBy`. Use when the user wants a capability Vynel does not have yet (\"can you do X?\") — find the item, then install_marketplace_item with its id. Read-only.",
+    {
+    workspaceId: z.string(),
+    category: z.enum(['email', 'documents', 'calendar', 'files', 'research', 'notes', 'context']).optional(),
+    publisherTier: z.enum(['verified', 'anthropic-official', 'community']).optional(),
+    installState: z.enum(['installed', 'not-installed']).optional(),
+    searchQuery: z.string().optional(),
+    sortBy: z.enum(['recommended', 'name-asc', 'newest']).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/marketplace/items'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['category', 'publisherTier', 'installState', 'searchQuery', 'sortBy']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'GET' })
@@ -2273,6 +2661,44 @@ export const sendToChannel: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const setAgentEnabled: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'set_agent_enabled',
+    "Enable or disable an agent by `agentId` (`enabled` true/false). Only ENABLED agents join sessions as invokable subagents; a freshly created or installed agent starts disabled until the user wants it live. Fully reversible.",
+    {
+    agentId: z.string(),
+    enabled: z.boolean(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/agents/{agentId}/enable'
+        pathStr = pathStr.replace('{agentId}', encodeURIComponent(String(args['agentId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['enabled']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const speak: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'speak',
@@ -2429,6 +2855,94 @@ export const stopMonitor: McpToolFactory = (scope, app) =>
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const uninstallMarketplaceItem: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'uninstall_marketplace_item',
+    "Uninstall a marketplace item from this workspace by `itemId`. A skill uninstall hard-deletes its files (re-install is possible but any local edits are lost); an agent uninstall is a soft-delete. Confirm intent when the user names the item loosely.",
+    {
+    workspaceId: z.string(),
+    itemId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/marketplace/uninstall'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['itemId']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const updateAgent: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'update_agent',
+    "Update an existing agent by `agentId` (get it from list_agents). Any field may be set alone: name, description, prompt, icon, model, effort, permissionMode, background, allowedTools / disallowedTools, skillIds, enabled. Use when the user wants an agent tuned (different prompt, different tools) rather than rebuilt. Edits are reversible by further edits.",
+    {
+    agentId: z.string(),
+    slug: z.string().optional(),
+    name: z.string().optional(),
+    description: z.string().optional(),
+    prompt: z.string().optional(),
+    icon: z.string().nullable().optional(),
+    model: z.string().nullable().optional(),
+    effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().optional(),
+    permissionMode: z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto']).nullable().optional(),
+    background: z.boolean().optional(),
+    allowedTools: z.array(z.string()).nullable().optional(),
+    disallowedTools: z.array(z.string()).nullable().optional(),
+    enabled: z.boolean().optional(),
+    skillIds: z.array(z.string()).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/agents/{agentId}'
+        pathStr = pathStr.replace('{agentId}', encodeURIComponent(String(args['agentId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['slug', 'name', 'description', 'prompt', 'icon', 'model', 'effort', 'permissionMode', 'background', 'allowedTools', 'disallowedTools', 'enabled', 'skillIds']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: requestBody })
         const bodyText = await response.text()
         if (!response.ok) {
           return {
@@ -2628,29 +3142,39 @@ export const generatedMcpTools: McpToolFactory[] = [
   addToKnowledge,
   completePlan,
   completeTask,
+  createAgent,
   createMemoryEntry,
   createMonitor,
   createPlan,
   createTask,
+  deleteAgent,
   discoverInstalledSkillsForProvider,
+  getAgent,
   getAiAgentProviderAuthStatus,
   getAppLogs,
   getChatSession,
   getCurrentUser,
   getIndexerStatus,
   getKnowledgeDocument,
+  getMarketplaceItem,
   getUserPreferences,
   getWorkspace,
+  installCuratedAgent,
+  installMarketplaceItem,
+  listAgents,
   listAiAgentProviders,
   listAllowedSenders,
   listApps,
   listAvailableSkills,
+  listCapabilities,
   listChannels,
   listChatSessions,
+  listCuratedAgents,
   listInstalledSkills,
   listJournalEntries,
   listKnowledgeDocuments,
   listKnowledgeSources,
+  listMarketplaceItems,
   listMemoryEntries,
   listMemoryTags,
   listMonitors,
@@ -2671,9 +3195,12 @@ export const generatedMcpTools: McpToolFactory[] = [
   searchKnowledge,
   searchMemory,
   sendMessage,
+  setAgentEnabled,
   startApp,
   stopApp,
   stopMonitor,
+  uninstallMarketplaceItem,
+  updateAgent,
   updateApp,
   updateMemoryEntry,
   updatePlan,
@@ -2710,4 +3237,15 @@ export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
   listBackgroundRuns,
   listSessions,
   sendTaskToSession,
+]
+
+// The ask-approval tier — DELETE-method routes + x-mcp.askApproval opt-ins.
+// Fed into the descriptors' askModeApprovalToolNames: these card ONLY in ask
+// mode (auto/bypass run them uncarded). Full tool names under the 'vynel'
+// server prefix, matching the descriptor layer's hardcoded server name.
+export const generatedAskModeApprovalToolNames: string[] = [
+  'mcp__vynel__delete_agent',
+  'mcp__vynel__register_workspace',
+  'mcp__vynel__remove_knowledge_source',
+  'mcp__vynel__uninstall_marketplace_item',
 ]

@@ -23,6 +23,7 @@ import {
   buildGlobalRootMcpServer,
   buildWorkspaceInteractiveMcpServer,
 } from './build-in-process-server.js'
+import { generatedAskModeApprovalToolNames } from './generated/api-tools.js'
 
 // The MCP tools each capability owns (server name `vynel` → `mcp__vynel__<x-mcp
 // name>`); the composer denies a capability's tools when that capability is off.
@@ -124,11 +125,10 @@ function toMcpScope(context: SessionToolContext): McpScope {
   }
 }
 
-// The full route-derived registry for a WORKSPACE turn. `mutatingToolNames` is
-// EMPTY today: KLONE's only mutating vynel tools (`add_to_knowledge`,
-// `remove_knowledge_source`) are exposed with `x-mcp.mutatingApproved` (auto —
-// no card, per the current approval stance). When the real approval card lands,
-// they move here so the composer unions them into the backstop.
+// The full route-derived registry for a WORKSPACE turn. `mutatingToolNames`
+// stays EMPTY (no vynel tool cards in EVERY mode); the ask-approval tier
+// (`generatedAskModeApprovalToolNames` — DELETE routes + x-mcp.askApproval)
+// cards in ask mode only, per Chad's 2026-07-26 approval stance.
 // One prompt contribution for both workspace descriptors — the interactive
 // variant differs ONLY in its toolset, never in its standing guidance.
 const contributeWorkspacePrompt: NonNullable<McpFeatureDescriptor['contributePrompt']> = (
@@ -145,6 +145,7 @@ export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
   build: (context) => buildInProcessMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
+  askModeApprovalToolNames: generatedAskModeApprovalToolNames,
   capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
   contributePrompt: contributeWorkspacePrompt,
 }
@@ -166,6 +167,7 @@ export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
   build: (context) => buildWorkspaceInteractiveMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
+  askModeApprovalToolNames: generatedAskModeApprovalToolNames,
   capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
   contributePrompt: contributeWorkspacePrompt,
 }
@@ -173,10 +175,12 @@ export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {
 // The brain's tools for a GLOBAL-ROOT turn: the routing tools (SEE workspaces +
 // DELEGATE, never read them) plus `register_workspace` — a rootSurface tool that
 // lets the user set up a new workspace from the global conversation. No
-// capability gate. `register_workspace` is mutating, so it's declared here and
-// the composer unions it into the approval backstop → it cards on use.
+// capability gate. `register_workspace` rides the generated ask-approval tier
+// (route-level `x-mcp.askApproval`) — Chad 2026-07-26 dropped it from the
+// every-mode set: it cards in ask mode, runs uncarded in auto/bypass.
 export const vynelRoutingDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
   build: (context) => buildGlobalRootMcpServer(toMcpScope(context), context.appRequest),
-  mutatingToolNames: ['mcp__vynel__register_workspace'],
+  mutatingToolNames: [],
+  askModeApprovalToolNames: generatedAskModeApprovalToolNames,
 }

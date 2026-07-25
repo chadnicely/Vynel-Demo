@@ -73,6 +73,38 @@ describe('runClaudeChatSession', () => {
     ])
   })
 
+  it('threads askModeApprovalToolNames end-to-end: the wired PreToolUse hook cards a tier tool in ask mode', async () => {
+    // The whole chain is conditional spreads (input → provider → options
+    // builder), which excess-property checks cannot police — a typo'd key would
+    // silently drop the tier and revert ask mode to uncarded deletes. This pins
+    // the seam: the OPTIONS the SDK actually received must card the tool.
+    installFakeQuery([fakeSystemInitStep(), fakeSuccessResultStep()])
+    await collect(
+      runClaudeChatSession({
+        input: { ...BASE_INPUT, askModeApprovalToolNames: ['mcp__vynel__remove_knowledge_source'] },
+        activeSessionRegistry: new ActiveSessionRegistry(),
+        pendingApprovalRegistry: new PendingApprovalRegistry(),
+      }),
+    )
+    const sdkOptions = mockQuery.mock.calls.at(-1)![0].options
+    const wiredHook = sdkOptions?.hooks?.PreToolUse?.[0]?.hooks?.[0]
+    expect(typeof wiredHook).toBe('function')
+    const result = (await wiredHook!(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'mcp__vynel__remove_knowledge_source',
+        tool_input: {},
+        tool_use_id: 't',
+        session_id: 's',
+        transcript_path: '',
+        cwd: '/work/demo',
+      } as never,
+      undefined,
+      { signal: new AbortController().signal },
+    )) as { hookSpecificOutput?: { permissionDecision?: string } }
+    expect(result.hookSpecificOutput?.permissionDecision).toBe('ask')
+  })
+
   it('registers the session while running and unregisters on completion', async () => {
     installFakeQuery([fakeSystemInitStep(), fakeSuccessResultStep()])
     const activeSessionRegistry = new ActiveSessionRegistry()

@@ -188,6 +188,39 @@ describe('buildClaudeSdkOptions', () => {
     expect(writeResult).toEqual({})
   })
 
+  it('threads askModeApprovalToolNames into the wired backstop — cards in ask, silent in bypass', async () => {
+    const askSet = new Set(['mcp__vynel__remove_knowledge_source'])
+    const tierInput = {
+      hook_event_name: 'PreToolUse',
+      tool_name: 'mcp__vynel__remove_knowledge_source',
+      tool_input: {},
+      tool_use_id: 't',
+      session_id: 's',
+      transcript_path: '',
+      cwd: '/tmp/ws',
+    } as never
+    const hookOptions = { signal: new AbortController().signal }
+
+    const askOptions = buildClaudeSdkOptions({
+      ...base,
+      permissionMode: 'ask',
+      askModeApprovalToolNames: askSet,
+    })
+    const askHook = askOptions.hooks?.PreToolUse?.[0]?.hooks?.[0]
+    const askResult = (await askHook!(tierInput, undefined, hookOptions)) as {
+      hookSpecificOutput?: { permissionDecision?: string }
+    }
+    expect(askResult.hookSpecificOutput?.permissionDecision).toBe('ask')
+
+    const bypassOptions = buildClaudeSdkOptions({
+      ...base,
+      permissionMode: 'bypass-with-behavior-gate',
+      askModeApprovalToolNames: askSet,
+    })
+    const bypassHook = bypassOptions.hooks?.PreToolUse?.[0]?.hooks?.[0]
+    expect(await bypassHook!(tierInput, undefined, hookOptions)).toEqual({})
+  })
+
   it('does NOT register a PostCompact hook unless one is supplied', () => {
     const options = buildClaudeSdkOptions({ ...base, permissionMode: 'ask' })
     expect(options.hooks?.PostCompact).toBeUndefined()

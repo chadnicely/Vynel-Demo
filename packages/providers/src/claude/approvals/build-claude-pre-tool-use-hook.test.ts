@@ -90,6 +90,76 @@ describe('buildClaudePreToolUseHook', () => {
     })
   })
 
+  describe('the ask-mode destructive tier (askModeApprovalToolNames)', () => {
+    // The tier cards ONLY in ask mode: the 'ask' decision pulls the call out of
+    // the MCP wildcard's allowedTools pre-approval and into canUseTool (live
+    // smoke 2026-07-26). Auto/bypass run the same tools uncarded — Chad's
+    // approval stance.
+    const askSet = new Set(['mcp__vynel__remove_knowledge_source'])
+
+    it("ask mode: forces 'ask' for a destructive-tier tool (main AND subagent)", async () => {
+      const askHook = buildClaudePreToolUseHook('ask', undefined, askSet)
+      const main = await askHook(
+        makePreToolInput('mcp__vynel__remove_knowledge_source'),
+        undefined,
+        hookOptions,
+      )
+      expect(decisionOf(main)).toBe('ask')
+      const sub = await askHook(
+        makePreToolInput('mcp__vynel__remove_knowledge_source', 'PreToolUse', 'agent-x'),
+        undefined,
+        hookOptions,
+      )
+      expect(decisionOf(sub)).toBe('ask')
+    })
+
+    it('ask mode: still gives no opinion for a non-tier MCP tool (self-tools stay uncarded)', async () => {
+      const askHook = buildClaudePreToolUseHook('ask', undefined, askSet)
+      const result = await askHook(
+        makePreToolInput('mcp__vynel__create_memory_entry'),
+        undefined,
+        hookOptions,
+      )
+      expect(result).toEqual({})
+    })
+
+    it("plan-only mode: forces 'ask' for a destructive-tier tool (defensive — the wildcard still rides allowedTools)", async () => {
+      const planHook = buildClaudePreToolUseHook('plan-only', undefined, askSet)
+      const result = await planHook(
+        makePreToolInput('mcp__vynel__remove_knowledge_source'),
+        undefined,
+        hookOptions,
+      )
+      expect(decisionOf(result)).toBe('ask')
+    })
+
+    it('bypass mode: the tier does NOT card (no approval outside ask)', async () => {
+      const bypassHook = buildClaudePreToolUseHook('bypass-with-behavior-gate', undefined, askSet)
+      const result = await bypassHook(
+        makePreToolInput('mcp__vynel__remove_knowledge_source'),
+        undefined,
+        hookOptions,
+      )
+      expect(result).toEqual({})
+    })
+
+    it('auto mode: the tier does NOT card — main or subagent (the floor backstop is separate)', async () => {
+      const autoHook = buildClaudePreToolUseHook('auto', undefined, askSet)
+      const main = await autoHook(
+        makePreToolInput('mcp__vynel__remove_knowledge_source'),
+        undefined,
+        hookOptions,
+      )
+      expect(main).toEqual({})
+      const sub = await autoHook(
+        makePreToolInput('mcp__vynel__remove_knowledge_source', 'PreToolUse', 'agent-x'),
+        undefined,
+        hookOptions,
+      )
+      expect(sub).toEqual({})
+    })
+  })
+
   describe('in auto mode — the MAIN session defers to the classifier; subagents keep the floor', () => {
     const autoHook = buildClaudePreToolUseHook('auto', new Set(['mcp__desktop__act_on_app']))
 

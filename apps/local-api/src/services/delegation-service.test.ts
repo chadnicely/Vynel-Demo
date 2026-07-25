@@ -39,6 +39,7 @@ function fakeOptions() {
       allowedMcpToolPatterns: [],
       deniedMcpToolPatterns: [],
       mutatingToolNames: [],
+      askModeApprovalToolNames: [],
       systemPromptAppend: '',
     })),
     // The global notify runner (session-comms) — required so a report-delivery

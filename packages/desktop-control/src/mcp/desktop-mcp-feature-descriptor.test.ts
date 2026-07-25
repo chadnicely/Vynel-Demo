@@ -12,11 +12,13 @@ const baseContext: SessionToolContext = {
 }
 
 describe('desktopFeatureDescriptor', () => {
-  it('declares the desktop server with both mutating tools (element + coordinate acting)', () => {
+  it('declares both act tools in the ask-approval tier (element + coordinate acting)', () => {
     expect(desktopFeatureDescriptor.serverName).toBe('desktop')
-    // test: correct expectation for mutatingToolNames — was ['…act_on_app'],
-    // should include act_on_desktop too (coordinate control cards the same way).
-    expect(desktopFeatureDescriptor.mutatingToolNames).toEqual([
+    // test: correct expectation — the act tools moved from the every-mode
+    // mutating set to the ask-approval tier (Chad 2026-07-26: "ask mode gates
+    // through approval; auto and bypass, no approval").
+    expect(desktopFeatureDescriptor.mutatingToolNames).toEqual([])
+    expect(desktopFeatureDescriptor.askModeApprovalToolNames).toEqual([
       'mcp__desktop__act_on_app',
       'mcp__desktop__act_on_desktop',
     ])

@@ -69,6 +69,9 @@ describe('fireSchedule', () => {
       expect(callInput.deniedToolNames).toEqual(['mcp__vynel__search_knowledge'])
       // The feature mutating set auto-feeds the approval backstop (additive).
       expect(callInput.alwaysRequireApprovalToolNames).toEqual(['mcp__vynel__create_memory_entry'])
+      // The destructive tier forwards too — inert under D10's bypass, pinned so
+      // a future configurable fire mode cannot silently drop it.
+      expect(callInput.askModeApprovalToolNames).toEqual(['mcp__vynel__remove_knowledge_source'])
 
       const events = listOutboxEventsByType(db, 'schedule.run-completed')
       expect(events).toHaveLength(1)

@@ -63,6 +63,15 @@ export interface McpFeatureDescriptor {
   // once here and it cards automatically.
   readonly mutatingToolNames: readonly string[]
 
+  // Tools that card ONLY in ask mode (the ask-approval tier: deletes, purges,
+  // and tools the user explicitly wants carded — register_workspace, the desktop
+  // act tools). In auto/bypass these run uncarded — Chad's approval stance
+  // (2026-07-26): "ask mode gates through approval; auto and bypass, no
+  // approval." A tool that must card in EVERY mode belongs in
+  // `mutatingToolNames` instead; the two sets are disjoint tiers, not
+  // overlapping ones. Omit when none.
+  readonly askModeApprovalToolNames?: readonly string[]
+
   // Tools denied when their capability is OFF: capabilityId → tool names. The
   // `vynel` server is multi-capability (memory + knowledge tools alongside
   // ungated ones), so a single per-server gate can't express it — this map is

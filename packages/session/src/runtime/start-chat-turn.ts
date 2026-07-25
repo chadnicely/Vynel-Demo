@@ -81,6 +81,11 @@ export type StartChatTurnInput = {
    */
   alwaysRequireApprovalToolNames?: string[]
   /**
+   * The destructive tier (`composeSessionMcpServers`' `askModeApprovalToolNames`)
+   * — cards ONLY when the turn runs in ask mode. Forwarded verbatim.
+   */
+  askModeApprovalToolNames?: string[]
+  /**
    * Presentation overrides for a session row created MID-TURN — an SDK
    * compaction swap on a resumed spawned session keeps the stock hidden
    * presentation (the `delegateToSpawnedSession` shape). Omitted by the
@@ -139,6 +144,9 @@ export async function* startChatTurn(
     ...(input.agents !== undefined ? { agents: input.agents } : {}),
     ...(input.alwaysRequireApprovalToolNames !== undefined
       ? { alwaysRequireApprovalToolNames: input.alwaysRequireApprovalToolNames }
+      : {}),
+    ...(input.askModeApprovalToolNames !== undefined
+      ? { askModeApprovalToolNames: input.askModeApprovalToolNames }
       : {}),
     // Session-continuity Layer 1 (Q2): the best-effort compaction-capture
     // bridge. If the SDK auto-compacts, the provider's PostCompact hook

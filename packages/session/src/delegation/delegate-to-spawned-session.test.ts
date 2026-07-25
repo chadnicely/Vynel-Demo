@@ -123,6 +123,7 @@ describe('delegateToSpawnedSession', () => {
             allowedMcpToolPatterns: ['mcp__vynel__*'],
             deniedMcpToolPatterns: [],
             mutatingToolNames: [],
+            askModeApprovalToolNames: [],
             systemPromptAppend: '',
           },
         },
