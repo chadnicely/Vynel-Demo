@@ -1,7 +1,45 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-27.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ⏭ NEXT ACTION (2026-07-27 evening): THE CHANNEL PIPELINE — Telegram reply-via-tool BUILT (uncommitted); voice VERIFIED already tool-first. **NEXT: increment-6 review fold → commit → Chad smokes Telegram DM + group + voice.**
+
+**Chad extended the locked pipeline model to channels: "it will know from which channel the
+message received and where to sent" — group or DM, the reply goes back to exactly where the
+request came from, via a tool, never a capture.**
+
+- **Voice = the finished template (untouched):** the native leg DISCARDS text deltas — `speak`
+  IS the reply; the voice-turn-marker holds compliance per-message. Verified via explorer map.
+- **Telegram was the inverse; now matches:**
+  1. **`reply_to_channel`** (routing surface, 84 tools) — args `{ message }` ONLY; the
+     server-stamped ambient origin header (`x-vynel-delegation-origin`, extended with
+     `externalMessageId` for group threading) addresses it: exact sender + chat context,
+     threaded onto the asking message in rooms. No header → actionable 400.
+     Op: `replyToChannelOrigin` (channels/delivery). `send_to_channel` stays for PROACTIVE
+     pushes (unchanged).
+  2. **Per-message channel marker** (`composeChannelTurnMarker`, the voice-turn-marker
+     precedent): "(This message arrived via TELEGRAM from Alice in group "X" — reply by
+     CALLING reply_to_channel…)". Provider input ONLY (core appends beside the voice block);
+     persisted row clean. Composed at the channels edge (knows sender/room facts).
+  3. **CAPTURE REMOVED** (route-as-chat-turn): the turn's chat text is never auto-shipped to
+     the channel. Error-status apology (thrown turns) + approval-card push + group speaker
+     line unchanged. A turn that never calls the tool sends nothing (the locked no-harvest
+     rule; the marker pushes hard).
+- **Unchanged by design:** channel-driven DELEGATED tasks still deliver their distilled reply
+  to the channel at completion (the tick's channel block — the Ch4 loop).
+- global-root.md names the tool; 4 process-inbound tests recast (no-capture pins); new tests:
+  marker composer, reply op (DM/group/guards), route (header delivery + threading, 400).
+
+Gate GREEN 586f/3256t. **Increment-6 review CLEAN; all folds in:** two stale comments fixed
+(channels-types runRootTurn contract no longer claims the result is delivered; the
+enqueue-channel-reply header names the real enqueuers + the adapter's address-by-chat-context
+semantics), and the silence-observability log added (a channel turn that produced chat text but
+delivered nothing logs it — a "Telegram went silent" report is diagnosable without the
+transcript). Reviewer verified: marker⇔header coupled at one site; reply_to_channel is
+routing-surface-only (a global-grounded spawned session gets the designed 400); group replies
+address the ROOM (the adapter sends by chatContextId); the recasts preserve decision-3 +
+threading semantics. READY TO COMMIT on Chad's word.
 
 ## ⏭ NEXT ACTION (2026-07-27, round 3): THE PIPELINE MODEL LOCKED + BUILT (uncommitted, one tree, rounds 1-3) — **NEXT: increment-5 review fold → commit → Chad smokes the corrected pipeline.**
 

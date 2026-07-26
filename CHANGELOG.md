@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude now replies to Telegram the way it speaks on voice — deliberately.** When a message
+  arrives from Telegram, Claude is told exactly where it came from — a direct chat, or a group
+  and who in it asked — and answers by *sending* a reply there, the same way a voice question
+  is answered by speaking. Group answers post in the group, threaded onto the message that
+  asked; direct chats get a normal reply. What lands on your phone is what Claude chose to
+  send — its working-out stays in the app transcript, where you can read the full "via
+  Telegram" conversation. (Voice already worked this way; Telegram now matches.)
+
 - **Claude's playbook shelf grew from three books to nine.** Six new built-in playbooks guide
   how Claude builds software for you: turning a first idea into a researched plan and phased
   roadmap (`starting-a-project-from-scratch`), the backend application architecture
