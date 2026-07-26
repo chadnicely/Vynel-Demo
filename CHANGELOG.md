@@ -25,6 +25,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **The Notebook page is now just YOUR books.** The built-in playbooks Claude consults are its
+  own working material — they no longer clutter the Notebook page. You see and manage only the
+  books you wrote; Claude keeps reading both.
+
 - **Only real reports travel.** A workspace or session reports back by *deciding* to send its
   result — Vynel no longer copies a finished task's last chat message upward as if it were a
   report. That's the end of premature "done!" notes arriving while the real work was still

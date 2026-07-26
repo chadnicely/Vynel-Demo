@@ -7,16 +7,6 @@ import NotebookSection from "./NotebookSection.vue";
 import WriteBookDialog from "./WriteBookDialog.vue";
 import type { SectionScope } from "./section-scope.js";
 
-function makePlaybook(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "web-app-scaffold",
-    title: "Building a web app",
-    oneLiner: "Scaffold, roadmap, and coding discipline for a new web app.",
-    verified: true,
-    ...overrides,
-  };
-}
-
 function makeDocument(overrides: Record<string, unknown> = {}) {
   return {
     id: "d1",
@@ -52,18 +42,16 @@ function globalConfig(
   };
 }
 
+// No listPlaybooks/getPlaybook stubs on purpose: the verified shelf is
+// Claude-internal and the section must never call the playbook endpoints —
+// a regression would throw here, not silently render.
 function makeClient(overrides: Record<string, unknown> = {}) {
   return {
     workspaces: {
       list: async () => [{ id: "w1", name: "vynel", isArchived: false }],
     },
     notebook: {
-      listPlaybooks: async () => ({ playbooks: [makePlaybook()] }),
       listDocuments: async () => ({ documents: [] }),
-      getPlaybook: async () => ({
-        ...makePlaybook(),
-        body: "# The scaffold\nStep one: pick the stack.",
-      }),
       ...overrides,
     },
   } as unknown as VynelClient;
@@ -76,7 +64,10 @@ function latestDialog() {
 }
 
 describe("NotebookSection", () => {
-  it("shows verified books first with the Verified badge and no edit/delete controls", async () => {
+  // test: correct expectation — the verified shelf left the UI (2026-07-27):
+  // system playbooks are Claude-internal tooling, so the section shows only
+  // the user's own books, with their edit/delete controls.
+  it("shows only the user's own books — the verified shelf never renders", async () => {
     const client = makeClient({
       listDocuments: async () => ({ documents: [makeDocument()] }),
     });
@@ -87,38 +78,40 @@ describe("NotebookSection", () => {
     await flushPromises();
 
     const rows = wrapper.findAll(".row");
-    expect(rows).toHaveLength(2);
-    // Verified leads and is read-only — badge yes, action buttons no.
-    expect(rows[0]!.classes()).toContain("is-verified");
-    expect(rows[0]!.find(".verified-chip").exists()).toBe(true);
-    expect(rows[0]!.find(".icon-button").exists()).toBe(false);
-    // The own book carries the controls instead of a badge.
-    expect(rows[1]!.find(".verified-chip").exists()).toBe(false);
-    expect(rows[1]!.findAll(".icon-button")).toHaveLength(2);
+    expect(rows).toHaveLength(1);
+    expect(wrapper.find(".is-verified").exists()).toBe(false);
+    expect(wrapper.find(".verified-chip").exists()).toBe(false);
+    expect(rows[0]!.findAll(".icon-button")).toHaveLength(2);
     expect(wrapper.text()).toContain("How we publish the newsletter");
   });
 
-  it("opens a verified book read-only: the read dialog fetches and shows its body", async () => {
+  it("renders an own book's body as markdown in the read dialog", async () => {
+    const client = makeClient({
+      listDocuments: async () => ({
+        documents: [
+          makeDocument({ body: "# The plan\nStep one: pick the stack." }),
+        ],
+      }),
+    });
     const wrapper = mount(NotebookSection, {
       props: { scope: { kind: "global" } satisfies SectionScope },
-      global: globalConfig(makeClient()),
+      global: globalConfig(client),
     });
     await flushPromises();
 
-    await wrapper.find("button.row.is-verified").trigger("click");
+    await wrapper.find(".row.is-own button.row-open").trigger("click");
     await flushPromises();
 
     const dialog = latestDialog();
-    expect(dialog.textContent).toContain("Building a web app");
-    expect(dialog.textContent).toContain("Verified");
+    expect(dialog.textContent).toContain("How we publish the newsletter");
     // The house MarkdownText renders the body (sanitized markdown, the
     // renderer chat uses) — the literal `#` heading marker is consumed, not
     // shown as raw source. (happy-dom's DOMPurify pass flattens the heading
     // element itself, so the marker — not the tag — is the stable signal.)
     const body = dialog.querySelector(".book-body")!;
     expect(body.querySelector(".markdown-text")).not.toBeNull();
-    expect(body.textContent).toContain("The scaffold");
-    expect(body.textContent).not.toContain("# The scaffold");
+    expect(body.textContent).toContain("The plan");
+    expect(body.textContent).not.toContain("# The plan");
     expect(body.textContent).toContain("Step one: pick the stack.");
   });
 
@@ -243,11 +236,11 @@ describe("NotebookSection", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain(
-      "Curated playbooks Claude reads when a task calls for them — plus your own",
+      "Playbooks Claude reads when a task calls for them",
     );
     expect(wrapper.find(".invite-button").text()).toContain("Write a book");
-    // The verified shelf still shows above the invite.
-    expect(wrapper.find(".row.is-verified").exists()).toBe(true);
+    // No verified rows: with no own books the section is a clean invite.
+    expect(wrapper.find(".row").exists()).toBe(false);
   });
 });
 

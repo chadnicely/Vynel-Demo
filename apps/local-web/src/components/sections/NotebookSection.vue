@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { BadgeCheck, NotebookText, Pencil, Plus, X } from "lucide-vue-next";
+import { NotebookText, Pencil, Plus, X } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
-import { usePlaybookShelf } from "../../composables/notebook/use-playbook-shelf.js";
 import { useNotebookDocuments } from "../../composables/notebook/use-notebook-documents.js";
 import { useDeleteNotebookDocument } from "../../composables/notebook/use-delete-notebook-document.js";
 import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
@@ -11,17 +10,14 @@ import WriteBookDialog from "./WriteBookDialog.vue";
 import SectionHeader from "./SectionHeader.vue";
 import type { SectionScope } from "./section-scope.js";
 
-// The notebook, on either surface: the playbook shelf Claude opens when a
-// task calls for it. VERIFIED books ship with the product and are read-only
-// everywhere; the user's OWN books are theirs to write, edit, and delete.
+// The notebook, on either surface: the user's OWN books — theirs to write,
+// edit, and delete. The VERIFIED shelf that ships with the product is
+// Claude-internal tooling and never surfaces here: showing system playbooks
+// would only overload a non-technical user with material that isn't theirs
+// to manage.
 const props = defineProps<{
   scope: SectionScope;
 }>();
-
-const shelfQuery = usePlaybookShelf(props.scope);
-const verifiedBooks = computed(() =>
-  (shelfQuery.data.value ?? []).filter((book) => book.verified),
-);
 
 const documentsQuery = useNotebookDocuments();
 const ownBooks = computed(() => {
@@ -62,8 +58,7 @@ function disarmDelete(documentId: string) {
 type OpenBook = {
   id: string;
   title: string;
-  verified: boolean;
-  body: string | null;
+  body: string;
 };
 
 const readingBook = ref<OpenBook | null>(null);
@@ -72,15 +67,10 @@ const editingBook = ref<{ id: string; title: string; body: string } | null>(
   null,
 );
 
-function openVerified(book: { id: string; title: string }) {
-  readingBook.value = { ...book, verified: true, body: null };
-}
-
 function openOwn(document: { id: string; title: string; body: string }) {
   readingBook.value = {
     id: document.id,
     title: document.title,
-    verified: false,
     body: document.body,
   };
 }
@@ -123,38 +113,6 @@ function onSaved() {
         </button>
       </template>
     </SectionHeader>
-
-    <div v-if="verifiedBooks.length > 0" class="rows flex flex-col gap-2">
-      <button
-        v-for="book in verifiedBooks"
-        :key="book.id"
-        type="button"
-        class="row is-verified group flex w-full cursor-default items-center gap-3 rounded-lg border border-hair bg-raised p-3 text-left transition hover:border-hair-strong hover:shadow-raised"
-        @click="openVerified(book)"
-      >
-        <span
-          class="row-icon grid size-9 shrink-0 place-items-center rounded-md bg-ws-2/12 text-ws-2"
-        >
-          <NotebookText :size="17" />
-        </span>
-        <div class="row-main min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <p class="row-title m-0 truncate text-sm font-semibold text-ink-1">
-              {{ book.title }}
-            </p>
-            <span
-              class="verified-chip inline-flex shrink-0 items-center gap-1 rounded-full border border-gold-soft bg-gold-soft px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-gold"
-            >
-              <BadgeCheck :size="11" />
-              Verified
-            </span>
-          </div>
-          <p class="row-sub m-0 mt-0.5 line-clamp-2 text-xs text-ink-3">
-            {{ book.oneLiner }}
-          </p>
-        </div>
-      </button>
-    </div>
 
     <div v-if="ownBooks.length > 0" class="rows flex flex-col gap-2">
       <div
@@ -226,7 +184,7 @@ function onSaved() {
     <EmptyState
       v-else
       title="Write your first book"
-      hint="Curated playbooks Claude reads when a task calls for them — plus your own. Write down how you like things done, and Claude follows it."
+      hint="Playbooks Claude reads when a task calls for them. Write down how you like things done, and Claude follows it."
     >
       <template #icon>
         <NotebookText :size="22" />
@@ -246,7 +204,6 @@ function onSaved() {
     <ReadBookDialog
       :open="readingBook !== null"
       :book="readingBook"
-      :scope="props.scope"
       @close="readingBook = null"
     />
     <WriteBookDialog
