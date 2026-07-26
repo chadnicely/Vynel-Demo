@@ -28,9 +28,7 @@ import {
   ApprovalWaitGate,
   claimNextPendingDelegationJob,
   completeDelegationJob,
-  enqueueReportDelivery,
   failDelegationJob,
-  findDelegationJobById,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   markDelegationsSurfacedToRoot,
   resolveThreadIdOf,
@@ -38,7 +36,7 @@ import {
   type DelegateForRouting,
   type DelegationJob,
 } from '@vynel/orchestration'
-import { composeManagerSourceLabel, type ChatTurnEvent } from '@vynel/chat'
+import { type ChatTurnEvent } from '@vynel/chat'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
@@ -257,8 +255,8 @@ export async function runDelegationClaimAndRunTick(
     let targetName: string
     let managerName: string | undefined
     // Slice ④b: a SESSION target's own workspace grounding (null for a
-    // global-spawned target and every workspace-target job) — the completed
-    // branch below routes the report to the CREATOR's conversation with it.
+    // global-spawned target and every workspace-target job) — picks the MCP
+    // attachment's grounding workspace below.
     let spawnedTargetWorkspaceId: string | null = null
     if (claimed.targetPrimarySessionId !== null) {
       const targetPrimary = primarySessionsRepository.findPrimarySessionById(
@@ -413,13 +411,15 @@ export async function runDelegationClaimAndRunTick(
       const reportOrigin =
         claimed.originChannelId !== null ? resolveDeliverableOrigin(db, claimed) : null
 
-      // The workspace reported to global — global composes what the user reads: a short
-      // reply in the manager's voice, formatted for where it lands (the global thread, or
-      // the originating channel). The FULL report stays on the job row + the workspace
-      // trace, one Watch-click away. Fail-open: a failed/unsupported distill (or an
-      // already-short report) delivers the full report — the user never loses the answer.
+      // The distill serves the CHANNEL delivery ONLY (session-comms pipeline,
+      // Chad locked 2026-07-27: the chat reply is never captured as a report —
+      // reports travel exclusively via send_message). A channel user still
+      // gets a short reply in the manager's voice; without a driving channel
+      // there is nothing to distill FOR, so skip the model call entirely.
+      // Fail-open: a failed/unsupported distill (or an already-short reply)
+      // delivers the full text — the channel user never loses the answer.
       let userReply = outcome.result
-      if (outcome.result.length > REPORT_DISTILL_MIN_LENGTH) {
+      if (reportOrigin !== null && outcome.result.length > REPORT_DISTILL_MIN_LENGTH) {
         // The contract says never-throw, but fail-open must not depend on a
         // provider honoring it — a distill throw would otherwise fail a
         // COMPLETED job through the outer catch, losing the user's answer.
@@ -447,75 +447,43 @@ export async function runDelegationClaimAndRunTick(
         }
       }
 
-      // Reports go to the CREATOR (Slice ④b) — as a QUEUED NOTIFY TURN on the
-      // creator's conversation (session-comms: the parent absorbs the real
-      // result in its own flow), replacing the old detached pushed row. A
-      // workspace-spawned session target reports to ITS workspace's primary; a
-      // global-spawned target — and every workspace-target job — to the global
-      // root. Swap-safety is the notify runner's job (it resolves the CURRENT
-      // creator conversation at run time). A deleted grounding workspace falls
-      // through to the global root (upward chains terminate there — the ④b
-      // missing-creator precedent). Requester resolved BEFORE the write block
-      // (reads stay outside the co-commit).
-      const creatorWorkspace =
-        spawnedTargetWorkspaceId !== null ? findWorkspaceById(db, spawnedTargetWorkspaceId) : null
-      if (spawnedTargetWorkspaceId !== null && creatorWorkspace === null) {
-        deps.logger.warn(
-          { jobId: claimed.id, workspaceId: spawnedTargetWorkspaceId },
-          'delegation report: grounding workspace gone — delivering to the global root instead',
-        )
-      }
-
-      // complete + enqueue-delivery + mark-surfaced CO-COMMIT in ONE
-      // transaction (invariant 5): the mark exists BECAUSE the notify turn is
-      // the awareness path — enqueued-but-unsurfaced (a crash between the
-      // writes) would double-inject the report (notify turn AND the root's
-      // next-turn catch-up). Failure falls back to completing ALONE,
-      // unsurfaced — the catch-up net still carries the report, and a
-      // delivery hiccup can never flip a FINISHED turn to failed.
-      // TOOL-FIRST REPORTING: a turn that reported through the tool has already
-      // sent what it meant to send, in its own words. Harvesting its chat reply
-      // on top would wake the requester twice with overlapping content — and the
-      // harvested copy is the chattier of the two. Re-read the row rather than
-      // trusting the claim-time snapshot: the mark lands DURING the run.
-      const reportedExplicitly = findDelegationJobById(db, claimed.id)?.reportedAt != null
-      const deliverableReply = !reportedExplicitly && userReply.trim() !== ''
+      // NO HARVEST (session-comms pipeline, Chad locked 2026-07-27, reversing
+      // the earlier silence-is-worse stance): the chat reply is NEVER captured
+      // and delivered as a report — reports travel exclusively via the
+      // send_message tool, sent deliberately by the one who did the work. The
+      // reply still lives on the job row (resultText — the trace/status truth)
+      // and in the child's own transcript, one Watch-click away.
+      //
+      // complete + mark-surfaced CO-COMMIT (invariant 5): completed rows are
+      // ALWAYS surfaced now — the root's catch-up net injects resultText,
+      // which would be the capture leaking back through another door. A
+      // silent child therefore delivers nothing; the chip settles and
+      // get_background_run answers status pulls. FAILED rows keep the
+      // catch-up: a failure note is status, not capture, and the root must
+      // learn the task died.
       try {
         withTransaction(db, (tx) => {
           completeDelegationJob(tx, claimed.id, outcome.result, new Date())
-          if (deliverableReply) {
-            enqueueReportDelivery(tx, {
-              userId: claimed.userId,
-              ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
-              reporterSessionId: outcome.reference,
-              reporterLabel: composeManagerSourceLabel(targetName, managerName),
-              reportBody: userReply,
-              requester:
-                creatorWorkspace !== null
-                  ? {
-                      kind: 'workspace-primary',
-                      workspaceId: creatorWorkspace.id,
-                      workspacePath: creatorWorkspace.path,
-                    }
-                  : { kind: 'global-root' },
-            })
-            markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
-          }
+          markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
         })
-      } catch (deliveryErr) {
+      } catch (completionErr) {
         deps.logger.warn(
-          { err: deliveryErr, jobId: claimed.id },
-          'delegation report delivery enqueue failed — completing without a delivery (the catch-up net carries the report)',
+          { err: completionErr, jobId: claimed.id },
+          'delegation completion co-commit failed — completing alone',
         )
         completeDelegationJob(db, claimed.id, outcome.result, new Date())
-      }
-      if (!deliverableReply) {
-        // A completed turn with NO text: nothing to deliver — left UNSURFACED
-        // so the root's catch-up still tells it the task ended without a result.
-        deps.logger.warn(
-          { jobId: claimed.id },
-          'delegation report delivery skipped — the completed turn produced no text',
-        )
+        // Retry the mark ALONE: an unsurfaced completed row would let the
+        // root's catch-up inject resultText — the capture leaking back. If
+        // the mark itself is what keeps throwing, that one terminal window
+        // accepts the echo (awareness over policy, logged loud).
+        try {
+          markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
+        } catch (markErr) {
+          deps.logger.warn(
+            { err: markErr, jobId: claimed.id },
+            'delegation surfaced-mark retry failed — the next root turn may echo the reply',
+          )
+        }
       }
 
       // Ch4 (channel-aware OUTPUT): if a CHANNEL drove this delegation, deliver the reply

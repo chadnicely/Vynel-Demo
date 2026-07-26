@@ -34,6 +34,7 @@ import {
 } from '@vynel/chat/repositories'
 import * as primarySessionsRepository from '../repositories/index.js'
 import { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
+import { attachDelegationToolOutcomes } from './attach-delegation-tool-outcomes.js'
 
 /** Which session a trace entry lives on. The drill-down target is `'workspace'`; the
  *  global-root session (`'global'`) holds the delegation acknowledgement + the surfaced
@@ -147,7 +148,16 @@ export function resolveDelegationTrace(
       body: message.body,
       sessionId: message.sessionId,
       scope: scopeOf(message.sessionId),
-      toolCalls: message.role === 'assistant' ? listChatToolCallsForMessage(db, message.id) : [],
+      // Dispatch calls INSIDE the watched turn carry their delegation outcome —
+      // the pipeline drill (Chad, locked 2026-07-27): the spawned session's
+      // watch chip lives HERE, on the workspace's own send card inside the
+      // opened watch, one level down — never flattened into an ancestor thread.
+      toolCalls:
+        message.role === 'assistant'
+          ? (attachDelegationToolOutcomes(db, {
+              entry: listChatToolCallsForMessage(db, message.id),
+            })['entry'] ?? [])
+          : [],
       createdAt: message.createdAt,
     }),
   )

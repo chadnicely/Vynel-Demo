@@ -149,6 +149,80 @@ describe("MessageRow", () => {
     expect(named.find(".role-label").text()).toBe("Claude");
   });
 
+  // Session-comms delivery — the COMPACT incoming box (pipeline model, Chad
+  // locked 2026-07-27): author identity + teaser + the View-report door, never
+  // the full body inline. test: recast — an earlier spec rendered the full
+  // markdown body in-thread; superseded by the compact-box call.
+  it("renders an inbound user-role report as a compact box: author, teaser, View report", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "workspace-manager",
+          sourceLabel: "Noah · vynel",
+          body: "**Done.** The three files are indexed.\n\nFull detail follows below.",
+        }),
+      },
+    });
+
+    expect(wrapper.find(".role-label").text()).toContain("Noah · vynel");
+    expect(wrapper.find(".role-label").text()).not.toContain("You");
+    expect(wrapper.find(".origin-badge").text()).toBe("Report");
+    const row = wrapper.find(".message-row");
+    expect(row.classes()).toContain("is-report");
+    expect(row.classes()).toContain("has-accent");
+    // Compact: the teaser line, not the full body — no inline markdown render.
+    expect(wrapper.find(".report-teaser").text()).toContain(
+      "Done. The three files are indexed.",
+    );
+    expect(wrapper.text()).not.toContain("Full detail follows below.");
+    // The door carries the FULL (marker-stripped) body to the review dialog.
+    await wrapper.find(".report-open-chip").trigger("click");
+    expect(wrapper.emitted("openReport")).toEqual([
+      [
+        {
+          sourceLabel: "Noah · vynel",
+          body: "**Done.** The three files are indexed.\n\nFull detail follows below.",
+        },
+      ],
+    ]);
+  });
+
+  it("strips the model-facing attribution marker from a report's displayed body", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "workspace-manager",
+          sourceLabel: "Sarah · letterman",
+          body:
+            "[Report from Sarah · letterman — the result of work you delegated, " +
+            "relayed automatically by Vynel. This is NOT a message the user typed.]\n\n" +
+            "The architecture doc is ready.",
+        }),
+      },
+    });
+
+    // The card's author line already names the reporter — the marker is for
+    // the MODEL and never renders.
+    expect(wrapper.text()).toContain("The architecture doc is ready.");
+    expect(wrapper.text()).not.toContain("NOT a message the user typed");
+  });
+
+  it("keeps a plain user message as You — no report treatment without a source", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ role: "user", body: "**not markdown**" }),
+      },
+    });
+
+    expect(wrapper.find(".role-label").text()).toBe("You");
+    expect(wrapper.find(".message-row").classes()).not.toContain("is-report");
+    // The user's own text stays literal.
+    expect(wrapper.find(".plain-body").exists()).toBe(true);
+    expect(wrapper.html()).not.toContain("<strong>");
+  });
+
   it("wears a workspace accent bar on a bubbled-up report", () => {
     const wrapper = mount(MessageRow, {
       props: {

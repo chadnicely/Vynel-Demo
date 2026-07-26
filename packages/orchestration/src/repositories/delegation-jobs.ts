@@ -238,9 +238,11 @@ export function listPendingDelegationJobsForUser(
 // TASK rows only (NULL-safe — legacy rows have a NULL jobKind): a
 // 'report-delivery' row IS the awareness mechanism, never a task the root
 // awaits — injecting a completed notify turn's own reply (or a failed
-// delivery's error) as "a report from a workspace" would be a false echo
-// (session-comms; the completion path marks a task surfaced when it enqueues
-// the task's delivery, so the two paths never double-inject).
+// delivery's error) as "a report from a workspace" would be a false echo.
+// Since the no-harvest pipeline (Chad, locked 2026-07-27) the completion path
+// marks EVERY completed task surfaced unconditionally — a completed reply is
+// never captured, so only FAILED tasks reach this net (a failure note is
+// status, not capture).
 export function listUnsurfacedTerminalDelegationsForUser(
   db: Database,
   userId: string,

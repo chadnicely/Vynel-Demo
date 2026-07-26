@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
+import { stripReportMessageMarker } from "@vynel/contracts/chat/report-message-marker";
 import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
 import PresenceDot from "./PresenceDot.vue";
@@ -35,7 +36,23 @@ const props = withDefaults(
 const emit = defineEmits<{
   /** The delegation chip: open the linked session's live view. */
   openSession: [sessionId: string];
+  /** The report box's "View report" chip: open the full report (the shared
+   *  review dialog — the plan-card pattern). Content rides along; no fetch. */
+  openReport: [report: { sourceLabel: string; body: string }];
 }>();
+
+// An inbound REPORT — a workspace's or agent's finished result arriving as
+// the notify turn's user-role message (session-comms). It must read as ITS
+// AUTHOR speaking, never as the user: persona author line, markdown body,
+// workspace accent, no "your message" bubble.
+const isInboundReport = computed(() => {
+  const { role, sourceKind, sourceLabel } = props.message;
+  return (
+    role === "user" &&
+    (sourceKind === "workspace-manager" || sourceKind === "agent") &&
+    !!sourceLabel
+  );
+});
 
 // The author line comes from sourceKind (who WROTE this); sourceLabel alone
 // may just name a delegation target for the chip below — never the author.
@@ -44,7 +61,9 @@ const emit = defineEmits<{
 // ("Noah · vynel") — never "Assistant · X".
 const roleLabel = computed(() => {
   if (props.message.role === "user") {
-    return props.message.sourceKind === "global-root" ? "From Claude" : "You";
+    if (props.message.sourceKind === "global-root") return "From Claude";
+    if (isInboundReport.value) return props.message.sourceLabel!;
+    return "You";
   }
   if (props.message.sourceKind === "global-root") return "Claude";
   if (
@@ -58,6 +77,29 @@ const roleLabel = computed(() => {
 });
 
 const isAssistant = computed(() => props.message.role === "assistant");
+
+// A delivered report carries a first-line attribution marker FOR THE MODEL
+// (the notify turn must never mistake it for user input). The card's author
+// line already names the reporter, so the marker is stripped for display.
+const displayBody = computed(() =>
+  isInboundReport.value
+    ? stripReportMessageMarker(props.message.body)
+    : props.message.body,
+);
+
+// The report box is COMPACT (pipeline model, Chad 2026-07-27): a teaser line,
+// not the full body — the thread stays a conversation; the full report opens
+// in the shared review dialog via the chip below.
+const REPORT_TEASER_LIMIT = 180;
+const reportTeaser = computed(() => {
+  if (!isInboundReport.value) return null;
+  const firstLine =
+    displayBody.value.split("\n").find((line) => line.trim() !== "") ?? "";
+  const plain = firstLine.replace(/[#*_`>]/g, "").trim();
+  return plain.length > REPORT_TEASER_LIMIT
+    ? `${plain.slice(0, REPORT_TEASER_LIMIT)}…`
+    : plain;
+});
 
 // A user message that arrived through a channel wears a small "via X" badge —
 // origin is HOW it reached the brain (voice daemon, Telegram), distinct from
@@ -101,12 +143,14 @@ const watchChipLabel = computed(() => {
 
 // A report bubbled up from a workspace/agent wears that workspace's stable
 // accent (left bar + chip tint) so it reads as belonging to it — on every
-// surface, the workspace's own room included (chip parity above). The global
+// surface, the workspace's own room included (chip parity above). This covers
+// BOTH shapes a report takes: an assistant-role row (a persona speaking) and
+// the user-role inbound of a notify turn (session-comms delivery). The global
 // brain and the user stay neutral regardless.
 const accentVar = computed(() => {
   const { role, sourceKind, sourceLabel } = props.message;
   const isWorkspaceReport =
-    role === "assistant" &&
+    (role === "assistant" || isInboundReport.value) &&
     (sourceKind === "workspace-manager" || sourceKind === "agent") &&
     !!sourceLabel;
   return isWorkspaceReport ? workspaceAccentVar(sourceLabel!) : null;
@@ -116,7 +160,10 @@ const accentVar = computed(() => {
 <template>
   <div
     class="message-row"
-    :class="[`role-${props.message.role}`, { 'has-accent': accentVar }]"
+    :class="[
+      `role-${props.message.role}`,
+      { 'has-accent': accentVar, 'is-report': isInboundReport },
+    ]"
     :style="accentVar ? { '--accent': accentVar } : undefined"
   >
     <p class="role-label">
@@ -164,6 +211,8 @@ const accentVar = computed(() => {
         </svg>
         via {{ originBadge.label }}
       </span>
+      <!-- Quiet provenance mark: this row is a delivered result, not typed input. -->
+      <span v-if="isInboundReport" class="origin-badge">Report</span>
     </p>
 
     <ThinkingBlock
@@ -172,7 +221,33 @@ const accentVar = computed(() => {
       class="thinking"
     />
 
-    <MarkdownText v-if="isAssistant" :source="props.message.body" />
+    <MarkdownText v-if="isAssistant" :source="displayBody" />
+    <!-- A report renders as a COMPACT incoming box: teaser + the door to the
+         full report (the shared review dialog) — never the full body inline. -->
+    <template v-else-if="isInboundReport">
+      <p v-if="reportTeaser" class="report-teaser">{{ reportTeaser }}</p>
+      <button
+        type="button"
+        class="report-open-chip"
+        @click="
+          emit('openReport', {
+            sourceLabel: props.message.sourceLabel!,
+            body: displayBody,
+          })
+        "
+      >
+        <span>View report</span>
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path
+            d="M6 4l4 4-4 4"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+    </template>
     <p v-else-if="props.message.body" class="plain-body">
       {{ props.message.body }}
     </p>
@@ -280,6 +355,64 @@ const accentVar = computed(() => {
   border: 1px solid var(--hair);
   border-radius: var(--radius-m);
   padding: 10px 14px;
+}
+
+/* An inbound report sheds the "your message" bubble — the user did not write
+   it. The accent bar (always present: a report always names its workspace)
+   and the persona author line carry its identity instead. */
+.role-user.is-report {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0 0 0 14px;
+}
+
+.role-user.is-report .role-label {
+  color: var(--ink-3);
+}
+
+/* The compact incoming-report box: one teaser line, ellipsized. */
+.report-teaser {
+  margin: 0;
+  color: var(--ink-2);
+  font: 400 13px/1.6 var(--font-ui);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 640px;
+}
+
+/* The door to the full report — the workspace accent frames it (a report
+   always carries its workspace's accent). */
+.report-open-chip {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--accent, var(--gold)) 38%, transparent);
+  margin: 0;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--accent, var(--gold)) 12%, transparent);
+  color: var(--ink-1);
+  font: 600 11.5px/1.5 var(--font-ui);
+  cursor: default;
+  transition: border-color var(--t-fast) var(--ease-out);
+}
+
+.report-open-chip:hover {
+  border-color: var(--accent, var(--gold));
+}
+
+.report-open-chip:focus-visible {
+  outline: 2px solid var(--accent, var(--gold));
+  outline-offset: 1px;
+}
+
+.report-open-chip svg {
+  color: var(--ink-3);
+  flex: none;
 }
 
 /* The chip carries the workspace accent (its frame), while its PresenceDot

@@ -212,6 +212,9 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
               :session-drill="sessionDrill"
               @watch-agent="store.focusAgent"
               @drill-session="drillIntoSession"
+              @open-delegation="
+                (id) => store.push({ kind: 'trace', partialSessionId: id })
+              "
             />
           </div>
         </aside>

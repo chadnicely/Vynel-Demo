@@ -1,10 +1,12 @@
-// The completion co-commit's FAILURE path (session-comms review fold): a throw
-// while enqueueing the report delivery must roll the whole write back and fall
-// open to completing the job ALONE — never a COMPLETED turn flipped to failed,
-// never a surfaced-but-undelivered report (unsurfaced = the root's next-turn
-// catch-up still carries it). Lives in its OWN file because it partially mocks
-// `@vynel/orchestration` (the throwing enqueue) — the main tick test runs the
-// real module.
+// The completion co-commit's FAILURE path: a throw inside the co-commit
+// (complete + mark-surfaced, one transaction) must roll back and fall open to
+// completing the job ALONE — never a COMPLETED turn flipped to failed. Lives
+// in its OWN file because it partially mocks `@vynel/orchestration` (the
+// throwing mark) — the main tick test runs the real module.
+//
+// test: recast for the no-harvest pipeline (Chad, locked 2026-07-27) — the
+// co-commit used to be complete + enqueue-report-delivery; the harvest is
+// gone, so the failure under test is now the surfaced mark throwing.
 
 import { describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -17,8 +19,8 @@ vi.mock('@vynel/orchestration', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@vynel/orchestration')>()
   return {
     ...actual,
-    enqueueReportDelivery: vi.fn(() => {
-      throw new Error('the delivery enqueue exploded')
+    markDelegationsSurfacedToRoot: vi.fn(() => {
+      throw new Error('the surfaced mark exploded')
     }),
   }
 })
@@ -30,8 +32,8 @@ import { runDelegationClaimAndRunTick } from './run-delegation-claim-and-run-tic
 
 const silentLogger = { info() {}, warn() {}, error() {}, debug() {} } as unknown as Logger
 
-describe('runDelegationClaimAndRunTick — delivery co-commit failure', () => {
-  it('a throwing delivery enqueue leaves the job COMPLETED + UNSURFACED, with no delivery row behind it', async () => {
+describe('runDelegationClaimAndRunTick — completion co-commit failure', () => {
+  it('a throwing surfaced-mark leaves the job COMPLETED (alone, unsurfaced) — never failed', async () => {
     await withTestDatabase(async (db) => {
       const now = new Date()
       const user = insertUser(db, {
@@ -75,14 +77,18 @@ describe('runDelegationClaimAndRunTick — delivery co-commit failure', () => {
       expect(processed).toBe(true)
 
       // The FINISHED turn stayed completed — the transaction rolled back and
-      // the fallback completed the job alone…
+      // the fallback completed the job alone. The mark is retried standalone,
+      // but this mock ALWAYS throws, so the row stays unsurfaced — the one
+      // ACCEPTED terminal window where the root's catch-up may echo the reply
+      // (awareness over policy, logged loud; a transient transaction failure
+      // recovers via the retry instead).
       const job = findDelegationJobById(db, jobId)
       expect(job?.status).toBe('completed')
       expect(job?.resultText).toBe('Acme has 3 docs; all current.')
-      // …UNSURFACED, so the catch-up net still carries the report.
       expect(job?.surfacedToRootAt).toBeNull()
 
-      // No delivery row survived the rollback — the queue is empty.
+      // NO delivery row exists either way — reports travel only via
+      // send_message now; the queue is empty.
       expect(
         await runDelegationClaimAndRunTick(db, {
           provider: new FakeAiAgentProvider({ resultText: 'never' }),

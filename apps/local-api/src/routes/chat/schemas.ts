@@ -193,6 +193,20 @@ export const SubagentToolCallSchema = z.object({
   completedAt: z.string().nullable(),
 })
 
+// The delegation a session-comms dispatch call enqueued — attached at
+// detail-serve time (attachDelegationToolOutcomes), the thread's persistent
+// door to that delegation's trace after the processing banner is gone. The
+// DIRECT hop only — pipeline scoping (Chad, locked 2026-07-27).
+export const DelegationToolOutcomeSchema = z.object({
+  jobId: z.string(),
+  partialSessionId: z.string().nullable(),
+  status: z.enum(['pending', 'claimed', 'completed', 'failed']),
+  deliveredTo: z.string().nullable(),
+  taskLabel: z.string().nullable(),
+  reportedAt: z.string().nullable(),
+  completedAt: z.string().nullable(),
+})
+
 export const ChatToolCallSchema = z.object({
   id: z.string(),
   parentMessageId: z.string(),
@@ -208,6 +222,8 @@ export const ChatToolCallSchema = z.object({
   // ordinary calls. Optional so pre-persistence payload shapes stay valid.
   subagentNarrative: z.string().nullable().optional(),
   subagentToolCalls: z.array(SubagentToolCallSchema).nullable().optional(),
+  // Present on send_message / send_task_* calls only (serve-time enrichment).
+  delegation: DelegationToolOutcomeSchema.nullable().optional(),
   startedAt: z.string(),
   completedAt: z.string().nullable(),
 })

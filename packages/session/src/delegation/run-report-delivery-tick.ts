@@ -38,6 +38,7 @@ import {
 import type { ChatTurnEvent } from '@vynel/chat'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
+import { composeReportMessageMarker } from '@vynel/contracts/chat/report-message-marker'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import { REPORT_DELIVERY_INSTRUCTIONS } from './routed-turn-provider-input.js'
 import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
@@ -90,10 +91,15 @@ export async function runReportDeliveryJob(
   claimed: DelegationJob,
 ): Promise<boolean> {
   const partialSessionId = claimed.partialSessionId ?? undefined
-  const reportBody = claimed.taskText
   // The CHILD's label, resolved at enqueue by the same one-home helpers the
   // push used ('Session' only on a corrupt row — the enqueue op always writes it).
   const sourceLabel = claimed.workspaceName ?? 'Session'
+  // The report becomes a USER-role inbound, and the system steer alone does
+  // not hold attribution (the 2026-07-27 smoke: the workspace reasoned "the
+  // user is reporting back…" and answered the user instead of relaying up).
+  // The marker rides ON the message so the model always sees who sent it; the
+  // report card strips it for display.
+  const reportBody = `${composeReportMessageMarker(sourceLabel)}\n\n${claimed.taskText}`
   // Captured once for narrowing: null = the GLOBAL root is the requester.
   const requesterWorkspaceId = claimed.workspaceId
   const isGlobalRequester = requesterWorkspaceId === null

@@ -7,6 +7,7 @@ import {
   type AgentActivityLike,
 } from "@vynel/ui";
 import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
+import { stripReportMessageMarker } from "@vynel/contracts/chat/report-message-marker";
 import type { LiveTraceEntry } from "../../composables/delegations/fold-trace-stream.js";
 
 // The merged panel's entries body — one list for both source kinds, keeping
@@ -38,14 +39,38 @@ const emit = defineEmits<{
   watchAgent: [toolUseId: string];
   /** A session-report entry's drill chip — the host pushes the session node. */
   drillSession: [];
+  /** A dispatch card's delegation chip INSIDE the watched turn — the host
+   *  pushes the child trace node (pipeline drill, one level down). */
+  openDelegation: [partialSessionId: string];
 }>();
 
+// A delivered report arriving as a notify turn's USER-role entry — same
+// predicate as MessageRow's isInboundReport, mirrored so the drill and the
+// thread can never disagree about who speaks.
+function isInboundReport(entry: LiveTraceEntry): boolean {
+  return (
+    entry.role === "user" &&
+    (entry.sourceKind === "workspace-manager" || entry.sourceKind === "agent") &&
+    !!entry.sourceLabel
+  );
+}
+
 // Persona-first author labels, matching MessageRow: the brain is Claude, a
-// workspace persona speaks by its own label — no "Assistant · X" prefix.
+// workspace persona speaks by its own label — no "Assistant · X" prefix, and
+// a report entry speaks as ITS author, never as "You".
 function authorLabel(entry: LiveTraceEntry): string {
-  if (entry.role === "user")
-    return entry.sourceKind === "global-root" ? "From Claude" : "You";
+  if (entry.role === "user") {
+    if (entry.sourceKind === "global-root") return "From Claude";
+    if (isInboundReport(entry)) return entry.sourceLabel!;
+    return "You";
+  }
   return entry.sourceLabel ?? "Assistant";
+}
+
+// The report's first-line attribution marker is for the MODEL — the entry's
+// author line already names the reporter, so the drill hides it too.
+function displayBody(entry: LiveTraceEntry): string {
+  return isInboundReport(entry) ? stripReportMessageMarker(entry.body) : entry.body;
 }
 
 // The instruction that started a delegation reads differently from the
@@ -148,8 +173,9 @@ const approvalNote = computed(() =>
         :agent-activity="props.agentActivity"
         watchable-agents
         @watch-agent="onWatchAgent"
+        @open-delegation="(id) => emit('openDelegation', id)"
       />
-      <MarkdownText :source="entry.body" />
+      <MarkdownText :source="displayBody(entry)" />
     </div>
     <p v-if="props.pendingApprovalToolName" class="working-note is-approval">
       <PresenceDot state="live" />

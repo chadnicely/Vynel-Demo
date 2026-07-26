@@ -234,6 +234,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
         @decide-approval="onDecideApproval"
         @open-session="activityMonitor.openTrace"
+        @open-report="(report) => (ui.viewingReport = report)"
         @watch-agent="activityMonitor.openAgentDirect"
       />
 

@@ -8341,6 +8341,65 @@
                                 ]
                               }
                             },
+                            "delegation": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "properties": {
+                                "jobId": {
+                                  "type": "string"
+                                },
+                                "partialSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pending",
+                                    "claimed",
+                                    "completed",
+                                    "failed"
+                                  ]
+                                },
+                                "deliveredTo": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "taskLabel": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "reportedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "jobId",
+                                "partialSessionId",
+                                "status",
+                                "deliveredTo",
+                                "taskLabel",
+                                "reportedAt",
+                                "completedAt"
+                              ]
+                            },
                             "startedAt": {
                               "type": "string"
                             },
@@ -21935,6 +21994,65 @@
                                 ]
                               }
                             },
+                            "delegation": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "properties": {
+                                "jobId": {
+                                  "type": "string"
+                                },
+                                "partialSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pending",
+                                    "claimed",
+                                    "completed",
+                                    "failed"
+                                  ]
+                                },
+                                "deliveredTo": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "taskLabel": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "reportedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "jobId",
+                                "partialSessionId",
+                                "status",
+                                "deliveredTo",
+                                "taskLabel",
+                                "reportedAt",
+                                "completedAt"
+                              ]
+                            },
                             "startedAt": {
                               "type": "string"
                             },
@@ -22162,6 +22280,65 @@
                                       "completedAt"
                                     ]
                                   }
+                                },
+                                "delegation": {
+                                  "type": [
+                                    "object",
+                                    "null"
+                                  ],
+                                  "properties": {
+                                    "jobId": {
+                                      "type": "string"
+                                    },
+                                    "partialSessionId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "status": {
+                                      "type": "string",
+                                      "enum": [
+                                        "pending",
+                                        "claimed",
+                                        "completed",
+                                        "failed"
+                                      ]
+                                    },
+                                    "deliveredTo": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "taskLabel": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "reportedAt": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "completedAt": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "jobId",
+                                    "partialSessionId",
+                                    "status",
+                                    "deliveredTo",
+                                    "taskLabel",
+                                    "reportedAt",
+                                    "completedAt"
+                                  ]
                                 },
                                 "startedAt": {
                                   "type": "string"
@@ -22611,6 +22788,65 @@
                                   "completedAt"
                                 ]
                               }
+                            },
+                            "delegation": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "properties": {
+                                "jobId": {
+                                  "type": "string"
+                                },
+                                "partialSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pending",
+                                    "claimed",
+                                    "completed",
+                                    "failed"
+                                  ]
+                                },
+                                "deliveredTo": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "taskLabel": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "reportedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "jobId",
+                                "partialSessionId",
+                                "status",
+                                "deliveredTo",
+                                "taskLabel",
+                                "reportedAt",
+                                "completedAt"
+                              ]
                             },
                             "startedAt": {
                               "type": "string"

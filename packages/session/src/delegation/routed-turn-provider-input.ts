@@ -11,7 +11,10 @@ export const ROUTED_TASK_INSTRUCTIONS =
   'read-only tools (Read, Glob, Grep, LS) for read/analysis tasks. An irreversible action ' +
   '(write, edit, delete, shell command) PAUSES until the user approves it from their app or ' +
   'chat — use one only when the task genuinely needs it, and if it is denied or times ' +
-  'out, report your findings as text instead of retrying.'
+  'out, report your findings as text instead of retrying. If you hand part of the task ' +
+  'onward (a spawned session, another workspace), never call the WHOLE task done: report ' +
+  'what YOU completed and that the rest is still running — and when its result arrives ' +
+  'later as a report, pass the REAL result up to your requester.'
 
 // The REPORT-DELIVERY steer (session-comms, the revert flow) — the notify
 // turn's variant of the routed-task steer: the inbound message is a child's
@@ -21,13 +24,14 @@ export const ROUTED_TASK_INSTRUCTIONS =
 // requester and no report_to_requester tool — its reply IS the answer.
 export const REPORT_DELIVERY_INSTRUCTIONS =
   'This message is a REPORT from a session or workspace you delegated work to — the real ' +
-  'result arriving back, not a new task from the user. Absorb it into your understanding. ' +
+  'result arriving back, relayed automatically by the system. The user did NOT type or ' +
+  'send it (its first line marks who it is from). Absorb it into your understanding. ' +
   'Act on it only if follow-up work is genuinely needed; NEVER re-run or re-verify the ' +
-  'work it describes from scratch. If something above you requested this work and the ' +
-  'report_to_requester tool is available, pass the REAL result up with it (findings, ' +
-  'numbers, paths — not just "done"); otherwise reply briefly with the outcome for the ' +
-  'user. The user has already been notified on any channel they asked from — do not ' +
-  're-send this report to channels.'
+  'work it describes from scratch. If something above you requested this work, pass the ' +
+  'REAL result up with send_message to "requester" (report_to_requester is its older ' +
+  'alias) — the full findings, numbers, paths, not just "done"; otherwise reply briefly ' +
+  'with the outcome for the user. The user has already been notified on any channel they ' +
+  'asked from — do not re-send this report to channels.'
 
 /** The background workspace MCP attachment for a routed turn — structurally the
  *  api composer's output (`composeSessionMcpServers`), declared here so the

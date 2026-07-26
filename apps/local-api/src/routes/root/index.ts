@@ -35,6 +35,7 @@ import { resolveDelegationTrace } from '@vynel/session/delegation'
 import {
   traceChannelKey,
   attachDelegationTaskLabels,
+  attachDelegationToolOutcomes,
   attachSpawnedSessionNames,
 } from '@vynel/session/delegation'
 import {
@@ -236,10 +237,15 @@ export const rootApp = factory
         ownerUserId: c.var.user.id,
       })
       // Report rows gain the delegated task's label — the Watch chip names the
-      // actual work instead of a canned "Watch <persona>".
+      // actual work instead of a canned "Watch <persona>" — and dispatch tool
+      // calls gain their delegation outcome (the settled-history door).
       return c.json({
         ...detail,
         messages: attachDelegationTaskLabels(c.var.db, detail.messages),
+        toolCallsByMessageId: attachDelegationToolOutcomes(
+          c.var.db,
+          detail.toolCallsByMessageId,
+        ),
       })
     },
   )

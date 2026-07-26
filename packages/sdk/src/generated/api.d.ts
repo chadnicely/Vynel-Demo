@@ -6142,6 +6142,16 @@ export interface operations {
                                     startedAt: string;
                                     completedAt: string | null;
                                 }[] | null;
+                                delegation?: {
+                                    jobId: string;
+                                    partialSessionId: string | null;
+                                    /** @enum {string} */
+                                    status: "pending" | "claimed" | "completed" | "failed";
+                                    deliveredTo: string | null;
+                                    taskLabel: string | null;
+                                    reportedAt: string | null;
+                                    completedAt: string | null;
+                                } | null;
                                 startedAt: string;
                                 completedAt: string | null;
                             }[];
@@ -11497,6 +11507,16 @@ export interface operations {
                                     startedAt: string;
                                     completedAt: string | null;
                                 }[] | null;
+                                delegation?: {
+                                    jobId: string;
+                                    partialSessionId: string | null;
+                                    /** @enum {string} */
+                                    status: "pending" | "claimed" | "completed" | "failed";
+                                    deliveredTo: string | null;
+                                    taskLabel: string | null;
+                                    reportedAt: string | null;
+                                    completedAt: string | null;
+                                } | null;
                                 startedAt: string;
                                 completedAt: string | null;
                             }[];
@@ -11564,6 +11584,16 @@ export interface operations {
                                     startedAt: string;
                                     completedAt: string | null;
                                 }[] | null;
+                                delegation?: {
+                                    jobId: string;
+                                    partialSessionId: string | null;
+                                    /** @enum {string} */
+                                    status: "pending" | "claimed" | "completed" | "failed";
+                                    deliveredTo: string | null;
+                                    taskLabel: string | null;
+                                    reportedAt: string | null;
+                                    completedAt: string | null;
+                                } | null;
                                 startedAt: string;
                                 completedAt: string | null;
                             }[];
@@ -11689,6 +11719,16 @@ export interface operations {
                                     startedAt: string;
                                     completedAt: string | null;
                                 }[] | null;
+                                delegation?: {
+                                    jobId: string;
+                                    partialSessionId: string | null;
+                                    /** @enum {string} */
+                                    status: "pending" | "claimed" | "completed" | "failed";
+                                    deliveredTo: string | null;
+                                    taskLabel: string | null;
+                                    reportedAt: string | null;
+                                    completedAt: string | null;
+                                } | null;
                                 startedAt: string;
                                 completedAt: string | null;
                             }[];

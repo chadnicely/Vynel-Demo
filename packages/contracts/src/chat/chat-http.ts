@@ -120,6 +120,28 @@ export interface SubagentToolCallResponse {
   completedAt: string | null
 }
 
+/** Serve-time enrichment on a session-comms dispatch call: the delegation job
+ *  it enqueued. The thread's PERSISTENT door to that delegation — unlike the
+ *  processing banner (in-flight only), it survives settlement so the history
+ *  stays readable on the message that sent the task. PIPELINE SCOPING (Chad,
+ *  locked 2026-07-27): this is the DIRECT hop only — a surface watches one
+ *  level down; deeper hops surface inside the opened watch, never flattened
+ *  into an ancestor thread. */
+export interface DelegationToolOutcomeResponse {
+  jobId: string
+  /** The trace key the activity monitor opens; null on rows enqueued before tracing. */
+  partialSessionId: string | null
+  status: 'pending' | 'claimed' | 'completed' | 'failed'
+  /** Where the message went, as the dispatch route answered ("vynel", "Global"). */
+  deliveredTo: string | null
+  /** Short label of the delegated task; null for a report delivery (its text is a report). */
+  taskLabel: string | null
+  /** ISO-8601 — when the child reported back via the tool; null otherwise. */
+  reportedAt: string | null
+  /** ISO-8601 — when the job settled; null while in flight. */
+  completedAt: string | null
+}
+
 /** Serialized row shape inside `GET /sessions/{id}` (within `toolCallsByMessageId` values). */
 export interface ChatToolCallResponse {
   id: string
@@ -138,6 +160,10 @@ export interface ChatToolCallResponse {
   subagentNarrative?: string | null
   /** The subagent's persisted tool calls; null/absent on ordinary calls. */
   subagentToolCalls?: SubagentToolCallResponse[] | null
+  /** Present on a session-comms dispatch call (send_message / send_task_*):
+   *  the enqueued delegation, attached at detail-serve time (absent on
+   *  live-streamed rows — the processing banner covers the live window). */
+  delegation?: DelegationToolOutcomeResponse | null
   /** ISO-8601 */
   startedAt: string
   /** ISO-8601 or `null` (still running). */

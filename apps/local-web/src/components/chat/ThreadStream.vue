@@ -36,6 +36,8 @@ const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
   /** A message's delegation chip: open that session's live view. */
   openSession: [sessionId: string];
+  /** A report box's "View report" chip — the host opens the shared dialog. */
+  openReport: [report: { sourceLabel: string; body: string }];
   /** An Agent card's Watch chip: open the focused agent view over the source
    *  that carries the agent's activity (trace for delegation-traced rows, the
    *  row's own session for a direct turn's agent). */
@@ -235,6 +237,7 @@ watch(
               liveSessions.liveFor(message.partialSessionId) !== null
             "
             @open-session="(id) => emit('openSession', id)"
+            @open-report="(report) => emit('openReport', report)"
           >
             <template
               v-if="props.toolCallsByMessageId[message.id]?.length"
@@ -251,6 +254,7 @@ watch(
                   (toolCall) =>
                     emit('watchAgent', agentWatchSourceFor(message), toolCall.toolUseId)
                 "
+                @open-delegation="(id) => emit('openSession', id)"
               />
             </template>
           </MessageRow>

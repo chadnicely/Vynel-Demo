@@ -35,6 +35,7 @@ import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import ActivityMonitorPanel from "../activity/ActivityMonitorPanel.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 import PlanViewDialog from "../plans/PlanViewDialog.vue";
+import ReportViewDialog from "../reports/ReportViewDialog.vue";
 import { useAppLinkRouter } from "../../composables/use-app-link-router.js";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
 import { WORKSPACE_SECTIONS } from "../workspace/workspace-sections.js";
@@ -497,6 +498,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
     <!-- The SHARED plan review dialog — chat vynel://plan links, list View
          actions, and task plan chips all open this one instance. -->
     <PlanViewDialog />
+    <ReportViewDialog />
     <CreateWorkspaceDialog
       :open="isCreateWorkspaceOpen"
       @close="isCreateWorkspaceOpen = false"

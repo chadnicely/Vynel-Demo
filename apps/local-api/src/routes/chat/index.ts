@@ -44,7 +44,10 @@ import {
   readAttachedImageBytes,
 } from '@vynel/chat'
 import { findPrimaryConversation } from '@vynel/session/continuity'
-import { attachDelegationTaskLabels } from '@vynel/session/delegation'
+import {
+  attachDelegationTaskLabels,
+  attachDelegationToolOutcomes,
+} from '@vynel/session/delegation'
 import type { AiAgentProviderId } from '@vynel/providers'
 import { streamChatTurn } from '../../streams/chat-turn.js'
 import { fetchSessionContextReport } from './fetch-context-report.js'
@@ -221,10 +224,15 @@ export const chatApp = factory
       const detail = getChatSessionDetail(c.var.db, c.var.chatSession!.id)
       // Same serve-time enrichment as root.getSession (one content contract for
       // both detail reads): a delegation-traced row gains the task label so the
-      // workspace thread's Watch chip names the actual work too.
+      // workspace thread's Watch chip names the actual work too, and a dispatch
+      // tool call gains its delegation outcome (the settled-history door).
       return c.json({
         ...detail,
         messages: attachDelegationTaskLabels(c.var.db, detail.messages),
+        toolCallsByMessageId: attachDelegationToolOutcomes(
+          c.var.db,
+          detail.toolCallsByMessageId,
+        ),
       })
     },
   )

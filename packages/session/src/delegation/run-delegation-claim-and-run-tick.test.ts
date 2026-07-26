@@ -8,6 +8,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
+import { composeReportMessageMarker } from '@vynel/contracts/chat/report-message-marker'
 import { withTestDatabase } from '@vynel/testing'
 import { listPendingApprovalsForUser } from '@vynel/approvals'
 import type { Database } from '@vynel/db'
@@ -47,6 +48,13 @@ import { SessionActivityFeed } from '../runtime/session-activity-feed.js'
 // The tick only calls warn/error/info — a no-op stub satisfies pino's Logger (the
 // FakeAiAgentProvider uses the same `as unknown as` test-stub idiom).
 const silentLogger = { info() {}, warn() {}, error() {}, debug() {} } as unknown as Logger
+
+// What the notify turn's inbound looks like since 2026-07-27: the per-message
+// attribution marker rides ON the delivered text (the model must never mistake
+// a report for user input — Chad's smoke caught exactly that misread).
+function markedReport(sourceLabel: string, body: string): string {
+  return `${composeReportMessageMarker(sourceLabel)}\n\n${body}`
+}
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -421,7 +429,7 @@ describe('runDelegationClaimAndRunTick', () => {
     })
   })
 
-  it('claims a pending job, runs it, completes it, and enqueues the report-delivery notify job for the global root (RECAST: the pushed row died with session-comms)', async () => {
+  it('claims a pending job, runs it, completes it SURFACED — and enqueues NO delivery (reports travel only via send_message)', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
@@ -476,34 +484,14 @@ describe('runDelegationClaimAndRunTick', () => {
         ['assistant', 'workspace-manager', 'Mark · Acme'],
       ])
 
-      // NOTHING was pushed onto the global transcript — the report travels as
-      // a queued NOTIFY TURN instead.
+      // NOTHING was pushed onto the global transcript.
       expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
 
-      // The next tick claims the report-delivery job and runs the GLOBAL
-      // notify turn through the injected runner: the distilled report, the
-      // child's composed label, the delivery's own trace key.
-      const reportCalls: GlobalReportTurnCall[] = []
-      const delivered = await runDelegationClaimAndRunTick(db, {
-        provider: new FakeAiAgentProvider({ seededSessionId: 'unused', resultText: 'unused' }),
-        logger: silentLogger,
-        activityFeed: new SessionActivityFeed(),
-        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
-      })
-      expect(delivered).toBe(true)
-      expect(reportCalls).toHaveLength(1)
-      expect(reportCalls[0]).toMatchObject({
-        userId: user.id,
-        reportBody: 'Acme has 3 docs; all current.',
-        sourceLabel: 'Mark · Acme',
-      })
-      // The delivery job row: kind report-delivery, reporter provenance, the
-      // notify turn's reply as its result — and NO cascade (queue is empty).
-      const deliveryJob = findDelegationJobByPartialSessionId(db, reportCalls[0]!.partialSessionId!)
-      expect(deliveryJob?.jobKind).toBe('report-delivery')
-      expect(deliveryJob?.status).toBe('completed')
-      expect(deliveryJob?.resultText).toBe('Absorbed the report.')
-      expect(deliveryJob?.parentSessionId).toBe('ws-root-new')
+      // test: recast for the no-harvest pipeline (Chad, locked 2026-07-27) —
+      // the chat reply is NEVER captured into a delivery; the queue is empty
+      // (a second tick finds nothing) and the completed row is SURFACED so the
+      // root's catch-up cannot re-inject the reply through the other door.
+      // Reports reach a parent ONLY when the child calls send_message.
       expect(
         await runDelegationClaimAndRunTick(db, {
           provider: new FakeAiAgentProvider({ resultText: 'never' }),
@@ -740,7 +728,7 @@ describe('runDelegationClaimAndRunTick', () => {
     })
   })
 
-  it('distills a LONG report into the user reply — summary lands in global, the FULL report stays on the job + trace', async () => {
+  it('never distills or delivers without a driving channel — the full reply stays on the job + trace', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
@@ -768,42 +756,54 @@ describe('runDelegationClaimAndRunTick', () => {
       })
       await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
-      // The distill saw the full report + the task, targeting the chat surface.
-      expect(distillCalls).toHaveLength(1)
-      expect(distillCalls[0]).toMatchObject({
-        taskText: 'audit the docs',
-        reportText: drainedReport,
-        workspaceName: 'Acme',
-        deliveryTarget: 'chat',
-      })
-
-      // The DELIVERY carries the SHORT reply (RECAST: the notify turn's
-      // inbound message, not a pushed global row); the job row keeps the FULL
-      // report (the trace truth).
-      const reportCalls: GlobalReportTurnCall[] = []
-      await runDelegationClaimAndRunTick(db, {
-        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
-        logger: silentLogger,
-        activityFeed: new SessionActivityFeed(),
-        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
-      })
-      expect(reportCalls.map((call) => call.reportBody)).toEqual([
-        'Done — all docs are current and cross-linked.',
-      ])
+      // test: recast for the no-harvest pipeline (Chad, locked 2026-07-27) —
+      // the distill serves CHANNEL delivery only. No driving channel = nothing
+      // to distill FOR (no model call) and nothing delivered; the full reply
+      // stays on the job row + the workspace transcript (the trace truth).
+      expect(distillCalls).toHaveLength(0)
+      expect(
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+          runGlobalRootReportTurn: makeGlobalReportRunner(),
+        }),
+      ).toBe(false)
       expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
       expect(findDelegationJobById(db, jobId)?.resultText).toBe(drainedReport)
-      // The workspace transcript keeps the full reply too — the Watch drill-down's body.
+      // The workspace transcript keeps the full reply — the Watch drill-down's body.
       expect(
         listChatMessagesForSession(db, 'ws-root-distill').map((m) => m.body),
       ).toEqual(['audit the docs', longReport])
     })
   })
 
-  it('falls open to the FULL report when the provider cannot distill', async () => {
+  // test: recast for the no-harvest pipeline (Chad, locked 2026-07-27) — the
+  // distill fail-open now protects the CHANNEL delivery: a channel user must
+  // never lose the answer to a broken distill.
+  it('a channel delivery falls open to the FULL reply when the provider cannot distill', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
       const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const now = new Date()
+      const channel = insertChannel(db, {
+        id: randomUUID(),
+        userId: user.id,
+        workspaceId: workspace.id,
+        channelKind: 'telegram',
+        displayName: 'Bot',
+        botCredentials: JSON.stringify({ botToken: 't' }),
+        botMetadata: '{}',
+        connectionStatus: 'healthy',
+        connectionStatusMessage: null,
+        lastPolledCursor: null,
+        lastPolledAt: null,
+        lastInboundAt: null,
+        isEnabled: true,
+        createdAt: now,
+        updatedAt: now,
+      })
 
       const longReport = 'Line of detailed findings the user still needs. '.repeat(20)
       enqueueWorkspaceDelegation(db, {
@@ -813,6 +813,7 @@ describe('runDelegationClaimAndRunTick', () => {
         workspacePath: workspace.path,
         workspaceName: workspace.name,
         taskText: 'audit the docs',
+        origin: { channelId: channel.id, externalSenderId: 'tg-42', externalChatContextId: 'chat-7' },
       })
 
       // No reportReply configured → summarizeReport returns null (unsupported).
@@ -822,24 +823,38 @@ describe('runDelegationClaimAndRunTick', () => {
       })
       await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
-      // RECAST: the fail-open FULL report rides the delivery job.
-      const reportCalls: GlobalReportTurnCall[] = []
-      await runDelegationClaimAndRunTick(db, {
-        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
-        logger: silentLogger,
-        activityFeed: new SessionActivityFeed(),
-        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
-      })
-      expect(reportCalls.map((call) => call.reportBody)).toEqual([longReport.trim()])
+      const queued = listOutboundMessagesForChannel(db, channel.id)
+      expect(queued).toHaveLength(1)
+      expect(queued[0]?.messageBody).toBe(longReport.trim())
       expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
     })
   })
 
-  it('a SHORT report skips the distill call and delivers as-is', async () => {
+  // test: recast for the no-harvest pipeline — the short-circuit now guards
+  // the CHANNEL distill (an already-short reply never burns a model call).
+  it('a SHORT channel reply skips the distill call and reaches the channel as-is', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
       const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const now = new Date()
+      const channel = insertChannel(db, {
+        id: randomUUID(),
+        userId: user.id,
+        workspaceId: workspace.id,
+        channelKind: 'telegram',
+        displayName: 'Bot',
+        botCredentials: JSON.stringify({ botToken: 't' }),
+        botMetadata: '{}',
+        connectionStatus: 'healthy',
+        connectionStatusMessage: null,
+        lastPolledCursor: null,
+        lastPolledAt: null,
+        lastInboundAt: null,
+        isEnabled: true,
+        createdAt: now,
+        updatedAt: now,
+      })
 
       enqueueWorkspaceDelegation(db, {
         userId: user.id,
@@ -848,6 +863,7 @@ describe('runDelegationClaimAndRunTick', () => {
         workspacePath: workspace.path,
         workspaceName: workspace.name,
         taskText: 'quick check',
+        origin: { channelId: channel.id, externalSenderId: 'tg-42', externalChatContextId: 'chat-7' },
       })
 
       const distillCalls: SummarizeReportCall[] = []
@@ -860,15 +876,9 @@ describe('runDelegationClaimAndRunTick', () => {
       await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
       expect(distillCalls).toHaveLength(0)
-      // RECAST: the as-is short report rides the delivery job.
-      const reportCalls: GlobalReportTurnCall[] = []
-      await runDelegationClaimAndRunTick(db, {
-        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
-        logger: silentLogger,
-        activityFeed: new SessionActivityFeed(),
-        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
-      })
-      expect(reportCalls.map((call) => call.reportBody)).toEqual(['All good.'])
+      const queued = listOutboundMessagesForChannel(db, channel.id)
+      expect(queued).toHaveLength(1)
+      expect(queued[0]?.messageBody).toBe('All good.')
       expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
     })
   })
@@ -917,23 +927,21 @@ describe('runDelegationClaimAndRunTick', () => {
       })
       await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
 
-      // The distill targeted the ORIGIN channel's kind, and BOTH deliveries carry
-      // the same short reply — the channel message (unchanged at task completion:
-      // the session-comms channel-delivery choice) and the notify job's report.
+      // The distill targeted the ORIGIN channel's kind; the channel gets the
+      // short reply. test: recast for the no-harvest pipeline — NO delivery
+      // job rides along anymore (the channel answer is the whole output).
       expect(distillCalls[0]?.deliveryTarget).toBe('telegram')
       const queued = listOutboundMessagesForChannel(db, channel.id)
       expect(queued).toHaveLength(1)
       expect(queued[0]?.messageBody).toBe('Docs summarized: 3 files, all current. ✅')
-      const reportCalls: GlobalReportTurnCall[] = []
-      await runDelegationClaimAndRunTick(db, {
-        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
-        logger: silentLogger,
-        activityFeed: new SessionActivityFeed(),
-        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
-      })
-      expect(reportCalls.map((call) => call.reportBody)).toEqual([
-        'Docs summarized: 3 files, all current. ✅',
-      ])
+      expect(
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+          runGlobalRootReportTurn: makeGlobalReportRunner(),
+        }),
+      ).toBe(false)
       expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
     })
   })
@@ -1135,7 +1143,7 @@ describe('runDelegationClaimAndRunTick', () => {
 
   // ── SESSION targets (session-library Slice ④) ─────────────────────
 
-  it('runs a SESSION-target job through delegateToSpawnedSession and pushes the report labeled with the session name', async () => {
+  it('runs a SESSION-target job through delegateToSpawnedSession — completed surfaced, no delivery', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const globalSessionId = await setUpGlobalRoot(db, user.id)
@@ -1190,20 +1198,19 @@ describe('runDelegationClaimAndRunTick', () => {
 
       expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
 
-      // RECAST: the report rides a delivery job to the global root, labeled as
-      // the SESSION (the child's name — same label the pushed row carried).
-      const reportCalls: GlobalReportTurnCall[] = []
-      await runDelegationClaimAndRunTick(db, {
-        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
-        logger: silentLogger,
-        activityFeed: new SessionActivityFeed(),
-        runGlobalRootReportTurn: makeGlobalReportRunner(reportCalls),
-      })
-      expect(reportCalls).toHaveLength(1)
-      expect(reportCalls[0]).toMatchObject({
-        sourceLabel: 'Research: pricing',
-        reportBody: 'A undercuts us by 12%.',
-      })
+      // test: recast for the no-harvest pipeline (Chad, locked 2026-07-27) —
+      // the session's reply is NOT captured into a delivery; the row settles
+      // surfaced, the queue is empty, and the session reports only when IT
+      // calls send_message.
+      expect(findDelegationJobById(db, jobId)?.surfacedToRootAt).not.toBeNull()
+      expect(
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+          runGlobalRootReportTurn: makeGlobalReportRunner(),
+        }),
+      ).toBe(false)
       expect(listChatMessagesForSession(db, globalSessionId)).toEqual([])
     })
   })
@@ -1268,6 +1275,22 @@ describe('runDelegationClaimAndRunTick', () => {
       expect(processed).toBe(true)
       expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
 
+      // test: recast for the no-harvest pipeline (Chad, locked 2026-07-27) —
+      // the task tick no longer enqueues the delivery; the SESSION reports by
+      // calling send_message, which is what this direct enqueue stands in for.
+      // The notify machinery under test is unchanged.
+      enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: created.sessionId,
+        reporterLabel: 'Acme research',
+        reportBody: 'Backlog has 4 stale items.',
+        requester: {
+          kind: 'workspace-primary',
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
+        },
+      })
+
       // The next tick runs the WORKSPACE notify turn END-TO-END (the real
       // delegateToWorkspaceRoot machinery): the report lands as the turn's
       // INBOUND message on the workspace primary — attributed FROM the child
@@ -1295,7 +1318,12 @@ describe('runDelegationClaimAndRunTick', () => {
 
       const wsMessages = listChatMessagesForSession(db, 'ws-primary-sdk-1')
       expect(wsMessages.map((m) => [m.role, m.sourceKind, m.sourceLabel, m.body])).toEqual([
-        ['user', 'workspace-manager', 'Acme research', 'Backlog has 4 stale items.'],
+        [
+          'user',
+          'workspace-manager',
+          'Acme research',
+          markedReport('Acme research', 'Backlog has 4 stale items.'),
+        ],
         ['assistant', 'workspace-manager', 'Mark · Acme', 'Noted — I will fold the stale items into the plan.'],
       ])
       // …and NOTHING reached the global root's transcript.
@@ -1446,6 +1474,17 @@ describe('runDelegationClaimAndRunTick', () => {
         activityFeed: new SessionActivityFeed(),
       })
       expect(findDelegationJobById(db, taskJobId)?.status).toBe('completed')
+
+      // test: recast for the no-harvest pipeline — the task tick no longer
+      // enqueues deliveries; the direct enqueue stands in for the workspace's
+      // own send_message call.
+      enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: 'ws-root-norunner',
+        reporterLabel: 'Mark · Acme',
+        reportBody: 'done',
+        requester: { kind: 'global-root' },
+      })
 
       // The delivery tick runs WITHOUT runGlobalRootReportTurn (an MCP-less
       // harness shape) — the delivery job fails with an actionable message.

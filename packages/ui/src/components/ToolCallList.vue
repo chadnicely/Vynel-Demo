@@ -28,7 +28,49 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   watchAgent: [toolCall: ChatToolCallResponse];
+  /** The delegation chip under a dispatch card — open that delegation's trace. */
+  openDelegation: [partialSessionId: string];
 }>();
+
+// The PERSISTENT door to a dispatch call's delegation (send_message /
+// send_task_*): serve-time enrichment rides on the call, so unlike the
+// processing banner — in-flight jobs only — the chip survives settlement and
+// the history stays on the message that sent the work. The DIRECT hop ONLY —
+// pipeline scoping (Chad, locked 2026-07-27): a surface watches one level
+// down; the spawned session's chip lives inside the opened watch panel (this
+// same component, rendered on the trace entries), never flattened here.
+// Live-streamed rows carry no enrichment; the chip appears from the next
+// detail read on.
+interface DelegationChip {
+  key: string;
+  partialSessionId: string;
+  live: boolean;
+  label: string;
+}
+
+function delegationChipsFor(toolCall: ChatToolCallResponse): DelegationChip[] {
+  const delegation = toolCall.delegation;
+  if (!delegation || delegation.partialSessionId === null) return [];
+  const text =
+    delegation.status === "pending"
+      ? "queued"
+      : delegation.status === "claimed"
+        ? "working…"
+        : delegation.status === "failed"
+          ? "failed"
+          : delegation.reportedAt !== null
+            ? "done · report delivered"
+            : "done";
+  const task = delegation.taskLabel ? ` · ${delegation.taskLabel}` : "";
+  return [
+    {
+      key: toolCall.id,
+      partialSessionId: delegation.partialSessionId,
+      live: delegation.status === "pending" || delegation.status === "claimed",
+      label: `${delegation.deliveredTo ?? "session"}${task} — ${text}`,
+    },
+  ];
+}
 
 // The ticker line for a RUNNING Agent card: its latest live action ("Read
 // pricing.md"), or a plain working note before the first tool. A mid-run
@@ -87,6 +129,25 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
           <PresenceDot state="live" />
           <span class="ticker-text">{{ agentTickerFor(group[0]!) }}</span>
         </p>
+        <button
+          v-for="chip in delegationChipsFor(group[0]!)"
+          :key="chip.key"
+          type="button"
+          class="delegation-chip"
+          @click="emit('openDelegation', chip.partialSessionId)"
+        >
+          <PresenceDot :state="chip.live ? 'live' : 'idle'" />
+          <span class="delegation-label">{{ chip.label }}</span>
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M6 4l4 4-4 4"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
       </template>
 
       <div v-else class="tool-group">
@@ -134,6 +195,25 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
               <PresenceDot state="live" />
               <span class="ticker-text">{{ agentTickerFor(toolCall) }}</span>
             </p>
+            <button
+              v-for="chip in delegationChipsFor(toolCall)"
+              :key="chip.key"
+              type="button"
+              class="delegation-chip"
+              @click="emit('openDelegation', chip.partialSessionId)"
+            >
+              <PresenceDot :state="chip.live ? 'live' : 'idle'" />
+              <span class="delegation-label">{{ chip.label }}</span>
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M6 4l4 4-4 4"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </button>
           </template>
         </div>
       </div>
@@ -198,6 +278,48 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
   gap: 6px;
   padding-left: 14px;
   border-left: 1px solid var(--hair);
+}
+
+/* The delegation door under a dispatch card — where the task went, how it
+   stands, and the way into its trace. Gold identity (no workspace accent is
+   in scope on a tool card); the dot goes live while the job is in flight. */
+.delegation-chip {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--gold) 38%, transparent);
+  margin: 0 0 0 10px;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--gold) 10%, transparent);
+  color: var(--ink-1);
+  font: 600 11.5px/1.5 var(--font-ui);
+  cursor: default;
+  transition: border-color var(--t-fast) var(--ease-out);
+}
+
+.delegation-chip:hover {
+  border-color: var(--gold);
+}
+
+.delegation-chip:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.delegation-chip svg {
+  color: var(--ink-3);
+  flex: none;
+}
+
+/* Delivered-to + task labels can run long — one line, ellipsized. */
+.delegation-label {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* A running agent's one-line live ticker — its latest action, nothing more.
