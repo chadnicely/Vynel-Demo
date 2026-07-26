@@ -74,6 +74,9 @@ export interface RunGlobalRootTurnInput {
   origin?: DelegationOrigin
   /** The inbound channel's kind — stamped on the persisted user row ("via Telegram"). */
   originChannel?: 'telegram' | 'discord' | 'zoom'
+  /** The per-message reply instruction (channel pipeline; voice-turn-marker
+   *  precedent) — appended to PROVIDER input only, never the persisted row. */
+  channelReplyMarker?: string
   /** REPORT-DELIVERY notify turn (session-comms): the inbound message is a
    *  child's report — attribute its row as coming FROM that child. Omit → the
    *  shipped channel-turn rows, byte-for-byte. */
@@ -259,6 +262,9 @@ export async function runGlobalRootTurn(
         userMessageText: input.userMessageText,
         ...(input.model !== undefined ? { model: input.model } : {}),
         ...(input.originChannel !== undefined ? { originChannel: input.originChannel } : {}),
+        ...(input.channelReplyMarker !== undefined
+          ? { channelReplyMarker: input.channelReplyMarker }
+          : {}),
         // The notify-turn variant (session-comms): the child's attribution on
         // the inbound row + the report-delivery steer.
         ...(input.inboundAttribution !== undefined

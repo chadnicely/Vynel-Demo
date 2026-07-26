@@ -33,8 +33,10 @@ export interface ProcessInboundDeps {
   appRequest: AppRequestFn
   // Run a GLOBAL-ROOT turn (brain-tree Ch4) — the api-side service injects `runGlobalRootTurn`,
   // typed STRUCTURALLY here so core never imports apps/api or the orchestration runner. The origin
-  // (channel coordinates) rides onto any delegation the root enqueues, so its report is delivered
-  // back to this channel. The result is the root's answer text (delivered as the channel reply).
+  // (channel coordinates) addresses the turn's own reply_to_channel tool AND rides onto any
+  // delegation the root enqueues. The result's `resultText` is the turn's chat answer — NEVER
+  // delivered to the channel (the channel pipeline, locked 2026-07-27: replies travel only via
+  // the tool); it remains in the return shape for logging/diagnosis.
   // `onApprovalRequested` (surface-up): the brain's own carded tool RECORDS its approval in the
   // core (web notifier) and PARKS — this callback lets the channel path ALSO push the card to
   // the sender, who answers via the existing approval-reply route.
@@ -43,10 +45,19 @@ export interface ProcessInboundDeps {
     input: {
       userId: string
       userMessageText: string
-      origin: { channelId: string; externalSenderId: string; externalChatContextId: string }
+      origin: {
+        channelId: string
+        externalSenderId: string
+        externalChatContextId: string
+        /** GROUP messages only — reply_to_channel threads onto the asking message. */
+        externalMessageId?: string
+      }
       /** The inbound channel's kind — stamped on the persisted user row so the
        *  transcript shows HOW the message arrived ("via Telegram"). */
       originChannel?: 'telegram' | 'discord' | 'zoom'
+      /** The per-message reply instruction (voice-turn-marker precedent) —
+       *  appended to PROVIDER input only; the persisted row stays clean. */
+      channelReplyMarker?: string
       onApprovalRequested?: (approval: {
         approvalRequestId: string
         toolName: string

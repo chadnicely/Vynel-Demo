@@ -417,6 +417,55 @@ describe('POST /routing/send-to-channel', () => {
   })
 })
 
+describe('POST /routing/reply-to-channel (the channel pipeline, 2026-07-27)', () => {
+  it('delivers to the server-stamped origin — the model passes ONLY its answer', async () => {
+    await withTestDatabase(async (db) => {
+      const { channel } = seedChannelWithAllowedSender(db)
+      const app = makeHarness(db)
+
+      const origin = {
+        channelId: channel.id,
+        externalSenderId: 'tg-42',
+        externalChatContextId: '-100777',
+        externalMessageId: 'msg-9',
+      }
+      const res = await postJson(
+        app,
+        '/routing/reply-to-channel',
+        { message: 'Pricing went up 4%.' },
+        { [DELEGATION_ORIGIN_HEADER]: serializeDelegationOrigin(origin) },
+      )
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ status: 'sent', deliveredTo: channel.displayName })
+
+      const queued = listOutboundMessagesForChannel(db, channel.id)
+      expect(queued).toHaveLength(1)
+      expect(queued[0]).toMatchObject({
+        externalRecipientId: 'tg-42',
+        externalChatContextId: '-100777',
+        messageBody: 'Pricing went up 4%.',
+        payloadKind: 'chat-stream-final',
+      })
+      // The group reply threads onto the asking message — from the origin,
+      // never from model input.
+      expect(JSON.parse(queued[0]!.messageStructure)).toEqual({
+        replyToExternalMessageId: 'msg-9',
+      })
+    })
+  })
+
+  it('400s with an actionable message when the turn has no channel origin', async () => {
+    await withTestDatabase(async (db) => {
+      seedChannelWithAllowedSender(db)
+      const app = makeHarness(db)
+
+      const res = await postJson(app, '/routing/reply-to-channel', { message: 'hello' })
+      expect(res.status).toBe(400)
+      expect(await res.text()).toContain('did not arrive via a channel')
+    })
+  })
+})
+
 describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', () => {
   // The spawn-time priming turn, faked (session-started + completed).
   function makePrimingProvider(sessionId: string): AiAgentProvider {

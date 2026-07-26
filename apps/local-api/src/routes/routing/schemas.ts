@@ -39,6 +39,14 @@ export const SendToChannelRequestSchema = z.object({
   message: z.string().min(1).max(50000),
 })
 
+// The reply carries NO address — where it goes is the turn's server-stamped
+// ambient origin (a mis-addressed reply is unrecoverable once enqueued; the
+// `to: "requester"` precedent).
+export const ReplyToChannelRequestSchema = z.object({
+  /** The answer, delivered to the exact conversation this turn came from. */
+  message: z.string().min(1).max(50000),
+})
+
 // ── Response schemas ────────────────────────────────────────────────
 
 /** One routing target — the (id, name) pair the global root picks from. */
@@ -103,6 +111,12 @@ export const ListRoutingChannelsResponseSchema = z.array(RoutingChannelTargetSch
 export const SendToChannelResponseSchema = z.object({
   status: z.literal('sent'),
   channelId: z.string(),
+})
+
+export const ReplyToChannelResponseSchema = z.object({
+  status: z.literal('sent'),
+  /** The channel's display name — where the reply is going. */
+  deliveredTo: z.string(),
 })
 
 // ── The unified session-messaging tool ──────────────────────────────

@@ -21,7 +21,10 @@ beforeEach(() => {
 })
 
 describe('processInboundMessage — chat-turn routes to the global root (Ch4)', () => {
-  it('claims a pending chat-turn, runs the global-root turn WITH the origin, queues the reply', async () => {
+  // test: recast for the channel pipeline (Chad, locked 2026-07-27) — the
+  // turn's chat text is NEVER captured and queued; the model replies via the
+  // reply_to_channel tool (the per-message marker instructs it every turn).
+  it('claims a pending chat-turn, runs the root turn with origin + reply marker — and queues NOTHING itself', async () => {
     await withTestDatabase(async (db) => {
       const { channel } = seedChannelWithAllowedSender(db)
       const inbound = insertPendingChatTurnMessage(db, channel.id)
@@ -29,21 +32,22 @@ describe('processInboundMessage — chat-turn routes to the global root (Ch4)', 
 
       await processInboundMessage(db, { inboundMessageId: inbound.id }, deps)
 
-      // The global-root turn ran with the ORIGIN channel — so its reply + any delegation's
-      // report come back HERE (to who asked, where they asked).
+      // The global-root turn ran with the ORIGIN channel (addresses the
+      // reply_to_channel tool + any delegation's report) and the per-message
+      // reply instruction. A DM origin carries NO externalMessageId.
       expect(deps.state.rootTurnCalls).toHaveLength(1)
       expect(deps.state.rootTurnCalls[0]).toMatchObject({
         userId: channel.userId,
         userMessageText: 'what did the supplier email about?',
         origin: { channelId: channel.id, externalSenderId: '123456', externalChatContextId: '123456' },
       })
+      expect(deps.state.rootTurnCalls[0]?.origin).not.toHaveProperty('externalMessageId')
+      expect(deps.state.rootTurnCalls[0]?.channelReplyMarker).toContain('reply_to_channel')
+      expect(deps.state.rootTurnCalls[0]?.channelReplyMarker).toContain('TELEGRAM')
 
-      // The root's answer was queued back to the sender (the direct-answer path).
-      const queued = listReadyOutboundMessages(db, {})
-      expect(queued).toHaveLength(1)
-      expect(queued[0]?.payloadKind).toBe('chat-stream-final')
-      expect(queued[0]?.externalRecipientId).toBe('123456')
-      expect(queued[0]?.messageBody).toContain('supplier')
+      // NO capture: the answer text was not queued — replying is the model's
+      // own tool call, inside the turn.
+      expect(listReadyOutboundMessages(db, {})).toHaveLength(0)
 
       // The "typing…" indicator fired; the inbound is completed.
       expect(sendChatAction).toHaveBeenCalledWith('123456', 'typing')
@@ -67,7 +71,9 @@ describe('processInboundMessage — chat-turn routes to the global root (Ch4)', 
       await processInboundMessage(db, { inboundMessageId: inbound.id }, deps)
 
       const queued = listReadyOutboundMessages(db, {})
-      expect(queued).toHaveLength(2) // the approval card + the final reply
+      // test: recast (channel pipeline) — only the approval card; the final
+      // reply is the model's own reply_to_channel call, never a capture.
+      expect(queued).toHaveLength(1)
       const card = queued.find((m) => m.payloadKind === 'approval-request')!
       expect(card.externalRecipientId).toBe('123456')
       expect(card.messageBody).toContain('register_workspace')
@@ -78,7 +84,7 @@ describe('processInboundMessage — chat-turn routes to the global root (Ch4)', 
     })
   })
 
-  it('a GROUP turn opens with a speaker line and its reply threads onto the asking message', async () => {
+  it('a GROUP turn opens with a speaker line; its origin carries the asking message for tool threading', async () => {
     await withTestDatabase(async (db) => {
       const { channel } = seedChannelWithAllowedSender(db)
       const inbound = insertPendingGroupChatTurnMessage(db, channel.id)
@@ -90,13 +96,15 @@ describe('processInboundMessage — chat-turn routes to the global root (Ch4)', 
       expect(deps.state.rootTurnCalls[0]?.userMessageText).toBe(
         '[Group message from Alice in "Marketing Team"]\n\n@bot what did the supplier email about?',
       )
-      // The reply goes to the ROOM, threaded onto the asking message.
-      const queued = listReadyOutboundMessages(db, {})
-      expect(queued).toHaveLength(1)
-      expect(queued[0]?.externalChatContextId).toBe('-100777')
-      expect(JSON.parse(queued[0]!.messageStructure)).toEqual({
-        replyToExternalMessageId: inbound.externalMessageId,
+      // test: recast (channel pipeline) — the reply is the model's own
+      // reply_to_channel call; the ORIGIN carries the asking message's id so
+      // the tool reply threads onto it, and the marker names the room.
+      expect(deps.state.rootTurnCalls[0]?.origin).toMatchObject({
+        externalChatContextId: '-100777',
+        externalMessageId: inbound.externalMessageId,
       })
+      expect(deps.state.rootTurnCalls[0]?.channelReplyMarker).toContain('Marketing Team')
+      expect(listReadyOutboundMessages(db, {})).toHaveLength(0)
     })
   })
 
@@ -115,10 +123,9 @@ describe('processInboundMessage — chat-turn routes to the global root (Ch4)', 
 
       await processInboundMessage(db, { inboundMessageId: inbound.id }, deps)
 
-      // Only the final reply — no approval-request row for the room.
-      const queued = listReadyOutboundMessages(db, {})
-      expect(queued).toHaveLength(1)
-      expect(queued[0]?.payloadKind).toBe('chat-stream-final')
+      // test: recast (channel pipeline) — NOTHING queued: no approval card for
+      // the room (decision 3) and no captured reply (tool-only replies).
+      expect(listReadyOutboundMessages(db, {})).toHaveLength(0)
       expect(findInboundMessageById(db, inbound.id)?.status).toBe('completed')
     })
   })

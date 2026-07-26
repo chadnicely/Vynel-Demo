@@ -106,6 +106,13 @@ export interface RunGlobalRootTurnCoreInput {
    *  user row ("via Voice" / "via Telegram"). Set by the EDGES (the SSE route
    *  maps `voice`, the channel runner its kind); the core only passes it through. */
   originChannel?: 'voice' | 'telegram' | 'discord' | 'zoom'
+  /** CHANNEL turn (the channel pipeline, locked 2026-07-27): the per-message
+   *  reply instruction — "reply by CALLING reply_to_channel; text is not
+   *  delivered". PROVIDER INPUT ONLY (the voice-turn-marker precedent: the
+   *  system-prompt block decays on the long root session; recency wins), the
+   *  persisted row stays the clean inbound text. Composed at the channels
+   *  edge, which knows the sender/group facts. */
+  channelReplyMarker?: string
   /** REPORT-DELIVERY notify turn (session-comms): attribute this turn's rows —
    *  the inbound message reads as coming FROM the reporting child
    *  ('workspace-manager' + its label), trace-keyed. Omit → rows stay null
@@ -168,6 +175,12 @@ export async function runGlobalRootTurnCore(
       // long root session and the model slips back to text-only replies.
       if (input.voice === true) {
         providerUserMessageText = `${providerUserMessageText}\n\n${loadSessionInstruction('voice-turn-marker')}`
+      }
+      // A channel turn does the same for reply_to_channel — the marker is
+      // composed at the channels edge (it knows the sender/group facts) and
+      // never reaches the persisted row.
+      if (input.channelReplyMarker !== undefined) {
+        providerUserMessageText = `${providerUserMessageText}\n\n${input.channelReplyMarker}`
       }
       if (reports.jobIds.length > 0) {
         markDelegationsSurfacedToRoot(deps.db, reports.jobIds, new Date())

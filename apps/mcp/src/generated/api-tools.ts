@@ -2344,6 +2344,42 @@ export const removeKnowledgeSource: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const replyToChannel: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'reply_to_channel',
+    "Reply to the channel message that started this turn — Telegram DM or group alike. Pass ONLY your answer as `message`; Vynel already knows which channel and which conversation it came from and delivers your reply exactly there (threading onto the asking message in groups). This is THE way a channel gets your answer — plain chat text is never delivered. For proactive outreach on a channel that did NOT ask, use send_to_channel instead.",
+    {
+    message: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/routing/reply-to-channel'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['message']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const reportToRequester: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'report_to_requester',
@@ -3219,6 +3255,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   listRoutingWorkspaces,
   listSessions,
   registerWorkspace,
+  replyToChannel,
   sendMessage,
   sendTaskToSession,
   sendTaskToWorkspace,

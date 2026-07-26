@@ -180,6 +180,9 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   'list_routing_workspaces',
   'list_sessions',
   'register_workspace',
+  // The channel pipeline (2026-07-27): the model replies to the conversation
+  // that drove the turn — addressed by the server-stamped ambient origin.
+  'reply_to_channel',
   'send_task_to_session',
   'send_task_to_workspace',
   'send_message',

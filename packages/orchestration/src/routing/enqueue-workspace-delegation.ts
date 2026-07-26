@@ -25,6 +25,11 @@ export interface DelegationOrigin {
   channelId: string
   externalSenderId: string
   externalChatContextId: string
+  /** The asking message's external id — set for GROUP messages only, so a
+   *  channel reply can thread onto whoever asked. Job enqueues ignore it (the
+   *  columns carry the three addresses above); it rides the ambient origin
+   *  header for the reply_to_channel tool. */
+  externalMessageId?: string
 }
 
 export interface EnqueueWorkspaceDelegationInput {

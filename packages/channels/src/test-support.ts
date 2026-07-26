@@ -172,7 +172,14 @@ export function insertPendingGroupChatTurnMessage(
 interface StubRootTurnCall {
   userId: string
   userMessageText: string
-  origin: { channelId: string; externalSenderId: string; externalChatContextId: string }
+  origin: {
+    channelId: string
+    externalSenderId: string
+    externalChatContextId: string
+    externalMessageId?: string
+  }
+  /** The per-message reply instruction (channel pipeline, 2026-07-27). */
+  channelReplyMarker?: string
 }
 
 export interface StubTurnDeps extends ProcessInboundDeps {

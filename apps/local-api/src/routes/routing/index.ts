@@ -45,9 +45,9 @@
 
 import { resolver, validator } from 'hono-openapi/zod'
 import { listWorkspacesForUser } from '@vynel/workspaces'
-import { listChannelsForUser, sendToChannel } from '@vynel/channels'
+import { listChannelsForUser, sendToChannel, replyToChannelOrigin } from '@vynel/channels'
 import { listBackgroundRuns, getBackgroundRun } from '@vynel/orchestration'
-import { NotFoundError } from '@vynel/errors'
+import { NotFoundError, ValidationError } from '@vynel/errors'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -55,6 +55,8 @@ import {
   RouteToWorkspaceRequestSchema,
   SendTaskToSessionRequestSchema,
   SendToChannelRequestSchema,
+  ReplyToChannelRequestSchema,
+  ReplyToChannelResponseSchema,
   ReportToRequesterRequestSchema,
   ReportToRequesterResponseSchema,
   ListRoutingWorkspacesResponseSchema,
@@ -67,6 +69,10 @@ import {
   ListBackgroundRunsResponseSchema,
   BackgroundRunDetailSchema,
 } from './schemas.js'
+import {
+  parseDelegationOriginHeader,
+  DELEGATION_ORIGIN_HEADER,
+} from '../../sessions/delegation-origin-header.js'
 import {
   dispatchTaskToWorkspace,
   dispatchTaskToSession,
@@ -345,6 +351,66 @@ export const routingApp = factory
       const { channelId, message } = c.req.valid('json')
       sendToChannel(c.var.db, { userId: c.var.user.id, channelId, body: message })
       return c.json({ status: 'sent' as const, channelId })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // POST /reply-to-channel — answer the channel conversation that drove THIS turn
+  //
+  // The channel pipeline (locked 2026-07-27): the model calls this with nothing
+  // but its answer; WHERE it goes — channel, sender, group room or DM, the
+  // group message to thread onto — is the server-stamped ambient origin
+  // (`x-vynel-delegation-origin`, the same header the delegate routes read).
+  // The model never handles an address; a mis-addressed reply is unrecoverable.
+  // ──────────────────────────────────────────────────────────────────
+  .post(
+    '/reply-to-channel',
+    describeRoute({
+      tags: ['routing'],
+      summary: 'Reply to the channel conversation that drove this turn.',
+      'x-sdk-name': 'routing.replyToChannel',
+      responses: {
+        200: {
+          description: "A queued acknowledgement: { status: 'sent', deliveredTo }.",
+          content: {
+            'application/json': { schema: resolver(ReplyToChannelResponseSchema) },
+          },
+        },
+        400: {
+          description:
+            'This turn did not arrive via a channel, or the channel was disabled meanwhile.',
+        },
+        404: { description: 'Channel not found or not owned.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'reply_to_channel',
+        mutatingApproved: true,
+        description:
+          'Reply to the channel message that started this turn — Telegram DM or group alike. ' +
+          'Pass ONLY your answer as `message`; Vynel already knows which channel and which ' +
+          'conversation it came from and delivers your reply exactly there (threading onto the ' +
+          "asking message in groups). This is THE way a channel gets your answer — plain chat " +
+          'text is never delivered. For proactive outreach on a channel that did NOT ask, use ' +
+          'send_to_channel instead.',
+      },
+    }),
+    validator('json', ReplyToChannelRequestSchema),
+    ...userScoped,
+    (c) => {
+      const origin = parseDelegationOriginHeader(c.req.header(DELEGATION_ORIGIN_HEADER))
+      if (origin === undefined) {
+        throw new ValidationError(
+          'This turn did not arrive via a channel — reply_to_channel only works on ' +
+            'channel-driven turns. Use send_to_channel for proactive messages.',
+        )
+      }
+      const { message } = c.req.valid('json')
+      const deliveredTo = replyToChannelOrigin(c.var.db, {
+        userId: c.var.user.id,
+        origin,
+        body: message,
+      })
+      return c.json({ status: 'sent' as const, deliveredTo })
     },
   )
   // ──────────────────────────────────────────────────────────────────

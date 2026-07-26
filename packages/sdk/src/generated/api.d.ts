@@ -2602,6 +2602,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/routing/reply-to-channel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reply to the channel conversation that drove this turn. */
+        post: operations["postRoutingReply-to-channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/routing/background-runs": {
         parameters: {
             query?: never;
@@ -12089,6 +12106,50 @@ export interface operations {
                 };
             };
             /** @description The channel is disabled or has no allowed recipient. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Channel not found or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postRoutingReply-to-channel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    message: string;
+                };
+            };
+        };
+        responses: {
+            /** @description A queued acknowledgement: { status: 'sent', deliveredTo }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "sent";
+                        deliveredTo: string;
+                    };
+                };
+            };
+            /** @description This turn did not arrive via a channel, or the channel was disabled meanwhile. */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -34,6 +34,11 @@ export function parseDelegationOriginHeader(
         channelId: parsed.channelId,
         externalSenderId: parsed.externalSenderId,
         externalChatContextId: parsed.externalChatContextId,
+        // Group threading for reply_to_channel — absent on DM stamps and on
+        // stamps from before the field existed.
+        ...(typeof parsed.externalMessageId === 'string'
+          ? { externalMessageId: parsed.externalMessageId }
+          : {}),
       }
     }
     return undefined

@@ -63,6 +63,19 @@ export { enqueueChannelReply, type EnqueueChannelReplyInput } from './delivery/e
 export { listChannelsForUser } from './queries/list-channels-for-user.js'
 export { sendToChannel, type SendToChannelInput } from './delivery/send-to-channel.js'
 
+// The channel pipeline (Chad, locked 2026-07-27): the reply_to_channel tool's
+// op — delivers to the turn's server-stamped origin (group or DM, exactly
+// where the request came from) — and the per-message marker that makes the
+// model reply through the tool.
+export {
+  replyToChannelOrigin,
+  type ReplyToChannelOriginInput,
+} from './delivery/reply-to-channel-origin.js'
+export {
+  composeChannelTurnMarker,
+  type ChannelTurnMarkerInput,
+} from './inbound/compose-channel-turn-marker.js'
+
 // User-scoped single-channel ops — the `/channels` HTTP surface (a user's
 // global + workspace channels alike). Each authorizes by (userId, channelId)
 // via `getChannelForUserOrThrow` — `userId` is the tenant boundary.

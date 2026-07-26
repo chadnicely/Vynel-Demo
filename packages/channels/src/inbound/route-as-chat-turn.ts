@@ -1,9 +1,14 @@
 // The channel turn routes to the GLOBAL ROOT (brain-tree Ch4 — the dispatcher vision). A channel
 // message no longer runs against the channel's bound workspace; instead it runs a global-root turn
 // (via the injected runner), carrying the ORIGIN channel so the root's reply — and any delegation's
-// report — come back HERE. The root either answers directly or delegates to a workspace; either
-// way its answer text is delivered as the channel reply now, and a delegation's report follows
-// later (the claim-and-run tick, Ch4 Step 3).
+// report — come back HERE.
+//
+// TOOL-ONLY REPLIES (channel pipeline, Chad locked 2026-07-27): the turn's chat
+// text is NEVER captured and shipped to the channel — the model replies by
+// CALLING reply_to_channel (the per-message marker instructs it every turn; the
+// server-stamped origin addresses it). A turn that answers nothing sends
+// nothing — deliberate, like the session-comms no-harvest rule. A delegation's
+// report still follows later (the claim-and-run tick, Ch4 Step 3).
 //
 // The api-side service has no request context, so `runRootTurn` (wrapping runGlobalRootTurn) is
 // INJECTED via `deps` — keeps apps/api + the orchestration runner out of packages/core. Session
@@ -12,12 +17,12 @@
 //
 // Spec: `.claude/ceo/agent-base/chapter4-channel-aware-io.md`.
 
-import { enqueueChannelReply } from '../delivery/enqueue-channel-reply.js'
 import { enqueueChannelStatus } from '../delivery/enqueue-channel-status.js'
 import { enqueueApprovalRequest } from '../delivery/enqueue-approval-request.js'
 import { resolveChannelAdapter } from '../adapters/channel-adapter-registry.js'
 import { extractErrorMessage } from '../adapters/extract-error-message.js'
 import { readInboundContext, describeSender } from './read-inbound-context.js'
+import { composeChannelTurnMarker } from './compose-channel-turn-marker.js'
 import type { Database } from '@vynel/db'
 import type { Channel, ChannelInboundMessage } from '../repositories/index.js'
 import type { BotCredentials, ProcessInboundDeps } from '../channels-types.js'
@@ -30,14 +35,6 @@ export async function routeAsChatTurn(
   input: { channel: Channel; message: ChannelInboundMessage },
   deps: ProcessInboundDeps,
 ): Promise<void> {
-  // The origin channel (Ch4) — threaded onto the root turn so its reply + any delegation report
-  // come back to who asked, in the conversation they asked from.
-  const origin = {
-    channelId: input.channel.id,
-    externalSenderId: input.message.externalSenderId,
-    externalChatContextId: input.message.externalChatContextId,
-  }
-
   // Group awareness (channels-groups.md): in a room, the model AND the
   // transcript must know WHO asked — the owner's brain serves the whole
   // room, so a group turn opens with a speaker line. DMs are unchanged.
@@ -48,6 +45,29 @@ export async function routeAsChatTurn(
         context.chatContextTitle !== null ? `"${context.chatContextTitle}"` : 'a group chat'
       }]\n\n`
     : ''
+
+  // The origin channel (Ch4) — threaded onto the root turn so its reply (the
+  // reply_to_channel tool) + any delegation report come back to who asked, in
+  // the conversation they asked from. Group messages carry the asking
+  // message's id so the tool reply threads onto it.
+  const origin = {
+    channelId: input.channel.id,
+    externalSenderId: input.message.externalSenderId,
+    externalChatContextId: input.message.externalChatContextId,
+    ...(isGroupOrigin ? { externalMessageId: input.message.externalMessageId } : {}),
+  }
+
+  // The per-message reply instruction (the voice-turn-marker precedent) —
+  // provider input only; the runner keeps the persisted row clean.
+  const channelReplyMarker = composeChannelTurnMarker({
+    channelKind: input.channel.channelKind,
+    group: isGroupOrigin
+      ? {
+          senderDescription: describeSender(input.message, context),
+          title: context.chatContextTitle,
+        }
+      : null,
+  })
 
   // "Bot is typing…" while the root works — best-effort, never fails the turn. Refreshed on a
   // timer because Telegram's action expires after ~5s.
@@ -68,12 +88,13 @@ export async function routeAsChatTurn(
   }
 
   try {
-    // Run the global-root turn (serialized per user by the runner's lock). The root answers
-    // directly or delegates (carrying the origin); its answer is the reply we deliver now.
+    // Run the global-root turn (serialized per user by the runner's lock). The
+    // root replies via reply_to_channel — or delegates, carrying the origin.
     const rootTurnResult = await deps.runRootTurn(db, {
       userId: input.channel.userId,
       userMessageText: speakerLine + input.message.messageBody,
       origin,
+      channelReplyMarker,
       // The persisted user row records HOW this arrived ("via Telegram").
       originChannel: input.channel.channelKind,
       // Surface-up: the brain's own carded tool (e.g. register_workspace) records its
@@ -104,19 +125,17 @@ export async function routeAsChatTurn(
         }
       },
     })
-    // Deliver the root's answer — the direct reply, or its "handed it off" ack if it delegated (the
-    // delegation's report follows later via the claim-and-run tick). Skip an empty answer.
-    // In a group the reply THREADS onto the asking message, so the answer
-    // visibly attaches to who asked.
+    // NO CAPTURE: the turn's chat text is never shipped to the channel — the
+    // model replied through reply_to_channel (or chose not to reply). The old
+    // resultText enqueue was the channel's harvest; it dressed the model's
+    // whole chat answer as the reply and sent it whether the model meant to
+    // send it or not. Logged so a "Telegram went silent" report is diagnosable
+    // without reading the transcript: text + no tool call = deliberate policy.
     if (rootTurnResult.resultText.trim() !== '') {
-      enqueueChannelReply(db, {
-        channel: input.channel,
-        message: input.message,
-        body: rootTurnResult.resultText,
-        ...(isGroupOrigin
-          ? { replyToExternalMessageId: input.message.externalMessageId }
-          : {}),
-      })
+      deps.logger?.info(
+        { channelId: input.channel.id, resultTextLength: rootTurnResult.resultText.length },
+        'channel turn completed with chat text — NOT delivered (replies travel only via reply_to_channel)',
+      )
     }
   } catch (err) {
     // The turn failed. Without a reply the sender just watches "typing…" stop and

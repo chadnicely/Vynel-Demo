@@ -1,8 +1,10 @@
 // `enqueueChannelReply` — queue a plain-text reply to a channel sender (brain-tree Ch4). The
-// outbound primitive the channel-aware loop delivers through: the global-root turn's direct
-// answer (route-as-chat-turn) and, later, a delegation's report (the claim-and-run tick) both
-// enqueue here, and the existing 2s delivery tick ships it via the adapter. The reply goes back
-// to WHO asked (`externalSenderId`) in the conversation they asked from (`externalChatContextId`).
+// outbound primitive the channel-aware loop delivers through: the reply_to_channel tool's op
+// (replyToChannelOrigin — the model's own deliberate reply, the channel pipeline locked
+// 2026-07-27), a delegation's report (the claim-and-run tick's channel block), and the proactive
+// send_to_channel all enqueue here; the existing 2s delivery tick ships it via the adapter. The
+// reply goes to the conversation that asked (`externalChatContextId` is the address; the
+// adapter sends by chat context, never by recipient id).
 //
 // `payloadKind: 'chat-stream-final'` — the kind for "the buffered assistant reply for a turn"; a
 // global-root turn IS a turn, delivered as one message at completion. Plain text (no parseMode):

@@ -23597,6 +23597,73 @@
         }
       }
     },
+    "/routing/reply-to-channel": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "A queued acknowledgement: { status: 'sent', deliveredTo }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "sent"
+                    },
+                    "deliveredTo": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "deliveredTo"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "This turn did not arrive via a channel, or the channel was disabled meanwhile."
+          },
+          "404": {
+            "description": "Channel not found or not owned."
+          }
+        },
+        "operationId": "postRoutingReply-to-channel",
+        "tags": [
+          "routing"
+        ],
+        "parameters": [],
+        "summary": "Reply to the channel conversation that drove this turn.",
+        "x-sdk-name": "routing.replyToChannel",
+        "x-mcp": {
+          "exposed": true,
+          "name": "reply_to_channel",
+          "mutatingApproved": true,
+          "description": "Reply to the channel message that started this turn — Telegram DM or group alike. Pass ONLY your answer as `message`; Vynel already knows which channel and which conversation it came from and delivers your reply exactly there (threading onto the asking message in groups). This is THE way a channel gets your answer — plain chat text is never delivered. For proactive outreach on a channel that did NOT ask, use send_to_channel instead."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  }
+                },
+                "required": [
+                  "message"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/routing/background-runs": {
       "get": {
         "responses": {
