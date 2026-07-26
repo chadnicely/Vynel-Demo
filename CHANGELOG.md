@@ -9,6 +9,29 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Reports now arrive as real messages from whoever did the work.** When a workspace or
+  session finishes something you delegated, its report lands in the parent chat as a compact
+  incoming note — the sender's name, a "Report" tag, its workspace color, and a one-line
+  summary — with a **View report** button that opens the full, formatted result in a dialog
+  (the same way plans open). No more walls of text in the thread, and no more reports dressed
+  up as if *you* had typed them.
+
+- **Watching delegated work now follows the chain, level by level.** The message that sent a
+  task carries a live status chip — "letterman — working…", then "done · report delivered" —
+  that stays after the work finishes and opens the live view of that workspace. If the
+  workspace handed part of the job to a session, that session's own watch chip is right there
+  inside the opened view, one click deeper; Back walks you up. Each room only ever shows its
+  own direct children — the way the pipeline actually flows.
+
+### Changed
+
+- **Only real reports travel.** A workspace or session reports back by *deciding* to send its
+  result — Vynel no longer copies a finished task's last chat message upward as if it were a
+  report. That's the end of premature "done!" notes arriving while the real work was still
+  running. Reports also carry a delivery note under the hood so the receiving assistant always
+  knows a result arrived from delegated work — not from you — and relays it up the chain
+  instead of stopping halfway.
+
 - **Claude can now manage your agents and the marketplace from chat.** Ask for a specialist
   helper and Claude can browse the curated catalog, install it, build a custom agent from
   scratch, tune its prompt and tools, switch it on or off, or remove it — all through

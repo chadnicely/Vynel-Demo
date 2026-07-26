@@ -1,7 +1,111 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-26 (second session).** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-27.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ⏭ NEXT ACTION (2026-07-27, round 3): THE PIPELINE MODEL LOCKED + BUILT (uncommitted, one tree, rounds 1-3) — **NEXT: increment-5 review fold → commit → Chad smokes the corrected pipeline.**
+
+**Chad REJECTED round 2's chain-hops-in-Global (it violated his own 2026-07-21 scoping rule,
+which he has now re-explained "many times") and LOCKED the model (memory:
+session-comms-pipeline-model; he confirmed my restatement + added the report-box design):**
+- **Chips go ONE level down per surface.** Global thread → workspace chip only; the session's
+  chip lives INSIDE the opened workspace watch (the trace entries' own dispatch cards, now
+  enriched + drillable — ActivityMonitorPanel pushes a nested trace node, Back pops); session
+  view = leaf, no chips.
+- **NO HARVEST.** Reports travel ONLY via send_message. The tick's completion co-commit is now
+  complete + surface ALWAYS (completed rows MUST be surfaced or the root catch-up re-injects
+  resultText — the capture leaking back through the other door); FAILED rows stay unsurfaced
+  (failure note = status, not capture). Distill now runs ONLY for channel-driven jobs (it
+  serves the channel delivery alone, which is unchanged). Silence delivers nothing; chips +
+  get_background_run carry status.
+- **Reports render as a COMPACT incoming box:** identity + Report pill + one-line teaser +
+  "View report" chip → the shared ReportViewDialog (PlanViewDialog pattern: ui.viewingReport,
+  AppShell-mounted) shows the full markdown. Never the full body inline.
+
+chainHops fully reverted (contract/zod/enrichment/UI/barrel/tests/SDK). Heavy test surgery:
+delivery-cocommit recast to a throwing surfaced-mark; 7 tick tests recast (channel-driven
+fail-open + short-skip; session/workspace/no-runner tests direct-enqueue the delivery so the
+notify machinery stays covered). Gate GREEN 584f/3248t.
+
+**Increment-5 review CLEAN; both should-fixes FOLDED:** (1) the co-commit fallback retried the
+surfaced mark standalone (a transaction hiccup could otherwise resurrect the capture via the
+catch-up; the always-throwing-mark window is the one ACCEPTED echo, documented in code + test);
+(2) the stale exactly-once comment beside the catch-up net's query updated to the no-harvest
+semantics. Reviewer verified: only collectDelegationReportsForRoot reads surfacedToRootAt; the
+notify machinery stays live via dispatch-message + run-monitor-tick; the distill/channel gates
+share ONE reportOrigin resolution; chainHops residue = zero. Deferred notes: teaser leaves
+link-markdown raw; panel's nested-push wiring untested (same as the session drill);
+SessionThreadView owes an @open-report listener only if requester kinds ever grow
+'spawned-session'. **The `.gitignore` + `docs/how/` ride-alongs remain uncommitted (5th
+review mention) — settle at commit time.**
+
+**Chad's re-smoke proved round 1's rendering (the "SARAH · LETTERMAN — REPORT" card shows) and
+exposed the DEEP bug: the workspace's notify turn REASONED "the user is reporting back the
+result…" about the session's report — it believed the USER delivered it, so it summarized for
+the user instead of relaying the real result up to Global. Global only ever saw the premature
+"done — session spawned" partial. The voice instruction-decay class: a system steer alone does
+not hold attribution.**
+
+1. **Per-message attribution marker** (`@vynel/contracts/chat/report-message-marker`): the
+   delivery tick prepends `[Report from <label> — …relayed automatically by Vynel. This is NOT
+   a message the user typed.]` to every notify-turn inbound (ONE home, both requester
+   branches); MessageRow strips it for display (the card's author line already carries
+   identity). Channel deliveries stay unmarked; distill runs before enqueue so the marker is
+   never distilled.
+2. **Steers**: REPORT_DELIVERY_INSTRUCTIONS now states the system relayed it + names
+   `send_message` to "requester" (report_to_requester = older alias); ROUTED_TASK_INSTRUCTIONS
+   forbids calling the WHOLE task done when work was handed onward.
+3. **Chain-hop watch chips** (Chad's ask: watch the spawned session FROM Global): the
+   delegation enrichment resolves the job's threadId chain (`listDelegationJobsByThread`, newly
+   exported) → TASK hops with per-hop trace keys + session display names; `chainHops` on the
+   contract; ToolCallList renders one chip per hop (also fixed the 4×-invocation note) — so the
+   send card in Global shows "letterman — done · report delivered" AND "Letterman –
+   Architecture — working…", each opening its own realtime trace.
+4. 7 assertion recasts in run-delegation-claim-and-run-tick.test.ts (delivered body now rides
+   the marker — each cites the spec change); marker round-trip + strip + chain tests.
+
+Gate GREEN 584f/3249t. Increment-4 review CLEAN; both should-fixes FOLDED: (1) the marker
+strip is first-line-anchored (a user-chosen workspace name containing `]` — "Q3 [phase 2]" —
+defeated the old indexOf-`]` hunt; bracket-label test added); (2) the trace drill
+(ActivityEntriesList) both leaked the model-only marker AND had the same user-role "You"
+mislabel MessageRow had — it now mirrors MessageRow's isInboundReport predicate for author +
+strip. Reviewer verified: no job row stores marked text (composed in-memory at claim), distill
+can never see it (runs before enqueue), channel deliveries unmarked, chain ordering/scoping/
+legacy-null-threadId edges all correct. Design note for the next smoke: a mid-chain dispatch
+card shows the WHOLE chain including its own hop — filter to at-or-after-base if it reads oddly.
+
+**Chad's live smoke of session-comms (the loop WORKS: Global → send_message → workspace →
+complete → report back) surfaced two UX bugs, both root-caused and fixed:**
+
+1. **The report rendered as "You".** The row was persisted CORRECTLY (`role:'user'` +
+   `sourceKind:'workspace-manager'` + `sourceLabel:"<manager> · <workspace>"` — the whole
+   attribution chain held); `MessageRow.vue`'s user branch just only special-cased
+   `'global-root'`. Fix: `isInboundReport` → author line = sourceLabel, a "Report" pill,
+   the workspace accent, MARKDOWN body rendering (reports are model prose), and no "your
+   message" bubble (`.is-report`). Rendering-only; no schema/backend change.
+2. **No watch/details after completion.** The processing banner lists `pending|claimed` only,
+   the send tool cards were inert generic JSON, and the sending message carries no trace key —
+   so a settled delegation had NO surviving door to its trace. Fix: serve-time enrichment
+   `attachDelegationToolOutcomes` (`packages/session/src/delegation/`, sibling of
+   `attachDelegationTaskLabels`) — parses the dispatch call's persisted output for the route's
+   `{jobId, deliveredTo}`, joins the job row, attaches
+   `delegation: {jobId, partialSessionId, status, deliveredTo, taskLabel, reportedAt,
+   completedAt}` onto `ChatToolCallResponse` (contract + zod + SDK regenerated); both detail
+   routes wrap `toolCallsByMessageId`. UI: a PERSISTENT `.delegation-chip` under the dispatch
+   card in `ToolCallList` ("Acme · Summarize the docs — done · report delivered"), live dot
+   while in flight, emits `openDelegation` → ThreadStream forwards into its existing
+   `openSession` emit → every view already wires that to `activityMonitor.openTrace`. Zero
+   view changes. Live-streamed rows carry no enrichment (the banner covers the live window);
+   the chip appears from the settle refetch on.
+
+Gate GREEN 583f/3241t. Review: ONE must-fix, FOLDED — the three dispatch routes name the
+destination DIFFERENTLY (`send_message`→deliveredTo, `send_task_to_workspace`→workspaceName,
+`send_task_to_session`→sessionName); the parser read only deliveredTo, so every send_task chip
+would have said "session". The fabricated test fixture DEFENDED the wrong shape (the
+[[source-label-is-persona-first]] lesson repeating) — tests now feed each tool its verbatim
+route response. Reviewer's residuals: the LIVE-window user row may render as "You" until the
+settle refetch (self-heals; smoke to confirm); `delegationChipFor` called 4× per chip
+(cosmetic); the `.gitignore` + `docs/how/` ride-alongs STILL uncommitted from before.
 
 ## ⏭ NEXT ACTION (2026-07-26, session 2): TASK 4 COMPLETE — (a) the ask-mode gate + (b) per-package exposure BOTH SHIPPED (uncommitted, gate GREEN 581f/3232t) — **NEXT: Chad commits, then smokes the ask-mode card live (an ask-mode `remove_knowledge_source` or `delete_agent` must card).**
 
