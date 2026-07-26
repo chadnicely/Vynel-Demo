@@ -90,6 +90,12 @@ describe('the shipped shelf', () => {
     expect(ids).toContain('web-app-scaffold')
     expect(ids).toContain('communicating-with-users')
     expect(ids).toContain('working-with-servers')
+    expect(ids).toContain('starting-a-project-from-scratch')
+    expect(ids).toContain('node-app-scaffold')
+    expect(ids).toContain('node-sdk-from-api')
+    expect(ids).toContain('vue-nuxt-app-scaffold')
+    expect(ids).toContain('node-mcp-server')
+    expect(ids).toContain('task-planner')
   })
 
   it('findVerifiedNotebookById returns the book or null', () => {

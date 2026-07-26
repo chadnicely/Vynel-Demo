@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude's playbook shelf grew from three books to nine.** Six new built-in playbooks guide
+  how Claude builds software for you: turning a first idea into a researched plan and phased
+  roadmap (`starting-a-project-from-scratch`), the backend application architecture
+  (`node-app-scaffold`), a typed SDK generated from the API and wired into every app
+  (`node-sdk-from-api`), the Vue/Nuxt frontend with shared UI and server-state rules
+  (`vue-nuxt-app-scaffold`), exposing an app's capabilities to AI assistants
+  (`node-mcp-server`), and when work earns a plan with tasks versus a single task
+  (`task-planner`).
+
 - **Reports now arrive as real messages from whoever did the work.** When a workspace or
   session finishes something you delegated, its report lands in the parent chat as a compact
   incoming note — the sender's name, a "Report" tag, its workspace color, and a one-line

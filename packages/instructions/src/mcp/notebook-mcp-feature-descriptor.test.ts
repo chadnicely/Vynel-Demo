@@ -72,10 +72,11 @@ describe('the tool responses', () => {
         count: number
         playbooks: Array<{ id: string; verified: boolean }>
       }
-      // test: correct expectation — was 2 verified books, now 3: the
-      // server-work playbook joined the shipped shelf (ssh module, 2026-07-17).
-      expect(parsed.count).toBe(4)
-      expect(parsed.playbooks.filter((p) => p.verified)).toHaveLength(3)
+      // test: correct expectation — was 3 verified books, now 9: the
+      // notebook arc (2026-07-27) added project-kickoff, node-app-scaffold,
+      // node-mcp-server, node-sdk, vue/nuxt-frontend, and task-planner.
+      expect(parsed.count).toBe(10)
+      expect(parsed.playbooks.filter((p) => p.verified)).toHaveLength(9)
       expect(parsed.playbooks.filter((p) => !p.verified)).toHaveLength(1)
     })
   })

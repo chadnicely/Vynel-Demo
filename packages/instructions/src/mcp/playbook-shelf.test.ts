@@ -60,6 +60,19 @@ describe('listPlaybooks', () => {
       const globalShelf = listPlaybooks(db, { userId: user.id })
       expect(globalShelf.filter((p) => p.verified).map((p) => p.id)).toEqual([
         'communicating-with-users',
+        // test: correct expectation — the node-app-scaffold, node-sdk, and
+        // project-kickoff playbooks joined the shipped shelf (notebook arc,
+        // 2026-07-27).
+        'node-app-scaffold',
+        // test: correct expectation — the mcp-server playbook joined the
+        // shipped shelf (notebook arc, 2026-07-27).
+        'node-mcp-server',
+        'node-sdk-from-api',
+        'starting-a-project-from-scratch',
+        // test: correct expectation — the task-planner and vue/nuxt frontend
+        // playbooks joined the shipped shelf (notebook arc, 2026-07-27).
+        'task-planner',
+        'vue-nuxt-app-scaffold',
         'web-app-scaffold',
         // test: correct expectation — the server-work playbook joined the
         // shipped shelf (ssh module, 2026-07-17).
