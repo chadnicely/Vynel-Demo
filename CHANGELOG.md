@@ -9,6 +9,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Installing Vynel is now six times faster.** The installer sheds everything the app can
+  never run — binaries for five other platforms, browser-only bundles, a test corpus, type
+  files — cutting the download from 170 MB to 123 MB and a clean install from eleven minutes
+  to well under two. Semantic search (the embedding engine) was proven working end-to-end on
+  the slimmed build.
+
 - **Vynel installs like a real Windows app — the first installable version.** `pnpm
   release:desktop` produces `Vynel_0.1.0_x64-setup.exe` (~170 MB): double-click, install, done —
   no Node, no repo, no prerequisites. The installed app carries its own pinned runtime and the

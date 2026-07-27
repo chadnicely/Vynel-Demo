@@ -19,9 +19,16 @@ leaves zero processes (graceful path works even before the B2 job object).**
   `tauri build --config` by build-desktop.ts — tauri's build.rs validates bundle
   resources/externalBin on EVERY cargo build, so an active bundle in the base config would
   force dev builds to stage a payload. Base stays bundle-inactive; dev untouched.
-- **Install extraction = 663s** (50k hoisted node_modules files × Defender) — the interactive
-  wizard would sit ~11min on its progress bar. NEXT SLICE: payload prune (onnx non-target
-  binaries, transformers tree; consider deferring embeddings stack to first-use download).
+- **PRUNE SLICE DONE (round 3, uncommitted):** `prune-payload.ts` — payload 861→511MB /
+  16.4k→10.2k files; installer 170→123MB; clean install 663s→102s. Kept = exactly what Node's
+  export conditions resolve (ort.node.*, transformers.node.*, one onnx platform dir); verify
+  asserts the keeps; embedding download+inference proven green on the pruned staged runtime.
+  Agent-SDK tree untouched (excluded from all pruning). Remaining bulk: 254MB SDK native
+  claude binary (irreducible), 34MB onnx win-x64, 19MB sharp.
+  ⚠ Two container-context observations (my shell = Claude MSIX container; NOT product bugs;
+  Chad's real launches fine): NSIS writes virtualize into LocalCache; one in-container boot
+  hit "Unable to get model file path or buffer" → revealed the embeddings self-heal matches
+  ONLY protobuf errors — spawned task chip `task_dc806d8b` to widen signatures.
 - release.env baking: build-desktop writes hub URL + PUBLIC key from the build env when set
   (public values only); hub-less build otherwise.
 

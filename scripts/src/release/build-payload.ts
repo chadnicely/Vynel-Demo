@@ -21,6 +21,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { collectBackendThirdPartyDependencies } from './collect-backend-dependencies.js'
 import { resolvePayloadTarget, type PayloadTarget } from './payload-targets.js'
+import { formatPruneReport, prunePayloadNodeModules } from './prune-payload.js'
 import { stageNodeRuntime } from './stage-node-runtime.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -145,6 +146,8 @@ async function main(): Promise<void> {
 
   await bundleBackend(backendDir)
   installThirdPartyDependencies(backendDir, target)
+  const pruneReport = prunePayloadNodeModules(backendDir, target)
+  console.log(`build-payload: pruned dead weight — ${formatPruneReport(pruneReport)}`)
   copyAssets(backendDir)
   copyWebUi(skipWebBuild)
   const stagedNode = await stageNodeRuntime({ target, cacheDir: nodeCacheDir, payloadDir })

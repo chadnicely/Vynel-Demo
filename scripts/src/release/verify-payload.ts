@@ -100,7 +100,21 @@ function runStaticAsserts(target: PayloadTarget): void {
     'better-sqlite3 native binary missing',
   )
   assertThat(existsSync(join(nodeModulesDir, 'sqlite-vec')), 'sqlite-vec missing')
-  assertThat(existsSync(join(nodeModulesDir, 'onnxruntime-node')), 'onnxruntime-node missing')
+  // The prune step must keep exactly what the Node runtime resolves — this
+  // target's onnx binary and the node-condition entries of the web/transformers
+  // packages (their browser bundles are deliberately gone).
+  assertThat(
+    existsSync(join(nodeModulesDir, 'onnxruntime-node', 'bin', 'napi-v3', target.os, target.cpu)),
+    `onnxruntime-node binary for ${target.os}/${target.cpu} missing (over-pruned?)`,
+  )
+  assertThat(
+    existsSync(join(nodeModulesDir, 'onnxruntime-web', 'dist', 'ort.node.min.mjs')),
+    'onnxruntime-web ort.node.min.mjs missing (over-pruned?)',
+  )
+  assertThat(
+    existsSync(join(nodeModulesDir, '@huggingface', 'transformers', 'dist', 'transformers.node.mjs')),
+    'transformers.node.mjs missing (over-pruned?)',
+  )
   // The SDK spawns its native per-platform claude binary from the optional
   // dep pnpm's supportedArchitectures selected for the target.
   const sdkPlatformPackage = `claude-agent-sdk-${target.os}-${target.cpu}`

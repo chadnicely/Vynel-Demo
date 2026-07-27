@@ -68,6 +68,12 @@ New `scripts/src/release/`:
 **Green =** verify-payload passes on win-x64 with the repo renamed away; linux payload built (smoke
 in Phase D).
 
+**PRUNE SLICE (2026-07-28): payload 861→511 MB, 16.4k→10.2k files** (`prune-payload.ts`: one onnx
+platform binary instead of six, onnx-web/transformers reduced to their Node-condition entries,
+pdf-parse test corpus, @types/zod-src, all .d.ts/.map). Installer 170→123 MB; clean install
+663s→**102s**. Post-prune proof: verify asserts the kept entries; full embedding
+download+inference run green on the staged runtime against the pruned tree.
+
 **STATUS: BUILT + GREEN (2026-07-28).** Measured on win-x64: payload 861 MB installed (≈254 MB is
 the agent SDK's native claude binary — the SDK ships per-platform Bun executables as optional deps
 now, no cli.js; supportedArchitectures selects the right one per target), cold start **1.3s**
