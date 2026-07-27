@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel can now be built as a real, publishable product.** One command compiles the entire
+  backend — every Vynel package — into a single minified bundle (no readable source ships to
+  users, the same protection model VS Code, Slack, and Claude Code itself use), assembles it
+  with its runtime pieces (a pinned Node, the native modules, the database migrations, the
+  instruction content, the built desktop UI) into a self-contained payload, and a second
+  command proves that payload boots and serves on a machine that has never seen the repo.
+  Measured: 1.3-second cold start. This is Phase A of the release plan (`docs/release-plan.md`)
+  — the foundation the Windows installer, the `@vynel/cli` npm package, and the
+  install-on-your-server mode all build on.
+
 - **Claude now replies to Telegram the way it speaks on voice — deliberately.** When a message
   arrives from Telegram, Claude is told exactly where it came from — a direct chat, or a group
   and who in it asked — and answers by *sending* a reply there, the same way a voice question

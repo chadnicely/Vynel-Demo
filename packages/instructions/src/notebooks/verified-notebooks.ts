@@ -12,8 +12,8 @@
 // book.
 
 import { readdirSync, readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
+import { resolveInstructionsContentDirectory } from '../content-root.js'
 
 export type VerifiedNotebook = {
   /** Kebab-case, unique across the shelf — the `read_playbook` handle. */
@@ -24,10 +24,6 @@ export type VerifiedNotebook = {
   /** The book's markdown body (frontmatter stripped). */
   body: string
 }
-
-const here = dirname(fileURLToPath(import.meta.url))
-// src/notebooks/ (or dist/notebooks/ when compiled) → packages/instructions/notebooks/
-const DEFAULT_NOTEBOOKS_DIR = resolve(here, '../../notebooks')
 
 const KEBAB_CASE_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
@@ -92,7 +88,7 @@ export function loadVerifiedNotebooksFromDirectory(directory: string): VerifiedN
 let cachedShelf: VerifiedNotebook[] | null = null
 
 export function listVerifiedNotebooks(): VerifiedNotebook[] {
-  cachedShelf ??= loadVerifiedNotebooksFromDirectory(DEFAULT_NOTEBOOKS_DIR)
+  cachedShelf ??= loadVerifiedNotebooksFromDirectory(resolveInstructionsContentDirectory('notebooks'))
   return cachedShelf
 }
 

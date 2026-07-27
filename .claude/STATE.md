@@ -3,6 +3,35 @@
 **Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## ⏭ NEXT ACTION (2026-07-28): PRODUCTION BUILD ARC — plan LOCKED (`docs/release-plan.md`), Phase A (compiled payload) BUILT + GREEN (uncommitted). **NEXT: review fold → commit Phase A → Phase B (NSIS installer + daemon bundled mode).**
+
+**Chad rejected the 2026-07-27 D2 plan (shipped readable TS via tsx — plan file deleted) and
+locked the professional shape: ONE esbuild-bundled minified payload (all @vynel code compiled
+into `server.mjs`, third-party node_modules external — the VS Code/Slack/claude.exe protection
+level; real enforcement stays hub-side), feeding THREE modes: desktop installer (B), `@vynel/cli`
+npm + MCP stdio for Claude Code (C), SSH server install over plain-HTTP-through-SSH-tunnel (D —
+raw public HTTP ruled out, localhost-bind + port-forward + bearer token). Decisions in the plan
+doc: bundle-only protection (no bytenode/obfuscator), `@vynel/cli` scoped npm name, order A→B→C→D.**
+
+- **Phase A LANDED (this tree):** `scripts/src/release/` (build-payload / verify-payload /
+  payload-targets / collect-backend-dependencies / stage-node-runtime), `pnpm release:payload` +
+  `release:verify`. Payload = bundled server.mjs + hoisted third-party node_modules (own
+  pnpm-workspace.yaml: nodeLinker hoisted, per-target supportedArchitectures, allowBuilds) +
+  assets (migrations-sqlite + instructions content) + web dist + SHA-pinned node 22.18.0.
+- **The seam:** `@vynel/instructions/content-root` setter; `apps/local-api/src/server.ts` is now
+  an IMPORT-LIGHT entry (env + seam → dynamic-import `boot.ts` [renamed from server.ts]) because
+  the speak route loads its .md description at import time. `VYNEL_ASSETS_DIR` (env.ts) drives
+  migrations + instructions in bundled mode; unset = dev unchanged. `@vynel/embeddings`
+  devDep→dep (real runtime dep).
+- **Agent SDK 0.3.220 ships NATIVE per-platform claude binaries** as optional deps (~254MB,
+  manifest.json, no cli.js) — payload self-contained; user's wizard-installed Claude Code is for
+  AUTH (~/.claude), the SDK runs its own pinned binary (faithful to dev behavior).
+- **Measured:** 861 MB installed; cold start 1.3s (first-boot-at-new-location 28.9s = Defender
+  scan, one-time). Verified in-repo AND relocated outside the repo. Gate GREEN 587f/3259t.
+- **The channel-reply increment is COMMITTED** (`9cf75b9` + `e6c1171` — the 07-27 section below
+  predates that); Chad's Telegram DM + group + voice smoke is still owed. The tree holds ONLY
+  Phase A + the long-riding `.gitignore` + `docs/how/` ride-alongs (settle in the Phase-A commit).
+
 ## ⏭ NEXT ACTION (2026-07-27 evening): THE CHANNEL PIPELINE — Telegram reply-via-tool BUILT (uncommitted); voice VERIFIED already tool-first. **NEXT: increment-6 review fold → commit → Chad smokes Telegram DM + group + voice.**
 
 **Chad extended the locked pipeline model to channels: "it will know from which channel the

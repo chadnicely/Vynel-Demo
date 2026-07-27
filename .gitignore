@@ -35,9 +35,15 @@ coverage/
 # rust (apps/desktop/src-tauri)
 target/
 
+# release payload assembly (scripts/src/release — rebuilt from source, never committed)
+apps/desktop/src-tauri/payload/
+apps/desktop/src-tauri/payload-sourcemaps/
+.cache/
+
 # parallel-pull agent worktrees (fan-out scratch; branches merge back, trees don't)
 .claude/worktree/
 .claude/worktrees/
 
 # playwright-cli browser-smoke artifacts (screenshots/snapshots)
 .playwright-cli/
+.notes/

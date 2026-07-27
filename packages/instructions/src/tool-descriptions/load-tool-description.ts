@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
+import { resolveInstructionsContentDirectory } from '../content-root.js'
 
 // Model-facing TOOL DESCRIPTIONS as editable markdown — the session-instructions
 // pattern applied to the prose a tool teaches the model with. Each id maps to
@@ -11,17 +11,13 @@ import { fileURLToPath } from 'node:url'
 
 export type ToolDescriptionId = 'speak'
 
-const here = dirname(fileURLToPath(import.meta.url))
-// src/tool-descriptions/ (or dist/… once compiled) → packages/instructions/tool-descriptions/
-const CONTENT_DIRECTORY = resolve(here, '../../tool-descriptions')
-
 const cache = new Map<ToolDescriptionId, string>()
 
 export function loadToolDescription(id: ToolDescriptionId): string {
   const cached = cache.get(id)
   if (cached !== undefined) return cached
 
-  const filePath = join(CONTENT_DIRECTORY, `${id}.md`)
+  const filePath = join(resolveInstructionsContentDirectory('tool-descriptions'), `${id}.md`)
   let body: string
   try {
     body = readFileSync(filePath, 'utf8').trim()

@@ -17,8 +17,8 @@
 // those names; do not weaken it.
 
 import { readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
+import { resolveInstructionsContentDirectory } from '../content-root.js'
 
 // Each id maps to `<id>.md` in the content directory — the filename IS the
 // specification of which session the instruction governs. `voice-turn-marker`
@@ -31,17 +31,13 @@ export type SessionInstructionId =
   | 'voice-turn'
   | 'voice-turn-marker'
 
-const here = dirname(fileURLToPath(import.meta.url))
-// src/session-instructions/ (or dist/… once compiled) → packages/instructions/session-instructions/
-const CONTENT_DIRECTORY = resolve(here, '../../session-instructions')
-
 const cache = new Map<SessionInstructionId, string>()
 
 export function loadSessionInstruction(id: SessionInstructionId): string {
   const cached = cache.get(id)
   if (cached !== undefined) return cached
 
-  const filePath = join(CONTENT_DIRECTORY, `${id}.md`)
+  const filePath = join(resolveInstructionsContentDirectory('session-instructions'), `${id}.md`)
   let body: string
   try {
     body = readFileSync(filePath, 'utf8').trim()

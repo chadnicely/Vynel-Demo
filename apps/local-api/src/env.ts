@@ -81,6 +81,12 @@ export const EnvSchema = z.object({
     .string()
     .default('.models/embeddings')
     .transform(resolveAgainstRepoRoot),
+  // Where the packaged build's shipped content lives (migrations-sqlite/,
+  // instructions/) — set by the desktop shell (and the release smoke) in
+  // bundled mode, where package-relative resolution can't work because all
+  // @vynel code is compiled into one bundle. Unset in dev: every asset
+  // resolves package-relative as before. Repo-root-resolved like DB_PATH.
+  VYNEL_ASSETS_DIR: z.string().optional().transform(resolveAgainstRepoRoot),
   // The Vynel HUB (apps/cloud-api, hosted) — accounts + tiers + marketplace.
   // OPTIONAL: unset = hub features off (the /hub routes answer
   // `not-configured`), so dev without a hub keeps working.
