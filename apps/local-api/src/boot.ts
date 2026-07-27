@@ -149,9 +149,13 @@ export async function boot(): Promise<void> {
       entitlements: await createEntitlementVerifier({
         publicKeyPem: env.VYNEL_HUB_PUBLIC_KEY,
       }),
-      // appVersion is a dev placeholder until the D2 installer stamps real
-      // release versions.
-      device: { deviceName: hostname(), devicePlatform: process.platform, appVersion: '0.0.0' },
+      // The shell stamps VYNEL_APP_VERSION when it spawns the bundled daemon;
+      // dev runs stay on the 0.0.0 placeholder.
+      device: {
+        deviceName: hostname(),
+        devicePlatform: process.platform,
+        appVersion: env.VYNEL_APP_VERSION ?? '0.0.0',
+      },
       logger,
     })
     hubSessionService = startHubSessionService({ hubSession, logger })

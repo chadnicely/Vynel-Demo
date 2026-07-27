@@ -87,6 +87,10 @@ export const EnvSchema = z.object({
   // @vynel code is compiled into one bundle. Unset in dev: every asset
   // resolves package-relative as before. Repo-root-resolved like DB_PATH.
   VYNEL_ASSETS_DIR: z.string().optional().transform(resolveAgainstRepoRoot),
+  // The installed app's version, stamped by the desktop shell when it spawns
+  // the bundled daemon (tauri.conf.json is the source of truth). Unset in dev
+  // — consumers fall back to the 0.0.0 placeholder.
+  VYNEL_APP_VERSION: z.string().optional(),
   // The Vynel HUB (apps/cloud-api, hosted) — accounts + tiers + marketplace.
   // OPTIONAL: unset = hub features off (the /hub routes answer
   // `not-configured`), so dev without a hub keeps working.

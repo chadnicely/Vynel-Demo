@@ -3,7 +3,29 @@
 **Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-28): PRODUCTION BUILD ARC — plan LOCKED (`docs/release-plan.md`), Phase A (compiled payload) BUILT + GREEN (uncommitted). **NEXT: review fold → commit Phase A → Phase B (NSIS installer + daemon bundled mode).**
+## ⏭ NEXT ACTION (2026-07-28, round 2): B1 SHIPPED — THE FIRST INSTALLED VYNEL RUNS. Chad opened the installed app and confirmed it. **NEXT: commit B1 → payload-prune slice (11-min install is the pain) → B2 (job object/single-instance/logging) → B3 (updater).**
+
+**B1 (uncommitted): `pnpm release:desktop` → `Vynel_0.1.0_x64-setup.exe` (170MB NSIS,
+currentUser). Verified end-to-end on this machine: silent install → `%LOCALAPPDATA%\Vynel`
+(node.exe + resources\backend|web via externalBin+resources), app boots ~instant, UI served
+on 8998 by the INSTALLED node.exe, DB in `%APPDATA%\app.vynel.desktop\data`, window-close
+leaves zero processes (graceful path works even before the B2 job object).**
+
+- **`launch_plan.rs` (new):** LaunchPlan Bundled|Repo resolved ONCE on the setup thread (needs
+  AppHandle for app_data_dir + version); daemon.rs spawns per-plan — bundled = pinned node.exe
+  on dist/server.mjs, env-files `config\release.env` + `<app_data>\config.env`, absolute
+  DB/assets/web/models paths + VYNEL_APP_VERSION (env.ts→boot.ts hub device stamp).
+- **KEY TAURI LEARNING: bundle config lives in `tauri.release.conf.json`**, merged via
+  `tauri build --config` by build-desktop.ts — tauri's build.rs validates bundle
+  resources/externalBin on EVERY cargo build, so an active bundle in the base config would
+  force dev builds to stage a payload. Base stays bundle-inactive; dev untouched.
+- **Install extraction = 663s** (50k hoisted node_modules files × Defender) — the interactive
+  wizard would sit ~11min on its progress bar. NEXT SLICE: payload prune (onnx non-target
+  binaries, transformers tree; consider deferring embeddings stack to first-use download).
+- release.env baking: build-desktop writes hub URL + PUBLIC key from the build env when set
+  (public values only); hub-less build otherwise.
+
+## ⏭ NEXT ACTION (2026-07-28): PRODUCTION BUILD ARC — plan LOCKED (`docs/release-plan.md`), Phase A (compiled payload) BUILT + GREEN (committed `b221ddf`). **(superseded by round 2 above)**
 
 **Chad rejected the 2026-07-27 D2 plan (shipped readable TS via tsx — plan file deleted) and
 locked the professional shape: ONE esbuild-bundled minified payload (all @vynel code compiled

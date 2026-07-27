@@ -26,6 +26,7 @@
     "api:generate": "tsx scripts/src/generators/generate-sdk.ts && tsx scripts/src/generators/generate-namespaced-sdk.ts && tsx scripts/src/generators/generate-mcp-tools.ts",
     "release:payload": "tsx scripts/src/release/build-payload.ts",
     "release:verify": "tsx scripts/src/release/verify-payload.ts",
+    "release:desktop": "tsx scripts/src/release/build-desktop.ts",
     "cloud:generate-keys": "tsx scripts/src/cloud/generate-cloud-keys.ts",
     "cloud:publish": "tsx --env-file-if-exists=.env scripts/src/cloud/publish-catalog-item.ts",
     "voice:fetch-models": "tsx scripts/src/voice/fetch-voice-models.ts",

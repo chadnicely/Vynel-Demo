@@ -38,6 +38,7 @@ target/
 # release payload assembly (scripts/src/release — rebuilt from source, never committed)
 apps/desktop/src-tauri/payload/
 apps/desktop/src-tauri/payload-sourcemaps/
+apps/desktop/src-tauri/binaries/
 .cache/
 
 # parallel-pull agent worktrees (fan-out scratch; branches merge back, trees don't)

@@ -1,19 +1,20 @@
-// The local-api daemon sidecar (release builds only). D1 runs from a repo
-// checkout: the daemon is `node --import tsx` inside apps/local-api, found by
-// walking up from the exe (or VYNEL_DESKTOP_REPO_ROOT); D2's installer swaps
-// this for the bundled runtime + built entry. The port probe doubles as the
-// health check — the daemon binds 127.0.0.1:8998 as the LAST step of a
-// successful boot (migrations + services first, see local-api server.ts).
+// The local-api daemon sidecar (release builds only). Two launch modes,
+// resolved once by launch_plan.rs: BUNDLED (installed app — the pinned
+// node.exe runs the compiled dist/server.mjs beside the exe, state in
+// app_data) and REPO (dev checkout — `node --import tsx`, unchanged D1 flow).
+// The port probe doubles as the health check — the daemon binds
+// 127.0.0.1:8998 as the LAST step of a successful boot (migrations + services
+// first, see local-api boot.ts).
 //
 // Shutdown is a hard kill (TerminateProcess): SQLite in WAL mode survives it;
-// a graceful signal handshake is a D2 refinement. If another process already
-// serves the port (e.g. `pnpm dev`), we attach to it instead of spawning.
-// The eprintln! diagnostics here are only visible when launched from a
-// terminal — a windowed release build swallows them (D2: the tauri log
-// plugin, alongside the installer work).
+// a graceful signal handshake is a B2 refinement (with the Job Object). If
+// another process already serves the port (e.g. `pnpm dev`), we attach to it
+// instead of spawning. The eprintln! diagnostics here are only visible when
+// launched from a terminal — a windowed release build swallows them (B2: the
+// tauri log plugin).
 
+use crate::launch_plan::{resolve_launch_plan, BundledLaunch, LaunchPlan};
 use std::net::TcpStream;
-use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -44,9 +45,12 @@ static DAEMON: Mutex<DaemonState> = Mutex::new(DaemonState {
 /// windows on the main thread. Runs off-thread so setup() returns immediately
 /// (a frozen event loop would never paint the windows).
 pub fn ensure_daemon_then_open_windows(handle: tauri::AppHandle, jarvis_only: bool) {
+    // Resolved here (not in the supervisor thread) — the plan needs the
+    // AppHandle for app_data_dir + the packaged version.
+    let plan = resolve_launch_plan(&handle);
     std::thread::spawn(move || {
         if !port_is_listening() {
-            supervise_daemon();
+            supervise_daemon(plan);
         }
         if !wait_for_port(STARTUP_TIMEOUT) {
             eprintln!(
@@ -83,11 +87,11 @@ fn lock_daemon() -> std::sync::MutexGuard<'static, DaemonState> {
 /// backoff, capped at SPAWN_ATTEMPTS total spawns (a daemon that can't hold
 /// the port — node missing, port stolen, crash loop — should not burn CPU
 /// forever; the window's connection error is the visible symptom).
-fn supervise_daemon() {
-    std::thread::spawn(|| {
-        let Some(repo_root) = resolve_repo_root() else {
+fn supervise_daemon(plan: Option<LaunchPlan>) {
+    std::thread::spawn(move || {
+        let Some(plan) = plan else {
             eprintln!(
-                "vynel: could not locate the repo root from the exe path — set VYNEL_DESKTOP_REPO_ROOT or run the daemon yourself (`pnpm dev`)"
+                "vynel: no bundled payload beside the exe and no repo root found — set VYNEL_DESKTOP_REPO_ROOT or run the daemon yourself (`pnpm dev`)"
             );
             lock_daemon().abandoned = true;
             return;
@@ -96,7 +100,7 @@ fn supervise_daemon() {
             if lock_daemon().stopping {
                 return;
             }
-            match spawn_daemon(&repo_root) {
+            match spawn_daemon(&plan) {
                 Ok(mut child) => {
                     eprintln!("vynel: daemon spawned (pid {})", child.id());
                     // ONE lock acquisition for the stopping-check + store:
@@ -161,15 +165,20 @@ fn watch_until_exit() {
     }
 }
 
-fn spawn_daemon(repo_root: &Path) -> std::io::Result<Child> {
-    let env_file = repo_root.join(".env");
-    let mut command = Command::new("node");
-    command
-        .arg(format!("--env-file-if-exists={}", env_file.display()))
-        .arg("--import")
-        .arg("tsx")
-        .arg("src/server.ts")
-        .current_dir(repo_root.join("apps").join("local-api"));
+fn spawn_daemon(plan: &LaunchPlan) -> std::io::Result<Child> {
+    let mut command = match plan {
+        LaunchPlan::Bundled(bundled) => bundled_daemon_command(bundled)?,
+        LaunchPlan::Repo(repo_root) => {
+            let mut command = Command::new("node");
+            command
+                .arg(format!("--env-file-if-exists={}", repo_root.join(".env").display()))
+                .arg("--import")
+                .arg("tsx")
+                .arg("src/server.ts")
+                .current_dir(repo_root.join("apps").join("local-api"));
+            command
+        }
+    };
     #[cfg(windows)]
     {
         // CREATE_NO_WINDOW: the shell is a GUI app; a spawned node.exe would
@@ -180,33 +189,38 @@ fn spawn_daemon(repo_root: &Path) -> std::io::Result<Child> {
     command.spawn()
 }
 
-/// The repo root: env override first, else walk up from the exe until a dir
-/// contains apps/local-api/src/server.ts (robust to the cargo target layout).
-fn resolve_repo_root() -> Option<PathBuf> {
-    if let Ok(overridden) = std::env::var("VYNEL_DESKTOP_REPO_ROOT") {
-        let root = PathBuf::from(overridden);
-        if daemon_entry_exists(&root) {
-            return Some(root);
-        }
-        eprintln!("vynel: VYNEL_DESKTOP_REPO_ROOT does not contain apps/local-api — ignoring it");
-    }
-    let exe = std::env::current_exe().ok()?;
-    let mut dir = exe.parent();
-    while let Some(candidate) = dir {
-        if daemon_entry_exists(candidate) {
-            return Some(candidate.to_path_buf());
-        }
-        dir = candidate.parent();
-    }
-    None
-}
+/// The installed app's daemon: the pinned exe-adjacent node.exe runs the
+/// compiled bundle with every runtime path pinned ABSOLUTE into app_data
+/// (env.ts passes absolute values through untouched). release.env carries the
+/// baked hub endpoint; the user's config.env may override it; real env set
+/// here always wins over both (node --env-file never overrides existing env).
+fn bundled_daemon_command(bundled: &BundledLaunch) -> std::io::Result<Command> {
+    let data_dir = bundled.app_data_dir.join("data");
+    std::fs::create_dir_all(&data_dir)?;
+    std::fs::create_dir_all(bundled.app_data_dir.join("models"))?;
 
-fn daemon_entry_exists(root: &Path) -> bool {
-    root.join("apps")
-        .join("local-api")
-        .join("src")
-        .join("server.ts")
-        .exists()
+    let mut command = Command::new(bundled.install_dir.join("node.exe"));
+    command
+        .arg(format!(
+            "--env-file-if-exists={}",
+            bundled.backend_dir.join("config").join("release.env").display()
+        ))
+        .arg(format!(
+            "--env-file-if-exists={}",
+            bundled.app_data_dir.join("config.env").display()
+        ))
+        .arg("dist/server.mjs")
+        .current_dir(&bundled.backend_dir)
+        .env("PORT", "8998")
+        .env("DB_PATH", data_dir.join("vynel.db"))
+        .env("VYNEL_ASSETS_DIR", bundled.backend_dir.join("assets"))
+        .env("VYNEL_WEB_UI_DIST", &bundled.web_dir)
+        .env(
+            "VYNEL_EMBEDDINGS_CACHE_DIR",
+            bundled.app_data_dir.join("models").join("embeddings"),
+        )
+        .env("VYNEL_APP_VERSION", &bundled.app_version);
+    Ok(command)
 }
 
 fn port_is_listening() -> bool {

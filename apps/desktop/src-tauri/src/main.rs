@@ -8,6 +8,7 @@ use tauri::Manager;
 
 mod browser;
 mod daemon;
+mod launch_plan;
 mod windows;
 
 fn main() {

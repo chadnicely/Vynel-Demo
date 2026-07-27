@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel installs like a real Windows app — the first installable version.** `pnpm
+  release:desktop` produces `Vynel_0.1.0_x64-setup.exe` (~170 MB): double-click, install, done —
+  no Node, no repo, no prerequisites. The installed app carries its own pinned runtime and the
+  compiled backend beside the exe, keeps all your data (database, models, settings) in your
+  user profile where upgrades and uninstalls can't touch it, boots in about a second, and
+  closes clean — no stray processes left behind. Dev workflows are untouched: the bundling
+  config lives in a release-only overlay, so `tauri dev` and checkouts never need a payload.
+
 - **Vynel can now be built as a real, publishable product.** One command compiles the entire
   backend — every Vynel package — into a single minified bundle (no readable source ships to
   users, the same protection model VS Code, Slack, and Claude Code itself use), assembles it
