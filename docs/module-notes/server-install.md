@@ -135,12 +135,68 @@ in `packages/ssh-servers/src/sealing/master-key.ts` already exists for exactly t
   DB row + config. Fixture gotcha: the container-side WSL localhost relay DIES after heavy
   transfers (200MB uploads) and stays dead until `wsl --shutdown` — provision-then-tunnel
   in one run is flaky HERE (it passed once, 12s); a real VPS has no such layer.
-- **D4 — onboarding step + settings surface**: "Where should Vynel's engine run?" step
-  (union input, `optional-channel` precedent) + a settings section for switching later;
-  server-side Claude auth walkthrough (`claude setup-token` via remote exec) designed into
-  the wizard step. Restart applies the switch.
+- **D4 — settings surface** (BUILT 2026-07-28): "Where Vynel runs" global section (machine-
+  level, NOT a workspace section) — current mode card, provisioned installs with live
+  plain-language step narration, provision dialog (the credential's one door), "Run Vynel
+  here" → save + restart. Shell side: `engine_config.rs` (get/set/restart IPC; temp-then-
+  rename write; `read_remote_install_id` is now the ONE home of the engine.json format,
+  launch_plan.rs reads through it) + `use-engine-location.ts` (withGlobalTauri seam —
+  outside the shell it reports unavailable instead of pretending). Query layer polls fast
+  (1.5s) while anything provisions, 30s once settled. 5 section tests green.
+  **NO onboarding step** — see D4 finding 1: the remote engine runs its OWN onboarding
+  through the tunnel.
+- **D4b — server-side Claude auth relay** (NEXT): PTY-backed `claude auth login` /
+  `setup-token` over SSH, URL streamed to the UI, pasted code to stdin, `claude auth status`
+  to confirm. Facts verified below.
 - **D5 — updates**: version handshake on connect → provisioner re-ships on drift; linux
   payload tarball rides the same `vynel-releases` gh release as the desktop artifacts.
+
+## D4 FINDINGS → two forks (2026-07-28, raised from building)
+
+**1. The remote engine has its OWN database — so it has its own onboarding.**
+Proven in the D2/D3 E2Es: a freshly provisioned engine answers `412 onboarding_required`
+through the tunnel. Nothing migrates: local workspaces/memory/sessions do NOT exist on the
+server. This reshapes the release plan's "onboarding gains a Where-should-the-engine-run
+step" line (written before we knew this):
+- An onboarding STEP would ask the question on whichever engine you're already pointed at,
+  then — after the restart into remote mode — greet the user with onboarding AGAIN (the
+  remote engine's own). Two onboardings for one setup.
+- The coherent v1 is **engine location as a SETTINGS surface** (provision + switch +
+  restart); the remote engine then runs its OWN onboarding wizard THROUGH the tunnel, which
+  already works (the tunnel serves its web UI — proven). Also avoids touching the 7-step
+  catalog's three hand-synced union copies + ~8 test assertions for a step that would be
+  wrong.
+- Recommendation: settings-only for v1; revisit an onboarding-time nudge ("run the engine on
+  a server instead?") once switching is proven in real use.
+
+**CHAD'S ANSWER (2026-07-28): run `claude` auth ON THE SERVER, relay it through the UI.**
+Show the URL the CLI prints, the user authorizes in their browser and pastes the code back.
+Refinement agreed: **the CLI writes its own credential file — Vynel relays only** (never
+stores it), so format fidelity + token refresh come free and D14 stays intact.
+
+**VERIFIED on a clean Debian 13 box (the bundled binary, claude 2.1.220):**
+- `claude setup-token` — *"Set up a long-lived authentication token (requires Claude
+  subscription)"*. Subscription-billed (not API credits) AND long-lived, which answers the
+  token-expiry objection below. The preferred command.
+- `claude auth login | logout | status` — `status` is the verification surface the UI should
+  call after the paste ("this server is signed in as …").
+- Both BLOCK waiting for input (a 25s timeout couldn't finish them), so the D4b work is a
+  **PTY-backed exec** (`ssh2` `exec` with `pty: true`): stream stdout to the UI to catch the
+  URL, write the pasted code to stdin. Still unknown (settle while building, with real PTY
+  streaming): whether `setup-token` PRINTS the token for us to place vs storing it itself —
+  if it prints, prefer `auth login` so the CLI owns the write.
+
+**Original framing — server-side Claude auth vs recorded decision D14.** The remote engine's agent
+SDK needs Claude credentials ON THE SERVER, but D14 (`read-claude-authentication-status.ts`
+header) says Vynel *detects* the auth method and **never extracts or stores the key value**.
+Options: (a) the user pastes a credential into the provision form → sealed → written into
+`engine.env` as `ANTHROPIC_API_KEY` (headless, works today, but Vynel now stores an
+Anthropic credential at rest and the billing path changes from a Max subscription to API
+credits); (b) an interactive `claude setup-token` dance over the SSH channel (keeps the
+subscription path, needs PTY handling + a paste-the-code wizard step — real work, fragile);
+(c) instruct the user to run `claude login` on their server themselves once, outside Vynel
+(zero credential handling, honest, but a terminal step for a non-technical user).
+No option is free; this needs Chad. Nothing in D4 assumes an answer.
 
 ## FORKS FOR CHAD (blocking)
 

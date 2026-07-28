@@ -3,7 +3,24 @@
 **Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-28, round 8): PHASE D — D0 (`f7c43b2`) + D1 (`d5bd979`) + D2 (`92af62e`) COMMITTED; **D3 (tunnel + LaunchPlan::Remote + port-home) BUILT + PROVEN LIVE, uncommitted.** **NEXT: commit D3, then D4 (onboarding "Where should Vynel's engine run?" step + settings surface + engine.json writer + claude setup-token walkthrough + the full shell-spawned remote-mode E2E).**
+## ⏭ NEXT ACTION (2026-07-28, round 8): PHASE D — D0 `f7c43b2` · D1 `d5bd979` · D2 `92af62e` · D3 `41c9dd0` COMMITTED; **D4 (settings surface) BUILT + GREEN, uncommitted.** **NEXT: commit D4, then D4b (Claude-auth relay: PTY-backed `claude auth login` over SSH → URL to the UI → pasted code to stdin → `claude auth status` confirms; Chad's call, CLI owns the credential write), then D5.**
+
+**D4: "Where Vynel runs" GLOBAL section (`EngineSection.vue` + engine/{ProvisionServerDialog,
+EngineInstallRow}.vue + composables/server-install/* + composables/shell/use-engine-location.ts;
+`engine` added to ChatMainView/GLOBAL_SECTION_IDS/GLOBAL_SECTIONS, excluded in WorkspaceView).
+Shell: `engine_config.rs` (get/set/restart IPC, temp-then-rename; `read_remote_install_id` is
+now the ONE home of the engine.json format — launch_plan.rs reads through it). 5 tests green.
+**NO onboarding step, deliberately** — the remote engine has its OWN DB and runs its OWN
+onboarding through the tunnel (proven: 412 through the tunnel). Rationale + the killed
+alternative in docs/module-notes/server-install.md "D4 FINDINGS".**
+
+**CLEAN TEST BOX (new, use this one): WSL distro `vynel-clean` — Debian 13, sshd :2223, user
+`vynel` / pw `vynel-clean-e2e-4f21`, root-enabled linger, NO claude credentials (Chad's own
+auth lives in the OTHER `Debian` instance — never touch it). Engine provisioned there from
+scratch: healthy `{"status":"ok","version":"0.1.1"}`, bearer 401 — D0–D2 proven on a truly
+fresh machine. WSL QUIRK: each `wsl -u vynel` exec session restarts the user manager (and so
+the engine) — probe AFTER a `ss -tln | grep 8998` wait INSIDE one session, or you catch it
+mid-boot. Nested quoting through wsl.exe mangles: pipe scripts via `| wsl -d X -- bash -s`.** **NEXT: commit D3, then D4 (onboarding "Where should Vynel's engine run?" step + settings surface + engine.json writer + claude setup-token walkthrough + the full shell-spawned remote-mode E2E).**
 
 **D3 (this tree): `tunnel/engine-tunnel.ts` (local listener on THE engine port → ssh2
 forwardOut → remote loopback, bearer injected — web/SDK/windows untouched; lazy redial w/

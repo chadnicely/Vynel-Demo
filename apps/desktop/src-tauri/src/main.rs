@@ -8,6 +8,7 @@ use tauri::Manager;
 
 mod browser;
 mod daemon;
+mod engine_config;
 mod job_object;
 mod launch_plan;
 mod updater;
@@ -56,6 +57,9 @@ fn main() {
             browser::browser_set_bounds,
             browser::browser_set_visible,
             browser::browser_close,
+            engine_config::engine_get_config,
+            engine_config::engine_set_config,
+            engine_config::engine_restart_app,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

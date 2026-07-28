@@ -18,6 +18,7 @@ import MemorySection from "../components/sections/MemorySection.vue";
 import NotebookSection from "../components/sections/NotebookSection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
 import SshServersSection from "../components/sections/SshServersSection.vue";
+import EngineSection from "../components/sections/EngineSection.vue";
 import TasksSection from "../components/sections/TasksSection.vue";
 import PlansSection from "../components/sections/PlansSection.vue";
 import JournalSection from "../components/sections/JournalSection.vue";
@@ -59,6 +60,7 @@ const GLOBAL_SECTION_IDS = [
   "plans",
   "journal",
   "ssh-servers",
+  "engine",
   "knowledge",
   "memory",
   "notebook",
@@ -279,6 +281,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           />
           <SshServersSection v-else :scope="{ kind: 'global' }" />
         </template>
+        <EngineSection v-else-if="shell.mainView === 'engine'" />
         <template v-else-if="shell.mainView === 'knowledge'">
           <LockedFeatureCard
             v-if="isLocked('knowledge')"

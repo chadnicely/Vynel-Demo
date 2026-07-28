@@ -137,13 +137,14 @@ const occupancy = useContextOccupancy(
   () => activeTurn.value,
 );
 
-// "account"/"application" are global-only — the workspace menu never sets
-// them, but the type excludes them here so the shell union stays one shape.
+// "account"/"application"/"engine" are global-only — the workspace menu never
+// sets them, but the type excludes them here so the shell union stays one shape.
 const activeSection = computed<WorkspaceSectionId | null>(() =>
   typeof shell.mainView === "string" &&
   shell.mainView !== "chat" &&
   shell.mainView !== "application" &&
-  shell.mainView !== "account"
+  shell.mainView !== "account" &&
+  shell.mainView !== "engine"
     ? shell.mainView
     : null,
 );

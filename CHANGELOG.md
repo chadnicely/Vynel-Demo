@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **You can now choose where Vynel runs, from a settings screen.** A new "Where Vynel runs"
+  section shows whether Vynel's engine is on this computer or on a server you own, lets you
+  add a server (Vynel installs itself over SSH and narrates each step in plain language —
+  "Checking the server…", "Sending Vynel's engine…", "Ready"), and switches between them with
+  a restart. A failed install says exactly what was wrong with the server rather than showing
+  an error code. Sign-in details are entered once and encrypted; nothing shows them again.
+
 - **The desktop can now reach a remote engine as if it were local.** The second half of
   "run Vynel on my server": a secure tunnel that makes the engine on your server appear at
   the same local address the app always uses — every window, chat, and API call works

@@ -59,39 +59,16 @@ pub fn resolve_launch_plan(handle: &tauri::AppHandle) -> Option<LaunchPlan> {
             app_data_dir,
             app_version: handle.package_info().version.to_string(),
         };
-        // The engine-location choice (written by the D4 settings flow, read
+        // The engine-location choice (written by the settings flow, read
         // pre-daemon by design — the local-first + restart contract).
-        if let Some(install_id) = read_remote_engine_config(&bundled.app_data_dir) {
+        // engine_config.rs owns the file format.
+        if let Some(install_id) = crate::engine_config::read_remote_install_id(&bundled.app_data_dir) {
             return Some(LaunchPlan::Remote(RemoteLaunch { bundled, install_id }));
         }
         return Some(LaunchPlan::Bundled(bundled));
     }
 
     resolve_repo_root().map(LaunchPlan::Repo)
-}
-
-/// Reads <app_data>\engine.json — `{ "mode": "remote", "installId": "..." }`.
-/// Returns Some(install_id) when remote mode is configured; absent file,
-/// local mode, or a malformed file (logged) all mean local.
-fn read_remote_engine_config(app_data_dir: &Path) -> Option<Option<String>> {
-    let config_path = app_data_dir.join("engine.json");
-    let raw = std::fs::read_to_string(&config_path).ok()?;
-    let parsed: serde_json::Value = match serde_json::from_str(&raw) {
-        Ok(value) => value,
-        Err(error) => {
-            log::warn!("engine.json is malformed ({error}) — staying in local mode");
-            return None;
-        }
-    };
-    if parsed.get("mode").and_then(|mode| mode.as_str()) != Some("remote") {
-        return None;
-    }
-    Some(
-        parsed
-            .get("installId")
-            .and_then(|id| id.as_str())
-            .map(|id| id.to_string()),
-    )
 }
 
 /// The repo root: env override first, else walk up from the exe until a dir

@@ -24,6 +24,9 @@ export type ChatMainView =
   | "chat"
   | "application"
   | "account"
+  // Machine-level, global-only (like account/application): WHERE the engine
+  // runs is a property of this computer, never of a workspace.
+  | "engine"
   | WorkspaceSectionId
   | { kind: "file"; filePath: string };
 
