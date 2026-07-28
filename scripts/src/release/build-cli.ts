@@ -15,7 +15,7 @@
 // port) — the artifact carries no database, no AI runtime.
 
 import { build } from 'esbuild'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -32,7 +32,7 @@ function appVersion(): string {
   return config.version
 }
 
-async function bundleEntries(): Promise<void> {
+async function bundleEntries(version: string): Promise<void> {
   const shared = {
     bundle: true,
     platform: 'node',
@@ -45,6 +45,7 @@ async function bundleEntries(): Promise<void> {
     ...shared,
     entryPoints: [join(repoRoot, 'apps', 'cli', 'src', 'bin.ts')],
     outfile: join(publishDir, 'dist', 'cli.mjs'),
+    define: { __VYNEL_CLI_VERSION__: JSON.stringify(version) },
   })
   await build({
     ...shared,
@@ -128,10 +129,14 @@ function writeReadme(version: string): void {
 async function main(): Promise<void> {
   const version = appVersion()
   console.log(`build-cli: @vynel/cli ${version} → ${publishDir}`)
-  rmSync(publishDir, { recursive: true, force: true })
+  // Clear CONTENTS, keep the dir: deleting the root EBUSYs when any shell
+  // still sits in it (e.g. the terminal `npm publish` just ran from).
   mkdirSync(publishDir, { recursive: true })
+  for (const entry of readdirSync(publishDir)) {
+    rmSync(join(publishDir, entry), { recursive: true, force: true })
+  }
 
-  await bundleEntries()
+  await bundleEntries(version)
   writeLauncher()
   writePackageManifest(version)
   writeReadme(version)

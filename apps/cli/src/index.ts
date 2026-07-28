@@ -5,6 +5,10 @@
 
 import { Command } from 'commander'
 import type { VynelClient } from '@vynel/sdk'
+
+// Stamped by the release build (esbuild define in build-cli.ts) so the
+// published artifact reports the product version; dev runs show 0.0.0.
+declare const __VYNEL_CLI_VERSION__: string | undefined
 import { registerKnowledgeCommands } from './knowledge-commands.js'
 import { registerSkillsCommands } from './skills-commands.js'
 import { registerChannelsCommands } from './channels-commands.js'
@@ -23,7 +27,7 @@ export function buildProgram(getClient: () => VynelClient): Command {
     .description(
       'Vynel CLI — knowledge, skills, channels, schedules, tasks, plans, journal, apps, ssh + marketplace over the local API.',
     )
-    .version('0.0.0')
+    .version(typeof __VYNEL_CLI_VERSION__ === 'string' ? __VYNEL_CLI_VERSION__ : '0.0.0')
   registerKnowledgeCommands(program, getClient)
   registerSkillsCommands(program, getClient)
   registerChannelsCommands(program, getClient)
