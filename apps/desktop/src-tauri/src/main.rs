@@ -8,6 +8,7 @@ use tauri::Manager;
 
 mod browser;
 mod daemon;
+mod job_object;
 mod launch_plan;
 mod windows;
 
@@ -18,6 +19,34 @@ fn main() {
     let jarvis_only = std::env::args().any(|arg| arg == "--jarvis-only");
 
     tauri::Builder::default()
+        // FIRST plugin, deliberately: a second launch of any flavor routes
+        // into this process instead of spawning a rival that could steal or
+        // strand the daemon (the old --jarvis-only ownership hole). A full
+        // second launch surfaces the main window; a --jarvis-only relaunch is
+        // a no-op — the overlay already lives here and shows itself.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            let second_launch_jarvis_only = args.iter().any(|arg| arg == "--jarvis-only");
+            log::info!("second launch routed here (jarvis_only: {second_launch_jarvis_only})");
+            if !second_launch_jarvis_only {
+                if let Err(error) = windows::open_main_window(app) {
+                    log::error!("failed to open the main window for a second launch: {error}");
+                }
+            }
+        }))
+        // Shell diagnostics: stdout when a terminal is attached, and the
+        // platform log dir always — a windowed installed app swallows stderr,
+        // and "it did not open" must be diagnosable from a file on disk.
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some(String::from("vynel-shell")),
+                    }),
+                ])
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             browser::browser_open,
             browser::browser_navigate,
@@ -38,12 +67,10 @@ fn main() {
         .on_window_event(|window, event| {
             // Closing the main window quits the app. Without this, the hidden
             // jarvis overlay would keep a headless process (and the daemon
-            // sidecar) alive after the user thinks Vynel is closed.
-            // KNOWN HOLE (D2: single-instance plugin + explicit daemon
-            // ownership): the promise only holds within ONE process. A
-            // --jarvis-only process has no main window (so no exit path and
-            // it may own the daemon), and a second full instance that
-            // attached to the first's daemon loses it when the first closes.
+            // sidecar) alive after the user thinks Vynel is closed. The
+            // single-instance plugin guarantees ONE process owns everything
+            // (a second launch routes here), and the Job Object reaps the
+            // daemon tree even when this handler never runs.
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 if window.label() == "main" {
                     window.app_handle().exit(0);

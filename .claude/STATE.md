@@ -3,7 +3,26 @@
 **Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-28, round 2): B1 SHIPPED — THE FIRST INSTALLED VYNEL RUNS. Chad opened the installed app and confirmed it. **NEXT: commit B1 → payload-prune slice (11-min install is the pain) → B2 (job object/single-instance/logging) → B3 (updater).**
+## ⏭ NEXT ACTION (2026-07-28, round 4): B2 SHIPPED (uncommitted) — lifecycle hardening VERIFIED on the real install. **NEXT: commit B2 → B3 (auto-updater vs `vynel-releases` GitHub repo) → then C (`@vynel/cli` npm) per plan order.**
+
+**B2 verified live on Chad's real install: `taskkill /F` on the shell → ZERO surviving node
+processes (the kill-on-close Job Object — `job_object.rs`, assigned right after spawn, handle
+never closed by design); double-launch → 1 shell + 1 daemon (tauri-plugin-single-instance,
+registered FIRST; second full launch = open/focus main via `windows::open_main_window`,
+--jarvis-only relaunch = no-op); logs on disk (`vynel-shell.log` via tauri-plugin-log LogDir +
+`daemon.log` = child stdout/stderr redirect with 10MB boot rotation; all shell eprintln! →
+log macros).**
+
+- **Live proof of the pre-B2 hole DURING this round:** my earlier container-context boot test
+  left an orphaned daemon (its shell died without the exit handler); that orphan held
+  `libvips-42.dll` and Chad's interactive upgrade install failed "Error opening file for
+  writing" until it was killed. The Job Object makes this class structurally impossible.
+- **MSIX container caveat (my shell only):** installs/launches from Claude's shell virtualize
+  into `LocalCache` and named-mutex/table isolation makes single-instance tests unreliable
+  cross-boundary — verify lifecycle behavior against Chad's REAL install (as done here).
+- windows-sys 0.59 needs Foundation+Security+JobObjects+Threading features for the job calls.
+
+## ⏭ NEXT ACTION (2026-07-28, round 2): B1 SHIPPED — THE FIRST INSTALLED VYNEL RUNS. Chad opened the installed app and confirmed it. **(superseded by round 4 above)**
 
 **B1 (uncommitted): `pnpm release:desktop` → `Vynel_0.1.0_x64-setup.exe` (170MB NSIS,
 currentUser). Verified end-to-end on this machine: silent install → `%LOCALAPPDATA%\Vynel`

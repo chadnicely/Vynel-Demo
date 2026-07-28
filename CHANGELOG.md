@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel now cleans up after itself — always.** However the app dies — closed normally, killed
+  from Task Manager, or crashed — Windows itself now guarantees the background engine and
+  everything it started die with it. No stray processes holding files or ports, which also
+  means upgrades can't fail on "file in use" (exactly the installer error this fixed).
+  Launching Vynel twice now brings the running window forward instead of starting a second
+  copy, and both the app shell and its engine write proper log files, so "it didn't open" is
+  finally diagnosable.
+
 - **Installing Vynel is now six times faster.** The installer sheds everything the app can
   never run — binaries for five other platforms, browser-only bundles, a test corpus, type
   files — cutting the download from 170 MB to 123 MB and a clean install from eleven minutes

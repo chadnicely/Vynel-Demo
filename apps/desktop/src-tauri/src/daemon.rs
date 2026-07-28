@@ -6,12 +6,13 @@
 // 127.0.0.1:8998 as the LAST step of a successful boot (migrations + services
 // first, see local-api boot.ts).
 //
-// Shutdown is a hard kill (TerminateProcess): SQLite in WAL mode survives it;
-// a graceful signal handshake is a B2 refinement (with the Job Object). If
-// another process already serves the port (e.g. `pnpm dev`), we attach to it
-// instead of spawning. The eprintln! diagnostics here are only visible when
-// launched from a terminal — a windowed release build swallows them (B2: the
-// tauri log plugin).
+// Shutdown is a hard kill (TerminateProcess): SQLite in WAL mode survives it,
+// and the kill-on-close Job Object (job_object.rs) reaps the whole daemon
+// tree on ANY shell death; a graceful signal handshake remains a possible
+// later refinement. If another process already serves the port (e.g.
+// `pnpm dev`), we attach to it instead of spawning. Shell diagnostics go
+// through the log plugin: stdout when a terminal is attached, and the
+// platform log dir always.
 
 use crate::launch_plan::{resolve_launch_plan, BundledLaunch, LaunchPlan};
 use std::net::TcpStream;
@@ -53,18 +54,18 @@ pub fn ensure_daemon_then_open_windows(handle: tauri::AppHandle, jarvis_only: bo
             supervise_daemon(plan);
         }
         if !wait_for_port(STARTUP_TIMEOUT) {
-            eprintln!(
-                "vynel: no daemon listening on {DAEMON_ADDRESS} after {STARTUP_TIMEOUT:?} — opening the window anyway (it will show a connection error)"
+            log::error!(
+                "no daemon listening on {DAEMON_ADDRESS} after {STARTUP_TIMEOUT:?} — opening the window anyway (it will show a connection error)"
             );
         }
         let handle_for_windows = handle.clone();
         let created = handle.run_on_main_thread(move || {
             if let Err(error) = crate::windows::create_windows(&handle_for_windows, jarvis_only) {
-                eprintln!("vynel: failed to create windows: {error}");
+                log::error!("failed to create windows: {error}");
             }
         });
         if let Err(error) = created {
-            eprintln!("vynel: failed to reach the main thread for window creation: {error}");
+            log::error!("failed to reach the main thread for window creation: {error}");
         }
     });
 }
@@ -90,8 +91,8 @@ fn lock_daemon() -> std::sync::MutexGuard<'static, DaemonState> {
 fn supervise_daemon(plan: Option<LaunchPlan>) {
     std::thread::spawn(move || {
         let Some(plan) = plan else {
-            eprintln!(
-                "vynel: no bundled payload beside the exe and no repo root found — set VYNEL_DESKTOP_REPO_ROOT or run the daemon yourself (`pnpm dev`)"
+            log::error!(
+                "no bundled payload beside the exe and no repo root found — set VYNEL_DESKTOP_REPO_ROOT or run the daemon yourself (`pnpm dev`)"
             );
             lock_daemon().abandoned = true;
             return;
@@ -102,14 +103,16 @@ fn supervise_daemon(plan: Option<LaunchPlan>) {
             }
             match spawn_daemon(&plan) {
                 Ok(mut child) => {
-                    eprintln!("vynel: daemon spawned (pid {})", child.id());
+                    log::info!("daemon spawned (pid {})", child.id());
+                    #[cfg(windows)]
+                    crate::job_object::assign_daemon_to_kill_on_close_job(&child);
                     // ONE lock acquisition for the stopping-check + store:
                     // stop() may have run while spawn_daemon was in flight,
                     // and a check-then-store as two acquisitions would let
                     // the fresh child slip past the kill (orphaned node
                     // holding the port after "exit"). The residual sliver —
-                    // exit mid-CreateProcess — needs a Windows Job Object
-                    // with kill-on-close; that's the D2-robust answer.
+                    // exit mid-CreateProcess — is covered by the
+                    // kill-on-close Job Object assigned above.
                     {
                         let mut daemon = lock_daemon();
                         if daemon.stopping {
@@ -123,16 +126,16 @@ fn supervise_daemon(plan: Option<LaunchPlan>) {
                     if lock_daemon().stopping {
                         return;
                     }
-                    eprintln!("vynel: daemon exited unexpectedly (attempt {attempt}/{SPAWN_ATTEMPTS})");
+                    log::warn!("daemon exited unexpectedly (attempt {attempt}/{SPAWN_ATTEMPTS})");
                 }
                 Err(error) => {
-                    eprintln!("vynel: daemon spawn failed (attempt {attempt}/{SPAWN_ATTEMPTS}): {error}");
+                    log::warn!("daemon spawn failed (attempt {attempt}/{SPAWN_ATTEMPTS}): {error}");
                 }
             }
             std::thread::sleep(Duration::from_millis(500 * u64::from(attempt)));
         }
-        eprintln!(
-            "vynel: giving up on the daemon after {SPAWN_ATTEMPTS} attempts — is node on PATH, and is port {DAEMON_ADDRESS} free?"
+        log::error!(
+            "giving up on the daemon after {SPAWN_ATTEMPTS} attempts — is node on PATH, and is port {DAEMON_ADDRESS} free?"
         );
         lock_daemon().abandoned = true;
     });
@@ -157,7 +160,7 @@ fn watch_until_exit() {
             }
             Ok(None) => {}
             Err(error) => {
-                eprintln!("vynel: lost track of the daemon process: {error}");
+                log::warn!("lost track of the daemon process: {error}");
                 daemon.child = None;
                 return;
             }
@@ -194,12 +197,35 @@ fn spawn_daemon(plan: &LaunchPlan) -> std::io::Result<Child> {
 /// (env.ts passes absolute values through untouched). release.env carries the
 /// baked hub endpoint; the user's config.env may override it; real env set
 /// here always wins over both (node --env-file never overrides existing env).
+///
+/// The daemon's pino output lands in <app_data>\logs\daemon.log — a windowed
+/// shell has no console, and an installed-app failure must be diagnosable
+/// from disk. Naive size rotation at boot keeps it bounded.
 fn bundled_daemon_command(bundled: &BundledLaunch) -> std::io::Result<Command> {
     let data_dir = bundled.app_data_dir.join("data");
     std::fs::create_dir_all(&data_dir)?;
     std::fs::create_dir_all(bundled.app_data_dir.join("models"))?;
 
+    let logs_dir = bundled.app_data_dir.join("logs");
+    std::fs::create_dir_all(&logs_dir)?;
+    let daemon_log_path = logs_dir.join("daemon.log");
+    const MAX_DAEMON_LOG_BYTES: u64 = 10 * 1024 * 1024;
+    if let Ok(metadata) = std::fs::metadata(&daemon_log_path) {
+        if metadata.len() > MAX_DAEMON_LOG_BYTES {
+            if let Err(error) = std::fs::rename(&daemon_log_path, logs_dir.join("daemon.log.1")) {
+                log::warn!("daemon.log rotation failed (log will keep growing): {error}");
+            }
+        }
+    }
+    let daemon_log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&daemon_log_path)?;
+
     let mut command = Command::new(bundled.install_dir.join("node.exe"));
+    command
+        .stdout(daemon_log.try_clone()?)
+        .stderr(daemon_log);
     command
         .arg(format!(
             "--env-file-if-exists={}",

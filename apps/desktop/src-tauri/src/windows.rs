@@ -3,15 +3,34 @@
 // load http://127.0.0.1:8998 before anything serves it and freeze an error
 // page. Dev creates immediately (`pnpm dev` owns the servers).
 
-use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+
+/// Bring the main window to the user — the single-instance path: a second
+/// launch routes here instead of starting a new process, so a --jarvis-only
+/// resident (which has no main window) simply gains one, and a minimized app
+/// comes forward. The daemon keeps its one owner either way.
+pub fn open_main_window(handle: &AppHandle) -> tauri::Result<()> {
+    if let Some(main) = handle.get_webview_window("main") {
+        main.unminimize().ok();
+        main.show().ok();
+        main.set_focus().ok();
+        return Ok(());
+    }
+    build_main_window(handle)
+}
+
+fn build_main_window(handle: &AppHandle) -> tauri::Result<()> {
+    WebviewWindowBuilder::new(handle, "main", WebviewUrl::App("/".into()))
+        .title("Vynel")
+        .inner_size(1280.0, 800.0)
+        .min_inner_size(960.0, 600.0)
+        .build()?;
+    Ok(())
+}
 
 pub fn create_windows(handle: &AppHandle, jarvis_only: bool) -> tauri::Result<()> {
     if !jarvis_only {
-        WebviewWindowBuilder::new(handle, "main", WebviewUrl::App("/".into()))
-            .title("Vynel")
-            .inner_size(1280.0, 800.0)
-            .min_inner_size(960.0, 600.0)
-            .build()?;
+        build_main_window(handle)?;
     }
 
     // Flags mirror the pre-D1 tauri.conf.json jarvis window verbatim — the

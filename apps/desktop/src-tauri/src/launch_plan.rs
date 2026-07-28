@@ -38,7 +38,7 @@ pub fn resolve_launch_plan(handle: &tauri::AppHandle) -> Option<LaunchPlan> {
 
     if backend_dir.join("dist").join("server.mjs").exists() {
         let Ok(app_data_dir) = handle.path().app_data_dir() else {
-            eprintln!("vynel: bundled payload found but no app_data_dir — cannot launch the daemon");
+            log::error!("bundled payload found but no app_data_dir — cannot launch the daemon");
             return None;
         };
         return Some(LaunchPlan::Bundled(BundledLaunch {
@@ -61,7 +61,7 @@ fn resolve_repo_root() -> Option<PathBuf> {
         if daemon_entry_exists(&root) {
             return Some(root);
         }
-        eprintln!("vynel: VYNEL_DESKTOP_REPO_ROOT does not contain apps/local-api — ignoring it");
+        log::warn!("VYNEL_DESKTOP_REPO_ROOT does not contain apps/local-api — ignoring it");
     }
     let exe = std::env::current_exe().ok()?;
     let mut dir = exe.parent();

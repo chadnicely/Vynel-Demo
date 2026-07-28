@@ -14,3 +14,17 @@ tauri-build = { version = "2", features = [] }
 # is a native child webview, because an <iframe> obeys X-Frame-Options and
 # most real sites refuse to embed.
 tauri = { version = "2", features = ["unstable"] }
+# B2 lifecycle hardening: one process owns the daemon (second launch routes
+# here), shell diagnostics reach a file instead of a swallowed stderr, and the
+# kill-on-close Job Object reaps the daemon tree on ANY shell death.
+tauri-plugin-single-instance = "2"
+tauri-plugin-log = "2"
+log = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }
