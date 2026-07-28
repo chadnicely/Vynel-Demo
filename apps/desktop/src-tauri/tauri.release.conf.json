@@ -9,9 +9,21 @@
       "payload/backend": "resources/backend",
       "payload/web": "resources/web"
     },
+    "createUpdaterArtifacts": true,
     "windows": {
       "nsis": {
         "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4NDI1MjE4Q0MxQTgyQjYKUldTMmdock1HRkpDYUxXRkJIeXBHN0JjTVFINUw3QytOUnk0UnRGVC9OdTdWU1JvaU5Xd0t3T0cK",
+      "endpoints": [
+        "https://github.com/kafijunior/vynel-releases/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

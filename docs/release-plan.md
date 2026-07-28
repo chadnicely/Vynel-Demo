@@ -103,6 +103,9 @@ updater is proven · GitHub releases (`vynel-releases` public repo, code private
 - **B3 — auto-update**: `tauri-plugin-updater`, signer keypair (private key env-only, release script
   refuses if a key file is in-repo), `latest.json` + artifacts pushed to `vynel-releases` via `gh`,
   passive install mode. Green = 0.1.0 → 0.1.1 self-update on the VM.
+  **DONE (2026-07-28): proven live — installed 0.1.0 prompted and self-updated to 0.1.1
+  (`kafijunior/vynel-releases`). Publish = `pnpm release:desktop --publish` with
+  `TAURI_SIGNING_PRIVATE_KEY` loaded. B1+B2+prune+B3 all landed; Phase B complete.**
 - **B4 — hub serves releases** (when the hub deploys): `GET /releases/desktop/latest` off
   `ArtifactStore`; endpoint flip in `tauri.conf.json`.
 

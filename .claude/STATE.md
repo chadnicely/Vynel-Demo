@@ -3,7 +3,29 @@
 **Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-28, round 4): B2 SHIPPED (uncommitted) — lifecycle hardening VERIFIED on the real install. **NEXT: commit B2 → B3 (auto-updater vs `vynel-releases` GitHub repo) → then C (`@vynel/cli` npm) per plan order.**
+## ⏭ NEXT ACTION (2026-07-28, round 5): PHASE B COMPLETE — B3 auto-update PROVEN LIVE (uncommitted): installed 0.1.0 prompted, updated, runs 0.1.1. **NEXT: commit B3 → Phase C (`@vynel/cli` npm + MCP stdio for Claude Code).**
+
+**B3: `tauri-plugin-updater` + dialog prompt (`updater.rs`, check-on-startup off-thread,
+release-only) against `kafijunior/vynel-releases` (public; code stays private). Signing:
+minisign keypair — PUBLIC key baked in `tauri.release.conf.json`; PRIVATE key = Chad's custody
+(password manager; `TAURI_SIGNING_PRIVATE_KEY` = content or path; build refuses a repo-inside
+path + refuses unsigned builds). `build-desktop.ts` emits `latest.json` (signature + versioned
+download URL) and `--publish` pushes installer+manifest via `gh release create` — latest.json
+rides EVERY release so `releases/latest/download/latest.json` self-describes. E2E VERIFIED:
+prompt → passive NSIS → running exe ProductVersion 0.1.1.**
+
+- Gotchas learned: `generate_context!` needs `serde_json` in crate deps once the config carries
+  a `plugins` section (release overlay only → dev cargo check can't catch it); the tauri CLI
+  honors `TAURI_SIGNING_PRIVATE_KEY` ONLY (the `_PATH` variant is ignored by the bundler);
+  GitHub refuses releases on a zero-commit repo (seeded README via `gh api`); build-desktop now
+  wipes the NSIS dir pre-build (a stale installer masked the first unsigned build's failure).
+- Cosmetic follow-ups CHIPPED (task_859bfb05): uninstall-registry DisplayVersion stays 0.1.0
+  after a passive update; updater log lines absent from vynel-shell.log (likely the log
+  plugin's ~40KB default max_file_size). Also still open: task_dc806d8b (embeddings self-heal).
+- Key file currently ALSO at scratchpad `vynel-updater.key` — Chad told to move it to his
+  password manager; scratchpad is temp.
+
+## ⏭ NEXT ACTION (2026-07-28, round 4): B2 SHIPPED (COMMITTED `71e95a2`) — lifecycle hardening VERIFIED on the real install. **(superseded by round 5 above)**
 
 **B2 verified live on Chad's real install: `taskkill /F` on the shell → ZERO surviving node
 processes (the kill-on-close Job Object — `job_object.rs`, assigned right after spawn, handle

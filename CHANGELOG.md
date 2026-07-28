@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel now updates itself.** On launch the app quietly checks the official releases page
+  (github.com/kafijunior/vynel-releases); when a new version exists it asks — "Update now?" —
+  downloads, installs with a small progress bar, and restarts on the new version. Every update
+  is cryptographically signed and the app verifies the signature before installing, so a
+  tampered download can never get in. Proven live: an installed 0.1.0 offered, downloaded, and
+  became 0.1.1. Publishing a release is one command for us (`pnpm release:desktop --publish`).
+
 - **Vynel now cleans up after itself — always.** However the app dies — closed normally, killed
   from Task Manager, or crashed — Windows itself now guarantees the background engine and
   everything it started die with it. No stray processes holding files or ports, which also

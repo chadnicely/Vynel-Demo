@@ -10,6 +10,7 @@ mod browser;
 mod daemon;
 mod job_object;
 mod launch_plan;
+mod updater;
 mod windows;
 
 fn main() {
@@ -47,6 +48,8 @@ fn main() {
                 ])
                 .build(),
         )
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             browser::browser_open,
             browser::browser_navigate,
@@ -60,7 +63,14 @@ fn main() {
                 // Dev: `pnpm dev` owns the api + Vite — just open the windows.
                 windows::create_windows(&handle, jarvis_only)?;
             } else {
-                daemon::ensure_daemon_then_open_windows(handle, jarvis_only);
+                daemon::ensure_daemon_then_open_windows(handle.clone(), jarvis_only);
+                // Not on a --jarvis-only cold launch: a modal update dialog
+                // (and, on accept, the app killing itself to install) is
+                // hostile mid-voice-interaction. The common main-window
+                // launch path carries the update check.
+                if !jarvis_only {
+                    updater::check_for_updates_in_background(handle);
+                }
             }
             Ok(())
         })
