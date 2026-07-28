@@ -12,6 +12,7 @@ export {
   type ProvisionDeps,
   type PayloadArchive,
 } from './provisioning/provision-server.js'
+export { markServerInstallProvisioning } from './provisioning/mark-provisioning.js'
 export {
   composeInstallPlan,
   composeEngineEnvFile,

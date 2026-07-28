@@ -159,8 +159,17 @@ in `packages/ssh-servers/src/sealing/master-key.ts` already exists for exactly t
   deliberately NOT shipped rather than land a flaky/slow test. The mechanics are covered at
   the leaf; the true end-to-end needs a browser (Chad's smoke). Worth a look: the module-level
   relay singleton + per-request connection opener inside a Hono handler.
-- **D5 — updates**: version handshake on connect → provisioner re-ships on drift; linux
-  payload tarball rides the same `vynel-releases` gh release as the desktop artifacts.
+- **D5 — updates** (BUILT 2026-07-28): the tunnel entry does a **version handshake** at
+  connect (reads `/health` through the tunnel, warns loudly when the remote engine differs
+  from the shell, never blocks the tunnel); `POST /server-install/:id/reprovision` +
+  "Update engine" in the row re-ship the payload THIS app carries (`markServerInstall
+  Provisioning` resets the step/error first; 409 if a run is already in flight; the
+  half-finished sign-in is discarded because it belonged to the old tree); the linux tarball
+  + its `.sha256` ride the SAME `vynel-releases` gh release as the installer (absent =
+  desktop-only, logged, never a silent omission). **PROVEN on the clean box: re-provision
+  over a running engine → healthy `0.1.1`, `~/.vynel/data/vynel.db` UNTOUCHED (999KB, still
+  stamped from the first install) while the engine tree is fresh, no leftover `engine.tmp`,
+  exec bits restored** — the extract-beside-then-swap keeps user data across updates.
 
 ## D4 FINDINGS → two forks (2026-07-28, raised from building)
 

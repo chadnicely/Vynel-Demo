@@ -1952,6 +1952,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/server-install/{installId}/reprovision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Update the server's engine to the version this app ships. */
+        post: operations["postServer-installByInstallIdReprovision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/server-install/{installId}/claude-auth": {
         parameters: {
             query?: never;
@@ -10138,6 +10155,60 @@ export interface operations {
             };
             /** @description Unknown install, or not owned. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postServer-installByInstallIdReprovision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                installId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The row, back in provisioning — poll it for step progress. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        host: string;
+                        port: number;
+                        username: string;
+                        /** @enum {string} */
+                        authKind: "password" | "private-key";
+                        hostKeyFingerprint: string | null;
+                        /** @enum {string} */
+                        status: "provisioning" | "installed" | "failed";
+                        /** @enum {string|null} */
+                        step: "connect" | "preflight" | "upload" | "install" | "start" | "health" | null;
+                        errorMessage: string | null;
+                        installedVersion: string | null;
+                        lastHealthyAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Unknown install, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No engine payload available, or a run is already in flight. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

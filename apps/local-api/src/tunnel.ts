@@ -6,7 +6,7 @@
 // loopback with the bearer injected. The shell supervises this process
 // exactly like the daemon child; the whole web/SDK/window layer is untouched.
 
-import pino from 'pino'
+import pino, { type Logger } from 'pino'
 import { createDatabase } from '@vynel/db'
 import { createFileMasterKeyVault, openSecret, resolveMasterKey } from '@vynel/sealing'
 import {
@@ -63,12 +63,47 @@ async function main(): Promise<void> {
     'remote engine tunnel up',
   )
 
+  // Version handshake (Phase D5): the shell and the remote engine can drift —
+  // the user updates the desktop app, the server keeps its old engine. Report
+  // it loudly at connect; the fix is "Update engine" in the settings surface
+  // (re-provisions with the payload this shell ships).
+  await reportVersionDrift(tunnel.localPort, env.VYNEL_APP_VERSION, logger)
+
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'tunnel shutdown')
     void tunnel.close().then(() => process.exit(0))
   }
   process.on('SIGINT', shutdown)
   process.on('SIGTERM', shutdown)
+}
+
+async function reportVersionDrift(
+  localPort: number,
+  shellVersion: string | undefined,
+  logger: Logger,
+): Promise<void> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${localPort}/health`, {
+      signal: AbortSignal.timeout(10_000),
+    })
+    const body = (await response.json()) as { version?: string }
+    const remoteVersion = body.version ?? 'unknown'
+    if (shellVersion !== undefined && remoteVersion !== shellVersion) {
+      logger.warn(
+        { remoteVersion, shellVersion },
+        'remote engine version differs from this app — update the engine from Settings → Where Vynel runs',
+      )
+      return
+    }
+    logger.info({ remoteVersion }, 'remote engine version matches this app')
+  } catch (error) {
+    // A handshake we could not complete must never stop the tunnel — the
+    // engine may still be starting, and the app is usable either way.
+    logger.warn(
+      { error: error instanceof Error ? error.message : String(error) },
+      'could not read the remote engine version',
+    )
+  }
 }
 
 main().catch((err) => {

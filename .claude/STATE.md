@@ -3,7 +3,18 @@
 **Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-28, round 8): PHASE D — D0 `f7c43b2` · D1 `d5bd979` · D2 `92af62e` · D3 `41c9dd0` COMMITTED; **D4 (settings surface) BUILT + GREEN, uncommitted.** **NEXT: commit D4, then D4b (Claude-auth relay: PTY-backed `claude auth login` over SSH → URL to the UI → pasted code to stdin → `claude auth status` confirms; Chad's call, CLI owns the credential write), then D5.**
+## ⏭ NEXT ACTION (2026-07-29 morning): **PHASE D IS CODE-COMPLETE — D0…D5 all committed and green.** The remaining work is Chad's SMOKE TEST, in this order:
+
+1. **Provision a server from the UI.** Set `VYNEL_SERVER_PAYLOAD_ARCHIVE=dist-payloads/vynel-engine-linux-x64-0.1.1.tar.gz` in `.env` (the tarball is built and sitting there), `pnpm dev`, then sidebar → **"Where Vynel runs"** → Add a server. Target the clean WSL box: host `127.0.0.1`, port **2223**, user `vynel`, password `vynel-clean-e2e-4f21`. Expect live step narration → "Ready — running Vynel 0.1.1". ⚠ If it fails at `connect`, the WSL localhost relay is cold: `wsl --shutdown`, wait, retry (fixture-only; see D3 learnings).
+2. **Claude sign-in (the one thing I could NOT prove — needs your browser).** The row shows "still needs to sign in" → **Sign in to Claude** → open the link, approve, paste the code. Expect "Your server is signed in." Then `claude auth status` on the box should name your account. The relay is 7-tests-green over a real ssh2 PTY, but the true end-to-end is unproven.
+3. **Switch to remote mode** (desktop app only, not `pnpm dev`): "Run Vynel here" → Restart now → the app should come back serving the REMOTE engine through the tunnel. Expect its OWN onboarding wizard (the remote engine has its own DB — by design, D4 finding 1).
+4. **Update path:** "Update engine" on the row → re-provisions, data survives (verified by me on the clean box: DB untouched across a swap).
+
+**PHASE D COMMITS:** D0 `f7c43b2` (linux payload real) · D1 `d5bd979` (/health + bearer + remote flag) · D2 `92af62e` (provisioner leaf) · D3 `41c9dd0` (tunnel + LaunchPlan::Remote + port home) · D4 `0bfcf3f` (settings surface) · D4b `fb91de1` (Claude sign-in relay) · D5 (this tree).
+
+**KNOWN GAPS (honest):** (a) the Claude sign-in end-to-end is unproven — step 2 above; (b) a ROUTE-level happy-path test for the auth relay hung past 50s and was deliberately NOT shipped (leaf tests cover the mechanics; suspect the module-level relay singleton + per-request connection opener inside a Hono handler); (c) the WSL localhost relay dies after ~200MB transfers, so provision-then-tunnel in ONE run is flaky HERE only — a real VPS has no relay layer; (d) `loginctl enable-linger` self-service is denied by polkit on WSL (root enabled it on the clean box) — real VPSes usually allow it, but the wizard should surface the warning when it fires.
+
+**TEST BOXES:** `vynel-clean` (WSL, Debian 13, sshd :2223, user `vynel` / `vynel-clean-e2e-4f21`, linger on, engine provisioned + healthy, NO claude creds) ← use this one. The older `Debian` instance holds Chad's own Claude account — **never touch it**.
 
 **D4: "Where Vynel runs" GLOBAL section (`EngineSection.vue` + engine/{ProvisionServerDialog,
 EngineInstallRow}.vue + composables/server-install/* + composables/shell/use-engine-location.ts;

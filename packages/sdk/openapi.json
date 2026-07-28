@@ -18044,6 +18044,138 @@
         "x-sdk-name": "serverInstall.remove"
       }
     },
+    "/server-install/{installId}/reprovision": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The row, back in provisioning — poll it for step progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": "number"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "authKind": {
+                      "type": "string",
+                      "enum": [
+                        "password",
+                        "private-key"
+                      ]
+                    },
+                    "hostKeyFingerprint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "provisioning",
+                        "installed",
+                        "failed"
+                      ]
+                    },
+                    "step": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "connect",
+                        "preflight",
+                        "upload",
+                        "install",
+                        "start",
+                        "health",
+                        null
+                      ]
+                    },
+                    "errorMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "installedVersion": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lastHealthyAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "host",
+                    "port",
+                    "username",
+                    "authKind",
+                    "hostKeyFingerprint",
+                    "status",
+                    "step",
+                    "errorMessage",
+                    "installedVersion",
+                    "lastHealthyAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown install, or not owned."
+          },
+          "409": {
+            "description": "No engine payload available, or a run is already in flight."
+          }
+        },
+        "operationId": "postServer-installByInstallIdReprovision",
+        "tags": [
+          "server-install"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Update the server's engine to the version this app ships.",
+        "x-sdk-name": "serverInstall.reprovision"
+      }
+    },
     "/server-install/{installId}/claude-auth": {
       "get": {
         "responses": {

@@ -1267,6 +1267,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error) throw new SdkError(response, error)
 
   },
+  reprovision: async (installId: NonNullable<paths["/server-install/{installId}/reprovision"]["post"]['parameters']>['path']["installId"]) => {
+    const { data, error, response } = await client["POST"]("/server-install/{installId}/reprovision", {
+      params: { path: { installId: installId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   start: async (input: NonNullable<paths["/server-install"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/server-install", {
       body: input,

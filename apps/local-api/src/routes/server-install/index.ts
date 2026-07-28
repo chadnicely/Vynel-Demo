@@ -23,6 +23,7 @@ import {
   findServerInstallById,
   hardDeleteServerInstall,
   listServerInstallsForUser,
+  markServerInstallProvisioning,
   openServerConnection,
   readRemoteClaudeAuthStatus,
   runProvision,
@@ -214,6 +215,52 @@ export const serverInstallApp = factory
     (c) => {
       const { installId } = c.req.valid('param')
       return c.json(serializeServerInstallForResponse(getOwnedInstallOrThrow(c, installId)))
+    },
+  )
+  // POST /:installId/reprovision — re-ship the engine this app ships (D5's
+  // desktop-driven update). Reuses the sealed credentials + the pinned host
+  // key; the install step swaps beside the running engine, so user data in
+  // ~/.vynel/data survives.
+  .post(
+    '/:installId/reprovision',
+    describeRoute({
+      tags: ['server-install'],
+      summary: "Update the server's engine to the version this app ships.",
+      'x-sdk-name': 'serverInstall.reprovision',
+      responses: {
+        200: {
+          description: 'The row, back in provisioning — poll it for step progress.',
+          content: { 'application/json': { schema: resolver(ServerInstallResponseSchema) } },
+        },
+        404: { description: 'Unknown install, or not owned.' },
+        409: { description: 'No engine payload available, or a run is already in flight.' },
+      },
+    }),
+    validator('param', ServerInstallParamSchema),
+    ...userScoped,
+    (c) => {
+      const masterKey = requireMasterKey(c)
+      const payloadArchive = requirePayloadArchive(c)
+      const install = getOwnedInstallOrThrow(c, c.req.valid('param').installId)
+      if (install.status === 'provisioning') {
+        throw new ConflictError('This server is already being set up — wait for it to finish.')
+      }
+      // A half-finished sign-in belongs to the OLD engine tree.
+      claudeAuthRelay.discard(install.id)
+      const reset = markServerInstallProvisioning(c.var.db, install.id)
+      const logger = c.var.logger
+      void runProvision(c.var.db, install.id, {
+        masterKeyBase64: masterKey,
+        appVersion: c.var.appVersion,
+        payloadArchive,
+        logger,
+      }).catch((error: unknown) => {
+        logger.warn(
+          { installId: install.id, err: error },
+          'server reprovision ended with an error (row settled separately)',
+        )
+      })
+      return c.json(serializeServerInstallForResponse(reset))
     },
   )
   // GET /:installId/claude-auth — is the remote engine signed in to Claude?

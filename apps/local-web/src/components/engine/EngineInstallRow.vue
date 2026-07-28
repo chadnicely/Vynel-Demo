@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import type { ServerInstallResponse } from "@vynel/contracts/server-install/server-install-http";
 import { useRemoveServerInstall } from "../../composables/server-install/use-remove-server-install.js";
+import { useReprovisionServer } from "../../composables/server-install/use-reprovision-server.js";
 import { useRemoteClaudeAuthStatus } from "../../composables/server-install/use-claude-auth.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import ClaudeSignInDialog from "./ClaudeSignInDialog.vue";
@@ -14,6 +15,7 @@ const props = defineProps<{ install: ServerInstallResponse; isActive: boolean }>
 const emit = defineEmits<{ use: [installId: string] }>();
 
 const remove = useRemoveServerInstall();
+const reprovision = useReprovisionServer();
 const isRemoveArmed = ref(false);
 const isSignInOpen = ref(false);
 const isReady = computed(() => props.install.status === "installed");
@@ -101,6 +103,14 @@ function requestRemove() {
         @click="emit('use', props.install.id)"
       >
         Run Vynel here
+      </button>
+      <button
+        v-if="props.install.status !== 'provisioning'"
+        class="update-button cursor-default rounded-sm border border-hair-strong px-3 py-1 text-[11px] font-semibold text-ink-2 transition hover:text-ink-1"
+        :disabled="reprovision.isPending.value"
+        @click="reprovision.mutate({ installId: props.install.id })"
+      >
+        {{ reprovision.isPending.value ? "Updating…" : "Update engine" }}
       </button>
       <button
         v-if="props.install.status !== 'provisioning'"

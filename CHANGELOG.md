@@ -9,6 +9,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Updating Vynel updates your server too, without losing anything.** When the desktop app
+  updates, it notices if the engine on your server is older and says so. One click re-ships
+  the matching engine: it installs alongside the running one and swaps at the end, so your
+  conversations, memory, and files stay exactly where they were — verified on a real server.
+  Server engines now ship with every release, so the app always has the right one to install.
+
 - **Your server can sign in to your Claude account, without Vynel ever holding the key.**
   When Vynel's engine runs on your server it needs to sign in to Claude there. Vynel shows
   the sign-in link, you approve it in your browser as usual, and paste the code back — the

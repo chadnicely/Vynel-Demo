@@ -144,6 +144,39 @@ describe('server-install routes', () => {
   // this harness and is not yet diagnosed — deliberately not shipped as a
   // flaky/slow test. The end-to-end sign-in needs a real browser anyway, so
   // it rides Chad's smoke test; see STATE.md.
+  it('refuses to update an engine while a run is already in flight', async () => {
+    await withTestDatabase(async (db) => {
+      const userId = seedUser(db)
+      const { dir, archive } = makeArchive()
+      try {
+        const app = createApp({
+          db,
+          logger: silentLogger,
+          sshMasterKeyBase64: masterKey,
+          serverPayloadArchive: archive,
+        })
+        const install = startServerInstall(
+          db,
+          {
+            userId,
+            host: "127.0.0.1",
+            username: "dana",
+            credentials: { authKind: "password", password: "x" },
+          },
+          { masterKeyBase64: masterKey },
+        )
+        // startServerInstall leaves the row 'provisioning' — an update now
+        // would race the run already under way.
+        const response = await app.request(`/server-install/${install.id}/reprovision`, {
+          method: "POST",
+        })
+        expect(response.status).toBe(409)
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
   it('refuses sign-in while the install is still provisioning', async () => {
     await withTestDatabase(async (db) => {
       const userId = seedUser(db)

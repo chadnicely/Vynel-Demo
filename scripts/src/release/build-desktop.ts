@@ -143,6 +143,28 @@ function emitLatestManifest(version: string, signaturePath: string): string {
   return manifestPath
 }
 
+// The linux SERVER payload rides the same release as the desktop installer, so
+// one version tag carries every artifact a shell of that version can need:
+// its own installer AND the engine it provisions onto a user's server (Phase
+// D5). Built by `release:payload linux-x64` + `release:pack linux-x64`;
+// absent = a desktop-only release (logged, never a silent omission).
+function serverPayloadArtifacts(version: string): string[] {
+  const archivePath = join(repoRoot, 'dist-payloads', `vynel-engine-linux-x64-${version}.tar.gz`)
+  if (!existsSync(archivePath)) {
+    console.log(
+      `build-desktop: NO linux server payload for ${version} — publishing desktop-only. ` +
+        `Run \`pnpm release:payload linux-x64 && pnpm release:pack linux-x64\` to include it.`,
+    )
+    return []
+  }
+  const sidecarPath = `${archivePath}.sha256`
+  if (!existsSync(sidecarPath)) {
+    throw new Error(`${archivePath} has no .sha256 sidecar — re-run \`pnpm release:pack linux-x64\`.`)
+  }
+  console.log(`build-desktop: including linux server payload → ${archivePath}`)
+  return [archivePath, sidecarPath]
+}
+
 function publishRelease(version: string, installerPath: string, manifestPath: string): void {
   // latest.json must ride the SAME release: the endpoint fetches it via
   // releases/latest/download, so the newest release always self-describes.
@@ -154,6 +176,7 @@ function publishRelease(version: string, installerPath: string, manifestPath: st
       `v${version}`,
       installerPath,
       manifestPath,
+      ...serverPayloadArtifacts(version),
       '--repo',
       RELEASES_REPO,
       '--title',
