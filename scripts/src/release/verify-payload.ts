@@ -3,27 +3,23 @@
 //
 //   tsx scripts/src/release/verify-payload.ts [win-x64|linux-x64|linux-arm64]
 //
-// Static asserts, then (win-x64 on Windows) a smoke boot: spawn the staged
-// node with the bundle into a temp app-data dir, poll the port, hit a route
-// that exercises migrations + DB + web UI, kill. Reports payload size and
-// cold-start time — the levers doc (docs/release-plan.md risks) reads these.
+// Static asserts, then a smoke boot (smoke-boot.ts): win-x64 natively on
+// Windows, linux targets inside WSL (`--wsl=<distro>` to pick one). Reports
+// payload size and cold-start time — the levers doc (docs/release-plan.md
+// risks) reads these.
 //
 // `--dir=<path>` verifies a payload COPIED OUTSIDE the repo — the honest form
 // of the green bar (nothing on a user's machine has the repo to fall back to).
 
-import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { resolvePayloadTarget, type PayloadTarget } from './payload-targets.js'
+import { expectedNativeBinaryFormat, readNativeBinaryFormat } from './native-binary-format.js'
+import { resolvePayloadDir, resolvePayloadTarget, type PayloadTarget } from './payload-targets.js'
+import { detectWslDistro, smokeBootNative, smokeBootViaWsl } from './smoke-boot.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..', '..', '..')
-const dirArg = process.argv.slice(2).find((arg) => arg.startsWith('--dir='))
-const payloadDir = dirArg?.slice('--dir='.length) ?? join(repoRoot, 'apps', 'desktop', 'src-tauri', 'payload')
-const backendDir = join(payloadDir, 'backend')
-const SMOKE_PORT = 8996
 
 const failures: string[] = []
 function assertThat(condition: boolean, message: string): void {
@@ -46,13 +42,21 @@ function directorySizeBytes(directory: string): number {
   return total
 }
 
-function runStaticAsserts(target: PayloadTarget): void {
+function runStaticAsserts(payloadDir: string, target: PayloadTarget): void {
+  const backendDir = join(payloadDir, 'backend')
   const { stagedNodeName } = target
   assertThat(existsSync(join(backendDir, 'dist', 'server.mjs')), 'backend/dist/server.mjs missing')
-  assertThat(
-    existsSync(join(backendDir, 'dist', 'notification-listener.ps1')),
-    'notification-listener.ps1 missing beside the bundle',
-  )
+  if (target.os === 'win32') {
+    assertThat(
+      existsSync(join(backendDir, 'dist', 'notification-listener.ps1')),
+      'notification-listener.ps1 missing beside the bundle',
+    )
+  } else {
+    assertThat(
+      !existsSync(join(backendDir, 'dist', 'notification-listener.ps1')),
+      'windows-only notification-listener.ps1 leaked into a linux payload',
+    )
+  }
   assertThat(existsSync(join(payloadDir, stagedNodeName)), `staged runtime ${stagedNodeName} missing`)
   assertThat(existsSync(join(payloadDir, 'web', 'index.html')), 'web/index.html missing')
 
@@ -119,79 +123,57 @@ function runStaticAsserts(target: PayloadTarget): void {
   // dep pnpm's supportedArchitectures selected for the target.
   const sdkPlatformPackage = `claude-agent-sdk-${target.os}-${target.cpu}`
   const sdkBinaryName = target.os === 'win32' ? 'claude.exe' : 'claude'
+  const sdkBinaryPath = join(nodeModulesDir, '@anthropic-ai', sdkPlatformPackage, sdkBinaryName)
   assertThat(
-    existsSync(join(nodeModulesDir, '@anthropic-ai', sdkPlatformPackage, sdkBinaryName)),
+    existsSync(sdkBinaryPath),
     `@anthropic-ai/${sdkPlatformPackage}/${sdkBinaryName} missing (the SDK spawns it from disk)`,
   )
+
+  runBinaryFormatAsserts(payloadDir, target, sdkBinaryPath)
 }
 
-async function smokeBoot(stagedNodePath: string): Promise<void> {
-  const appDataDir = mkdtempSync(join(tmpdir(), 'vynel-payload-smoke-'))
-  const child = spawn(stagedNodePath, [join(backendDir, 'dist', 'server.mjs')], {
-    cwd: backendDir,
-    env: {
-      // Deliberately NOT inheriting process.env — the payload must need nothing
-      // from a dev machine. Keyring/OS vars stay so native deps behave.
-      SystemRoot: process.env['SystemRoot'] ?? '',
-      PATH: dirname(stagedNodePath),
-      PORT: String(SMOKE_PORT),
-      DB_PATH: join(appDataDir, 'vynel.db'),
-      VYNEL_ASSETS_DIR: join(backendDir, 'assets'),
-      VYNEL_WEB_UI_DIST: join(payloadDir, 'web'),
-      VYNEL_EMBEDDINGS_CACHE_DIR: join(appDataDir, 'models'),
-      VYNEL_USER_DATA_DIR: join(appDataDir, 'user'),
-      LOG_LEVEL: 'info',
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  let output = ''
-  child.stdout.on('data', (chunk: Buffer) => (output += chunk.toString()))
-  child.stderr.on('data', (chunk: Buffer) => (output += chunk.toString()))
+// A cross-built payload's sharpest failure mode: an install script compiled
+// for the HOST, so a win32 addon sits in a linux tree. Existence checks pass;
+// the magic bytes don't lie.
+function runBinaryFormatAsserts(payloadDir: string, target: PayloadTarget, sdkBinaryPath: string): void {
+  const expected = expectedNativeBinaryFormat(target)
+  const describe = (filePath: string): string =>
+    `${filePath.slice(payloadDir.length + 1)} is ${readNativeBinaryFormat(filePath)}, expected ${expected}`
 
-  const bootStartedAt = Date.now()
-  try {
-    let ready = false
-    while (Date.now() - bootStartedAt < 60_000) {
-      if (child.exitCode !== null) break
-      try {
-        // Root serves the web UI in sidecar mode; /api/health may not exist —
-        // any HTTP answer proves boot + migrations + gateway wiring.
-        const response = await fetch(`http://127.0.0.1:${SMOKE_PORT}/`)
-        if (response.status < 500) {
-          ready = true
-          break
-        }
-      } catch {
-        // Not listening yet — keep polling until the 60s deadline.
-      }
-      await new Promise((resolveDelay) => setTimeout(resolveDelay, 250))
-    }
-    const coldStartMs = Date.now() - bootStartedAt
-    assertThat(ready, `payload did not answer on :${SMOKE_PORT} within 60s.\n--- output ---\n${output}`)
-    if (ready) {
-      const index = await fetch(`http://127.0.0.1:${SMOKE_PORT}/`)
-      assertThat(index.ok, `web UI root returned ${index.status}`)
-      console.log(`verify-payload: smoke boot OK — cold start ${coldStartMs}ms`)
-    }
-  } finally {
-    child.kill()
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 500))
-    rmSync(appDataDir, { recursive: true, force: true })
+  const stagedNodePath = join(payloadDir, target.stagedNodeName)
+  if (existsSync(stagedNodePath)) {
+    assertThat(readNativeBinaryFormat(stagedNodePath) === expected, describe(stagedNodePath))
   }
+  if (existsSync(sdkBinaryPath)) {
+    assertThat(readNativeBinaryFormat(sdkBinaryPath) === expected, describe(sdkBinaryPath))
+  }
+  walkFiles(join(payloadDir, 'backend', 'node_modules'), (filePath) => {
+    if (!filePath.endsWith('.node')) return
+    if (readNativeBinaryFormat(filePath) !== expected) failures.push(describe(filePath))
+  })
 }
 
 async function main(): Promise<void> {
-  const target = resolvePayloadTarget(process.argv.slice(2).find((arg) => !arg.startsWith('--')))
+  const args = process.argv.slice(2)
+  const target = resolvePayloadTarget(args.find((arg) => !arg.startsWith('--')))
+  const dirArg = args.find((arg) => arg.startsWith('--dir='))
+  const payloadDir = dirArg?.slice('--dir='.length) ?? resolvePayloadDir(repoRoot, target)
   if (!existsSync(payloadDir)) {
     throw new Error(`No payload at ${payloadDir} — run build-payload.ts first.`)
   }
 
-  runStaticAsserts(target)
+  runStaticAsserts(payloadDir, target)
 
-  const canSmoke = target.os === 'win32' && process.platform === 'win32'
-  if (canSmoke && failures.length === 0) {
-    await smokeBoot(join(payloadDir, target.stagedNodeName))
-  } else if (!canSmoke) {
+  if (failures.length === 0 && target.os === 'win32' && process.platform === 'win32') {
+    failures.push(...(await smokeBootNative(payloadDir, join(payloadDir, target.stagedNodeName))))
+  } else if (failures.length === 0 && target.os === 'linux' && process.platform === 'win32') {
+    const distro = detectWslDistro(args.find((arg) => arg.startsWith('--wsl='))?.slice('--wsl='.length))
+    if (distro === null) {
+      console.log('verify-payload: skipping smoke boot (no usable WSL distro found — pass --wsl=<name>).')
+    } else {
+      failures.push(...(await smokeBootViaWsl(payloadDir, target, distro)))
+    }
+  } else if (failures.length === 0) {
     console.log(`verify-payload: skipping smoke boot (${target.id} payload on ${process.platform}).`)
   }
 

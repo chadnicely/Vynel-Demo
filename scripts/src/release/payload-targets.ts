@@ -3,6 +3,8 @@
 // (Phase D). Node version pinned exactly — the runtime ships inside the
 // payload, so every user runs the version we tested.
 
+import { join as joinPath } from 'node:path'
+
 export const PINNED_NODE_VERSION = '22.18.0'
 
 export type PayloadTargetId = 'win-x64' | 'linux-x64' | 'linux-arm64'
@@ -12,6 +14,8 @@ export type PayloadTarget = {
   /** pnpm supportedArchitectures — which native prebuilds the install fetches. */
   os: 'win32' | 'linux'
   cpu: 'x64' | 'arm64'
+  /** pnpm supportedArchitectures libc — Phase D v1 is glibc-only (release-plan risk #4). */
+  libc?: 'glibc'
   /** nodejs.org dist file name for the pinned runtime. */
   nodeArchiveName: string
   /** Path of the node binary inside the archive. */
@@ -33,6 +37,7 @@ export const PAYLOAD_TARGETS: Record<PayloadTargetId, PayloadTarget> = {
     id: 'linux-x64',
     os: 'linux',
     cpu: 'x64',
+    libc: 'glibc',
     nodeArchiveName: `node-v${PINNED_NODE_VERSION}-linux-x64.tar.xz`,
     nodeBinaryInArchive: `node-v${PINNED_NODE_VERSION}-linux-x64/bin/node`,
     stagedNodeName: 'node',
@@ -41,10 +46,23 @@ export const PAYLOAD_TARGETS: Record<PayloadTargetId, PayloadTarget> = {
     id: 'linux-arm64',
     os: 'linux',
     cpu: 'arm64',
+    libc: 'glibc',
     nodeArchiveName: `node-v${PINNED_NODE_VERSION}-linux-arm64.tar.xz`,
     nodeBinaryInArchive: `node-v${PINNED_NODE_VERSION}-linux-arm64/bin/node`,
     stagedNodeName: 'node',
   },
+}
+
+/**
+ * Where a target's payload is assembled. win-x64 stays at the tauri path the
+ * desktop bundle maps as resources; linux targets get their own root so a
+ * server-payload build never clobbers the installer's staged payload.
+ */
+export function resolvePayloadDir(repoRoot: string, target: PayloadTarget): string {
+  if (target.os === 'win32') {
+    return joinPath(repoRoot, 'apps', 'desktop', 'src-tauri', 'payload')
+  }
+  return joinPath(repoRoot, 'dist-payloads', target.id)
 }
 
 export function resolvePayloadTarget(raw: string | undefined): PayloadTarget {

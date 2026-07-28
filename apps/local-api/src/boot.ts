@@ -18,8 +18,7 @@ import { recoverStalePendingApprovals } from '@vynel/approvals'
 import { reapAllStartedChatToolCalls } from '@vynel/chat'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
 import { FileWatcherService } from '@vynel/knowledge'
-import { resolveMasterKey } from '@vynel/ssh-servers'
-import { createKeyringMasterKeyVault } from '@vynel/ssh-servers/keyring'
+import { createFileMasterKeyVault, resolveMasterKey } from '@vynel/ssh-servers'
 import { hostname } from 'node:os'
 import {
   createEntitlementVerifier,
@@ -95,9 +94,19 @@ export async function boot(): Promise<void> {
   // indexing service (below) restores watchers for already-registered sources.
   const fileWatcher = new FileWatcherService(db, logger)
 
-  // The ssh sealing master key, from the OS keyring (minted on first boot —
-  // the SQLite file alone is useless ciphertext without this machine's store).
-  const sshMasterKey = resolveMasterKey(createKeyringMasterKeyVault())
+  // The ssh sealing master key, minted on first boot — the SQLite file alone
+  // is useless ciphertext without it. Desktop = the OS keyring; headless
+  // servers (VYNEL_MASTER_KEY_FILE set) = an owner-only key file, because no
+  // Secret Service exists there and USING the keyring throws. The dynamic
+  // import keeps dev/tsx lazy only — esbuild hoists it static in the bundled
+  // payload, which is safe because merely LOADING the addon works headless
+  // (the glibc pin ships a loadable .node); do not prune the keyring dep
+  // from linux payloads.
+  const masterKeyVault =
+    env.VYNEL_MASTER_KEY_FILE !== undefined
+      ? createFileMasterKeyVault(env.VYNEL_MASTER_KEY_FILE)
+      : (await import('@vynel/ssh-servers/keyring')).createKeyringMasterKeyVault()
+  const sshMasterKey = resolveMasterKey(masterKeyVault)
 
   // Boot-owned so shutdown can stopAll() — quitting Vynel never orphans a dev
   // server. A SELF-exit publishes its runtime fact through the leaf op.

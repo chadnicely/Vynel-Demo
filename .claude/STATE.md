@@ -3,7 +3,31 @@
 **Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-28, round 6): PHASE C BUILT + VERIFIED (uncommitted) — `@vynel/cli` artifact green end-to-end. **NEXT: commit C → Chad publishes (npm org `vynel` + `npm publish --access public` from apps/cli/dist-npm) → Phase D (SSH server install) is all that remains of the release plan.**
+## ⏭ NEXT ACTION (2026-07-28, round 8): PHASE D STARTED — plan + forks SETTLED (`docs/module-notes/server-install.md`), **D0 (linux payload) BUILT + GREEN, uncommitted.** **NEXT: commit D0, then D1 (bearer token + version/health endpoint + voice-off-remote; the file master-key vault already landed in D0).**
+
+**Phase D shape (Chad's fork answers 2026-07-28): bootstrap = local-first + restart into
+remote; tunnel = node+ssh2 bundled in the payload (local 8998 listener, bearer injected at
+the tunnel — web/SDK/window layer untouched); verify = WSL2 (Debian, systemd PID 1) early,
+real VPS for final E2E. Slices D0–D5 tracked in the module notes.**
+
+**D0 (this tree): Phase A's "linux payload built" was NEVER TRUE — cross-install was
+silently broken (pnpm side-effects cache replays HOST-built natives even with the cache
+flag off: better_sqlite3.node arrived win32; supportedArchitectures filters optional deps
+only: libnut all-platforms + agent-SDK musl 258MB leaked). Landed: per-target output
+(`dist-payloads/<target>/`), glibc pin, cross-install env, `repairCrossBuiltNatives`
+(explicit prebuild-install), post-prune magic-byte sweep (fail-loud on foreign REQUIRED
+natives, delete host-built optionals), per-target prunes (musl SDK, libnut), bsdtar
+drive-colon fix (relative paths), WSL smoke in verify (`release:verify linux-x64
+--wsl=Debian`), `createFileMasterKeyVault` + `VYNEL_MASTER_KEY_FILE` (headless keyring
+crash fix; keyring import now lazy in boot.ts). PROVEN: linux-x64 PASS + real WSL boot
+(16.6s over 9p, 587 MB); win-x64 re-proven through the changed pipeline (1.3s, 510 MB);
+pnpm test 3263 green.**
+
+- Committed `a34b8fb` (Phase C) + `c34c5d7` (fix: version stamp via esbuild define —
+  the PUBLISHED 0.1.1 reports `--version` 0.0.0 [npm-immutable blemish]; correct from 0.1.2 on.
+  Also: build-cli clears dist-npm CONTENTS instead of the root dir — deleting the root EBUSYs
+  while any shell sits in it, e.g. the terminal `npm publish` ran from).
+- Claude Code integration line (now real): `claude mcp add vynel -- npx -y @vynel/cli mcp`.
 
 **C: `build-cli.ts` generates the WHOLE publish dir (`apps/cli/dist-npm/`, gitignored):
 esbuild-bundled cli.mjs (155KB) + mcp-server.mjs (622KB, OpenAPI spec inlined via the JSON

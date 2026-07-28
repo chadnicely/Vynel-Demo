@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel's engine can now be built for Linux servers — the first step toward "run Vynel on
+  my server."** The release pipeline cross-builds the full backend payload for linux-x64 from
+  a Windows machine and proves it boots for real (WSL smoke test in the release gate). Three
+  independent guards make a broken cross-build impossible to ship silently: native binaries
+  are checked byte-by-byte for the right platform and architecture, wrong ones are re-fetched
+  or fail the build loudly, and the verifier re-checks everything. Headless servers also
+  gained a file-based master-key vault (`VYNEL_MASTER_KEY_FILE`) so the engine boots without a
+  desktop keyring. Bonus: the audit removed 258 MB of dead weight that platform filtering had
+  been silently letting into every payload.
+
 - **Vynel now speaks to terminals and to Claude Code.** A new `@vynel/cli` npm package (built
   by `pnpm release:cli`, verified by `release:cli-verify`) carries two doors into a running
   Vynel: the `vynel` command-line client for shells and scripts, and `vynel mcp` — an MCP

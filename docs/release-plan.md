@@ -130,6 +130,14 @@ dist-npm.
 
 ## Phase D — SSH server install (the big new feature, last)
 
+**Slice plan + fork answers + build log: `docs/module-notes/server-install.md`.** Chad's
+2026-07-28 fork answers: bootstrap = local-first + restart into remote mode; tunnel = node+ssh2
+bundled in the payload (bearer injected at the tunnel, web/SDK untouched); verification = WSL2
+for early slices, real VPS for final E2E. **D0 DONE (2026-07-28): the linux payload actually
+builds and boots** — Phase A's "linux payload built" green criterion was found never met
+(host-native cross-install was silently broken); now cross-install + magic-byte verify + WSL
+smoke are real, and `VYNEL_MASTER_KEY_FILE` (file master-key vault) covers headless boot.
+
 Desktop onboarding gains **"Where should Vynel's engine run?" — This computer | My server (SSH)**.
 
 - **Provisioner** (new `packages/server-install` leaf, reusing the `ssh2` + sealing/keyring

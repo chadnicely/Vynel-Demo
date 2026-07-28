@@ -31,3 +31,4 @@ export {
   createInMemoryMasterKeyVault,
   type MasterKeyVault,
 } from './sealing/master-key.js'
+export { createFileMasterKeyVault } from './sealing/file-master-key-vault.js'

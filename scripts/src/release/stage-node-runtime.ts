@@ -46,10 +46,18 @@ async function extractNodeBinary(target: PayloadTarget, archivePath: string): Pr
     }
     return entry.async('nodebuffer')
   }
-  // .tar.xz — Windows 11's bsdtar decompresses xz natively; extract the one file.
-  const extractDir = join(dirname(archivePath), `extract-${target.id}`)
+  // .tar.xz — Windows 11's bsdtar decompresses xz natively; extract the one
+  // file. Relative paths from the cache dir: bsdtar reads `E:\...`'s colon as
+  // a remote-host separator and tries to ssh to a machine called E.
+  const cacheDir = dirname(archivePath)
+  const extractDirName = `extract-${target.id}`
+  const extractDir = join(cacheDir, extractDirName)
   mkdirSync(extractDir, { recursive: true })
-  const result = spawnSync('tar', ['-xf', archivePath, '-C', extractDir, target.nodeBinaryInArchive])
+  const result = spawnSync(
+    'tar',
+    ['-xf', target.nodeArchiveName, '-C', extractDirName, target.nodeBinaryInArchive],
+    { cwd: cacheDir },
+  )
   if (result.status !== 0) {
     throw new Error(
       `tar failed extracting ${target.nodeBinaryInArchive}: ${result.stderr?.toString() ?? 'unknown error'}`,

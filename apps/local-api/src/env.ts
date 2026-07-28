@@ -91,6 +91,12 @@ export const EnvSchema = z.object({
   // the bundled daemon (tauri.conf.json is the source of truth). Unset in dev
   // — consumers fall back to the 0.0.0 placeholder.
   VYNEL_APP_VERSION: z.string().optional(),
+  // Where the sealing master key lives when the OS keyring can't (headless
+  // servers — Phase D remote engines — have no Secret Service; the keyring
+  // impl would throw at boot). Set = file vault (owner-only file, minted on
+  // first boot); unset = the OS keyring as before. Repo-root-resolved like
+  // DB_PATH, absolute in practice (the systemd unit passes the install dir).
+  VYNEL_MASTER_KEY_FILE: z.string().optional().transform(resolveAgainstRepoRoot),
   // The Vynel HUB (apps/cloud-api, hosted) — accounts + tiers + marketplace.
   // OPTIONAL: unset = hub features off (the /hub routes answer
   // `not-configured`), so dev without a hub keeps working.

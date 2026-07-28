@@ -107,6 +107,27 @@ export function prunePayloadNodeModules(backendDir: string, target: PayloadTarge
   // 4. pdf-parse ships its test corpus.
   remove(join(nodeModulesDir, 'pdf-parse', 'test'), report)
 
+  // 4b. The agent SDK's musl platform package declares no `libc` field, so
+  //     supportedArchitectures can't exclude it and 258 MB of Alpine binary
+  //     rides a glibc payload. Keep exactly the target's platform package
+  //     (this prunes whole foreign packages — the never-reach-INSIDE-the-SDK
+  //     rule below is untouched).
+  keepOnly(
+    join(nodeModulesDir, '@anthropic-ai'),
+    (name) => !name.startsWith('claude-agent-sdk-') || name === `claude-agent-sdk-${target.os}-${target.cpu}`,
+    report,
+  )
+
+  // 4c. nut-js declares ALL THREE libnut platform packages as regular deps
+  //     (supportedArchitectures only filters optional deps) — keep the
+  //     target's, the other two can never load.
+  const libnutSuffix = target.os === 'win32' ? 'win32' : 'linux'
+  keepOnly(
+    join(nodeModulesDir, '@nut-tree-fork'),
+    (name) => !name.startsWith('libnut-') || name === `libnut-${libnutSuffix}`,
+    report,
+  )
+
   // 5. Types packages and shipped TS source nothing compiles at runtime.
   remove(join(nodeModulesDir, '@types'), report)
   remove(join(nodeModulesDir, 'zod', 'src'), report)
