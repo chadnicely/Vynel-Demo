@@ -111,6 +111,13 @@ updater is proven · GitHub releases (`vynel-releases` public repo, code private
 
 ## Phase C — CLI + Claude Code integration (npm, cheap, independent after A)
 
+**STATUS: BUILT + VERIFIED (2026-07-28).** `pnpm release:cli` → `apps/cli/dist-npm/` (generated
+whole: 155KB cli.mjs + 622KB mcp-server.mjs — the OpenAPI spec inlines — + launcher + manifest
+with ZERO dependencies). `release:cli-verify` PASS: tarball source-free, offline --help, live CLI
+round-trip, MCP stdio handshake listing all 84 tools against the installed daemon. Publish =
+Chad: npm org `vynel` (scope unclaimed as of today) + `npm publish --access public` from
+dist-npm.
+
 - Publish **`@vynel/cli`** on npm (Chad's call, 2026-07-28; bin name stays `vynel`):
   `files: ["dist"]` only — esbuild-bundled minified CLI
   (`apps/cli`) + the **MCP stdio server** (`apps/mcp` external server) as a second bin

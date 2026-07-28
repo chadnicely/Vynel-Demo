@@ -3,7 +3,19 @@
 **Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-28, round 5): PHASE B COMPLETE — B3 auto-update PROVEN LIVE (uncommitted): installed 0.1.0 prompted, updated, runs 0.1.1. **NEXT: commit B3 → Phase C (`@vynel/cli` npm + MCP stdio for Claude Code).**
+## ⏭ NEXT ACTION (2026-07-28, round 6): PHASE C BUILT + VERIFIED (uncommitted) — `@vynel/cli` artifact green end-to-end. **NEXT: commit C → Chad publishes (npm org `vynel` + `npm publish --access public` from apps/cli/dist-npm) → Phase D (SSH server install) is all that remains of the release plan.**
+
+**C: `build-cli.ts` generates the WHOLE publish dir (`apps/cli/dist-npm/`, gitignored):
+esbuild-bundled cli.mjs (155KB) + mcp-server.mjs (622KB, OpenAPI spec inlined via the JSON
+import) + generated `bin/vynel.mjs` launcher (`vynel mcp` → stdio server, else CLI — the
+apps stay untouched; the integration lives ONLY in the generated launcher) + manifest with
+ZERO dependencies (everything bundled; no workspace: refs can leak). Version rides
+tauri.conf.json (one product version stream: 0.1.1). `verify-cli.ts` PASS: npm-pack tarball
+asserts (no .ts, no workspace:, zero deps), offline --help, live `schedules mine` round-trip,
+real MCP stdio handshake (initialize → tools/list → 84 tools) against the installed daemon.
+npm scope `@vynel` unclaimed as of today (registry search empty, @vynel/cli 404).**
+
+## ⏭ NEXT ACTION (2026-07-28, round 5): PHASE B COMPLETE — B3 PROVEN LIVE (COMMITTED `7d55859`). **(superseded by round 6 above)**
 
 **B3: `tauri-plugin-updater` + dialog prompt (`updater.rs`, check-on-startup off-thread,
 release-only) against `kafijunior/vynel-releases` (public; code stays private). Signing:

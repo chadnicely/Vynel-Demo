@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel now speaks to terminals and to Claude Code.** A new `@vynel/cli` npm package (built
+  by `pnpm release:cli`, verified by `release:cli-verify`) carries two doors into a running
+  Vynel: the `vynel` command-line client for shells and scripts, and `vynel mcp` — an MCP
+  server that plugs Vynel's 84 tools straight into Claude Code with one line:
+  `claude mcp add vynel -- npx -y @vynel/cli mcp`. The package is fully self-contained and
+  ships no readable source, same as the desktop build.
+
 - **Vynel now updates itself.** On launch the app quietly checks the official releases page
   (github.com/kafijunior/vynel-releases); when a new version exists it asks — "Update now?" —
   downloads, installs with a small progress bar, and restarts on the new version. Every update
