@@ -1,7 +1,8 @@
 // Public surface of `@vynel/ssh-servers` — the ssh leaf (registered remote
 // servers Claude drives WITHOUT ever seeing a credential). SDK-free barrel;
-// the descriptor lives on `./mcp`, the native keyring vault on `./keyring`
-// (the asks/hub-account precedents).
+// the descriptor lives on `./mcp`. Sealing crypto + the master-key vaults
+// moved to the SHARED `@vynel/sealing` when server-install became their
+// second consumer.
 
 export type { StructuralLogger, SshCredentials, SshCommandResult } from './ssh-types.js'
 export type { SshServer, SshAuthKind } from './repositories/index.js'
@@ -23,12 +24,3 @@ export {
   type RunServerCommandInput,
 } from './connecting/run-server-command.js'
 export { SshHostKeyMismatchError } from './connecting/execute-ssh-command.js'
-
-// Sealing (pure) + the vault seam; the OS-keyring impl stays on ./keyring.
-export { sealSecret, openSecret } from './sealing/seal-secret.js'
-export {
-  resolveMasterKey,
-  createInMemoryMasterKeyVault,
-  type MasterKeyVault,
-} from './sealing/master-key.js'
-export { createFileMasterKeyVault } from './sealing/file-master-key-vault.js'

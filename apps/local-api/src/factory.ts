@@ -18,6 +18,7 @@ import type { Logger } from 'pino'
 import type { User } from '@vynel/core/users'
 import type { Workspace } from '@vynel/workspaces'
 import type { FileWatcherService } from '@vynel/knowledge'
+import type { PayloadArchive as ServerPayloadArchive } from '@vynel/server-install'
 import type { FireScheduleDeps } from '@vynel/schedules'
 import type { PendingAskRegistry } from '@vynel/asks'
 import type { AppProcessSupervisor } from '@vynel/apps'
@@ -113,6 +114,12 @@ export interface AppEnv {
     // Whether this daemon is a REMOTE engine (VYNEL_REMOTE_ENGINE, Phase D) —
     // local-machine surfaces (voice) answer honestly instead of probing.
     remoteEngine: boolean
+    // The product version (VYNEL_APP_VERSION; '0.0.0' in dev) — provisioning
+    // stamps it into the remote engine's env.
+    appVersion: string
+    // The linux engine payload server-install provisions with; null = none
+    // available on this machine (the routes refuse with a 409).
+    serverPayloadArchive: ServerPayloadArchive | null
   }
 }
 

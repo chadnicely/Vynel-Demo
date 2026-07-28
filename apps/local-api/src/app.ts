@@ -11,6 +11,7 @@ import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import { VynelError } from '@vynel/errors'
 import { FileWatcherService } from '@vynel/knowledge'
+import type { PayloadArchive as ServerPayloadArchive } from '@vynel/server-install'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
@@ -36,6 +37,7 @@ import { journalApp } from './routes/journal/index.js'
 import { journalUserApp } from './routes/journal/user-scoped.js'
 import { asksApp } from './routes/asks/index.js'
 import { sshServersApp } from './routes/ssh-servers/index.js'
+import { serverInstallApp } from './routes/server-install/index.js'
 import { PendingAskRegistry } from '@vynel/asks'
 import { workspaceAppsApp } from './routes/workspace-apps/index.js'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
@@ -128,6 +130,13 @@ export interface CreateAppOptions {
   // install). Local-machine surfaces answer honestly instead of probing dead
   // loopbacks: `speak` reports voice unavailable without a daemon round-trip.
   readonly remoteEngine?: boolean
+  // The product version this daemon runs as (VYNEL_APP_VERSION, '0.0.0' in
+  // dev) — provisioning stamps it into the remote engine's env.
+  readonly appVersion?: string
+  // The linux engine payload the server-install routes provision with —
+  // resolved at boot (dev: VYNEL_SERVER_PAYLOAD_ARCHIVE + its .sha256
+  // sidecar); absent = the routes answer that no payload is available.
+  readonly serverPayloadArchive?: ServerPayloadArchive
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -175,6 +184,8 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('sshMasterKey', options.sshMasterKeyBase64 ?? null)
     c.set('desktopActionsEnabled', options.desktopActionsEnabled ?? false)
     c.set('remoteEngine', options.remoteEngine ?? false)
+    c.set('appVersion', options.appVersion ?? '0.0.0')
+    c.set('serverPayloadArchive', options.serverPayloadArchive ?? null)
     if (options.desktopNotifications !== undefined)
       c.set('desktopNotifications', options.desktopNotifications)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
@@ -254,6 +265,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // scope but registration/removal is always the user's door; the agent's
   // surface is the `vynel-ssh` descriptor). Gated pro above.
   app.route('/ssh-servers', sshServersApp)
+  app.route('/server-install', serverInstallApp)
   // `/marketplace` is the GLOBAL marketplace — user+both items, user-scope
   // installs (Chad's rule). The workspace surface stays mounted above.
   app.route('/marketplace', marketplaceUserApp)

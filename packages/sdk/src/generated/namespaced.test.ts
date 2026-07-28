@@ -253,6 +253,9 @@ describe('makeNamespaced — shape', () => {
       'routing',
       'schedules',
       'schedulesUser',
+      // test: correct expectation — Phase D2 added `serverInstall` (the
+      // remote-engine provisioning routes).
+      'serverInstall',
       // test: correct expectation — session-library Slice ③ added `sessions`
       // (GET /sessions/overview, the unified session list).
       'sessions',

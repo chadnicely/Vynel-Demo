@@ -1,31 +1,27 @@
 {
-  "name": "@vynel/ssh-servers",
+  "name": "@vynel/server-install",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./mcp": "./src/mcp/index.ts",
-    "./test-support": "./src/test-support.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.213",
     "@vynel/db": "workspace:*",
     "@vynel/errors": "workspace:*",
-    "@vynel/mcp-contract": "workspace:*",
     "@vynel/sealing": "workspace:*",
     "drizzle-orm": "^0.45.0",
-    "ssh2": "^1.16.0",
-    "zod": "^3.23.0"
+    "ssh2": "^1.16.0"
   },
   "devDependencies": {
     "@types/ssh2": "^1.15.1",
     "@vynel/testing": "workspace:*",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
   }
 }

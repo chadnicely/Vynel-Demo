@@ -8,3 +8,9 @@
 
 export { withTestDatabase } from './with-test-database.js'
 export type { WithTestDatabaseCallback } from './with-test-database.js'
+export { startFakeSshServer } from './fake-ssh-server.js'
+export type {
+  FakeSshServer,
+  FakeSshServerOptions,
+  FakeSshExecReply,
+} from './fake-ssh-server.js'

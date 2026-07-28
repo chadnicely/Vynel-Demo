@@ -18,7 +18,7 @@ import { recoverStalePendingApprovals } from '@vynel/approvals'
 import { reapAllStartedChatToolCalls } from '@vynel/chat'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
 import { FileWatcherService } from '@vynel/knowledge'
-import { createFileMasterKeyVault, resolveMasterKey } from '@vynel/ssh-servers'
+import { createFileMasterKeyVault, resolveMasterKey } from '@vynel/sealing'
 import { hostname } from 'node:os'
 import {
   createEntitlementVerifier,
@@ -30,6 +30,7 @@ import {
 } from '@vynel/hub-account'
 import { loadEnv } from './env.js'
 import { createApp } from './app.js'
+import { resolveServerPayloadArchive } from './server-payload-archive.js'
 import { createGatewayApp } from './gateway.js'
 import { startHubSessionService, type HubSessionService } from './services/hub-session-service.js'
 import { startCatalogSyncService, type CatalogSyncService } from './services/catalog-sync-service.js'
@@ -109,7 +110,7 @@ export async function boot(): Promise<void> {
   const masterKeyVault =
     env.VYNEL_MASTER_KEY_FILE !== undefined
       ? createFileMasterKeyVault(env.VYNEL_MASTER_KEY_FILE)
-      : (await import('@vynel/ssh-servers/keyring')).createKeyringMasterKeyVault()
+      : (await import('@vynel/sealing/keyring')).createKeyringMasterKeyVault()
   const sshMasterKey = resolveMasterKey(masterKeyVault)
 
   // Boot-owned so shutdown can stopAll() — quitting Vynel never orphans a dev
@@ -174,6 +175,8 @@ export async function boot(): Promise<void> {
     logger.info({ hubUrl: env.VYNEL_HUB_URL }, 'api boot: hub link enabled')
   }
 
+  const serverPayloadArchive = resolveServerPayloadArchive(env.VYNEL_SERVER_PAYLOAD_ARCHIVE, logger)
+
   const app = createApp({
     db,
     logger,
@@ -187,6 +190,8 @@ export async function boot(): Promise<void> {
     sshMasterKeyBase64: sshMasterKey,
     desktopActionsEnabled: env.VYNEL_DESKTOP_ACT_ENABLED,
     remoteEngine: env.VYNEL_REMOTE_ENGINE,
+    appVersion,
+    ...(serverPayloadArchive !== null ? { serverPayloadArchive } : {}),
     ...(desktopNotifications !== undefined ? { desktopNotifications } : {}),
     ...(hubSession !== undefined ? { hubSession } : {}),
   })

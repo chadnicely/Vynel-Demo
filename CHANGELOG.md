@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel can now install its engine on your server.** The foundation for "run Vynel on my
+  server": given SSH access, Vynel provisions a Linux machine end-to-end — checks the server
+  is suitable (and says exactly why not if it isn't), uploads the engine (integrity-verified),
+  installs it as a proper system service that restarts on failure, locks it behind a
+  per-install access token, and confirms it's healthy — all in about a dozen seconds, with
+  live step-by-step progress you can follow. Server credentials are sealed with the same
+  encryption as SSH servers and never leave the machine; proven end-to-end against a real
+  Linux server.
+
 - **The engine is ready to run headless behind a lock.** For the coming "run Vynel on my
   server" mode: the engine now answers a small open health check (liveness + version) while
   everything else can be locked behind a per-install access token — other people with accounts

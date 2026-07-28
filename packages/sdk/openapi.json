@@ -17579,6 +17579,471 @@
         "x-sdk-name": "sshServers.testConnection"
       }
     },
+    "/server-install": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of ServerInstall (never includes credentials or the bearer).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "host": {
+                        "type": "string"
+                      },
+                      "port": {
+                        "type": "number"
+                      },
+                      "username": {
+                        "type": "string"
+                      },
+                      "authKind": {
+                        "type": "string",
+                        "enum": [
+                          "password",
+                          "private-key"
+                        ]
+                      },
+                      "hostKeyFingerprint": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "provisioning",
+                          "installed",
+                          "failed"
+                        ]
+                      },
+                      "step": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "connect",
+                          "preflight",
+                          "upload",
+                          "install",
+                          "start",
+                          "health",
+                          null
+                        ]
+                      },
+                      "errorMessage": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "installedVersion": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "lastHealthyAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "host",
+                      "port",
+                      "username",
+                      "authKind",
+                      "hostKeyFingerprint",
+                      "status",
+                      "step",
+                      "errorMessage",
+                      "installedVersion",
+                      "lastHealthyAt",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getServer-install",
+        "tags": [
+          "server-install"
+        ],
+        "parameters": [],
+        "summary": "List the user's remote engine installs.",
+        "x-sdk-name": "serverInstall.list"
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The provisioning row — poll GET /server-install/:installId to follow step progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": "number"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "authKind": {
+                      "type": "string",
+                      "enum": [
+                        "password",
+                        "private-key"
+                      ]
+                    },
+                    "hostKeyFingerprint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "provisioning",
+                        "installed",
+                        "failed"
+                      ]
+                    },
+                    "step": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "connect",
+                        "preflight",
+                        "upload",
+                        "install",
+                        "start",
+                        "health",
+                        null
+                      ]
+                    },
+                    "errorMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "installedVersion": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lastHealthyAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "host",
+                    "port",
+                    "username",
+                    "authKind",
+                    "hostKeyFingerprint",
+                    "status",
+                    "step",
+                    "errorMessage",
+                    "installedVersion",
+                    "lastHealthyAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No engine payload available, or the encryption key is not loaded."
+          }
+        },
+        "operationId": "postServer-install",
+        "tags": [
+          "server-install"
+        ],
+        "parameters": [],
+        "summary": "Provision a remote engine on a server over SSH (runs in the background).",
+        "x-sdk-name": "serverInstall.start",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "host": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 253
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  },
+                  "username": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "credentials": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "authKind": {
+                            "type": "string",
+                            "const": "password"
+                          },
+                          "password": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "authKind",
+                          "password"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "authKind": {
+                            "type": "string",
+                            "const": "private-key"
+                          },
+                          "privateKey": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "passphrase": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "authKind",
+                          "privateKey"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "host",
+                  "username",
+                  "credentials"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/server-install/{installId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The install row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": "number"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "authKind": {
+                      "type": "string",
+                      "enum": [
+                        "password",
+                        "private-key"
+                      ]
+                    },
+                    "hostKeyFingerprint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "provisioning",
+                        "installed",
+                        "failed"
+                      ]
+                    },
+                    "step": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "connect",
+                        "preflight",
+                        "upload",
+                        "install",
+                        "start",
+                        "health",
+                        null
+                      ]
+                    },
+                    "errorMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "installedVersion": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lastHealthyAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "host",
+                    "port",
+                    "username",
+                    "authKind",
+                    "hostKeyFingerprint",
+                    "status",
+                    "step",
+                    "errorMessage",
+                    "installedVersion",
+                    "lastHealthyAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown install, or not owned."
+          }
+        },
+        "operationId": "getServer-installByInstallId",
+        "tags": [
+          "server-install"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Get one remote engine install (status + step + error).",
+        "x-sdk-name": "serverInstall.get"
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Forgotten."
+          },
+          "404": {
+            "description": "Unknown install, or not owned."
+          }
+        },
+        "operationId": "deleteServer-installByInstallId",
+        "tags": [
+          "server-install"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Forget a remote engine install (does not uninstall from the server).",
+        "x-sdk-name": "serverInstall.remove"
+      }
+    },
     "/marketplace/items": {
       "get": {
         "responses": {

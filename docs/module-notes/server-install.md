@@ -103,11 +103,19 @@ in `packages/ssh-servers/src/sealing/master-key.ts` already exists for exactly t
   Narrowing taken: the speak TOOL still appears in the remote engine's tool list (the
   route answers honestly; suppressing it from the generated registry needs a composer-level
   engine-facts seam — deferred to D3/D4 where remote runtime wiring lands).
-- **D2 — `packages/server-install` leaf**: provisioner ops — preflight (arch/glibc/systemd
-  check), SFTP upload (or server-side `curl` + SHA from the release), systemd user unit
-  install (`loginctl enable-linger`), token mint + seal, health check via remote exec. Own
-  schema (0022), routes, onboarding-deps binding. Green = provisions a real server end-to-end
-  from a test.
+- **D2 — `packages/server-install` leaf** (BUILT 2026-07-28, see learnings): the provisioner
+  pipeline — connect+TOFU → preflight (arch/glibc/systemd/tar, parsed pure) → tarball SFTP
+  upload + server-side `sha256sum` verify → extract-beside-then-swap install + exec-bit
+  restore + engine.env/systemd-unit writes → linger + bus-addressed `systemctl --user
+  enable --now` → health poll via the payload's own node. Schema 0022 (drizzle-generated),
+  `/server-install` routes (fire-and-track: POST kicks the async pipeline; the row IS the
+  progress surface, `step` + actionable `errorMessage`), no MCP by design. Extracted on the
+  way in: `@vynel/sealing` (shared crypto — ssh-servers + this leaf) and the scriptable
+  fake-ssh-server (with write-only SFTP) into `@vynel/testing`. Tarball step moved INTO D2
+  from D5 (`release:pack` — uploads must be one file, not 10k SFTP round-trips); the same
+  artifact is D5's release asset. PROVEN on real WSL sshd: 193 MB payload provisioned in
+  12s, systemd service active, real engine healthy (`version 0.1.1`), bearer enforced (401
+  on /api, /health open). Onboarding-deps binding lands with D4's wizard step.
 - **D3 — tunnel runtime + `LaunchPlan::Remote`**: the tunnel child the shell supervises +
   the shell-readable engine-location config in `app_data`. Green = installed desktop app in
   remote mode round-trips chat through the tunnel.
@@ -170,6 +178,29 @@ in `packages/ssh-servers/src/sealing/master-key.ts` already exists for exactly t
   installer's staged resources.
 - Payload sizes: win-x64 510 MB / linux-x64 587 MB (post-musl-prune; linux ELF binaries
   run larger).
+
+## D2 learnings (2026-07-28)
+
+- **`systemctl --user` over a bare ssh exec channel has no bus.** The first live run failed
+  at start: enable's symlink landed but `--now` couldn't reach the user manager. The fix is
+  ordered: `loginctl enable-linger` FIRST (it also boots the user manager), wait for
+  `/run/user/<uid>/bus`, then run systemctl with `XDG_RUNTIME_DIR` addressed explicitly.
+- **No linger = the engine dies with the last SSH session.** WSL's polkit denies
+  self-linger over ssh (`Access denied`) — the provisioner warns (survivable, by design)
+  and root's `loginctl enable-linger <user>` is the remedy; D4's wizard should surface that
+  instruction when the warning fires. Real VPSes usually allow self-linger.
+- **The WSL localhost relay is flaky for NEW inbound ports** (sshd on 2222 refused from
+  Windows while alive inside; `wsl --shutdown` + restart re-registers it). The E2E defaults
+  to 127.0.0.1:2222 post-restart; the WSL VM IP is NOT more reliable (handshake timeouts).
+- **ssh2 is CJS and node's named-export lexer misses `Server`/`utils` under tsx** (vitest's
+  transform tolerated it) — the shared fake uses default-import interop.
+- **`mustSucceed` names a null exit code** ("killed or disconnected") — a silent nonzero
+  with empty output cost a debugging round.
+- Test fixture: WSL Debian has sshd on port 2222 (`/etc/ssh/sshd_config.d/vynel-e2e.conf`),
+  user `vyneltest` (throwaway password in the E2E command history), linger enabled as root.
+  The provisioned engine may still be RUNNING there (`systemctl --user status vynel-engine`)
+  — useful for D3 tunnel work. Manual E2E: `scripts/src/release/e2e-server-install.ts`
+  (password via `VYNEL_E2E_SSH_PASSWORD`, never argv).
 
 ## Deferred (deliberate, v1)
 

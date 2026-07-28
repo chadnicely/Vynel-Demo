@@ -111,6 +111,11 @@ export const EnvSchema = z.object({
     .string()
     .default('0')
     .transform((raw) => raw === '1' || raw.toLowerCase() === 'true'),
+  // The linux engine payload the server-install routes provision with (a
+  // `release:pack` tar.gz; its `.sha256` sidecar must sit beside it). Dev
+  // seam — Phase D5 replaces it with a release download. Unset = the routes
+  // answer that no payload is available. Repo-root-resolved like DB_PATH.
+  VYNEL_SERVER_PAYLOAD_ARCHIVE: z.string().optional().transform(resolveAgainstRepoRoot),
   // The Vynel HUB (apps/cloud-api, hosted) — accounts + tiers + marketplace.
   // OPTIONAL: unset = hub features off (the /hub routes answer
   // `not-configured`), so dev without a hub keeps working.

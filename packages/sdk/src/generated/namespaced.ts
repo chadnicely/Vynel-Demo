@@ -1240,6 +1240,34 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  serverInstall: {
+  get: async (installId: NonNullable<paths["/server-install/{installId}"]["get"]['parameters']>['path']["installId"]) => {
+    const { data, error, response } = await client["GET"]("/server-install/{installId}", {
+      params: { path: { installId: installId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/server-install")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  remove: async (installId: NonNullable<paths["/server-install/{installId}"]["delete"]['parameters']>['path']["installId"]) => {
+    const { error, response } = await client["DELETE"]("/server-install/{installId}", {
+      params: { path: { installId: installId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  start: async (input: NonNullable<paths["/server-install"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/server-install", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   sessions: {
   createSpawned: async (input: NonNullable<paths["/sessions/spawned"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/sessions/spawned", {

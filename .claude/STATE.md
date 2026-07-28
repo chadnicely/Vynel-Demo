@@ -3,7 +3,23 @@
 **Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-28, round 8): PHASE D — D0 COMMITTED (`f7c43b2`), **D1 BUILT + GREEN (uncommitted): /health + bearer gate + remote-engine flag.** **NEXT: commit D1, then D2 (`packages/server-install` provisioner leaf — schema 0022, preflight/upload/systemd/token/health; WSL sshd as the test server).**
+## ⏭ NEXT ACTION (2026-07-28, round 8): PHASE D — D0 (`f7c43b2`) + D1 (`d5bd979`) COMMITTED; **D2 (provisioner leaf) BUILT + PROVEN on real WSL sshd, uncommitted.** **NEXT: commit D2, then D3 (tunnel runtime + LaunchPlan::Remote — node+ssh2 bearer-injecting forwarder bundled in payload; the provisioned engine is RUNNING in WSL as the test target).**
+
+**D2 (this tree): `packages/server-install` — provision pipeline (connect+TOFU → preflight
+[pure parser; glibc/systemd/tar/arch, actionable rejections] → `release:pack` tarball SFTP
+upload + server-side sha256 verify → extract-beside-swap + exec-bit restore + engine.env
+(0600, minted bearer) + systemd user unit → linger-first + XDG_RUNTIME_DIR-addressed
+`systemctl --user enable --now` → health poll via payload node). Schema 0022
+(drizzle-generated), `/server-install` routes (fire-and-track POST; row = progress surface;
+serializer strips BOTH sealed blobs), no MCP by design. EXTRACTED on the way: `@vynel/sealing`
+(shared; ssh-servers rewired, keyring subpath moved) + scriptable fake-ssh-server w/ SFTP
+into `@vynel/testing`. PROVEN: vitest pipeline vs real loopback ssh2; REAL E2E on WSL sshd
+(193MB in 12s, systemd active, engine healthy v0.1.1, bearer 401, /health open). Reviewer
+approve; should-fixes folded (file split, unseal inside try + route-catch logging, quoted
+remote paths, stale comment). WSL fixture: sshd :2222, user vyneltest, linger via root
+(polkit denies self-linger over ssh — D4 wizard should surface that), engine LEFT RUNNING
+for D3. Gotchas: WSL localhost relay flaky for new inbound ports (wsl --shutdown fixes);
+ssh2-CJS named exports (Server/utils) need default-import interop under tsx.**
 
 **D1 (this tree): gateway gains open `GET /health` ({status, version} — version handshake +
 provisioner probe) and, when `VYNEL_AUTH_TOKEN` set, a timing-safe bearer gate on EVERY other

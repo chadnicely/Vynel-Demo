@@ -26,6 +26,7 @@
     "api:generate": "tsx scripts/src/generators/generate-sdk.ts && tsx scripts/src/generators/generate-namespaced-sdk.ts && tsx scripts/src/generators/generate-mcp-tools.ts",
     "release:payload": "tsx scripts/src/release/build-payload.ts",
     "release:verify": "tsx scripts/src/release/verify-payload.ts",
+    "release:pack": "tsx scripts/src/release/pack-payload.ts",
     "release:desktop": "tsx scripts/src/release/build-desktop.ts",
     "release:cli": "tsx scripts/src/release/build-cli.ts",
     "release:cli-verify": "tsx scripts/src/release/verify-cli.ts",

@@ -46,6 +46,8 @@
     "@vynel/schedules": "workspace:*",
     "@vynel/session": "workspace:*",
     "@vynel/skills": "workspace:*",
+    "@vynel/sealing": "workspace:*",
+    "@vynel/server-install": "workspace:*",
     "@vynel/ssh-servers": "workspace:*",
     "@vynel/tasks": "workspace:*",
     "@vynel/workspaces": "workspace:*",

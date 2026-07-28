@@ -1916,6 +1916,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/server-install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's remote engine installs. */
+        get: operations["getServer-install"];
+        put?: never;
+        /** Provision a remote engine on a server over SSH (runs in the background). */
+        post: operations["postServer-install"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/server-install/{installId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one remote engine install (status + step + error). */
+        get: operations["getServer-installByInstallId"];
+        put?: never;
+        post?: never;
+        /** Forget a remote engine install (does not uninstall from the server). */
+        delete: operations["deleteServer-installByInstallId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/marketplace/items": {
         parameters: {
             query?: never;
@@ -9892,6 +9928,181 @@ export interface operations {
             };
             /** @description The server's host key changed, or the sealing key is unavailable. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "getServer-install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of ServerInstall (never includes credentials or the bearer). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        host: string;
+                        port: number;
+                        username: string;
+                        /** @enum {string} */
+                        authKind: "password" | "private-key";
+                        hostKeyFingerprint: string | null;
+                        /** @enum {string} */
+                        status: "provisioning" | "installed" | "failed";
+                        /** @enum {string|null} */
+                        step: "connect" | "preflight" | "upload" | "install" | "start" | "health" | null;
+                        errorMessage: string | null;
+                        installedVersion: string | null;
+                        lastHealthyAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+        };
+    };
+    "postServer-install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    host: string;
+                    port?: number;
+                    username: string;
+                    credentials: {
+                        /** @constant */
+                        authKind: "password";
+                        password: string;
+                    } | {
+                        /** @constant */
+                        authKind: "private-key";
+                        privateKey: string;
+                        passphrase?: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description The provisioning row — poll GET /server-install/:installId to follow step progress. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        host: string;
+                        port: number;
+                        username: string;
+                        /** @enum {string} */
+                        authKind: "password" | "private-key";
+                        hostKeyFingerprint: string | null;
+                        /** @enum {string} */
+                        status: "provisioning" | "installed" | "failed";
+                        /** @enum {string|null} */
+                        step: "connect" | "preflight" | "upload" | "install" | "start" | "health" | null;
+                        errorMessage: string | null;
+                        installedVersion: string | null;
+                        lastHealthyAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description No engine payload available, or the encryption key is not loaded. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "getServer-installByInstallId": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                installId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The install row. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        host: string;
+                        port: number;
+                        username: string;
+                        /** @enum {string} */
+                        authKind: "password" | "private-key";
+                        hostKeyFingerprint: string | null;
+                        /** @enum {string} */
+                        status: "provisioning" | "installed" | "failed";
+                        /** @enum {string|null} */
+                        step: "connect" | "preflight" | "upload" | "install" | "start" | "health" | null;
+                        errorMessage: string | null;
+                        installedVersion: string | null;
+                        lastHealthyAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Unknown install, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "deleteServer-installByInstallId": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                installId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forgotten. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown install, or not owned. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1,8 +1,8 @@
 // The OS credential store impl of `MasterKeyVault` (Windows Credential
 // Manager via @napi-rs/keyring) — the native dep is QUARANTINED to this file
-// behind its own subpath export (`@vynel/ssh-servers/keyring`), the
-// hub-account keyring-vault precedent. Only `server.ts` imports this; tests
-// and generators use the in-memory vault.
+// behind its own subpath export (`@vynel/sealing/keyring`), the hub-account
+// keyring-vault precedent. Only `boot.ts` imports this (lazily — headless
+// servers use the file vault); tests and generators use the in-memory vault.
 
 import { Entry } from '@napi-rs/keyring'
 import type { MasterKeyVault } from './master-key.js'
