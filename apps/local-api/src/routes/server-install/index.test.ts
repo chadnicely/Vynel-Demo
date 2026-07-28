@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import pino from 'pino'
 import { withTestDatabase, startFakeSshServer } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
+import { startServerInstall } from '@vynel/server-install'
 import type { Database } from '@vynel/db'
 import { createApp } from '../../app.js'
 
@@ -26,9 +27,9 @@ const DEBIAN_PREFLIGHT = [
   '',
 ].join('\n')
 
-function seedUser(db: Database): void {
+function seedUser(db: Database): string {
   const now = new Date()
-  insertUser(db, {
+  return insertUser(db, {
     id: randomUUID(),
     displayName: 'T',
     emailAddress: null,
@@ -37,7 +38,7 @@ function seedUser(db: Database): void {
     hasCompletedOnboarding: false,
     createdAt: now,
     updatedAt: now,
-  })
+  }).id
 }
 
 function makeArchive(): { dir: string; archive: { path: string; sha256: string; cpu: 'x64' } } {
@@ -134,6 +135,33 @@ describe('server-install routes', () => {
         await server.close()
         rmSync(dir, { recursive: true, force: true })
       }
+    })
+  })
+
+  // The sign-in HAPPY PATH is covered at the leaf, over a real ssh2 PTY:
+  // packages/server-install/src/auth/claude-auth-relay.test.ts (url out, code
+  // in, verdict back, refusals). A route-level version of it hung past 50s in
+  // this harness and is not yet diagnosed — deliberately not shipped as a
+  // flaky/slow test. The end-to-end sign-in needs a real browser anyway, so
+  // it rides Chad's smoke test; see STATE.md.
+  it('refuses sign-in while the install is still provisioning', async () => {
+    await withTestDatabase(async (db) => {
+      const userId = seedUser(db)
+      const app = createApp({ db, logger: silentLogger, sshMasterKeyBase64: masterKey })
+      const install = startServerInstall(
+        db,
+        {
+          userId,
+          host: "127.0.0.1",
+          username: "dana",
+          credentials: { authKind: "password", password: "x" },
+        },
+        { masterKeyBase64: masterKey },
+      )
+      const response = await app.request(`/server-install/${install.id}/claude-auth`, {
+        method: "POST",
+      })
+      expect(response.status).toBe(409)
     })
   })
 

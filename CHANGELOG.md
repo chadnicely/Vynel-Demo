@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Your server can sign in to your Claude account, without Vynel ever holding the key.**
+  When Vynel's engine runs on your server it needs to sign in to Claude there. Vynel shows
+  the sign-in link, you approve it in your browser as usual, and paste the code back — the
+  server's own Claude program stores its credentials, exactly as it would if you'd typed the
+  command yourself. Vynel carries the link out and the code in and keeps nothing. It uses
+  your existing subscription, and the row tells you plainly when a server still needs signing
+  in.
+
 - **You can now choose where Vynel runs, from a settings screen.** A new "Where Vynel runs"
   section shows whether Vynel's engine is on this computer or on a server you own, lets you
   add a server (Vynel installs itself over SSH and narrates each step in plain language —

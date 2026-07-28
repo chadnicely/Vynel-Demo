@@ -30,6 +30,14 @@ export interface FakeSshServerOptions {
   /** Accept direct-tcpip channels, connecting to the requested destination
    *  port on loopback (the tunnel tests' "remote daemon" runs there). */
   enableForwarding?: boolean
+  /** Accept pty requests and drive the exec as a back-and-forth: the handler
+   *  gets each stdin line and returns what to print (and whether to exit) —
+   *  enough to stand in for a CLI that prints a URL then waits for a code. */
+  interactiveHandler?: (input: {
+    command: string
+    /** null on the first call (the command just started). */
+    line: string | null
+  }) => { write?: string; exitCode?: number }
 }
 
 export interface FakeSshServer {
@@ -93,9 +101,39 @@ export function startFakeSshServer(options: FakeSshServerOptions = {}): Promise<
         }
         client.on('session', (acceptSession) => {
           const session = acceptSession()
+          let ptyRequested = false
+          session.on('pty', (acceptPty) => {
+            ptyRequested = true
+            if (typeof acceptPty === 'function') acceptPty()
+          })
           session.on('exec', (acceptExec, _reject, info) => {
             executedCommands.push(info.command)
             const stream = acceptExec()
+            const interactive = options.interactiveHandler
+            // A pty request + an interactive handler = keep the channel open
+            // and answer each stdin line (the auth-relay shape).
+            if (ptyRequested && interactive !== undefined) {
+              const settle = (reply: { write?: string; exitCode?: number }): void => {
+                if (reply.write !== undefined) stream.write(reply.write)
+                if (reply.exitCode !== undefined) {
+                  stream.exit(reply.exitCode)
+                  stream.end()
+                }
+              }
+              settle(interactive({ command: info.command, line: null }))
+              let pending = ''
+              stream.on('data', (chunk: Buffer) => {
+                pending += chunk.toString()
+                let breakAt = pending.indexOf('\n')
+                while (breakAt !== -1) {
+                  const line = pending.slice(0, breakAt).replace(/\r$/, '')
+                  pending = pending.slice(breakAt + 1)
+                  settle(interactive({ command: info.command, line }))
+                  breakAt = pending.indexOf('\n')
+                }
+              })
+              return
+            }
             const reply = execHandler(info.command)
             if (reply.stdout !== undefined) stream.write(reply.stdout)
             if (reply.stderr !== undefined) stream.stderr.write(reply.stderr)

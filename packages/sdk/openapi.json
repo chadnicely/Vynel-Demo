@@ -18044,6 +18044,208 @@
         "x-sdk-name": "serverInstall.remove"
       }
     },
+    "/server-install/{installId}/claude-auth": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ isSignedIn, detail } — the CLI's own verdict; never a credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "isSignedIn": {
+                      "type": "boolean"
+                    },
+                    "detail": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "isSignedIn",
+                    "detail"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown install, or not owned."
+          },
+          "409": {
+            "description": "The install is not ready yet."
+          }
+        },
+        "operationId": "getServer-installByInstallIdClaude-auth",
+        "tags": [
+          "server-install"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Whether the remote engine is signed in to the user's Claude account.",
+        "x-sdk-name": "serverInstall.getClaudeAuthStatus"
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ phase, authorizationUrl, errorMessage } — open the URL, then POST the code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "phase": {
+                      "type": "string",
+                      "enum": [
+                        "awaiting-authorization",
+                        "finishing",
+                        "signed-in",
+                        "failed"
+                      ]
+                    },
+                    "authorizationUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errorMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "phase",
+                    "authorizationUrl",
+                    "errorMessage"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown install, or not owned."
+          },
+          "409": {
+            "description": "The install is not ready, or the server offered no sign-in link."
+          }
+        },
+        "operationId": "postServer-installByInstallIdClaude-auth",
+        "tags": [
+          "server-install"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Start signing the remote engine in to Claude (returns the link to open).",
+        "x-sdk-name": "serverInstall.startClaudeAuth"
+      }
+    },
+    "/server-install/{installId}/claude-auth/code": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ phase, … } — poll GET /claude-auth for the final verdict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "phase": {
+                      "type": "string",
+                      "enum": [
+                        "awaiting-authorization",
+                        "finishing",
+                        "signed-in",
+                        "failed"
+                      ]
+                    },
+                    "authorizationUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errorMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "phase",
+                    "authorizationUrl",
+                    "errorMessage"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The code was empty."
+          },
+          "404": {
+            "description": "Unknown install, or no sign-in in progress."
+          }
+        },
+        "operationId": "postServer-installByInstallIdClaude-authCode",
+        "tags": [
+          "server-install"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Give the server the code copied from the browser, finishing sign-in.",
+        "x-sdk-name": "serverInstall.submitClaudeAuthCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/marketplace/items": {
       "get": {
         "responses": {

@@ -33,6 +33,18 @@ export {
   type EngineTunnelInput,
 } from './tunnel/engine-tunnel.js'
 export {
+  ClaudeAuthRelay,
+  CLAUDE_LOGIN_COMMAND,
+  CLAUDE_STATUS_COMMAND,
+  type ClaudeAuthState,
+  type ClaudeAuthPhase,
+  type ClaudeAuthRelayDeps,
+} from './auth/claude-auth-relay.js'
+export {
+  readRemoteClaudeAuthStatus,
+  type RemoteClaudeAuthStatus,
+} from './auth/read-claude-auth-status.js'
+export {
   listServerInstallsForUser,
   findServerInstallById,
   findLatestInstalledServerInstall,

@@ -1248,6 +1248,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getClaudeAuthStatus: async (installId: NonNullable<paths["/server-install/{installId}/claude-auth"]["get"]['parameters']>['path']["installId"]) => {
+    const { data, error, response } = await client["GET"]("/server-install/{installId}/claude-auth", {
+      params: { path: { installId: installId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   list: async () => {
     const { data, error, response } = await client["GET"]("/server-install")
     if (error || data === undefined) throw new SdkError(response, error ?? data)
@@ -1262,6 +1269,21 @@ export function makeNamespaced(client: Client<paths>) {
   },
   start: async (input: NonNullable<paths["/server-install"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/server-install", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  startClaudeAuth: async (installId: NonNullable<paths["/server-install/{installId}/claude-auth"]["post"]['parameters']>['path']["installId"]) => {
+    const { data, error, response } = await client["POST"]("/server-install/{installId}/claude-auth", {
+      params: { path: { installId: installId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  submitClaudeAuthCode: async (installId: NonNullable<paths["/server-install/{installId}/claude-auth/code"]["post"]['parameters']>['path']["installId"], input: NonNullable<paths["/server-install/{installId}/claude-auth/code"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/server-install/{installId}/claude-auth/code", {
+      params: { path: { installId: installId } },
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

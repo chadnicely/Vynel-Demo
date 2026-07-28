@@ -51,3 +51,23 @@ export const ServerInstallResponseSchema = z.object({
 })
 
 export const ListServerInstallsResponseSchema = z.array(ServerInstallResponseSchema)
+
+// ── Claude sign-in on the server (D4b) ──────────────────────────────
+// Vynel relays the CLI's own flow: it hands back the authorization URL, takes
+// the code the user pasted from their browser, and reports the CLI's verdict.
+// No credential value ever crosses this surface (decision D14).
+
+export const SubmitClaudeAuthCodeRequestSchema = z.object({
+  code: z.string().min(1).max(400),
+})
+
+export const ClaudeAuthStateResponseSchema = z.object({
+  phase: z.enum(['awaiting-authorization', 'finishing', 'signed-in', 'failed']),
+  authorizationUrl: z.string().nullable(),
+  errorMessage: z.string().nullable(),
+})
+
+export const RemoteClaudeAuthStatusResponseSchema = z.object({
+  isSignedIn: z.boolean(),
+  detail: z.string(),
+})

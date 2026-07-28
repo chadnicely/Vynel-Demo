@@ -15,13 +15,35 @@ export interface ExecResult {
   exitCode: number | null
 }
 
+/** A live PTY-backed command — the shape an interactive CLI needs (it prints a
+ *  prompt and blocks on stdin, so the channel must outlive one round-trip). */
+export interface InteractiveSession {
+  /** Everything the command has printed so far (ANSI stripped). */
+  readonly output: () => string
+  /** Send a line to the command's stdin (newline appended). */
+  writeLine(line: string): void
+  /** Resolves when the command exits; null exit = killed/disconnected. */
+  readonly finished: Promise<number | null>
+  close(): void
+}
+
 export interface ServerConnection {
   /** sha256 base64 of the host key this connection actually saw. */
   readonly hostKeyFingerprint: string
   exec(command: string, options?: { timeoutMs?: number }): Promise<ExecResult>
+  /** Run a command on a PTY and keep it alive for back-and-forth. */
+  execInteractive(command: string): Promise<InteractiveSession>
   uploadFile(localPath: string, remotePath: string): Promise<void>
   writeFile(remotePath: string, contents: string, mode: number): Promise<void>
   close(): void
+}
+
+// Interactive CLIs paint with escape sequences; the caller matches on plain
+// text (a URL, a prompt), so strip them once at the edge.
+const ANSI_PATTERN = /\[[0-9;?]*[a-zA-Z]/g
+
+function stripAnsi(raw: string): string {
+  return raw.replace(ANSI_PATTERN, '')
 }
 
 export type OpenServerConnectionInput = SshClientInput
@@ -73,6 +95,34 @@ function buildConnection(connection: Client, hostKeyFingerprint: string): Server
             settled = true
             clearTimeout(deadline)
             resolveExec({ stdout, stderr, exitCode: code ?? null })
+          })
+        })
+      }),
+
+    execInteractive: (command) =>
+      new Promise<InteractiveSession>((resolveSession, rejectSession) => {
+        // pty: true is the whole point — `claude auth login` refuses to run a
+        // browser-authorization flow on a bare pipe.
+        connection.exec(command, { pty: true }, (error, stream) => {
+          if (error) {
+            rejectSession(new Error(`could not start "${command}" — ${error.message}`))
+            return
+          }
+          let output = ''
+          const append = (chunk: Buffer): void => {
+            output += stripAnsi(chunk.toString())
+            if (output.length > OUTPUT_CAP_CHARS) output = output.slice(-OUTPUT_CAP_CHARS)
+          }
+          stream.on('data', append)
+          stream.stderr.on('data', append)
+          const finished = new Promise<number | null>((resolveFinished) => {
+            stream.on('close', (code: number | undefined) => resolveFinished(code ?? null))
+          })
+          resolveSession({
+            output: () => output,
+            writeLine: (line) => stream.write(`${line}\n`),
+            finished,
+            close: () => stream.close(),
           })
         })
       }),

@@ -17,13 +17,19 @@
 import { resolver, validator } from 'hono-openapi/zod'
 import type { Context } from 'hono'
 import { ConflictError, NotFoundError } from '@vynel/errors'
+import { openSecret } from '@vynel/sealing'
 import {
+  ClaudeAuthRelay,
   findServerInstallById,
   hardDeleteServerInstall,
   listServerInstallsForUser,
+  openServerConnection,
+  readRemoteClaudeAuthStatus,
   runProvision,
   startServerInstall,
   type PayloadArchive,
+  type ServerCredentials,
+  type ServerInstall,
 } from '@vynel/server-install'
 import type { AppEnv } from '../../factory.js'
 import { factory } from '../../factory.js'
@@ -31,11 +37,18 @@ import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { serializeServerInstallForResponse } from './serializers.js'
 import {
+  ClaudeAuthStateResponseSchema,
   ListServerInstallsResponseSchema,
+  RemoteClaudeAuthStatusResponseSchema,
   ServerInstallParamSchema,
   ServerInstallResponseSchema,
   StartServerInstallRequestSchema,
+  SubmitClaudeAuthCodeRequestSchema,
 } from './schemas.js'
+
+// One relay per process — it holds a live PTY channel between the "show me the
+// link" and "here is my code" round-trips (the AppProcessSupervisor precedent).
+const claudeAuthRelay = new ClaudeAuthRelay()
 
 // Same closed-taxonomy rationale as the ssh routes' requireSshMasterKey:
 // 409 is the closest fit for "this daemon can't take the request right now".
@@ -57,6 +70,31 @@ function requirePayloadArchive(c: Context<AppEnv>): PayloadArchive {
     )
   }
   return archive
+}
+
+// The relay and the status read both reach the server the same way the
+// provisioner does — unsealing the install's own credential, pinned host key.
+function openInstallConnection(c: Context<AppEnv>, install: ServerInstall) {
+  const masterKey = requireMasterKey(c)
+  const credentials = JSON.parse(
+    openSecret(masterKey, install.encryptedCredentials),
+  ) as ServerCredentials
+  return openServerConnection({
+    host: install.host,
+    port: install.port,
+    username: install.username,
+    credentials,
+    pinnedHostKeyFingerprint: install.hostKeyFingerprint,
+  })
+}
+
+function requireInstalled(install: ServerInstall): ServerInstall {
+  if (install.status !== 'installed') {
+    throw new ConflictError(
+      'This server is not ready yet — wait for the install to finish, then sign in to Claude.',
+    )
+  }
+  return install
 }
 
 function getOwnedInstallOrThrow(c: Context<AppEnv>, installId: string) {
@@ -178,6 +216,86 @@ export const serverInstallApp = factory
       return c.json(serializeServerInstallForResponse(getOwnedInstallOrThrow(c, installId)))
     },
   )
+  // GET /:installId/claude-auth — is the remote engine signed in to Claude?
+  .get(
+    '/:installId/claude-auth',
+    describeRoute({
+      tags: ['server-install'],
+      summary: "Whether the remote engine is signed in to the user's Claude account.",
+      'x-sdk-name': 'serverInstall.getClaudeAuthStatus',
+      responses: {
+        200: {
+          description: "{ isSignedIn, detail } — the CLI's own verdict; never a credential.",
+          content: { 'application/json': { schema: resolver(RemoteClaudeAuthStatusResponseSchema) } },
+        },
+        404: { description: 'Unknown install, or not owned.' },
+        409: { description: 'The install is not ready yet.' },
+      },
+    }),
+    validator('param', ServerInstallParamSchema),
+    ...userScoped,
+    async (c) => {
+      const install = requireInstalled(getOwnedInstallOrThrow(c, c.req.valid('param').installId))
+      const connection = await openInstallConnection(c, install)
+      try {
+        return c.json(await readRemoteClaudeAuthStatus(connection))
+      } finally {
+        connection.close()
+      }
+    },
+  )
+  // POST /:installId/claude-auth — begin sign-in; answers with the URL to open.
+  .post(
+    '/:installId/claude-auth',
+    describeRoute({
+      tags: ['server-install'],
+      summary: 'Start signing the remote engine in to Claude (returns the link to open).',
+      'x-sdk-name': 'serverInstall.startClaudeAuth',
+      responses: {
+        200: {
+          description: '{ phase, authorizationUrl, errorMessage } — open the URL, then POST the code.',
+          content: { 'application/json': { schema: resolver(ClaudeAuthStateResponseSchema) } },
+        },
+        404: { description: 'Unknown install, or not owned.' },
+        409: { description: 'The install is not ready, or the server offered no sign-in link.' },
+      },
+    }),
+    validator('param', ServerInstallParamSchema),
+    ...userScoped,
+    async (c) => {
+      const install = requireInstalled(getOwnedInstallOrThrow(c, c.req.valid('param').installId))
+      return c.json(
+        await claudeAuthRelay.begin(install.id, {
+          openConnection: () => openInstallConnection(c, install),
+          logger: c.var.logger,
+        }),
+      )
+    },
+  )
+  // POST /:installId/claude-auth/code — hand the CLI the pasted code.
+  .post(
+    '/:installId/claude-auth/code',
+    describeRoute({
+      tags: ['server-install'],
+      summary: 'Give the server the code copied from the browser, finishing sign-in.',
+      'x-sdk-name': 'serverInstall.submitClaudeAuthCode',
+      responses: {
+        200: {
+          description: '{ phase, … } — poll GET /claude-auth for the final verdict.',
+          content: { 'application/json': { schema: resolver(ClaudeAuthStateResponseSchema) } },
+        },
+        400: { description: 'The code was empty.' },
+        404: { description: 'Unknown install, or no sign-in in progress.' },
+      },
+    }),
+    validator('param', ServerInstallParamSchema),
+    validator('json', SubmitClaudeAuthCodeRequestSchema),
+    ...userScoped,
+    (c) => {
+      const install = getOwnedInstallOrThrow(c, c.req.valid('param').installId)
+      return c.json(claudeAuthRelay.submitCode(install.id, c.req.valid('json').code))
+    },
+  )
   // DELETE /:installId — forget locally. v1 leaves the server untouched (a
   // remote uninstall op is a deliberate later step, not a cascade surprise).
   .delete(
@@ -196,6 +314,9 @@ export const serverInstallApp = factory
     (c) => {
       const { installId } = c.req.valid('param')
       getOwnedInstallOrThrow(c, installId)
+      // Drop any half-finished sign-in with the row, or its PTY channel would
+      // outlive the install it belongs to.
+      claudeAuthRelay.discard(installId)
       hardDeleteServerInstall(c.var.db, installId)
       return c.body(null, 204)
     },

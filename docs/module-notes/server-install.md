@@ -145,9 +145,20 @@ in `packages/ssh-servers/src/sealing/master-key.ts` already exists for exactly t
   (1.5s) while anything provisions, 30s once settled. 5 section tests green.
   **NO onboarding step** — see D4 finding 1: the remote engine runs its OWN onboarding
   through the tunnel.
-- **D4b — server-side Claude auth relay** (NEXT): PTY-backed `claude auth login` /
-  `setup-token` over SSH, URL streamed to the UI, pasted code to stdin, `claude auth status`
-  to confirm. Facts verified below.
+- **D4b — server-side Claude auth relay** (BUILT 2026-07-28): `execInteractive` on
+  ServerConnection (ssh2 `pty: true`, ANSI-stripped accumulating output, writeLine to stdin)
+  + `ClaudeAuthRelay` (stateful registry — the flow spans HTTP round-trips, so ONE held PTY
+  channel per install, 10-min idle reap, discarded with the row) + `readRemoteClaudeAuthStatus`
+  (`claude auth status`, presence only). Routes: `GET/POST /server-install/:id/claude-auth`
+  + `POST .../claude-auth/code`. UI: `ClaudeSignInDialog` (link out → paste code back) and a
+  row nudge when the server isn't signed in yet. **Vynel never sees or stores the credential
+  — the CLI writes its own `~/.claude`** (D14 intact, and CLI-owned refresh comes free).
+  7 leaf tests green over a REAL ssh2 PTY (URL out, code in, verdict; rejected code; empty
+  code; no-URL/no-subscription; unknown session) + the 409 not-ready route guard.
+  ⚠ KNOWN GAP: a route-level happy-path test hung past 50s in this harness, undiagnosed —
+  deliberately NOT shipped rather than land a flaky/slow test. The mechanics are covered at
+  the leaf; the true end-to-end needs a browser (Chad's smoke). Worth a look: the module-level
+  relay singleton + per-request connection opener inside a Hono handler.
 - **D5 — updates**: version handshake on connect → provisioner re-ships on drift; linux
   payload tarball rides the same `vynel-releases` gh release as the desktop artifacts.
 

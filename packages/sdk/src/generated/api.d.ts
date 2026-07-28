@@ -1952,6 +1952,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/server-install/{installId}/claude-auth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the remote engine is signed in to the user's Claude account. */
+        get: operations["getServer-installByInstallIdClaude-auth"];
+        put?: never;
+        /** Start signing the remote engine in to Claude (returns the link to open). */
+        post: operations["postServer-installByInstallIdClaude-auth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/server-install/{installId}/claude-auth/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give the server the code copied from the browser, finishing sign-in. */
+        post: operations["postServer-installByInstallIdClaude-authCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/marketplace/items": {
         parameters: {
             query?: never;
@@ -10102,6 +10137,133 @@ export interface operations {
                 content?: never;
             };
             /** @description Unknown install, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "getServer-installByInstallIdClaude-auth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                installId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { isSignedIn, detail } — the CLI's own verdict; never a credential. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        isSignedIn: boolean;
+                        detail: string;
+                    };
+                };
+            };
+            /** @description Unknown install, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The install is not ready yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postServer-installByInstallIdClaude-auth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                installId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { phase, authorizationUrl, errorMessage } — open the URL, then POST the code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        phase: "awaiting-authorization" | "finishing" | "signed-in" | "failed";
+                        authorizationUrl: string | null;
+                        errorMessage: string | null;
+                    };
+                };
+            };
+            /** @description Unknown install, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The install is not ready, or the server offered no sign-in link. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postServer-installByInstallIdClaude-authCode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                installId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description { phase, … } — poll GET /claude-auth for the final verdict. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        phase: "awaiting-authorization" | "finishing" | "signed-in" | "failed";
+                        authorizationUrl: string | null;
+                        errorMessage: string | null;
+                    };
+                };
+            };
+            /** @description The code was empty. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown install, or no sign-in in progress. */
             404: {
                 headers: {
                     [name: string]: unknown;

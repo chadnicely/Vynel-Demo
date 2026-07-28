@@ -2,7 +2,9 @@
 import { computed, ref } from "vue";
 import type { ServerInstallResponse } from "@vynel/contracts/server-install/server-install-http";
 import { useRemoveServerInstall } from "../../composables/server-install/use-remove-server-install.js";
+import { useRemoteClaudeAuthStatus } from "../../composables/server-install/use-claude-auth.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
+import ClaudeSignInDialog from "./ClaudeSignInDialog.vue";
 
 // One provisioned (or provisioning, or failed) engine install. While a run is
 // in flight the row narrates its step in plain language — the daemon stamps
@@ -13,6 +15,14 @@ const emit = defineEmits<{ use: [installId: string] }>();
 
 const remove = useRemoveServerInstall();
 const isRemoveArmed = ref(false);
+const isSignInOpen = ref(false);
+const isReady = computed(() => props.install.status === "installed");
+// Only ask the server about Claude once it is actually installed — the probe
+// opens an SSH connection.
+const claudeAuth = useRemoteClaudeAuthStatus(
+  () => props.install.id,
+  () => isReady.value,
+);
 
 const STEP_LABELS: Record<string, string> = {
   connect: "Connecting to the server",
@@ -70,7 +80,21 @@ function requestRemove() {
 
     <p class="status-line m-0 text-xs text-ink-2">{{ statusLine }}</p>
 
+    <p
+      v-if="isReady && claudeAuth.data.value && !claudeAuth.data.value.isSignedIn"
+      class="claude-needed m-0 text-xs text-ink-2"
+    >
+      This server still needs to sign in to your Claude account before it can think there.
+    </p>
+
     <div class="flex items-center gap-2 pt-1">
+      <button
+        v-if="isReady && claudeAuth.data.value && !claudeAuth.data.value.isSignedIn"
+        class="sign-in-button cursor-default rounded-sm border border-gold px-3 py-1 text-[11px] font-semibold text-gold transition hover:bg-row-hover"
+        @click="isSignInOpen = true"
+      >
+        Sign in to Claude
+      </button>
       <button
         v-if="props.install.status === 'installed' && !props.isActive"
         class="use-button cursor-default rounded-sm bg-gold px-3 py-1 text-[11px] font-semibold text-shell transition hover:bg-gold-bright"
@@ -89,5 +113,13 @@ function requestRemove() {
     </div>
 
     <p v-if="removeError" class="m-0 text-xs text-danger" role="alert">{{ removeError }}</p>
+
+    <ClaudeSignInDialog
+      :open="isSignInOpen"
+      :install-id="props.install.id"
+      :host="props.install.host"
+      @close="isSignInOpen = false"
+      @signed-in="claudeAuth.refetch()"
+    />
   </div>
 </template>
