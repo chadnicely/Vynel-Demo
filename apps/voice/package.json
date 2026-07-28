@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
+    "@vynel/contracts": "workspace:*",
     "@vynel/voice": "workspace:*",
     "@vynel/voice-engine": "workspace:*",
     "hono": "^4.6.0",

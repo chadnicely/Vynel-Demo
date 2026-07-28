@@ -30,6 +30,19 @@ export function findServerInstallById(db: Database, id: string): ServerInstall |
   return row ?? null
 }
 
+// The tunnel's default target when no install id is configured — the machine
+// has ONE local user, so "the newest healthy install" is unambiguous.
+export function findLatestInstalledServerInstall(db: Database): ServerInstall | null {
+  const [row] = db
+    .select()
+    .from(serverInstalls)
+    .where(eq(serverInstalls.status, 'installed'))
+    .orderBy(desc(serverInstalls.updatedAt))
+    .limit(1)
+    .all()
+  return row ?? null
+}
+
 export function insertServerInstall(db: Database, row: NewServerInstall): ServerInstall {
   const [inserted] = db.insert(serverInstalls).values(row).returning().all()
   if (!inserted) throw new Error('insertServerInstall: no row returned')

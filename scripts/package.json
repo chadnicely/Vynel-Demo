@@ -7,8 +7,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@vynel/contracts": "workspace:*",
     "@vynel/db": "workspace:*",
     "@vynel/local-api": "workspace:*",
+    "@vynel/sealing": "workspace:*",
     "@vynel/server-install": "workspace:*",
     "@vynel/testing": "workspace:*",
     "@vynel/voice-engine": "workspace:*",

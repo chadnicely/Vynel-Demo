@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@vynel/contracts": "workspace:*",
     "@vynel/db": "workspace:*",
     "@vynel/errors": "workspace:*",
     "@vynel/sealing": "workspace:*",

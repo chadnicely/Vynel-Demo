@@ -43,10 +43,16 @@ function run(command: string, args: string[], cwd: string, extraEnv?: Record<str
 }
 
 async function bundleBackend(backendDir: string, sourcemapDir: string, target: PayloadTarget): Promise<void> {
-  const outfile = join(backendDir, 'dist', 'server.mjs')
+  const distDir = join(backendDir, 'dist')
   await build({
-    entryPoints: [join(repoRoot, 'apps', 'local-api', 'src', 'server.ts')],
-    outfile,
+    // Two entries, one bundle pass: the daemon (server.mjs) and the remote-
+    // mode tunnel (tunnel.mjs) the shell spawns instead of it (Phase D3).
+    entryPoints: [
+      join(repoRoot, 'apps', 'local-api', 'src', 'server.ts'),
+      join(repoRoot, 'apps', 'local-api', 'src', 'tunnel.ts'),
+    ],
+    outdir: distDir,
+    outExtension: { '.js': '.mjs' },
     bundle: true,
     platform: 'node',
     target: 'node22',
@@ -73,7 +79,9 @@ async function bundleBackend(backendDir: string, sourcemapDir: string, target: P
     ],
   })
   mkdirSync(sourcemapDir, { recursive: true })
-  renameSync(`${outfile}.map`, join(sourcemapDir, 'server.mjs.map'))
+  for (const entryName of ['server', 'tunnel']) {
+    renameSync(join(distDir, `${entryName}.mjs.map`), join(sourcemapDir, `${entryName}.mjs.map`))
+  }
 
   // notification-listener.ps1 is resolved beside its compiled module at
   // runtime — in the bundle that means beside server.mjs. Windows-only:

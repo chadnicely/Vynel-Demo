@@ -53,6 +53,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@vynel/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -415,6 +418,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@3.25.76)
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@vynel/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -440,6 +446,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.0
         version: 1.19.14(hono@4.12.27)
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@vynel/voice':
         specifier: workspace:*
         version: link:../../packages/voice
@@ -1241,6 +1250,9 @@ importers:
 
   packages/server-install:
     dependencies:
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@vynel/db':
         specifier: workspace:*
         version: link:../db
@@ -1515,12 +1527,18 @@ importers:
 
   scripts:
     dependencies:
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../packages/contracts
       '@vynel/db':
         specifier: workspace:*
         version: link:../packages/db
       '@vynel/local-api':
         specifier: workspace:*
         version: link:../apps/local-api
+      '@vynel/sealing':
+        specifier: workspace:*
+        version: link:../packages/sealing
       '@vynel/server-install':
         specifier: workspace:*
         version: link:../packages/server-install

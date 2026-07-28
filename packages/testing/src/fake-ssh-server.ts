@@ -6,6 +6,7 @@
 // connection paths against it.
 
 import { generateKeyPairSync } from 'node:crypto'
+import { connect } from 'node:net'
 // Default-import interop: ssh2 is CJS and node's named-export lexer misses
 // `Server`/`utils` under tsx (vitest's transform tolerated it; node does not).
 import ssh2 from 'ssh2'
@@ -26,6 +27,9 @@ export interface FakeSshServerOptions {
   execHandler?: (command: string) => FakeSshExecReply
   /** Accept SFTP sessions (write-only) — uploads collect in `writtenFiles`. */
   enableSftp?: boolean
+  /** Accept direct-tcpip channels, connecting to the requested destination
+   *  port on loopback (the tunnel tests' "remote daemon" runs there). */
+  enableForwarding?: boolean
 }
 
 export interface FakeSshServer {
@@ -34,6 +38,8 @@ export interface FakeSshServer {
   executedCommands: string[]
   /** SFTP-written files by remote path (assembled on CLOSE). */
   writtenFiles: Map<string, Buffer>
+  /** Drop every live client connection (reconnect tests) — the listener stays up. */
+  dropConnections(): void
   close(): Promise<void>
 }
 
@@ -47,6 +53,7 @@ export function startFakeSshServer(options: FakeSshServerOptions = {}): Promise<
     options.execHandler ?? (() => ({ stdout: 'server says hi\n' }))
   const executedCommands: string[] = []
   const writtenFiles = new Map<string, Buffer>()
+  const liveConnections = new Set<Connection>()
 
   const hostKeyPem = generateKeyPairSync('rsa', {
     modulusLength: 2048,
@@ -55,6 +62,8 @@ export function startFakeSshServer(options: FakeSshServerOptions = {}): Promise<
   }).privateKey
 
   const server = new Server({ hostKeys: [hostKeyPem] }, (client: Connection) => {
+    liveConnections.add(client)
+    client.on('close', () => liveConnections.delete(client))
     client
       .on('authentication', (ctx) => {
         if (ctx.method === 'password' && ctx.username === username && ctx.password === password) {
@@ -66,6 +75,22 @@ export function startFakeSshServer(options: FakeSshServerOptions = {}): Promise<
         }
       })
       .on('ready', () => {
+        if (options.enableForwarding === true) {
+          client.on('tcpip', (acceptChannel, _rejectChannel, info) => {
+            const channel = acceptChannel()
+            const target = connect(info.destPort, '127.0.0.1')
+            target.on('connect', () => {
+              channel.pipe(target)
+              target.pipe(channel)
+            })
+            const teardown = (): void => {
+              channel.end()
+              target.destroy()
+            }
+            target.on('error', teardown)
+            channel.on('close', teardown)
+          })
+        }
         client.on('session', (acceptSession) => {
           const session = acceptSession()
           session.on('exec', (acceptExec, _reject, info) => {
@@ -131,6 +156,9 @@ export function startFakeSshServer(options: FakeSshServerOptions = {}): Promise<
         port,
         executedCommands,
         writtenFiles,
+        dropConnections: () => {
+          for (const connection of liveConnections) connection.end()
+        },
         close: () =>
           new Promise<void>((resolveClosed) => {
             server.close(() => resolveClosed())

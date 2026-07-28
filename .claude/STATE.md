@@ -3,7 +3,23 @@
 **Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-28, round 8): PHASE D — D0 (`f7c43b2`) + D1 (`d5bd979`) COMMITTED; **D2 (provisioner leaf) BUILT + PROVEN on real WSL sshd, uncommitted.** **NEXT: commit D2, then D3 (tunnel runtime + LaunchPlan::Remote — node+ssh2 bearer-injecting forwarder bundled in payload; the provisioned engine is RUNNING in WSL as the test target).**
+## ⏭ NEXT ACTION (2026-07-28, round 8): PHASE D — D0 (`f7c43b2`) + D1 (`d5bd979`) + D2 (`92af62e`) COMMITTED; **D3 (tunnel + LaunchPlan::Remote + port-home) BUILT + PROVEN LIVE, uncommitted.** **NEXT: commit D3, then D4 (onboarding "Where should Vynel's engine run?" step + settings surface + engine.json writer + claude setup-token walkthrough + the full shell-spawned remote-mode E2E).**
+
+**D3 (this tree): `tunnel/engine-tunnel.ts` (local listener on THE engine port → ssh2
+forwardOut → remote loopback, bearer injected — web/SDK/windows untouched; lazy redial w/
+backoff; proxy hardened per review: hop-by-hop headers stripped, stream-error/abort paths
+handled, close-during-dial + stale-client races fixed, redial TESTED via fake-server
+dropConnections). Entry `apps/local-api/src/tunnel.ts` → bundled `dist/tunnel.mjs`
+(dual-entry esbuild; verify asserts; win payload rebuilt 511MB PASS). Rust:
+`LaunchPlan::Remote` from `<app_data>/engine.json` (cargo check green). PORT HOME (Chad's
+ask): `@vynel/contracts/network/ports` + `check-port-parity` in test:parity guards
+daemon.rs/tauri.conf.json; env defaults in local-api/local-web/voice/cli/mcp rewired.
+PROVEN LIVE (tunnel-only E2E vs real WSL engine): /health 200+version, /api 412 (bearer
+passed the 401 wall), / 200 text/html. Provision hardening: health probe fetch+exec
+timeouts (channel pile-up to MaxSessions) + health-step redial with pinned key. Deferred
+to D4: full shell-spawned loop (needs the D4 flow to write engine.json + real DB row).
+Fixture gotcha: container-side WSL relay DIES after ~200MB transfers until wsl --shutdown
+— provision+tunnel single-run is flaky HERE ONLY (real VPS has no relay).**
 
 **D2 (this tree): `packages/server-install` — provision pipeline (connect+TOFU → preflight
 [pure parser; glibc/systemd/tar/arch, actionable rejections] → `release:pack` tarball SFTP

@@ -177,7 +177,30 @@ export async function runProvision(db: Database, installId: string, deps: Provis
     )
 
     stampStep(db, installId, 'health')
-    const health = await pollRemoteHealth(connection, plan.nodeBinaryPath, deps)
+    // The engine is started by now — a connection lost in transit (network
+    // blip after the heavy upload) must not fail the install at its last
+    // step. The probe redials with the pinned host key on a dead connection.
+    const pinnedFingerprint = connection.hostKeyFingerprint
+    const execProbe = async (command: string): Promise<ExecResult> => {
+      try {
+        return await connection!.exec(command, { timeoutMs: 10_000 })
+      } catch (error) {
+        deps.logger?.warn(
+          { installId, error: error instanceof Error ? error.message : String(error) },
+          'health probe lost the connection — redialing with the pinned host key',
+        )
+        connection?.close()
+        connection = await connect({
+          host: install.host,
+          port: install.port,
+          username: install.username,
+          credentials,
+          pinnedHostKeyFingerprint: pinnedFingerprint,
+        })
+        return connection.exec(command, { timeoutMs: 10_000 })
+      }
+    }
+    const health = await pollRemoteHealth(execProbe, plan.nodeBinaryPath, deps)
     const now = new Date()
     withTransaction(db, (tx) => {
       installsRepository.updateServerInstall(tx, installId, {
@@ -212,17 +235,20 @@ export async function runProvision(db: Database, installId: string, deps: Provis
 }
 
 async function pollRemoteHealth(
-  connection: ServerConnection,
+  execProbe: (command: string) => Promise<ExecResult>,
   nodeBinaryPath: string,
   deps: ProvisionDeps,
 ): Promise<{ version: string | null }> {
   const deadlineMs = deps.healthDeadlineMs ?? 90_000
   const intervalMs = deps.healthIntervalMs ?? 3_000
-  const probe = `"${nodeBinaryPath}" -e "fetch('http://127.0.0.1:${REMOTE_ENGINE_PORT}/health').then(r=>r.text()).then(t=>{console.log(t)},()=>process.exit(1))"`
+  // The fetch carries its own timeout AND the exec is bounded — a probe
+  // against a still-booting engine must exit, or hung probes pile up open
+  // ssh channels until MaxSessions refuses new ones.
+  const probe = `"${nodeBinaryPath}" -e "fetch('http://127.0.0.1:${REMOTE_ENGINE_PORT}/health',{signal:AbortSignal.timeout(2000)}).then(r=>r.text()).then(t=>{console.log(t)},()=>process.exit(1))"`
   const startedAt = Date.now()
   let lastFailure = ''
   while (Date.now() - startedAt < deadlineMs) {
-    const result = await connection.exec(probe)
+    const result = await execProbe(probe)
     if (result.exitCode === 0) {
       try {
         const body = JSON.parse(result.stdout.trim()) as { status?: string; version?: string }

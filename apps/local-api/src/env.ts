@@ -19,6 +19,7 @@
 import { fileURLToPath } from 'node:url'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { z } from 'zod'
+import { VYNEL_ENGINE_PORT, VYNEL_VOICE_DAEMON_PORT } from '@vynel/contracts/network/ports'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..', '..', '..') // src -> api -> apps -> repo-root
@@ -36,7 +37,7 @@ export const EnvSchema = z.object({
   DB_PATH: z.string().default('.data/vynel.dev.db').transform(resolveAgainstRepoRoot),
   DB_URL: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-  PORT: z.coerce.number().int().positive().default(8998),
+  PORT: z.coerce.number().int().positive().default(VYNEL_ENGINE_PORT),
   // Dev/test override for the session-continuity swap trigger (Slice 2). When
   // set (0–1), a root-as-thread turn swaps at this context-occupancy ratio
   // instead of the production default 0.85 — used by the live UI swap smoke to
@@ -68,7 +69,7 @@ export const EnvSchema = z.object({
   // The voice daemon's loopback overlay channel — the `speak` MCP tool POSTs the
   // brain's spoken text here (the daemon owns the speaker). Best-effort: if the
   // daemon isn't running, `speak` reports it couldn't (the brain falls back to text).
-  VYNEL_VOICE_DAEMON_URL: z.string().url().default('http://127.0.0.1:8997'),
+  VYNEL_VOICE_DAEMON_URL: z.string().url().default(`http://127.0.0.1:${VYNEL_VOICE_DAEMON_PORT}`),
   // Where the BUILT local-web bundle lives. When an index.html exists there at
   // boot, the gateway serves the whole desktop UI from this process (sidecar
   // mode — the Tauri shell points its windows at us); when absent, the api runs
@@ -116,6 +117,10 @@ export const EnvSchema = z.object({
   // seam — Phase D5 replaces it with a release download. Unset = the routes
   // answer that no payload is available. Repo-root-resolved like DB_PATH.
   VYNEL_SERVER_PAYLOAD_ARCHIVE: z.string().optional().transform(resolveAgainstRepoRoot),
+  // Which remote engine install the TUNNEL entry (tunnel.ts) targets. Unset =
+  // the newest healthy install — the shell passes an explicit id once the D4
+  // engine-location config carries one.
+  VYNEL_REMOTE_INSTALL_ID: z.string().optional(),
   // The Vynel HUB (apps/cloud-api, hosted) — accounts + tiers + marketplace.
   // OPTIONAL: unset = hub features off (the /hub routes answer
   // `not-configured`), so dev without a hub keeps working.

@@ -170,7 +170,16 @@ fn watch_until_exit() {
 
 fn spawn_daemon(plan: &LaunchPlan) -> std::io::Result<Child> {
     let mut command = match plan {
-        LaunchPlan::Bundled(bundled) => bundled_daemon_command(bundled)?,
+        LaunchPlan::Bundled(bundled) => bundled_daemon_command(bundled, "dist/server.mjs")?,
+        // Remote mode: the tunnel child supervises identically — same port,
+        // same env layering; only the entry differs.
+        LaunchPlan::Remote(remote) => {
+            let mut command = bundled_daemon_command(&remote.bundled, "dist/tunnel.mjs")?;
+            if let Some(install_id) = &remote.install_id {
+                command.env("VYNEL_REMOTE_INSTALL_ID", install_id);
+            }
+            command
+        }
         LaunchPlan::Repo(repo_root) => {
             let mut command = Command::new("node");
             command
@@ -201,7 +210,7 @@ fn spawn_daemon(plan: &LaunchPlan) -> std::io::Result<Child> {
 /// The daemon's pino output lands in <app_data>\logs\daemon.log — a windowed
 /// shell has no console, and an installed-app failure must be diagnosable
 /// from disk. Naive size rotation at boot keeps it bounded.
-fn bundled_daemon_command(bundled: &BundledLaunch) -> std::io::Result<Command> {
+fn bundled_daemon_command(bundled: &BundledLaunch, entry: &str) -> std::io::Result<Command> {
     let data_dir = bundled.app_data_dir.join("data");
     std::fs::create_dir_all(&data_dir)?;
     std::fs::create_dir_all(bundled.app_data_dir.join("models"))?;
@@ -235,7 +244,7 @@ fn bundled_daemon_command(bundled: &BundledLaunch) -> std::io::Result<Command> {
             "--env-file-if-exists={}",
             bundled.app_data_dir.join("config.env").display()
         ))
-        .arg("dist/server.mjs")
+        .arg(entry)
         .current_dir(&bundled.backend_dir)
         .env("PORT", "8998")
         .env("DB_PATH", data_dir.join("vynel.db"))

@@ -46,6 +46,10 @@ function runStaticAsserts(payloadDir: string, target: PayloadTarget): void {
   const backendDir = join(payloadDir, 'backend')
   const { stagedNodeName } = target
   assertThat(existsSync(join(backendDir, 'dist', 'server.mjs')), 'backend/dist/server.mjs missing')
+  assertThat(
+    existsSync(join(backendDir, 'dist', 'tunnel.mjs')),
+    'backend/dist/tunnel.mjs missing (the remote-mode entry the shell spawns)',
+  )
   if (target.os === 'win32') {
     assertThat(
       existsSync(join(backendDir, 'dist', 'notification-listener.ps1')),

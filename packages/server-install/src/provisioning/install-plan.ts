@@ -7,8 +7,10 @@
 //   <home>/.vynel/engine.env    the daemon env (0600 — carries the bearer)
 //   <home>/.vynel/master.key    sealing master key (minted by the daemon)
 
+import { VYNEL_ENGINE_PORT } from '@vynel/contracts/network/ports'
+
 export const ENGINE_SERVICE_NAME = 'vynel-engine'
-export const REMOTE_ENGINE_PORT = 8998
+export const REMOTE_ENGINE_PORT = VYNEL_ENGINE_PORT
 
 export interface RemoteInstallPlan {
   vynelDir: string

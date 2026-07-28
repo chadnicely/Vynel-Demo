@@ -28,8 +28,14 @@ export {
   type ExecResult,
 } from './connecting/server-connection.js'
 export {
+  startEngineTunnel,
+  type EngineTunnel,
+  type EngineTunnelInput,
+} from './tunnel/engine-tunnel.js'
+export {
   listServerInstallsForUser,
   findServerInstallById,
+  findLatestInstalledServerInstall,
   hardDeleteServerInstall,
   type ServerInstall,
   type ServerInstallStatus,

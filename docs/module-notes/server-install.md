@@ -116,9 +116,25 @@ in `packages/ssh-servers/src/sealing/master-key.ts` already exists for exactly t
   artifact is D5's release asset. PROVEN on real WSL sshd: 193 MB payload provisioned in
   12s, systemd service active, real engine healthy (`version 0.1.1`), bearer enforced (401
   on /api, /health open). Onboarding-deps binding lands with D4's wizard step.
-- **D3 — tunnel runtime + `LaunchPlan::Remote`**: the tunnel child the shell supervises +
-  the shell-readable engine-location config in `app_data`. Green = installed desktop app in
-  remote mode round-trips chat through the tunnel.
+- **D3 — tunnel runtime + `LaunchPlan::Remote`** (BUILT 2026-07-28): `tunnel/engine-tunnel.ts`
+  — local HTTP listener on THE engine port forwarding over ssh2 `forwardOut` to the remote
+  daemon's loopback, injecting the bearer (web/SDK/windows untouched, token never client-side);
+  lazy redial with backoff, 502 actionable when unreachable. Entry `apps/local-api/src/tunnel.ts`
+  (spawned INSTEAD of server.ts; row via `VYNEL_REMOTE_INSTALL_ID` or newest installed; master
+  key keyring-lazy/file vault) — bundled as `dist/tunnel.mjs` beside server.mjs (dual-entry
+  esbuild; verify asserts). Rust: `LaunchPlan::Remote` from `<app_data>/engine.json`
+  (`{mode:'remote',installId}`; malformed → local + warn); the same supervision spawns the
+  tunnel child. Port got ONE home: `@vynel/contracts/network/ports` + `check-port-parity`
+  in the gate guards the daemon.rs/tauri.conf.json copies (Chad's configurable-port ask).
+  PROVEN LIVE (tunnel-only E2E vs the real WSL engine): /health 200 + version, /api 412
+  (bearer passed the 401 wall), / 200 text/html — the web UI serves through the tunnel.
+  Hardened along the way: health probes carry fetch+exec timeouts (hung probes piled ssh
+  channels to MaxSessions) and the health step REDIALS with the pinned key (a post-upload
+  network blip must not fail the final step). Deferred to D4's E2E: the full shell-spawned
+  loop (engine.json → tunnel child → windows) — it needs the D4 flow to create the real
+  DB row + config. Fixture gotcha: the container-side WSL localhost relay DIES after heavy
+  transfers (200MB uploads) and stays dead until `wsl --shutdown` — provision-then-tunnel
+  in one run is flaky HERE (it passed once, 12s); a real VPS has no such layer.
 - **D4 — onboarding step + settings surface**: "Where should Vynel's engine run?" step
   (union input, `optional-channel` precedent) + a settings section for switching later;
   server-side Claude auth walkthrough (`claude setup-token` via remote exec) designed into

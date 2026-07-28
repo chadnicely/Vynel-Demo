@@ -18,7 +18,7 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test:unit": "vitest run",
-    "test:parity": "tsx scripts/src/generators/check-schema-parity.ts && tsx scripts/src/generators/check-mcp-parity.ts && tsx scripts/src/generators/check-sdk-parity.ts",
+    "test:parity": "tsx scripts/src/generators/check-schema-parity.ts && tsx scripts/src/generators/check-mcp-parity.ts && tsx scripts/src/generators/check-sdk-parity.ts && tsx scripts/src/generators/check-port-parity.ts",
     "test": "turbo run typecheck && pnpm test:parity && vitest run",
     "lint": "eslint .",
     "format": "prettier --write .",

@@ -12,11 +12,15 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
+import { openSecret } from '@vynel/sealing'
 import {
   startServerInstall,
   runProvision,
   findServerInstallById,
+  startEngineTunnel,
+  type ServerCredentials,
 } from '@vynel/server-install'
+import { VYNEL_ENGINE_PORT } from '@vynel/contracts/network/ports'
 
 function arg(name: string): string {
   const match = process.argv.find((candidate) => candidate.startsWith(`--${name}=`))
@@ -24,10 +28,50 @@ function arg(name: string): string {
   return match.slice(name.length + 3)
 }
 
+// --tunnel-only: skip provisioning entirely — open the bearer-injecting
+// tunnel to an ALREADY-provisioned engine (bearer via VYNEL_E2E_BEARER, e.g.
+// read from the server's ~/.vynel/engine.env) and round-trip through it.
+async function tunnelOnly(password: string): Promise<void> {
+  const bearer = process.env['VYNEL_E2E_BEARER']
+  if (bearer === undefined || bearer.length === 0) {
+    throw new Error('Set VYNEL_E2E_BEARER for --tunnel-only (the engine.env VYNEL_AUTH_TOKEN value).')
+  }
+  const tunnel = await startEngineTunnel({
+    host: arg('host'),
+    port: Number(arg('port')),
+    username: arg('user'),
+    credentials: { authKind: 'password', password },
+    // KNOWN NARROWING (dev script only): tunnel-only mode has no install row
+    // to pin from, so the first connect trusts whatever answers — fine for
+    // the loopback fixture, NOT a pattern for product code (the real tunnel
+    // entry always pins from the row).
+    pinnedHostKeyFingerprint: null,
+    authToken: bearer,
+    localPort: 0,
+    remotePort: VYNEL_ENGINE_PORT,
+  })
+  try {
+    const health = await fetch(`http://127.0.0.1:${tunnel.localPort}/health`)
+    console.log(`e2e: tunnel /health → ${health.status} ${await health.text()}`)
+    const api = await fetch(`http://127.0.0.1:${tunnel.localPort}/api/workspaces`)
+    console.log(`e2e: tunnel /api/workspaces (bearer auto-injected) → ${api.status}`)
+    const index = await fetch(`http://127.0.0.1:${tunnel.localPort}/`, {
+      headers: { accept: 'text/html' },
+    })
+    console.log(`e2e: tunnel / (web ui) → ${index.status} ${index.headers.get('content-type') ?? ''}`)
+  } finally {
+    await tunnel.close()
+  }
+}
+
 async function main(): Promise<void> {
   const password = process.env['VYNEL_E2E_SSH_PASSWORD']
   if (password === undefined || password.length === 0) {
     throw new Error('Set VYNEL_E2E_SSH_PASSWORD (never pass the password as an argument).')
+  }
+  if (process.argv.includes('--tunnel-only')) {
+    await tunnelOnly(password)
+    return
   }
   const archivePath = resolve(arg('archive'))
   const sha256 = readFileSync(`${archivePath}.sha256`, 'utf8').trim().split(/\s+/)[0] ?? ''
@@ -75,6 +119,35 @@ async function main(): Promise<void> {
         `e2e: ${Math.round((Date.now() - startedAt) / 1000)}s — status=${row?.status} step=${row?.step} ` +
           `version=${row?.installedVersion} error=${row?.errorMessage ?? 'none'}`,
       )
+    }
+
+    // --tunnel: prove the D3 leg too — open the bearer-injecting tunnel to
+    // the engine just provisioned and round-trip through it.
+    if (process.argv.includes('--tunnel')) {
+      const row = findServerInstallById(db, install.id)
+      if (row === null || row.status !== 'installed') throw new Error('no installed row to tunnel to')
+      const tunnel = await startEngineTunnel({
+        host: row.host,
+        port: row.port,
+        username: row.username,
+        credentials: JSON.parse(openSecret(masterKeyBase64, row.encryptedCredentials)) as ServerCredentials,
+        pinnedHostKeyFingerprint: row.hostKeyFingerprint,
+        authToken: openSecret(masterKeyBase64, row.sealedAuthToken),
+        localPort: 0,
+        remotePort: VYNEL_ENGINE_PORT,
+      })
+      try {
+        const health = await fetch(`http://127.0.0.1:${tunnel.localPort}/health`)
+        console.log(`e2e: tunnel /health → ${health.status} ${await health.text()}`)
+        const api = await fetch(`http://127.0.0.1:${tunnel.localPort}/api/workspaces`)
+        // 412 = the first-launch gate on the fresh remote DB — the bearer the
+        // tunnel injected passed the 401 wall and reached the real app.
+        console.log(`e2e: tunnel /api/workspaces (bearer auto-injected) → ${api.status}`)
+        const index = await fetch(`http://127.0.0.1:${tunnel.localPort}/`)
+        console.log(`e2e: tunnel / (web ui) → ${index.status} ${index.headers.get('content-type') ?? ''}`)
+      } finally {
+        await tunnel.close()
+      }
     }
   })
 }

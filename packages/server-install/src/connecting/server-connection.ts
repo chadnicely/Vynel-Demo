@@ -1,15 +1,11 @@
 // One HELD ssh2 connection for a provisioning run — unlike ssh-servers'
 // connect-per-command (fine for occasional single commands), provisioning is
-// a pipeline of steps plus a ~200 MB upload, so it opens once and reuses.
-// Same TOFU discipline: the pinned fingerprint is enforced PRE-AUTH in
-// hostVerifier; the observed fingerprint is exposed for first-connect pinning.
+// a pipeline of steps plus a ~200 MB upload, so it opens once (ssh-client.ts
+// owns the TOFU connect) and wraps it with exec + sftp.
 
-import { createHash } from 'node:crypto'
-import { Client, type SFTPWrapper } from 'ssh2'
-import { ConflictError } from '@vynel/errors'
-import type { ServerCredentials } from '../server-install-types.js'
+import type { Client, SFTPWrapper } from 'ssh2'
+import { connectSshClient, type SshClientInput } from './ssh-client.js'
 
-const CONNECT_TIMEOUT_MS = 15_000
 const DEFAULT_EXEC_TIMEOUT_MS = 60_000
 const OUTPUT_CAP_CHARS = 200_000
 
@@ -28,72 +24,13 @@ export interface ServerConnection {
   close(): void
 }
 
-export interface OpenServerConnectionInput {
-  host: string
-  port: number
-  username: string
-  credentials: ServerCredentials
-  /** null = first connect (trust on first use — the caller records the pin). */
-  pinnedHostKeyFingerprint: string | null
-}
+export type OpenServerConnectionInput = SshClientInput
 
 export type OpenServerConnection = (input: OpenServerConnectionInput) => Promise<ServerConnection>
 
-export const openServerConnection: OpenServerConnection = (input) => {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const connection = new Client()
-    let observedFingerprint = ''
-    let settled = false
-
-    const fail = (error: Error): void => {
-      if (settled) return
-      settled = true
-      connection.destroy()
-      rejectPromise(error)
-    }
-
-    connection.on('ready', () => {
-      if (settled) return
-      settled = true
-      resolvePromise(buildConnection(connection, observedFingerprint))
-    })
-    connection.on('error', (error) => {
-      fail(new Error(`Could not connect to ${input.host}:${input.port} — ${error.message}`))
-    })
-
-    connection.connect({
-      host: input.host,
-      port: input.port,
-      username: input.username,
-      readyTimeout: CONNECT_TIMEOUT_MS,
-      // The tunnel/provisioning connection stays open across long steps.
-      keepaliveInterval: 15_000,
-      ...(input.credentials.authKind === 'password'
-        ? { password: input.credentials.password }
-        : {
-            privateKey: input.credentials.privateKey,
-            ...(input.credentials.passphrase !== undefined
-              ? { passphrase: input.credentials.passphrase }
-              : {}),
-          }),
-      hostVerifier: (key: Buffer) => {
-        observedFingerprint = createHash('sha256').update(key).digest('base64')
-        if (
-          input.pinnedHostKeyFingerprint !== null &&
-          input.pinnedHostKeyFingerprint !== observedFingerprint
-        ) {
-          fail(
-            new ConflictError(
-              `The server's host key changed (pinned ${input.pinnedHostKeyFingerprint}, saw ${observedFingerprint}). ` +
-                'If the server was reinstalled on purpose, remove this engine install and set it up again; otherwise treat the connection as compromised.',
-            ),
-          )
-          return false
-        }
-        return true
-      },
-    })
-  })
+export const openServerConnection: OpenServerConnection = async (input) => {
+  const { client, hostKeyFingerprint } = await connectSshClient(input)
+  return buildConnection(client, hostKeyFingerprint)
 }
 
 function buildConnection(connection: Client, hostKeyFingerprint: string): ServerConnection {

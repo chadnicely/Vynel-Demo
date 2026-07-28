@@ -9,9 +9,10 @@
 // a Phase-2 bearer relay would add `VYNEL_API_TOKEN` here.
 
 import { z } from 'zod'
+import { VYNEL_ENGINE_PORT } from '@vynel/contracts/network/ports'
 
 export const EnvSchema = z.object({
-  VYNEL_API_URL: z.string().url().default('http://localhost:8998'),
+  VYNEL_API_URL: z.string().url().default(`http://localhost:${VYNEL_ENGINE_PORT}`),
 })
 
 export type Env = z.infer<typeof EnvSchema>

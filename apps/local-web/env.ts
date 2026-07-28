@@ -4,14 +4,21 @@
 import { fileURLToPath } from "node:url";
 import { loadEnv } from "vite";
 import { z } from "zod";
+import {
+  VYNEL_ENGINE_PORT,
+  VYNEL_VOICE_DAEMON_PORT,
+} from "@vynel/contracts/network/ports";
 
 const LocalWebEnvSchema = z.object({
   /** Dev-server port for the local web UI. */
   LOCAL_WEB_PORT: z.coerce.number().int().positive().default(8999),
   /** Where the local API daemon listens; the dev server proxies /api there. */
-  LOCAL_API_URL: z.string().url().default("http://127.0.0.1:8998"),
+  LOCAL_API_URL: z.string().url().default(`http://127.0.0.1:${VYNEL_ENGINE_PORT}`),
   /** Where the voice daemon's overlay channel listens; proxied at /voice. */
-  VYNEL_VOICE_DAEMON_URL: z.string().url().default("http://127.0.0.1:8997"),
+  VYNEL_VOICE_DAEMON_URL: z
+    .string()
+    .url()
+    .default(`http://127.0.0.1:${VYNEL_VOICE_DAEMON_PORT}`),
 });
 
 export type LocalWebEnv = z.infer<typeof LocalWebEnvSchema>;

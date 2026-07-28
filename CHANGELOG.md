@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The desktop can now reach a remote engine as if it were local.** The second half of
+  "run Vynel on my server": a secure tunnel that makes the engine on your server appear at
+  the same local address the app always uses — every window, chat, and API call works
+  unchanged, no reconfiguration anywhere. The connection rides SSH (encrypted end to end),
+  quietly signs every request with the install's access token (the interface never sees it),
+  and reconnects by itself after network blips. Proven live: the full web UI, API, and
+  health check served through the tunnel from a real Linux server. The app's port also got
+  one single home in the code with a build-time guard, so a future custom port is a
+  one-line change.
+
 - **Vynel can now install its engine on your server.** The foundation for "run Vynel on my
   server": given SSH access, Vynel provisions a Linux machine end-to-end — checks the server
   is suitable (and says exactly why not if it isn't), uploads the engine (integrity-verified),

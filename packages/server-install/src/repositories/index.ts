@@ -1,6 +1,7 @@
 export {
   listServerInstallsForUser,
   findServerInstallById,
+  findLatestInstalledServerInstall,
   insertServerInstall,
   updateServerInstall,
   hardDeleteServerInstall,

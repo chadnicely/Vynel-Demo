@@ -15,7 +15,18 @@ use tauri::Manager;
 
 pub enum LaunchPlan {
     Bundled(BundledLaunch),
+    /// Remote mode (Phase D3): the engine runs on the user's server; the
+    /// shell spawns the bundled TUNNEL entry instead of the daemon. Same
+    /// supervision, same port — nothing downstream changes.
+    Remote(RemoteLaunch),
     Repo(PathBuf),
+}
+
+pub struct RemoteLaunch {
+    /// The same bundled payload — the tunnel entry lives beside server.mjs.
+    pub bundled: BundledLaunch,
+    /// Which install row the tunnel targets; None = newest healthy install.
+    pub install_id: Option<String>,
 }
 
 pub struct BundledLaunch {
@@ -41,16 +52,46 @@ pub fn resolve_launch_plan(handle: &tauri::AppHandle) -> Option<LaunchPlan> {
             log::error!("bundled payload found but no app_data_dir — cannot launch the daemon");
             return None;
         };
-        return Some(LaunchPlan::Bundled(BundledLaunch {
+        let bundled = BundledLaunch {
             web_dir: install_dir.join("resources").join("web"),
             install_dir,
             backend_dir,
             app_data_dir,
             app_version: handle.package_info().version.to_string(),
-        }));
+        };
+        // The engine-location choice (written by the D4 settings flow, read
+        // pre-daemon by design — the local-first + restart contract).
+        if let Some(install_id) = read_remote_engine_config(&bundled.app_data_dir) {
+            return Some(LaunchPlan::Remote(RemoteLaunch { bundled, install_id }));
+        }
+        return Some(LaunchPlan::Bundled(bundled));
     }
 
     resolve_repo_root().map(LaunchPlan::Repo)
+}
+
+/// Reads <app_data>\engine.json — `{ "mode": "remote", "installId": "..." }`.
+/// Returns Some(install_id) when remote mode is configured; absent file,
+/// local mode, or a malformed file (logged) all mean local.
+fn read_remote_engine_config(app_data_dir: &Path) -> Option<Option<String>> {
+    let config_path = app_data_dir.join("engine.json");
+    let raw = std::fs::read_to_string(&config_path).ok()?;
+    let parsed: serde_json::Value = match serde_json::from_str(&raw) {
+        Ok(value) => value,
+        Err(error) => {
+            log::warn!("engine.json is malformed ({error}) — staying in local mode");
+            return None;
+        }
+    };
+    if parsed.get("mode").and_then(|mode| mode.as_str()) != Some("remote") {
+        return None;
+    }
+    Some(
+        parsed
+            .get("installId")
+            .and_then(|id| id.as_str())
+            .map(|id| id.to_string()),
+    )
 }
 
 /// The repo root: env override first, else walk up from the exe until a dir
