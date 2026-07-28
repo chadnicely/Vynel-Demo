@@ -124,6 +124,10 @@ export interface CreateAppOptions {
   // Enable the MUTATING desktop `act_on_app` tool (VYNEL_DESKTOP_ACT_ENABLED).
   // Fail-closed default: false.
   readonly desktopActionsEnabled?: boolean
+  // This daemon is a REMOTE engine (VYNEL_REMOTE_ENGINE — Phase D server
+  // install). Local-machine surfaces answer honestly instead of probing dead
+  // loopbacks: `speak` reports voice unavailable without a daemon round-trip.
+  readonly remoteEngine?: boolean
 }
 
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
@@ -170,6 +174,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('appSupervisor', appSupervisor)
     c.set('sshMasterKey', options.sshMasterKeyBase64 ?? null)
     c.set('desktopActionsEnabled', options.desktopActionsEnabled ?? false)
+    c.set('remoteEngine', options.remoteEngine ?? false)
     if (options.desktopNotifications !== undefined)
       c.set('desktopNotifications', options.desktopNotifications)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)

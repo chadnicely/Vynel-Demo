@@ -110,6 +110,9 @@ export interface AppEnv {
     // VYNEL_DESKTOP_ACT_ENABLED env flag, stamped once at construction.
     // Fail-closed: tests that omit it get `false`.
     desktopActionsEnabled: boolean
+    // Whether this daemon is a REMOTE engine (VYNEL_REMOTE_ENGINE, Phase D) —
+    // local-machine surfaces (voice) answer honestly instead of probing.
+    remoteEngine: boolean
   }
 }
 

@@ -59,6 +59,10 @@ import {
 export async function boot(): Promise<void> {
   const env = loadEnv()
   const logger = pino({ level: env.LOG_LEVEL })
+  // The shell stamps VYNEL_APP_VERSION when it spawns the bundled daemon; dev
+  // runs stay on the 0.0.0 placeholder. One home for the sentinel — the hub
+  // device stamp and the gateway's /health both read this.
+  const appVersion = env.VYNEL_APP_VERSION ?? '0.0.0'
 
   // The instructions content root was already pointed at the shipped assets by
   // the server.ts entry (it must precede every feature-module import) — here we
@@ -158,12 +162,10 @@ export async function boot(): Promise<void> {
       entitlements: await createEntitlementVerifier({
         publicKeyPem: env.VYNEL_HUB_PUBLIC_KEY,
       }),
-      // The shell stamps VYNEL_APP_VERSION when it spawns the bundled daemon;
-      // dev runs stay on the 0.0.0 placeholder.
       device: {
         deviceName: hostname(),
         devicePlatform: process.platform,
-        appVersion: env.VYNEL_APP_VERSION ?? '0.0.0',
+        appVersion,
       },
       logger,
     })
@@ -184,6 +186,7 @@ export async function boot(): Promise<void> {
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
     sshMasterKeyBase64: sshMasterKey,
     desktopActionsEnabled: env.VYNEL_DESKTOP_ACT_ENABLED,
+    remoteEngine: env.VYNEL_REMOTE_ENGINE,
     ...(desktopNotifications !== undefined ? { desktopNotifications } : {}),
     ...(hubSession !== undefined ? { hubSession } : {}),
   })
@@ -295,14 +298,21 @@ export async function boot(): Promise<void> {
       'api boot: no built web ui found — api only (the vite dev server fronts the ui)',
     )
   }
+  if (env.VYNEL_AUTH_TOKEN !== undefined) {
+    logger.info('api boot: bearer gate active (remote engine mode) — /health stays open')
+  }
   const gateway = createGatewayApp({
     apiApp: app,
     ...(webUiDistDir !== undefined ? { webUiDistDir } : {}),
     voiceDaemonUrl: env.VYNEL_VOICE_DAEMON_URL,
+    appVersion,
+    ...(env.VYNEL_AUTH_TOKEN !== undefined ? { authToken: env.VYNEL_AUTH_TOKEN } : {}),
     logger,
   })
 
-  // Bind to loopback only in Phase 1 — the local API is unauthenticated.
+  // Loopback only, always — local mode by design (Phase 1), and in remote
+  // mode the SSH tunnel is the sole door (the bearer gate covers other local
+  // users on the server). Never widen this bind.
   const server = serve({ fetch: gateway.fetch, hostname: '127.0.0.1', port: env.PORT }, (info) => {
     logger.info({ port: info.port }, 'api listening')
   })

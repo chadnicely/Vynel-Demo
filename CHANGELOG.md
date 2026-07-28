@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The engine is ready to run headless behind a lock.** For the coming "run Vynel on my
+  server" mode: the engine now answers a small open health check (liveness + version) while
+  everything else can be locked behind a per-install access token — other people with accounts
+  on the same server get a firm 401, never your data. Voice knows it lives on your desktop:
+  a remote engine says so honestly instead of trying to speak on the server. Proven live on
+  the Linux build: health open, everything else locked without the token.
+
 - **Vynel's engine can now be built for Linux servers — the first step toward "run Vynel on
   my server."** The release pipeline cross-builds the full backend payload for linux-x64 from
   a Windows machine and proves it boots for real (WSL smoke test in the release gate). Three

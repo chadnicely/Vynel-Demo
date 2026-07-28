@@ -93,10 +93,16 @@ in `packages/ssh-servers/src/sealing/master-key.ts` already exists for exactly t
   Tarball step deferred to D5 (the release artifact needs it; the smoke doesn't — /mnt
   drvfs mounts files 0777 so the staged node runs without a chmod; D2's provisioner
   restores exec bits server-side).
-- **D1 — headless boot + bearer**: file-based master-key vault (server mode), version/health
-  endpoint for the handshake, `VYNEL_AUTH_TOKEN` gate in the gateway, voice gated off in
-  remote mode. Green = payload boots headless on linux under systemd-style env; 401 without
-  token, 200 with.
+- **D1 — headless boot + bearer** (BUILT 2026-07-28): `/health` on the gateway (always
+  open — liveness + version for the D5 handshake and the D2 probe), `VYNEL_AUTH_TOKEN`
+  bearer gate on every other surface (timing-safe compare; 401 with an actionable message),
+  `VYNEL_REMOTE_ENGINE` flag riding the createApp-options seam (the desktopActionsEnabled
+  precedent) — `speak` answers "voice lives on the desktop" without probing the server's own
+  loopback. PROVEN LIVE on the linux payload in WSL: /health open + stamped version,
+  401 bare, 412 (onboarding gate) with the correct bearer — auth passed, app reached.
+  Narrowing taken: the speak TOOL still appears in the remote engine's tool list (the
+  route answers honestly; suppressing it from the generated registry needs a composer-level
+  engine-facts seam — deferred to D3/D4 where remote runtime wiring lands).
 - **D2 — `packages/server-install` leaf**: provisioner ops — preflight (arch/glibc/systemd
   check), SFTP upload (or server-side `curl` + SHA from the release), systemd user unit
   install (`loginctl enable-linger`), token mint + seal, health check via remote exec. Own

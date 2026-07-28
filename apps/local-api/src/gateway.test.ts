@@ -1,6 +1,7 @@
 // Gateway routing contract: /api strip-mount, /voice daemon proxy, static
-// web-ui hosting + SPA fallback, and root-path api passthrough — the exact
-// order the sidecar mode depends on.
+// web-ui hosting + SPA fallback, root-path api passthrough — the exact order
+// the sidecar mode depends on — plus the open /health and the remote-mode
+// bearer gate.
 
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -8,7 +9,7 @@ import { join } from 'node:path'
 import { Hono } from 'hono'
 import pino from 'pino'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createGatewayApp } from './gateway.js'
+import { createGatewayApp, type CreateGatewayAppOptions } from './gateway.js'
 
 const silentLogger = pino({ level: 'silent' })
 
@@ -20,6 +21,15 @@ function buildFakeApiApp(): Hono {
     return c.json({ seenPath: c.req.path, seenMethod: c.req.method, seenBody: body })
   })
   return api
+}
+
+function baseGatewayOptions(): CreateGatewayAppOptions {
+  return {
+    apiApp: buildFakeApiApp(),
+    voiceDaemonUrl: 'http://127.0.0.1:8997',
+    appVersion: '9.9.9-test',
+    logger: silentLogger,
+  }
 }
 
 function buildWebUiDist(): string {
@@ -42,22 +52,14 @@ describe('createGatewayApp', () => {
   })
 
   it('strips the /api prefix and delegates to the api app', async () => {
-    const gateway = createGatewayApp({
-      apiApp: buildFakeApiApp(),
-      voiceDaemonUrl: 'http://127.0.0.1:8997',
-      logger: silentLogger,
-    })
+    const gateway = createGatewayApp(baseGatewayOptions())
     const response = await gateway.request('/api/workspaces/w1/chat')
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ seenPath: '/workspaces/w1/chat' })
   })
 
   it('preserves method and body through the /api mount', async () => {
-    const gateway = createGatewayApp({
-      apiApp: buildFakeApiApp(),
-      voiceDaemonUrl: 'http://127.0.0.1:8997',
-      logger: silentLogger,
-    })
+    const gateway = createGatewayApp(baseGatewayOptions())
     const response = await gateway.request('/api/root/turn', {
       method: 'POST',
       body: JSON.stringify({ text: 'hello' }),
@@ -75,9 +77,7 @@ describe('createGatewayApp', () => {
       .fn<typeof fetch>()
       .mockResolvedValue(new Response('daemon-says-hi', { status: 200 }))
     const gateway = createGatewayApp({
-      apiApp: buildFakeApiApp(),
-      voiceDaemonUrl: 'http://127.0.0.1:8997',
-      logger: silentLogger,
+      ...baseGatewayOptions(),
       fetchVoiceDaemon,
     })
     const response = await gateway.request('/voice/events?surface=jarvis')
@@ -90,9 +90,7 @@ describe('createGatewayApp', () => {
   it('answers 502 with an actionable message when the voice daemon is down', async () => {
     const fetchVoiceDaemon = vi.fn<typeof fetch>().mockRejectedValue(new Error('ECONNREFUSED'))
     const gateway = createGatewayApp({
-      apiApp: buildFakeApiApp(),
-      voiceDaemonUrl: 'http://127.0.0.1:8997',
-      logger: silentLogger,
+      ...baseGatewayOptions(),
       fetchVoiceDaemon,
     })
     const response = await gateway.request('/voice/session/end', { method: 'POST' })
@@ -102,10 +100,8 @@ describe('createGatewayApp', () => {
 
   it('serves the web ui when a dist dir is configured', async () => {
     const gateway = createGatewayApp({
-      apiApp: buildFakeApiApp(),
+      ...baseGatewayOptions(),
       webUiDistDir: distDir,
-      voiceDaemonUrl: 'http://127.0.0.1:8997',
-      logger: silentLogger,
     })
     const indexResponse = await gateway.request('/')
     expect(indexResponse.headers.get('content-type')).toContain('text/html')
@@ -118,10 +114,8 @@ describe('createGatewayApp', () => {
 
   it('falls back to index.html for html-accepting GETs of UI routes', async () => {
     const gateway = createGatewayApp({
-      apiApp: buildFakeApiApp(),
+      ...baseGatewayOptions(),
       webUiDistDir: distDir,
-      voiceDaemonUrl: 'http://127.0.0.1:8997',
-      logger: silentLogger,
     })
     const response = await gateway.request('/jarvis', {
       headers: { accept: 'text/html,application/xhtml+xml' },
@@ -131,10 +125,8 @@ describe('createGatewayApp', () => {
 
   it('passes api-shaped root-path requests through to the api app', async () => {
     const gateway = createGatewayApp({
-      apiApp: buildFakeApiApp(),
+      ...baseGatewayOptions(),
       webUiDistDir: distDir,
-      voiceDaemonUrl: 'http://127.0.0.1:8997',
-      logger: silentLogger,
     })
     // The voice daemon's brain client POSTs /root/turn directly to the port.
     const postResponse = await gateway.request('/root/turn', { method: 'POST', body: '{}' })
@@ -152,10 +144,8 @@ describe('createGatewayApp', () => {
     writeFileSync(join(distDir, '..', outsideFileName), outsideFileContent)
     try {
       const gateway = createGatewayApp({
-        apiApp: buildFakeApiApp(),
+        ...baseGatewayOptions(),
         webUiDistDir: distDir,
-        voiceDaemonUrl: 'http://127.0.0.1:8997',
-        logger: silentLogger,
       })
       // Layered defense: URL parsing collapses `..` AND single-encoded
       // `%2e%2e` dot-segments before routing; the DOUBLE-encoded form passes
@@ -176,12 +166,62 @@ describe('createGatewayApp', () => {
   })
 
   it('is a pure api passthrough when no dist dir is configured', async () => {
-    const gateway = createGatewayApp({
-      apiApp: buildFakeApiApp(),
-      voiceDaemonUrl: 'http://127.0.0.1:8997',
-      logger: silentLogger,
-    })
+    const gateway = createGatewayApp(baseGatewayOptions())
     const response = await gateway.request('/', { headers: { accept: 'text/html' } })
     expect(await response.json()).toMatchObject({ seenPath: '/' })
+  })
+
+  it('reports liveness + version on /health', async () => {
+    const gateway = createGatewayApp(baseGatewayOptions())
+    const response = await gateway.request('/health')
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ status: 'ok', version: '9.9.9-test' })
+  })
+
+  describe('bearer gate (remote engine mode)', () => {
+    const token = 'a-long-remote-engine-token'
+
+    it('401s every surface without the exact bearer', async () => {
+      const gateway = createGatewayApp({
+        ...baseGatewayOptions(),
+        webUiDistDir: distDir,
+        authToken: token,
+      })
+      const surfaces = ['/api/workspaces', '/root/turn', '/', '/voice/events', '/assets/app-abc123.js']
+      for (const path of surfaces) {
+        const bare = await gateway.request(path)
+        expect(bare.status, `${path} without a token`).toBe(401)
+        const wrong = await gateway.request(path, {
+          headers: { authorization: 'Bearer wrong-token-of-other-length' },
+        })
+        expect(wrong.status, `${path} with a wrong token`).toBe(401)
+        // Same length as the real token — exercises the timingSafeEqual
+        // branch, not just the length short-circuit.
+        const sameLength = await gateway.request(path, {
+          headers: { authorization: 'Bearer a-long-remote-engine-tokeX' },
+        })
+        expect(sameLength.status, `${path} with a same-length wrong token`).toBe(401)
+      }
+    })
+
+    it('admits the exact bearer on every surface', async () => {
+      const gateway = createGatewayApp({
+        ...baseGatewayOptions(),
+        webUiDistDir: distDir,
+        authToken: token,
+      })
+      const authorized = { headers: { authorization: `Bearer ${token}` } }
+      const api = await gateway.request('/api/workspaces', authorized)
+      expect(await api.json()).toMatchObject({ seenPath: '/workspaces' })
+      const index = await gateway.request('/', authorized)
+      expect(await index.text()).toBe('<html>vynel shell</html>')
+    })
+
+    it('leaves /health open without a token', async () => {
+      const gateway = createGatewayApp({ ...baseGatewayOptions(), authToken: token })
+      const response = await gateway.request('/health')
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ status: 'ok' })
+    })
   })
 })

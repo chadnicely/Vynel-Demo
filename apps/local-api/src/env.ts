@@ -97,6 +97,20 @@ export const EnvSchema = z.object({
   // first boot); unset = the OS keyring as before. Repo-root-resolved like
   // DB_PATH, absolute in practice (the systemd unit passes the install dir).
   VYNEL_MASTER_KEY_FILE: z.string().optional().transform(resolveAgainstRepoRoot),
+  // Set = every gateway request must carry `Authorization: Bearer <token>` —
+  // the remote engine's defense against OTHER LOCAL USERS on a shared server
+  // (the daemon stays loopback-bound; the desktop tunnel injects the header;
+  // /health stays open for the version handshake). Unset = local mode, where
+  // the loopback bind is the security model. Min length keeps a provisioner
+  // bug from shipping a guessable token.
+  VYNEL_AUTH_TOKEN: z.string().min(16).optional(),
+  // Marks this daemon as a REMOTE engine (Phase D systemd install on a user's
+  // server). Local-machine features answer honestly instead of probing dead
+  // loopbacks: `speak` reports voice unavailable without a daemon round-trip.
+  VYNEL_REMOTE_ENGINE: z
+    .string()
+    .default('0')
+    .transform((raw) => raw === '1' || raw.toLowerCase() === 'true'),
   // The Vynel HUB (apps/cloud-api, hosted) — accounts + tiers + marketplace.
   // OPTIONAL: unset = hub features off (the /hub routes answer
   // `not-configured`), so dev without a hub keeps working.

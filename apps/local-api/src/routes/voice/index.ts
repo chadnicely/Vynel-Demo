@@ -49,6 +49,14 @@ export const voiceApp = factory.createApp().post(
   ...userScoped,
   async (c) => {
     const { text } = c.req.valid('json')
+    // A remote engine has no speaker and its loopback voice URL would point
+    // at the SERVER, not the user's machine — answer honestly without probing.
+    if (c.var.remoteEngine) {
+      return c.json({
+        spoken: false,
+        reason: 'voice output lives on the desktop; this engine runs on a remote server',
+      })
+    }
     return c.json(await speakThroughDaemon(loadEnv().VYNEL_VOICE_DAEMON_URL, text))
   },
 )

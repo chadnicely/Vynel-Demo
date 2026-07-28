@@ -13,11 +13,18 @@
 //               mount (apps/mcp external-server.ts, apps/cli bin.ts) — and
 //               the in-process appRequest binds the inner api app, never
 //               crossing the gateway.
+//   /health  -> { status, version } — ALWAYS open (the version handshake +
+//               provisioner probe; exposes only liveness + version)
 //   files    -> the built local-web bundle, when a dist exists (static-web-ui)
 //   GET nav  -> index.html (SPA fallback for html-accepting GETs of UI routes)
 //   *        -> the api app at root paths (compat: the voice daemon's brain
 //               client POSTs /root/turn directly to the port)
+//
+// When `authToken` is set (remote engine mode), everything except /health
+// requires `Authorization: Bearer <token>` — the defense against other local
+// users on a shared server; the desktop tunnel injects the header.
 
+import { timingSafeEqual } from 'node:crypto'
 import { Hono } from 'hono'
 import type { Logger } from 'pino'
 import { resolveWebUiFilePath, respondWithWebUiFile } from './static-web-ui.js'
@@ -28,6 +35,10 @@ export interface CreateGatewayAppOptions {
   /** Absolute dist dir with an index.html; undefined = no UI hosting (dev). */
   readonly webUiDistDir?: string
   readonly voiceDaemonUrl: string
+  /** Reported by /health — the shell/provisioner version handshake reads it. */
+  readonly appVersion: string
+  /** Set = require `Authorization: Bearer <token>` on everything but /health. */
+  readonly authToken?: string
   readonly logger: Logger
   /** Test seam for the voice-daemon proxy. */
   readonly fetchVoiceDaemon?: typeof fetch
@@ -40,6 +51,35 @@ const NON_FORWARDABLE_HEADERS = new Set(['host', 'content-length', 'connection']
 export function createGatewayApp(options: CreateGatewayAppOptions): Hono {
   const gateway = new Hono()
   const fetchVoiceDaemon = options.fetchVoiceDaemon ?? fetch
+
+  // Registered before the bearer middleware, so it stays open: the D2
+  // provisioner's post-install probe and the D5 shell handshake both need
+  // version + liveness before they hold a token-carrying session.
+  gateway.get('/health', (c) => c.json({ status: 'ok', version: options.appVersion }))
+
+  const authToken = options.authToken
+  if (authToken !== undefined) {
+    // Deliberately whole-header and case-sensitive: no parse step inside the
+    // timing-safe path, and the only legitimate client is our own tunnel.
+    const expectedHeader = Buffer.from(`Bearer ${authToken}`)
+    gateway.use('*', async (c, next) => {
+      const presentedHeader = Buffer.from(c.req.header('authorization') ?? '')
+      const authorized =
+        presentedHeader.length === expectedHeader.length &&
+        timingSafeEqual(presentedHeader, expectedHeader)
+      if (!authorized) {
+        return c.json(
+          {
+            code: 'unauthorized',
+            message:
+              'This engine runs in remote mode and requires a bearer token — connect through the Vynel desktop app.',
+          },
+          401,
+        )
+      }
+      return next()
+    })
+  }
 
   gateway.all('/api/*', (c) => {
     const url = new URL(c.req.raw.url)

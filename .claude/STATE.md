@@ -3,7 +3,19 @@
 **Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ NEXT ACTION (2026-07-28, round 8): PHASE D STARTED — plan + forks SETTLED (`docs/module-notes/server-install.md`), **D0 (linux payload) BUILT + GREEN, uncommitted.** **NEXT: commit D0, then D1 (bearer token + version/health endpoint + voice-off-remote; the file master-key vault already landed in D0).**
+## ⏭ NEXT ACTION (2026-07-28, round 8): PHASE D — D0 COMMITTED (`f7c43b2`), **D1 BUILT + GREEN (uncommitted): /health + bearer gate + remote-engine flag.** **NEXT: commit D1, then D2 (`packages/server-install` provisioner leaf — schema 0022, preflight/upload/systemd/token/health; WSL sshd as the test server).**
+
+**D1 (this tree): gateway gains open `GET /health` ({status, version} — version handshake +
+provisioner probe) and, when `VYNEL_AUTH_TOKEN` set, a timing-safe bearer gate on EVERY other
+surface (401 actionable message). `VYNEL_REMOTE_ENGINE` rides the createApp-options seam
+(desktopActionsEnabled precedent) → `speak` answers "voice lives on the desktop" without
+probing the server's loopback. PROVEN LIVE on the linux payload in WSL: /health open with
+stamped version 9.9.9-d1, 401 bare (api + static), 412 onboarding-gate WITH the bearer (auth
+passed, app reached). Gate 3269 green; reviewer approve (same-length-token probe + comment
+nits folded). Narrowing: speak TOOL still listed on remote engines (route answers honestly);
+composer-level suppression deferred to D3/D4. Gotcha: Git Bash MSYS path-mangling breaks
+`wsl -- --cd /mnt/...` args — wrap WSL commands in one `bash -c "cd ... && env ..."` string
+with literal paths.**
 
 **Phase D shape (Chad's fork answers 2026-07-28): bootstrap = local-first + restart into
 remote; tunnel = node+ssh2 bundled in the payload (local 8998 listener, bearer injected at
