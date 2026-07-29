@@ -10,6 +10,7 @@ import {
   workspaceAccentVar,
   workspaceNameFromLabel,
 } from "../lib/workspace-color.js";
+import { formatMessageTimestamp } from "../lib/format-timestamp.js";
 
 // Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening): a
 // thread shows chips only for its DIRECT children's work — never for the
@@ -29,8 +30,17 @@ const props = withDefaults(
      *  so the host names who speaks here (the global thread passes "Claude",
      *  a workspace room its manager persona). */
     assistantName?: string;
+    /** False for an assistant row continuing the previous row's turn — the
+     *  host groups consecutive same-author rows under ONE author line, so a
+     *  reloaded thread reads like the live overlay (one "Claude:", N blocks). */
+    showHeader?: boolean;
   }>(),
-  { linkedSessionLive: undefined, showWatchChip: true, assistantName: "Assistant" },
+  {
+    linkedSessionLive: undefined,
+    showWatchChip: true,
+    assistantName: "Assistant",
+    showHeader: true,
+  },
 );
 
 const emit = defineEmits<{
@@ -77,6 +87,12 @@ const roleLabel = computed(() => {
 });
 
 const isAssistant = computed(() => props.message.role === "assistant");
+
+// When this message happened — quiet meta beside the author, so a reopened
+// conversation reads as a timeline, not an undated wall.
+const timeLabel = computed(() =>
+  formatMessageTimestamp(props.message.createdAt),
+);
 
 // A delivered report carries a first-line attribution marker FOR THE MODEL
 // (the notify turn must never mistake it for user input). The card's author
@@ -166,6 +182,7 @@ const accentVar = computed(() => {
     ]"
     :style="accentVar ? { '--accent': accentVar } : undefined"
   >
+    <div v-if="props.showHeader" class="row-header">
     <p class="role-label">
       {{ roleLabel }}
       <span v-if="originBadge" class="origin-badge">
@@ -214,6 +231,8 @@ const accentVar = computed(() => {
       <!-- Quiet provenance mark: this row is a delivered result, not typed input. -->
       <span v-if="isInboundReport" class="origin-badge">Report</span>
     </p>
+    <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
+    </div>
 
     <ThinkingBlock
       v-if="props.message.thinkingBody"
@@ -325,6 +344,19 @@ const accentVar = computed(() => {
 
 .role-user .role-label {
   color: var(--ink-2);
+}
+
+.row-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.time-label {
+  color: var(--ink-3);
+  font: 400 10px/1.5 var(--font-ui);
+  letter-spacing: 0.02em;
+  opacity: 0.85;
 }
 
 /* "via Voice" — a quiet provenance mark beside the author line. */

@@ -73,8 +73,10 @@ export async function installCloudAgent(
   // 4. `installMarketplaceAgent` owns the duplicate pre-check, the disk
   //    mirror, and the delegated `createAgent` tx. Carding is NOT
   //    tier-gated: the provider's PreToolUse hook enforces the
-  //    tier-independent TOOLS_ALWAYS_REQUIRING_APPROVAL floor, and the
-  //    manifest schema clamps permissionMode to the safe subset.
+  //    TOOLS_ALWAYS_REQUIRING_APPROVAL floor per the SESSION's mode (it
+  //    stands down only for auto and the user's bypass — 2026-07-30
+  //    stance), and the manifest schema clamps permissionMode to the safe
+  //    subset.
   //    `trustTier: 'community'` gates nothing at runtime today — it is a
   //    recorded provenance label reserved for future per-tier gating.
   const createInput: CreateAgentInput = {

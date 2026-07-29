@@ -281,20 +281,23 @@ describe("ui-store composer selections", () => {
 
   it("persists the thinking effort and restores it on a fresh store", async () => {
     const ui = useUiStore();
-    expect(ui.composerThinkingEffort).toBe("auto");
+    // test: correct expectation — 'auto' was removed from the picker
+    // (2026-07-30); the default is now an explicit 'high'.
+    expect(ui.composerThinkingEffort).toBe("high");
 
-    ui.composerThinkingEffort = "high";
+    ui.composerThinkingEffort = "max";
     await nextTick();
-    expect(localStorage.getItem("vynel.composer-thinking-effort")).toBe("high");
+    expect(localStorage.getItem("vynel.composer-thinking-effort")).toBe("max");
 
     setActivePinia(createPinia());
-    expect(useUiStore().composerThinkingEffort).toBe("high");
+    expect(useUiStore().composerThinkingEffort).toBe("max");
   });
 
-  it("falls back to Auto for a stored effort outside the picker catalog", () => {
-    // A junk/legacy value must never reach a turn request — fail closed.
-    localStorage.setItem("vynel.composer-thinking-effort", "ultra");
-    expect(useUiStore().composerThinkingEffort).toBe("auto");
+  it("falls back to the default for a stored effort outside the picker catalog", () => {
+    // A junk/legacy value (including the retired 'auto') must never reach a
+    // turn request — fail closed.
+    localStorage.setItem("vynel.composer-thinking-effort", "auto");
+    expect(useUiStore().composerThinkingEffort).toBe("high");
   });
 
   it("keeps the full desktop-parity levels as valid stored choices", () => {

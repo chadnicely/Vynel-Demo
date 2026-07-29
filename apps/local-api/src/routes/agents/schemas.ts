@@ -15,10 +15,11 @@ export const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max'
 // All six SDK `PermissionMode` values are exposed: Vynel surfaces every
 // option the SDK provides. The permission MODE is only what an agent
 // *declares* — it is NOT the safety mechanism. Safety lives in Vynel's
-// BEHAVIOR layer: the `canUseTool` gate (which still cards the
-// always-irreversible tools) plus the draft→request→card and
-// workflow/task/todo approval features — which can ask the user even when
-// the mode is `auto`. Mode ≠ behavior.
+// BEHAVIOR layer: the `canUseTool` gate + PreToolUse backstop (which card
+// the irreversible floor in ask mode and the unattended default — the
+// SESSION's mode governs the whole turn, subagents included, 2026-07-30)
+// plus the draft→request→card and workflow/task/todo approval features.
+// Mode ≠ behavior.
 export const UserSettablePermissionModeSchema = z.enum([
   'default',
   'acceptEdits',

@@ -30,6 +30,7 @@ import { findChatSessionById } from '@vynel/chat/repositories'
 import type { AppEnv } from '../factory.js'
 import { loadEnv } from '../env.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
+import { writeSseSafely } from './write-sse-safely.js'
 import type { z } from 'zod'
 import type { StartChatTurnRequestSchema } from '../routes/chat/schemas.js'
 
@@ -115,8 +116,10 @@ export async function streamChatTurn(
   return streamSSE(c, async (stream) => {
     const composed = composeSessionCapabilities(c.var.db, { workspaceId: c.var.workspace!.id })
     // Compose the enabled agents for this session (Mode A — the root model
-    // delegates to them via the SDK Agent tool). Every irreversible
-    // (sub)agent tool call still cards via the always-on PreToolUse backstop.
+    // delegates to them via the SDK Agent tool). In ask mode every
+    // irreversible (sub)agent tool call still cards via the always-on
+    // PreToolUse backstop; in auto/bypass the user's mode covers the whole
+    // turn, subagents included (2026-07-30 stance).
     const sessionAgents = await composeSessionAgents(c.var.db, {
       userId: c.var.user.id,
       workspaceId: c.var.workspace!.id,
@@ -158,8 +161,9 @@ export async function streamChatTurn(
         ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
         // Map the user-facing session mode → provider permission mode. The
         // default is resolved here (DEFAULT_SESSION_MODE today; the persisted
-        // per-user setting once that lands). The irreversible floor still cards
-        // in every mode via the provider's always-on PreToolUse backstop.
+        // per-user setting once that lands). The mode is the user's trust
+        // level for the whole turn: ask cards the floor, auto defers to the
+        // classifier, bypass never asks (2026-07-30 stance).
         permissionMode: toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE),
         mcpServers: composedMcp.mcpServers,
         allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
@@ -220,8 +224,26 @@ export async function streamChatTurn(
         publishTurnActivityStep(activity, event)
         await stream.writeSSE({ event: event.kind, data: JSON.stringify(event) })
       }
-      await stream.writeSSE({ event: 'turn-stream-ended', data: '{}' })
+    } catch (err) {
+      // A mid-stream throw (consumer/DB) must still reach the client as typed
+      // frames — a bare socket close leaves the composer "working" forever.
+      c.var.logger.error({ err }, 'chat turn stream failed mid-flight')
+      await writeSseSafely(
+        stream,
+        'session-errored',
+        JSON.stringify({
+          kind: 'session-errored',
+          sessionId: effectiveSdkSessionId ?? '',
+          errorCode: 'turn-stream-failed',
+          errorMessage: err instanceof Error ? err.message : String(err),
+          isRecoverable: false,
+        }),
+        c.var.logger,
+      )
     } finally {
+      // The terminal frame fires on EVERY exit — clean drain, thrown failure,
+      // or disconnect (where the write no-ops).
+      await writeSseSafely(stream, 'turn-stream-ended', '{}', c.var.logger)
       // Fires even on client disconnect (generator cleanup). Best-effort.
       activity.end()
       // An ask still parked when the turn ends (interrupt/disconnect — a

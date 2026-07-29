@@ -17,6 +17,7 @@ export const DELEGATION_MODE_HEADER = 'x-vynel-delegation-mode'
 const DELEGATION_PERMISSION_MODES: readonly DelegationPermissionMode[] = [
   'ask',
   'auto',
+  'bypass',
   'bypass-with-behavior-gate',
 ]
 

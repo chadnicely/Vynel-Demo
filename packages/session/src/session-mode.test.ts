@@ -5,7 +5,10 @@ describe('toPermissionMode', () => {
   it('maps each user-facing mode to its provider permission mode', () => {
     expect(toPermissionMode('ask')).toBe('ask')
     expect(toPermissionMode('auto')).toBe('auto')
-    expect(toPermissionMode('bypass')).toBe('bypass-with-behavior-gate')
+    // test: correct expectation — the user's bypass maps to the truly-silent
+    // provider mode since 2026-07-30; `bypass-with-behavior-gate` remains the
+    // UNATTENDED default no user-facing mode maps to.
+    expect(toPermissionMode('bypass')).toBe('bypass')
   })
 })
 

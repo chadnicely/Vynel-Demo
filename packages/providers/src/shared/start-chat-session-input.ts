@@ -13,16 +13,25 @@ export type ChatMessageImage = {
 /**
  * Permission mode for a session. Maps to the Agent SDK `permissionMode`.
  * - `ask` — every tool use triggers an approval card (SDK `default`).
- * - `auto` — Anthropic's safety classifier auto-approves/denies each action
- *   (SDK `auto`); the irreversible floor still cards via the PreToolUse backstop.
+ * - `auto` — Anthropic's safety classifier is the SOLE gate (SDK `auto`);
+ *   no Vynel floor anywhere — only the classifier's uncertain escalations card.
+ * - `bypass` — nothing cards, ever (SDK `bypassPermissions`). The USER's
+ *   explicit composer pick only (Chad, 2026-07-30: bypass means bypass).
  * - `bypass-with-behavior-gate` — tools run silently except the irreversible
- *   floor, which still cards (SDK `bypassPermissions` + the backstop).
+ *   floor, which still cards (SDK `bypassPermissions` + the backstop). The
+ *   UNATTENDED default (schedules, delegated leaves, report delivery) — a
+ *   background turn carries no user trust pick, so the floor holds.
  * - `plan-only` — the agent plans but does not execute tools (SDK `plan`).
  *
  * The single source of truth for the session permission mode — the SDK-options
  * builder + the canUseTool callback import this rather than re-declaring it.
  */
-export type ClaudePermissionMode = 'ask' | 'auto' | 'bypass-with-behavior-gate' | 'plan-only'
+export type ClaudePermissionMode =
+  | 'ask'
+  | 'auto'
+  | 'bypass'
+  | 'bypass-with-behavior-gate'
+  | 'plan-only'
 
 export type StartChatSessionInput = {
   /** Workspace folder path — becomes the agent's cwd. */
@@ -43,8 +52,8 @@ export type StartChatSessionInput = {
 
   /** Reasoning effort for this turn (the composer's picker). Maps to the
    *  Agent SDK `options.effort`; the SDK silently downgrades a level the
-   *  model doesn't support. Omit ("Auto") for the adaptive default —
-   *  byte-for-byte today's behavior. */
+   *  model doesn't support. Omit (background turns) for the SDK's adaptive
+   *  default. */
   thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
   /** Permission mode for this session — see `ClaudePermissionMode`. */

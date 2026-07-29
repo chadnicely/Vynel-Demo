@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onScopeDispose, ref, watch } from "vue";
 import {
   ApprovalCard,
   ThinkingBlock,
   ToolCallList,
   MarkdownText,
+  formatElapsed,
 } from "@vynel/ui";
 // The pure taxonomy the server itself records with — same function, so the
 // inline card and the notifier card always classify identically.
@@ -33,16 +34,36 @@ const emit = defineEmits<{
 const lastSegmentId = computed(
   () => props.view.segments.at(-1)?.messageId ?? null,
 );
+
+// How long this turn has been running — ticks beside "working" so a long run
+// reads as alive, not frozen. The interval exists only while streaming.
+const nowMs = ref(Date.now());
+let elapsedTimer: ReturnType<typeof setInterval> | null = null;
+watch(
+  () => props.view.status === "streaming",
+  (isStreaming) => {
+    if (isStreaming && elapsedTimer === null) {
+      elapsedTimer = setInterval(() => {
+        nowMs.value = Date.now();
+      }, 1000);
+    } else if (!isStreaming && elapsedTimer !== null) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
+    }
+  },
+  { immediate: true },
+);
+onScopeDispose(() => {
+  if (elapsedTimer !== null) clearInterval(elapsedTimer);
+});
+const elapsedLabel = computed(() =>
+  formatElapsed(props.view.startedAtMs, nowMs.value),
+);
 </script>
 
 <template>
   <div class="live-turn">
-    <p class="role-label">
-      {{ props.authorLabel }}
-      <span v-if="props.view.status === 'streaming'" class="live-chip"
-        >working</span
-      >
-    </p>
+    <p class="role-label">{{ props.authorLabel }}</p>
 
     <!-- One block per assistant message, in arrival order — the SAME
          thinking → text → tool-calls shape MessageRow gives the settled row,
@@ -101,6 +122,19 @@ const lastSegmentId = computed(
     <p v-else-if="props.view.error" class="status-note is-error">
       {{ props.view.error.message }}
     </p>
+
+    <!-- The turn's real state, always at the live edge: what Claude is doing
+         right now (thinking vs working) + how long the turn has run. Stays as
+         a quiet "done" through the settle window instead of vanishing. -->
+    <p v-if="props.view.status === 'streaming'" class="live-status">
+      <span class="live-chip"
+        >{{ props.view.isThinkingLive ? "thinking" : "working" }} ·
+        {{ elapsedLabel }}</span
+      >
+    </p>
+    <p v-else-if="props.view.status === 'completed'" class="live-status">
+      <span class="done-chip">done · {{ elapsedLabel }}</span>
+    </p>
   </div>
 </template>
 
@@ -126,6 +160,12 @@ const lastSegmentId = computed(
   letter-spacing: 0.07em;
 }
 
+.live-status {
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
 .live-chip {
   color: var(--gold);
   font: 600 10px/1.4 var(--font-ui);
@@ -135,6 +175,15 @@ const lastSegmentId = computed(
   border-radius: 99px;
   background: var(--gold-soft);
   animation: live-chip-breathe 1.6s var(--ease-out) infinite;
+}
+
+.done-chip {
+  color: var(--ink-3);
+  font: 600 10px/1.4 var(--font-ui);
+  letter-spacing: 0.05em;
+  padding: 1px 7px;
+  border: 1px solid var(--hair);
+  border-radius: 99px;
 }
 
 @keyframes live-chip-breathe {

@@ -82,10 +82,10 @@ describe("ChatComposer", () => {
       props: {
         ...baseProps,
         efforts: [
-          { id: "auto", label: "Auto" },
+          { id: "low", label: "Low" },
           { id: "high", label: "High" },
         ],
-        effortId: "auto",
+        effortId: "low",
       },
     });
 

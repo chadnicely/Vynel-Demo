@@ -22,8 +22,9 @@ export type BuildClaudeCanUseToolCallbackInput = {
    *  event, which may arrive after the first tool use (blueprint §19). */
   sessionIdHolder: { current: string | null }
   syntheticEventQueue: SyntheticEventQueue<NormalizedSessionEvent>
-  /** Per-turn feature mutating tools, UNIONED with the static floor — a tool in
-   *  either set cards even under bypass. ADDITIVE; the floor is never removed. */
+  /** Per-turn feature mutating tools, UNIONED with the static floor — a tool
+   *  in either set cards under `bypass-with-behavior-gate` (the unattended
+   *  default). The user's `bypass` and `auto` never consult these here. */
   alwaysRequireApprovalToolNames?: ReadonlySet<string>
 }
 
@@ -37,13 +38,20 @@ export function buildClaudeCanUseToolCallback(
   return async (toolName, toolInput, callOptions) => {
     const sessionId = input.sessionIdHolder.current ?? 'pending-session'
 
-    // Behavior gate: under bypass mode, a tool in NEITHER the static floor nor
-    // the per-turn feature mutating set runs without an approval card.
+    // The user's bypass means bypass — EVERY tool runs without an approval
+    // card (Chad's 2026-07-30 directive).
+    if (input.permissionMode === 'bypass') {
+      return { behavior: 'allow', updatedInput: toolInput }
+    }
+
+    // Behavior gate for the UNATTENDED default: a tool in NEITHER the static
+    // floor nor the per-turn feature mutating set runs without a card; floor
+    // tools card and park for the user (surface-up approval).
     //
     // `auto` is deliberately NOT here: in auto, Anthropic's classifier is the
-    // sole gate (no hardcoded Vynel floor — the user's directive). The classifier
-    // approves safe tools (they never reach this callback) and escalates only its
-    // UNCERTAIN cases to `canUseTool`, which then card — exactly like `ask`.
+    // sole gate. The classifier approves safe tools (they never reach this
+    // callback) and escalates only its UNCERTAIN cases to `canUseTool`, which
+    // then card — exactly like `ask`.
     if (
       input.permissionMode === 'bypass-with-behavior-gate' &&
       !TOOLS_ALWAYS_REQUIRING_APPROVAL.has(toolName) &&

@@ -155,6 +155,9 @@ export async function delegateToWorkspaceRoot(
     workspacePath: input.workspacePath,
     providerId: input.providerId,
     isNewSession: target.resumeSdkSessionId === null,
+    // Durability-first: a resumed turn's task row persists before provider
+    // startup (the unbounded hang point), so a stuck start never loses it.
+    ...(target.resumeSdkSessionId !== null ? { resumeSessionId: target.resumeSdkSessionId } : {}),
     // The routed segment keeps the swap-segment presentation (the old
     // recordSwapSegmentSession shape): hidden from the curated sidebar — the
     // continuing brain shows as ONE entry — and never auto-titled (it is the
@@ -209,7 +212,11 @@ export async function delegateToWorkspaceRoot(
         case 'session-created':
           // A fresh root OR a compaction swap — advance the primary's link so the
           // next delegation resumes THIS segment (the P0.1 id-based gate, now
-          // event-driven like the global-root core).
+          // event-driven like the global-root core). The local sessionId must
+          // follow too: the interrupt/denial-breaker targets it, and the registry
+          // holds the POST-swap id (the early user-message-persisted now carries
+          // the pre-swap id).
+          sessionId = event.session.id
           linkPrimarySessionToSdkSession(db, {
             primarySessionId: target.primarySessionId,
             userId: input.userId,

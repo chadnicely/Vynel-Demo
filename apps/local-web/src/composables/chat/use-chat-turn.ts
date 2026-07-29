@@ -1,4 +1,4 @@
-import { computed, shallowRef } from "vue";
+import { computed, onScopeDispose, shallowRef } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import type {
   ChatSessionResponse,
@@ -37,7 +37,25 @@ export function useChatTurn(options: {
   /** The session the in-flight turn renders into — known up front for a resume/
    *  continue, or learned from `session-created` for a fresh conversation. */
   const activeSessionId = shallowRef<string | null>(null);
+  /** True when the in-flight turn was sent from the CONTINUOUS thread — the
+   *  overlay-visibility resolver keys on the turn's ORIGIN, never on a live
+   *  query value that can change mid-turn (`visible-active-turn.ts`). */
+  const startedContinuous = shallowRef(false);
+  /** The last turn's failure, kept AFTER the overlay tears down — the overlay's
+   *  own error note lives milliseconds before settle wipes it (the silent-vanish
+   *  bug). Cleared on the next send. */
+  const errorText = shallowRef<string | null>(null);
   let abortController: AbortController | null = null;
+  // Tab switches re-key the RouterView with no KeepAlive — without this, the
+  // orphaned reader kept draining from a dead view, retargeting the old tab's
+  // shell and firing global invalidations for the rest of the turn. Client
+  // abort only: the SERVER turn keeps running (rows persist per chunk) and the
+  // activity feed reports it as a background turn until it settles.
+  let isDisposed = false;
+  onScopeDispose(() => {
+    isDisposed = true;
+    abortController?.abort();
+  });
 
   const isStreaming = computed(
     () => view.value !== null && view.value.status === "streaming",
@@ -66,6 +84,8 @@ export function useChatTurn(options: {
     const scope = options.scope();
     view.value = createActiveTurnView();
     activeSessionId.value = input.sessionId;
+    startedContinuous.value = input.isContinuous;
+    errorText.value = null;
     activity.turnStarted();
     abortController = new AbortController();
 
@@ -78,10 +98,7 @@ export function useChatTurn(options: {
         // Both scopes carry the composer's session mode — a global turn's mode also
         // governs any delegation the brain enqueues (surface-up step 1).
         mode: ui.composerMode,
-        // Auto means "omit the field" — the provider's adaptive default.
-        ...(ui.composerThinkingEffort !== "auto"
-          ? { thinkingEffort: ui.composerThinkingEffort }
-          : {}),
+        thinkingEffort: ui.composerThinkingEffort,
         signal: abortController.signal,
         // Global root manages its own thread. A workspace turn continues its
         // primary, resumes a picked session, or starts fresh.
@@ -94,6 +111,21 @@ export function useChatTurn(options: {
           : {}),
       });
       for await (const event of stream) ingest(event);
+      // The stream closed with NO terminal frame at all — a server crash
+      // mid-turn used to end here looking exactly like success, pinning
+      // "working" forever. A stream the server ENDED deliberately
+      // (`turn-stream-ended`, hasEnded) is not a drop.
+      if (
+        view.value !== null &&
+        view.value.status === "streaming" &&
+        !view.value.hasEnded
+      ) {
+        settleFailedTurn(
+          new Error(
+            "The connection to the assistant dropped mid-turn — anything already produced is in the transcript.",
+          ),
+        );
+      }
     } catch (error) {
       settleFailedTurn(error);
     } finally {
@@ -101,8 +133,24 @@ export function useChatTurn(options: {
       abortController = null;
     }
 
+    // A disposed instance (tab switch mid-turn) stops here: no error note, no
+    // invalidation storm from a dead view — the activity feed settles history
+    // when the server turn ends.
+    if (isDisposed) return;
+
+    // Keep the failure visible past the overlay teardown below.
+    if (view.value?.status === "errored" && view.value.error !== null) {
+      errorText.value = view.value.error.message;
+    }
+
     // The server persisted the turn — reconcile every session view by refetch.
-    await queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+    // BOUNDED: a hung refetch must not strand the overlay (and the send queue
+    // behind it) forever; past the deadline the overlay clears and the refetch
+    // finishes in the background.
+    await Promise.race([
+      queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
+      new Promise((resolve) => setTimeout(resolve, 8000)),
+    ]);
     // A global (brain) turn can create a workspace via register_workspace —
     // refresh the list so a newly created one appears without a manual refetch.
     if (scope.kind === "global") {
@@ -148,7 +196,15 @@ export function useChatTurn(options: {
     }
   }
 
-  return { view, activeSessionId, isStreaming, startTurn, interrupt };
+  return {
+    view,
+    activeSessionId,
+    startedContinuous,
+    isStreaming,
+    errorText,
+    startTurn,
+    interrupt,
+  };
 }
 
 function isAbortError(error: unknown): boolean {

@@ -127,6 +127,32 @@ const visibleMessages = computed(() =>
     ? settledMessages.value.slice(-visibleCount.value)
     : settledMessages.value,
 );
+
+// One assistant turn persists as SEVERAL message rows (one per provider
+// message — text → tool → text each get their own). The live overlay shows
+// them under ONE author line; a reloaded thread must read the same, so a row
+// continuing the previous row's assistant run hides its header. Same author =
+// same role + same sourceKind/sourceLabel (the roleLabel inputs). The gap
+// guard keeps SEPARATE turns apart: consecutive background turns (schedule
+// fires, channel replies) have no user row between them, and merging them
+// would also hide the later turn's timestamp.
+const CONTINUATION_MAX_GAP_MS = 10 * 60 * 1000;
+
+function showsHeaderFor(index: number): boolean {
+  const message = visibleMessages.value[index];
+  const previous = visibleMessages.value[index - 1];
+  if (!message || !previous) return true;
+  const gapMs =
+    new Date(message.createdAt).getTime() -
+    new Date(previous.createdAt).getTime();
+  return !(
+    message.role === "assistant" &&
+    previous.role === "assistant" &&
+    message.sourceKind === previous.sourceKind &&
+    message.sourceLabel === previous.sourceLabel &&
+    gapMs < CONTINUATION_MAX_GAP_MS
+  );
+}
 const hiddenOlderCount = computed(() =>
   Math.max(0, settledMessages.value.length - visibleCount.value),
 );
@@ -227,10 +253,12 @@ watch(
           load
         </p>
 
-        <template v-for="message in visibleMessages" :key="message.id">
+        <template v-for="(message, index) in visibleMessages" :key="message.id">
           <MessageRow
             :message="message"
+            :class="{ 'is-continuation': !showsHeaderFor(index) }"
             :assistant-name="props.assistantName"
+            :show-header="showsHeaderFor(index)"
             :show-watch-chip="showsWatchChipFor(message)"
             :linked-session-live="
               message.partialSessionId != null &&
@@ -323,6 +351,12 @@ watch(
   text-align: center;
   color: var(--ink-3);
   font: 500 11px/1.5 var(--font-ui);
+}
+
+/* A headerless continuation row sits close to the row it extends — the same
+   8px rhythm the live overlay gives its segments (grid gap is 20px). */
+.is-continuation {
+  margin-top: -12px;
 }
 
 .tool-list {

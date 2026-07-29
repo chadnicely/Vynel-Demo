@@ -67,14 +67,16 @@ export type BuildClaudeSdkOptionsInput = {
   askModeApprovalToolNames?: ReadonlySet<string>
 }
 
-// Vynel permission mode -> SDK `PermissionMode`. `bypass-with-behavior-gate`
-// maps to the SDK's `bypassPermissions` (read-only tools run silently; the
-// behavior gate lives in `buildClaudeCanUseToolCallback`). `auto` maps to the
-// SDK's `auto` — Anthropic's safety classifier gates each action; the
-// irreversible floor still cards via the always-on PreToolUse backstop (below).
+// Vynel permission mode -> SDK `PermissionMode`. Both bypass flavors map to
+// the SDK's `bypassPermissions`; the difference is Vynel-side — `bypass` (the
+// user's composer pick) never cards, while `bypass-with-behavior-gate` (the
+// unattended default) keeps the irreversible floor carding via the behavior
+// gate + the PreToolUse backstop. `auto` maps to the SDK's `auto` — Anthropic's
+// safety classifier is the sole gate (no Vynel floor; 2026-07-30 stance).
 const SDK_PERMISSION_MODE = {
   ask: 'default',
   auto: 'auto',
+  bypass: 'bypassPermissions',
   'bypass-with-behavior-gate': 'bypassPermissions',
   'plan-only': 'plan',
 } as const

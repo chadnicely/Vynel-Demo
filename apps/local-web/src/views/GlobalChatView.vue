@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { Settings2 } from "lucide-vue-next";
-import { EmptyState } from "@vynel/ui";
+import { EmptyState, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
 import ProcessingBanner from "../components/chat/ProcessingBanner.vue";
@@ -28,6 +28,7 @@ import { useHubFeatures } from "../composables/hub/use-hub-features.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
+import { resolveVisibleActiveTurn } from "../composables/chat/visible-active-turn.js";
 import { useContextOccupancy } from "../composables/chat/use-context-occupancy.js";
 import { useQueuedSend } from "../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
@@ -40,6 +41,7 @@ import { useUiStore } from "../stores/ui-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
 import { firstNameOf } from "../utils/greeting.js";
+import { formatSdkError } from "../utils/format-sdk-error.js";
 
 // The global chat — ONE continuous conversation by default (the product's
 // "one brain"). Panels are opt-in and sit beside the canvas, never over it;
@@ -189,15 +191,35 @@ function onDecideApproval(
   );
 }
 
+// The overlay shows when the in-flight turn belongs to this thread — decided
+// by the turn's ORIGIN + the user's explicit target, never a live query value
+// (the mid-turn overlay flicker; see visible-active-turn.ts for the matrix).
 const activeTurn = computed(() =>
-  chatTurn.activeSessionId.value !== null &&
-  chatTurn.activeSessionId.value === activeSessionId.value
-    ? chatTurn.view.value
+  resolveVisibleActiveTurn({
+    view: chatTurn.view.value,
+    turnSessionId: chatTurn.activeSessionId.value,
+    startedContinuous: chatTurn.startedContinuous.value,
+    target: shell.target,
+  }),
+);
+
+// A cold-cache open used to flash the welcome hero over a real conversation
+// while the history fetch was in flight — gate the hero behind the fetch.
+const isLoadingHistory = computed(
+  () => activeSessionId.value !== null && detailQuery.isPending.value,
+);
+const historyError = computed(() =>
+  activeSessionId.value !== null && detailQuery.isError.value
+    ? formatSdkError(detailQuery.error.value)
     : null,
 );
 
 const showsWelcome = computed(
-  () => messages.value.length === 0 && activeTurn.value === null,
+  () =>
+    messages.value.length === 0 &&
+    activeTurn.value === null &&
+    !isLoadingHistory.value &&
+    historyError.value === null,
 );
 
 // The composer's context ring — settled from the sessions overview, ticking
@@ -316,7 +338,9 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
     </div>
 
     <section v-else class="canvas thread-pane">
-      <div v-if="showsWelcome" class="welcome">
+      <ThreadSkeleton v-if="isLoadingHistory" class="thread-slot" />
+      <p v-else-if="historyError" class="history-error">{{ historyError }}</p>
+      <div v-else-if="showsWelcome" class="welcome">
         <GlobalWelcomeHero
           :assistant-name="ASSISTANT_NAME"
           :user-first-name="userFirstName"
@@ -350,6 +374,9 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           :queued="queuedSend.queued.value"
           @remove="queuedSend.removeQueued"
         />
+        <p v-if="chatTurn.errorText.value" class="turn-error-note">
+          {{ chatTurn.errorText.value }}
+        </p>
         <AppComposer
           :streaming="chatTurn.isStreaming.value"
           :placeholder="`Ask ${ASSISTANT_NAME} for anything…`"
@@ -384,6 +411,21 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
 /* The thread owns the canvas — no chrome above it (Chad's call: the hero
    carries channels/workspaces on the empty state; a flowing thread is just
    the conversation). */
+.history-error {
+  margin: 24px auto 0;
+  max-width: 968px;
+  width: 100%;
+  text-align: center;
+  color: var(--danger);
+  font: 400 12.5px/1.6 var(--font-ui);
+}
+
+.turn-error-note {
+  margin: 0 0 8px;
+  color: var(--danger);
+  font: 400 12px/1.5 var(--font-ui);
+}
+
 .thread-pane {
   display: flex;
   flex-direction: column;

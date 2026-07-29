@@ -301,4 +301,66 @@ describe("ThreadStream", () => {
     expect(rowTexts.some((text) => text.includes("message 3"))).toBe(false);
     expect(wrapper.text()).toContain("streaming reply…");
   });
+
+  it("groups consecutive assistant rows under ONE author line — a reloaded turn reads like the live overlay", () => {
+    // One turn persists as several assistant rows (one per provider message).
+    // Only the first of a run shows the header; a user row breaks the group.
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user" },
+      { ...makeMessage(1), id: "a1", role: "assistant" },
+      { ...makeMessage(2), id: "a2", role: "assistant" },
+      { ...makeMessage(3), id: "a3", role: "assistant" },
+      { ...makeMessage(4), role: "user" },
+      { ...makeMessage(5), id: "a4", role: "assistant" },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: { messages, toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+
+    const rows = wrapper.findAll(".message-row");
+    const headerCounts = rows.map((row) => row.findAll(".row-header").length);
+    // user · assistant(+header) · 2 continuations · user · assistant(+header)
+    expect(headerCounts).toEqual([1, 1, 0, 0, 1, 1]);
+    expect(rows[2]!.classes()).toContain("is-continuation");
+  });
+
+  it("does NOT group assistant rows separated by a long gap — two background turns keep their timestamps", () => {
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(1), id: "a1", role: "assistant" },
+      {
+        ...makeMessage(3),
+        id: "a2",
+        role: "assistant",
+        createdAt: "2026-07-05T11:00:00.000Z", // 1h after the fixture's 10:00
+      },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: { messages, toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+
+    const rows = wrapper.findAll(".message-row");
+    expect(rows.map((row) => row.findAll(".row-header").length)).toEqual([1, 1]);
+  });
+
+  it("does NOT group assistant rows from different authors (a workspace report after a brain reply)", () => {
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(1), id: "a1", role: "assistant" },
+      {
+        ...makeMessage(3),
+        id: "a2",
+        role: "assistant",
+        sourceKind: "workspace-manager",
+        sourceLabel: "Noah · vynel",
+      },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: { messages, toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+
+    const rows = wrapper.findAll(".message-row");
+    expect(rows.map((row) => row.findAll(".row-header").length)).toEqual([1, 1]);
+  });
 });

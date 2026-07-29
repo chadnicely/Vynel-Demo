@@ -20,7 +20,7 @@ const TOOL_OPTIONS = {
 }
 
 function setup(
-  permissionMode: 'ask' | 'auto' | 'bypass-with-behavior-gate' | 'plan-only',
+  permissionMode: 'ask' | 'auto' | 'bypass' | 'bypass-with-behavior-gate' | 'plan-only',
   alwaysRequireApprovalToolNames?: ReadonlySet<string>,
 ) {
   const pendingApprovalRegistry = new PendingApprovalRegistry()
@@ -36,14 +36,30 @@ function setup(
 }
 
 describe('buildClaudeCanUseToolCallback', () => {
-  it('behavior gate: a non-listed tool runs without approval under bypass mode', async () => {
-    const { callback, syntheticEventQueue } = setup('bypass-with-behavior-gate')
-    const result = await callback('Read', { file: 'a.txt' }, TOOL_OPTIONS)
-    expect(result).toEqual({ behavior: 'allow', updatedInput: { file: 'a.txt' } })
+  it("user bypass: bypass means bypass — even Bash and a feature mutating tool run without a card (2026-07-30 stance)", async () => {
+    const { callback, syntheticEventQueue } = setup(
+      'bypass',
+      new Set(['mcp__desktop__act_on_app']),
+    )
+    for (const [toolName, toolInput] of [
+      ['Bash', { command: 'ls' }],
+      ['Write', { path: 'a.txt' }],
+      ['mcp__desktop__act_on_app', { action: 'press' }],
+    ] as const) {
+      const result = await callback(toolName, toolInput, TOOL_OPTIONS)
+      expect(result).toEqual({ behavior: 'allow', updatedInput: toolInput })
+    }
     expect(syntheticEventQueue.isEmpty()).toBe(true) // no approval-requested emitted
   })
 
-  it('behavior gate: a listed tool (Bash) still requires approval under bypass mode', async () => {
+  it('behavior gate (unattended default): a non-listed tool runs without approval', async () => {
+    const { callback, syntheticEventQueue } = setup('bypass-with-behavior-gate')
+    const result = await callback('Read', { file: 'a.txt' }, TOOL_OPTIONS)
+    expect(result).toEqual({ behavior: 'allow', updatedInput: { file: 'a.txt' } })
+    expect(syntheticEventQueue.isEmpty()).toBe(true)
+  })
+
+  it('behavior gate (unattended default): a listed tool (Bash) still requires approval', async () => {
     const { callback, syntheticEventQueue, pendingApprovalRegistry } = setup(
       'bypass-with-behavior-gate',
     )
@@ -71,11 +87,11 @@ describe('buildClaudeCanUseToolCallback', () => {
     expect((await resultPromise)?.behavior).toBe('allow')
   })
 
-  it('behavior gate: the memory-write tool runs WITHOUT a card under bypass (self-tool, 2026-07-26 stance)', async () => {
-    // Spec change: Chad's refined approval stance — "Claude's self-tools
-    // (memory, knowledge, tasks) do NOT need approval" — removed
-    // create_memory_entry from the every-mode floor. Vynel MCP approval now
-    // lives in the ask-mode destructive tier instead.
+  it('behavior gate: the memory-write tool runs WITHOUT a card under the unattended default (self-tool, 2026-07-26 stance)', async () => {
+    // Chad's refined approval stance — "Claude's self-tools (memory,
+    // knowledge, tasks) do NOT need approval" — removed create_memory_entry
+    // from the floor. Vynel MCP approval lives in the ask-mode destructive
+    // tier instead.
     const { callback } = setup('bypass-with-behavior-gate')
     const result = await callback(
       'mcp__vynel__create_memory_entry',
@@ -88,7 +104,7 @@ describe('buildClaudeCanUseToolCallback', () => {
     })
   })
 
-  it('behavior gate: a per-turn feature mutating tool (act_on_app) requires approval under bypass', async () => {
+  it('behavior gate: a per-turn feature mutating tool (act_on_app) still cards under the unattended default', async () => {
     const { callback, syntheticEventQueue, pendingApprovalRegistry } = setup(
       'bypass-with-behavior-gate',
       new Set(['mcp__desktop__act_on_app']),
@@ -98,30 +114,6 @@ describe('buildClaudeCanUseToolCallback', () => {
     const requested = await syntheticEventQueue.dequeue()
     if (requested.kind !== 'approval-requested') throw new Error('expected approval-requested')
     expect(requested.toolName).toBe('mcp__desktop__act_on_app')
-
-    pendingApprovalRegistry.resolve(requested.approvalRequestId, { kind: 'approved' })
-    expect((await resultPromise)?.behavior).toBe('allow')
-  })
-
-  it('behavior gate: act_on_app runs silently under bypass when NOT in the per-turn set (additive)', async () => {
-    // Proves the carding is driven by the passed set, not hardcoded — without it,
-    // a non-floor tool runs silently under bypass.
-    const { callback, syntheticEventQueue } = setup('bypass-with-behavior-gate')
-    const result = await callback('mcp__desktop__act_on_app', { action: 'press' }, TOOL_OPTIONS)
-    expect(result).toEqual({ behavior: 'allow', updatedInput: { action: 'press' } })
-    expect(syntheticEventQueue.isEmpty()).toBe(true)
-  })
-
-  it('behavior gate: the static floor still cards WITH a per-turn set passed (the set only ADDS)', async () => {
-    const { callback, syntheticEventQueue, pendingApprovalRegistry } = setup(
-      'bypass-with-behavior-gate',
-      new Set(['mcp__desktop__act_on_app']),
-    )
-    const resultPromise = callback('Bash', { command: 'ls' }, TOOL_OPTIONS)
-
-    const requested = await syntheticEventQueue.dequeue()
-    if (requested.kind !== 'approval-requested') throw new Error('expected approval-requested')
-    expect(requested.toolName).toBe('Bash')
 
     pendingApprovalRegistry.resolve(requested.approvalRequestId, { kind: 'approved' })
     expect((await resultPromise)?.behavior).toBe('allow')

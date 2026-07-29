@@ -77,7 +77,8 @@ export interface RunGlobalRootTurnCoreInput {
    *  workspace turn uses). */
   attachedImages?: AttachedImageBytes[]
   model?: string
-  /** Reasoning effort for this turn (the composer's picker). Omit = Auto. */
+  /** Reasoning effort for this turn (the composer's picker). Omit for the
+   *  SDK's adaptive default (background turns). */
   thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   /** The provider permission mode for the brain's OWN tools this turn (the caller maps
    *  the user-facing `SessionMode` via `toPermissionMode`). Omit for the pre-mode
@@ -246,6 +247,9 @@ export async function runGlobalRootTurnCore(
         workspacePath: target.workspacePath,
         providerId: DEFAULT_PROVIDER_ID,
         isNewSession: resumeSessionId === undefined,
+        // Durability-first: a resumed turn's user row persists before provider
+        // startup (the unbounded hang point), so a stuck start never loses it.
+        ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
         newSessionOptions: { visibility: 'hidden', title: 'Global brain', skipAutoTitle: true },
         // The notify-turn attribution (session-comms) — absent on every other
         // turn, so the shipped rows stay byte-for-byte.

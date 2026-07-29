@@ -135,16 +135,18 @@ describe('buildClaudeSdkOptions', () => {
     expect(withoutAgents.agents).toBeUndefined()
   })
 
-  it('always wires the PreToolUse safety backstop, in every permission mode', async () => {
-    for (const permissionMode of ['ask', 'bypass-with-behavior-gate', 'plan-only'] as const) {
+  it('always wires the PreToolUse safety backstop; the floor cards except under auto and the user bypass', async () => {
+    // The hook stays WIRED in every mode (it also owns the forced-sync Agent
+    // rewrite); the floor cards in ask/plan-only and the unattended
+    // bypass-with-behavior-gate default, and stands down for the user's
+    // bypass (2026-07-30 stance) — auto is covered by the test below.
+    for (const permissionMode of ['ask', 'bypass', 'bypass-with-behavior-gate', 'plan-only'] as const) {
       const options = buildClaudeSdkOptions({ ...base, permissionMode })
       const preToolUse = options.hooks?.PreToolUse
       expect(preToolUse, `hooks wired for ${permissionMode}`).toBeDefined()
       const hook = preToolUse?.[0]?.hooks?.[0]
       expect(typeof hook).toBe('function')
 
-      // The wired hook forces 'ask' for an irreversible tool (→ canUseTool card)
-      // and stays silent for a safe one — even in bypass mode.
       const writeInput = {
         hook_event_name: 'PreToolUse',
         tool_name: 'Write',
@@ -157,10 +159,14 @@ describe('buildClaudeSdkOptions', () => {
       const writeResult = await hook!(writeInput, undefined, {
         signal: new AbortController().signal,
       })
-      expect(
-        (writeResult as { hookSpecificOutput?: { permissionDecision?: string } })
-          .hookSpecificOutput?.permissionDecision,
-      ).toBe('ask')
+      const writeDecision = (
+        writeResult as { hookSpecificOutput?: { permissionDecision?: string } }
+      ).hookSpecificOutput?.permissionDecision
+      if (permissionMode === 'bypass') {
+        expect(writeResult, 'the user bypass never cards').toEqual({})
+      } else {
+        expect(writeDecision, `${permissionMode} cards Write`).toBe('ask')
+      }
 
       const readInput = { ...(writeInput as object), tool_name: 'Read' } as never
       const readResult = await hook!(readInput, undefined, {

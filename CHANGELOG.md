@@ -7,6 +7,36 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Fixed
+
+- **Chat modes now do what they say.** Bypass truly runs everything without asking — before,
+  file edits and shell commands still popped an approval card even in Bypass. Auto now leaves
+  every decision to Claude's own safety check and asks only when that check is unsure — no
+  hidden extra prompts, and the mode covers helpers the assistant spawns mid-turn too. Ask is
+  unchanged. Background work (schedules, delegated tasks) keeps its safety net exactly as
+  before: irreversible actions still pause for your approval there.
+
+- **Thinking now actually shows up.** The Thinking picker's old "Auto" choice quietly turned
+  extended thinking off for most turns — which is why workspace chats seemed to never think.
+  The picker now offers the real levels only (Low → Max, default High) and always applies
+  your choice, so the thought process streams in and stays readable in the transcript.
+
+- **A conversation reads the same after a reload as it did live.** One reply used to split
+  into several separate "Claude" messages when you reopened a chat; now everything the
+  assistant did in a turn stays grouped under one author line, just like while it streamed.
+
+- **The working indicator stopped vanishing mid-reply.** The live turn now shows its real
+  state at the bottom of the reply the whole time — "thinking · 12s" or "working · 34s" with
+  a running clock — and settles to a quiet "done · 41s" instead of blinking out. The
+  indicator also no longer disappears for a beat when background activity refreshed the
+  screen mid-turn.
+
+- **A workspace chat now says so when its assistant is busy.** If a workspace's assistant is
+  working on something this window didn't start — you switched tabs mid-reply, a scheduled
+  task fired, or a job was routed there — the thread showed nothing at all while the Home
+  screen said "working". The workspace chat now shows the same working strip the global chat
+  has: "Ryan is working…" plus one chip per routed task, each with Watch and Stop.
+
 ### Added
 
 - **Updating Vynel updates your server too, without losing anything.** When the desktop app

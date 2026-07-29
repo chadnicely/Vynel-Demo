@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { FolderTree, Sparkles } from "lucide-vue-next";
-import { EmptyState, IconButton } from "@vynel/ui";
+import { EmptyState, IconButton, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
+import ProcessingBanner from "../components/chat/ProcessingBanner.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
 import TasksPanel from "../components/tasks/TasksPanel.vue";
@@ -14,8 +15,10 @@ import type { WorkspaceSectionId } from "../components/workspace/workspace-secti
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
+import { useStopDelegation } from "../composables/delegations/use-stop-delegation.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
+import { resolveVisibleActiveTurn } from "../composables/chat/visible-active-turn.js";
 import { useContextOccupancy } from "../composables/chat/use-context-occupancy.js";
 import { useQueuedSend } from "../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
@@ -24,6 +27,7 @@ import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.j
 import { useUiStore } from "../stores/ui-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
+import { formatSdkError } from "../utils/format-sdk-error.js";
 
 // The workspace room — same continuous-first chat as global, scoped to one
 // workspace. Panels beside the canvas: menu (persistent) · files. The shell
@@ -63,12 +67,19 @@ const activeSessionId = computed<string | null>(() => {
 // A routed task streams its rows into THIS workspace's transcript in the
 // background (the shared pipeline) — poll the open thread while one is in
 // flight here so the task/reply/tool-calls appear live, not on refresh.
+// The banner (ProcessingBanner) shows one Watch chip per in-flight job
+// targeting this workspace — closes the recorded Slice-④ gap where the chips
+// appeared only on the global banner.
 const inFlightQuery = useInFlightDelegations();
-const hasInFlightDelegationHere = computed(() =>
-  (inFlightQuery.data.value ?? []).some(
+const inFlightDelegationsHere = computed(() =>
+  (inFlightQuery.data.value ?? []).filter(
     (delegation) => delegation.workspaceId === tab.workspaceId,
   ),
 );
+const hasInFlightDelegationHere = computed(
+  () => inFlightDelegationsHere.value.length > 0,
+);
+const stopDelegation = useStopDelegation();
 
 const chatTurn = useChatTurn({
   scope: () => scope.value,
@@ -87,6 +98,14 @@ const hasBackgroundTurnHere = computed(
     !chatTurn.isStreaming.value &&
     tab.workspaceId !== null &&
     activity.hasServerTurnInWorkspace(tab.workspaceId),
+);
+// The in-thread note for a turn this view does not own (a tab switch detached
+// the stream; a schedule fired here) — without it the thread sat silent while
+// Home and the status bar showed the workspace working.
+const backgroundTurnLabel = computed(() =>
+  hasBackgroundTurnHere.value
+    ? `${activeWorkspace.value?.managerName ?? "The assistant"} is working…`
+    : null,
 );
 
 const detailQuery = useSessionDetail(
@@ -119,15 +138,35 @@ function onDecideApproval(
   );
 }
 
+// The overlay shows when the in-flight turn belongs to this thread — decided
+// by the turn's ORIGIN + the user's explicit target, never a live query value
+// (the mid-turn overlay flicker; see visible-active-turn.ts for the matrix).
 const activeTurn = computed(() =>
-  chatTurn.activeSessionId.value !== null &&
-  chatTurn.activeSessionId.value === activeSessionId.value
-    ? chatTurn.view.value
+  resolveVisibleActiveTurn({
+    view: chatTurn.view.value,
+    turnSessionId: chatTurn.activeSessionId.value,
+    startedContinuous: chatTurn.startedContinuous.value,
+    target: shell.target,
+  }),
+);
+
+// A cold-cache open used to flash the welcome hero over a real conversation
+// while the history fetch was in flight — gate the hero behind the fetch.
+const isLoadingHistory = computed(
+  () => activeSessionId.value !== null && detailQuery.isPending.value,
+);
+const historyError = computed(() =>
+  activeSessionId.value !== null && detailQuery.isError.value
+    ? formatSdkError(detailQuery.error.value)
     : null,
 );
 
 const showsWelcome = computed(
-  () => messages.value.length === 0 && activeTurn.value === null,
+  () =>
+    messages.value.length === 0 &&
+    activeTurn.value === null &&
+    !isLoadingHistory.value &&
+    historyError.value === null,
 );
 
 // The composer's context ring — settled from the sessions overview, ticking
@@ -210,7 +249,9 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         </IconButton>
       </div>
 
-      <div v-if="showsWelcome" class="welcome">
+      <ThreadSkeleton v-if="isLoadingHistory" />
+      <p v-else-if="historyError" class="history-error">{{ historyError }}</p>
+      <div v-else-if="showsWelcome" class="welcome">
         <WorkspaceWelcomeHero
           v-if="activeWorkspace"
           :workspace="activeWorkspace"
@@ -239,11 +280,21 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         @watch-agent="activityMonitor.openAgentDirect"
       />
 
+      <ProcessingBanner
+        :delegations="inFlightDelegationsHere"
+        :background-turn-label="backgroundTurnLabel"
+        @watch="activityMonitor.openTrace"
+        @stop="stopDelegation.mutate"
+      />
+
       <footer class="composer-dock">
         <QueuedMessageChips
           :queued="queuedSend.queued.value"
           @remove="queuedSend.removeQueued"
         />
+        <p v-if="chatTurn.errorText.value" class="turn-error-note">
+          {{ chatTurn.errorText.value }}
+        </p>
         <AppComposer
           :streaming="chatTurn.isStreaming.value"
           :placeholder="
@@ -324,6 +375,21 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
    deliberately narrow (readable single-column sections). */
 .section-column.is-wide {
   max-width: none;
+}
+
+.history-error {
+  margin: 24px auto 0;
+  max-width: 968px;
+  width: 100%;
+  text-align: center;
+  color: var(--danger);
+  font: 400 12.5px/1.6 var(--font-ui);
+}
+
+.turn-error-note {
+  margin: 0 0 8px;
+  color: var(--danger);
+  font: 400 12px/1.5 var(--font-ui);
 }
 
 .composer-dock {

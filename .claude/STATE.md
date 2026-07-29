@@ -1,7 +1,51 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-27 (evening).** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-07-30.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ⚠ UNCOMMITTED (2026-07-30): chat-fix pass — modes / thinking / turn rendering (Chad's asks)
+
+1. **Mode semantics (Chad: "bypass and auto still ask").** New provider mode `bypass` (truly
+   silent, SDK `bypassPermissions`) — the composer's Bypass maps to it (`session-mode.ts`);
+   `auto` now stands the floor down for SUBAGENTS too (classifier is the sole gate);
+   `bypass-with-behavior-gate` is UNCHANGED and remains the UNATTENDED default (schedules,
+   leaves, report delivery — floor still cards + parks). Vocabulary widened in
+   `ClaudePermissionMode`, `SessionPermissionMode`, `DelegationPermissionMode`, the mode
+   header. Files: providers approvals (canUseTool gate + PreToolUse hook + floor doc),
+   build-claude-sdk-options, session-mode, orchestration-types, delegation-mode-header.
+2. **Thinking picker: 'auto' REMOVED** (`contracts/chat/thinking-effort.ts`) — it omitted
+   `options.effort` so turns often never thought (the "workspace chat shows no thinking"
+   complaint). Real levels only, default `high`; composables always send it; stored 'auto'
+   fails closed to high. Background turns still omit (adaptive).
+3. **Turn rendering:** ThreadStream groups consecutive same-author assistant rows (≤10min
+   gap) under ONE header — reload now matches the live overlay; MessageRow grew `showHeader`.
+   LiveTurn's status chip moved to a BOTTOM live-status line (thinking/working · elapsed →
+   quiet done). Overlay-visibility extracted to pure `visible-active-turn.ts` (+ matrix
+   tests), keyed on turn ORIGIN (`startedContinuous` on use-chat-turn) — kills the mid-turn
+   overlay unmount flicker (was compared against refetching `currentSdkSessionId`).
+   CHANGELOG updated. Reviewer pass folded (unattended-bypass regression caught + fixed via
+   the mode split). ⚠ The tree ALSO still carries the 2026-07-28 overnight pass below —
+   commits must untangle or ship both together after Chad's smoke.
+4. **WorkspaceView ProcessingBanner (Chad's smoke finding):** the workspace thread sat
+   SILENT while its assistant worked on a turn the view didn't own (tab switch detached the
+   stream / schedule fire / routed job) — Home + status bar showed it, the thread didn't.
+   Wired the SAME ProcessingBanner the global chat has into WorkspaceView
+   (`backgroundTurnLabel` = "<persona> is working…", chips = in-flight delegations filtered
+   to this workspace, Watch→openTrace / Stop→stopDelegation). Closes the recorded Slice-④
+   "workspace view has no banner yet" gap.
+
+## ⚠ UNCOMMITTED TREE (2026-07-28 overnight, TWO rounds): production-readiness pass over the
+chat/session pipeline — **read `docs/production-readiness-review-2026-07-28.md`** (both rounds:
+findings, fixes, remaining gaps, commit suggestions). Round 1: chat bugs (stuck/lost/duplicate
+sends, loader, timestamps, schedule failures→chat). Round 2: tab-switch orphan fix, streaming
+latency (per-token fsync removed) + reader hardening, **delegation retry with backoff + failure
+push to the root (schema 0023)**, jarvis-overlay visible-at-launch fix, doubled-window-controls
+fix (`capabilities/main-window.json` — needs packaged smoke test), and the Jarvis home
+dashboard: full plan in `docs/jarvis-home-dashboard-plan.md` + **slices 1-2 BUILT** (live
+"Right now" band with per-workspace narration + task-completion celebration —
+`components/home/`, `stores/turn-narration-store.ts`; slices 3-6 remain planned). Gate green on
+the working tree; live-smoked. Chad: smoke-test, then commit + CHANGELOG. The Phase D smoke test
+below is unaffected and still pending.
 
 ## ⏭ NEXT ACTION (2026-07-29 morning): **PHASE D IS CODE-COMPLETE — D0…D5 all committed and green.** The remaining work is Chad's SMOKE TEST, in this order:
 

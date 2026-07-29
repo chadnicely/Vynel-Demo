@@ -138,7 +138,10 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       const input = startChatSessionInputs[0]!
       expect(input.userMessageText).toBe('hi')
       expect(input.workspacePath).toBe(workspace.path)
-      expect(input.permissionMode).toBe('bypass-with-behavior-gate')
+      // test: correct expectation — the user's bypass maps to the truly-silent
+      // provider mode since 2026-07-30 (bypass-with-behavior-gate stays the
+      // unattended default only).
+      expect(input.permissionMode).toBe('bypass')
       expect(input.allowedMcpToolPatterns).toContain('mcp__vynel__*')
       // The capability PROMPT composition (operating rules) rides along.
       expect(input.systemPromptAppend).toBeTruthy()
@@ -172,7 +175,8 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       const app = createApp({ db, logger: silentLogger })
 
       await (await postTurn(app, workspace.id, { userMessageText: 'hi', mode: 'bypass' })).text()
-      expect(startChatSessionInputs[0]!.permissionMode).toBe('bypass-with-behavior-gate')
+      // test: correct expectation — user bypass → 'bypass' since 2026-07-30.
+      expect(startChatSessionInputs[0]!.permissionMode).toBe('bypass')
 
       await (await postTurn(app, workspace.id, { userMessageText: 'hi again' })).text()
       expect(startChatSessionInputs[1]!.permissionMode).toBe('ask')

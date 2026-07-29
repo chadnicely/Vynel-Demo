@@ -33,33 +33,37 @@ function makePreToolInput(
 const hookOptions = { signal: new AbortController().signal }
 
 describe('buildClaudePreToolUseHook', () => {
-  const hook = buildClaudePreToolUseHook('bypass-with-behavior-gate')
+  const askHook = buildClaudePreToolUseHook('ask')
 
-  it("returns permissionDecision 'ask' for every irreversible tool (forces the card)", async () => {
+  it("ask mode: returns permissionDecision 'ask' for every irreversible tool (forces the card)", async () => {
     for (const toolName of TOOLS_ALWAYS_REQUIRING_APPROVAL) {
-      const result = await hook(makePreToolInput(toolName), undefined, hookOptions)
+      const result = await askHook(makePreToolInput(toolName), undefined, hookOptions)
       const decision = (result as { hookSpecificOutput?: { permissionDecision?: string } })
         .hookSpecificOutput?.permissionDecision
       expect(decision, `tool ${toolName} must force 'ask'`).toBe('ask')
     }
   })
 
-  it('returns no opinion ({}) for a safe, reversible tool', async () => {
+  it('ask mode: returns no opinion ({}) for a safe, reversible tool', async () => {
     for (const toolName of ['Read', 'Grep', 'Glob', 'WebSearch']) {
-      const result = await hook(makePreToolInput(toolName), undefined, hookOptions)
+      const result = await askHook(makePreToolInput(toolName), undefined, hookOptions)
       expect(result).toEqual({})
     }
   })
 
   it('returns no opinion for a non-PreToolUse hook event', async () => {
-    const result = await hook(makePreToolInput('Write', 'PostToolUse'), undefined, hookOptions)
+    const result = await askHook(makePreToolInput('Write', 'PostToolUse'), undefined, hookOptions)
     expect(result).toEqual({})
   })
 
-  it("gives no opinion for a feature tool (act_on_app) when no per-turn set is passed", async () => {
+  it('ask mode: gives no opinion for a feature tool (act_on_app) when no per-turn set is passed', async () => {
     // Proves the per-turn behavior is NOT hardcoded — without the set, act_on_app
     // (not in the static floor) gets no opinion.
-    const result = await hook(makePreToolInput('mcp__desktop__act_on_app'), undefined, hookOptions)
+    const result = await askHook(
+      makePreToolInput('mcp__desktop__act_on_app'),
+      undefined,
+      hookOptions,
+    )
     expect(result).toEqual({})
   })
 
@@ -68,14 +72,15 @@ describe('buildClaudePreToolUseHook', () => {
       ?.permissionDecision
   }
 
-  describe('with a per-turn alwaysRequireApprovalToolNames set (additive to the floor)', () => {
-    const hookWithFeature = buildClaudePreToolUseHook(
-      'bypass-with-behavior-gate',
-      new Set(['mcp__desktop__act_on_app']),
-    )
+  describe('with a per-turn alwaysRequireApprovalToolNames set (additive to the floor, ask mode)', () => {
+    const hookWithFeature = buildClaudePreToolUseHook('ask', new Set(['mcp__desktop__act_on_app']))
 
     it("forces 'ask' for the per-turn feature mutating tool", async () => {
-      const result = await hookWithFeature(makePreToolInput('mcp__desktop__act_on_app'), undefined, hookOptions)
+      const result = await hookWithFeature(
+        makePreToolInput('mcp__desktop__act_on_app'),
+        undefined,
+        hookOptions,
+      )
       expect(decisionOf(result)).toBe('ask')
     })
 
@@ -86,6 +91,45 @@ describe('buildClaudePreToolUseHook', () => {
 
     it('still gives no opinion for a safe tool', async () => {
       const result = await hookWithFeature(makePreToolInput('Read'), undefined, hookOptions)
+      expect(result).toEqual({})
+    })
+  })
+
+  describe("the user's bypass never cards (2026-07-30 stance: bypass means bypass)", () => {
+    const bypassHook = buildClaudePreToolUseHook('bypass', new Set(['mcp__desktop__act_on_app']))
+
+    it('gives no opinion for floor + per-turn tools, main session', async () => {
+      for (const toolName of [...TOOLS_ALWAYS_REQUIRING_APPROVAL, 'mcp__desktop__act_on_app']) {
+        const result = await bypassHook(makePreToolInput(toolName), undefined, hookOptions)
+        expect(result, `bypass must not card ${toolName}`).toEqual({})
+      }
+    })
+
+    it('gives no opinion for a SUBAGENT call too (the mode is the trust level for the whole turn)', async () => {
+      const result = await bypassHook(
+        makePreToolInput('Write', 'PreToolUse', 'agent-x'),
+        undefined,
+        hookOptions,
+      )
+      expect(result).toEqual({})
+    })
+  })
+
+  describe('the UNATTENDED default (bypass-with-behavior-gate) keeps the floor', () => {
+    const unattendedHook = buildClaudePreToolUseHook(
+      'bypass-with-behavior-gate',
+      new Set(['mcp__desktop__act_on_app']),
+    )
+
+    it("forces 'ask' for floor + per-turn tools — a background turn carries no user trust pick", async () => {
+      for (const toolName of [...TOOLS_ALWAYS_REQUIRING_APPROVAL, 'mcp__desktop__act_on_app']) {
+        const result = await unattendedHook(makePreToolInput(toolName), undefined, hookOptions)
+        expect(decisionOf(result), `unattended default must card ${toolName}`).toBe('ask')
+      }
+    })
+
+    it('still gives no opinion for a safe tool', async () => {
+      const result = await unattendedHook(makePreToolInput('Read'), undefined, hookOptions)
       expect(result).toEqual({})
     })
   })
@@ -160,7 +204,7 @@ describe('buildClaudePreToolUseHook', () => {
     })
   })
 
-  describe('in auto mode — the MAIN session defers to the classifier; subagents keep the floor', () => {
+  describe('in auto mode — the classifier is the sole gate, main session AND subagents', () => {
     const autoHook = buildClaudePreToolUseHook('auto', new Set(['mcp__desktop__act_on_app']))
 
     it('MAIN session (no agent_id): gives no opinion ({}) even for floor + per-turn tools', async () => {
@@ -170,24 +214,15 @@ describe('buildClaudePreToolUseHook', () => {
       }
     })
 
-    it("SUBAGENT (agent_id present): still forces 'ask' on floor + per-turn tools (the SDK does not clamp a subagent's mode under an auto root)", async () => {
-      for (const toolName of [...TOOLS_ALWAYS_REQUIRING_APPROVAL, 'mcp__desktop__act_on_app']) {
+    it('SUBAGENT (agent_id present): gives no opinion too (2026-07-30 stance — the session mode covers the whole turn)', async () => {
+      for (const toolName of [...TOOLS_ALWAYS_REQUIRING_APPROVAL, 'mcp__desktop__act_on_app', 'Read']) {
         const result = await autoHook(
           makePreToolInput(toolName, 'PreToolUse', 'agent-x'),
           undefined,
           hookOptions,
         )
-        expect(decisionOf(result), `auto subagent must still card ${toolName}`).toBe('ask')
+        expect(result, `auto subagent must not card ${toolName}`).toEqual({})
       }
-    })
-
-    it('SUBAGENT (agent_id present): still gives no opinion for a safe tool', async () => {
-      const result = await autoHook(
-        makePreToolInput('Read', 'PreToolUse', 'agent-x'),
-        undefined,
-        hookOptions,
-      )
-      expect(result).toEqual({})
     })
   })
 })

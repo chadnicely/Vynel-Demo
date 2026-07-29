@@ -28,6 +28,12 @@ export type RunClaudeChatSessionDependencies = {
   pendingApprovalRegistry: PendingApprovalRegistry
 }
 
+// How long session startup (CLI spawn + auth + resume validation) may take
+// before the turn fails loud. Generous — a cold start on a slow disk is tens
+// of seconds — but finite: an unbounded first pull is how "stuck forever with
+// the message unpersisted" happened.
+export const SESSION_STARTUP_TIMEOUT_MS = 90_000
+
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
 }
@@ -126,7 +132,35 @@ export async function* runClaudeChatSession(
   try {
     // The SDK assigns the session id on its first message; every `SDKMessage`
     // carries it. The first message is the `system`/`init` message.
-    const firstResult = await queryInstance.next()
+    //
+    // BOUNDED: this first pull is the subprocess spawn + auth + resume-
+    // validation round trip — historically unbounded, and the hang point
+    // behind "stuck first message on an existing session". Past the deadline,
+    // abort the query and surface a typed, actionable error instead of an
+    // eternally-open stream.
+    let startupTimer: ReturnType<typeof setTimeout> | undefined
+    const firstResult = await Promise.race([
+      queryInstance.next(),
+      new Promise<'startup-timeout'>((resolve) => {
+        startupTimer = setTimeout(() => resolve('startup-timeout'), SESSION_STARTUP_TIMEOUT_MS)
+        startupTimer.unref?.()
+      }),
+    ])
+    if (startupTimer !== undefined) clearTimeout(startupTimer)
+    if (firstResult === 'startup-timeout') {
+      abortController.abort()
+      yield {
+        kind: 'session-errored',
+        sessionId: '',
+        errorCode: 'provider_start_timeout',
+        errorMessage:
+          `The Claude engine did not respond within ${SESSION_STARTUP_TIMEOUT_MS / 1000}s ` +
+          'while starting the session. Check that the engine is running and signed in, then send again.',
+        isRecoverable: true,
+        erroredAt: new Date(),
+      }
+      return
+    }
     if (firstResult.done) {
       yield {
         kind: 'session-errored',

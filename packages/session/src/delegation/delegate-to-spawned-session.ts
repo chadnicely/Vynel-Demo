@@ -157,6 +157,9 @@ export async function delegateToSpawnedSession(
     workspacePath: input.runCwdPath,
     providerId: input.providerId,
     isNewSession: false,
+    // Durability-first: the task row persists before provider startup (the
+    // unbounded hang point), so a stuck start never loses it.
+    resumeSessionId: primary.currentSdkSessionId,
     // Only reached on a mid-turn SDK swap: the fresh segment keeps the stock
     // hidden swap presentation — the spawned entry's identity stays its first
     // (listed, named) segment.
@@ -201,6 +204,10 @@ export async function delegateToSpawnedSession(
         case 'session-created':
           // A mid-turn compaction swap — advance the primary's link so the next
           // task resumes THIS segment (event-driven, the workspace-root shape).
+          // The local sessionId must follow too: the interrupt/denial-breaker
+          // targets it, and the registry holds the POST-swap id (the early
+          // user-message-persisted now carries the pre-swap id).
+          sessionId = event.session.id
           linkPrimarySessionToSdkSession(db, {
             primarySessionId: primary.id,
             userId: input.userId,

@@ -1,4 +1,11 @@
-import { computed, ref, shallowRef, toValue, type MaybeRefOrGetter } from "vue";
+import {
+  computed,
+  onScopeDispose,
+  ref,
+  shallowRef,
+  toValue,
+  type MaybeRefOrGetter,
+} from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import type { ChatTurnEvent } from "@vynel/contracts/chat/chat-http";
 import type { ChatModelId } from "@vynel/contracts/chat/chat-models";
@@ -42,6 +49,14 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
   const isQueued = ref(false);
   const errorText = ref<string | null>(null);
   let abortController: AbortController | null = null;
+  // View re-keys (tab/session switches) must not leave an orphaned reader
+  // draining from a dead view (the use-chat-turn shape). Client abort only —
+  // the server turn runs to completion and persists.
+  let isDisposed = false;
+  onScopeDispose(() => {
+    isDisposed = true;
+    abortController?.abort();
+  });
 
   const isStreaming = computed(
     () => view.value !== null && view.value.status === "streaming",
@@ -65,9 +80,7 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
           // sends (the ui-store restores fail-closed, so the cast is honest).
           model: ui.composerModelId as ChatModelId,
           mode: ui.composerMode,
-          ...(ui.composerThinkingEffort !== "auto"
-            ? { thinkingEffort: ui.composerThinkingEffort }
-            : {}),
+          thinkingEffort: ui.composerThinkingEffort,
         },
         parseAs: "stream",
         signal: abortController.signal,
@@ -95,6 +108,18 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
         }
         if (event.kind === "turn-stream-ended") break;
       }
+      // The stream closed with NO terminal frame at all — a server crash
+      // mid-turn used to end here looking exactly like success. A stream the
+      // server ENDED deliberately (`turn-stream-ended`, hasEnded) is not a
+      // drop, even when no completion event preceded it.
+      if (
+        view.value !== null &&
+        view.value.status === "streaming" &&
+        !view.value.hasEnded
+      ) {
+        errorText.value =
+          "The connection to the assistant dropped mid-turn — anything already produced is in the transcript.";
+      }
     } catch (turnError) {
       // An abort is the user's own stop; a real drop must be SAID. Either way
       // the turn may finish server-side — the settle refetch below reconciles.
@@ -110,10 +135,19 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
       abortController = null;
     }
 
+    // A disposed instance (view re-key mid-turn) stops here — no invalidation
+    // from a dead view; the activity feed settles history at turn end.
+    if (isDisposed) return;
+
     // Settle (the chat-turn order): the persisted rows land first, then the
     // overlay clears — nothing reflows to empty in between. `sessionKeys.all`
     // also refreshes the overview, so the library's percentages follow.
-    await queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+    // BOUNDED: a hung refetch must not strand the overlay (and the send queue
+    // behind it) forever.
+    await Promise.race([
+      queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
+      new Promise((resolve) => setTimeout(resolve, 8000)),
+    ]);
     view.value = null;
   }
 

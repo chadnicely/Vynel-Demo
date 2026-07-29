@@ -77,6 +77,33 @@ describe("LiveTurn segmented rendering", () => {
   });
 });
 
+describe("LiveTurn live status line", () => {
+  it("shows working + elapsed at the live edge while streaming", () => {
+    const wrapper = mount(LiveTurn, {
+      props: { view: createActiveTurnView() },
+    });
+    const chip = wrapper.get(".live-status .live-chip");
+    expect(chip.text()).toContain("working");
+    // The author line stays a plain label — the state lives at the bottom.
+    expect(wrapper.get(".role-label").text()).toBe("Assistant");
+  });
+
+  it("says thinking while a thinking block is live", () => {
+    const wrapper = mount(LiveTurn, {
+      props: { view: { ...createActiveTurnView(), isThinkingLive: true } },
+    });
+    expect(wrapper.get(".live-status .live-chip").text()).toContain("thinking");
+  });
+
+  it("settles to a quiet done chip instead of vanishing (the settle-window flicker)", () => {
+    const wrapper = mount(LiveTurn, {
+      props: { view: { ...createActiveTurnView(), status: "completed" } },
+    });
+    expect(wrapper.find(".live-chip").exists()).toBe(false);
+    expect(wrapper.get(".live-status .done-chip").text()).toContain("done");
+  });
+});
+
 describe("LiveTurn inline approval card", () => {
   it("derives the action kind so a shell command renders as danger", () => {
     const wrapper = mountWithApproval("Bash");

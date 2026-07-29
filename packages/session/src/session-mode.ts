@@ -17,11 +17,13 @@ export type SessionMode = 'ask' | 'auto' | 'bypass'
  * `@vynel/providers`'s `ClaudePermissionMode`:
  * - `ask` → `ask` (SDK `default`): approve every tool.
  * - `auto` → `auto` (SDK `auto`): Anthropic's safety classifier gates each
- *   action; the irreversible floor still cards.
- * - `bypass` → `bypass-with-behavior-gate` (SDK `bypassPermissions`): runs
- *   without prompts; only the irreversible floor still cards.
+ *   action; only its uncertain cases ask.
+ * - `bypass` → `bypass` (SDK `bypassPermissions`): runs everything without
+ *   prompts — the user's explicit grant (2026-07-30: bypass means bypass).
+ *   The provider's separate `bypass-with-behavior-gate` (floor still cards)
+ *   stays the UNATTENDED default for turns no user mode reaches.
  */
-export type SessionPermissionMode = 'ask' | 'auto' | 'bypass-with-behavior-gate'
+export type SessionPermissionMode = 'ask' | 'auto' | 'bypass'
 
 /** Map a user-facing `SessionMode` to the provider permission mode. */
 export function toPermissionMode(mode: SessionMode): SessionPermissionMode {
@@ -31,7 +33,7 @@ export function toPermissionMode(mode: SessionMode): SessionPermissionMode {
     case 'auto':
       return 'auto'
     case 'bypass':
-      return 'bypass-with-behavior-gate'
+      return 'bypass'
   }
 }
 
@@ -53,12 +55,12 @@ export const SESSION_MODES: readonly {
   {
     mode: 'auto',
     label: 'Auto',
-    description: 'Runs autonomously with a safety check on each action; irreversible actions still ask.',
+    description: "Claude's safety check gates each action; asks only when unsure.",
   },
   {
     mode: 'bypass',
     label: 'Bypass',
-    description: 'Runs without prompts; only irreversible actions still ask.',
+    description: 'Runs everything without asking.',
   },
 ] as const
 

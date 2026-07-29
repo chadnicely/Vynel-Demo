@@ -1,16 +1,22 @@
 // `buildClaudePreToolUseHook` — the can't-be-skipped half of Vynel's
-// safety invariant: every irreversible tool call from a (sub)agent that
-// would otherwise skip `canUseTool` (a `bypassPermissions` / `dontAsk`
-// mode) still produces a Vynel approval card.
+// safety invariant: in ASK (and plan-only) mode, every irreversible tool
+// call from a (sub)agent that would otherwise skip `canUseTool` (a
+// `bypassPermissions` / `dontAsk` subagent mode, or an MCP allowedTools
+// pre-approval) still produces a Vynel approval card.
 //
-// In `auto`, the MAIN session defers to Anthropic's safety classifier (the
-// user's directive — NO hardcoded Vynel floor pre-empting it). A SUBAGENT,
-// however, keeps its OWN permission mode — the SDK does NOT clamp it to the
-// parent's `auto` (proven by the 2026-06-21 live smoke: a `bypassPermissions`
-// subagent's `Write` skipped `canUseTool` and was caught ONLY here). So this
-// backstop stands down ONLY for the auto MAIN session (no `agent_id`); for any
-// subagent call (`agent_id` present) it still forces the floor, even under an
-// auto root.
+// MODE SEMANTICS (Chad's 2026-07-30 directive — the session mode is the
+// user's trust level for the WHOLE turn, subagents included):
+// - `ask` / `plan-only`: the floor + per-turn mutating set + destructive
+//   tier all card, main session AND subagents (a subagent keeps its own
+//   permission mode — the SDK does NOT clamp it to the parent's, proven by
+//   the 2026-06-21 live smoke — so the hook is what holds the line here).
+// - `auto`: Anthropic's safety classifier is the SOLE gate. No Vynel floor
+//   anywhere; the classifier's uncertain escalations card via `canUseTool`.
+// - `bypass` (the user's composer pick): nothing cards, ever.
+// - `bypass-with-behavior-gate` (the UNATTENDED default — schedules,
+//   delegated leaves, report delivery): the floor + per-turn mutating set
+//   still card and park for the user (surface-up approval). A background
+//   turn carries no user trust pick, so the floor holds.
 //
 // WHY a hook (not just `canUseTool`): a `PreToolUse` hook fires for EVERY
 // tool call, unconditionally, regardless of the (sub)agent's permission
@@ -69,19 +75,16 @@ export function buildClaudePreToolUseHook(
         ? { ...input.tool_input, run_in_background: false }
         : undefined
 
-    // The auto MAIN session defers entirely to Anthropic's classifier — the
-    // hardcoded floor must not pre-empt it (the user's directive). A SUBAGENT
-    // (`agent_id` present) keeps its own mode — the SDK does NOT clamp it to the
-    // parent's `auto` — so the floor still backstops it here, even under auto.
-    const floorStandsDown = permissionMode === 'auto' && input.agent_id === undefined
-    // The destructive tier cards in ASK mode only. The `'ask'` decision is what
-    // pulls the call OUT of the MCP wildcard's `allowedTools` pre-approval and
-    // into `canUseTool` (live smoke 2026-07-26 — bare allowedTools entries
-    // otherwise shadow the callback entirely). Auto/bypass run these uncarded.
-    // `plan-only` is included DEFENSIVELY: nothing routes it today, but the MCP
-    // wildcard still rides its allowedTools, and whether SDK plan mode honors
-    // that pre-approval for MCP tools is unsmoked — a card there is strictly
-    // safer than an uncarded delete from a mode documented as non-executing.
+    // In auto the classifier is the sole gate; in the user's bypass nothing
+    // cards (2026-07-30 directive) — the floor holds everywhere else. The
+    // `'ask'` decision is what pulls a call OUT of the MCP wildcard's
+    // `allowedTools` pre-approval (or a subagent's own skip-mode) and into
+    // `canUseTool` (live smoke 2026-07-26 — bare allowedTools entries
+    // otherwise shadow the callback entirely). `plan-only` is included in the
+    // destructive tier DEFENSIVELY: nothing routes it today, but a card there
+    // is strictly safer than an uncarded delete from a mode documented as
+    // non-executing.
+    const floorStandsDown = permissionMode === 'auto' || permissionMode === 'bypass'
     const destructiveTierApplies = permissionMode === 'ask' || permissionMode === 'plan-only'
     const requiresApprovalCard =
       (!floorStandsDown &&

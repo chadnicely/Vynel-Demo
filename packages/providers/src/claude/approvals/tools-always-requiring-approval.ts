@@ -1,14 +1,19 @@
 // The single source of truth for tools whose effects are irreversible
-// enough to require an approval card EVEN under a bypass permission mode.
+// enough to require an approval card outside an explicit user grant.
 //
 // Consumed by BOTH:
-//   - `build-claude-can-use-tool-callback` — the main session's behavior
-//     gate (cards these tools instead of running them silently under
-//     `bypass-with-behavior-gate`), and
+//   - `build-claude-can-use-tool-callback` — the behavior gate that cards
+//     these under `bypass-with-behavior-gate` (the unattended default), and
 //   - `build-claude-pre-tool-use-hook` — the can't-be-skipped backstop
 //     that forces these through `canUseTool` ('ask') even for a SUBAGENT
-//     whose `permissionMode` is `bypassPermissions`/`dontAsk`/`auto` and
-//     would otherwise skip the prompt entirely (the safety invariant).
+//     whose `permissionMode` is `bypassPermissions`/`dontAsk` and would
+//     otherwise skip the prompt entirely (the safety invariant).
+//
+// Scope since 2026-07-30 (Chad): the floor STANDS DOWN in `auto`
+// (Anthropic's classifier is the sole gate) and in the user's `bypass`
+// (nothing cards — the composer mode is the user's trust level for the
+// whole turn, subagents included). It holds in ask/plan-only and in the
+// unattended `bypass-with-behavior-gate` default.
 //
 // Hardcoded for Phase 1 — per-skill / per-agent configurability is a
 // Phase 2 design (`docs/blueprints/providers/decisions.md` D12).
