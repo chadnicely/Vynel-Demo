@@ -16,7 +16,8 @@
     "@vynel/channels": "workspace:*",
     "@vynel/db": "workspace:*",
     "@vynel/errors": "workspace:*",
-    "@vynel/logger": "workspace:*"
+    "@vynel/logger": "workspace:*",
+    "@vynel/orchestration": "workspace:*"
   },
   "devDependencies": {
     "@vynel/testing": "workspace:*",

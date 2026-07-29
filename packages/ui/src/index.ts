@@ -20,6 +20,7 @@ export { default as ResizablePanel } from "./components/ResizablePanel.vue";
 export { default as SegmentedTabs } from "./components/SegmentedTabs.vue";
 export { default as SelectChip } from "./components/SelectChip.vue";
 export { default as ThinkingBlock } from "./components/ThinkingBlock.vue";
+export { default as ThreadSkeleton } from "./components/ThreadSkeleton.vue";
 export { default as ToolCallCard } from "./components/ToolCallCard.vue";
 export { default as ToolCallList } from "./components/ToolCallList.vue";
 export { default as AgentActivityPane } from "./components/AgentActivityPane.vue";
@@ -28,6 +29,7 @@ export type {
   AgentActivityToolCallLike,
 } from "./components/AgentActivityPane.vue";
 export { deriveSettledAgentActivity } from "./tool-cards/subagent-activity.js";
+export { displayToolName } from "./tool-cards/tool-presenters.js";
 export { describeDesktopStep } from "./tool-cards/desktop-step-presenter.js";
 export { useOpenModalCount } from "./components/modal-registry.js";
 export { default as Tooltip } from "./components/Tooltip.vue";
@@ -38,6 +40,10 @@ export {
   workspaceAccentVar,
   workspaceNameFromLabel,
 } from "./lib/workspace-color.js";
+export {
+  formatMessageTimestamp,
+  formatElapsed,
+} from "./lib/format-timestamp.js";
 export { workspaceMonogram } from "./lib/workspace-monogram.js";
 export type { CommandItem } from "./components/CommandPalette.vue";
 export type { ComposerOption } from "./components/ChatComposer.vue";

@@ -28,6 +28,10 @@ export type HandleSessionStartedInput = {
   db: Database
   event: Extract<NormalizedSessionEvent, { kind: 'session-started' }>
   userMessageInput: UserMessageInput
+  /** Set when the consumer already persisted the user row BEFORE provider
+   *  startup (the resumed-session durability write) — both branches then skip
+   *  the insert and the `user-message-persisted` event (already emitted). */
+  alreadyPersistedUserMessage?: ChatMessage
   userId: string
   /** Null for a global-root (brain) session — `buildNewChatSessionRow` derives
    *  `scope: 'global'` from it, and the co-committed outbox payload carries null. */
@@ -53,6 +57,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
     db,
     event,
     userMessageInput,
+    alreadyPersistedUserMessage,
     userId,
     workspaceId,
     providerId,
@@ -77,7 +82,10 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
   // creation in the previously-failing swap case.
   if (isNewSession || chatRepository.findChatSessionById(db, sessionId) === null) {
     userMessage = withTransaction(db, (tx) => {
-      // initialMessageCount: 1 — the user message is co-committed below.
+      // initialMessageCount: 1 — the user message is co-committed below. When
+      // the consumer persisted it early (resumed turn whose SDK id swapped
+      // mid-start), the message already lives on the ORIGINAL session — the
+      // thread the user actually sent it from — so this row starts at 0.
       chatRepository.insertChatSession(
         tx,
         buildNewChatSessionRow({
@@ -86,32 +94,34 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
           workspaceId,
           providerId,
           startedAt: now,
-          initialMessageCount: 1,
+          initialMessageCount: alreadyPersistedUserMessage !== undefined ? 0 : 1,
           ...(newSessionOptions?.visibility !== undefined
             ? { visibility: newSessionOptions.visibility }
             : {}),
           ...(newSessionOptions?.title !== undefined ? { title: newSessionOptions.title } : {}),
         }),
       )
-      const inserted = chatRepository.insertChatMessage(tx, {
-        id: userMessageInput.id,
-        sessionId,
-        role: 'user',
-        body: userMessageInput.body,
-        sourceKind: userRowAttribution.sourceKind,
-        sourceLabel: userRowAttribution.sourceLabel,
-        partialSessionId: userRowAttribution.partialSessionId,
-        originChannel: userMessageInput.originChannel ?? null,
-        thinkingBody: null,
-        inputTokens: null,
-        outputTokens: null,
-        attachedImagesMetadata: userMessageInput.attachedImagesMetadata,
-        errorCode: null,
-        errorMessage: null,
-        startedAt: now,
-        completedAt: now, // user messages are "complete" immediately
-        createdAt: now,
-      })
+      const inserted =
+        alreadyPersistedUserMessage ??
+        chatRepository.insertChatMessage(tx, {
+          id: userMessageInput.id,
+          sessionId,
+          role: 'user',
+          body: userMessageInput.body,
+          sourceKind: userRowAttribution.sourceKind,
+          sourceLabel: userRowAttribution.sourceLabel,
+          partialSessionId: userRowAttribution.partialSessionId,
+          originChannel: userMessageInput.originChannel ?? null,
+          thinkingBody: null,
+          inputTokens: null,
+          outputTokens: null,
+          attachedImagesMetadata: userMessageInput.attachedImagesMetadata,
+          errorCode: null,
+          errorMessage: null,
+          startedAt: now,
+          completedAt: now, // user messages are "complete" immediately
+          createdAt: now,
+        })
       insertOutboxEvent(tx, {
         id: crypto.randomUUID(),
         type: CHAT_SESSION_CREATED,
@@ -122,9 +132,15 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
       return inserted
     })
 
-    events.push({ kind: 'user-message-persisted', message: userMessage })
+    if (alreadyPersistedUserMessage === undefined) {
+      events.push({ kind: 'user-message-persisted', message: userMessage })
+    }
     const newSession = chatRepository.findChatSessionById(db, sessionId)
     if (newSession) events.push({ kind: 'session-created', session: newSession })
+  } else if (alreadyPersistedUserMessage !== undefined) {
+    // Resumed session whose user row was persisted before provider startup —
+    // nothing to insert, the event already went out.
+    userMessage = alreadyPersistedUserMessage
   } else {
     // Resumed session: session row already exists. Wrap the user-message
     // insert + lastMessageAt bump in one transaction so a failure doesn't

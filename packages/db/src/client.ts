@@ -50,6 +50,14 @@ export function createSqliteDatabase(options: CreateDatabaseOptions): Database {
   }
   const sqlite = new BetterSqlite3(options.path)
   sqlite.pragma('journal_mode = WAL')
+  // WAL+NORMAL is the standard safe pairing for a local-first app: without it
+  // SQLite's FULL default fsyncs the WAL on EVERY commit — and the chat
+  // consumer commits per streamed token delta, stalling the whole (synchronous
+  // better-sqlite3) event loop once per token.
+  sqlite.pragma('synchronous = NORMAL')
+  // A writer holding the file briefly (checkpoint, concurrent turn) waits
+  // instead of throwing SQLITE_BUSY into a live stream.
+  sqlite.pragma('busy_timeout = 5000')
   sqlite.pragma('foreign_keys = ON')
   // Load sqlite-vec for the `memory` domain's vec0 virtual table. Throws
   // if the platform binary isn't installed (e.g. running on FreeBSD —

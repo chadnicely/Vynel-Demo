@@ -30,6 +30,7 @@ import {
 } from '@vynel/session/runtime'
 import type { AppEnv, HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
+import { writeSseSafely } from './write-sse-safely.js'
 import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from '../sessions/global-root-workspace.js'
 import { DELEGATION_MODE_HEADER } from '../sessions/delegation-mode-header.js'
@@ -68,13 +69,21 @@ class GlobalRootSseSink implements SessionSink {
 
   async onError(err: unknown): Promise<void> {
     this.logger.error({ err }, 'global-root turn stream failed')
-    await this.stream.writeSSE({
-      event: 'session-errored',
-      data: JSON.stringify({
+    await writeSseSafely(
+      this.stream,
+      'session-errored',
+      JSON.stringify({
         kind: 'session-errored',
+        sessionId: '',
+        errorCode: 'turn-stream-failed',
         errorMessage: err instanceof Error ? err.message : String(err),
+        isRecoverable: false,
       }),
-    })
+      this.logger,
+    )
+    // The error path must still end the stream with the terminal frame, or the
+    // client folds the error and then waits on a close that reads as clean.
+    await writeSseSafely(this.stream, 'turn-stream-ended', '{}', this.logger)
   }
 }
 

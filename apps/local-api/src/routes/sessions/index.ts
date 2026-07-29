@@ -175,6 +175,7 @@ export const sessionsApp = factory
           const finish = (): void => {
             if (settled) return
             settled = true
+            clearInterval(heartbeatTimer)
             unsubscribe()
             resolve()
           }
@@ -186,6 +187,11 @@ export const sessionsApp = factory
               void stream.writeSSE({ event: 'turn-stream-ended', data: '{}' }).finally(finish)
             },
           })
+          // Keeps proxies/half-open sockets from silently wedging an idle watch —
+          // the activity-feed heartbeat shape; comment frames never reach the fold.
+          const heartbeatTimer = setInterval(() => {
+            void stream.write(':ping\n\n')
+          }, 25_000)
           stream.onAbort(finish)
         })
       })

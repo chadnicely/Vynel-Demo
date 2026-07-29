@@ -52,6 +52,11 @@ export const WATCHABLE_EVENT_TYPES: readonly WatchableEventType[] = [
     filterableFields: ['scheduleId', 'workspaceId'],
   },
   {
+    type: 'schedule.run-failed',
+    description: 'A scheduled task errored during its run.',
+    filterableFields: ['scheduleId', 'workspaceId'],
+  },
+  {
     type: 'agent.run-completed',
     description: 'A configured agent finished a run.',
     filterableFields: ['agentId', 'workspaceId'],

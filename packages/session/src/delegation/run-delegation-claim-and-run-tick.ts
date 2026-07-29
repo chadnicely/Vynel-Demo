@@ -28,6 +28,7 @@ import {
   ApprovalWaitGate,
   claimNextPendingDelegationJob,
   completeDelegationJob,
+  enqueueReportDelivery,
   failDelegationJob,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   markDelegationsSurfacedToRoot,
@@ -36,6 +37,10 @@ import {
   type DelegateForRouting,
   type DelegationJob,
 } from '@vynel/orchestration'
+import {
+  extractEmbeddedErrorCode,
+  requeueIfRecoverable,
+} from './classify-turn-failure.js'
 import { type ChatTurnEvent } from '@vynel/chat'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'
@@ -533,17 +538,20 @@ export async function runDelegationClaimAndRunTick(
       // left hanging on an unanswerable Promise (best-effort; reaper-backed).
       await approvalHandler.abandonParked()
       // A user Stop lands here (the interrupted turn throws by design) — record
-      // it as the user's action, not a provider failure.
-      const reason = cancelHandle?.isCancelRequested()
-        ? 'stopped by the user'
-        : outcome.message
-      failDelegationJob(db, claimed.id, reason, new Date())
-      deps.logger.warn({ jobId: claimed.id, message: reason }, 'delegation job failed')
+      // it as the user's action, not a provider failure. Never retried.
+      if (cancelHandle?.isCancelRequested()) {
+        failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
+        deps.logger.warn({ jobId: claimed.id }, 'delegation job stopped by the user')
+      } else {
+        settleFailedDelegationAttempt(db, claimed, outcome.message, deps)
+      }
     }
     return true
   } catch (err) {
     // An unexpected throw (e.g. a DB error in the push or the complete) must never leave
     // the job stuck `claimed` (Ch1 does not auto-reclaim) — nor a parked approval hanging.
+    // Terminal, never retried: a throw from THIS body is our own bookkeeping (a corrupt
+    // row would loop forever on requeue), not a transient provider failure.
     await approvalHandler?.abandonParked()
     failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
     deps.logger.error({ err, jobId: claimed.id }, 'delegation job run threw unexpectedly')
@@ -551,5 +559,59 @@ export async function runDelegationClaimAndRunTick(
   } finally {
     cancelHandle?.end()
     activityHandle.end()
+  }
+}
+
+/** A failed (non-stopped) attempt: a transient failure requeues with backoff;
+ *  the terminal failure is PUSHED to the global root as a report delivery — a
+ *  real notify turn telling the user it failed and that re-sending retries it.
+ *  Before this, failures sat in the pull-only next-turn catch-up net. */
+function settleFailedDelegationAttempt(
+  db: Database,
+  claimed: DelegationJob,
+  errorMessage: string,
+  deps: RunDelegationTickDeps,
+): void {
+  if (requeueIfRecoverable(db, claimed, errorMessage, deps.logger, 'delegation')) return
+
+  const attemptCount = (claimed.attemptCount ?? 0) + 1
+  failDelegationJob(db, claimed.id, errorMessage, new Date(), {
+    ...(extractEmbeddedErrorCode(errorMessage) !== null
+      ? { errorCode: extractEmbeddedErrorCode(errorMessage)! }
+      : {}),
+  })
+  deps.logger.warn(
+    { jobId: claimed.id, attemptCount, message: errorMessage },
+    'delegation job failed terminally',
+  )
+
+  // Give-up push for TASK rows only (a failed report-delivery must never spawn
+  // another delivery — the anti-cascade invariant).
+  if ((claimed.jobKind ?? 'task') !== 'task') return
+  try {
+    const taskPreview =
+      claimed.taskText.length > 160 ? `${claimed.taskText.slice(0, 160)}…` : claimed.taskText
+    const threadId = resolveThreadIdOf(claimed)
+    enqueueReportDelivery(db, {
+      ...(threadId !== null ? { threadId } : {}),
+      userId: claimed.userId,
+      reporterSessionId:
+        claimed.targetPrimarySessionId ?? claimed.workspaceId ?? claimed.parentSessionId,
+      reporterLabel: claimed.workspaceName ?? 'Background task',
+      reportBody:
+        `The background task "${taskPreview}" failed` +
+        `${attemptCount > 1 ? ` after ${attemptCount} attempts` : ''}: ${errorMessage}. ` +
+        'Tell the user it failed, and re-send the task with send_message if it should be retried.',
+      requester: { kind: 'global-root' },
+    })
+    // Surfaced via the push — keep the pull net from repeating it next turn.
+    markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
+  } catch (err) {
+    // The failed row stays in the root catch-up net — the user still learns of
+    // it on their next turn even when the push could not be enqueued.
+    deps.logger.error(
+      { err, jobId: claimed.id },
+      'failed to enqueue the delegation-failure report',
+    )
   }
 }

@@ -24,6 +24,10 @@ fn build_main_window(handle: &AppHandle) -> tauri::Result<()> {
         .title("Vynel")
         .inner_size(1280.0, 800.0)
         .min_inner_size(960.0, 600.0)
+        // The shell draws its own title bar (AppTitleBar) — native decorations
+        // on top of it doubled the window controls. Its buttons/drag-region need
+        // the main-window capability (capabilities/main-window.json).
+        .decorations(false)
         .build()?;
     Ok(())
 }
@@ -44,7 +48,12 @@ pub fn create_windows(handle: &AppHandle, jarvis_only: bool) -> tauri::Result<()
         .shadow(false)
         .always_on_top(true)
         .resizable(false)
-        .skip_taskbar(false)
+        .skip_taskbar(true)
+        // Hidden until a wake reveals it (JarvisView handleWake → reveal()) —
+        // Tauri defaults to visible, which painted the overlay on every launch
+        // with no wake at all. NOT .visible(jarvis_only): a wake-launched
+        // overlay still reveals through the daemon's replayed wake.
+        .visible(false)
         .build()?;
 
     // The desktop-control attention overlay — hidden until its web view reveals

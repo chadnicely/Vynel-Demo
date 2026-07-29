@@ -7,6 +7,22 @@
 
 export const SCHEDULE_RUN_COMPLETED_EVENT_TYPE = 'schedule.run-completed' as const
 
+// A failed run publishes its own event: the failure must reach the user's chat
+// (core's registry routes it into a global-root report delivery) and be
+// watchable by monitors — a `failed` row on a table with no UI is invisible.
+export const SCHEDULE_RUN_FAILED_EVENT_TYPE = 'schedule.run-failed' as const
+
+export interface ScheduleRunFailedPayload {
+  scheduleId: string
+  runId: string
+  userId: string
+  // Nullable to match the schema — a GLOBAL schedule (NULL workspace) fails too.
+  workspaceId: string | null
+  scheduleDisplayName: string
+  errorMessage: string
+  firedAt: string // ISO
+}
+
 export interface ScheduleRunCompletedPayload {
   scheduleId: string
   userId: string

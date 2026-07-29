@@ -62,6 +62,10 @@ export {
   type EnqueueReportDeliveryInput,
   type ReportDeliveryRequester,
 } from './routing/enqueue-report-delivery.js'
+export {
+  consumeScheduleRunFailedEvent,
+  type ScheduleRunFailedPayload,
+} from './routing/consume-schedule-run-failed-event.js'
 
 // The global-root catch-up (Ch3.5 root-awareness fix): the terminal delegations the root
 // hasn't been told about, as a context block to prepend to its next turn.
@@ -87,6 +91,7 @@ export {
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   completeDelegationJob,
   failDelegationJob,
+  requeueDelegationJob,
   failPendingDelegationJob,
   failOrphanedClaimedDelegations,
   findDelegationJobById,

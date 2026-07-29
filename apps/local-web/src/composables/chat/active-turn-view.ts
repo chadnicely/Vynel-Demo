@@ -65,6 +65,8 @@ export type ActiveTurnStatus =
 
 export interface ActiveTurnView {
   status: ActiveTurnStatus;
+  /** When the user hit send (client clock) — the working chip's elapsed timer. */
+  startedAtMs: number;
   session: ChatSessionResponse | null;
   userMessage: ChatMessageResponse | null;
   /** The turn's assistant messages in arrival order. Their ids double as the
@@ -83,6 +85,7 @@ export interface ActiveTurnView {
 export function createActiveTurnView(): ActiveTurnView {
   return {
     status: "streaming",
+    startedAtMs: Date.now(),
     session: null,
     userMessage: null,
     segments: [],

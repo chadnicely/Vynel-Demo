@@ -162,6 +162,13 @@
       "when": 1785207191611,
       "tag": "0022_server_installs",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1785219338162,
+      "tag": "0023_delegation_retry",
+      "breakpoints": true
     }
   ]
 }

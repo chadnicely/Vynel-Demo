@@ -181,6 +181,9 @@ export async function* startChatTurn(
     workspacePath: input.workspacePath,
     providerId: input.providerId,
     isNewSession: !input.resumeSessionId,
+    // Durability-first: a resumed turn's user row persists before provider
+    // startup (the unbounded hang point), so a stuck start never loses it.
+    ...(input.resumeSessionId !== undefined ? { resumeSessionId: input.resumeSessionId } : {}),
     ...(input.newSessionOptions !== undefined ? { newSessionOptions: input.newSessionOptions } : {}),
     ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
   })

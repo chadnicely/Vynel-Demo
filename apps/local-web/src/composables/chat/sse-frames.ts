@@ -49,8 +49,15 @@ export function parseSseFrame(frame: string): SseFrame {
  * back to the `event:` name to recover its `kind`. The cast is the transport
  * boundary — the server produces these against the shared contract.
  */
-export function frameToChatTurnEvent(frame: SseFrame): ChatTurnEvent {
-  const payload = JSON.parse(frame.data || "{}") as Record<string, unknown>;
+export function frameToChatTurnEvent(frame: SseFrame): ChatTurnEvent | null {
+  // A malformed frame is dropped (null), never thrown — one corrupt frame must
+  // not kill a live turn's whole stream.
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(frame.data || "{}") as Record<string, unknown>;
+  } catch {
+    return null;
+  }
   if (typeof payload.kind !== "string") payload.kind = frame.event;
   return payload as unknown as ChatTurnEvent;
 }

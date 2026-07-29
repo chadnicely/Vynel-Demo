@@ -40,6 +40,7 @@ import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import { composeReportMessageMarker } from '@vynel/contracts/chat/report-message-marker'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
+import { requeueIfRecoverable } from './classify-turn-failure.js'
 import { REPORT_DELIVERY_INSTRUCTIONS } from './routed-turn-provider-input.js'
 import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
 import {
@@ -276,8 +277,17 @@ export async function runReportDeliveryJob(
     } else {
       await approvalHandler?.abandonParked()
       const reason = cancelHandle?.isCancelRequested() ? 'stopped by the user' : outcome.message
-      failDelegationJob(db, claimed.id, reason, new Date())
-      deps.logger.warn({ jobId: claimed.id, message: reason }, 'report-delivery job failed')
+      // A transient notify-turn failure (provider down, rate limit) requeues —
+      // the report body is the ONLY copy of the child's result; before this a
+      // failed delivery row was permanently invisible (excluded from both the
+      // catch-up net and list_background_runs). A stop never retries.
+      if (
+        cancelHandle?.isCancelRequested() ||
+        !requeueIfRecoverable(db, claimed, reason, deps.logger, 'report-delivery')
+      ) {
+        failDelegationJob(db, claimed.id, reason, new Date())
+        deps.logger.warn({ jobId: claimed.id, message: reason }, 'report-delivery job failed')
+      }
     }
     return true
   } catch (err) {

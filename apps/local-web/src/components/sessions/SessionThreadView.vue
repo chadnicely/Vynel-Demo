@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { PresenceDot } from "@vynel/ui";
+import { PresenceDot, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../chat/ThreadStream.vue";
 import AppComposer from "../chat/AppComposer.vue";
 import QueuedMessageChips from "../chat/QueuedMessageChips.vue";
@@ -90,7 +90,7 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
 <template>
   <div class="session-thread">
     <div class="thread-body">
-      <p v-if="detailQuery.isPending.value" class="state-note">Loading…</p>
+      <ThreadSkeleton v-if="detailQuery.isPending.value" class="thread-skeleton-pad" />
       <!-- A failed transcript read must be SAID — an empty thread over a live
            composer would read as a blank conversation. -->
       <p v-else-if="detailQuery.isError.value" class="state-note is-error">
@@ -156,6 +156,11 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
 
 .thread-slot {
   height: 100%;
+}
+
+.thread-skeleton-pad {
+  padding-left: 24px;
+  padding-right: 24px;
 }
 
 .state-note {

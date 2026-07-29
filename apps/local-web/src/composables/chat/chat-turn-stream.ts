@@ -105,6 +105,9 @@ export async function* readSseFrames(
       buffer = rest;
       for (const frame of frames) yield parseSseFrame(frame);
     }
+    // Flush the decoder — a multi-byte sequence truncated at EOF would
+    // otherwise be silently dropped.
+    buffer += decoder.decode();
     // A final frame with no trailing blank line (EOF-terminated) still counts.
     const tail = buffer.trim();
     if (tail) yield parseSseFrame(tail);
@@ -119,6 +122,7 @@ export async function* readChatTurnEvents(
   stream: ReadableStream<Uint8Array>,
 ): AsyncGenerator<ChatTurnEvent> {
   for await (const frame of readSseFrames(stream)) {
-    yield frameToChatTurnEvent(frame);
+    const event = frameToChatTurnEvent(frame);
+    if (event !== null) yield event;
   }
 }

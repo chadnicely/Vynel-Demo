@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onScopeDispose, ref, watch } from "vue";
 import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import { presentToolCall } from "../tool-cards/tool-presenters.js";
+import { formatElapsed } from "../lib/format-timestamp.js";
 import PresenceDot from "./PresenceDot.vue";
 import ToolCallDetail from "./ToolCallDetail.vue";
 
@@ -43,8 +44,34 @@ const statusLabel = computed(() => {
   return props.toolCall.status;
 });
 
+// A RUNNING call ticks its elapsed time live (the Claude Desktop read: you can
+// see a long tool call costing seconds as it happens); the interval exists
+// only while running.
+const nowMs = ref(Date.now());
+let elapsedTimer: ReturnType<typeof setInterval> | null = null;
+watch(
+  () => props.toolCall.status === "started",
+  (isRunning) => {
+    if (isRunning && elapsedTimer === null) {
+      elapsedTimer = setInterval(() => {
+        nowMs.value = Date.now();
+      }, 1000);
+    } else if (!isRunning && elapsedTimer !== null) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
+    }
+  },
+  { immediate: true },
+);
+onScopeDispose(() => {
+  if (elapsedTimer !== null) clearInterval(elapsedTimer);
+});
+
 const durationLabel = computed(() => {
-  if (!props.toolCall.completedAt) return null;
+  if (!props.toolCall.completedAt) {
+    if (props.toolCall.status !== "started") return null;
+    return formatElapsed(new Date(props.toolCall.startedAt).getTime(), nowMs.value);
+  }
   const elapsedMs =
     new Date(props.toolCall.completedAt).getTime() -
     new Date(props.toolCall.startedAt).getTime();

@@ -12,6 +12,8 @@
 
 import { consumeAskCreatedEvent, consumeScheduleRunCompletedEvent } from '@vynel/channels'
 import type { AskCreatedPayload, ScheduleRunCompletedPayload } from '@vynel/channels'
+import { consumeScheduleRunFailedEvent } from '@vynel/orchestration'
+import type { ScheduleRunFailedPayload } from '@vynel/orchestration'
 import type { Database } from '@vynel/db'
 import type { OutboxEventRow } from '@vynel/db/repositories/_shared'
 
@@ -30,4 +32,8 @@ export const OUTBOX_CONSUMERS: Record<string, OutboxConsumer> = {
   // input"); the answer stays in-app.
   'ask.created': (db, payload) =>
     consumeAskCreatedEvent(db, payload as unknown as AskCreatedPayload),
+  // A FAILED schedule run → a global-root report delivery, so the failure
+  // reaches the user's chat instead of dying on a run row with no UI.
+  'schedule.run-failed': (db, payload) =>
+    consumeScheduleRunFailedEvent(db, payload as unknown as ScheduleRunFailedPayload),
 }

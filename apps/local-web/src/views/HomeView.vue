@@ -5,23 +5,34 @@ import {
   Activity,
   CalendarClock,
   FolderOpen,
-  ListChecks,
   MessagesSquare,
 } from "lucide-vue-next";
 import { EmptyState, PresenceDot } from "@vynel/ui";
+import LiveNowBand, {
+  type LiveTurnRow,
+} from "../components/home/LiveNowBand.vue";
+import TasksCard from "../components/home/TasksCard.vue";
+import { narrationLabelFor } from "../components/home/narration-label.js";
 import { useDashboardOverview } from "../composables/dashboard/use-dashboard-overview.js";
 import { usePendingApprovals } from "../composables/approvals/use-pending-approvals.js";
 import { useActivityStore } from "../stores/activity-store.js";
+import { useTurnNarrationStore } from "../stores/turn-narration-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { formatRelativeTime } from "../utils/format-relative-time.js";
 import { greetingForHour } from "../utils/greeting.js";
+import type { SessionTurnOrigin } from "@vynel/contracts/chat/session-activity";
 
 // The dashboard: everything the assistant is doing and holding, one glance.
 const router = useRouter();
 const ui = useUiStore();
 const activity = useActivityStore();
+const narration = useTurnNarrationStore();
 
-const overviewQuery = useDashboardOverview();
+// Poll while work runs so task completions + fresh sessions land live (the
+// SessionsView cadence pattern); quiet otherwise.
+const overviewQuery = useDashboardOverview(() =>
+  activity.isTurnRunning ? 5000 : false,
+);
 const overview = computed(() => overviewQuery.data.value ?? null);
 const pendingApprovalsQuery = usePendingApprovals();
 const pendingCount = computed(
@@ -30,7 +41,47 @@ const pendingCount = computed(
 
 const greeting = greetingForHour(new Date().getHours());
 
+// "Right now": one card per in-flight turn the feed reports, labeled by its
+// workspace persona ("Noah · Invoices") or the global thread, narrated by the
+// current tool step in plain words.
+const ORIGIN_NOTES: Record<SessionTurnOrigin, string | null> = {
+  web: null,
+  voice: "via Voice",
+  telegram: "via Telegram",
+  discord: "via Discord",
+  zoom: "via Zoom",
+  schedule: "from a schedule",
+  delegation: "working on a task",
+};
+
+const liveNow = computed<LiveTurnRow[]>(() =>
+  Object.values(activity.serverTurns).map((turn) => {
+    const workspace =
+      turn.workspaceId === null
+        ? null
+        : (overview.value?.workspaces.find(
+            (row) => row.id === turn.workspaceId,
+          ) ?? null);
+    const label = workspace
+      ? workspace.managerName
+        ? `${workspace.managerName} · ${workspace.name}`
+        : workspace.name
+      : "Assistant thread";
+    return {
+      turnId: turn.turnId,
+      workspaceId: turn.workspaceId,
+      label,
+      originNote: ORIGIN_NOTES[turn.origin],
+      startedAt: turn.startedAt,
+      narration: narrationLabelFor(narration.stepByTurnId[turn.turnId]),
+    };
+  }),
+);
+
 const statusLine = computed(() => {
+  if (liveNow.value.length === 1) return "One session working right now.";
+  if (liveNow.value.length > 1)
+    return `${liveNow.value.length} sessions working right now.`;
   if (activity.isTurnRunning) return "Your assistant is working right now.";
   if (pendingCount.value > 0)
     return `${pendingCount.value} approval${pendingCount.value === 1 ? "" : "s"} waiting for you.`;
@@ -99,6 +150,14 @@ function scheduleTiming(nextFireAt: string | null): string {
         {{ statusLine }}
       </p>
     </header>
+
+    <Transition name="live-band">
+      <LiveNowBand
+        v-if="liveNow.length > 0"
+        :turns="liveNow"
+        @open="openSession"
+      />
+    </Transition>
 
     <div class="card-grid">
       <section class="card span-2">
@@ -175,41 +234,10 @@ function scheduleTiming(nextFireAt: string | null): string {
         </div>
       </section>
 
-      <section class="card span-2">
-        <header class="card-header">
-          <ListChecks :size="14" class="card-icon" />
-          <p class="card-title">Tasks</p>
-        </header>
-        <EmptyState
-          v-if="openTasks.length === 0 && recentlyCompletedTasks.length === 0"
-          title="Nothing on the list"
-          hint="Ask Claude for something and it'll track the steps here."
-        />
-        <div
-          v-for="task in openTasks"
-          :key="task.id"
-          class="list-row is-static task-row"
-        >
-          <span class="row-title">{{ task.title }}</span>
-          <span
-            class="task-pill"
-            :class="{ 'is-in-progress': task.status === 'in-progress' }"
-          >
-            {{ task.status === "in-progress" ? "In progress" : "Open" }}
-          </span>
-        </div>
-        <div
-          v-for="task in recentlyCompletedTasks"
-          :key="task.id"
-          class="list-row is-static task-row is-completed"
-        >
-          <span class="row-title">{{ task.title }}</span>
-          <span class="row-meta">
-            done
-            {{ task.completedAt ? formatRelativeTime(task.completedAt) : "" }}
-          </span>
-        </div>
-      </section>
+      <TasksCard
+        :open-tasks="openTasks"
+        :completed-tasks="recentlyCompletedTasks"
+      />
 
       <section class="card span-2">
         <header class="card-header">
@@ -345,35 +373,31 @@ function scheduleTiming(nextFireAt: string | null): string {
   font: 400 10.5px/1.5 var(--font-ui);
 }
 
-.task-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* The "Right now" band breathes in and collapses out with the work. */
+.live-band-enter-active {
+  transition:
+    opacity 0.24s var(--ease-out, ease-out),
+    transform 0.24s var(--ease-out, ease-out);
 }
 
-.task-row .row-title {
-  flex: 1;
-  min-width: 0;
+.live-band-leave-active {
+  transition: opacity 0.2s var(--ease-out, ease-out);
 }
 
-/* The completed tail reads as a quiet log under the live list. */
-.task-row.is-completed .row-title {
-  color: var(--ink-3);
-  text-decoration: line-through;
+.live-band-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
 }
 
-.task-pill {
-  flex: none;
-  color: var(--ink-3);
-  background: var(--row-active);
-  font: 600 10.5px/1.6 var(--font-ui);
-  border-radius: 99px;
-  padding: 1px 8px;
+.live-band-leave-to {
+  opacity: 0;
 }
 
-.task-pill.is-in-progress {
-  color: var(--info);
-  background: color-mix(in srgb, var(--info) 12%, transparent);
+@media (prefers-reduced-motion: reduce) {
+  .live-band-enter-active,
+  .live-band-leave-active {
+    transition: none;
+  }
 }
 
 @media (max-width: 860px) {

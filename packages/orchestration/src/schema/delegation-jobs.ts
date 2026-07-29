@@ -14,7 +14,7 @@
 // `schedule_runs.chatSessionId`. Indexes via the `index()` helper. Phase 1
 // SYNC repo discipline applies.
 
-import { table, id, text, timestamp, index } from '@vynel/db/dialect'
+import { table, id, text, timestamp, integer, index } from '@vynel/db/dialect'
 import { users } from '@vynel/db/schema/users'
 import { workspaces } from '@vynel/db/schema/workspaces'
 import type { ThinkingEffortLevel } from '@vynel/contracts/chat/thinking-effort'
@@ -120,6 +120,17 @@ export const delegationJobs = table(
     // would ALSO have its chat reply scraped and sent, waking the requester
     // twice with overlapping content.
     reportedAt: timestamp(),
+    // RETRY bookkeeping (recoverable-failure requeue — the channels outbound
+    // shape). All nullable so the migration stays a pure additive ALTER:
+    // NULL attemptCount reads as 0; NULL nextAttemptAt reads as "due now".
+    attemptCount: integer(),
+    // When a requeued row becomes claimable again (backoff). The claim gates on
+    // it; legacy/first-attempt rows carry NULL and are always due.
+    nextAttemptAt: timestamp(),
+    // The structured failure code from the last attempt (the provider's
+    // session-errored errorCode / 'provider_start_timeout' / an Error name) —
+    // what the retry classifier decided on; errorMessage stays the prose.
+    errorCode: text(),
     createdAt: timestamp().notNull(),
   },
   (t) => ({
@@ -128,6 +139,8 @@ export const delegationJobs = table(
     userIdx: index('idx_delegation_jobs_user').on(t.userId),
     // The chain read: every hop of one thread, oldest first.
     threadIdx: index('idx_delegation_jobs_thread').on(t.threadId, t.createdAt),
+    // The retry claim: due-time gate rides beside the status filter.
+    readyIdx: index('idx_delegation_jobs_ready').on(t.status, t.nextAttemptAt),
   }),
 )
 

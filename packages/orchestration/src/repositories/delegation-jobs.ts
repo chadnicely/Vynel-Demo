@@ -8,7 +8,20 @@
 //
 // Spec: the `orchestration` domain (Chapter 1 — async core).
 
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, notInArray, or } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  notInArray,
+  or,
+} from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   delegationJobs,
@@ -121,6 +134,12 @@ export function claimNextPendingDelegationJob(
   // those rows explicitly: a row passes only if it has SOME target column, or
   // isn't a report-delivery row at all (legacy NULL kind = task).
   const globalDeliveryHeld = excludeTargetKeys.includes(GLOBAL_ROOT_DELIVERY_TARGET_KEY)
+  // Retry backoff gate: a requeued row waits out its `nextAttemptAt` before it
+  // is claimable again; NULL (legacy/first attempt) is always due.
+  const dueNow = or(
+    isNull(delegationJobs.nextAttemptAt),
+    lte(delegationJobs.nextAttemptAt, claimedAt),
+  )
   const [candidate] = db
     .select()
     .from(delegationJobs)
@@ -128,6 +147,7 @@ export function claimNextPendingDelegationJob(
       excludeTargetKeys.length > 0
         ? and(
             eq(delegationJobs.status, 'pending'),
+            dueNow,
             or(
               isNull(delegationJobs.workspaceId),
               notInArray(delegationJobs.workspaceId, [...excludeTargetKeys]),
@@ -147,7 +167,7 @@ export function claimNextPendingDelegationJob(
                 ]
               : []),
           )
-        : eq(delegationJobs.status, 'pending'),
+        : and(eq(delegationJobs.status, 'pending'), dueNow),
     )
     .orderBy(asc(delegationJobs.createdAt), asc(delegationJobs.id))
     .limit(1)
@@ -183,14 +203,52 @@ export function failDelegationJob(
   id: string,
   errorMessage: string,
   completedAt: Date,
+  options: { errorCode?: string } = {},
 ): DelegationJob {
   const [updated] = db
     .update(delegationJobs)
-    .set({ status: 'failed', errorMessage, completedAt })
+    .set({
+      status: 'failed',
+      errorMessage,
+      completedAt,
+      ...(options.errorCode !== undefined ? { errorCode: options.errorCode } : {}),
+    })
     .where(eq(delegationJobs.id, id))
     .returning()
     .all()
   if (!updated) throw new Error(`failDelegationJob: no row for ${id}`)
+  return updated
+}
+
+/** Requeue a claimed job for another attempt (recoverable failure — rate limit,
+ *  network, provider start timeout): back to `pending` with the attempt counter
+ *  bumped and a backoff deadline the claim gates on. The channels outbound
+ *  retry shape, applied to delegation. The tick owns the row (claimed), so this
+ *  is a plain update, not a CAS. */
+export function requeueDelegationJob(
+  db: Database,
+  id: string,
+  input: {
+    errorMessage: string
+    errorCode: string | null
+    attemptCount: number
+    nextAttemptAt: Date
+  },
+): DelegationJob {
+  const [updated] = db
+    .update(delegationJobs)
+    .set({
+      status: 'pending',
+      claimedAt: null,
+      errorMessage: input.errorMessage,
+      errorCode: input.errorCode,
+      attemptCount: input.attemptCount,
+      nextAttemptAt: input.nextAttemptAt,
+    })
+    .where(eq(delegationJobs.id, id))
+    .returning()
+    .all()
+  if (!updated) throw new Error(`requeueDelegationJob: no row for ${id}`)
   return updated
 }
 

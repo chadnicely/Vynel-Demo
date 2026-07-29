@@ -4,6 +4,7 @@ import type { SessionActivityEvent } from "@vynel/contracts/chat/session-activit
 import { useVynel } from "../use-vynel.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { useDesktopActivityStore } from "../../stores/desktop-activity-store.js";
+import { useTurnNarrationStore } from "../../stores/turn-narration-store.js";
 import { sessionKeys } from "../chat/session-keys.js";
 import { workspaceKeys } from "../workspaces/workspace-keys.js";
 import { approvalKeys } from "../approvals/approval-keys.js";
@@ -27,6 +28,7 @@ export function useSessionActivityFeed() {
   const vynel = useVynel();
   const activity = useActivityStore();
   const desktopActivity = useDesktopActivityStore();
+  const narration = useTurnNarrationStore();
   const queryClient = useQueryClient();
 
   let disposed = false;
@@ -62,6 +64,7 @@ export function useSessionActivityFeed() {
         for await (const event of readSessionActivityEvents(data)) {
           activity.applyServerActivity(event);
           desktopActivity.apply(event);
+          narration.apply(event);
           if (
             event.kind === "turn-approval-requested" ||
             event.kind === "turn-approval-resolved"
@@ -83,6 +86,7 @@ export function useSessionActivityFeed() {
       }
       activity.resetServerTurns();
       desktopActivity.reset();
+      narration.reset();
       if (disposed) break;
       attempt += 1;
       const delayMs = Math.min(
@@ -99,5 +103,6 @@ export function useSessionActivityFeed() {
     abortController?.abort();
     activity.resetServerTurns();
     desktopActivity.reset();
+    narration.reset();
   });
 }

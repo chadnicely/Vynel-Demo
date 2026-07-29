@@ -761,6 +761,9 @@ importers:
       '@vynel/logger':
         specifier: workspace:*
         version: link:../logger
+      '@vynel/orchestration':
+        specifier: workspace:*
+        version: link:../orchestration
     devDependencies:
       '@vynel/testing':
         specifier: workspace:*

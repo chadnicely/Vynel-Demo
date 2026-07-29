@@ -34,7 +34,10 @@ import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { renderSchedulePrompt } from '../rendering/render-schedule-prompt.js'
 import { renderScheduleChannelMessage } from '../rendering/render-schedule-channel-message.js'
 import { extractErrorMessage } from '../extract-error-message.js'
-import { SCHEDULE_RUN_COMPLETED_EVENT_TYPE } from '../schedules-events.js'
+import {
+  SCHEDULE_RUN_COMPLETED_EVENT_TYPE,
+  SCHEDULE_RUN_FAILED_EVENT_TYPE,
+} from '../schedules-events.js'
 import type { Database } from '@vynel/db'
 import type { ScheduleRun, ScheduleRunTriggerKind } from '../repositories/index.js'
 import type { FireScheduleDeps } from '../schedules-types.js'
@@ -222,15 +225,35 @@ export async function fireSchedule(
     deps.logger?.info({ scheduleId: schedule.id, runId, chatSessionId }, 'schedule fired')
     return schedulesRepository.getScheduleRunByIdOrThrow(db, runId)
   } catch (err) {
-    schedulesRepository.updateScheduleRun(db, runId, {
-      status: 'failed',
-      statusMessage: extractErrorMessage(err),
-      completedAt: new Date(),
+    const errorMessage = extractErrorMessage(err)
+    const failedAt = new Date()
+    // The failed run and its outbox event co-commit — a failure the user never
+    // hears about is the bug this event exists to fix (the run row has no UI;
+    // core's registry turns the event into a global-root report delivery, and
+    // monitors can watch it).
+    withTransaction(db, (tx) => {
+      schedulesRepository.updateScheduleRun(tx, runId, {
+        status: 'failed',
+        statusMessage: errorMessage,
+        completedAt: failedAt,
+      })
+      insertOutboxEvent(tx, {
+        id: randomUUID(),
+        type: SCHEDULE_RUN_FAILED_EVENT_TYPE, // 'schedule.run-failed'
+        payload: {
+          scheduleId: schedule.id,
+          runId,
+          userId: schedule.userId,
+          workspaceId: schedule.workspaceId,
+          scheduleDisplayName: schedule.displayName,
+          errorMessage,
+          firedAt: input.scheduledFireAt.toISOString(),
+        },
+        createdAt: failedAt,
+        processedAt: null,
+      })
     })
-    deps.logger?.warn(
-      { error: extractErrorMessage(err), scheduleId: schedule.id, runId },
-      'schedule fire failed',
-    )
+    deps.logger?.warn({ error: errorMessage, scheduleId: schedule.id, runId }, 'schedule fire failed')
     return schedulesRepository.getScheduleRunByIdOrThrow(db, runId)
   }
 }

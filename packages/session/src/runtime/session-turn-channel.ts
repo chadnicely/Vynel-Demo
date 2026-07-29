@@ -17,7 +17,12 @@ export function sessionChannelKey(sessionId: string): string {
 // earliest frames — `user-message-persisted` is EVERY turn's first event
 // (fresh and resumed alike), so the channel keys from frame one.
 function sessionIdOf(event: ChatTurnEvent): string | null {
-  if ('sessionId' in event && typeof event.sessionId === 'string') return event.sessionId
+  // Non-empty only: a pre-session `session-errored` carries sessionId '' — the
+  // one-shot key resolution below would otherwise lock the whole turn onto the
+  // garbage 'session:' channel and no watcher would ever see it.
+  if ('sessionId' in event && typeof event.sessionId === 'string' && event.sessionId !== '') {
+    return event.sessionId
+  }
   if (event.kind === 'user-message-persisted') return event.message.sessionId
   if (event.kind === 'session-created') return event.session.id
   return null

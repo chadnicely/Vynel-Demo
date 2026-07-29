@@ -19,6 +19,7 @@
 // the stream (errored-message marking).
 
 import * as chatRepository from '../repositories/index.js'
+import { withTransaction } from '@vynel/db'
 import type { Database } from '@vynel/db'
 import type {
   ApprovalStatus,
@@ -66,6 +67,11 @@ export type ConsumeSessionEventStreamInput = {
   workspacePath?: string
   providerId: AiAgentProviderId
   isNewSession: boolean
+  /** The session this turn resumes (when known). Enables the durability-first
+   *  write: the user row persists BEFORE provider startup — the unbounded
+   *  spawn/auth/resume round-trip — so a hung or failed start never loses the
+   *  message. New sessions still defer to `session-started` (no FK target yet). */
+  resumeSessionId?: string
   /** Presentation overrides for the new-session row (the brain passes hidden +
    *  'Global brain' + skipAutoTitle). Omitted by the workspace path → defaults. */
   newSessionOptions?: NewSessionOptions
@@ -126,6 +132,42 @@ export async function* consumeSessionEventStream(
 
   let sessionId: string | null = null
   let userMessage: ChatMessage | null = null
+
+  // Durability-first: a RESUMED turn's user row persists before the provider
+  // starts (the historical hang point sat between send and persist, losing the
+  // message on every stuck start). Emitted immediately so the client renders it
+  // without waiting on the SDK.
+  if (input.resumeSessionId !== undefined) {
+    const existingSession = chatRepository.findChatSessionById(db, input.resumeSessionId)
+    if (existingSession !== null) {
+      const resumeSessionId = input.resumeSessionId
+      const now = new Date()
+      userMessage = withTransaction(db, (tx) => {
+        const inserted = chatRepository.insertChatMessage(tx, {
+          id: userMessageInput.id,
+          sessionId: resumeSessionId,
+          role: 'user',
+          body: userMessageInput.body,
+          sourceKind: messageAttribution?.userSourceKind ?? null,
+          sourceLabel: messageAttribution?.userSourceLabel ?? null,
+          partialSessionId: messageAttribution?.partialSessionId ?? null,
+          originChannel: userMessageInput.originChannel ?? null,
+          thinkingBody: null,
+          inputTokens: null,
+          outputTokens: null,
+          attachedImagesMetadata: userMessageInput.attachedImagesMetadata,
+          errorCode: null,
+          errorMessage: null,
+          startedAt: now,
+          completedAt: now, // user messages are "complete" immediately
+          createdAt: now,
+        })
+        chatRepository.updateChatSession(tx, resumeSessionId, { lastMessageAt: now })
+        return inserted
+      })
+      yield { kind: 'user-message-persisted', message: userMessage }
+    }
+  }
   // The model the session ran with — reported on every assistant message;
   // persisted once on the session (the UI context-window denominator).
   let sessionModel: string | null = null
@@ -157,6 +199,7 @@ export async function* consumeSessionEventStream(
             workspaceId,
             providerId,
             isNewSession,
+            ...(userMessage !== null ? { alreadyPersistedUserMessage: userMessage } : {}),
             ...(newSessionOptions !== undefined ? { newSessionOptions } : {}),
             ...(messageAttribution !== undefined ? { messageAttribution } : {}),
           })
@@ -390,14 +433,16 @@ export async function* consumeSessionEventStream(
               completedAt: new Date(),
             })
           }
-          if (sessionId) {
-            yield {
-              kind: 'session-errored',
-              sessionId,
-              errorCode: event.errorCode,
-              errorMessage: event.errorMessage,
-              isRecoverable: event.isRecoverable,
-            }
+          // ALWAYS reaches the client — a failure before `session-started`
+          // (spawn/auth/resume) used to be silently swallowed here, leaving the
+          // composer "working" forever with the message unexplained. An empty
+          // sessionId mirrors the provider's own pre-session error shape.
+          yield {
+            kind: 'session-errored',
+            sessionId: sessionId ?? input.resumeSessionId ?? '',
+            errorCode: event.errorCode,
+            errorMessage: event.errorMessage,
+            isRecoverable: event.isRecoverable,
           }
           break
         }

@@ -97,19 +97,39 @@ describe('fireSchedule', () => {
     })
   })
 
-  it('marks the run failed (and publishes no event) on a provider error', async () => {
+  // test: correct expectation — a failure now co-commits a `schedule.run-failed`
+  // outbox event (core routes it into a global-root report delivery so the user
+  // hears about it); was: failure published nothing at all.
+  it('marks the run failed and publishes the run-failed event (never the completed one)', async () => {
     startChatTurn.mockImplementation(() => erroredChatTurn())
     await withTestDatabase(async (db) => {
       const schedule = seedChatAndChannelSchedule(db)
       const deps = { ...stubFireDeps(), startChatTurn }
       const run = await fireSchedule(
         db,
-        { scheduleId: schedule.id, scheduledFireAt: new Date(), triggerKind: 'poll' },
+        { scheduleId: schedule.id, scheduledFireAt: new Date('2026-06-05T08:00:00Z'), triggerKind: 'poll' },
         deps,
       )
       expect(run.status).toBe('failed')
       expect(run.statusMessage).toContain('model unavailable')
       expect(listOutboxEventsByType(db, 'schedule.run-completed')).toHaveLength(0)
+
+      const failedEvents = listOutboxEventsByType(db, 'schedule.run-failed')
+      expect(failedEvents).toHaveLength(1)
+      const payload = failedEvents[0]!.payload as {
+        scheduleId: string
+        runId: string
+        userId: string
+        scheduleDisplayName: string
+        errorMessage: string
+        firedAt: string
+      }
+      expect(payload.scheduleId).toBe(schedule.id)
+      expect(payload.runId).toBe(run.id)
+      expect(payload.userId).toBe(schedule.userId)
+      expect(payload.scheduleDisplayName).toBe(schedule.displayName)
+      expect(payload.errorMessage).toContain('model unavailable')
+      expect(payload.firedAt).toBe('2026-06-05T08:00:00.000Z')
     })
   })
 

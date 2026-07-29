@@ -150,6 +150,12 @@ class GlobalRootDrainSink implements SessionSink {
       // resumed turn without a session id and `requireResult` would throw.
       this.sessionId = event.message.sessionId
       this.activity?.sessionResolved(event.message.sessionId)
+    } else if (event.kind === 'session-created') {
+      // A fresh root or a mid-turn swap — follow it so the result reports the
+      // segment the reply actually landed on (user-message-persisted now
+      // arrives first, carrying the pre-swap id on resumed turns).
+      this.sessionId = event.session.id
+      this.activity?.sessionResolved(event.session.id)
     } else if (event.kind === 'text-chunk') {
       this.resultText += event.textDelta
     } else if (event.kind === 'approval-requested') {

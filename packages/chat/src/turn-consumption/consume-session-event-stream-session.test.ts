@@ -296,6 +296,123 @@ describe('consumeSessionEventStream — session lifecycle', () => {
     })
   })
 
+  it('resume durability: persists the user message BEFORE any provider event (a hung/dead start never loses it)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      insertChatSession(db, {
+        ...makeExistingSession(user.id, ws.id, 'session-hang'),
+        totalMessageCount: 2,
+        lastMessageAt: new Date('2026-04-15T00:00:00Z'),
+      })
+      const userMessageInput = makeUserMessageInput('Please survive')
+
+      // The provider produces NOTHING — the stuck-start shape (spawn/auth/
+      // resume hung, stream torn down with zero events).
+      const events = await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([]),
+          userMessageInput,
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: false,
+          resumeSessionId: 'session-hang',
+        }),
+      )
+
+      const userMsg = findChatMessageById(db, userMessageInput.id)
+      expect(userMsg?.sessionId).toBe('session-hang')
+      expect(userMsg?.body).toBe('Please survive')
+      expect(events.map((e) => e.kind)).toEqual(['user-message-persisted'])
+    })
+  })
+
+  it('resume durability: session-started on the SAME session does not double-insert or re-emit', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      insertChatSession(db, {
+        ...makeExistingSession(user.id, ws.id, 'session-resume-ok'),
+        totalMessageCount: 2,
+        lastMessageAt: new Date('2026-04-15T00:00:00Z'),
+      })
+      const userMessageInput = makeUserMessageInput('Once only')
+
+      const events = await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-resume-ok',
+              resumedFromExisting: true,
+              startedAt: new Date('2026-05-20T00:00:00Z'),
+            },
+            {
+              kind: 'session-completed',
+              sessionId: 'session-resume-ok',
+              isNewSession: false,
+              completedAt: new Date('2026-05-20T00:01:00Z'),
+            },
+          ]),
+          userMessageInput,
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: false,
+          resumeSessionId: 'session-resume-ok',
+        }),
+      )
+
+      expect(events.filter((e) => e.kind === 'user-message-persisted')).toHaveLength(1)
+      const userMsg = findChatMessageById(db, userMessageInput.id)
+      expect(userMsg?.sessionId).toBe('session-resume-ok')
+    })
+  })
+
+  it('a PRE-session error is yielded, never swallowed (was: dropped when no session id had resolved)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      const userMessageInput = makeUserMessageInput('Doomed send')
+
+      const events = await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-errored',
+              sessionId: '',
+              errorCode: 'provider_start_timeout',
+              errorMessage: 'The Claude engine did not respond.',
+              isRecoverable: true,
+              erroredAt: new Date(),
+            },
+          ]),
+          userMessageInput,
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      const yielded = events.find((e) => e.kind === 'session-errored')
+      expect(yielded).toBeDefined()
+      expect(
+        (yielded as Extract<ChatTurnEvent, { kind: 'session-errored' }>).errorCode,
+      ).toBe('provider_start_timeout')
+    })
+  })
+
   it('persists attached image bytes to the session images dir on session-started', async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()

@@ -27,6 +27,7 @@ import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AppEnv } from '../factory.js'
 import { buildWorkspaceBackgroundMcpComposer } from '../sessions/build-workspace-background-mcp.js'
 import { resolveSpawnedSessionRunCwd } from '../sessions/spawned-session-ground.js'
+import { writeSseSafely } from './write-sse-safely.js'
 import type { StartSessionTurnRequestSchema } from '../routes/sessions/schemas.js'
 
 type StartSessionTurnInput = z.infer<typeof StartSessionTurnRequestSchema>
@@ -169,8 +170,25 @@ export async function streamSpawnedSessionTurn(
           }
           await stream.writeSSE({ event: event.kind, data: JSON.stringify(event) })
         }
-        await stream.writeSSE({ event: 'turn-stream-ended', data: '{}' })
+      } catch (err) {
+        // A mid-stream throw must still reach the client as typed frames — a
+        // bare socket close leaves the composer "working" forever.
+        logger.error({ err }, 'session turn stream failed mid-flight')
+        await writeSseSafely(
+          stream,
+          'session-errored',
+          JSON.stringify({
+            kind: 'session-errored',
+            sessionId: resumeSessionId,
+            errorCode: 'turn-stream-failed',
+            errorMessage: err instanceof Error ? err.message : String(err),
+            isRecoverable: false,
+          }),
+          logger,
+        )
       } finally {
+        // The terminal frame fires on EVERY exit (clean, thrown, disconnect).
+        await writeSseSafely(stream, 'turn-stream-ended', '{}', logger)
         // Fires even on client disconnect (generator cleanup). Best-effort.
         activity.end()
       }
