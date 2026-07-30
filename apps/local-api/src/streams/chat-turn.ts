@@ -30,6 +30,7 @@ import { findChatSessionById } from '@vynel/chat/repositories'
 import type { AppEnv } from '../factory.js'
 import { loadEnv } from '../env.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
+import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import type { z } from 'zod'
 import type { StartChatTurnRequestSchema } from '../routes/chat/schemas.js'
@@ -188,6 +189,8 @@ export async function streamChatTurn(
         // Only attach when the workspace has enabled agents — keep the SDK
         // options clean for the common no-agents turn.
         ...(Object.keys(sessionAgents).length > 0 ? { agents: sessionAgents } : {}),
+        // Persist the roster the engine reports — feeds the model picker.
+        onModelsDiscovered: buildRecordDiscoveredModels(c.var.db, c.var.user.id, c.var.logger),
       },
       // turnEvents: the turn tees onto its session channel (Watch everywhere).
       { logger: c.var.logger, turnEvents: c.var.turnEvents },

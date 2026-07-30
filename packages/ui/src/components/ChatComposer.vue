@@ -2,6 +2,8 @@
 export interface ComposerOption {
   id: string;
   label: string;
+  /** Right-aligned dim annotation on the menu row (a model's context window). */
+  hint?: string;
 }
 </script>
 
@@ -23,6 +25,8 @@ const props = withDefaults(
   streaming?: boolean | undefined;
   models: ComposerOption[];
   modelId: string;
+  /** Older-generation models behind the picker's collapsed "More models". */
+  moreModels?: ComposerOption[] | undefined;
   modes: ComposerOption[];
   modeId: string;
   /** Thinking-effort choices — the chip renders only when both are provided. */
@@ -223,6 +227,8 @@ function onDrop(event: DragEvent) {
 
       <SelectChip
         :options="props.models"
+        :more-options="props.moreModels"
+        more-label="More models"
         :model-value="props.modelId"
         label="Model"
         opens-up

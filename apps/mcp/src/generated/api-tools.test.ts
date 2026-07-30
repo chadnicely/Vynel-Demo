@@ -39,7 +39,10 @@ import {
 //     mutating create/update/enable/disable/delete routes carry NO x-mcp.
 //   - the 2026-07-05 API-completion waves: memory (2 reads + create_memory_entry
 //     mutatingApproved), chat (3 reads), workspaces (2 reads), users (2 reads),
-//     providers (3 reads). Approvals routes carry NO x-mcp at all (the agent
+//     providers (3 reads; +list_available_chat_models 2026-07-31 — the
+//     discovered model roster, how agents learn legal `model` values now that
+//     the request schemas dropped the closed enum). Approvals routes carry NO
+//     x-mcp at all (the agent
 //     never sees the approval surface); files/agents/capabilities/onboarding/
 //     dashboard/root likewise expose nothing.
 //   - the 2026-07-11 memory-tags round: +list_memory_tags (read) +
@@ -118,6 +121,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_ai_agent_providers',
   'list_allowed_senders',
   'list_apps',
+  'list_available_chat_models',
   'list_available_skills',
   'list_capabilities',
   'list_channels',

@@ -42,6 +42,7 @@
     "@vynel/onboarding": "workspace:*",
     "@vynel/orchestration": "workspace:*",
     "@vynel/plans": "workspace:*",
+    "@vynel/provider-preferences": "workspace:*",
     "@vynel/providers": "workspace:*",
     "@vynel/schedules": "workspace:*",
     "@vynel/session": "workspace:*",

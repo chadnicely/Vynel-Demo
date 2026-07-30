@@ -8,7 +8,6 @@ import {
 } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import type { ChatTurnEvent } from "@vynel/contracts/chat/chat-http";
-import type { ChatModelId } from "@vynel/contracts/chat/chat-models";
 import { useVynel } from "../use-vynel.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import { useActivityStore } from "../../stores/activity-store.js";
@@ -77,8 +76,9 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
         body: {
           userMessageText,
           // The shared composer selections — the same trio every chat turn
-          // sends (the ui-store restores fail-closed, so the cast is honest).
-          model: ui.composerModelId as ChatModelId,
+          // sends. Plain string since the roster went dynamic (the ui-store
+          // restore shape-checks it; the engine is the real validator).
+          model: ui.composerModelId,
           mode: ui.composerMode,
           thinkingEffort: ui.composerThinkingEffort,
         },

@@ -3,10 +3,16 @@ import { computed, ref, watch } from "vue";
 import { ChatComposer } from "@vynel/ui";
 import { SESSION_MODES } from "@vynel/session";
 import type { SessionMode } from "@vynel/session";
-import { CHAT_MODELS } from "@vynel/contracts/chat/chat-models";
+import {
+  availableChatModelsFloor,
+  formatContextWindow,
+  groupAvailableModels,
+  type AvailableChatModel,
+} from "@vynel/contracts/chat/available-models";
 import { THINKING_EFFORT_OPTIONS } from "@vynel/contracts/chat/thinking-effort";
 import { useUiStore } from "../../stores/ui-store.js";
 import type { ComposerThinkingEffort } from "../../stores/ui-store.js";
+import { useAvailableModels } from "../../composables/models/use-available-models.js";
 import { useDictation } from "../../composables/voice/use-dictation.js";
 import { filesToTurnAttachments } from "../../composables/chat/turn-attachments.js";
 import type { TurnAttachmentInput } from "../../composables/chat/turn-attachments.js";
@@ -56,8 +62,24 @@ watch(
   { immediate: true },
 );
 
-// The composer prop is mutable; the contract list is readonly — copy once.
-const modelOptions = [...CHAT_MODELS];
+// The model picker: the engine-discovered roster (current generation first,
+// older behind "More models"), each row annotated with its context window;
+// the contracts' static floor until the first discovery lands.
+const availableModelsQuery = useAvailableModels();
+const groupedModels = computed(() =>
+  groupAvailableModels(
+    availableModelsQuery.data.value?.models ?? availableChatModelsFloor(),
+  ),
+);
+function toComposerOption(model: AvailableChatModel) {
+  return {
+    id: model.id,
+    label: model.label,
+    hint: formatContextWindow(model.contextWindowTokens),
+  };
+}
+const modelOptions = computed(() => groupedModels.value.current.map(toComposerOption));
+const moreModelOptions = computed(() => groupedModels.value.more.map(toComposerOption));
 
 const modeOptions = SESSION_MODES.map((mode) => ({
   id: mode.mode,
@@ -101,6 +123,7 @@ async function onSend(text: string, files: File[]) {
     :placeholder="props.placeholder"
     :streaming="props.streaming"
     :models="modelOptions"
+    :more-models="moreModelOptions"
     :model-id="ui.composerModelId"
     :modes="modeOptions"
     :mode-id="ui.composerMode"

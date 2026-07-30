@@ -257,6 +257,9 @@ importers:
       '@vynel/plans':
         specifier: workspace:*
         version: link:../../packages/plans
+      '@vynel/provider-preferences':
+        specifier: workspace:*
+        version: link:../../packages/provider-preferences
       '@vynel/providers':
         specifier: workspace:*
         version: link:../../packages/providers
@@ -1154,6 +1157,9 @@ importers:
 
   packages/provider-preferences:
     dependencies:
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@vynel/db':
         specifier: workspace:*
         version: link:../db

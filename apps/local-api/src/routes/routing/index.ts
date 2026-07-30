@@ -149,7 +149,8 @@ export const routingApp = factory
           'approval card appears in the app and, for a channel request, in that channel; the task ' +
           'continues once they decide. You may pick the model and thinkingEffort for the task: ' +
           'choose a cheaper model / lower effort for routine tasks, a stronger model / higher ' +
-          'effort for hard ones; omit both for the defaults.',
+          'effort for hard ones; omit both for the defaults. Legal model ids come from ' +
+          'list_available_chat_models.',
       },
     }),
     validator('json', RouteToWorkspaceRequestSchema),
@@ -209,7 +210,7 @@ export const routingApp = factory
           'action PAUSES for the user to approve; the task continues once they decide. You may ' +
           'pick the model and thinkingEffort for the task: choose a cheaper model / lower effort ' +
           'for routine tasks, a stronger model / higher effort for hard ones; omit both for the ' +
-          'defaults.',
+          'defaults. Legal model ids come from list_available_chat_models.',
       },
     }),
     validator('json', SendTaskToSessionRequestSchema),
@@ -546,7 +547,9 @@ export const routingApp = factory
           'Returns IMMEDIATELY with { status: "enqueued", jobId }; the other session picks the ' +
           'message up in its own conversation shortly. Track a task you sent with ' +
           'list_background_runs / get_background_run. Reporting only works on a background ' +
-          '(delegated) turn — if there is no requester, just reply with your findings as text.',
+          '(delegated) turn — if there is no requester, just reply with your findings as text. ' +
+          'For a task you may pick `model` (legal ids from list_available_chat_models) and ' +
+          '`thinkingEffort`; omit both for the defaults.',
       },
     }),
     validator('json', SendMessageRequestSchema),

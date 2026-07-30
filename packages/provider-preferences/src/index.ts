@@ -26,3 +26,7 @@ export { getDefaultProviderForUser } from './get-default-provider-for-user.js'
 
 export { setDefaultProviderForUser } from './set-default-provider-for-user.js'
 export type { SetDefaultProviderForUserInput } from './set-default-provider-for-user.js'
+
+// The engine-reported model roster (feeds the model picker).
+export { recordDiscoveredModels, findDiscoveredModels } from './discovered-models.js'
+export type { RecordDiscoveredModelsInput } from './discovered-models.js'

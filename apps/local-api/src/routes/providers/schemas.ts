@@ -43,3 +43,19 @@ export const InstalledSkillResponseSchema = z.object({
 export const ListProvidersWithStatusResponseSchema = z.array(AuthenticationStatusResponseSchema)
 
 export const DiscoverInstalledSkillsResponseSchema = z.array(InstalledSkillResponseSchema)
+
+// The model roster (`GET /:providerId/models`) — mirrors the contracts'
+// `AvailableChatModel` (discovered fields + read-time-derived context window).
+export const AvailableChatModelSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  description: z.string().nullable(),
+  supportedEffortLevels: z.array(z.enum(['low', 'medium', 'high', 'xhigh', 'max'])).nullable(),
+  contextWindowTokens: z.number(),
+})
+
+export const ListAvailableModelsResponseSchema = z.object({
+  models: z.array(AvailableChatModelSchema),
+  /** False while the picker is still on the static floor (engine never asked). */
+  isDiscovered: z.boolean(),
+})

@@ -1233,6 +1233,39 @@ export const listApps: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listAvailableChatModels: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_available_chat_models',
+    "List the chat models the AI engine reports it can run — the legal values for any `model` field. Each entry carries id, label, description, context-window tokens, and supported effort levels. Read-only.",
+    {
+    providerId: z.enum(['claude', 'codex', 'gemini', 'cursor']),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/providers/{providerId}/models'
+        pathStr = pathStr.replace('{providerId}', encodeURIComponent(String(args['providerId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const listAvailableSkills: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_available_skills',
@@ -2542,11 +2575,11 @@ export const searchMemory: McpToolFactory = (scope, app) =>
 export const sendMessage: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'send_message',
-    "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to a session you created (ids from list_sessions).\n- `\"requester\"` — pass your RESULT back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\n`body` is the task, or the real result — findings, numbers, paths, not just \"done\". Returns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_background_runs / get_background_run. Reporting only works on a background (delegated) turn — if there is no requester, just reply with your findings as text.",
+    "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to a session you created (ids from list_sessions).\n- `\"requester\"` — pass your RESULT back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\n`body` is the task, or the real result — findings, numbers, paths, not just \"done\". Returns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_background_runs / get_background_run. Reporting only works on a background (delegated) turn — if there is no requester, just reply with your findings as text. For a task you may pick `model` (legal ids from list_available_chat_models) and `thinkingEffort`; omit both for the defaults.",
     {
     to: z.string(),
     body: z.string(),
-    model: z.enum(['claude-fable-5', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5']).optional(),
+    model: z.string().optional(),
     thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   },
     async (args: Record<string, unknown>) => {
@@ -2581,12 +2614,12 @@ export const sendMessage: McpToolFactory = (scope, app) =>
 export const sendTaskToSession: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'send_task_to_session',
-    "SUPERSEDED by send_message — prefer that one; this still works but will be removed. Hand a task to a session you created with create_session (its continuing conversation, with its primed purpose and everything it has done since). Use list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to a session with room, or create a new one. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the session runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. Tasks sent to the SAME session run one at a time, in order; different sessions run in parallel. If the task needs an irreversible action, that action PAUSES for the user to approve; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults.",
+    "SUPERSEDED by send_message — prefer that one; this still works but will be removed. Hand a task to a session you created with create_session (its continuing conversation, with its primed purpose and everything it has done since). Use list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to a session with room, or create a new one. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the session runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. Tasks sent to the SAME session run one at a time, in order; different sessions run in parallel. If the task needs an irreversible action, that action PAUSES for the user to approve; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults. Legal model ids come from list_available_chat_models.",
     {
     targetSessionId: z.string(),
     task: z.string(),
     workspaceId: z.string().optional(),
-    model: z.enum(['claude-fable-5', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5']).optional(),
+    model: z.string().optional(),
     thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   },
     async (args: Record<string, unknown>) => {
@@ -2624,11 +2657,11 @@ export const sendTaskToSession: McpToolFactory = (scope, app) =>
 export const sendTaskToWorkspace: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'send_task_to_workspace',
-    "SUPERSEDED by send_message — prefer that one; this still works but will be removed. Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. If the task needs an irreversible action (write or edit a file, delete, run a shell command), that action PAUSES for the user to approve — the approval card appears in the app and, for a channel request, in that channel; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults.",
+    "SUPERSEDED by send_message — prefer that one; this still works but will be removed. Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. If the task needs an irreversible action (write or edit a file, delete, run a shell command), that action PAUSES for the user to approve — the approval card appears in the app and, for a channel request, in that channel; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults. Legal model ids come from list_available_chat_models.",
     {
     targetWorkspaceId: z.string(),
     task: z.string(),
-    model: z.enum(['claude-fable-5', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5']).optional(),
+    model: z.string().optional(),
     thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   },
     async (args: Record<string, unknown>) => {
@@ -3201,6 +3234,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   listAiAgentProviders,
   listAllowedSenders,
   listApps,
+  listAvailableChatModels,
   listAvailableSkills,
   listCapabilities,
   listChannels,

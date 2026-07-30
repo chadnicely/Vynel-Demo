@@ -7,7 +7,7 @@
 // Per blueprint §7.1.
 
 import { z } from 'zod'
-import { CHAT_MODEL_IDS } from '@vynel/contracts/chat/chat-models'
+import { ChatModelIdSchema } from '@vynel/contracts/chat/chat-models'
 import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
 import { SESSION_MODES, type SessionMode } from '@vynel/session'
 
@@ -82,12 +82,10 @@ export const StartChatTurnRequestSchema = z.object({
   // composer enforces "text or image". Capped to bound the request body.
   userMessageText: z.string().max(50000),
   attachedImages: z.array(AttachedImageInputSchema).max(MAX_ATTACHED_IMAGES).optional(),
-  // The model to run this turn (the per-chat picker). Validated against the
-  // curated allowlist; omit to inherit the Claude Code default.
-  model: z
-    .string()
-    .refine((value) => (CHAT_MODEL_IDS as readonly string[]).includes(value), 'Unsupported model.')
-    .optional(),
+  // The model to run this turn (the per-chat picker). Shape-validated — the
+  // legal values are discovered (providers.listModels); omit to inherit the
+  // Claude Code default.
+  model: ChatModelIdSchema.optional(),
   // Reasoning effort for this turn (the composer's picker; Slice ③). Omitted =
   // Auto (the SDK's adaptive default — unchanged behavior).
   thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),

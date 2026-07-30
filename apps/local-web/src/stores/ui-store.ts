@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import { WORKSPACE_ACCENT_SLOTS } from "@vynel/ui";
 import { DEFAULT_SESSION_MODE, SESSION_MODES } from "@vynel/session";
 import type { SessionMode } from "@vynel/session";
-import { CHAT_MODELS, DEFAULT_CHAT_MODEL } from "@vynel/contracts/chat/chat-models";
+import { CHAT_MODEL_ID_PATTERN, DEFAULT_CHAT_MODEL } from "@vynel/contracts/chat/chat-models";
 import {
   DEFAULT_THINKING_EFFORT,
   THINKING_EFFORT_OPTIONS,
@@ -77,8 +77,11 @@ function readStoredComposerMode(): SessionMode {
 
 function readStoredComposerModel(): string {
   const stored = localStorage.getItem(COMPOSER_MODEL_STORAGE_KEY);
-  return CHAT_MODELS.some((model) => model.id === stored)
-    ? (stored as string)
+  // Shape-checked, not allowlist-checked: the roster is DISCOVERED now, so a
+  // valid pick (e.g. a newly shipped model) may not be in the static floor.
+  // Junk still fails closed to the default.
+  return stored !== null && CHAT_MODEL_ID_PATTERN.test(stored)
+    ? stored
     : DEFAULT_CHAT_MODEL;
 }
 

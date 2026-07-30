@@ -57,6 +57,23 @@ rows-first then re-subscribes; elapsed seeded from `serverTurnForSession` (new
 activity-store selector). Reviewer blocker fixed: stale seed resurrecting the overlay
 post-turn (`isStreamLive` guard + regression test). Gate green (3369).
 
+**✅ DYNAMIC MODEL ROSTER (2026-07-31, Chad: "load models automatically; current first,
+older under More; show context").** The hardcoded 4-model tuple (stale — no Opus 5/Sonnet
+5) replaced by engine discovery: the Agent SDK's `initializationResult().models` (what the
+user's engine + account actually serve) is captured on every interactive turn via a new
+`onModelsDiscovered` seam callback (the onCompaction shape; providers stays contracts-free
+via the structural `DiscoveredProviderModel` twin; `mapClaudeModelInfo` canonicalizes alias
+rows). Persisted in `provider_preferences.defaultSettings.providerSpecific.discoveredModels`
+(`@vynel/provider-preferences` record/find ops, sorted + change-guarded); served by
+`GET /providers/:id/models` (SDK `providers.listModels`, MCP `list_available_chat_models` —
+how agents learn legal ids now that the four turn-route schemas dropped the closed enum for
+`ChatModelIdSchema` shape validation). Contracts: `available-models.ts` (parse/group/format,
+context derived at read time), floor +opus-5/+sonnet-5, `resolveContextWindow` knows 5+
+generations, DEFAULT stays opus-4-8 (safe on older engines — flip to opus-5 after smoke).
+Web: `useAvailableModels` + SelectChip `hint`/collapsed "More models" (auto-opens when the
+selection hides there) + ui-store shape-check restore. NOTE for Chad's smoke: roster
+populates after the FIRST chat turn post-update; picker shows the floor until then.
+
 4. **WorkspaceView ProcessingBanner (Chad's smoke finding):** the workspace thread sat
    SILENT while its assistant worked on a turn the view didn't own (tab switch detached the
    stream / schedule fire / routed job) — Home + status bar showed it, the thread didn't.

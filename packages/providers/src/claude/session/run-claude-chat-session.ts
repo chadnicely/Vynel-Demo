@@ -19,6 +19,7 @@ import {
   readResultError,
 } from '../base/claude-sdk-message-readers.js'
 import { handleAttachedImages } from '../base/handle-attached-images.js'
+import { mapClaudeModelInfo } from '../base/map-claude-model-info.js'
 import { SyntheticEventQueue } from './synthetic-event-queue.js'
 import { translateClaudeSdkEvent } from '../base/translate-claude-sdk-event.js'
 
@@ -204,6 +205,20 @@ export async function* runClaudeChatSession(
       sessionId,
       resumedFromExisting: input.resumeSessionId !== undefined,
       startedAt: new Date(),
+    }
+
+    // Model-roster discovery (best-effort, the onCompaction shape): the CLI's
+    // initialize response — already in flight by the first message — carries
+    // the models this engine + account actually serve. Detached on purpose:
+    // a slow or failed control read must never stall or fail the user's turn.
+    if (input.onModelsDiscovered !== undefined) {
+      const onModelsDiscovered = input.onModelsDiscovered
+      void queryInstance
+        .initializationResult()
+        .then((initialization) => onModelsDiscovered(mapClaudeModelInfo(initialization.models)))
+        .catch((error: unknown) => {
+          input.logger?.warn({ error: String(error) }, 'model-roster discovery failed')
+        })
     }
 
     // Process the already-read first message (the translator yields nothing for

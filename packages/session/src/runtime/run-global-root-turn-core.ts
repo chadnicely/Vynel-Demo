@@ -23,6 +23,7 @@
 
 import type { Database } from '@vynel/db'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
+import type { DiscoveredProviderModel } from '@vynel/providers'
 import {
   consumeSessionEventStream,
   attachedImagesMetadataFor,
@@ -123,6 +124,9 @@ export interface RunGlobalRootTurnCoreInput {
    *  (absorb the report; act if needed; never re-run the work). Omit → the
    *  shipped prompt, byte-for-byte. */
   steerPromptAppend?: string
+  /** Model-roster discovery (best-effort): forwarded to the provider; the
+   *  caller persists the roster the engine reports. See `StartChatTurnInput`. */
+  onModelsDiscovered?: (models: DiscoveredProviderModel[]) => void | Promise<void>
 }
 
 /**
@@ -218,6 +222,9 @@ export async function runGlobalRootTurnCore(
           : {}),
         systemPromptAppend: buildSystemPromptAppend(input),
         logger: deps.logger,
+        ...(input.onModelsDiscovered !== undefined
+          ? { onModelsDiscovered: input.onModelsDiscovered }
+          : {}),
       })
 
       // Persist this turn's messages + translate to ChatTurnEvent through the ONE

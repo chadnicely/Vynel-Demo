@@ -180,6 +180,45 @@ describe("ChatComposer", () => {
     );
   });
 
+  it("older models sit behind a collapsed More expander, with context hints", async () => {
+    const wrapper = mount(ChatComposer, {
+      props: {
+        ...baseProps,
+        models: [{ id: "claude-opus-5", label: "Opus 5", hint: "1M" }],
+        moreModels: [{ id: "claude-opus-4-8", label: "Opus 4.8", hint: "1M" }],
+        modelId: "claude-opus-5",
+      },
+    });
+
+    await wrapper.find('[aria-label="Model"]').trigger("click");
+    expect(wrapper.text()).toContain("More models");
+    expect(wrapper.text()).not.toContain("Opus 4.8"); // collapsed by default
+    expect(wrapper.find(".row-hint").text()).toBe("1M");
+
+    await wrapper.find(".more-toggle").trigger("click");
+    expect(wrapper.text()).toContain("Opus 4.8");
+
+    const rows = wrapper.findAll(".menu-row:not(.more-toggle)");
+    await rows[rows.length - 1]!.trigger("click");
+    expect(wrapper.emitted("update:modelId")).toEqual([["claude-opus-4-8"]]);
+  });
+
+  it("the More expander auto-opens when the selection lives behind it", async () => {
+    const wrapper = mount(ChatComposer, {
+      props: {
+        ...baseProps,
+        models: [{ id: "claude-opus-5", label: "Opus 5" }],
+        moreModels: [{ id: "claude-opus-4-8", label: "Opus 4.8" }],
+        modelId: "claude-opus-4-8",
+      },
+    });
+
+    await wrapper.find('[aria-label="Model"]').trigger("click");
+    expect(wrapper.text()).toContain("Opus 4.8");
+    // The chip itself labels the hidden-tier selection correctly too.
+    expect(wrapper.find(".chip-label").text()).toBe("Opus 4.8");
+  });
+
   it("picked files show as removable chips and ride the send", async () => {
     const wrapper = mount(ChatComposer, { props: baseProps });
     const fileInput = wrapper.find('input[type="file"]');

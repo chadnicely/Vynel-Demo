@@ -7,6 +7,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Added
+
+- **The model picker now loads itself — and shows each model's context size.** Vynel asks
+  your Claude engine which models your account can actually run and builds the picker from
+  the answer: the newest generation of each family up front (Fable, Opus, Sonnet, Haiku),
+  older generations tucked behind "More models", and every row showing its context window
+  ("1M" / "200K"). When Anthropic ships a new model, it appears on its own after your next
+  chat — no app update needed. Until the engine has answered once, a built-in list (now
+  including Opus 5 and Sonnet 5) fills in. Background helpers get the same knowledge
+  through a new `list_available_chat_models` tool.
+
 ### Fixed
 
 - **Coming back to a busy room now picks up the live reply instantly.** Switching

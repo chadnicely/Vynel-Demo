@@ -20,7 +20,12 @@
 
 import { resolveAiAgentProvider } from '@vynel/providers'
 import type { Database } from '@vynel/db'
-import type { AiAgentProviderId, ChatMessageImage, ClaudePermissionMode } from '@vynel/providers'
+import type {
+  AiAgentProviderId,
+  ChatMessageImage,
+  ClaudePermissionMode,
+  DiscoveredProviderModel,
+} from '@vynel/providers'
 import {
   consumeSessionEventStream,
   attachedImagesMetadataFor,
@@ -92,6 +97,14 @@ export type StartChatTurnInput = {
    * workspace path → defaults (`'listed'`, auto-titled).
    */
   newSessionOptions?: NewSessionOptions
+
+  /**
+   * Model-roster discovery (best-effort, the `onCompaction` shape): called
+   * with the models the engine reports once the session starts. The caller
+   * persists the roster (feeds the model picker); forwarded verbatim to the
+   * provider. A failure never affects the turn.
+   */
+  onModelsDiscovered?: (models: DiscoveredProviderModel[]) => void | Promise<void>
 }
 
 export type StartChatTurnDeps = {
@@ -161,6 +174,9 @@ export async function* startChatTurn(
         deps.logger !== undefined ? { logger: deps.logger } : {},
       )
     },
+    ...(input.onModelsDiscovered !== undefined
+      ? { onModelsDiscovered: input.onModelsDiscovered }
+      : {}),
   })
 
   // 3. Consume the normalized events; consumer persists the user message in the

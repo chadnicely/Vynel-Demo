@@ -18,6 +18,9 @@ const TWO_HUNDRED_K_TOKENS = 200_000
 export function resolveContextWindow(model: string | null | undefined): number {
   if (!model) return TWO_HUNDRED_K_TOKENS
   const id = model.toLowerCase()
+  // Whole 5+ generations are 1M (Opus 5, Sonnet 5, …); within the 4.x line
+  // it starts at 4.6 for Opus/Sonnet. Haiku stays 200k across generations.
+  if (/(?:opus|sonnet)-[5-9]\b/.test(id)) return ONE_MILLION_TOKENS
   if (/opus-4-[6-9]/.test(id)) return ONE_MILLION_TOKENS
   if (/sonnet-4-[6-9]/.test(id)) return ONE_MILLION_TOKENS
   if (id.includes('fable') || id.includes('mythos')) return ONE_MILLION_TOKENS

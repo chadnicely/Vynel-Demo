@@ -22,6 +22,11 @@ import {
   getProviderAuthenticationStatus,
   listProvidersWithStatus,
 } from '@vynel/providers'
+import { findDiscoveredModels } from '@vynel/provider-preferences'
+import {
+  availableChatModelsFloor,
+  toAvailableChatModels,
+} from '@vynel/contracts/chat/available-models'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -31,6 +36,7 @@ import {
   AuthenticationStatusResponseSchema,
   ListProvidersWithStatusResponseSchema,
   DiscoverInstalledSkillsResponseSchema,
+  ListAvailableModelsResponseSchema,
 } from './schemas.js'
 
 export const providersApp = factory
@@ -95,6 +101,44 @@ export const providersApp = factory
       const { providerId } = c.req.valid('param')
       const status = await getProviderAuthenticationStatus(providerId, c.var.aiProvider)
       return c.json(status)
+    },
+  )
+  .get(
+    '/:providerId/models',
+    describeRoute({
+      tags: ['providers'],
+      summary: 'List the models the provider engine reports it can run.',
+      'x-sdk-name': 'providers.listModels',
+      responses: {
+        200: {
+          description:
+            'The model roster: discovered from the engine when a turn has run, ' +
+            'else the curated static floor. Context windows derived per model.',
+          content: {
+            'application/json': { schema: resolver(ListAvailableModelsResponseSchema) },
+          },
+        },
+        400: { description: 'Unsupported providerId.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'list_available_chat_models',
+        description:
+          'List the chat models the AI engine reports it can run — the legal values for ' +
+          'any `model` field. Each entry carries id, label, description, context-window ' +
+          'tokens, and supported effort levels. Read-only.',
+      },
+    }),
+    validator('param', ProviderIdParamSchema),
+    ...userScoped,
+    (c) => {
+      const { providerId } = c.req.valid('param')
+      const discovered = findDiscoveredModels(c.var.db, c.var.user.id, providerId)
+      return c.json({
+        models:
+          discovered !== null ? toAvailableChatModels(discovered) : availableChatModelsFloor(),
+        isDiscovered: discovered !== null,
+      })
     },
   )
   .get(

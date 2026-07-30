@@ -283,6 +283,13 @@ describe("ui-store composer selections", () => {
     expect(ui.composerModelId).toBe("claude-opus-4-8");
   });
 
+  it("keeps a claude-shaped stored model even when the static floor doesn't list it", () => {
+    // The roster is DISCOVERED — a newly shipped model the user picked must
+    // survive a reload (an allowlist restore would silently discard it).
+    localStorage.setItem("vynel.composer-model", "claude-opus-6");
+    expect(useUiStore().composerModelId).toBe("claude-opus-6");
+  });
+
   it("persists the model selection", async () => {
     const ui = useUiStore();
     ui.composerModelId = "claude-haiku-4-5";

@@ -149,4 +149,24 @@ export type StartChatSessionInput = {
    * mechanism and must NOT depend on this firing.
    */
   onCompaction?: (capture: { sdkSessionId: string; summary: string }) => void | Promise<void>
+
+  /**
+   * Model-roster discovery (best-effort bonus, the `onCompaction` shape).
+   * When provided, the provider reads the runtime's initialize response once
+   * the session starts and calls this with the models the engine actually
+   * supports. The caller persists the roster (it feeds the model picker);
+   * a failure must never affect the turn. Structural type — providers stays
+   * contracts-free (the model/mode precedent).
+   */
+  onModelsDiscovered?: (models: DiscoveredProviderModel[]) => void | Promise<void>
+}
+
+/** One model the runtime reports — structurally identical to the contracts'
+ *  `DiscoveredChatModel` (providers deliberately doesn't import contracts). */
+export type DiscoveredProviderModel = {
+  /** The canonical wire id (`claude-…`). */
+  id: string
+  label: string
+  description: string | null
+  supportedEffortLevels: ('low' | 'medium' | 'high' | 'xhigh' | 'max')[] | null
 }

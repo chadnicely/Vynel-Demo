@@ -2314,6 +2314,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/providers/{providerId}/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the models the provider engine reports it can run. */
+        get: operations["getProvidersByProviderIdModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/providers/{providerId}/skills": {
         parameters: {
             query?: never;
@@ -11366,6 +11383,44 @@ export interface operations {
             };
         };
     };
+    getProvidersByProviderIdModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: "claude" | "codex" | "gemini" | "cursor";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The model roster: discovered from the engine when a turn has run, else the curated static floor. Context windows derived per model. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        models: {
+                            id: string;
+                            label: string;
+                            description: string | null;
+                            supportedEffortLevels: ("low" | "medium" | "high" | "xhigh" | "max")[] | null;
+                            contextWindowTokens: number;
+                        }[];
+                        isDiscovered: boolean;
+                    };
+                };
+            };
+            /** @description Unsupported providerId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getProvidersByProviderIdSkills: {
         parameters: {
             query?: {
@@ -12362,8 +12417,7 @@ export interface operations {
                 "application/json": {
                     targetWorkspaceId: string;
                     task: string;
-                    /** @enum {string} */
-                    model?: "claude-fable-5" | "claude-opus-4-8" | "claude-sonnet-4-6" | "claude-haiku-4-5";
+                    model?: string;
                     /** @enum {string} */
                     thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
                 };
@@ -12413,8 +12467,7 @@ export interface operations {
                     targetSessionId: string;
                     task: string;
                     workspaceId?: string;
-                    /** @enum {string} */
-                    model?: "claude-fable-5" | "claude-opus-4-8" | "claude-sonnet-4-6" | "claude-haiku-4-5";
+                    model?: string;
                     /** @enum {string} */
                     thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
                 };
@@ -12693,8 +12746,7 @@ export interface operations {
                 "application/json": {
                     to: string;
                     body: string;
-                    /** @enum {string} */
-                    model?: "claude-fable-5" | "claude-opus-4-8" | "claude-sonnet-4-6" | "claude-haiku-4-5";
+                    model?: string;
                     /** @enum {string} */
                     thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
                 };
@@ -13011,8 +13063,7 @@ export interface operations {
             content: {
                 "application/json": {
                     userMessageText: string;
-                    /** @enum {string} */
-                    model?: "claude-fable-5" | "claude-opus-4-8" | "claude-sonnet-4-6" | "claude-haiku-4-5";
+                    model?: string;
                     /** @enum {string} */
                     thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
                     /** @enum {string} */

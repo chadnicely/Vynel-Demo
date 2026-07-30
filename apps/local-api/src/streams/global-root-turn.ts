@@ -30,6 +30,7 @@ import {
 } from '@vynel/session/runtime'
 import type { AppEnv, HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
+import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from '../sessions/global-root-workspace.js'
@@ -230,6 +231,8 @@ export async function streamGlobalRootTurn(
           askModeApprovalToolNames: composedMcp.askModeApprovalToolNames,
           mcpSystemPromptAppend: composedMcp.systemPromptAppend,
           ...(agentSlugs.length > 0 ? { agents: sessionAgents } : {}),
+          // Persist the roster the engine reports — feeds the model picker.
+          onModelsDiscovered: buildRecordDiscoveredModels(c.var.db, c.var.user.id, c.var.logger),
         },
         new GlobalRootSseSink(stream, c.var.logger, activity),
       )

@@ -8,18 +8,19 @@
 // exactly what each handler already emits.
 
 import { z } from 'zod'
-import { CHAT_MODEL_IDS } from '@vynel/contracts/chat/chat-models'
+import { ChatModelIdSchema } from '@vynel/contracts/chat/chat-models'
 import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
 
 // The root's model/effort picks for the delegated turn (shared by both delegate
-// routes). BOTH fields are z.enum — an enum flows the curated allowlist into the
-// OpenAPI spec and the generated MCP tool schema, which here IS the UI: the
-// delegating agent can only pick ids it can see (the cf15137 review catch — a
-// `.refine` published a bare string, leaving the model half unguessable). The
-// composer routes keep their refine (a UI picker constrains those).
+// routes). The generated MCP tool schema here IS the UI (the cf15137 review
+// catch — the delegating agent must be able to learn legal values). Since the
+// roster went dynamic, the model field is shape-validated; the TOOL
+// descriptions point the agent at `list_available_chat_models` (the generator
+// flattens field-level describe text, so the tool text carries it). Effort
+// stays a real enum.
 const DelegationRunPreferenceFields = {
   /** The model to run the delegated turn. Omit to inherit the provider default. */
-  model: z.enum(CHAT_MODEL_IDS).optional(),
+  model: ChatModelIdSchema.optional(),
   /** Reasoning effort for the delegated turn. Omit for the adaptive default. */
   thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
 }

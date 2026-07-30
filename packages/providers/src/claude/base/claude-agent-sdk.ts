@@ -16,6 +16,7 @@ export { query } from '@anthropic-ai/claude-agent-sdk'
 export type {
   CanUseTool,
   HookCallback,
+  ModelInfo,
   Options,
   SDKMessage,
 } from '@anthropic-ai/claude-agent-sdk'
