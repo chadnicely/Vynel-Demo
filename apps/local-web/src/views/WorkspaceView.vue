@@ -18,6 +18,7 @@ import { useInFlightDelegations } from "../composables/delegations/use-in-flight
 import { useStopDelegation } from "../composables/delegations/use-stop-delegation.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
+import { useWatchedTurn } from "../composables/chat/use-watched-turn.js";
 import { resolveVisibleActiveTurn } from "../composables/chat/visible-active-turn.js";
 import { useContextOccupancy } from "../composables/chat/use-context-occupancy.js";
 import { useQueuedSend } from "../composables/chat/use-queued-send.js";
@@ -99,11 +100,11 @@ const hasBackgroundTurnHere = computed(
     tab.workspaceId !== null &&
     activity.hasServerTurnInWorkspace(tab.workspaceId),
 );
-// The in-thread note for a turn this view does not own (a tab switch detached
-// the stream; a schedule fired here) — without it the thread sat silent while
-// Home and the status bar showed the workspace working.
+// The in-thread note for a background turn the thread is NOT rendering — a
+// turn on a DIFFERENT session in this workspace. A turn on the displayed
+// session streams through the watcher's overlay below, which says it better.
 const backgroundTurnLabel = computed(() =>
-  hasBackgroundTurnHere.value
+  hasBackgroundTurnHere.value && watchedTurn.view.value === null
     ? `${activeWorkspace.value?.managerName ?? "The assistant"} is working…`
     : null,
 );
@@ -138,10 +139,10 @@ function onDecideApproval(
   );
 }
 
-// The overlay shows when the in-flight turn belongs to this thread — decided
-// by the turn's ORIGIN + the user's explicit target, never a live query value
-// (the mid-turn overlay flicker; see visible-active-turn.ts for the matrix).
-const activeTurn = computed(() =>
+// The own-turn overlay shows when the in-flight turn belongs to this thread —
+// decided by the turn's ORIGIN + the user's explicit target, never a live
+// query value (the mid-turn overlay flicker; see visible-active-turn.ts).
+const ownActiveTurn = computed(() =>
   resolveVisibleActiveTurn({
     view: chatTurn.view.value,
     turnSessionId: chatTurn.activeSessionId.value,
@@ -149,6 +150,24 @@ const activeTurn = computed(() =>
     target: shell.target,
   }),
 );
+
+// The standing subscription to the displayed session's live channel — a turn
+// this view does NOT own (a tab switch detached the origin stream, a schedule
+// fire, a channel turn) streams here in realtime instead of crawling on the
+// history poll. The own overlay always wins; the watcher discards its echo.
+const watchedTurn = useWatchedTurn({
+  sessionId: () => activeSessionId.value,
+  isSuppressed: () => ownActiveTurn.value !== null,
+  // refetch() resolves (never throws) — surface the failure so the watcher's
+  // seed retries instead of silently seeding from stale cache.
+  refetchDetail: async () => {
+    const result = await detailQuery.refetch();
+    if (result.error) throw result.error;
+    return result.data ?? undefined;
+  },
+});
+
+const activeTurn = computed(() => ownActiveTurn.value ?? watchedTurn.view.value);
 
 // A cold-cache open used to flash the welcome hero over a real conversation
 // while the history fetch was in flight — gate the hero behind the fetch.

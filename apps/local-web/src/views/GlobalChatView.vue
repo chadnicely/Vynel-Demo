@@ -28,6 +28,7 @@ import { useHubFeatures } from "../composables/hub/use-hub-features.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
+import { useWatchedTurn } from "../composables/chat/use-watched-turn.js";
 import { resolveVisibleActiveTurn } from "../composables/chat/visible-active-turn.js";
 import { useContextOccupancy } from "../composables/chat/use-context-occupancy.js";
 import { useQueuedSend } from "../composables/chat/use-queued-send.js";
@@ -143,13 +144,35 @@ const chatTurn = useChatTurn({
 });
 
 // A global turn running OUTSIDE this view's own stream — a Telegram/voice
-// turn, another tab — reported by the activity feed. While one runs, the
-// thread polls live below (rows persist per chunk) and the banner names the
-// origin. This view's own turn renders through its stream, so it never
-// counts here.
+// turn, another tab — reported by the activity feed. A turn on the DISPLAYED
+// session streams through the watcher's overlay (below); the banner only
+// names a turn the thread is not rendering (e.g. a fresh view mid-switch).
 const activity = useActivityStore();
+
+// The standing subscription to the displayed session's live channel — a turn
+// this view does not own (a tab switch detached the origin stream, a channel
+// turn) streams here in realtime instead of crawling on the history poll.
+// ownActiveTurn + detailQuery are declared BELOW — safe because the watcher
+// invokes these callbacks only asynchronously (post-setup), never during it.
+const watchedTurn = useWatchedTurn({
+  sessionId: () => activeSessionId.value,
+  isSuppressed: () => ownActiveTurn.value !== null,
+  // refetch() resolves (never throws) — surface the failure so the watcher's
+  // seed retries instead of silently seeding from stale cache.
+  refetchDetail: async () => {
+    const result = await detailQuery.refetch();
+    if (result.error) throw result.error;
+    return result.data ?? undefined;
+  },
+});
+
 const backgroundTurnLabel = computed(() => {
-  if (!activity.hasGlobalServerTurn || chatTurn.isStreaming.value) return null;
+  if (
+    !activity.hasGlobalServerTurn ||
+    chatTurn.isStreaming.value ||
+    watchedTurn.view.value !== null
+  )
+    return null;
   switch (activity.globalServerTurnOrigin) {
     case "telegram":
       return "Replying on Telegram…";
@@ -191,10 +214,10 @@ function onDecideApproval(
   );
 }
 
-// The overlay shows when the in-flight turn belongs to this thread — decided
-// by the turn's ORIGIN + the user's explicit target, never a live query value
-// (the mid-turn overlay flicker; see visible-active-turn.ts for the matrix).
-const activeTurn = computed(() =>
+// The own-turn overlay shows when the in-flight turn belongs to this thread —
+// decided by the turn's ORIGIN + the user's explicit target, never a live
+// query value (the mid-turn overlay flicker; see visible-active-turn.ts).
+const ownActiveTurn = computed(() =>
   resolveVisibleActiveTurn({
     view: chatTurn.view.value,
     turnSessionId: chatTurn.activeSessionId.value,
@@ -202,6 +225,8 @@ const activeTurn = computed(() =>
     target: shell.target,
   }),
 );
+
+const activeTurn = computed(() => ownActiveTurn.value ?? watchedTurn.view.value);
 
 // A cold-cache open used to flash the welcome hero over a real conversation
 // while the history fetch was in flight — gate the hero behind the fetch.

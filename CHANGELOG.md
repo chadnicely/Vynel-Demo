@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Coming back to a busy room now picks up the live reply instantly.** Switching
+  workspaces mid-answer used to drop you into a degraded view: the reply crawled in on a
+  slow refresh, and the thinking text, working indicator, and elapsed clock were gone.
+  The chat now re-joins the running turn the moment you return — everything already
+  produced appears at once, the rest streams in live, and the status line ("thinking ·
+  12s" / "working · 34s") shows the turn's true elapsed time. This also makes schedule
+  fires and Telegram/voice replies stream live into an open room instead of trickling in
+  on a timer.
+
 - **A failed reply now says so — permanently.** When the assistant couldn't answer at all
   (for example Anthropic's servers were overloaded — the "529" nights), the chat used to
   keep the question with no reply and no explanation after a reload, as if Vynel had simply

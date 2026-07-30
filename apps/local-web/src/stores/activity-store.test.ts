@@ -118,4 +118,16 @@ describe("activity store — server turns", () => {
     store.turnEnded();
     expect(store.isTurnRunning).toBe(false);
   });
+
+  it("serverTurnForSession resolves the running turn on one session", () => {
+    const store = useActivityStore();
+    store.applyServerActivity(
+      started("t5", { scopeKind: "workspace", workspaceId: "ws-1", sessionId: "sess-5" }),
+    );
+    expect(store.serverTurnForSession("sess-5")?.turnId).toBe("t5");
+    expect(store.serverTurnForSession("sess-other")).toBeNull();
+
+    store.applyServerActivity({ kind: "turn-ended", turnId: "t5", sessionId: "sess-5" });
+    expect(store.serverTurnForSession("sess-5")).toBeNull();
+  });
 });

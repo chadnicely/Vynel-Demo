@@ -41,6 +41,17 @@ export const useActivityStore = defineStore("activity", () => {
     );
   }
 
+  /** The running turn on ONE session (any scope) — the thread watcher reads
+   *  its `startedAt` so a reattached overlay's elapsed clock is the turn's,
+   *  not the switch-back's. Null when the session is idle. */
+  function serverTurnForSession(sessionId: string): SessionTurnActivity | null {
+    return (
+      Object.values(serverTurns.value).find(
+        (turn) => turn.sessionId === sessionId,
+      ) ?? null
+    );
+  }
+
   function turnStarted() {
     runningTurnCount.value += 1;
   }
@@ -86,6 +97,7 @@ export const useActivityStore = defineStore("activity", () => {
     hasGlobalServerTurn,
     globalServerTurnOrigin,
     hasServerTurnInWorkspace,
+    serverTurnForSession,
     turnStarted,
     turnEnded,
     applyServerActivity,

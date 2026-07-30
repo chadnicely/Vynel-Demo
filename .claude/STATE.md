@@ -42,6 +42,21 @@ fresh-session conversation (its rows live on a session the dead primary-linked c
 thread never displays — Chad's "responses gone totally"). Now the target is kept;
 cross-room resets stay in `retargetTab`. Gate green + reviewer clean.
 
+**✅ TAB-SWITCH REATTACH (2026-07-31, Chad's follow-up: "switch back → grab latest state +
+realtime").** Switching away aborts the view's own turn SSE by design (server turn keeps
+running — Hono `write()` swallows client-gone; rows persist per chunk), but NOTHING
+re-subscribed on return: only a 4s poll gated on the activity feed — no overlay/thinking/
+status line ("Ryan is working" gone, replies crawling). Built the missing half:
+`use-watched-turn.ts` — every chat thread keeps a STANDING subscription to its displayed
+session's channel (`GET /sessions/:id/stream`, the monitor's Watch route; broadcaster has
+NO replay by contract). Mid-turn attach seeds from persisted rows (`watched-turn-seed.ts`:
+absorb = last-user-row + feed-startedAt boundary; buffered-delta seam removed by
+`dropOverlapPrefix` — same append stream observed twice) then streams live;
+`ownActiveTurn ?? watchedTurn` renders; own overlay suppresses the echo; turn-end settles
+rows-first then re-subscribes; elapsed seeded from `serverTurnForSession` (new
+activity-store selector). Reviewer blocker fixed: stale seed resurrecting the overlay
+post-turn (`isStreamLive` guard + regression test). Gate green (3369).
+
 4. **WorkspaceView ProcessingBanner (Chad's smoke finding):** the workspace thread sat
    SILENT while its assistant worked on a turn the view didn't own (tab switch detached the
    stream / schedule fire / routed job) — Home + status bar showed it, the thread didn't.
