@@ -232,6 +232,20 @@ describe("ui-store scope tabs", () => {
     expect(ui.tabs).toHaveLength(3);
   });
 
+  it("openWorkspaceTab keeps the tab's conversation target (a switch-away must not lose the thread)", () => {
+    const ui = useUiStore();
+    const tab = ui.addWorkspaceTab("ws-a");
+    tab.shell.target = { sessionId: "session-1" };
+    tab.shell.mainView = "knowledge";
+    ui.activateTab(GLOBAL_TAB_ID);
+
+    ui.openWorkspaceTab("ws-a");
+
+    // Lands on chat, but the conversation the user was in stays the target.
+    expect(tab.shell.mainView).toBe("chat");
+    expect(tab.shell.target).toEqual({ sessionId: "session-1" });
+  });
+
   it("prunes tabs whose workspace no longer exists and refocuses Global", () => {
     const ui = useUiStore();
     ui.addWorkspaceTab("ws-kept");

@@ -267,11 +267,15 @@ export const useUiStore = defineStore("ui", () => {
 
   // "Open workspace X" from anywhere (Home cards, the hero deck, a session
   // row): focus its existing tab or open one — landing on the room's chat.
+  // The tab's conversation TARGET is kept: resetting it to "continuous" here
+  // made switching away and back lose a fresh-session conversation from view
+  // (its rows live on a session the continuous thread doesn't display — the
+  // 2026-07-30 smoke). Cross-room resets stay in retargetTab, where the old
+  // target really is invalid.
   function openWorkspaceTab(workspaceId: string): ShellTab {
     const existing = tabs.value.find((tab) => tab.workspaceId === workspaceId);
     if (existing === undefined) return addWorkspaceTab(workspaceId);
     existing.shell.mainView = "chat";
-    existing.shell.target = "continuous";
     existing.lastRoutePath = null;
     activeTabId.value = existing.id;
     return existing;

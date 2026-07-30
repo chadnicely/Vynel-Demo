@@ -26,16 +26,21 @@
    CHANGELOG updated. Reviewer pass folded (unattended-bypass regression caught + fixed via
    the mode split). ⚠ The tree ALSO still carries the 2026-07-28 overnight pass below —
    commits must untangle or ship both together after Chad's smoke.
-**⚠ CHAD'S SMOKE (2026-07-30, after the pass): "it didn't get fixed" — the workspace chat
-still showed nothing while its assistant worked (sent "Hey" in letterman; only Home/status
-bar showed activity; no reply rows, no indicator). Committed anyway per Chad (`352b27a` +
-`17b5a57`); he re-checks in a fresh session. NEXT SESSION: reproduce first — was the dev
-server running OLD code during the smoke (likely: pnpm dev needs restart/reload to pick up
-the banner + resolver), or is something still broken? Verify: (a) the ProcessingBanner
-renders on WorkspaceView for a background turn, (b) the live overlay + bottom status line
-shows when staying on the tab, (c) WHY no assistant rows appeared at all in 2min — check
-whether the running turn's rows land on the session the thread displays
-(activeSessionId/detailQuery) or on a different session (delegated/spawned).**
+**✅ CHAD'S SMOKE MYSTERY SOLVED (2026-07-31 investigation).** The smoke ran during an
+Anthropic API outage: the SDK transcripts (`~/.claude/projects/…/<sessionId>.jsonl`) show
+every "dead" turn ("Hey"/"Hello" letterman, "List the files" vynel) retried ~3.5–4 min then
+died with **"API Error: 529 Overloaded"**; the fresh-chat turns just landed between overload
+waves. The `17b5a57` fixes were never actually exercised — **the mode/thinking/rendering
+pass still needs a re-smoke on a calm API day.** Two REAL bugs the outage exposed, both
+fixed (2026-07-31): (1) a zero-output errored turn persisted NOTHING (the 529 text arrives
+as a complete assistant message with no stream deltas → dropped by the translator; the
+consumer's session-errored only marked the LAST assistant row — none) → new
+`persist-turn-failure-row.ts` writes an assistant error row + lastMessageAt bump, so the
+transcript explains the missing answer after reload; (2) `openWorkspaceTab` (ui-store)
+reset `shell.target = "continuous"` on an EXISTING tab, so switching away/back hid a
+fresh-session conversation (its rows live on a session the dead primary-linked continuous
+thread never displays — Chad's "responses gone totally"). Now the target is kept;
+cross-room resets stay in `retargetTab`. Gate green + reviewer clean.
 
 4. **WorkspaceView ProcessingBanner (Chad's smoke finding):** the workspace thread sat
    SILENT while its assistant worked on a turn the view didn't own (tab switch detached the

@@ -95,7 +95,8 @@ watch(workspaceScopeId, () => {
 // can arrive here.
 function openEntry(entry: SessionsOverviewEntry) {
   if (entry.scope === "workspace") {
-    // Focus (or open) the room's tab — landing on its continuous chat.
+    // Focus (or open) the room's tab — landing on its chat, keeping the
+    // conversation the tab was already on.
     if (entry.workspaceId !== null) ui.openWorkspaceTab(entry.workspaceId);
     void router.push({ name: "workspace" });
     return;

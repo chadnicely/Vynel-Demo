@@ -9,6 +9,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A failed reply now says so — permanently.** When the assistant couldn't answer at all
+  (for example Anthropic's servers were overloaded — the "529" nights), the chat used to
+  keep the question with no reply and no explanation after a reload, as if Vynel had simply
+  ignored you. The failure is now saved into the conversation itself, so the thread shows
+  what went wrong and you know to just send again.
+
+- **Switching workspaces no longer loses the conversation you were in.** Opening a
+  workspace from Home (or switching away and back) used to snap the room to its main
+  continuous thread — if you'd been chatting in a fresh conversation, everything seemed to
+  vanish. The room now returns to the exact conversation you left; nothing was ever
+  deleted, it was just out of view.
+
 - **Chat modes now do what they say.** Bypass truly runs everything without asking — before,
   file edits and shell commands still popped an approval card even in Bypass. Auto now leaves
   every decision to Claude's own safety check and asks only when that check is unsure — no

@@ -15,6 +15,7 @@ import {
   insertChatSession,
   findChatSessionById,
   findChatMessageById,
+  listChatMessagesForSession,
 } from '../repositories/index.js'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { CHAT_SESSION_CREATED } from '../chat-events.js'
@@ -293,6 +294,96 @@ describe('consumeSessionEventStream — session lifecycle', () => {
       expect((yielded as Extract<ChatTurnEvent, { kind: 'session-errored' }>).isRecoverable).toBe(
         false,
       )
+    })
+  })
+
+  it('session-errored with ZERO assistant output persists a failure row (the 529-overload shape)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      const erroredAt = new Date('2026-07-30T00:03:30Z')
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'session-dead',
+              resumedFromExisting: false,
+              startedAt: new Date('2026-07-30T00:00:00Z'),
+            },
+            {
+              kind: 'session-errored',
+              sessionId: 'session-dead',
+              errorCode: 'error_during_execution',
+              errorMessage: 'API Error: 529 Overloaded.',
+              isRecoverable: false,
+              erroredAt,
+            },
+          ]),
+          userMessageInput: makeUserMessageInput('Hey'),
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: true,
+        }),
+      )
+
+      // The transcript explains the missing answer instead of sitting silent.
+      const rows = listChatMessagesForSession(db, 'session-dead')
+      const failureRow = rows.find((row) => row.role === 'assistant')
+      expect(failureRow?.errorCode).toBe('error_during_execution')
+      expect(failureRow?.errorMessage).toBe('API Error: 529 Overloaded.')
+      expect(failureRow?.completedAt?.toISOString()).toBe(erroredAt.toISOString())
+
+      const session = findChatSessionById(db, 'session-dead')
+      expect(session?.lastMessageAt.toISOString()).toBe(erroredAt.toISOString())
+    })
+  })
+
+  it('a resumed turn dying BEFORE session-started still persists its failure row on the resumed session', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      insertChatSession(db, {
+        ...makeExistingSession(user.id, ws.id, 'session-dead-resume'),
+        totalMessageCount: 2,
+        lastMessageAt: new Date('2026-07-29T00:00:00Z'),
+      })
+      const erroredAt = new Date('2026-07-30T00:04:00Z')
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-errored',
+              sessionId: '',
+              errorCode: 'provider_start_timeout',
+              errorMessage: 'The Claude engine did not respond.',
+              isRecoverable: true,
+              erroredAt,
+            },
+          ]),
+          userMessageInput: makeUserMessageInput('Hello again'),
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: false,
+          resumeSessionId: 'session-dead-resume',
+        }),
+      )
+
+      const rows = listChatMessagesForSession(db, 'session-dead-resume')
+      const failureRow = rows.find((row) => row.role === 'assistant')
+      expect(failureRow?.errorCode).toBe('provider_start_timeout')
+      // The durability-persisted user row still precedes it.
+      expect(rows.find((row) => row.role === 'user')?.body).toBe('Hello again')
     })
   })
 

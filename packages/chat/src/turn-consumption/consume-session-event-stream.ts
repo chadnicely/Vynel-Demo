@@ -36,6 +36,7 @@ import {
 import { handleSessionStarted } from './handle-session-started.js'
 import { handleApprovalRequested } from './handle-approval-requested.js'
 import { handleUsageReported } from './handle-usage-reported.js'
+import { persistTurnFailureRow } from './persist-turn-failure-row.js'
 import { createSubagentActivityRecorder } from './record-subagent-activity.js'
 import { persistAttachedImages, type AttachedImageBytes } from './attached-images.js'
 import type { ChatTurnEvent } from '../chat-turn-event.js'
@@ -431,6 +432,20 @@ export async function* consumeSessionEventStream(
               errorCode: event.errorCode,
               errorMessage: event.errorMessage,
               completedAt: new Date(),
+            })
+          } else {
+            // The turn died with ZERO assistant output (an API-overload retry
+            // loop, a dead resume) — persist the failure as its own row, or
+            // after a reload the thread shows an unanswered message forever.
+            persistTurnFailureRow({
+              db,
+              sessionId: sessionId ?? input.resumeSessionId ?? null,
+              errorCode: event.errorCode,
+              errorMessage: event.errorMessage,
+              erroredAt: event.erroredAt,
+              ...(assistantAttribution !== undefined
+                ? { attribution: assistantAttribution }
+                : {}),
             })
           }
           // ALWAYS reaches the client — a failure before `session-started`
