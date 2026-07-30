@@ -16,9 +16,9 @@
 // (from the local openapi.js wrapper) -> `...userScoped` -> handler on
 // `factory.createApp()` (the root/workspaces precedent).
 
-import { resolver } from 'hono-openapi/zod'
+import { resolver, validator } from 'hono-openapi/zod'
 import { listWorkspacesForUser } from '@vynel/workspaces'
-import { listRecentChatSessionsForUser } from '@vynel/chat'
+import { listDailyModelUsage, listRecentChatSessionsForUser } from '@vynel/chat'
 import { listSchedulesForUser } from '@vynel/schedules'
 import type { Schedule } from '@vynel/schedules'
 import { listTasksForUser } from '@vynel/tasks'
@@ -27,7 +27,11 @@ import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { serializeScheduleForResponse } from '../schedules/serializers.js'
 import { serializeTaskForResponse } from '../tasks/serializers.js'
-import { DashboardOverviewResponseSchema } from './schemas.js'
+import {
+  DashboardOverviewResponseSchema,
+  DashboardUsageQuerySchema,
+  DashboardUsageResponseSchema,
+} from './schemas.js'
 
 // The recent-activity feed size — mirrors the demo's `listRecentSessions(5)`.
 const RECENT_SESSIONS_LIMIT = 5
@@ -86,6 +90,34 @@ export const dashboardApp = factory
         openTasks,
         recentlyCompletedTasks,
       })
+    },
+  )
+  // GET /usage — token usage per model per local day, spanning the user's
+  // whole set (global root + every workspace). Workspace twin:
+  // `workspace-scoped.ts`.
+  .get(
+    '/usage',
+    describeRoute({
+      tags: ['dashboard'],
+      summary: 'Get token-usage statistics per model per day (all scopes).',
+      'x-sdk-name': 'dashboard.getUsage',
+      responses: {
+        200: {
+          description: '{ rows: [{ day, model, providerId, inputTokens, outputTokens, assistantMessageCount }] }.',
+          content: { 'application/json': { schema: resolver(DashboardUsageResponseSchema) } },
+        },
+      },
+      // No x-mcp — a UI statistics read, not an agent tool surface.
+    }),
+    validator('query', DashboardUsageQuerySchema),
+    ...userScoped,
+    (c) => {
+      const { days } = c.req.valid('query')
+      const rows = listDailyModelUsage(c.var.db, {
+        userId: c.var.user.id,
+        ...(days !== undefined ? { days } : {}),
+      })
+      return c.json({ rows })
     },
   )
 

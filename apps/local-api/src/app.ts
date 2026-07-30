@@ -60,6 +60,7 @@ import { rootApp } from './routes/root/index.js'
 import { routingApp } from './routes/routing/index.js'
 import { voiceApp } from './routes/voice/index.js'
 import { dashboardApp } from './routes/dashboard/index.js'
+import { dashboardWorkspaceApp } from './routes/dashboard/workspace-scoped.js'
 import { sessionsApp } from './routes/sessions/index.js'
 import {
   TurnEventBroadcaster,
@@ -244,6 +245,8 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/workspaces/:workspaceId/capabilities', capabilitiesApp)
   app.route('/workspaces/:workspaceId/approvals', approvalsApp)
   app.route('/workspaces/:workspaceId/approval-rules', approvalRulesApp)
+  // The per-workspace dashboard reads (usage statistics) — twin of `/dashboard`.
+  app.route('/workspaces/:workspaceId/dashboard', dashboardWorkspaceApp)
   // User-scoped (no workspace prefix) — GLOBAL (null-workspace) + cross-workspace
   // resources. `/channels` + `/schedules` span a user's whole set (both scopes)
   // so global channels/schedules are creatable, listable, and manageable; the

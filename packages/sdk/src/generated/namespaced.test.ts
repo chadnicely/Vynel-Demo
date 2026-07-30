@@ -230,6 +230,10 @@ describe('makeNamespaced — shape', () => {
       'channelsUser',
       'chat',
       'dashboard',
+      // test: correct expectation — the usage-statistics slice (2026-07-31)
+      // added `dashboardWorkspace` (GET /workspaces/:id/dashboard/usage, the
+      // per-workspace dashboard twin).
+      'dashboardWorkspace',
       'files',
       'hub',
       // test: correct expectation — the plans + journal modules (2026-07-23)

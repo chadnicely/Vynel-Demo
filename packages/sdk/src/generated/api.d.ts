@@ -1375,6 +1375,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/dashboard/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one workspace's token-usage statistics per model per day. */
+        get: operations["getWorkspacesByWorkspaceIdDashboardUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels": {
         parameters: {
             query?: never;
@@ -2818,6 +2835,23 @@ export interface paths {
         };
         /** Get the Home dashboard's aggregate read (workspaces + recent chat activity + upcoming schedules + tasks). */
         get: operations["getDashboardOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dashboard/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get token-usage statistics per model per day (all scopes). */
+        get: operations["getDashboardUsage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7851,6 +7885,46 @@ export interface operations {
                 content?: never;
             };
             /** @description No active rule with that id in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdDashboardUsage: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { rows: [{ day, model, providerId, inputTokens, outputTokens, assistantMessageCount }] }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        rows: {
+                            day: string;
+                            model: string | null;
+                            providerId: string;
+                            inputTokens: number;
+                            outputTokens: number;
+                            assistantMessageCount: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description No such workspace owned by this user. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12937,6 +13011,37 @@ export interface operations {
                             completedAt: string | null;
                             createdAt: string;
                             updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    getDashboardUsage: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { rows: [{ day, model, providerId, inputTokens, outputTokens, assistantMessageCount }] }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        rows: {
+                            day: string;
+                            model: string | null;
+                            providerId: string;
+                            inputTokens: number;
+                            outputTokens: number;
+                            assistantMessageCount: number;
                         }[];
                     };
                 };

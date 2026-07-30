@@ -448,6 +448,22 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getUsage: async (options?: NonNullable<paths["/dashboard/usage"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/dashboard/usage", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  dashboardWorkspace: {
+  getUsage: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/dashboard/usage"]["get"]['parameters']>['path']["workspaceId"], options?: NonNullable<paths["/workspaces/{workspaceId}/dashboard/usage"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/dashboard/usage", {
+      params: { path: { workspaceId: workspaceId }, ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   },
   files: {
   createDirectory: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/directory"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/files/directory"]["post"]['requestBody']>['content']['application/json']) => {

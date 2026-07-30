@@ -12,6 +12,7 @@ import LiveNowBand, {
   type LiveTurnRow,
 } from "../components/home/LiveNowBand.vue";
 import TasksCard from "../components/home/TasksCard.vue";
+import UsageStatsCard from "../components/home/UsageStatsCard.vue";
 import { narrationLabelFor } from "../components/home/narration-label.js";
 import { useDashboardOverview } from "../composables/dashboard/use-dashboard-overview.js";
 import { usePendingApprovals } from "../composables/approvals/use-pending-approvals.js";
@@ -238,6 +239,8 @@ function scheduleTiming(nextFireAt: string | null): string {
         :open-tasks="openTasks"
         :completed-tasks="recentlyCompletedTasks"
       />
+
+      <UsageStatsCard />
 
       <section class="card span-2">
         <header class="card-header">

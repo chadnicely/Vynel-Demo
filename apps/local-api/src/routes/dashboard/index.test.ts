@@ -15,7 +15,12 @@ import { withTestDatabase } from '@vynel/testing'
 import { VynelError } from '@vynel/errors'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { insertChatSession, type NewChatSession } from '@vynel/chat/repositories'
+import {
+  insertChatSession,
+  insertChatMessage,
+  type NewChatSession,
+  type NewChatMessage,
+} from '@vynel/chat/repositories'
 import { insertSchedule, type NewSchedule } from '@vynel/schedules/test-support'
 import { insertTask, makeTask } from '@vynel/tasks/test-support'
 import type { Database } from '@vynel/db'
@@ -125,6 +130,25 @@ function seedSchedule(
     nextScheduledFireAt: null,
     createdAt: now,
     updatedAt: now,
+    ...overrides,
+  })
+}
+
+function seedAssistantMessage(
+  db: Database,
+  sessionId: string,
+  overrides: Partial<NewChatMessage> = {},
+) {
+  const now = new Date()
+  return insertChatMessage(db, {
+    id: `message-${randomUUID()}`,
+    sessionId,
+    role: 'assistant',
+    body: 'Done.',
+    inputTokens: 100,
+    outputTokens: 50,
+    startedAt: now,
+    createdAt: now,
     ...overrides,
   })
 }
@@ -244,6 +268,49 @@ describe('GET /dashboard/overview', () => {
         'task-done-2',
         'task-done-1',
       ])
+    })
+  })
+})
+
+describe('GET /dashboard/usage', () => {
+  it('sums assistant usage per model per day across every scope', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      const opusSession = seedChatSession(db, user.id, workspace.id, {
+        model: 'claude-opus-4-8',
+      })
+      const sonnetSession = seedChatSession(db, user.id, null, {
+        model: 'claude-sonnet-5',
+      })
+      seedAssistantMessage(db, opusSession.id, { inputTokens: 100, outputTokens: 40 })
+      seedAssistantMessage(db, opusSession.id, { inputTokens: 200, outputTokens: 60 })
+      seedAssistantMessage(db, sonnetSession.id, { inputTokens: 10, outputTokens: 5 })
+      // Outside every window this test requests — must never appear.
+      seedAssistantMessage(db, opusSession.id, {
+        createdAt: new Date(Date.now() - 120 * 24 * 3600 * 1000),
+      })
+
+      const app = makeHarness(db)
+      const res = await app.request('/dashboard/usage')
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        rows: { model: string | null; inputTokens: number; outputTokens: number }[]
+      }
+      expect(body.rows).toHaveLength(2)
+      const opus = body.rows.find((row) => row.model === 'claude-opus-4-8')
+      expect(opus).toMatchObject({ inputTokens: 300, outputTokens: 100, assistantMessageCount: 2 })
+      const sonnet = body.rows.find((row) => row.model === 'claude-sonnet-5')
+      expect(sonnet).toMatchObject({ inputTokens: 10, outputTokens: 5 })
+    })
+  })
+
+  it('rejects an out-of-range days parameter at the boundary', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      const res = await app.request('/dashboard/usage?days=365')
+      expect(res.status).toBe(400)
     })
   })
 })

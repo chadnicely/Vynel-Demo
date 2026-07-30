@@ -65,6 +65,16 @@
   --ws-5: #e07b9a;
   --ws-6: #5cbf82;
 
+  /* Chart series — model identity on the usage statistics. Validated against
+     --bg-panel (dataviz six checks: lightness band, chroma, CVD separation,
+     normal-vision floor, contrast). Assigned to models in stable sorted
+     order, never by rank; overflow series fold into an ink-3 "Other". Gold
+     stays presence-only; status colors are never series colors. */
+  --chart-1: #0fa78d;
+  --chart-2: #6a93e6;
+  --chart-3: #d15f83;
+  --chart-4: #7d55c7;
+
   /* Shape */
   --radius-s: 6px;
   --radius-m: 10px;
@@ -134,6 +144,13 @@
   --ws-4: #8a4fc0;
   --ws-5: #c94f74;
   --ws-6: #2b9463;
+
+  /* Chart series — darker steps of the same hues, validated against the
+     light --bg-panel. Same meaning, same fixed order. */
+  --chart-1: #048a72;
+  --chart-2: #3f6fce;
+  --chart-3: #bf4d73;
+  --chart-4: #7449bd;
 
   --shadow-raised:
     0 1px 2px rgba(24, 30, 40, 0.08), 0 4px 16px rgba(24, 30, 40, 0.07);

@@ -95,3 +95,8 @@ export type {
 // can recall its prior context on demand.
 export { getSessionContextReport } from './context/get-session-context-report.js'
 export type { GetSessionContextReportInput } from './context/get-session-context-report.js'
+
+// Usage — the dashboard's "models over time" statistics read.
+export { listDailyModelUsage } from './usage/list-daily-model-usage.js'
+export type { ListDailyModelUsageInput } from './usage/list-daily-model-usage.js'
+export type { DailyModelUsage } from './usage/fold-daily-model-usage.js'

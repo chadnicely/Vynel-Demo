@@ -12072,6 +12072,92 @@
         "x-sdk-name": "approvalRules.delete"
       }
     },
+    "/workspaces/{workspaceId}/dashboard/usage": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ rows: [{ day, model, providerId, inputTokens, outputTokens, assistantMessageCount }] }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "day": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "providerId": {
+                            "type": "string"
+                          },
+                          "inputTokens": {
+                            "type": "number"
+                          },
+                          "outputTokens": {
+                            "type": "number"
+                          },
+                          "assistantMessageCount": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "day",
+                          "model",
+                          "providerId",
+                          "inputTokens",
+                          "outputTokens",
+                          "assistantMessageCount"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "rows"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such workspace owned by this user."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdDashboardUsage",
+        "tags": [
+          "dashboard"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Get one workspace's token-usage statistics per model per day.",
+        "x-sdk-name": "dashboardWorkspace.getUsage"
+      }
+    },
     "/channels": {
       "get": {
         "responses": {
@@ -25396,6 +25482,81 @@
         "parameters": [],
         "summary": "Get the Home dashboard's aggregate read (workspaces + recent chat activity + upcoming schedules + tasks).",
         "x-sdk-name": "dashboard.getOverview"
+      }
+    },
+    "/dashboard/usage": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ rows: [{ day, model, providerId, inputTokens, outputTokens, assistantMessageCount }] }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "day": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "providerId": {
+                            "type": "string"
+                          },
+                          "inputTokens": {
+                            "type": "number"
+                          },
+                          "outputTokens": {
+                            "type": "number"
+                          },
+                          "assistantMessageCount": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "day",
+                          "model",
+                          "providerId",
+                          "inputTokens",
+                          "outputTokens",
+                          "assistantMessageCount"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "rows"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getDashboardUsage",
+        "tags": [
+          "dashboard"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          }
+        ],
+        "summary": "Get token-usage statistics per model per day (all scopes).",
+        "x-sdk-name": "dashboard.getUsage"
       }
     },
     "/sessions/overview": {

@@ -21,3 +21,26 @@ export const DashboardOverviewResponseSchema = z.object({
   openTasks: z.array(TaskResponseSchema),
   recentlyCompletedTasks: z.array(TaskResponseSchema),
 })
+
+// Usage statistics — token usage per model per local calendar day. The HTTP
+// boundary clamps `days` independently of the core-op cap (D16).
+export const DashboardUsageQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(90).optional(),
+})
+
+export const DailyModelUsageRowSchema = z.object({
+  day: z.string(),
+  // Null for sessions created before the model column existed / before the
+  // first assistant response captured one.
+  model: z.string().nullable(),
+  providerId: z.string(),
+  // Context-window occupancy summed across the day's turns (includes cached
+  // context) — an activity measure, not a billed-input figure.
+  inputTokens: z.number(),
+  outputTokens: z.number(),
+  assistantMessageCount: z.number(),
+})
+
+export const DashboardUsageResponseSchema = z.object({
+  rows: z.array(DailyModelUsageRowSchema),
+})

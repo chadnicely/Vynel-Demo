@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Home now shows how much Claude you actually use.** A new Usage card charts token
+  usage per day, split by model ("Opus 4.8", "Sonnet 5"), over a week, two weeks, or a
+  month. Hovering any day shows each model's input/output split; the input figure honestly
+  includes the conversation context each reply reads. The chart updates the moment a turn
+  finishes, and the same statistics exist per workspace
+  (`GET /workspaces/:id/dashboard/usage`) ready for the upcoming workspace overview. The
+  chart colors are new theme tokens validated for colorblind separation and contrast in
+  both light and dark.
+
 - **The model picker now loads itself — and shows each model's context size.** Vynel asks
   your Claude engine which models your account can actually run and builds the picker from
   the answer: the newest generation of each family up front (Fable, Opus, Sonnet, Haiku),

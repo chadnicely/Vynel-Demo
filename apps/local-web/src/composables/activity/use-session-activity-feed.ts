@@ -8,6 +8,7 @@ import { useTurnNarrationStore } from "../../stores/turn-narration-store.js";
 import { sessionKeys } from "../chat/session-keys.js";
 import { workspaceKeys } from "../workspaces/workspace-keys.js";
 import { approvalKeys } from "../approvals/approval-keys.js";
+import { dashboardKeys } from "../dashboard/dashboard-keys.js";
 import { readSessionActivityEvents } from "./session-activity-stream.js";
 
 // ONE long-lived /activity/stream subscription for the app's lifetime (AppShell
@@ -40,6 +41,8 @@ export function useSessionActivityFeed() {
     // use-chat-turn applies after an own global turn).
     if (event.kind === "turn-ended") {
       void queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
+      // Overview + usage statistics both settle when a turn lands.
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
     }
   }
 
