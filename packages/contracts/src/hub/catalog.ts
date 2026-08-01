@@ -10,7 +10,15 @@ import type { HubTier } from './entitlements.js'
 
 export type HubItemKind = 'skill' | 'agent' | 'mcp' | 'rule' | 'plugin'
 export type HubItemStatus = 'draft' | 'published' | 'yanked'
-export type HubPublisherTier = 'verified' | 'community'
+export type HubPublisherTier = 'verified' | 'anthropic-official' | 'community'
+
+/** Raw publisher-tier text (DB rows store it unconstrained) → the wire union.
+ * Unknown values fall back to 'verified' — the pre-widening behavior, so a
+ * legacy row can never surface as the wrong trust tier. One home for this
+ * narrowing; the registry's DTO mappers must never inline it. */
+export function toHubPublisherTier(raw: string): HubPublisherTier {
+  return raw === 'community' || raw === 'anthropic-official' ? raw : 'verified'
+}
 /** Where the item is meant to live once installed — 'both' means it fits
  * either level and the installer lets the user pick. */
 export type HubRecommendedScope = 'user' | 'workspace' | 'both'

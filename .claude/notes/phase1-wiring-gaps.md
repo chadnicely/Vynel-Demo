@@ -85,8 +85,9 @@ Docs to reconcile so the next reader isn't misled (code wins in each case):
   future providers per the code comment, not a bug. The card UI + `describe-approval-rule` do handle it.
 - **`knowledge` global-scope documents unreachable via the detail route** 📄 — the single-doc route
   keys on `workspaceId`, so a global (`workspaceId = null`) document always 404s there. Latent.
-- **`marketplace` `PublisherTierSchema` allows `anthropic-official`** 📄 — but
-  `cloudRowToMarketplaceItem` only ever emits `verified`/`community`; a schema value nothing produces.
+- ~~**`marketplace` `PublisherTierSchema` allows `anthropic-official`**~~ ✅ CLOSED (2026-08-01,
+  claude-official arc): the tier now flows hub→cache→item end-to-end; `isOfficial` covers both
+  curated tiers.
 - **`capabilities` has no desktop toggle UI** ✅ — only API/MCP toggling exists; the local-web tree
   has no capabilities panel or SDK call (only a prose mention in a marketplace card).
 

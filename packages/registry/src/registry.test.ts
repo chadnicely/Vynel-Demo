@@ -68,6 +68,28 @@ describe('registry', () => {
     })
   })
 
+  it('carries an anthropic-official publisher tier through publish and browse', async () => {
+    await withTestCloudDatabase(async (db) => {
+      await publishItemVersion(
+        db,
+        {
+          ...publishInput({ itemId: 'canvas-design', displayName: 'Canvas Design' }),
+          publisher: {
+            id: 'anthropic',
+            name: 'Anthropic',
+            tier: 'anthropic-official',
+            url: 'https://anthropic.com',
+          },
+        },
+        facts,
+      )
+      const items = await listCatalog(db, { callerTier: 'basic' })
+      expect(items.find((i) => i.itemId === 'canvas-design')?.publisherTier).toBe(
+        'anthropic-official',
+      )
+    })
+  })
+
   it('hides draft/yanked items from browse and detail', async () => {
     await withTestCloudDatabase(async (db) => {
       await publishItemVersion(db, publishInput(), facts)

@@ -12,7 +12,7 @@ export const PublishItemSchema = z.object({
   publisher: z.object({
     id: z.string().regex(KEBAB).max(80),
     name: z.string().min(1).max(120),
-    tier: z.enum(['verified', 'community']).default('verified'),
+    tier: z.enum(['verified', 'anthropic-official', 'community']).default('verified'),
     url: z.string().url().max(400).nullable().optional(),
   }),
   item: z.object({

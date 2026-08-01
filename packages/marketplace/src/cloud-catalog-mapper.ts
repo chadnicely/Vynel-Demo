@@ -4,11 +4,11 @@
 // upstream in `resolveMergedCatalog`, so the narrowing here only ever
 // sees skill/agent rows.
 
+import { toHubPublisherTier } from '@vynel/contracts/hub/catalog'
 import type {
   MarketplaceItem,
   MarketplaceItemKind,
   MarketplaceItemScope,
-  PublisherTier,
 } from '@vynel/contracts/marketplace/marketplace-item'
 import type {
   SkillCategory,
@@ -32,9 +32,9 @@ function toSkillCategory(raw: string): SkillCategory {
     : 'context'
 }
 
-function toPublisherTier(raw: string): PublisherTier {
-  return raw === 'community' ? 'community' : 'verified'
-}
+// The cache stores the hub's tier text verbatim, so parsing it is HUB
+// vocabulary — the shared `toHubPublisherTier` is the one home. Its union is
+// structurally identical to the desktop's `PublisherTier`, so no re-map.
 
 function toItemKind(raw: string): MarketplaceItemKind {
   return raw === 'agent' ? 'agent' : 'skill'
@@ -54,7 +54,7 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
     itemId: row.itemId,
     kind: toItemKind(row.kind),
     skillId: row.itemId,
-    publisherTier: toPublisherTier(row.publisherTier),
+    publisherTier: toHubPublisherTier(row.publisherTier),
     publisherName: row.publisherName,
     publisherUrl: row.publisherUrl,
     displayName: row.displayName,
@@ -68,7 +68,9 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
     // 'both' item most often is (useful everywhere).
     recommendedScope: (row.recommendedScope === 'workspace' ? 'workspace' : 'user') as SkillScope,
     scope: toItemScope(row.recommendedScope),
-    isOfficial: toPublisherTier(row.publisherTier) === 'verified',
+    // Both curated tiers badge as official — 'verified' (Vynel Team) and
+    // 'anthropic-official' (upstream Anthropic). Only community rows don't.
+    isOfficial: toHubPublisherTier(row.publisherTier) !== 'community',
     installStatus: { kind: 'not-installed' },
     minimumTier: row.minimumTier === 'pro' ? 'pro' : 'basic',
   }

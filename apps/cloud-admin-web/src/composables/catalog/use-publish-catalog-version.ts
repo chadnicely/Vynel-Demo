@@ -8,7 +8,7 @@ export interface PublishCatalogVersionInput {
   publisher: {
     id: string;
     name: string;
-    tier: "verified" | "community";
+    tier: "verified" | "anthropic-official" | "community";
     url: string | null;
   };
   item: {

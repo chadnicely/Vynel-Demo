@@ -80,12 +80,41 @@ trust-review step per curated plugin is unavoidable anyway. That is fine: curati
 
 ### Phase A — official skills (recommended first; small, native, high-value)
 
-1. **License audit + curation list** (no code): read each candidate skill's LICENSE; pick the v1
-   allowlist with Chad. Apache-2.0 → we may republish artifacts via our hub. Source-available
-   (document-skills) → per its terms: mirror if permitted, else hub-serves-metadata-only with a
-   pinned upstream SHA and the desktop fetches from GitHub at install (still sha256-verified —
-   `item_versions.artifactSha256` already carries the hash; the only extension is an external
-   artifact URL on the version row).
+1. **License audit — DONE (2026-08-01, audited at `anthropics/skills` commit `b29e7cf`;
+   actual layout is flat `skills/<name>/`, 17 skills, per-skill LICENSE.txt, no repo-root
+   license):**
+   - **12 × Apache-2.0** → redistributable via our hub (retain LICENSE.txt per skill, prominent
+     modified-file notices if we ever patch, carry repo `THIRD_PARTY_NOTICES.md` for vendored
+     deps like imageio): algorithmic-art · brand-guidelines · canvas-design · claude-api ·
+     frontend-design · internal-comms · mcp-builder · skill-creator · slack-gif-creator ·
+     theme-factory · web-artifacts-builder · webapp-testing.
+   - **4 × proprietary HARD-NO — docx / pdf / pptx / xlsx.** Their LICENSE.txt forbids
+     extraction from the Services, retaining copies outside the Services, reproduction,
+     derivatives, and any distribution/sublicense/transfer to third parties. **Mirror AND
+     fetch-direct are both off the table** (even the earlier fetch-direct idea dies here — Vynel
+     fetching + materializing IS "extract and retain outside the Services"). The only
+     possibly-defensible route is **delegate-to-official-channel**: Anthropic's own
+     `.claude-plugin/marketplace.json` publishes them as the `document-skills` plugin, so Vynel
+     could drive the user's own Claude Code (`claude plugin install
+     document-skills@anthropic-agent-skills` after `claude plugin marketplace add
+     anthropics/skills`) — distribution stays Anthropic→user under THEIR agreement; Vynel only
+     orchestrates. That rides Phase B's plugin semantics (the install lands in
+     `~/.claude/plugins/`, reaching Vynel sessions via `options.plugins`). Chad's call: drop for
+     v1 vs. build the delegate flow.
+   - **1 × unlicensed — doc-coauthoring** (SKILL.md only, no LICENSE.txt): default
+     all-rights-reserved → treat as no-redistribute until Anthropic adds a license. Good audience
+     fit otherwise — worth re-checking upstream occasionally.
+   - Upstream bundle names (their marketplace.json): `document-skills` (the 4) ·
+     `example-skills` (12 incl. doc-coauthoring) · `claude-api`.
+   - **Proposed v1 allowlist (audience-fit ∩ Apache-2.0):** canvas-design (posters/visual art) ·
+     theme-factory (styled slides/docs/pages) · internal-comms (status reports/announcements) ·
+     slack-gif-creator (fun) · algorithmic-art (generative art, optional 5th). Skipped
+     deliberately: brand-guidelines (applies ANTHROPIC's brand — misleading outside Anthropic);
+     mcp-builder / webapp-testing / skill-creator / claude-api / web-artifacts-builder /
+     frontend-design (developer-facing; vision says we're not a dev tool).
+   - **Category widening needed:** none of the v1 picks map to the current `SkillCategory`
+     union (`email|documents|calendar|files|research|notes|context`) — widen with `creative` +
+     `communication` (additive contract change, parity regen).
 2. **Hub:** widen `HubPublisherTier` with `'anthropic-official'`; seed an "Anthropic" publisher
    row; map through `cloud-catalog-mapper.ts` (cache already stores `publisherTier` as text).
 3. **Publish pipeline:** extend the existing `pnpm cloud:publish` flow (or a

@@ -7,7 +7,8 @@ import { pgTable, text } from 'drizzle-orm/pg-core'
 export const publishers = pgTable('publishers', {
   id: text().primaryKey(),
   name: text().notNull(),
-  // 'verified' | 'community' — app-enforced union.
+  // 'verified' | 'anthropic-official' | 'community' — app-enforced union
+  // (HubPublisherTier; publish-input.ts validates at write time).
   tier: text().notNull().default('verified'),
   url: text(),
 })

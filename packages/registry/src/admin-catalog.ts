@@ -9,7 +9,12 @@ import { z } from 'zod'
 import { NotFoundError } from '@vynel/errors'
 import type { CloudDatabase } from '@vynel/cloud-db'
 import type { HubAdminCatalogItem } from '@vynel/contracts/hub/admin'
-import type { HubItemKind, HubItemStatus, HubRecommendedScope } from '@vynel/contracts/hub/catalog'
+import {
+  toHubPublisherTier,
+  type HubItemKind,
+  type HubItemStatus,
+  type HubRecommendedScope,
+} from '@vynel/contracts/hub/catalog'
 import {
   findCatalogItemById,
   listAllItemsWithPublisher,
@@ -38,7 +43,7 @@ function toHubAdminCatalogItem(
     status: item.status as HubItemStatus,
     publisherId: publisher.id,
     publisherName: publisher.name,
-    publisherTier: publisher.tier === 'community' ? 'community' : 'verified',
+    publisherTier: toHubPublisherTier(publisher.tier),
     displayName: item.displayName,
     oneLineDescription: item.oneLineDescription,
     category: item.category,

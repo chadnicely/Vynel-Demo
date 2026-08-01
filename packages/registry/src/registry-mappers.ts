@@ -2,7 +2,12 @@
 // here so the single `tierMeetsMinimum` rule (contracts) drives both browse
 // and the download gate.
 
-import { tierMeetsMinimum, type HubCatalogItem, type HubCatalogVersion } from '@vynel/contracts/hub/catalog'
+import {
+  tierMeetsMinimum,
+  toHubPublisherTier,
+  type HubCatalogItem,
+  type HubCatalogVersion,
+} from '@vynel/contracts/hub/catalog'
 import type { HubTier } from '@vynel/contracts/hub/entitlements'
 import type { CatalogItemWithPublisher } from './repositories/catalog-repository.js'
 import type { ItemVersionRow } from './schema/item-versions.js'
@@ -33,7 +38,7 @@ export function toHubCatalogItem(
     itemId: item.itemId,
     kind: item.kind as HubCatalogItem['kind'],
     publisherName: publisher.name,
-    publisherTier: publisher.tier === 'community' ? 'community' : 'verified',
+    publisherTier: toHubPublisherTier(publisher.tier),
     publisherUrl: publisher.url,
     displayName: item.displayName,
     oneLineDescription: item.oneLineDescription,

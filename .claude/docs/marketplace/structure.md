@@ -201,7 +201,7 @@ flowchart LR
 - **Off-surface == unknown id** — `getMarketplaceItem` throws the same `NotFoundError` for unknown, hidden (`isSystemInstalled`), and off-surface ids — no enumeration leak. Install/uninstall both resolve through it first, so no surface can mint or remove a row its own reads would hide.
 - **Agent match requires `source: 'community'`** — a hand-made agent (`source: 'user'`) whose slug collides with a catalog itemId must never flip the card to "Installed" or be soft-deleted by uninstall. The annotator filters on `source === 'community'` (the value `installCloudAgent` stamps).
 - **Agents carry no installed version** — the annotated `versionInstalled` is null for agents (the update flow is a deferred arc).
-- **Latent tier value** — `PublisherTierSchema` enumerates `anthropic-official`, but `cloudRowToMarketplaceItem`'s `toPublisherTier` only ever emits `verified`|`community`. A schema value nothing currently produces; not load-bearing, but flagged for the next editor.
+- **Tier truth table** — `toPublisherTier` passes all three tiers through (`verified` | `anthropic-official` | `community`; unknown legacy text → `verified`); `isOfficial` is true for both curated tiers, false only for community. `anthropic-official` rows come from the hub (the claude-official arc, `docs/module-notes/marketplace-claude-official.md`).
 - **Sync cache, sync merge** — the repo is deliberately sync (better-sqlite3) so `listMarketplaceItems` stays synchronous; the agents install-status reader binds the **kernel repo** directly (`listAgentsForUserAndWorkspace`) rather than the agents leaf's async export, to keep the pipeline sync.
 
 ---
