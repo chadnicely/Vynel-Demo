@@ -54,6 +54,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **The "Import Anthropic items" button no longer fails with "manifest not found".** The hub
+  resolved its file paths from wherever the process happened to start, so in dev it looked for
+  the catalog manifest (and kept its artifact files) inside the wrong folder. Paths now anchor
+  to the project root regardless of how the hub is launched; existing artifact files were moved
+  to the new location, and the daily upstream-drift check now actually finds the manifest too.
+
 - **The Update button now only appears when there is truly something to download.** Built-in
   skills version with the app itself, so their cards no longer offer an Update that would
   fail; only items the cloud catalog actually carries can show one. Changing settings on a
