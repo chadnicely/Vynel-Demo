@@ -223,6 +223,9 @@ trust-review step per curated plugin is unavoidable anyway. That is fine: curati
   re-render on `installedFromSource !== 'marketplace'` (or persist extracted markdown).
 - **sha-verify duplication:** the hash-compare block is verbatim in `install-cloud-skill.ts` and
   `update-cloud-skill.ts` — extract a shared `verifyArtifactSha256` internal on next touch.
+- **Admin portal catalog table shows no publisher column** (Chad noticed 2026-08-01) — kind
+  says "skill" but nothing marks Anthropic provenance portal-side; add Publisher beside Kind on
+  the portal's next touch (same touch as the `sourceUrl` edit gap below).
 - **Admin portal can't edit `sourceUrl` (from the Move-4 review):** the publish composable type
   carries it but `PublishItemView` has no form field and `UpdateCatalogItemMetadataSchema` omits
   it — a wrong credit URL today needs a script republish with a version bump. Close on the

@@ -9,6 +9,23 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Anthropic's official skills, in your marketplace.** Five hand-picked skills by Anthropic —
+  Canvas Design (posters and visual art), Theme Factory (styled slides and pages), Internal
+  Comms (status reports and announcements), Slack GIF Creator, and Algorithmic Art — can now be
+  published to the hub and installed with one click. They wear a **"By Anthropic"** badge, and
+  every marketplace card now shows a credit line naming who made the item, with links to the
+  maker and the original source. Each skill installs as its complete folder (fonts, themes,
+  helpers included) into the standard `.claude/skills/` location — so it also works if you open
+  Claude Code directly in that workspace. Curation stays deliberate: skills are imported from a
+  reviewed, pinned snapshot (`pnpm cloud:import-anthropic`), and a companion check
+  (`pnpm cloud:check-anthropic`) reports when Anthropic updates anything we republish.
+
+- **Installed skills can now update.** When the marketplace publishes a newer version of a
+  skill you have, its card shows an Update button — one click downloads the new version,
+  verifies its integrity, and replaces the installed files. Running Update on an already-
+  current skill safely repairs it (rewrites missing files). Two new browse categories arrived
+  with this: Creative and Communication.
+
 - **Home now shows how much Claude you actually use.** A new Usage card charts token
   usage per day, split by model ("Opus 4.8", "Sonnet 5"), over a week, two weeks, or a
   month. Hovering any day shows each model's input/output split; the input figure honestly

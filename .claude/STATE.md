@@ -1,7 +1,53 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-07-30.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-01.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ✅ CLAUDE-OFFICIAL MARKETPLACE ARC (2026-08-01) — Phase A CODE-COMPLETE, smoke pending
+
+**Full research + plan: `docs/module-notes/marketplace-claude-official.md`.** All decisions
+SETTLED (allowlist = all five · document-skills = delegate-to-Claude-CLI, a Phase-B arc ·
+badge = "By Anthropic" · Option-1 hub-carried · native-disk-interop + credits standing rules).
+Shipped: `c3acafd` research · `bd412f6` Move 1 (anthropic-official tier end-to-end) · `7fec89c`
+Move 2 (update path: `updateCloudSkill`+outbox+routes+MCP+Update button) · `9d42c4b` Move 3
+(FULL-FOLDER artifacts: `extract-skill-archive` guard wall + stage-and-swap writer + dot-filtered
+discover — official skills are multi-file) · `7c6a51d` Move 4 (import pipeline
+`cloud:import-anthropic` w/ pinned-SHA gate, `sourceUrl` credits hub→card via proper drizzle
+migrations 0024/0005, categories `creative`+`communication`, "By Anthropic" badge + credit line)
+· Move 5 uncommitted: `cloud:check-anthropic` upstream-watch (live-smoked: "up to date @b29e7cf").
+Gate green (3440). ⚠ Drizzle lesson memorized: NEVER hand-write migrations
+(memory: drizzle-generate-never-handwrite-migrations).
+**✅ SMOKED END-TO-END (Chad, 2026-08-01):** hub import of all five (idempotent re-run proven) →
+account provisioned (cnicely32@gmail.com, admin/pro; dev password-links = minted token via the
+opaque-secret recipe when the log line is lost) → portal shows the rows → app install of
+canvas-design → **skill used successfully**. Phase A COMPLETE. Move 5 committed `8df0d83`.
+Remaining marketplace items = the module-notes deferred list (+ portal publisher column).
+
+## ⏭ NEXT SESSION FIRST: skills become INSTALL/UNINSTALL ONLY (Chad, 2026-08-01)
+
+Chad's call (AskUserQuestion, deliberate): **remove the enable/disable pause state from the
+skills leaf** — a skill is one file on disk; the only honest states are present/absent.
+Reverses D11. Scope sketch: drop `isEnabled` (migration), delete
+`enable-skill.ts`/`disable-skill.ts` + `SKILL_ENABLED_CHANGED` + the two routes + panel toggle +
+`update-cloud-skill.ts`'s disabled guard (+ its test), sweep `isEnabled` from types/serializers/
+annotator views, regen SDK/MCP (pinned rosters shrink), check
+`synchronize-skills-with-provider` + `list-installed-skills-for-context` + `update-skill-settings`
+("re-renders if enabled" → always). ⚠ Turning off then = uninstall = settings hard-delete —
+surface that in the removal UX. Chad: "don't focus on it this session — fix next session."
+
+## ✅ DASHBOARD V2 ARC STARTED (2026-07-31, committed `dac0bef`, pushed)
+
+Chad's brief: Jarvis-grade dashboard, TWO scopes (global Home = all workspaces;
+per-workspace overview = that workspace only). **Full plan: `docs/jarvis-dashboard-v2-plan.md`**
+(supersedes the unbuilt tail of `jarvis-home-dashboard-plan.md`; its slices 1-2 — live band +
+task celebration — are BUILT and stay). Slice U (Chad's usage-stats ask) SHIPPED: per-model
+per-local-day token stats — `packages/chat/src/{repositories/chat-usage.ts,usage/}`,
+`GET /dashboard/usage` + workspace twin, `UsageStatsCard.vue` on Home (validated
+`--chart-1..4` tokens), turn-ended invalidates `dashboardKeys.all`. Gate green (3418),
+reviewer clean. ⚠ Chad has NOT visually smoked the card yet. **NEXT: Slice A** (Needs-you
+rows: approvals + asks + delegation chips) → B (workspace hero cards + Today journal card)
+→ C → D (workspace overview endpoint + view — reuse `use-usage-stats` with workspaceId)
+→ E → F (per the plan doc).
 
 ## ⚠ UNCOMMITTED (2026-07-30): chat-fix pass — modes / thinking / turn rendering (Chad's asks)
 

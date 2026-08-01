@@ -50,3 +50,6 @@ dist-payloads/
 # playwright-cli browser-smoke artifacts (screenshots/snapshots)
 .playwright-cli/
 .notes/
+
+# scratch exports (e.g. frontend copy for design uploads)
+.tmp/
