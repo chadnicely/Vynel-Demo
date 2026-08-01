@@ -27,6 +27,7 @@ export function syncCloudCatalog(
       category: item.category,
       iconName: item.iconName,
       recommendedScope: item.recommendedScope,
+      sourceUrl: item.sourceUrl,
       minimumTier: item.minimumTier,
       latestVersion: item.latestVersion,
       latestVersionSha256: item.latestVersionSha256,

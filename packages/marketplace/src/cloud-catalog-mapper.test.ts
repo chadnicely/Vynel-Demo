@@ -13,6 +13,7 @@ function cacheRow(over: Partial<MarketplaceCloudCatalogRow> = {}): MarketplaceCl
     publisherName: 'Anthropic',
     publisherTier: 'anthropic-official',
     publisherUrl: 'https://anthropic.com',
+    sourceUrl: 'https://github.com/anthropics/skills/tree/b29e7cf/skills/canvas-design',
     displayName: 'Canvas Design',
     oneLineDescription: 'Create visual art as png/pdf.',
     category: 'context',
@@ -32,6 +33,10 @@ describe('cloudRowToMarketplaceItem', () => {
     const item = cloudRowToMarketplaceItem(cacheRow())
     expect(item.publisherTier).toBe('anthropic-official')
     expect(item.isOfficial).toBe(true)
+    // The credit line's provenance rides through untouched.
+    expect(item.sourceUrl).toBe(
+      'https://github.com/anthropics/skills/tree/b29e7cf/skills/canvas-design',
+    )
   })
 
   it('keeps verified official and community unofficial', () => {

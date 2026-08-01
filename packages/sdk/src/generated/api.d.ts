@@ -3541,7 +3541,7 @@ export interface operations {
                         displayName: string;
                         oneLineDescription: string;
                         /** @enum {string} */
-                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context";
+                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
                         iconName: string;
                         version: string;
                         /** @enum {string} */
@@ -3604,7 +3604,7 @@ export interface operations {
                             displayName: string;
                             oneLineDescription: string;
                             /** @enum {string} */
-                            category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context";
+                            category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
                             iconName: string;
                             version: string;
                             /** @enum {string} */
@@ -3911,7 +3911,7 @@ export interface operations {
     getWorkspacesByWorkspaceIdMarketplaceItems: {
         parameters: {
             query?: {
-                category?: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context";
+                category?: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
                 publisherTier?: "verified" | "anthropic-official" | "community";
                 installState?: "installed" | "not-installed";
                 searchQuery?: string;
@@ -3940,10 +3940,11 @@ export interface operations {
                         publisherTier: "verified" | "anthropic-official" | "community";
                         publisherName: string;
                         publisherUrl: string | null;
+                        sourceUrl: string | null;
                         displayName: string;
                         oneLineDescription: string;
                         /** @enum {string} */
-                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context";
+                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
                         iconName: string;
                         version: string;
                         releasedAt: string;
@@ -4004,10 +4005,11 @@ export interface operations {
                         publisherTier: "verified" | "anthropic-official" | "community";
                         publisherName: string;
                         publisherUrl: string | null;
+                        sourceUrl: string | null;
                         displayName: string;
                         oneLineDescription: string;
                         /** @enum {string} */
-                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context";
+                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
                         iconName: string;
                         version: string;
                         releasedAt: string;
@@ -10523,7 +10525,7 @@ export interface operations {
     getMarketplaceItems: {
         parameters: {
             query?: {
-                category?: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context";
+                category?: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
                 publisherTier?: "verified" | "anthropic-official" | "community";
                 installState?: "installed" | "not-installed";
                 searchQuery?: string;
@@ -10550,10 +10552,11 @@ export interface operations {
                         publisherTier: "verified" | "anthropic-official" | "community";
                         publisherName: string;
                         publisherUrl: string | null;
+                        sourceUrl: string | null;
                         displayName: string;
                         oneLineDescription: string;
                         /** @enum {string} */
-                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context";
+                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
                         iconName: string;
                         version: string;
                         releasedAt: string;

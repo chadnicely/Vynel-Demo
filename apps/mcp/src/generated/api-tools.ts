@@ -1659,7 +1659,7 @@ export const listMarketplaceItems: McpToolFactory = (scope, app) =>
     "Browse the marketplace for this workspace — skills and agents the user can install, each annotated with its install state. Optional filters: `category`, `publisherTier`, `installState`, `searchQuery`, `sortBy`. Use when the user wants a capability Vynel does not have yet (\"can you do X?\") — find the item, then install_marketplace_item with its id. Read-only.",
     {
     workspaceId: z.string(),
-    category: z.enum(['email', 'documents', 'calendar', 'files', 'research', 'notes', 'context']).optional(),
+    category: z.enum(['email', 'documents', 'calendar', 'files', 'research', 'notes', 'context', 'creative', 'communication']).optional(),
     publisherTier: z.enum(['verified', 'anthropic-official', 'community']).optional(),
     installState: z.enum(['installed', 'not-installed']).optional(),
     searchQuery: z.string().optional(),

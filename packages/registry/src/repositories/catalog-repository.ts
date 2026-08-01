@@ -16,6 +16,7 @@ export interface UpsertCatalogItemInput {
   readonly category: string
   readonly iconName: string
   readonly recommendedScope: string | null
+  readonly sourceUrl: string | null
   readonly minimumTier: string
   readonly status: string
 }
@@ -38,6 +39,7 @@ export async function upsertCatalogItem(
         category: input.category,
         iconName: input.iconName,
         recommendedScope: input.recommendedScope,
+        sourceUrl: input.sourceUrl,
         minimumTier: input.minimumTier,
         status: input.status,
         updatedAt: now,

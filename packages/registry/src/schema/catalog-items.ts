@@ -20,6 +20,9 @@ export const catalogItems = pgTable('catalog_items', {
   iconName: text().notNull(),
   // 'user' | 'workspace' | null — some kinds have no install scope.
   recommendedScope: text(),
+  // Upstream origin of the item's content (the credit line's Source link) —
+  // e.g. the pinned anthropics/skills folder. Null = first-party.
+  sourceUrl: text(),
   // 'basic' | 'pro' — which access tier may install (default basic = anyone).
   minimumTier: text().notNull().default('basic'),
   // 'draft' | 'published' | 'yanked' — only 'published' surfaces in browse.

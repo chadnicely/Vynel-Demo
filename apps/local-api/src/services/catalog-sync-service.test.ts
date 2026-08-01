@@ -20,6 +20,7 @@ function item(itemId: string): HubCatalogItem {
     publisherName: 'Vynel Team',
     publisherTier: 'verified',
     publisherUrl: null,
+    sourceUrl: null,
     displayName: itemId,
     oneLineDescription: 'x',
     category: 'email',

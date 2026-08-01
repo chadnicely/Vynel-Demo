@@ -53,6 +53,8 @@ function verifiedSkillToMarketplaceItem(skill: VerifiedSkillDefinition): Marketp
     publisherTier: 'verified',
     publisherName: VYNEL_TEAM_PUBLISHER_NAME,
     publisherUrl: null,
+    // Bundled items are Vynel-authored — no external origin to credit.
+    sourceUrl: null,
     displayName: skill.displayName,
     oneLineDescription: skill.oneLineDescription,
     category: skill.category,

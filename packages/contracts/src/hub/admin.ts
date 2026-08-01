@@ -44,6 +44,7 @@ export interface HubAdminCatalogItem {
   readonly category: string
   readonly iconName: string
   readonly recommendedScope: HubRecommendedScope | null
+  readonly sourceUrl: string | null
   readonly minimumTier: HubTier
   readonly createdAt: string
   readonly updatedAt: string

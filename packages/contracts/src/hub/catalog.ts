@@ -48,6 +48,10 @@ export interface HubCatalogItem {
   readonly category: string
   readonly iconName: string
   readonly recommendedScope: string | null
+  /** The item's upstream origin — e.g. the pinned source-repo folder for a
+   * republished official skill. Rendered as the credit line's Source link;
+   * null for first-party items with no external origin. */
+  readonly sourceUrl: string | null
   readonly minimumTier: HubTier
   readonly latestVersion: string
   /** sha256 of the latest version's artifact — the desktop caches this as the

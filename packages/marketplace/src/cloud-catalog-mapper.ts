@@ -24,6 +24,8 @@ const SKILL_CATEGORIES: readonly SkillCategory[] = [
   'research',
   'notes',
   'context',
+  'creative',
+  'communication',
 ]
 
 function toSkillCategory(raw: string): SkillCategory {
@@ -57,6 +59,7 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
     publisherTier: toHubPublisherTier(row.publisherTier),
     publisherName: row.publisherName,
     publisherUrl: row.publisherUrl,
+    sourceUrl: row.sourceUrl,
     displayName: row.displayName,
     oneLineDescription: row.oneLineDescription,
     category: toSkillCategory(row.category),

@@ -17,6 +17,7 @@ function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
     publisherTier: 'verified',
     publisherName: 'Vynel Team',
     publisherUrl: null,
+    sourceUrl: null,
     displayName: 'Email Drafter',
     oneLineDescription: 'Draft contextual email replies.',
     category: 'email',

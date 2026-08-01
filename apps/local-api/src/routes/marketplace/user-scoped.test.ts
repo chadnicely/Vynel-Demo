@@ -66,6 +66,7 @@ function cloudCatalogItem(over: Partial<HubCatalogItem> & { itemId: string }): H
     publisherName: 'Vynel Team',
     publisherTier: 'verified',
     publisherUrl: null,
+    sourceUrl: null,
     displayName: over.itemId,
     oneLineDescription: 'x',
     category: 'email',

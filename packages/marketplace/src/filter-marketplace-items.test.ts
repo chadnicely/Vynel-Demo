@@ -13,6 +13,7 @@ function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
     publisherTier: 'verified',
     publisherName: 'Vynel Team',
     publisherUrl: null,
+    sourceUrl: null,
     displayName: 'Alpha',
     oneLineDescription: 'First test item',
     category: 'email',

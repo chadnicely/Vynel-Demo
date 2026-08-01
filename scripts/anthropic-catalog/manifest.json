@@ -1,0 +1,59 @@
+{
+  "upstream": {
+    "repo": "https://github.com/anthropics/skills",
+    "pinnedSha": "b29e7cf65e5cb78a5ac33d582270551bc74a14eb"
+  },
+  "publisher": {
+    "id": "anthropic",
+    "name": "Anthropic",
+    "tier": "anthropic-official",
+    "url": "https://www.anthropic.com"
+  },
+  "items": [
+    {
+      "itemId": "canvas-design",
+      "displayName": "Canvas Design",
+      "oneLineDescription": "Create beautiful visual art — posters, designs, and layouts — as PNG or PDF files.",
+      "category": "creative",
+      "iconName": "palette",
+      "recommendedScope": "both",
+      "version": "1.0.0"
+    },
+    {
+      "itemId": "theme-factory",
+      "displayName": "Theme Factory",
+      "oneLineDescription": "Style slides, docs, and pages with ten polished, ready-made visual themes.",
+      "category": "creative",
+      "iconName": "layout-template",
+      "recommendedScope": "both",
+      "version": "1.0.0"
+    },
+    {
+      "itemId": "internal-comms",
+      "displayName": "Internal Comms",
+      "oneLineDescription": "Write clear status reports, announcements, newsletters, and FAQs in your team's formats.",
+      "category": "communication",
+      "iconName": "megaphone",
+      "recommendedScope": "both",
+      "version": "1.0.0"
+    },
+    {
+      "itemId": "slack-gif-creator",
+      "displayName": "Slack GIF Creator",
+      "oneLineDescription": "Create fun animated GIFs sized and optimized for sharing in chat.",
+      "category": "creative",
+      "iconName": "film",
+      "recommendedScope": "both",
+      "version": "1.0.0"
+    },
+    {
+      "itemId": "algorithmic-art",
+      "displayName": "Algorithmic Art",
+      "oneLineDescription": "Generate interactive algorithmic art with seeded randomness you can explore and tweak.",
+      "category": "creative",
+      "iconName": "sparkles",
+      "recommendedScope": "both",
+      "version": "1.0.0"
+    }
+  ]
+}

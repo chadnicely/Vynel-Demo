@@ -22,6 +22,8 @@ export const marketplaceCloudCatalog = table('marketplace_cloud_catalog', {
   category: text().notNull(),
   iconName: text().notNull(),
   recommendedScope: text(),
+  // Upstream origin (the credit line's Source link); null = first-party.
+  sourceUrl: text(),
   minimumTier: text().notNull(),
   latestVersion: text().notNull(),
   latestVersionSha256: text().notNull(),

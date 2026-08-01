@@ -16,6 +16,8 @@ export const SkillCategorySchema = z.enum([
   'research',
   'notes',
   'context',
+  'creative',
+  'communication',
 ])
 
 export const PublisherTierSchema = z.enum(['verified', 'anthropic-official', 'community'])
@@ -67,6 +69,7 @@ export const MarketplaceItemSchema = z.object({
   publisherTier: PublisherTierSchema,
   publisherName: z.string(),
   publisherUrl: z.string().nullable(),
+  sourceUrl: z.string().nullable(),
   displayName: z.string(),
   oneLineDescription: z.string(),
   category: SkillCategorySchema,

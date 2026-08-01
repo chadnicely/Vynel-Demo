@@ -45,6 +45,7 @@ export function toHubCatalogItem(
     category: item.category,
     iconName: item.iconName,
     recommendedScope: item.recommendedScope,
+    sourceUrl: item.sourceUrl,
     minimumTier,
     latestVersion: latest.version,
     latestVersionSha256: latest.artifactSha256,

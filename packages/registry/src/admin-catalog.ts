@@ -49,6 +49,7 @@ function toHubAdminCatalogItem(
     category: item.category,
     iconName: item.iconName,
     recommendedScope: normalizeScope(item.recommendedScope),
+    sourceUrl: item.sourceUrl,
     minimumTier: normalizeTier(item.minimumTier),
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),

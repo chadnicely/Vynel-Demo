@@ -69,6 +69,9 @@ export type MarketplaceItem = {
   publisherTier: PublisherTier
   publisherName: string
   publisherUrl: string | null
+  /** Upstream origin of the item's content (credit line's Source link) —
+   * e.g. the pinned anthropics/skills folder; null when Vynel-authored. */
+  sourceUrl: string | null
   displayName: string
   oneLineDescription: string
   category: SkillCategory

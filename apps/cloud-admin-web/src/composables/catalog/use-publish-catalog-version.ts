@@ -18,6 +18,7 @@ export interface PublishCatalogVersionInput {
     oneLineDescription: string;
     category: string;
     iconName: string;
+    sourceUrl?: string | null;
     recommendedScope: "user" | "workspace" | "both" | null;
     minimumTier: "basic" | "pro";
     status: "draft" | "published" | "yanked";

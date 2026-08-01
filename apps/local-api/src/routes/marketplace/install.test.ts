@@ -53,6 +53,7 @@ function cloudCatalogItem(sha: string, over: Partial<HubCatalogItem> = {}): HubC
     publisherName: 'Vynel Team',
     publisherTier: 'verified',
     publisherUrl: null,
+    sourceUrl: null,
     displayName: 'Cloud Skill',
     oneLineDescription: 'x',
     category: 'email',

@@ -4,9 +4,14 @@ import {
   BadgeCheck,
   Check,
   FileText,
+  Film,
   Inbox,
+  LayoutTemplate,
   Mail,
+  Megaphone,
+  Palette,
   Search,
+  Sparkles,
 } from "lucide-vue-next";
 import { workspaceMonogram } from "@vynel/ui";
 import type { MarketplaceItem } from "@vynel/contracts/marketplace/marketplace-item";
@@ -39,6 +44,11 @@ const CATALOG_ICONS: Record<string, Component> = {
   inbox: Inbox,
   search: Search,
   "file-text": FileText,
+  palette: Palette,
+  "layout-template": LayoutTemplate,
+  megaphone: Megaphone,
+  film: Film,
+  sparkles: Sparkles,
 };
 
 const tileIcon = computed(() => CATALOG_ICONS[props.item.iconName] ?? null);
@@ -46,6 +56,13 @@ const monogram = computed(() => workspaceMonogram(props.item.displayName));
 
 const isInstalled = computed(
   () => props.item.installStatus.kind === "installed",
+);
+
+// The official badge's wording is provenance-honest (Chad, 2026-08-01):
+// Anthropic-published items say so plainly; Vynel-verified items keep
+// "Official". Community rows (isOfficial false) get neither.
+const officialBadgeLabel = computed(() =>
+  props.item.publisherTier === "anthropic-official" ? "By Anthropic" : "Official",
 );
 
 // Skills only — agents carry no installed version (null), so their card can
@@ -112,7 +129,7 @@ const removeLabel = computed(() => {
             class="scope-chip is-gold inline-flex items-center gap-0.5 rounded-full border border-gold-soft bg-gold-soft px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-gold"
           >
             <BadgeCheck :size="10" />
-            Official
+            {{ officialBadgeLabel }}
           </span>
           <span
             v-if="showsProBadge"
@@ -127,6 +144,31 @@ const removeLabel = computed(() => {
       class="m-0 line-clamp-2 min-h-[2.15rem] text-xs text-ink-2"
     >
       {{ item.oneLineDescription }}
+    </p>
+
+    <!-- Credit line: every resource names its origin (publisher + upstream
+         source when it has one) with real links — provenance, not chrome. -->
+    <p class="credit-line m-0 truncate text-2xs text-ink-3">
+      By
+      <a
+        v-if="item.publisherUrl"
+        :href="item.publisherUrl"
+        target="_blank"
+        rel="noreferrer"
+        class="underline decoration-hair-strong underline-offset-2 hover:text-ink-1"
+        >{{ item.publisherName }}</a
+      >
+      <template v-else>{{ item.publisherName }}</template>
+      <template v-if="item.sourceUrl">
+        ·
+        <a
+          :href="item.sourceUrl"
+          target="_blank"
+          rel="noreferrer"
+          class="underline decoration-hair-strong underline-offset-2 hover:text-ink-1"
+          >Source</a
+        >
+      </template>
     </p>
 
     <footer class="mt-auto flex items-center justify-between gap-2">

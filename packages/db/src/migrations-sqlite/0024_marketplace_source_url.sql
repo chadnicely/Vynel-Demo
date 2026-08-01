@@ -1,0 +1,1 @@
+ALTER TABLE `marketplace_cloud_catalog` ADD `source_url` text;

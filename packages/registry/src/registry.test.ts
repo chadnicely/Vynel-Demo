@@ -68,12 +68,13 @@ describe('registry', () => {
     })
   })
 
-  it('carries an anthropic-official publisher tier through publish and browse', async () => {
+  it('carries an anthropic-official publisher tier and sourceUrl through publish and browse', async () => {
     await withTestCloudDatabase(async (db) => {
+      const sourceUrl = 'https://github.com/anthropics/skills/tree/b29e7cf/skills/canvas-design'
       await publishItemVersion(
         db,
         {
-          ...publishInput({ itemId: 'canvas-design', displayName: 'Canvas Design' }),
+          ...publishInput({ itemId: 'canvas-design', displayName: 'Canvas Design', sourceUrl }),
           publisher: {
             id: 'anthropic',
             name: 'Anthropic',
@@ -84,9 +85,9 @@ describe('registry', () => {
         facts,
       )
       const items = await listCatalog(db, { callerTier: 'basic' })
-      expect(items.find((i) => i.itemId === 'canvas-design')?.publisherTier).toBe(
-        'anthropic-official',
-      )
+      const item = items.find((i) => i.itemId === 'canvas-design')
+      expect(item?.publisherTier).toBe('anthropic-official')
+      expect(item?.sourceUrl).toBe(sourceUrl)
     })
   })
 

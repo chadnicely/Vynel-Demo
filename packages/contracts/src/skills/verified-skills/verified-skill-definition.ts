@@ -60,6 +60,10 @@ export type SkillCategory =
   | 'research'
   | 'notes'
   | 'context'
+  // The claude-official arc's audience categories (2026-08-01): visual/
+  // design skills and writing/announcement skills respectively.
+  | 'creative'
+  | 'communication'
 
 export type SkillScope = 'user' | 'workspace'
 

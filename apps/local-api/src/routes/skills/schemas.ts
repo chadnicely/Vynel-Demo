@@ -41,6 +41,8 @@ const SkillCategorySchema = z.enum([
   'research',
   'notes',
   'context',
+  'creative',
+  'communication',
 ])
 
 const InstalledFromSourceSchema = z.enum(['verified-catalog', 'marketplace', 'external'])

@@ -24,6 +24,7 @@ function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
     publisherTier: "verified",
     publisherName: "Vynel",
     publisherUrl: null,
+    sourceUrl: null,
     displayName: "Email Drafter",
     oneLineDescription: "Draft emails.",
     category: "email",
@@ -290,6 +291,43 @@ describe("MarketplaceSection — uninstall", () => {
     await flushPromises();
 
     expect(wrapper.find(".row-action").exists()).toBe(false);
+    wrapper.unmount();
+  });
+});
+
+describe("MarketplaceSection — provenance", () => {
+  it("badges Anthropic items 'By Anthropic' and renders the credit line with links", async () => {
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      {
+        items: [
+          makeItem({
+            itemId: "canvas-design",
+            displayName: "Canvas Design",
+            publisherTier: "anthropic-official",
+            publisherName: "Anthropic",
+            publisherUrl: "https://www.anthropic.com",
+            sourceUrl: "https://github.com/anthropics/skills/tree/b29e7cf/skills/canvas-design",
+            isOfficial: true,
+          }),
+          makeItem({ itemId: "email-drafter", isOfficial: true }),
+        ],
+      },
+    );
+    await flushPromises();
+
+    const badges = wrapper.findAll(".scope-chip.is-gold").map((b) => b.text());
+    expect(badges).toContain("By Anthropic");
+    expect(badges).toContain("Official");
+
+    const credits = wrapper.findAll(".credit-line");
+    expect(credits.some((c) => c.text().includes("By Anthropic"))).toBe(true);
+    const sourceLink = credits
+      .flatMap((c) => c.findAll("a"))
+      .find((a) => a.text() === "Source");
+    expect(sourceLink?.attributes("href")).toBe(
+      "https://github.com/anthropics/skills/tree/b29e7cf/skills/canvas-design",
+    );
     wrapper.unmount();
   });
 });

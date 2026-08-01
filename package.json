@@ -32,6 +32,7 @@
     "release:cli-verify": "tsx scripts/src/release/verify-cli.ts",
     "cloud:generate-keys": "tsx scripts/src/cloud/generate-cloud-keys.ts",
     "cloud:publish": "tsx --env-file-if-exists=.env scripts/src/cloud/publish-catalog-item.ts",
+    "cloud:import-anthropic": "tsx --env-file-if-exists=.env scripts/src/cloud/import-anthropic-skills.ts",
     "voice:fetch-models": "tsx scripts/src/voice/fetch-voice-models.ts",
     "voice:smoke": "tsx scripts/src/voice/synthesize-smoke.ts",
     "voice:bench": "tsx scripts/src/voice/benchmark.ts"

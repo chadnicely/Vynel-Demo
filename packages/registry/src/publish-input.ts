@@ -29,6 +29,9 @@ export const PublishItemSchema = z.object({
     category: z.string().min(1).max(60),
     iconName: z.string().min(1).max(60),
     recommendedScope: z.enum(['user', 'workspace', 'both']).nullable().optional(),
+    // Credit-line origin (Chad 2026-08-01: every resource credits its
+    // source) — the upstream repo/site the content came from.
+    sourceUrl: z.string().url().max(400).nullable().optional(),
     minimumTier: z.enum(['basic', 'pro']).default('basic'),
     status: z.enum(['draft', 'published', 'yanked']).default('published'),
   }),

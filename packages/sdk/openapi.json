@@ -1041,7 +1041,9 @@
                           "files",
                           "research",
                           "notes",
-                          "context"
+                          "context",
+                          "creative",
+                          "communication"
                         ]
                       },
                       "iconName": {
@@ -1260,7 +1262,9 @@
                               "files",
                               "research",
                               "notes",
-                              "context"
+                              "context",
+                              "creative",
+                              "communication"
                             ]
                           },
                           "iconName": {
@@ -2024,6 +2028,12 @@
                           "null"
                         ]
                       },
+                      "sourceUrl": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "displayName": {
                         "type": "string"
                       },
@@ -2039,7 +2049,9 @@
                           "files",
                           "research",
                           "notes",
-                          "context"
+                          "context",
+                          "creative",
+                          "communication"
                         ]
                       },
                       "iconName": {
@@ -2131,6 +2143,7 @@
                       "publisherTier",
                       "publisherName",
                       "publisherUrl",
+                      "sourceUrl",
                       "displayName",
                       "oneLineDescription",
                       "category",
@@ -2168,7 +2181,9 @@
                 "files",
                 "research",
                 "notes",
-                "context"
+                "context",
+                "creative",
+                "communication"
               ]
             }
           },
@@ -2274,6 +2289,12 @@
                         "null"
                       ]
                     },
+                    "sourceUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "displayName": {
                       "type": "string"
                     },
@@ -2289,7 +2310,9 @@
                         "files",
                         "research",
                         "notes",
-                        "context"
+                        "context",
+                        "creative",
+                        "communication"
                       ]
                     },
                     "iconName": {
@@ -2381,6 +2404,7 @@
                     "publisherTier",
                     "publisherName",
                     "publisherUrl",
+                    "sourceUrl",
                     "displayName",
                     "oneLineDescription",
                     "category",
@@ -18608,6 +18632,12 @@
                           "null"
                         ]
                       },
+                      "sourceUrl": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "displayName": {
                         "type": "string"
                       },
@@ -18623,7 +18653,9 @@
                           "files",
                           "research",
                           "notes",
-                          "context"
+                          "context",
+                          "creative",
+                          "communication"
                         ]
                       },
                       "iconName": {
@@ -18715,6 +18747,7 @@
                       "publisherTier",
                       "publisherName",
                       "publisherUrl",
+                      "sourceUrl",
                       "displayName",
                       "oneLineDescription",
                       "category",
@@ -18749,7 +18782,9 @@
                 "files",
                 "research",
                 "notes",
-                "context"
+                "context",
+                "creative",
+                "communication"
               ]
             }
           },

@@ -52,6 +52,7 @@ function cloudAgentItem(sha: string): HubCatalogItem {
     publisherName: 'Vynel Team',
     publisherTier: 'verified',
     publisherUrl: null,
+    sourceUrl: null,
     displayName: 'Focus Writer',
     oneLineDescription: 'x',
     category: 'notes',

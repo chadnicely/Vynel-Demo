@@ -24,6 +24,7 @@ function makeItem(
     category: "productivity",
     iconName: "sunrise",
     recommendedScope: "user",
+    sourceUrl: null,
     minimumTier: "basic",
     createdAt: "2026-07-01T10:00:00.000Z",
     updatedAt: "2026-07-10T10:00:00.000Z",

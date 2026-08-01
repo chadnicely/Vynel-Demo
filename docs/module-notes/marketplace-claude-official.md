@@ -223,6 +223,10 @@ trust-review step per curated plugin is unavoidable anyway. That is fine: curati
   re-render on `installedFromSource !== 'marketplace'` (or persist extracted markdown).
 - **sha-verify duplication:** the hash-compare block is verbatim in `install-cloud-skill.ts` and
   `update-cloud-skill.ts` — extract a shared `verifyArtifactSha256` internal on next touch.
+- **Admin portal can't edit `sourceUrl` (from the Move-4 review):** the publish composable type
+  carries it but `PublishItemView` has no form field and `UpdateCatalogItemMetadataSchema` omits
+  it — a wrong credit URL today needs a script republish with a version bump. Close on the
+  portal's next touch (zod line + repo patch field + form input).
 - **Pure-cloud enable-void (pre-existing, from the Move-3 review):** `enableSkill`
   re-materializes only from the bundled catalog — for a marketplace-only skill it flips the flag
   with NOTHING written to disk (recoverable via sync → repair-update). Moot if the

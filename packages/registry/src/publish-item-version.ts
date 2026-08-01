@@ -57,6 +57,7 @@ export async function publishItemVersion(
       category: input.item.category,
       iconName: input.item.iconName,
       recommendedScope: input.item.recommendedScope ?? null,
+      sourceUrl: input.item.sourceUrl ?? null,
       minimumTier: input.item.minimumTier,
       status: input.item.status,
     })
