@@ -48,7 +48,7 @@ const SkillScopeSchema = z.enum(['user', 'workspace'])
 // distinct from the install scope above.
 const MarketplaceItemScopeSchema = z.enum(['user', 'workspace', 'both'])
 
-export const MarketplaceItemKindSchema = z.enum(['skill', 'agent', 'plugin', 'mcp'])
+export const MarketplaceItemKindSchema = z.enum(['skill', 'agent', 'plugin', 'mcp', 'rule'])
 
 const MarketplaceItemInstallStatusSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('not-installed') }),
@@ -148,6 +148,12 @@ export const UninstallMarketplaceItemResponseSchema = z.discriminatedUnion('kind
     serverName: z.string(),
     itemId: z.string(),
   }),
+  // Config-is-truth: the removed `.claude/rules/<id>.md` file's id.
+  z.object({
+    kind: z.literal('rule'),
+    ruleId: z.string(),
+    itemId: z.string(),
+  }),
 ])
 
 // Discriminated by item kind (C-agents): a skill install answers with the
@@ -185,5 +191,14 @@ export const InstallMarketplaceItemResponseSchema = z.discriminatedUnion('kind',
     itemId: z.string(),
     scope: SkillScopeSchema,
     version: z.string().nullable(),
+  }),
+  // Rule installs write one provenance-marked `.claude/rules/<id>.md`
+  // (config-is-truth) — the file id is the identity; no Vynel row.
+  z.object({
+    kind: z.literal('rule'),
+    ruleId: z.string(),
+    itemId: z.string(),
+    scope: SkillScopeSchema,
+    version: z.string(),
   }),
 ])

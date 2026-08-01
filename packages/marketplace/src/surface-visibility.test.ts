@@ -20,6 +20,7 @@ const emptyDeps: MarketplaceDeps = {
   listInstalledAgents: () => [],
   listInstalledPlugins: () => [],
   listInstalledMcpServers: () => [],
+  listInstalledRules: () => [],
 }
 
 function makeItem(scope: MarketplaceItem['scope']): MarketplaceItem {
@@ -175,6 +176,7 @@ describe('surface filtering through the browse pipeline', () => {
         listInstalledAgents: () => [],
         listInstalledPlugins: () => [],
         listInstalledMcpServers: () => [],
+        listInstalledRules: () => [],
       }
       // Installed only at WORKSPACE scope → the global shelf still says Get.
       const globalItem = listMarketplaceItems(db, { userId: 'u', surface: 'global' }, deps).find(

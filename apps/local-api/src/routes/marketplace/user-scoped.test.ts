@@ -11,7 +11,7 @@
 // agent rows with scope 'user').
 
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import JSZip from 'jszip'
@@ -666,5 +666,130 @@ describe('mcp kind — config-is-truth install/uninstall', () => {
         }
       })
     })
+  })
+})
+
+describe('rule kind — config-is-truth install/uninstall', () => {
+  const ruleManifest = {
+    ruleMarkdown: '# Conventional Commits\n\nUse type(scope): description.',
+  }
+
+  it('user scope end-to-end: Get writes the marked ~/.claude/rules file, list flips, Remove clears', async () => {
+    await withIsolatedHome(async () => {
+      await withTestDatabase(async (db) => {
+        seedUser(db)
+        syncCloudCatalog(
+          db,
+          [
+            cloudCatalogItem({
+              itemId: 'conventional-commits',
+              kind: 'rule',
+              recommendedScope: 'both',
+              latestVersionManifestJson: JSON.stringify(ruleManifest),
+            }),
+            cloudCatalogItem({
+              itemId: 'broken-rule',
+              kind: 'rule',
+              recommendedScope: 'both',
+              latestVersionManifestJson: '{"nope":true}',
+            }),
+          ],
+          new Date(),
+        )
+        const app = createApp({
+          db,
+          logger: silentLogger,
+          marketplaceInstalledPluginsReader: listInstalledPluginsStub,
+        })
+
+        // No dead Get buttons: the content-less rule row never surfaces.
+        const ids = (
+          (await (await app.request('/marketplace/items')).json()) as Array<{ itemId: string }>
+        ).map((i) => i.itemId)
+        expect(ids).toContain('conventional-commits')
+        expect(ids).not.toContain('broken-rule')
+
+        const res = await postJson(app, '/marketplace/install', { itemId: 'conventional-commits' })
+        expect(res.status).toBe(201)
+        expect(await res.json()).toEqual({
+          kind: 'rule',
+          ruleId: 'conventional-commits',
+          itemId: 'conventional-commits',
+          scope: 'user',
+          version: '1.0.0',
+        })
+
+        const items = (await (await app.request('/marketplace/items')).json()) as Array<{
+          itemId: string
+          installStatus: unknown
+        }>
+        expect(items.find((i) => i.itemId === 'conventional-commits')?.installStatus).toEqual({
+          kind: 'installed',
+          scope: 'user',
+          installedId: 'conventional-commits',
+          versionInstalled: '1.0.0',
+        })
+
+        const un = await postJson(app, '/marketplace/uninstall', { itemId: 'conventional-commits' })
+        expect(un.status).toBe(200)
+        expect(await un.json()).toEqual({
+          kind: 'rule',
+          ruleId: 'conventional-commits',
+          itemId: 'conventional-commits',
+        })
+      })
+    })
+  })
+
+  it('a hand-authored rule file never annotates, and Get refuses to overwrite it (409)', async () => {
+    const homeDir = mkdtempSync(join(tmpdir(), 'vynel-rule-handmade-home-'))
+    try {
+      await withSkillsHomeDir(homeDir, async () => {
+        await withTestDatabase(async (db) => {
+          seedUser(db)
+          syncCloudCatalog(
+            db,
+            [
+              cloudCatalogItem({
+                itemId: 'security',
+                kind: 'rule',
+                recommendedScope: 'both',
+                latestVersionManifestJson: JSON.stringify(ruleManifest),
+              }),
+            ],
+            new Date(),
+          )
+          // A pre-existing hand-written ~/.claude/rules/security.md — no
+          // provenance marker, so it is the user's own file.
+          mkdirSync(join(homeDir, '.claude', 'rules'), { recursive: true })
+          writeFileSync(
+            join(homeDir, '.claude', 'rules', 'security.md'),
+            '# My own security rules\n',
+            'utf8',
+          )
+          const app = createApp({
+            db,
+            logger: silentLogger,
+            marketplaceInstalledPluginsReader: listInstalledPluginsStub,
+          })
+
+          const items = (await (await app.request('/marketplace/items')).json()) as Array<{
+            itemId: string
+            installStatus: { kind: string }
+          }>
+          expect(items.find((i) => i.itemId === 'security')?.installStatus.kind).toBe(
+            'not-installed',
+          )
+
+          const res = await postJson(app, '/marketplace/install', { itemId: 'security' })
+          expect(res.status).toBe(409)
+          expect(readFileSync(join(homeDir, '.claude', 'rules', 'security.md'), 'utf8')).toBe(
+            '# My own security rules\n',
+          )
+        })
+      })
+    } finally {
+      rmSync(homeDir, { recursive: true, force: true })
+    }
   })
 })

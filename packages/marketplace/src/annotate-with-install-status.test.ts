@@ -55,6 +55,7 @@ function annotate(
     installedAgents,
     installedPlugins: [],
     installedMcpServers: [],
+    installedRules: [],
   })
 }
 
@@ -207,6 +208,7 @@ describe('annotateWithInstallStatus — agent items (C-agents)', () => {
       installedSkills: [],
       installedAgents: [],
       installedPlugins: [],
+      installedRules: [],
       installedMcpServers: [{ name: 'playwright', scope: 'user' }],
     })
     expect(annotated?.installStatus).toEqual({
@@ -223,6 +225,7 @@ describe('annotateWithInstallStatus — agent items (C-agents)', () => {
       installedSkills: [],
       installedAgents: [],
       installedPlugins: [],
+      installedRules: [],
       installedMcpServers: [
         { name: 'playwright', scope: 'user' },
         { name: 'playwright', scope: 'workspace' },
@@ -237,8 +240,54 @@ describe('annotateWithInstallStatus — agent items (C-agents)', () => {
       installedSkills: [],
       installedAgents: [],
       installedPlugins: [],
+      installedRules: [],
       installedMcpServers: [{ name: 'other-server', scope: 'user' }],
     })
     expect(annotated?.installStatus).toEqual({ kind: 'not-installed' })
+  })
+
+  // Config-is-truth rule matching: the provenance-marked file's id against
+  // the item id; the view never contains hand-authored files (the reader
+  // filters by marker), so no source check is needed here.
+  const ruleItem = makeItem({
+    itemId: 'conventional-commits',
+    kind: 'rule',
+    skillId: 'conventional-commits',
+  })
+
+  it('rule: matches the marked file by id, reporting the marker version', () => {
+    const [annotated] = annotateWithInstallStatus({
+      catalogItems: [ruleItem],
+      installedSkills: [],
+      installedAgents: [],
+      installedPlugins: [],
+      installedMcpServers: [],
+      installedRules: [{ ruleId: 'conventional-commits', version: '1.0.0', scope: 'user' }],
+    })
+    expect(annotated?.installStatus).toEqual({
+      kind: 'installed',
+      scope: 'user',
+      installedId: 'conventional-commits',
+      versionInstalled: '1.0.0',
+    })
+  })
+
+  it('rule: prefers the workspace folder when both scopes carry the file (D12)', () => {
+    const [annotated] = annotateWithInstallStatus({
+      catalogItems: [ruleItem],
+      installedSkills: [],
+      installedAgents: [],
+      installedPlugins: [],
+      installedMcpServers: [],
+      installedRules: [
+        { ruleId: 'conventional-commits', version: '1.0.0', scope: 'user' },
+        { ruleId: 'conventional-commits', version: '1.1.0', scope: 'workspace' },
+      ],
+    })
+    expect(annotated?.installStatus).toMatchObject({
+      kind: 'installed',
+      scope: 'workspace',
+      versionInstalled: '1.1.0',
+    })
   })
 })

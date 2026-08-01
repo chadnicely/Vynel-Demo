@@ -41,7 +41,7 @@ function toSkillCategory(raw: string): SkillCategory {
 // structurally identical to the desktop's `PublisherTier`, so no re-map.
 
 function toItemKind(raw: string): MarketplaceItemKind {
-  return raw === 'agent' || raw === 'plugin' || raw === 'mcp' ? raw : 'skill'
+  return raw === 'agent' || raw === 'plugin' || raw === 'mcp' || raw === 'rule' ? raw : 'skill'
 }
 
 // The cache row's `recommendedScope` text doubles as the hub's SURFACING

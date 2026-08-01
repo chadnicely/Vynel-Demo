@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Rules in the marketplace.** The last catalog kind: reusable guidance files — starting
+  with Conventional Commits — install as plain markdown into Claude's native rules folder
+  (`~/.claude/rules/` for everywhere, the workspace's `.claude/rules/` for one project), so
+  they guide the assistant in Vynel and in Claude Code alike. Every installed rule carries a
+  small provenance mark, which is your protection: rules you wrote by hand in those folders
+  are never shown as marketplace installs, never overwritten by an install, and never
+  deleted by a removal.
+
 - **MCP servers in the marketplace.** A new kind of marketplace item: tool connections
   (MCP servers) the assistant can use — starting with Playwright Browser, which lets it
   operate real web pages. Installing one writes a single entry into Claude's own

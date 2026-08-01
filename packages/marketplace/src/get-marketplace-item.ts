@@ -50,6 +50,7 @@ export function getMarketplaceItem(
     installedAgents: deps.listInstalledAgents(db, owner),
     installedPlugins: deps.listInstalledPlugins(),
     installedMcpServers: deps.listInstalledMcpServers(),
+    installedRules: deps.listInstalledRules(),
   })
   return annotated!
 }

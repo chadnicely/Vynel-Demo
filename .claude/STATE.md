@@ -35,6 +35,21 @@ Remaining marketplace items = the module-notes deferred lists.
 checkboxes: ① skills install/uninstall-only ② polish batch ③ mcp/rule kinds + plugin updates
 ④ ops/production hardening — check items off as they land).
 
+## ✅ ARC 3 SLICE 2: `rule` KIND — GATE GREEN + SMOKED (2026-08-02), awaiting commit
+
+Config-is-truth twin of mcp with the PROVENANCE-MARKER upgrade (Chad's own hand-written
+`~/.claude/rules/*.md` live in the same folder): installed rules open with
+`<!-- vynel-marketplace-rule: <id> v<version> -->`; only marked files (marker-id ===
+filename) annotate; install 409s on unmarked OR other-marked same-name files; uninstall
+refuses to delete them. Marker parse tolerates CRLF+BOM re-saves (pinned tests). Shipped:
+`RuleItemManifest` (manifest carries the markdown) · skills `rules/` concern folder
+(marker module + SAFE_RULE_ID path guard + install/remove/SYNC-list) ·
+`rule-item-lifecycle.ts` + `rulesReaderFor` + third deps reader · schemas/card "Rule"
+chip/MCP descriptions · seed `conventional-commits`. Reviewer CLEAN (its two should-fixes
+applied: marker-mismatch install gate + rule-file-marker.test.ts + BOM strip).
+**Full gate GREEN 2026-08-02 (3466 passed / 616 files); SMOKED by Chad ("its working").**
+Awaiting commit. Remaining Arc-3: plugin updates (small slice).
+
 ## ✅ ARC 3 SLICE 1: `mcp` KIND — SHIPPED + SMOKED (`dc950bd`, pushed 2026-08-02)
 
 **Smoked by Chad end-to-end:** playwright-mcp published → Get on the Desktop\vynel workspace →

@@ -64,3 +64,18 @@ export {
   type RemoveMcpServerForScopeInput,
 } from './mcp-servers/remove-mcp-server-for-scope.js'
 export { listMcpServerNamesForScope } from './mcp-servers/list-mcp-server-names-for-scope.js'
+// Marketplace rule-file ops (marketplace `rule` kind, config-is-truth) —
+// same single-writer rationale; the provenance marker keeps the user's own
+// `.claude/rules/*.md` files untouchable.
+export {
+  installRuleFileForScope,
+  type InstallRuleFileForScopeInput,
+} from './rules/install-rule-file-for-scope.js'
+export {
+  removeRuleFileForScope,
+  type RemoveRuleFileForScopeInput,
+} from './rules/remove-rule-file-for-scope.js'
+export {
+  listInstalledRulesForScope,
+  type InstalledRuleFile,
+} from './rules/list-installed-rules-for-scope.js'

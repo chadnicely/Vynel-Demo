@@ -48,6 +48,7 @@ import {
   uninstallMarketplaceItem,
 } from './item-lifecycle.js'
 import { mcpServersReaderFor } from './mcp-item-lifecycle.js'
+import { rulesReaderFor } from './rule-item-lifecycle.js'
 
 export const marketplaceUserApp = factory
   .createApp()
@@ -82,7 +83,11 @@ export const marketplaceUserApp = factory
       const items = listMarketplaceItems(
         c.var.db,
         input,
-        marketplaceDepsWith(c.var.marketplaceInstalledPluginsReader, mcpServersReaderFor(null)),
+        marketplaceDepsWith(
+          c.var.marketplaceInstalledPluginsReader,
+          mcpServersReaderFor(null),
+          rulesReaderFor(null),
+        ),
       )
       return c.json(items.map(serializeMarketplaceItem))
     },

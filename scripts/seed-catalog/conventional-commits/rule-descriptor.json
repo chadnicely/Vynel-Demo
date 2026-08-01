@@ -1,0 +1,3 @@
+{
+  "note": "This rule item installs by writing one provenance-marked markdown file into the scope's .claude/rules/ folder (config-is-truth): user scope lands in ~/.claude/rules/conventional-commits.md, workspace scope in <workspace>/.claude/rules/ — locations Claude Code loads natively. The marker keeps hand-written rule files untouchable (never annotated, never overwritten, never deleted). The desktop never downloads this artifact; the registry's publish schema simply requires one, and this descriptor doubles as the human-readable record of what installing writes."
+}

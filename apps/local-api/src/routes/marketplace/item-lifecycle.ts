@@ -16,9 +16,9 @@
 // Install dispatch (M4b-2 + C-agents): a CACHED cloud item downloads its
 // verified artifact (sha256-checked in the leaf) and installs per its kind;
 // `plugin` delegates to Claude Code's own plugin system, `mcp` writes the
-// scope's Claude MCP config (config-is-truth, 2026-08-02); anything else
-// falls through to the bundled-template `installSkill` — a cached
-// NON-INSTALLABLE kind (rule) must never shadow a same-id bundled skill.
+// scope's Claude MCP config, `rule` writes the scope's `.claude/rules/`
+// file (config-is-truth, 2026-08-02); anything else falls through to the
+// bundled-template `installSkill`.
 //
 // Uninstall dispatch: the surface resolution doubles as the exact per-kind
 // resolution the list annotator uses — so the row removed is the one the
@@ -45,11 +45,13 @@ import type {
   MarketplaceDeps,
   InstalledPluginView,
   InstalledMcpServerView,
+  InstalledRuleView,
 } from '@vynel/marketplace'
 import type { MarketplacePluginDelegate } from '../../services/marketplace-plugin-delegate.js'
 import { serializeInstalledSkillResponse } from './serializers.js'
 import { installPluginItem, uninstallPluginItem } from './plugin-item-lifecycle.js'
 import { installMcpItem, uninstallMcpItem, mcpServersReaderFor } from './mcp-item-lifecycle.js'
+import { installRuleItem, uninstallRuleItem, rulesReaderFor } from './rule-item-lifecycle.js'
 
 // Agents' install-status reader binds the kernel repo directly — the
 // `@vynel/agents` leaf export (`listAgentsForWorkspace`) is async, and
@@ -64,12 +66,14 @@ import { installMcpItem, uninstallMcpItem, mcpServersReaderFor } from './mcp-ite
 export function marketplaceDepsWith(
   listInstalledPlugins: () => InstalledPluginView[],
   listInstalledMcpServers: () => InstalledMcpServerView[],
+  listInstalledRules: () => InstalledRuleView[],
 ): MarketplaceDeps {
   return {
     listInstalledSkills: listInstalledSkillsForUserAndWorkspace,
     listInstalledAgents: listAgentsForUserAndWorkspace,
     listInstalledPlugins,
     listInstalledMcpServers,
+    listInstalledRules,
   }
 }
 
@@ -111,7 +115,11 @@ export async function installMarketplaceItem(
   const gateItem = getMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
-    marketplaceDepsWith(ctx.listInstalledPlugins, mcpServersReaderFor(workspace)),
+    marketplaceDepsWith(
+      ctx.listInstalledPlugins,
+      mcpServersReaderFor(workspace),
+      rulesReaderFor(workspace),
+    ),
   )
   if (gateItem.kind === 'plugin') {
     return installPluginItem(
@@ -121,6 +129,9 @@ export async function installMarketplaceItem(
   }
   if (gateItem.kind === 'mcp') {
     return installMcpItem({ db: ctx.db, logger: ctx.logger }, { itemId, scope, workspace })
+  }
+  if (gateItem.kind === 'rule') {
+    return installRuleItem({ db: ctx.db, logger: ctx.logger }, { itemId, scope, workspace })
   }
   const cached = findCachedCloudItem(ctx.db, itemId)
   const cloud =
@@ -201,7 +212,11 @@ export async function updateMarketplaceItem(
   const item = getMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
-    marketplaceDepsWith(ctx.listInstalledPlugins, mcpServersReaderFor(workspace)),
+    marketplaceDepsWith(
+      ctx.listInstalledPlugins,
+      mcpServersReaderFor(workspace),
+      rulesReaderFor(workspace),
+    ),
   )
   if (item.installStatus.kind !== 'installed') {
     throw new NotFoundError('installed-item', itemId)
@@ -253,7 +268,11 @@ export async function uninstallMarketplaceItem(
   const item = getMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
-    marketplaceDepsWith(ctx.listInstalledPlugins, mcpServersReaderFor(workspace)),
+    marketplaceDepsWith(
+      ctx.listInstalledPlugins,
+      mcpServersReaderFor(workspace),
+      rulesReaderFor(workspace),
+    ),
   )
   if (item.installStatus.kind !== 'installed') {
     throw new NotFoundError('installed-item', itemId)
@@ -271,6 +290,17 @@ export async function uninstallMarketplaceItem(
         itemId,
         serverName: item.installStatus.installedId,
         serverScope: item.installStatus.scope,
+        workspace,
+      },
+    )
+  }
+  if (item.kind === 'rule') {
+    return uninstallRuleItem(
+      { logger: ctx.logger },
+      {
+        itemId,
+        ruleId: item.installStatus.installedId,
+        ruleScope: item.installStatus.scope,
         workspace,
       },
     )

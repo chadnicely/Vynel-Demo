@@ -16,6 +16,7 @@ import type {
   InstalledAgentView,
   InstalledMcpServerView,
   InstalledPluginView,
+  InstalledRuleView,
   InstalledSkillView,
 } from './marketplace-types.js'
 
@@ -25,6 +26,7 @@ export type AnnotateInput = {
   installedAgents: InstalledAgentView[]
   installedPlugins: InstalledPluginView[]
   installedMcpServers: InstalledMcpServerView[]
+  installedRules: InstalledRuleView[]
 }
 
 export function annotateWithInstallStatus(input: AnnotateInput): MarketplaceItem[] {
@@ -37,8 +39,31 @@ export function annotateWithInstallStatus(input: AnnotateInput): MarketplaceItem
           ? determinePluginInstallStatus(item, input.installedPlugins)
           : item.kind === 'mcp'
             ? determineMcpInstallStatus(item, input.installedMcpServers)
-            : determineSkillInstallStatus(item, input.installedSkills),
+            : item.kind === 'rule'
+              ? determineRuleInstallStatus(item, input.installedRules)
+              : determineSkillInstallStatus(item, input.installedSkills),
   }))
+}
+
+function determineRuleInstallStatus(
+  item: MarketplaceItem,
+  installedRules: InstalledRuleView[],
+): MarketplaceItemInstallStatus {
+  // Config-is-truth: the `<itemId>.md` file (provenance-marked — the view
+  // never contains hand-authored files) is the whole installed state.
+  const matches = installedRules.filter((r) => r.ruleId === item.itemId)
+  if (matches.length === 0) return { kind: 'not-installed' }
+  // D12: workspace folder preferred when both scopes carry the file.
+  const match = matches.find((r) => r.scope === 'workspace') ?? matches[0]!
+  return {
+    kind: 'installed',
+    scope: match.scope,
+    installedId: match.ruleId,
+    // The marker records the installed version — honest data, though the
+    // card offers no rule update (hasCloudArtifact is false; re-Get after
+    // uninstall, like agents).
+    versionInstalled: match.version,
+  }
 }
 
 function determineMcpInstallStatus(

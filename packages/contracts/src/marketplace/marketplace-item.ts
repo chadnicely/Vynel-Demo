@@ -37,12 +37,11 @@ export type MarketplaceSurfaceSelector =
   | { surface: 'global' }
   | { surface: 'workspace'; workspaceId: string }
 
-/** The DESKTOP's item-kind union — only kinds the app can actually
- * install ever reach the wire (`rule` stays filtered at the merge;
- * widening later is additive). The hub-side registry union is the
- * wider `HubItemKind`. Slice C-agents; `mcp` landed 2026-08-02
- * (config-is-truth). */
-export type MarketplaceItemKind = 'skill' | 'agent' | 'plugin' | 'mcp'
+/** The DESKTOP's item-kind union — every hub kind now installs. Slice
+ * C-agents; `mcp` + `rule` landed 2026-08-02 (config-is-truth: the
+ * Claude config entry / the `.claude/rules/<id>.md` file IS the
+ * installed state). */
+export type MarketplaceItemKind = 'skill' | 'agent' | 'plugin' | 'mcp' | 'rule'
 
 /** Install-status discriminator. Phase 1 has two variants (no
  * `'installed-with-update-available'` per D8). Generalized when the

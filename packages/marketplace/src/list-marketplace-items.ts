@@ -43,6 +43,7 @@ export function listMarketplaceItems(
     installedAgents: deps.listInstalledAgents(db, owner),
     installedPlugins: deps.listInstalledPlugins(),
     installedMcpServers: deps.listInstalledMcpServers(),
+    installedRules: deps.listInstalledRules(),
   })
 
   // Build the filter input conditionally — `exactOptionalPropertyTypes`

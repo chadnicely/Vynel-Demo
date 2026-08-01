@@ -122,9 +122,10 @@ const removeLabel = computed(() => {
         </p>
         <p class="m-0 mt-0.5 flex flex-wrap items-center gap-1.5">
           <!-- What you're getting: a skill (a capability), an agent (a
-               persona), a plugin (a bundle Claude Code itself manages), or
+               persona), a plugin (a bundle Claude Code itself manages),
                an MCP server (a tool connection written into the Claude
-               config) — the Get flow is identical for all four. -->
+               config), or a rule (a guidance file in .claude/rules/) —
+               the Get flow is identical for all five. -->
           <span
             class="scope-chip inline-flex items-center gap-0.5 rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
             >{{
@@ -134,7 +135,9 @@ const removeLabel = computed(() => {
                   ? "Plugin"
                   : item.kind === "mcp"
                     ? "MCP"
-                    : "Skill"
+                    : item.kind === "rule"
+                      ? "Rule"
+                      : "Skill"
             }}</span
           >
           <span

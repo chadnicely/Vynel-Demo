@@ -1,0 +1,28 @@
+{
+  "publisher": {
+    "id": "vynel-team",
+    "name": "Vynel Team",
+    "tier": "verified",
+    "url": null
+  },
+  "item": {
+    "itemId": "conventional-commits",
+    "kind": "rule",
+    "displayName": "Conventional Commits",
+    "oneLineDescription": "Keep every git commit message in the type(scope): description format.",
+    "category": "context",
+    "iconName": "file-text",
+    "recommendedScope": "both",
+    "minimumTier": "basic",
+    "sourceUrl": "https://www.conventionalcommits.org",
+    "status": "published"
+  },
+  "version": {
+    "version": "1.0.0",
+    "changelog": "Config-is-truth install: one provenance-marked .claude/rules/conventional-commits.md.",
+    "manifest": {
+      "ruleMarkdown": "# Conventional Commits\n\nEvery git commit message follows the conventional format.\n\n- Subject: `type(scope): description` — types are feat, fix, refactor, chore, docs, style, test, perf, ci.\n- Scope is optional but encouraged: `feat(auth): add oauth login`.\n- Description is lowercase, no period at the end, subject line under 72 characters.\n- Add a body for complex changes explaining WHY, not WHAT.\n- One logical change per commit — never bundle unrelated work.\n"
+    },
+    "minAppVersion": null
+  }
+}

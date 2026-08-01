@@ -3808,7 +3808,7 @@ export interface operations {
                     "application/json": {
                         itemId: string;
                         /** @enum {string} */
-                        kind: "skill" | "agent" | "plugin" | "mcp";
+                        kind: "skill" | "agent" | "plugin" | "mcp" | "rule";
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -3876,7 +3876,7 @@ export interface operations {
                     "application/json": {
                         itemId: string;
                         /** @enum {string} */
-                        kind: "skill" | "agent" | "plugin" | "mcp";
+                        kind: "skill" | "agent" | "plugin" | "mcp" | "rule";
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -3981,6 +3981,14 @@ export interface operations {
                         /** @enum {string} */
                         scope: "user" | "workspace";
                         version: string | null;
+                    } | {
+                        /** @constant */
+                        kind: "rule";
+                        ruleId: string;
+                        itemId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        version: string;
                     };
                 };
             };
@@ -4101,6 +4109,11 @@ export interface operations {
                         /** @constant */
                         kind: "mcp";
                         serverName: string;
+                        itemId: string;
+                    } | {
+                        /** @constant */
+                        kind: "rule";
+                        ruleId: string;
                         itemId: string;
                     };
                 };
@@ -10450,7 +10463,7 @@ export interface operations {
                     "application/json": {
                         itemId: string;
                         /** @enum {string} */
-                        kind: "skill" | "agent" | "plugin" | "mcp";
+                        kind: "skill" | "agent" | "plugin" | "mcp" | "rule";
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -10544,6 +10557,14 @@ export interface operations {
                         /** @enum {string} */
                         scope: "user" | "workspace";
                         version: string | null;
+                    } | {
+                        /** @constant */
+                        kind: "rule";
+                        ruleId: string;
+                        itemId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        version: string;
                     };
                 };
             };
@@ -10660,6 +10681,11 @@ export interface operations {
                         /** @constant */
                         kind: "mcp";
                         serverName: string;
+                        itemId: string;
+                    } | {
+                        /** @constant */
+                        kind: "rule";
+                        ruleId: string;
                         itemId: string;
                     };
                 };

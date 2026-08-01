@@ -25,6 +25,7 @@ export type {
   InstalledAgentView,
   InstalledPluginView,
   InstalledMcpServerView,
+  InstalledRuleView,
   MarketplaceDeps,
   MarketplaceInstallOwner,
 } from './marketplace-types.js'

@@ -72,9 +72,21 @@ export type InstalledMcpServerView = {
   scope: SkillScope
 }
 
+// The three fields the annotator reads off a marketplace-installed RULE
+// file (config-is-truth twin of the mcp view; `@vynel/skills` owns the
+// folder read). Only PROVENANCE-MARKED files ever reach this view — the
+// user's hand-written `.claude/rules/*.md` never annotate. Same
+// route-bound reader convention as mcp.
+export type InstalledRuleView = {
+  ruleId: string
+  version: string
+  scope: SkillScope
+}
+
 export type MarketplaceDeps = {
   listInstalledSkills: (db: Database, input: MarketplaceInstallOwner) => InstalledSkillView[]
   listInstalledAgents: (db: Database, input: MarketplaceInstallOwner) => InstalledAgentView[]
   listInstalledPlugins: () => InstalledPluginView[]
   listInstalledMcpServers: () => InstalledMcpServerView[]
+  listInstalledRules: () => InstalledRuleView[]
 }

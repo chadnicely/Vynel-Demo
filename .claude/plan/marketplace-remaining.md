@@ -65,8 +65,15 @@ reads; no notebook-leaf dependency) ④ work order = follow this plan's pipeline
       seed item `playwright-mcp` (@playwright/mcp via npx); reviewer CLEAN.
       `claude_desktop_config.json` bridge deferred until Chad uses Claude Desktop.
       Curation rule (reviewer): two catalog items must never declare the same `serverName`
-- [ ] **`rule` kind** — installs as `<scope>/.claude/rules/<id>.md` (user scope `~/.claude/
-      rules/`); config-is-truth twin (file presence = installed)
+- [x] **`rule` kind** ✅ COMPLETE (gate green 3466/616 + smoked 2026-08-02) — config-is-truth twin
+      of mcp: `RuleItemManifest` (manifest carries the markdown); skills `rules/` ops write a
+      PROVENANCE-MARKED `<id>.md` into `~/.claude/rules/` / `<workspace>/.claude/rules/`
+      (native Claude locations). The marker is the hand-authored-file guarantee: unmarked (or
+      other-marked) files never annotate, never get overwritten (409), never get deleted —
+      the agents slug-collision precedent as files. Marker parse tolerates CRLF + BOM
+      re-saves (pinned in rule-file-marker.test.ts). `rule-item-lifecycle.ts` +
+      `rulesReaderFor`; seed `conventional-commits`; reviewer CLEAN (marker-mismatch
+      install gate + parser tests applied)
 - [ ] **Plugin updates** — small slice: `claude plugin update` delegate + registry re-read
       (today: uninstall/reinstall)
 - [ ] **More official plugins** — machinery ships anything now; each addition = curation +
