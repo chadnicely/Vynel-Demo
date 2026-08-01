@@ -35,17 +35,34 @@ Remaining marketplace items = the module-notes deferred lists.
 checkboxes: ① skills install/uninstall-only ② polish batch ③ mcp/rule kinds + plugin updates
 ④ ops/production hardening — check items off as they land).
 
-## ⏭ CURRENT: Arc 4 slice 3 — Ed25519 signatures (Gate-1 design next)
+## ⏭ CURRENT: marketplace v1 COMPLETE — Chad's deploy steps + blocked items remain
 
-Slice 2 (portal-button publishing) SHIPPED `2d9263b` — see below. Slice 3's shape is in
-`.claude/plan/marketplace-remaining.md` (separate `CLOUD_ARTIFACT_SIGNING_*` keypair · hub
-signs sha256 at publish · nullable `item_versions` signature column via cloud-db drizzle-kit
-generate · desktop verify-if-present; open Gate-1 choices: public-key pinning location ·
-backfill vs nullable-forever). Session rules in force: reviewer on each diff before commit ·
-Chad authorized me to run the full `pnpm test` gate myself this session · conventional
-commits, NO Co-Authored-By trailer · push after commit. Marketplace shipped so far: Arc 1
-`03ce7c5` · Arc 2 `916f701` · mcp `dc950bd` · rule `fa394d1` · plugin updates `92bc663` ·
-upstream-watch cron `928b6f7` · portal publish `2d9263b`.
+Every implementable arc in `.claude/plan/marketplace-remaining.md` is SHIPPED. Chad's
+outstanding ops steps: ① mint the artifact-signing keys (`pnpm cloud:generate-keys`), set
+`CLOUD_ARTIFACT_SIGNING_PRIVATE_KEY` (hub) + `VYNEL_HUB_ARTIFACT_KEY` (desktop), then one
+`POST /admin/catalog/sign-missing` ② smoke the portal "Import Anthropic items" button + a
+drifted-plugin Update click. Still BLOCKED (not on us): minAppVersion (D2 installer) · real
+mail (provider choice) · R2 (future). Hardening arc note (plan doc): signed-message identity
+binding decision BEFORE D2 distributes the key; then require-signatures. Session rules:
+reviewer per diff · full-gate authorized · conventional commits, NO Co-Authored-By · push
+after commit. Marketplace shipped this session: Arc 1 `03ce7c5` · Arc 2 `916f701` · mcp
+`dc950bd` · rule `fa394d1` · plugin updates `92bc663` · upstream-watch cron `928b6f7` ·
+portal publish `2d9263b` · artifact signatures `412e9ba`.
+
+## ✅ ARC 4 SLICE 3: ED25519 ARTIFACT SIGNATURES — SHIPPED (`412e9ba`, 2026-08-02)
+
+Supply-chain integrity for hub artifacts. The algorithm's ONE home is
+`@vynel/contracts/hub/artifact-signing.ts` (Ed25519 over the lowercase-hex sha256; sign +
+verify, verify fails CLOSED). Hub: optional `CLOUD_ARTIFACT_SIGNING_PRIVATE_KEY` → registry
+`ArtifactSigner` → `publishCatalogArtifact`/`importAnthropicItems` store `artifactSignature`
+(nullable column, drizzle-generated migration 0006); download route sends
+`x-artifact-signature`; `POST /admin/catalog/sign-missing` backfills (never signs
+missing/sha-mismatched bytes — bucketed report). Desktop: `HubClient.downloadArtifact` →
+`{bytes, signature}`; hub-session verifies-if-present against env-pinned
+`VYNEL_HUB_ARTIFACT_KEY` (mirrors VYNEL_HUB_PUBLIC_KEY; not required with hub URL — rollout);
+`cloud:generate-keys` prints both pairs labeled hub/desktop. Reviewer CLEAN (crypto
+scrutinized; identity-binding hardening note recorded in the plan doc). Full gate GREEN
+(3486/620).
 
 ## ✅ ARC 4 SLICE 2: PORTAL-BUTTON PUBLISHING — SHIPPED (`2d9263b`, 2026-08-02)
 

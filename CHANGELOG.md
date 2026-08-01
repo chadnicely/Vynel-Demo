@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Marketplace downloads are now cryptographically signed.** The hub signs every artifact it
+  publishes with a dedicated key, and the app checks that signature (plus the existing content
+  hash) before installing anything — so what you install is provably what the hub published,
+  even if the bytes passed through an untrusted network. Existing items get their signatures
+  through a one-time backfill; older unsigned versions still install during the transition.
+  `pnpm cloud:generate-keys` now prints both keypairs, clearly labeled hub vs desktop.
+
 - **Publishing Anthropic's official items is now one click.** The admin portal's catalog page
   has an "Import Anthropic items" button: the hub itself fetches the reviewed, pinned snapshot
   of Anthropic's skills, packages each one faithfully (licenses included), and publishes them —

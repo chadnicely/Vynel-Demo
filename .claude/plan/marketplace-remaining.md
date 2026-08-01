@@ -149,17 +149,57 @@ git hardening — swept into upstream-watch.ts too); **full gate GREEN (3476 pas
    (Chad lets me run `pnpm test` this session) → commit
    `feat(cloud): portal-button publishing for anthropic items` → push.
 
-## Arc 4 slice 3 — Ed25519 ARTIFACT SIGNATURES (after slice 2; fresh Gate-1 design first)
+## Arc 4 slice 3 — Ed25519 ARTIFACT SIGNATURES ✅ SHIPPED (`412e9ba`, 2026-08-02)
 
-Shape (details to settle at Gate 1): separate keypair from the token key
-(`CLOUD_ARTIFACT_SIGNING_*`, extend `pnpm cloud:generate-keys`); hub signs sha256(artifact)
-at publish; `item_versions` gains a NULLABLE signature column — CLOUD-DB migration via
-`pnpm --filter @vynel/cloud-db exec drizzle-kit generate --config
-../../drizzle.cloud-postgres.config.ts --name=<snake>` (NEVER hand-write — memory rule);
-catalog wire carries it; desktop (`@vynel/hub-account` downloadArtifact) verifies
-signature + sha before returning bytes, verify-if-present during rollout; open Gate-1
-choices: where the desktop pins the public key (contracts const vs env) · re-sign/backfill
-script for existing versions vs nullable-forever.
+Landed per the Gate-1 design below (kept as the as-built record). Verified: contracts
+round-trip/tamper + registry signed-publish/backfill + cloud-api header/sign-missing +
+hub-account verify paths (42 tests in the slice); reviewer CLEAN (crypto design scrutinized —
+keygen ergonomics should-fix applied; identity-binding note recorded below for the hardening
+arc); **full gate GREEN (3486 passed / 620 files)**. ⚠ Chad's hub still needs the key minted
+(`pnpm cloud:generate-keys`), env set, and one `POST /admin/catalog/sign-missing`.
+
+The two formerly-open choices settled by existing precedent: ① public-key pin = **desktop env
+`VYNEL_HUB_ARTIFACT_KEY`** (base64 SPKI PEM), mirroring `VYNEL_HUB_PUBLIC_KEY` (the entitlement
+key already arrives this way; D2's installer bakes both) — optional, NOT gated with the hub URL
+(rollout: absent = skip verification). ② existing versions = **backfill via admin route**
+`POST /admin/catalog/sign-missing` (few rows exist; column stays nullable, old hubs tolerated).
+
+Design (as implemented):
+
+1. **Algorithm one-home: `@vynel/contracts/hub/artifact-signing.ts`** — pure node:crypto
+   Ed25519 over the ASCII lowercase-hex sha256 string; `signArtifactSha256(privatePem, shaHex)
+   → base64` + `verifyArtifactSha256Signature(publicPem, shaHex, sigB64) → boolean`
+   (`tierMeetsMinimum` precedent for pure helpers; direct-file imports keep node:crypto out of
+   browser bundles). Sign the sha, not the bytes — the desktop already recomputes the sha.
+2. **Schema:** `item_versions.artifactSignature` nullable text; migration via
+   `pnpm --filter @vynel/cloud-db exec drizzle-kit generate --config
+   ../../drizzle.cloud-postgres.config.ts` (NEVER hand-write — memory rule).
+3. **Hub:** env `CLOUD_ARTIFACT_SIGNING_PRIVATE_KEY` (optional base64Pem; absent = unsigned
+   publishes, today's behavior); `cloud:generate-keys` emits the second pair (private line for
+   the hub env + `VYNEL_HUB_ARTIFACT_KEY` line for the desktop env); registry `ArtifactSigner`
+   (`createArtifactSigner(pem)`) → `publishCatalogArtifact(db, store, input, signer?)` stores
+   the signature in `PublishArtifactFacts`; `importAnthropicItems` takes the signer too;
+   `CloudAppOptions.artifactSigner?`; download route adds `x-artifact-signature` beside the
+   existing `x-artifact-sha256` (from `authorizeCatalogDownload`, which reads the row anyway).
+4. **Backfill:** registry `signUnsignedVersions(db, store, signer)` — signs rows with a null
+   signature from stored bytes, REFUSES to sign bytes whose recomputed sha mismatches the row
+   (never bless corrupt bytes; reported per-bucket, not thrown — backfill robustness);
+   `POST /admin/catalog/sign-missing` behind the dual door, `configured:false` without a key.
+5. **Desktop:** `HubClient.downloadArtifact` → `{ bytes, signature }` (header read);
+   `CreateHubSessionOptions.artifactSigningPublicKeyPem?` — session `downloadArtifact`
+   verify-if-present: signature + key present → recompute sha + verify, mismatch throws
+   ValidationError; either absent → pass (rollout). local-api env `VYNEL_HUB_ARTIFACT_KEY`
+   → boot wiring. Hardening to require-signatures waits until Chad's hub is backfilled.
+6. **Tests:** contracts round-trip + tamper; registry signed-publish + backfill buckets;
+   cloud-api download header + sign-missing route; hub-account session verify paths (valid /
+   tampered / unsigned / no-key).
+
+⚠ **For the require-signatures hardening arc** (after Chad's hub is backfilled): ① decide then
+whether to bind identity into the signed message (`${itemId}@${version}\n${sha}`) — today a
+signature verifies any artifact's bytes under any id, neutralized because install compares the
+CATALOG-pinned sha; changing the format means re-signing every row, so decide BEFORE
+`VYNEL_HUB_ARTIFACT_KEY` distributes with D2 (reviewer note, 2026-08-02). ② flip
+verify-if-present to require-signatures (a stripped header currently skips the check).
 - [ ] **Plugin installs → outbox/activity:** no Vynel state changes today so no event; add a
       recorded event if/when Chad wants the activity feed to show plugin installs
 
