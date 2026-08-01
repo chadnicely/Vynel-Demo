@@ -31,6 +31,10 @@ external-binary delegate off the non-carded workspace MCP tool). Deferred list i
 (reader-seam asymmetry · no outbox on plugin installs · MCP description drift · portal columns).
 Remaining marketplace items = the module-notes deferred lists.
 
+**📋 THE ORDERED REMAINING-WORK PLAN: `.claude/plan/marketplace-remaining.md`** (four arcs with
+checkboxes: ① skills install/uninstall-only ② polish batch ③ mcp/rule kinds + plugin updates
+④ ops/production hardening — check items off as they land).
+
 ## ⏭ NEXT SESSION FIRST: skills become INSTALL/UNINSTALL ONLY (Chad, 2026-08-01)
 
 Chad's call (AskUserQuestion, deliberate): **remove the enable/disable pause state from the
