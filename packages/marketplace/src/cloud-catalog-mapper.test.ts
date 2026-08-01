@@ -21,6 +21,7 @@ function cacheRow(over: Partial<MarketplaceCloudCatalogRow> = {}): MarketplaceCl
     recommendedScope: 'both',
     minimumTier: 'basic',
     latestVersion: '1.0.0',
+    latestVersionManifestJson: null,
     latestVersionSha256: 'a'.repeat(64),
     releasedAt: '2026-08-01T00:00:00.000Z',
     syncedAt: new Date('2026-08-01T00:00:00.000Z'),

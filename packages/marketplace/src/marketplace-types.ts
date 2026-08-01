@@ -51,7 +51,18 @@ export type MarketplaceInstallOwner = {
   workspaceId: string | null
 }
 
+// The two fields the annotator reads off a Claude-CLI-installed PLUGIN
+// (`@vynel/providers` owns the registry read — same structural-view rule).
+// `key` is `<pluginName>@<marketplaceName>`, matched against the item's
+// precomputed `pluginKey` (full key, never bare name). Plugins are
+// user-scope global by nature — no owner input, no db.
+export type InstalledPluginView = {
+  key: string
+  version: string | null
+}
+
 export type MarketplaceDeps = {
   listInstalledSkills: (db: Database, input: MarketplaceInstallOwner) => InstalledSkillView[]
   listInstalledAgents: (db: Database, input: MarketplaceInstallOwner) => InstalledAgentView[]
+  listInstalledPlugins: () => InstalledPluginView[]
 }

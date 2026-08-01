@@ -18,6 +18,7 @@ import type { MarketplaceDeps } from './marketplace-types.js'
 const emptyDeps: MarketplaceDeps = {
   listInstalledSkills: () => [],
   listInstalledAgents: () => [],
+  listInstalledPlugins: () => [],
 }
 
 function makeItem(scope: MarketplaceItem['scope']): MarketplaceItem {
@@ -61,6 +62,7 @@ function cloudItem(
     recommendedScope,
     minimumTier: 'basic',
     latestVersion: '1.0.0',
+    latestVersionManifestJson: '{"entry":"SKILL.md"}',
     latestVersionSha256: 'a'.repeat(64),
     releasedAt: '2026-07-10T00:00:00.000Z',
     canInstall: true,
@@ -169,6 +171,7 @@ describe('surface filtering through the browse pipeline', () => {
                 },
               ],
         listInstalledAgents: () => [],
+        listInstalledPlugins: () => [],
       }
       // Installed only at WORKSPACE scope → the global shelf still says Get.
       const globalItem = listMarketplaceItems(db, { userId: 'u', surface: 'global' }, deps).find(

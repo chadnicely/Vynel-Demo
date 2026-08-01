@@ -26,6 +26,10 @@ export const marketplaceCloudCatalog = table('marketplace_cloud_catalog', {
   sourceUrl: text(),
   minimumTier: text().notNull(),
   latestVersion: text().notNull(),
+  // The latest version's per-kind install manifest, verbatim (opaque JSON;
+  // e.g. a plugin item's delegate descriptor). Nullable: legacy cache rows
+  // predate the column and re-fill on the next sync.
+  latestVersionManifestJson: text(),
   latestVersionSha256: text().notNull(),
   // ISO string, straight from the hub DTO.
   releasedAt: text().notNull(),

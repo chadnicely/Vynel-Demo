@@ -190,6 +190,56 @@ trust-review step per curated plugin is unavoidable anyway. That is fine: curati
    (recommended: park; Phase A alone delivers the visible win). The document-skills delegate
    arc (decision 2) is the likely Phase-B opener.
 
+## Phase B Gate-1 findings (probed live on Chad's machine, 2026-08-01)
+
+- **The Agent SDK bundles a full `claude.exe`** (platform package
+  `@anthropic-ai/claude-agent-sdk-win32-x64`, v2.1.213) with the COMPLETE `plugin` command
+  suite: `install|i <plugin>@<marketplace>` (`--scope user|project|local`, `--config`),
+  `uninstall`, `update`, `enable/disable`, `marketplace add`, `list`, `validate`, `details`.
+  → Non-technical users need NO standalone CLI; Vynel drives the bundled binary.
+- **The real disk contract (registry v2, read from Chad's `~/.claude/plugins/`):**
+  - `installed_plugins.json` — `{version: 2, plugins: {"<name>@<marketplace>": [{scope,
+    projectPath?, installPath: cache\<mkt>\<name>\<version>, version, installedAt,
+    gitCommitSha}]}}` (the INSTALL registry).
+  - `known_marketplaces.json` — `{"<name>": {source: {source: 'github', repo}, installLocation:
+    marketplaces\<name>, lastUpdated}}`.
+  - Marketplace clones: `plugins/marketplaces/<name>/`; plugin copies:
+    `plugins/cache/<marketplace>/<plugin>/<version>/`.
+  - **Enablement lives separately** in `~/.claude/settings.json` `enabledPlugins`
+    (`"name@marketplace": true`) — which Vynel's `settingSources: ['user',...]` already loads.
+- **✅ SMOKED (Chad, 2026-08-01): NATIVE PICKUP WORKS.** A Vynel workspace session answered
+  "do you have a frontend-design skill?" with the plugin-provided skill by name — SDK-spawned
+  sessions auto-load user-scope CLI-installed+enabled plugins (the bundled binary owns the
+  machinery + reads the same settings/registry). **Zero session wiring needed**; the
+  `options.plugins` contingency is dead. (A session already running at install time picks the
+  plugin up on its next session start — note in UI copy if users get confused.)
+
+## Phase B slice 1 — document-skills via CLI delegate (PLANNED, awaiting Chad's okay)
+
+1. **Provider seam `ClaudePluginCli`** (`packages/providers/src/claude/installation/`): locate
+   the bundled `claude.exe` (platform-package resolution + env override), `execFile` the plugin
+   commands (`marketplace add anthropics/skills`, `install document-skills@anthropic-agent-skills
+   --scope user`, `uninstall`), and read/parse `installed_plugins.json`. Runtime-in-providers
+   invariant holds — driving the engine binary is provider territory.
+2. **Marketplace `plugin` kind goes live:** `MarketplaceItemKind` widens to
+   `'skill' | 'agent' | 'plugin'`; `resolve-merged-catalog` passes plugin rows; install/uninstall
+   dispatch gains a plugin branch that calls the injected delegate (NO artifact download — the
+   item's `manifestJson` carries `{marketplaceRepo, marketplaceName, pluginName}`); the app
+   injects the provider seam through `MarketplaceDeps` (leaf never imports providers).
+3. **Hub item:** publish `document-skills` (kind `plugin`, category `documents` — fits the
+   existing union, publisher `anthropic-official`, sourceUrl → the pinned folder) with a tiny
+   descriptor-only artifact (the publish schema requires bytes; the desktop never downloads it).
+4. **Install-status:** annotator keys plugins on `name@marketplace` via an injected
+   `listInstalledPluginKeys` reader (same recipe as agents' slug reader).
+5. **Native-disk interop + Chad's disk-visibility rule: satisfied BY CONSTRUCTION** — the CLI
+   itself writes the native layout; Claude Code direct use sees exactly the same install.
+6. **Trust floor:** `document-skills` bundles ONLY the four document skills (verified from its
+   marketplace.json — no hooks, no MCP servers); installs still card via the existing
+   `install_marketplace_item` mutating tier. Hook/MCP-bearing plugins stay browse-filtered.
+7. **UI:** "Plugin" kind chip; Get/Remove drive the delegate; update-flow defers to
+   `plugin update` in a later slice. No enable/disable toggle v1 (install = enabled, matching
+   the skills install/uninstall-only direction).
+
 ## Move 3+ build queue (post-decisions, 2026-08-01)
 
 - **Move 3 — full-folder skill artifacts (prerequisite):** all five allowlisted skills are
@@ -209,6 +259,24 @@ trust-review step per curated plugin is unavoidable anyway. That is fine: curati
   `github.com/anthropics/skills/tree/<sha>/skills/<id>` folder) and render a credit line
   (publisher link + source link) on the card/detail. Applies to ALL items, not just Anthropic's.
 - **Move 5 — upstream-watch script** (pinned SHA vs upstream HEAD → flag for re-review).
+
+## Deferred (named, not silent — from the Phase-B slice-1 review, 2026-08-01)
+
+- **Installed-plugins reader seam asymmetry:** the delegate is injectable via `CreateAppOptions`
+  but `marketplaceDeps.listInstalledPlugins` binds the real registry reader — unmocked route
+  tests read the dev's real `~/.claude/plugins` (harmless today: only plugin-kind items with a
+  matching full key annotate; `user-scoped.test.ts` mocks it). Fold the reader into the
+  injectable seam on next touch so no route test touches the real home dir.
+- **Plugin installs emit no outbox event** — no Vynel DB state changes (Claude Code's registry
+  is the source of truth), so invariant 8 doesn't bite; name it when an activity-feed consumer
+  needs install events.
+- **MCP tool description drift:** `install_marketplace_item` says "a skill or agent" /
+  "artifacts integrity-verified server-side" — still literally accurate (plugins are structurally
+  user-scope → global surface → no MCP), but fold a plugin mention into the next regen touch.
+  If plugins ever ride MCP, that's a Chad call and belongs in the askApproval tier
+  (external-binary execution).
+- **`ValidationError` for CLI/binary failures** is semantically stretched — revisit if
+  `@vynel/errors` grows a provider/engine error class.
 
 ## Deferred (named, not silent — from the Move-2 review, 2026-08-01)
 

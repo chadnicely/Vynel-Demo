@@ -48,7 +48,7 @@ function annotate(
   installedSkills: InstalledSkillView[] = [],
   installedAgents: InstalledAgentView[] = [],
 ): MarketplaceItem[] {
-  return annotateWithInstallStatus({ catalogItems, installedSkills, installedAgents })
+  return annotateWithInstallStatus({ catalogItems, installedSkills, installedAgents, installedPlugins: [] })
 }
 
 describe('annotateWithInstallStatus', () => {

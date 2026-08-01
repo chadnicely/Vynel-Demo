@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import JSZip from 'jszip'
 import pino from 'pino'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
@@ -28,6 +28,27 @@ import { withHomeDir as withAgentsHomeDir } from '@vynel/agents/test-support'
 import type { HubSession } from '@vynel/hub-account'
 import type { HubCatalogItem } from '@vynel/contracts/hub/catalog'
 import { createApp } from '../../app.js'
+
+// Hermetic plugin registry: the marketplace deps bind the provider's
+// `listInstalledClaudePlugins`, which reads the developer's REAL
+// `~/.claude/plugins` — mock it so annotation never depends on this
+// machine (default: nothing installed).
+const { listInstalledPluginsMock } = vi.hoisted(() => ({
+  listInstalledPluginsMock: vi.fn(
+    (): Array<{
+      key: string
+      pluginName: string
+      marketplaceName: string
+      version: string | null
+    }> => [],
+  ),
+}))
+vi.mock('@vynel/providers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@vynel/providers')>()
+  return { ...actual, listInstalledClaudePlugins: listInstalledPluginsMock }
+})
+// A failed assertion must not leak a stocked registry into later tests.
+afterEach(() => listInstalledPluginsMock.mockReturnValue([]))
 
 const silentLogger = pino({ level: 'silent' })
 
@@ -74,6 +95,7 @@ function cloudCatalogItem(over: Partial<HubCatalogItem> & { itemId: string }): H
     recommendedScope: 'both',
     minimumTier: 'basic',
     latestVersion: '1.0.0',
+    latestVersionManifestJson: '{"entry":"SKILL.md"}',
     latestVersionSha256: 'a'.repeat(64),
     releasedAt: '2026-07-10T00:00:00.000Z',
     canInstall: true,
@@ -315,6 +337,126 @@ describe('POST /marketplace/uninstall (user scope)', () => {
       } finally {
         rmSync(workspaceDir, { recursive: true, force: true })
       }
+    })
+  })
+})
+
+describe('plugin items (global surface) — the Claude-CLI delegate', () => {
+  const pluginManifest = {
+    marketplaceRepo: 'anthropics/skills',
+    marketplaceName: 'anthropic-agent-skills',
+    pluginName: 'document-skills',
+  }
+
+  it('installs via the delegate, annotates from the registry, uninstalls via the delegate', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      syncCloudCatalog(
+        db,
+        [
+          cloudCatalogItem({
+            itemId: 'document-skills',
+            kind: 'plugin',
+            recommendedScope: 'user',
+            latestVersionManifestJson: JSON.stringify(pluginManifest),
+          }),
+        ],
+        new Date(),
+      )
+      const delegate = { install: vi.fn(async () => {}), uninstall: vi.fn(async () => {}) }
+      const app = createApp({ db, logger: silentLogger, marketplacePluginDelegate: delegate })
+
+      const res = await postJson(app, '/marketplace/install', { itemId: 'document-skills' })
+      expect(res.status).toBe(201)
+      expect(await res.json()).toEqual({
+        kind: 'plugin',
+        pluginKey: 'document-skills@anthropic-agent-skills',
+        itemId: 'document-skills',
+        version: '1.0.0',
+      })
+      expect(delegate.install).toHaveBeenCalledWith(pluginManifest)
+
+      listInstalledPluginsMock.mockReturnValue([
+        {
+          key: 'document-skills@anthropic-agent-skills',
+          pluginName: 'document-skills',
+          marketplaceName: 'anthropic-agent-skills',
+          version: '1.0.0',
+        },
+      ])
+      const listRes = await app.request('/marketplace/items')
+      const items = (await listRes.json()) as Array<{
+        itemId: string
+        kind: string
+        pluginKey?: string
+        installStatus: unknown
+      }>
+      const item = items.find((i) => i.itemId === 'document-skills')
+      expect(item?.kind).toBe('plugin')
+      expect(item?.pluginKey).toBe('document-skills@anthropic-agent-skills')
+      expect(item?.installStatus).toEqual({
+        kind: 'installed',
+        scope: 'user',
+        installedId: 'document-skills@anthropic-agent-skills',
+        versionInstalled: '1.0.0',
+      })
+
+      const un = await postJson(app, '/marketplace/uninstall', { itemId: 'document-skills' })
+      expect(un.status).toBe(200)
+      expect(await un.json()).toEqual({
+        kind: 'plugin',
+        pluginKey: 'document-skills@anthropic-agent-skills',
+        itemId: 'document-skills',
+      })
+      expect(delegate.uninstall).toHaveBeenCalledWith({
+        pluginName: 'document-skills',
+        marketplaceName: 'anthropic-agent-skills',
+      })
+      listInstalledPluginsMock.mockReturnValue([])
+    })
+  })
+
+  it('rejects update for a plugin item and drops one with an unparsable manifest', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      syncCloudCatalog(
+        db,
+        [
+          cloudCatalogItem({
+            itemId: 'document-skills',
+            kind: 'plugin',
+            recommendedScope: 'user',
+            latestVersionManifestJson: JSON.stringify(pluginManifest),
+          }),
+          cloudCatalogItem({
+            itemId: 'broken-plugin',
+            kind: 'plugin',
+            recommendedScope: 'user',
+            latestVersionManifestJson: '{"nope":true}',
+          }),
+        ],
+        new Date(),
+      )
+      listInstalledPluginsMock.mockReturnValue([
+        {
+          key: 'document-skills@anthropic-agent-skills',
+          pluginName: 'document-skills',
+          marketplaceName: 'anthropic-agent-skills',
+          version: '1.0.0',
+        },
+      ])
+      const delegate = { install: vi.fn(async () => {}), uninstall: vi.fn(async () => {}) }
+      const app = createApp({ db, logger: silentLogger, marketplacePluginDelegate: delegate })
+
+      // No dead Get buttons: the descriptor-less plugin never surfaces.
+      const listRes = await app.request('/marketplace/items')
+      const ids = ((await listRes.json()) as Array<{ itemId: string }>).map((i) => i.itemId)
+      expect(ids).toContain('document-skills')
+      expect(ids).not.toContain('broken-plugin')
+
+      const res = await postJson(app, '/marketplace/update', { itemId: 'document-skills' })
+      expect(res.status).toBe(400)
+      listInstalledPluginsMock.mockReturnValue([])
     })
   })
 })

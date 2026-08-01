@@ -53,6 +53,10 @@ import { agentsApp } from './routes/agents/index.js'
 import { providersApp } from './routes/providers/index.js'
 import { onboardingApp } from './routes/onboarding/index.js'
 import { firstLaunchGateMiddleware } from './middleware/first-launch-gate.js'
+import {
+  claudePluginDelegate,
+  type MarketplacePluginDelegate,
+} from './services/marketplace-plugin-delegate.js'
 import { featureGate } from './middleware/feature-gate.js'
 import { workspacesApp } from './routes/workspaces/index.js'
 import { hubApp } from './routes/hub/index.js'
@@ -109,6 +113,10 @@ export interface CreateAppOptions {
   // The daemon's hub-account session — present only when VYNEL_HUB_URL is
   // configured (server.ts); the /hub routes answer `not-configured` without it.
   readonly hubSession?: HubSession
+  // Override the marketplace's plugin-install delegate (the Claude-plugin
+  // CLI seam). Production omits it (the real CLI); a route test injects a
+  // fake so the HTTP stack never runs `claude plugin` commands.
+  readonly marketplacePluginDelegate?: MarketplacePluginDelegate
   // The `ask_user` waiter registry — one per process. Injectable so a test can
   // park/resolve waiters around a route call; production omits it and gets a
   // fresh instance.
@@ -191,6 +199,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
       c.set('desktopNotifications', options.desktopNotifications)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
     if (options.hubSession !== undefined) c.set('hubSession', options.hubSession)
+    c.set('marketplacePluginDelegate', options.marketplacePluginDelegate ?? claudePluginDelegate)
     await next()
   })
 

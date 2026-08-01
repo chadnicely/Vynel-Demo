@@ -26,6 +26,7 @@ function cloudItem(over: Partial<HubCatalogItem> & { itemId: string }): HubCatal
     recommendedScope: 'both',
     minimumTier: 'basic',
     latestVersion: '1.0.0',
+    latestVersionManifestJson: '{"entry":"SKILL.md"}',
     latestVersionSha256: 'a'.repeat(64),
     releasedAt: '2026-07-10T00:00:00.000Z',
     canInstall: true,
@@ -34,7 +35,7 @@ function cloudItem(over: Partial<HubCatalogItem> & { itemId: string }): HubCatal
 }
 
 describe('cloud catalog merge', () => {
-  it('dedups the bundled+cloud collision (cloud-wins), keeps agents, filters mcp/rule/plugin', async () => {
+  it('dedups the bundled+cloud collision (cloud-wins), keeps agents, filters mcp/rule', async () => {
     await withTestDatabase(async (db) => {
       syncCloudCatalog(
         db,
@@ -65,6 +66,34 @@ describe('cloud catalog merge', () => {
     })
   })
 
+  it('surfaces a plugin row with its registry key; drops one without a parsable descriptor', async () => {
+    await withTestDatabase(async (db) => {
+      syncCloudCatalog(
+        db,
+        [
+          cloudItem({
+            itemId: 'document-skills',
+            kind: 'plugin',
+            latestVersionManifestJson: JSON.stringify({
+              marketplaceRepo: 'anthropics/skills',
+              marketplaceName: 'anthropic-agent-skills',
+              pluginName: 'document-skills',
+            }),
+          }),
+          // No dead Get buttons: a plugin without a delegate descriptor
+          // never surfaces.
+          cloudItem({ itemId: 'broken-plugin', kind: 'plugin', latestVersionManifestJson: '{}' }),
+        ],
+        new Date(),
+      )
+      const merged = resolveMergedCatalog(db)
+      const plugin = merged.find((i) => i.itemId === 'document-skills')
+      expect(plugin?.kind).toBe('plugin')
+      expect(plugin?.pluginKey).toBe('document-skills@anthropic-agent-skills')
+      expect(merged.some((i) => i.itemId === 'broken-plugin')).toBe(false)
+    })
+  })
+
   it('annotates the deduped cloud row installed when the skill is installed (no double-count)', async () => {
     await withTestDatabase(async (db) => {
       syncCloudCatalog(db, [cloudItem({ itemId: 'email-drafter' })], new Date())
@@ -76,6 +105,7 @@ describe('cloud catalog merge', () => {
             { id: 'i1', skillId: 'email-drafter', workspaceId: null, scope: 'user', versionInstalled: '1.0.0' },
           ],
           listInstalledAgents: () => [],
+          listInstalledPlugins: () => [],
         },
       )
       const drafter = items.filter((i) => i.itemId === 'email-drafter')
@@ -95,6 +125,7 @@ describe('cloud catalog merge', () => {
           listInstalledAgents: () => [
             { id: 'a1', slug: 'focus-writer', workspaceId: 'w', source: 'community' },
           ],
+          listInstalledPlugins: () => [],
         },
       )
       const agent = items.find((i) => i.itemId === 'focus-writer')

@@ -37,12 +37,13 @@ const { isPro } = useHubFeatures();
 
 // --- Search + filters: client-side, plain computed — the curated catalog is
 // small, so there's nothing to debounce or page. Filters compose with AND.
-type KindFilter = "all" | "skill" | "agent";
+type KindFilter = "all" | "skill" | "agent" | "plugin";
 
 const KIND_FILTERS: Array<{ value: KindFilter; label: string }> = [
   { value: "all", label: "All" },
   { value: "skill", label: "Skills" },
   { value: "agent", label: "Agents" },
+  { value: "plugin", label: "Plugins" },
 ];
 
 const searchText = ref("");

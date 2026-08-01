@@ -19,7 +19,7 @@ import { listMarketplaceItems } from './list-marketplace-items.js'
 import type { InstalledSkillView, MarketplaceDeps } from './marketplace-types.js'
 
 function depsReturning(installed: InstalledSkillView[]): MarketplaceDeps {
-  return { listInstalledSkills: () => installed, listInstalledAgents: () => [] }
+  return { listInstalledSkills: () => installed, listInstalledAgents: () => [], listInstalledPlugins: () => [] }
 }
 
 const input = { userId: 'user-1', surface: 'workspace', workspaceId: 'ws-1' } as const
@@ -43,7 +43,7 @@ describe('listMarketplaceItems', () => {
     await withTestDatabase(async (db) => {
       const listInstalledSkills = vi.fn<MarketplaceDeps['listInstalledSkills']>(() => [])
       const listInstalledAgents = vi.fn<MarketplaceDeps['listInstalledAgents']>(() => [])
-      listMarketplaceItems(db, input, { listInstalledSkills, listInstalledAgents })
+      listMarketplaceItems(db, input, { listInstalledSkills, listInstalledAgents, listInstalledPlugins: () => [] })
       const owner = { userId: 'user-1', workspaceId: 'ws-1' }
       expect(listInstalledSkills).toHaveBeenCalledWith(db, owner)
       expect(listInstalledAgents).toHaveBeenCalledWith(db, owner)
@@ -57,7 +57,7 @@ describe('listMarketplaceItems', () => {
       listMarketplaceItems(
         db,
         { userId: 'user-1', surface: 'global' },
-        { listInstalledSkills, listInstalledAgents },
+        { listInstalledSkills, listInstalledAgents, listInstalledPlugins: () => [] },
       )
       const owner = { userId: 'user-1', workspaceId: null }
       expect(listInstalledSkills).toHaveBeenCalledWith(db, owner)

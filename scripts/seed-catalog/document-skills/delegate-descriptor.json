@@ -1,0 +1,8 @@
+{
+  "note": "This plugin item installs by delegating to Claude Code's own plugin system — Anthropic distributes document-skills to the user through their marketplace (anthropics/skills) under their agreement. The desktop never downloads this artifact; the registry's publish schema simply requires one, and this descriptor doubles as the human-readable record of what installing does.",
+  "delegate": {
+    "marketplaceRepo": "anthropics/skills",
+    "marketplaceName": "anthropic-agent-skills",
+    "pluginName": "document-skills"
+  }
+}

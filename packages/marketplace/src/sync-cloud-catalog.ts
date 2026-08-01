@@ -30,6 +30,7 @@ export function syncCloudCatalog(
       sourceUrl: item.sourceUrl,
       minimumTier: item.minimumTier,
       latestVersion: item.latestVersion,
+      latestVersionManifestJson: item.latestVersionManifestJson,
       latestVersionSha256: item.latestVersionSha256,
       releasedAt: item.releasedAt,
       syncedAt: now,

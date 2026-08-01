@@ -54,6 +54,10 @@ export interface HubCatalogItem {
   readonly sourceUrl: string | null
   readonly minimumTier: HubTier
   readonly latestVersion: string
+  /** The latest version's per-kind install manifest, verbatim (opaque JSON —
+   * the desktop parses it per kind; e.g. a `plugin` item's delegate
+   * descriptor). Rides browse so install needs no second fetch. */
+  readonly latestVersionManifestJson: string
   /** sha256 of the latest version's artifact — the desktop caches this as the
    * integrity anchor and compares it against the bytes it downloads (M4b). */
   readonly latestVersionSha256: string

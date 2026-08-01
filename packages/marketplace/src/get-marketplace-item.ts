@@ -48,6 +48,7 @@ export function getMarketplaceItem(
     catalogItems: [item],
     installedSkills: deps.listInstalledSkills(db, owner),
     installedAgents: deps.listInstalledAgents(db, owner),
+    installedPlugins: deps.listInstalledPlugins(),
   })
   return annotated!
 }

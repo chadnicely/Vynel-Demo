@@ -28,6 +28,7 @@ function item(itemId: string): HubCatalogItem {
     recommendedScope: 'user',
     minimumTier: 'basic',
     latestVersion: '1.0.0',
+    latestVersionManifestJson: '{"entry":"SKILL.md"}',
     latestVersionSha256: 'a'.repeat(64),
     releasedAt: '2026-07-10T00:00:00.000Z',
     canInstall: true,

@@ -14,3 +14,15 @@ export {
   discoverInstalledSkillsForProvider,
   type DiscoverInstalledSkillsForProviderInput,
 } from './status/discover-installed-skills-for-provider.js'
+// The plugin-delegate seam (claude-official arc Phase B): drives the SDK's
+// bundled `claude` binary so marketplace `plugin` items install into Claude
+// Code's native layout. Deliberately Claude-named — a second provider gets
+// an agnostic wrapper when it exists (the discover-skills precedent).
+export {
+  installClaudePlugin,
+  uninstallClaudePlugin,
+  listInstalledClaudePlugins,
+  resolveBundledClaudeBinary,
+  type InstallClaudePluginInput,
+  type InstalledClaudePluginView,
+} from './claude/installation/claude-plugin-cli.js'

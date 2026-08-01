@@ -48,6 +48,7 @@ export function toHubCatalogItem(
     sourceUrl: item.sourceUrl,
     minimumTier,
     latestVersion: latest.version,
+    latestVersionManifestJson: latest.manifestJson,
     latestVersionSha256: latest.artifactSha256,
     releasedAt: latest.releasedAt.toISOString(),
     canInstall: tierMeetsMinimum(callerTier, minimumTier),

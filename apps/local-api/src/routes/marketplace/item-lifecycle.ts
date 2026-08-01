@@ -40,6 +40,9 @@ import {
 } from '@vynel/skills'
 import { installCloudAgent, softDeleteAgent } from '@vynel/agents'
 import { listAgentsForUserAndWorkspace } from '@vynel/db/repositories/agents'
+import { listInstalledClaudePlugins } from '@vynel/providers'
+import { parsePluginItemManifest } from '@vynel/contracts/marketplace/plugin-item-manifest'
+import type { MarketplacePluginDelegate } from '../../services/marketplace-plugin-delegate.js'
 import { serializeInstalledSkillResponse } from './serializers.js'
 
 // Agents' install-status reader binds the kernel repo directly — the
@@ -51,12 +54,16 @@ import { serializeInstalledSkillResponse } from './serializers.js'
 export const marketplaceDeps = {
   listInstalledSkills: listInstalledSkillsForUserAndWorkspace,
   listInstalledAgents: listAgentsForUserAndWorkspace,
+  // Plugins live in Claude Code's own registry (`installed_plugins.json`),
+  // read via the provider seam — no DB, user-scope global by nature.
+  listInstalledPlugins: listInstalledClaudePlugins,
 }
 
 export type MarketplaceRequestContext = {
   db: Database
   hubSession: HubSession | undefined
   logger: Logger
+  pluginDelegate: MarketplacePluginDelegate
 }
 
 // null workspace = the GLOBAL surface; non-null = that workspace's surface.
@@ -86,11 +93,30 @@ export async function installMarketplaceItem(
   // Surface gate: only items this surface lists install from here — an
   // off-surface or unknown id throws the same NotFoundError the uninstall
   // path produces, so no surface can mint a row its own reads would hide.
-  getMarketplaceItem(
+  const gateItem = getMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
     marketplaceDeps,
   )
+  if (gateItem.kind === 'plugin') {
+    // Delegate install: Claude Code's own plugin system pulls from the
+    // publisher's marketplace repo — no artifact download, no scope choice
+    // (plugins are user-scope global; their `recommendedScope: 'user'`
+    // keeps them off the workspace surface entirely).
+    const cachedPlugin = findCachedCloudItem(ctx.db, itemId)
+    const manifest = parsePluginItemManifest(cachedPlugin?.latestVersionManifestJson ?? null)
+    if (manifest === null) {
+      throw new ValidationError('This plugin item carries no install descriptor — re-sync the catalog.')
+    }
+    await ctx.pluginDelegate.install(manifest)
+    ctx.logger.info({ itemId, pluginKey: gateItem.pluginKey }, 'marketplace plugin installed')
+    return {
+      kind: 'plugin' as const,
+      pluginKey: `${manifest.pluginName}@${manifest.marketplaceName}`,
+      itemId,
+      version: cachedPlugin?.latestVersion ?? null,
+    }
+  }
   const cached = findCachedCloudItem(ctx.db, itemId)
   const cloud =
     cached !== null && (cached.kind === 'skill' || cached.kind === 'agent') ? cached : null
@@ -175,9 +201,9 @@ export async function updateMarketplaceItem(
   if (item.installStatus.kind !== 'installed') {
     throw new NotFoundError('installed-item', itemId)
   }
-  if (item.kind === 'agent') {
+  if (item.kind !== 'skill') {
     throw new ValidationError(
-      'Agent items cannot be updated in place yet — uninstall and reinstall to get the latest version.',
+      'Only skills support in-place updates — uninstall and reinstall to get the latest version.',
     )
   }
   const cached = findCachedCloudItem(ctx.db, itemId)
@@ -226,6 +252,23 @@ export async function uninstallMarketplaceItem(
   )
   if (item.installStatus.kind !== 'installed') {
     throw new NotFoundError('installed-item', itemId)
+  }
+  if (item.kind === 'plugin') {
+    // installedId IS the registry key (`name@marketplace`) — plugin names
+    // never contain '@', so the FIRST '@' is the split (same rule as the
+    // provider's registry reader). The guard mirrors the reader's: a
+    // malformed key must never drive the CLI with a garbage split.
+    const key = item.installStatus.installedId
+    const atIndex = key.indexOf('@')
+    if (atIndex <= 0 || atIndex === key.length - 1) {
+      throw new ValidationError(`Installed plugin key '${key}' is malformed — cannot uninstall.`)
+    }
+    await ctx.pluginDelegate.uninstall({
+      pluginName: key.slice(0, atIndex),
+      marketplaceName: key.slice(atIndex + 1),
+    })
+    ctx.logger.info({ itemId, pluginKey: key }, 'marketplace plugin uninstalled')
+    return { kind: 'plugin' as const, pluginKey: key, itemId }
   }
   if (item.kind === 'agent') {
     await softDeleteAgent(

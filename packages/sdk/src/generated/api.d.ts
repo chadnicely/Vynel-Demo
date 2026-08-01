@@ -3934,7 +3934,7 @@ export interface operations {
                     "application/json": {
                         itemId: string;
                         /** @enum {string} */
-                        kind: "skill" | "agent";
+                        kind: "skill" | "agent" | "plugin";
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -3953,6 +3953,7 @@ export interface operations {
                         /** @enum {string} */
                         scope: "user" | "workspace" | "both";
                         isOfficial: boolean;
+                        pluginKey?: string;
                         installStatus: {
                             /** @constant */
                             kind: "not-installed";
@@ -3999,7 +4000,7 @@ export interface operations {
                     "application/json": {
                         itemId: string;
                         /** @enum {string} */
-                        kind: "skill" | "agent";
+                        kind: "skill" | "agent" | "plugin";
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -4018,6 +4019,7 @@ export interface operations {
                         /** @enum {string} */
                         scope: "user" | "workspace" | "both";
                         isOfficial: boolean;
+                        pluginKey?: string;
                         installStatus: {
                             /** @constant */
                             kind: "not-installed";
@@ -4087,6 +4089,12 @@ export interface operations {
                         /** @enum {string} */
                         scope: "user" | "workspace";
                         version: string;
+                    } | {
+                        /** @constant */
+                        kind: "plugin";
+                        pluginKey: string;
+                        itemId: string;
+                        version: string | null;
                     };
                 };
             };
@@ -4197,6 +4205,11 @@ export interface operations {
                         /** @constant */
                         kind: "agent";
                         agentId: string;
+                        itemId: string;
+                    } | {
+                        /** @constant */
+                        kind: "plugin";
+                        pluginKey: string;
                         itemId: string;
                     };
                 };
@@ -10546,7 +10559,7 @@ export interface operations {
                     "application/json": {
                         itemId: string;
                         /** @enum {string} */
-                        kind: "skill" | "agent";
+                        kind: "skill" | "agent" | "plugin";
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -10565,6 +10578,7 @@ export interface operations {
                         /** @enum {string} */
                         scope: "user" | "workspace" | "both";
                         isOfficial: boolean;
+                        pluginKey?: string;
                         installStatus: {
                             /** @constant */
                             kind: "not-installed";
@@ -10623,6 +10637,12 @@ export interface operations {
                         /** @enum {string} */
                         scope: "user" | "workspace";
                         version: string;
+                    } | {
+                        /** @constant */
+                        kind: "plugin";
+                        pluginKey: string;
+                        itemId: string;
+                        version: string | null;
                     };
                 };
             };
@@ -10729,6 +10749,11 @@ export interface operations {
                         /** @constant */
                         kind: "agent";
                         agentId: string;
+                        itemId: string;
+                    } | {
+                        /** @constant */
+                        kind: "plugin";
+                        pluginKey: string;
                         itemId: string;
                     };
                 };

@@ -118,11 +118,18 @@ const removeLabel = computed(() => {
           {{ item.displayName }}
         </p>
         <p class="m-0 mt-0.5 flex flex-wrap items-center gap-1.5">
-          <!-- What you're getting: a skill (a capability) or an agent
-               (a persona) — the Get flow is identical for both. -->
+          <!-- What you're getting: a skill (a capability), an agent (a
+               persona), or a plugin (a bundle Claude Code itself manages) —
+               the Get flow is identical for all three. -->
           <span
             class="scope-chip inline-flex items-center gap-0.5 rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
-            >{{ item.kind === "agent" ? "Agent" : "Skill" }}</span
+            >{{
+              item.kind === "agent"
+                ? "Agent"
+                : item.kind === "plugin"
+                  ? "Plugin"
+                  : "Skill"
+            }}</span
           >
           <span
             v-if="item.isOfficial"

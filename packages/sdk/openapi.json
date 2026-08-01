@@ -2005,7 +2005,8 @@
                         "type": "string",
                         "enum": [
                           "skill",
-                          "agent"
+                          "agent",
+                          "plugin"
                         ]
                       },
                       "skillId": {
@@ -2080,6 +2081,9 @@
                       },
                       "isOfficial": {
                         "type": "boolean"
+                      },
+                      "pluginKey": {
+                        "type": "string"
                       },
                       "installStatus": {
                         "oneOf": [
@@ -2266,7 +2270,8 @@
                       "type": "string",
                       "enum": [
                         "skill",
-                        "agent"
+                        "agent",
+                        "plugin"
                       ]
                     },
                     "skillId": {
@@ -2341,6 +2346,9 @@
                     },
                     "isOfficial": {
                       "type": "boolean"
+                    },
+                    "pluginKey": {
+                      "type": "string"
                     },
                     "installStatus": {
                       "oneOf": [
@@ -2540,6 +2548,33 @@
                         "slug",
                         "itemId",
                         "scope",
+                        "version"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "plugin"
+                        },
+                        "pluginKey": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "pluginKey",
+                        "itemId",
                         "version"
                       ]
                     }
@@ -2756,6 +2791,26 @@
                       "required": [
                         "kind",
                         "agentId",
+                        "itemId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "plugin"
+                        },
+                        "pluginKey": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "pluginKey",
                         "itemId"
                       ]
                     }
@@ -18609,7 +18664,8 @@
                         "type": "string",
                         "enum": [
                           "skill",
-                          "agent"
+                          "agent",
+                          "plugin"
                         ]
                       },
                       "skillId": {
@@ -18684,6 +18740,9 @@
                       },
                       "isOfficial": {
                         "type": "boolean"
+                      },
+                      "pluginKey": {
+                        "type": "string"
                       },
                       "installStatus": {
                         "oneOf": [
@@ -18922,6 +18981,33 @@
                         "scope",
                         "version"
                       ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "plugin"
+                        },
+                        "pluginKey": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "pluginKey",
+                        "itemId",
+                        "version"
+                      ]
                     }
                   ]
                 }
@@ -19098,6 +19184,26 @@
                       "required": [
                         "kind",
                         "agentId",
+                        "itemId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "plugin"
+                        },
+                        "pluginKey": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "pluginKey",
                         "itemId"
                       ]
                     }

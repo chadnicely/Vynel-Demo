@@ -61,6 +61,7 @@ function cloudCatalogItem(sha: string, over: Partial<HubCatalogItem> = {}): HubC
     recommendedScope: 'workspace',
     minimumTier: 'basic',
     latestVersion: '2.0.0',
+    latestVersionManifestJson: '{"entry":"SKILL.md"}',
     latestVersionSha256: sha,
     releasedAt: '2026-07-10T00:00:00.000Z',
     canInstall: true,

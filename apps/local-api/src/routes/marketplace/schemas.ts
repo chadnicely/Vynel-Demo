@@ -48,7 +48,7 @@ const SkillScopeSchema = z.enum(['user', 'workspace'])
 // distinct from the install scope above.
 const MarketplaceItemScopeSchema = z.enum(['user', 'workspace', 'both'])
 
-export const MarketplaceItemKindSchema = z.enum(['skill', 'agent'])
+export const MarketplaceItemKindSchema = z.enum(['skill', 'agent', 'plugin'])
 
 const MarketplaceItemInstallStatusSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('not-installed') }),
@@ -79,6 +79,8 @@ export const MarketplaceItemSchema = z.object({
   recommendedScope: SkillScopeSchema,
   scope: MarketplaceItemScopeSchema,
   isOfficial: z.boolean(),
+  // Plugin items only: Claude Code's `name@marketplace` registry key.
+  pluginKey: z.string().optional(),
   installStatus: MarketplaceItemInstallStatusSchema,
   // Cloud items only — the UI's "Pro" badge (display); bundled items omit it.
   minimumTier: z.enum(['basic', 'pro']).optional(),
@@ -130,6 +132,11 @@ export const UninstallMarketplaceItemResponseSchema = z.discriminatedUnion('kind
     agentId: z.string(),
     itemId: z.string(),
   }),
+  z.object({
+    kind: z.literal('plugin'),
+    pluginKey: z.string(),
+    itemId: z.string(),
+  }),
 ])
 
 // Discriminated by item kind (C-agents): a skill install answers with the
@@ -150,5 +157,13 @@ export const InstallMarketplaceItemResponseSchema = z.discriminatedUnion('kind',
     itemId: z.string(),
     scope: SkillScopeSchema,
     version: z.string(),
+  }),
+  // Plugin installs delegate to Claude Code's plugin system — no installed
+  // row of Vynel's own; the registry key is the identity.
+  z.object({
+    kind: z.literal('plugin'),
+    pluginKey: z.string(),
+    itemId: z.string(),
+    version: z.string().nullable(),
   }),
 ])

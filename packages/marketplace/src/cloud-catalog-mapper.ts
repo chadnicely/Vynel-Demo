@@ -1,10 +1,11 @@
 // Cache row → the `MarketplaceItem` the UI renders. `skillId === itemId`
 // for every kind (the id anchor, not skill-semantics — see the contract's
-// D7 note). Non-installable kinds (mcp/rule/plugin) are filtered out
-// upstream in `resolveMergedCatalog`, so the narrowing here only ever
-// sees skill/agent rows.
+// D7 note). Non-installable kinds (mcp/rule) are filtered out upstream in
+// `resolveMergedCatalog`; skill/agent/plugin rows reach here — a plugin
+// row is FORCED to user scope (see below).
 
 import { toHubPublisherTier } from '@vynel/contracts/hub/catalog'
+import { parsePluginItemManifest } from '@vynel/contracts/marketplace/plugin-item-manifest'
 import type {
   MarketplaceItem,
   MarketplaceItemKind,
@@ -39,7 +40,7 @@ function toSkillCategory(raw: string): SkillCategory {
 // structurally identical to the desktop's `PublisherTier`, so no re-map.
 
 function toItemKind(raw: string): MarketplaceItemKind {
-  return raw === 'agent' ? 'agent' : 'skill'
+  return raw === 'agent' || raw === 'plugin' ? raw : 'skill'
 }
 
 // The cache row's `recommendedScope` text doubles as the hub's SURFACING
@@ -52,9 +53,15 @@ function toItemScope(raw: string | null): MarketplaceItemScope {
 }
 
 export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): MarketplaceItem {
+  const kind = toItemKind(row.kind)
+  // Plugin rows precompute Claude Code's registry key from the delegate
+  // manifest — the install-status match anchor. Unparsable manifest =
+  // undefined; the merge drops such rows (no dead Get buttons).
+  const pluginManifest =
+    kind === 'plugin' ? parsePluginItemManifest(row.latestVersionManifestJson) : null
   return {
     itemId: row.itemId,
-    kind: toItemKind(row.kind),
+    kind,
     skillId: row.itemId,
     publisherTier: toHubPublisherTier(row.publisherTier),
     publisherName: row.publisherName,
@@ -69,11 +76,20 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
     // The install picker's default only — a 'both' surfacing scope still
     // needs one concrete SkillScope to suggest, and 'user' matches what a
     // 'both' item most often is (useful everywhere).
-    recommendedScope: (row.recommendedScope === 'workspace' ? 'workspace' : 'user') as SkillScope,
-    scope: toItemScope(row.recommendedScope),
+    recommendedScope: (row.recommendedScope === 'workspace' && kind !== 'plugin'
+      ? 'workspace'
+      : 'user') as SkillScope,
+    // Plugins are user-scope global BY STRUCTURE, not convention: forcing
+    // 'user' keeps them off the workspace surface — and therefore off the
+    // workspace MCP install tool, whose mutating (non-carded) tier must
+    // never run the external CLI delegate. A hub row can't override this.
+    scope: kind === 'plugin' ? 'user' : toItemScope(row.recommendedScope),
     // Both curated tiers badge as official — 'verified' (Vynel Team) and
     // 'anthropic-official' (upstream Anthropic). Only community rows don't.
     isOfficial: toHubPublisherTier(row.publisherTier) !== 'community',
+    ...(pluginManifest !== null
+      ? { pluginKey: `${pluginManifest.pluginName}@${pluginManifest.marketplaceName}` }
+      : {}),
     installStatus: { kind: 'not-installed' },
     minimumTier: row.minimumTier === 'pro' ? 'pro' : 'basic',
   }

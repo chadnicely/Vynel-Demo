@@ -41,7 +41,7 @@ export type MarketplaceSurfaceSelector =
  * install ever reach the wire (mcp/rule/plugin stay filtered at the
  * merge; widening later is additive). The hub-side registry union is
  * the wider `HubItemKind`. Slice C-agents. */
-export type MarketplaceItemKind = 'skill' | 'agent'
+export type MarketplaceItemKind = 'skill' | 'agent' | 'plugin'
 
 /** Install-status discriminator. Phase 1 has two variants (no
  * `'installed-with-update-available'` per D8). Generalized when the
@@ -82,6 +82,11 @@ export type MarketplaceItem = {
   /** Surfacing scope — which marketplace surface(s) list this item. */
   scope: MarketplaceItemScope
   isOfficial: boolean
+  /** Plugin items only: `<pluginName>@<marketplaceName>` — Claude Code's
+   * registry key, precomputed from the item manifest. The install-status
+   * match anchor (full key, never bare name — a same-named plugin from
+   * another marketplace must not cross-match). */
+  pluginKey?: string
   installStatus: MarketplaceItemInstallStatus
   /** Cloud items only: the access tier required to INSTALL. The UI shows a
    * "Pro" badge from this vs the current entitlement (display only — the real

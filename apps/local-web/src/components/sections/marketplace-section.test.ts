@@ -185,6 +185,13 @@ describe("MarketplaceSection — kind chip", () => {
             skillId: "focus-writer",
             displayName: "Focus Writer",
           }),
+          makeItem({
+            itemId: "document-skills",
+            kind: "plugin",
+            skillId: "document-skills",
+            displayName: "Documents Pack",
+            pluginKey: "document-skills@anthropic-agent-skills",
+          }),
         ],
       },
     );
@@ -193,6 +200,7 @@ describe("MarketplaceSection — kind chip", () => {
     const chips = wrapper.findAll(".scope-chip").map((chip) => chip.text());
     expect(chips).toContain("Skill");
     expect(chips).toContain("Agent");
+    expect(chips).toContain("Plugin");
     wrapper.unmount();
   });
 });

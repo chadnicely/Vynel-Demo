@@ -18,10 +18,13 @@ export function resolveMergedCatalog(db: Database): MarketplaceItem[] {
     // Only INSTALLABLE kinds surface — honest UI over dead Get buttons:
     // `rule` waits for the instructions-notebook leaf (its install
     // target), `mcp` needs two open calls (which leaf owns a standalone
-    // MCP install; whether it cards), `plugin` has no desktop semantics
-    // yet. See docs/module-notes/marketplace-kinds.md "Deferred".
-    if (row.kind !== 'skill' && row.kind !== 'agent') continue
-    byId.set(row.itemId, cloudRowToMarketplaceItem(row)) // cloud wins
+    // MCP install; whether it cards). `plugin` installs via the Claude
+    // CLI delegate (Phase B) — but only with a parsable delegate
+    // manifest, or its Get button would be dead.
+    if (row.kind !== 'skill' && row.kind !== 'agent' && row.kind !== 'plugin') continue
+    const item = cloudRowToMarketplaceItem(row)
+    if (row.kind === 'plugin' && item.pluginKey === undefined) continue
+    byId.set(row.itemId, item) // cloud wins
   }
   return [...byId.values()]
 }

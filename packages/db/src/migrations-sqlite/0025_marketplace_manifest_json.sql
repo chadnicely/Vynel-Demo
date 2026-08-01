@@ -1,0 +1,1 @@
+ALTER TABLE `marketplace_cloud_catalog` ADD `latest_version_manifest_json` text;

@@ -1,0 +1,30 @@
+{
+  "publisher": {
+    "id": "anthropic",
+    "name": "Anthropic",
+    "tier": "anthropic-official",
+    "url": "https://www.anthropic.com"
+  },
+  "item": {
+    "itemId": "document-skills",
+    "kind": "plugin",
+    "displayName": "Documents Pack",
+    "oneLineDescription": "Work with Word, Excel, PowerPoint, and PDF files — read, create, and edit documents.",
+    "category": "documents",
+    "iconName": "file-text",
+    "recommendedScope": "user",
+    "minimumTier": "basic",
+    "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills",
+    "status": "published"
+  },
+  "version": {
+    "version": "1.0.0",
+    "changelog": "Delegate install via Claude Code's plugin system (anthropics/skills marketplace).",
+    "manifest": {
+      "marketplaceRepo": "anthropics/skills",
+      "marketplaceName": "anthropic-agent-skills",
+      "pluginName": "document-skills"
+    },
+    "minAppVersion": null
+  }
+}

@@ -12,12 +12,17 @@ import type {
   MarketplaceItem,
   MarketplaceItemInstallStatus,
 } from '@vynel/contracts/marketplace/marketplace-item'
-import type { InstalledAgentView, InstalledSkillView } from './marketplace-types.js'
+import type {
+  InstalledAgentView,
+  InstalledPluginView,
+  InstalledSkillView,
+} from './marketplace-types.js'
 
 export type AnnotateInput = {
   catalogItems: MarketplaceItem[]
   installedSkills: InstalledSkillView[]
   installedAgents: InstalledAgentView[]
+  installedPlugins: InstalledPluginView[]
 }
 
 export function annotateWithInstallStatus(input: AnnotateInput): MarketplaceItem[] {
@@ -26,8 +31,28 @@ export function annotateWithInstallStatus(input: AnnotateInput): MarketplaceItem
     installStatus:
       item.kind === 'agent'
         ? determineAgentInstallStatus(item, input.installedAgents)
-        : determineSkillInstallStatus(item, input.installedSkills),
+        : item.kind === 'plugin'
+          ? determinePluginInstallStatus(item, input.installedPlugins)
+          : determineSkillInstallStatus(item, input.installedSkills),
   }))
+}
+
+function determinePluginInstallStatus(
+  item: MarketplaceItem,
+  installedPlugins: InstalledPluginView[],
+): MarketplaceItemInstallStatus {
+  // Full-key match only (`name@marketplace`) — a same-named plugin from a
+  // DIFFERENT marketplace must never flip the card to "Installed"; the
+  // uninstall route resolves through this same match and would remove the
+  // wrong plugin (the agents-slug precedent). Plugins are user-scope global.
+  const match = installedPlugins.find((p) => p.key === item.pluginKey)
+  if (match === undefined) return { kind: 'not-installed' }
+  return {
+    kind: 'installed',
+    scope: 'user',
+    installedId: match.key,
+    versionInstalled: match.version,
+  }
 }
 
 function determineSkillInstallStatus(
