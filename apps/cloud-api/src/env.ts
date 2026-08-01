@@ -7,7 +7,20 @@
 // keys arrive BASE64-ENCODED (of the full PEM text). Generate a pair with
 // `pnpm cloud:generate-keys`.
 
+import { dirname, isAbsolute, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const repoRoot = resolve(here, '..', '..', '..') // src -> cloud-api -> apps -> repo-root
+
+// Relative path values resolve against the REPO ROOT, never the process cwd —
+// turbo runs `dev` with cwd = apps/cloud-api, so a cwd-relative default would
+// silently point at files that don't exist there (the local-api DB_PATH
+// precedent). A deploy sets absolute paths and is untouched by this.
+function resolveAgainstRepoRoot(raw: string): string {
+  return isAbsolute(raw) ? raw : resolve(repoRoot, raw)
+}
 
 const base64Pem = z
   .string()
@@ -56,7 +69,10 @@ export const EnvSchema = z.object({
   // Defaults under the repo-root .data so dev "just works"; a server deploy
   // points it at a persistent volume. Chad's call (2026-08-02): the server
   // disk IS the store for now — R2 waits for real users.
-  CLOUD_ARTIFACT_DIR: z.string().default('.data/cloud-artifacts'),
+  CLOUD_ARTIFACT_DIR: z
+    .string()
+    .default('.data/cloud-artifacts')
+    .transform(resolveAgainstRepoRoot),
   // Ed25519 key that signs each published artifact's sha256 — SEPARATE from
   // the token keypair so rotating one never invalidates the other. OPTIONAL:
   // unset = versions publish unsigned and the desktop verifies-if-present.
@@ -68,7 +84,10 @@ export const EnvSchema = z.object({
   // from the repo (dev + today's deploy). To DISABLE the job, deploy
   // without the file — a missing manifest logs one warning per run and the
   // hub keeps serving.
-  CLOUD_UPSTREAM_MANIFEST_PATH: z.string().default('scripts/anthropic-catalog/manifest.json'),
+  CLOUD_UPSTREAM_MANIFEST_PATH: z
+    .string()
+    .default('scripts/anthropic-catalog/manifest.json')
+    .transform(resolveAgainstRepoRoot),
   CLOUD_UPSTREAM_CHECK_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
 })
 
