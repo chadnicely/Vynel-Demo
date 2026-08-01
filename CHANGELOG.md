@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Publishing Anthropic's official items is now one click.** The admin portal's catalog page
+  has an "Import Anthropic items" button: the hub itself fetches the reviewed, pinned snapshot
+  of Anthropic's skills, packages each one faithfully (licenses included), and publishes them —
+  no local checkout or command line needed. It's safe to click twice: anything already published
+  is skipped and never overwritten. The manual `pnpm cloud:import-anthropic` still works and now
+  shares the same packaging engine.
+
 - **The hub now watches Anthropic's upstream for you.** Once a day, the cloud server checks
   whether Anthropic has changed any of the skills your marketplace republishes (against the
   reviewed, pinned snapshot). When something moved, the admin portal's catalog page shows an

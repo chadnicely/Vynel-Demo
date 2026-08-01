@@ -35,7 +35,36 @@ Remaining marketplace items = the module-notes deferred lists.
 checkboxes: ① skills install/uninstall-only ② polish batch ③ mcp/rule kinds + plugin updates
 ④ ops/production hardening — check items off as they land).
 
-## ✅ ARC 4 SLICE 1: HUB UPSTREAM-WATCH CRON — CODE-COMPLETE (2026-08-02), UNCOMMITTED
+## ⏭ CURRENT: Arc 4 slice 3 — Ed25519 signatures (Gate-1 design next)
+
+Slice 2 (portal-button publishing) SHIPPED `2d9263b` — see below. Slice 3's shape is in
+`.claude/plan/marketplace-remaining.md` (separate `CLOUD_ARTIFACT_SIGNING_*` keypair · hub
+signs sha256 at publish · nullable `item_versions` signature column via cloud-db drizzle-kit
+generate · desktop verify-if-present; open Gate-1 choices: public-key pinning location ·
+backfill vs nullable-forever). Session rules in force: reviewer on each diff before commit ·
+Chad authorized me to run the full `pnpm test` gate myself this session · conventional
+commits, NO Co-Authored-By trailer · push after commit. Marketplace shipped so far: Arc 1
+`03ce7c5` · Arc 2 `916f701` · mcp `dc950bd` · rule `fa394d1` · plugin updates `92bc663` ·
+upstream-watch cron `928b6f7` · portal publish `2d9263b`.
+
+## ✅ ARC 4 SLICE 2: PORTAL-BUTTON PUBLISHING — SHIPPED (`2d9263b`, 2026-08-02)
+
+The admin portal's "Import Anthropic items" button publishes the pinned anthropic-catalog
+manifest SERVER-SIDE. Shipped: `@vynel/registry` `import-anthropic.ts`
+(`importAnthropicItems` — zod manifest boundary w/ 40-hex-sha + kebab-id injection guards,
+pre-check skips the clone entirely when everything's published, shallow single-sha fetch w/
+full-clone fallback, exported `zipSkillFolder` shared by the CLI, internal
+`publishCatalogArtifact` w/ ConflictError→skipped, results in manifest order) ·
+`POST /admin/catalog/import-anthropic` behind the dual door (`configured:false` sans
+manifest path; NotFoundError/ValidationError on missing/corrupt file) ·
+`CloudAppOptions.anthropicManifestPath` from `CLOUD_UPSTREAM_MANIFEST_PATH` · portal
+`use-import-anthropic.ts` + button/summary/error line in CatalogView · CLI now imports the
+zip helper (43 lines deleted). Reviewer CLEAN (should-fixes applied: NotFoundError ctor
+shape; `protocol.ext.allow=never` git hardening swept into upstream-watch.ts).
+**Full gate GREEN 2026-08-02 (3476 passed / 618 files).** Not yet live-smoked — the first
+real button click against the hub proves the end-to-end (idempotent, so safe).
+
+## ✅ ARC 4 SLICE 1: HUB UPSTREAM-WATCH CRON — SHIPPED (`928b6f7`, pushed 2026-08-02)
 
 Chad's calls: the drift check runs as a CRON ON THE HUB (not a desktop schedule) + R2 stays
 PARKED (server-disk ArtifactStore is the deliberate choice; documented in env.ts + plan).

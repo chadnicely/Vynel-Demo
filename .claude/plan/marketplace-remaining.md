@@ -100,12 +100,66 @@ reads; no notebook-leaf dependency) ④ work order = follow this plan's pipeline
       · R2 object storage — OUT OF V1 (Chad 2026-08-02, twice-confirmed): the server-disk
         filesystem ArtifactStore ships as v1's store; R2 is a FUTURE implement (needs his
         Cloudflare bucket + token; the swap stays small — the interface was built for it)
-      · per-artifact Ed25519 signatures — implementable now (own arc; separate key from the
-        token key; hub signs at publish, desktop verifies at download)
       · `minAppVersion` enforcement — BLOCKED on D2 installer stamping real versions
       · real mail sender — BLOCKED on Chad's provider choice + API key (dev logs links today)
-      · portal publishes official items — implementable now (portal trigger for the
-        import-anthropic pipeline; today CLI-only)
+
+## Arc 4 slice 2 — PORTAL-BUTTON PUBLISHING ✅ SHIPPED (`2d9263b`, 2026-08-02)
+
+Landed exactly per the settled design below (kept as the as-built record). Verified: registry
+git-fixture + PGlite tests (faithful zip w/ license + nested assets, sha↔DB match, idempotent
+re-run, hand-published bytes untouched, invalid-manifest refusal) + route configured:false/401;
+reviewer CLEAN (2 should-fixes applied: NotFoundError ctor shape; `protocol.ext.allow=never`
+git hardening — swept into upstream-watch.ts too); **full gate GREEN (3476 passed / 618 files)**.
+
+1. **Registry module `packages/registry/src/import-anthropic.ts`** —
+   `importAnthropicItems(db, artifactStore, manifest): Promise<{items: Array<{itemId, version,
+   outcome: 'published'|'skipped-already-published', bytes}>}>`. Server-side clone of
+   `manifest.upstream.repo` AT the pin into a mkdtemp dir (try shallow sha fetch:
+   `git init` + `remote add origin -- <repo>` + `fetch --depth 1 origin <sha>` + `checkout
+   FETCH_HEAD`; GitHub allows sha-fetch; fall back to full clone + checkout on failure).
+   HARDENING like upstream-watch.ts: validate pinnedSha `/^[0-9a-f]{40}$/`, `--` before repo
+   arg, 10-min execFile timeout, tmpdir rm in finally. Zip each `skills/<itemId>` folder
+   (move the CLI's `listFiles` + `zipSkillFolder` INTO this module and export them — root
+   SKILL.md required, DEFLATE). Publish INTERNALLY via `publishCatalogArtifact` (same
+   publisher/item/version/sourceUrl mapping as the CLI: sourceUrl =
+   `<repo>/tree/<pin>/skills/<itemId>`, changelog `imported from anthropics/skills@<pin7>`,
+   manifest `{entry:'SKILL.md'}`, minimumTier basic, status published); catch `ConflictError`
+   → outcome 'skipped-already-published' (the CLI's 409-skip semantic). Type
+   `AnthropicImportManifest` = upstream{repo,pinnedSha} + publisher{id,name,tier,url} +
+   items[{itemId,displayName,oneLineDescription,category,iconName,recommendedScope,version}]
+   (shape per scripts/src/cloud/import-anthropic-skills.ts). ⚠ registry package.json needs
+   `jszip` added (deps today: cloud-db/contracts/errors/drizzle-orm/zod).
+2. **cloud-api**: `CloudAppOptions.anthropicManifestPath?: string`; server.ts passes
+   `env.CLOUD_UPSTREAM_MANIFEST_PATH` (same manifest as the watch). Route
+   `POST /admin/catalog/import-anthropic` appended to the buildAdminRoutes chain (inherits
+   the requireAdminAccess dual door): absent option → `{configured:false}`; else read+parse
+   the manifest, call the module, return `{configured:true, items}`. Long-running is fine
+   (operator surface; the upstream-watch POST /check 5-min precedent).
+3. **CLI** `cloud:import-anthropic` KEEPS its local-reviewed-checkout flow (HTTP publish)
+   but imports the zip helpers from `@vynel/registry` (one home for zip logic).
+4. **Portal**: `use-import-anthropic.ts` mutation (adminApiFetch POST, invalidate
+   `adminCatalogKeys.all`) + a secondary "Import Anthropic items" button in CatalogView's
+   `.page-header` beside "Add Marketplace Catalog"; pending label; one-line result
+   ("published N · skipped M" / error via AdminApiError message).
+5. **Tests**: registry test = local git FIXTURE repo (copy upstream-watch.test.ts's
+   beforeAll pattern: mkdtemp + git init/config/commit `skills/<id>/SKILL.md`) + PGlite
+   (`withTestCloudDatabase`) + `createInMemoryArtifactStore`; assert published catalog rows
+   + stored artifact bytes + idempotent re-run → skipped. Admin route test: configured:false
+   + 401 unauthenticated (heavy path lives in the registry test). Reviewer → full gate
+   (Chad lets me run `pnpm test` this session) → commit
+   `feat(cloud): portal-button publishing for anthropic items` → push.
+
+## Arc 4 slice 3 — Ed25519 ARTIFACT SIGNATURES (after slice 2; fresh Gate-1 design first)
+
+Shape (details to settle at Gate 1): separate keypair from the token key
+(`CLOUD_ARTIFACT_SIGNING_*`, extend `pnpm cloud:generate-keys`); hub signs sha256(artifact)
+at publish; `item_versions` gains a NULLABLE signature column — CLOUD-DB migration via
+`pnpm --filter @vynel/cloud-db exec drizzle-kit generate --config
+../../drizzle.cloud-postgres.config.ts --name=<snake>` (NEVER hand-write — memory rule);
+catalog wire carries it; desktop (`@vynel/hub-account` downloadArtifact) verifies
+signature + sha before returning bytes, verify-if-present during rollout; open Gate-1
+choices: where the desktop pins the public key (contracts const vs env) · re-sign/backfill
+script for existing versions vs nullable-forever.
 - [ ] **Plugin installs → outbox/activity:** no Vynel state changes today so no event; add a
       recorded event if/when Chad wants the activity feed to show plugin installs
 
