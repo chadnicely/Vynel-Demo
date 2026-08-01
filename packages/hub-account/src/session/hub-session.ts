@@ -9,7 +9,9 @@
 //                        through the ~7-day grace window
 // Tier gating reads getEntitlement(); the /hub routes read getStatus().
 
-import { ForbiddenError, UnauthorizedError } from '@vynel/errors'
+import { createHash } from 'node:crypto'
+import { ForbiddenError, UnauthorizedError, ValidationError } from '@vynel/errors'
+import { verifyArtifactSha256Signature } from '@vynel/contracts/hub/artifact-signing'
 import type { StructuralLogger } from '@vynel/logger'
 import type {
   HubDeviceDescription,
@@ -37,7 +39,9 @@ export interface HubSession {
   /** The hub's cloud catalog, ridden on the access token (restore-and-retry
    * on a stale token). Throws UnauthorizedError when not signed in. */
   fetchCatalog(): Promise<readonly HubCatalogItem[]>
-  /** Download a catalog item version's artifact bytes (tier-gated server-side). */
+  /** Download a catalog item version's artifact bytes (tier-gated
+   * server-side; signature-verified here when the hub signs and the desktop
+   * pins the key — a bad signature never returns bytes). */
   downloadArtifact(itemId: string, version: string): Promise<Buffer>
 }
 
@@ -48,6 +52,10 @@ export interface CreateHubSessionOptions {
   readonly entitlements: EntitlementVerifier
   readonly device: HubDeviceDescription
   readonly logger: StructuralLogger
+  /** The hub's PINNED artifact-signing public key (VYNEL_HUB_ARTIFACT_KEY,
+   * PEM). Absent = signature verification off — the rollout state while
+   * Chad's hub backfills signatures; sha256 checks still guard installs. */
+  readonly artifactSigningPublicKeyPem?: string
   readonly now?: () => Date
 }
 
@@ -216,7 +224,23 @@ export function createHubSession(options: CreateHubSessionOptions): HubSession {
       return response.items
     },
     async downloadArtifact(itemId, version) {
-      return withAccessToken((token) => options.client.downloadArtifact(token, itemId, version))
+      const download = await withAccessToken((token) =>
+        options.client.downloadArtifact(token, itemId, version),
+      )
+      // Verify-if-present: both the hub's signature and the pinned key must
+      // exist for the check to run — either absent is the rollout state, and
+      // the sha256 gate at install remains the integrity floor.
+      const publicKeyPem = options.artifactSigningPublicKeyPem
+      if (publicKeyPem !== undefined && download.signature !== null) {
+        const sha256Hex = createHash('sha256').update(download.bytes).digest('hex')
+        if (!verifyArtifactSha256Signature(publicKeyPem, sha256Hex, download.signature)) {
+          throw new ValidationError(
+            `The downloaded artifact for ${itemId}@${version} failed its signature check — ` +
+              'download aborted. If the hub rotated its signing key, update VYNEL_HUB_ARTIFACT_KEY.',
+          )
+        }
+      }
+      return download.bytes
     },
   }
 }

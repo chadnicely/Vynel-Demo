@@ -16,6 +16,9 @@ import {
 
 export interface PublishArtifactFacts {
   readonly artifactSha256: string
+  /** Base64 Ed25519 signature over the sha256 hex; null on a hub without a
+   *  signing key (the desktop verifies-if-present). */
+  readonly artifactSignature: string | null
   readonly artifactSize: number
 }
 
@@ -68,6 +71,7 @@ export async function publishItemVersion(
       changelog: input.version.changelog,
       manifestJson: JSON.stringify(input.version.manifest),
       artifactSha256: artifact.artifactSha256,
+      artifactSignature: artifact.artifactSignature,
       artifactSize: artifact.artifactSize,
       minAppVersion: input.version.minAppVersion ?? null,
     })

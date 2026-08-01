@@ -1,0 +1,1 @@
+ALTER TABLE "item_versions" ADD COLUMN "artifact_signature" text;

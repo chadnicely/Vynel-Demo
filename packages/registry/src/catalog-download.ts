@@ -33,6 +33,9 @@ export interface AuthorizeCatalogDownloadInput {
 export interface AuthorizedCatalogDownload {
   /** The version's recorded sha256 — a strong ETag for the route. */
   readonly artifactSha256: string
+  /** Base64 Ed25519 signature over the sha256 hex; null for versions
+   *  published before the hub had a signing key. */
+  readonly artifactSignature: string | null
   readonly artifactSize: number
 }
 
@@ -58,7 +61,11 @@ export async function authorizeCatalogDownload(
   if (versionRow === null) {
     throw new NotFoundError('catalog item version', `${input.itemId}@${input.version}`)
   }
-  return { artifactSha256: versionRow.artifactSha256, artifactSize: versionRow.artifactSize }
+  return {
+    artifactSha256: versionRow.artifactSha256,
+    artifactSignature: versionRow.artifactSignature,
+    artifactSize: versionRow.artifactSize,
+  }
 }
 
 /** Read an AUTHORIZED version's bytes. Missing bytes for a recorded version is

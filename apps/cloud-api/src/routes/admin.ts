@@ -21,6 +21,7 @@ import {
   PublishItemSchema,
   publishCatalogArtifact,
   importAnthropicItems,
+  signUnsignedVersions,
   listCatalogForAdmin,
   updateCatalogItemMetadata,
   setCatalogItemLifecycleStatus,
@@ -167,10 +168,12 @@ export function buildAdminRoutes(options: CloudAppOptions) {
       jsonValidator(PublishRequestSchema),
       async (c) => {
         const { artifactBase64, ...item } = c.req.valid('json')
-        const result = await publishCatalogArtifact(options.db, options.artifactStore, {
-          ...item,
-          artifactBytes: Buffer.from(artifactBase64, 'base64'),
-        })
+        const result = await publishCatalogArtifact(
+          options.db,
+          options.artifactStore,
+          { ...item, artifactBytes: Buffer.from(artifactBase64, 'base64') },
+          options.artifactSigner,
+        )
         return c.json(result, 201)
       },
     )
@@ -209,7 +212,26 @@ export function buildAdminRoutes(options: CloudAppOptions) {
           `anthropic-catalog manifest at ${options.anthropicManifestPath} is not valid JSON.`,
         )
       }
-      const { items } = await importAnthropicItems(options.db, options.artifactStore, manifest)
+      const { items } = await importAnthropicItems(
+        options.db,
+        options.artifactStore,
+        manifest,
+        options.artifactSigner,
+      )
       return c.json({ configured: true as const, items })
+    })
+    // One-time backfill: sign every version published before the hub had its
+    // artifact-signing key. Idempotent — signed rows never re-enter the work
+    // list; corrupt/missing artifacts are reported, never signed.
+    .post('/catalog/sign-missing', async (c) => {
+      if (options.artifactSigner === undefined) {
+        return c.json({ configured: false as const })
+      }
+      const report = await signUnsignedVersions(
+        options.db,
+        options.artifactStore,
+        options.artifactSigner,
+      )
+      return c.json({ configured: true as const, ...report })
     })
 }

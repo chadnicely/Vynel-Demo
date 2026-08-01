@@ -1,7 +1,7 @@
 // Functional catalog repository — items + their versions. `db` first arg,
 // stateless, async.
 
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { CloudDatabase } from '@vynel/cloud-db'
 import { catalogItems, type CatalogItemRow } from '../schema/catalog-items.js'
 import { itemVersions, type ItemVersionRow } from '../schema/item-versions.js'
@@ -142,6 +142,7 @@ export interface InsertItemVersionInput {
   readonly changelog: string
   readonly manifestJson: string
   readonly artifactSha256: string
+  readonly artifactSignature: string | null
   readonly artifactSize: number
   readonly minAppVersion: string | null
 }
@@ -176,6 +177,22 @@ export async function findItemVersion(
     .where(and(eq(itemVersions.itemId, input.itemId), eq(itemVersions.version, input.version)))
     .limit(1)
   return rows[0] ?? null
+}
+
+/** Versions published without a signature — the sign-missing backfill's
+ *  work list. */
+export async function listUnsignedItemVersions(db: CloudDatabase): Promise<ItemVersionRow[]> {
+  return db.select().from(itemVersions).where(isNull(itemVersions.artifactSignature))
+}
+
+export async function setItemVersionSignature(
+  db: CloudDatabase,
+  input: { readonly id: string; readonly artifactSignature: string },
+): Promise<void> {
+  await db
+    .update(itemVersions)
+    .set({ artifactSignature: input.artifactSignature })
+    .where(eq(itemVersions.id, input.id))
 }
 
 export async function findLatestVersionForItem(

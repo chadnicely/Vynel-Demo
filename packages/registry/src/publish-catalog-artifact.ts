@@ -9,6 +9,7 @@ import type { PublishItemInput } from './publish-input.js'
 import { publishItemVersion, type PublishResult } from './publish-item-version.js'
 import { findItemVersion } from './repositories/catalog-repository.js'
 import { artifactKey, type ArtifactStore } from './artifact-store.js'
+import type { ArtifactSigner } from './artifact-signer.js'
 
 export const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
 
@@ -21,6 +22,9 @@ export async function publishCatalogArtifact(
   db: CloudDatabase,
   artifactStore: ArtifactStore,
   input: PublishCatalogArtifactInput,
+  // Absent on a hub without CLOUD_ARTIFACT_SIGNING_PRIVATE_KEY — the version
+  // publishes unsigned and the desktop verifies-if-present.
+  signer?: ArtifactSigner,
 ): Promise<PublishResult> {
   const bytes = input.artifactBytes
   if (bytes.length === 0 || bytes.length > MAX_ARTIFACT_BYTES) {
@@ -43,5 +47,9 @@ export async function publishCatalogArtifact(
   }
 
   await artifactStore.put(artifactKey(input.item.itemId, input.version.version), bytes)
-  return publishItemVersion(db, input, { artifactSha256, artifactSize: bytes.length })
+  return publishItemVersion(db, input, {
+    artifactSha256,
+    artifactSignature: signer?.sign(artifactSha256) ?? null,
+    artifactSize: bytes.length,
+  })
 }

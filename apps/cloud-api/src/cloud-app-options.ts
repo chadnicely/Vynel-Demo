@@ -9,7 +9,7 @@ import type {
   AccountMailSender,
   EntitlementTokenIssuer,
 } from '@vynel/accounts'
-import type { ArtifactStore } from '@vynel/registry'
+import type { ArtifactSigner, ArtifactStore } from '@vynel/registry'
 import type { UpstreamWatchJob } from './services/upstream-watch-job.js'
 
 export interface CloudAppOptions {
@@ -31,6 +31,10 @@ export interface CloudAppOptions {
   /** Path to the anthropic-catalog manifest (the same file the watch reads);
    * absent = POST /admin/catalog/import-anthropic answers `configured: false`. */
   readonly anthropicManifestPath?: string
+  /** Signs each published artifact's sha256 (CLOUD_ARTIFACT_SIGNING_PRIVATE_KEY);
+   * absent = versions publish unsigned and /admin/catalog/sign-missing answers
+   * `configured: false`. */
+  readonly artifactSigner?: ArtifactSigner
   /** Test seam — flows and rate-limit windows read time through this. */
   readonly now?: () => Date
 }

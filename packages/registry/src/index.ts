@@ -50,3 +50,8 @@ export {
   type AnthropicImportManifest,
   type AnthropicImportItemResult,
 } from './import-anthropic.js'
+export { createArtifactSigner, type ArtifactSigner } from './artifact-signer.js'
+export {
+  signUnsignedVersions,
+  type SignUnsignedVersionsReport,
+} from './sign-unsigned-versions.js'

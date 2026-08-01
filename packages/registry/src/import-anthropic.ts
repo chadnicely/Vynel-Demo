@@ -20,6 +20,7 @@ import { z } from 'zod'
 import { ConflictError, ValidationError } from '@vynel/errors'
 import type { CloudDatabase } from '@vynel/cloud-db'
 import type { ArtifactStore } from './artifact-store.js'
+import type { ArtifactSigner } from './artifact-signer.js'
 import { publishCatalogArtifact } from './publish-catalog-artifact.js'
 import { findItemVersion } from './repositories/catalog-repository.js'
 import { KEBAB, SEMVER } from './publish-input.js'
@@ -122,6 +123,7 @@ export async function importAnthropicItems(
   db: CloudDatabase,
   artifactStore: ArtifactStore,
   manifest: unknown,
+  signer?: ArtifactSigner,
 ): Promise<{ items: AnthropicImportItemResult[] }> {
   const parsed = AnthropicImportManifestSchema.safeParse(manifest)
   if (!parsed.success) {
@@ -182,7 +184,7 @@ export async function importAnthropicItems(
             manifest: { entry: 'SKILL.md' },
           },
           artifactBytes,
-        })
+        }, signer)
         results.push({
           itemId: item.itemId,
           version: item.version,

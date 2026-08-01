@@ -14,7 +14,7 @@ import {
 } from '@vynel/accounts'
 import { loadEnv } from './env.js'
 import { createCloudApp } from './app.js'
-import { createFilesystemArtifactStore } from '@vynel/registry'
+import { createArtifactSigner, createFilesystemArtifactStore } from '@vynel/registry'
 import { startUpstreamWatchJob } from './services/upstream-watch-job.js'
 
 export async function boot(): Promise<void> {
@@ -63,6 +63,9 @@ export async function boot(): Promise<void> {
     // (Resend/Postmark) at deploy — cloud-api.md §3.
     mail: createLoggingAccountMailSender(logger),
     artifactStore: createFilesystemArtifactStore(env.CLOUD_ARTIFACT_DIR),
+    ...(env.CLOUD_ARTIFACT_SIGNING_PRIVATE_KEY !== undefined
+      ? { artifactSigner: createArtifactSigner(env.CLOUD_ARTIFACT_SIGNING_PRIVATE_KEY) }
+      : {}),
     linkBaseUrl: env.CLOUD_PUBLIC_BASE_URL,
     adminToken: env.CLOUD_ADMIN_TOKEN,
   })

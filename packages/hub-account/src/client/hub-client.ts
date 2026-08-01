@@ -23,6 +23,14 @@ import type {
 } from '@vynel/contracts/hub/hub-auth'
 import type { HubCatalogResponse } from '@vynel/contracts/hub/catalog'
 
+export interface HubArtifactDownload {
+  readonly bytes: Buffer
+  /** The hub's Ed25519 signature over the artifact's sha256 (the
+   * `x-artifact-signature` header) — null for versions published before the
+   * hub had a signing key. */
+  readonly signature: string | null
+}
+
 export interface HubClient {
   signIn(request: HubSignInRequest): Promise<HubSessionResponse>
   refresh(request: HubRefreshRequest): Promise<HubSessionResponse>
@@ -30,9 +38,13 @@ export interface HubClient {
   listDevices(accessToken: string): Promise<HubDevicesResponse>
   revokeDevice(accessToken: string, deviceId: string): Promise<void>
   getCatalog(accessToken: string): Promise<HubCatalogResponse>
-  /** The raw artifact bytes for a catalog item version (tier-gated
-   * server-side; a 403 surfaces as ForbiddenError). */
-  downloadArtifact(accessToken: string, itemId: string, version: string): Promise<Buffer>
+  /** The raw artifact bytes + signature for a catalog item version
+   * (tier-gated server-side; a 403 surfaces as ForbiddenError). */
+  downloadArtifact(
+    accessToken: string,
+    itemId: string,
+    version: string,
+  ): Promise<HubArtifactDownload>
 }
 
 class HubRequestFailedError extends VynelError {
@@ -137,7 +149,10 @@ export function createHubClient(options: {
         `/catalog/${encodeURIComponent(itemId)}/versions/${encodeURIComponent(version)}/download`,
         { method: 'GET', accessToken },
       )
-      return Buffer.from(await response.arrayBuffer())
+      return {
+        bytes: Buffer.from(await response.arrayBuffer()),
+        signature: response.headers.get('x-artifact-signature'),
+      }
     },
   }
 }

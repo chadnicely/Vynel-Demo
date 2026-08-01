@@ -168,6 +168,9 @@ export async function boot(): Promise<void> {
         devicePlatform: process.platform,
         appVersion,
       },
+      ...(env.VYNEL_HUB_ARTIFACT_KEY !== undefined
+        ? { artifactSigningPublicKeyPem: env.VYNEL_HUB_ARTIFACT_KEY }
+        : {}),
       logger,
     })
     hubSessionService = startHubSessionService({ hubSession, logger })

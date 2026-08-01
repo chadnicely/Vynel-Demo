@@ -132,6 +132,15 @@ export const EnvSchema = z.object({
     .string()
     .transform((raw) => Buffer.from(raw, 'base64').toString('utf8'))
     .optional(),
+  // The hub's PINNED artifact-signing public key (base64 SPKI PEM — the
+  // `VYNEL_HUB_ARTIFACT_KEY` line `pnpm cloud:generate-keys` prints).
+  // OPTIONAL even with a hub configured: absent = downloaded artifacts skip
+  // signature verification (the rollout state; sha256 checks still guard
+  // installs). D2's installer bakes it beside VYNEL_HUB_PUBLIC_KEY.
+  VYNEL_HUB_ARTIFACT_KEY: z
+    .string()
+    .transform((raw) => Buffer.from(raw, 'base64').toString('utf8'))
+    .optional(),
 }).superRefine((env, ctx) => {
   if (env.VYNEL_HUB_URL !== undefined && env.VYNEL_HUB_PUBLIC_KEY === undefined) {
     ctx.addIssue({

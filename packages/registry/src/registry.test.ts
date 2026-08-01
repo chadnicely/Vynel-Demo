@@ -28,7 +28,7 @@ function publishInput(over: Partial<PublishItemInput['item']> = {}): PublishItem
   }
 }
 
-const facts = { artifactSha256: 'a'.repeat(64), artifactSize: 128 }
+const facts = { artifactSha256: 'a'.repeat(64), artifactSignature: null, artifactSize: 128 }
 
 describe('registry', () => {
   it('publishes then browses with tier-annotated canInstall', async () => {

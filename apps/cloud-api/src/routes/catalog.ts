@@ -64,6 +64,11 @@ export function buildCatalogRoutes(options: CloudAppOptions) {
           'content-length': String(bytes.length),
           etag,
           'x-artifact-sha256': authorized.artifactSha256,
+          // Absent on versions published before the hub had a signing key —
+          // the desktop verifies-if-present against its pinned public key.
+          ...(authorized.artifactSignature !== null
+            ? { 'x-artifact-signature': authorized.artifactSignature }
+            : {}),
         },
       })
     })

@@ -21,6 +21,11 @@ export const itemVersions = pgTable(
     manifestJson: text().notNull(),
     // Hex sha256 of the stored artifact bytes.
     artifactSha256: text().notNull(),
+    // Ed25519 signature (base64) over the sha256 hex, made with the hub's
+    // artifact-signing key. NULLABLE: versions published before the key
+    // existed (or on a hub without one) stay unsigned — the desktop
+    // verifies-if-present (`contracts/hub/artifact-signing.ts`).
+    artifactSignature: text(),
     artifactSize: integer().notNull(),
     // Stored, NOT enforced until D2 stamps real app versions.
     minAppVersion: text(),

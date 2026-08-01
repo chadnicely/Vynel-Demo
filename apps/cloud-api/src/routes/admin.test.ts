@@ -3,6 +3,7 @@
 // the surface on the next request) and the catalog lifecycle (list-all incl.
 // drafts → edit metadata → yank kills browse AND download instantly).
 
+import { generateKeyPairSync as generateCryptoKeyPairSync } from 'node:crypto'
 import { generateKeyPair, exportPKCS8, exportSPKI } from 'jose'
 import pino from 'pino'
 import { describe, it, expect, beforeAll } from 'vitest'
@@ -19,7 +20,8 @@ import {
   type AccessTokenVerifier,
   type EntitlementTokenIssuer,
 } from '@vynel/accounts'
-import { createInMemoryArtifactStore } from '@vynel/registry'
+import { createArtifactSigner, createInMemoryArtifactStore } from '@vynel/registry'
+import { verifyArtifactSha256Signature } from '@vynel/contracts/hub/artifact-signing'
 import type { HubAdminCatalogItem } from '@vynel/contracts/hub/admin'
 import { createCloudApp } from '../app.js'
 
@@ -351,6 +353,78 @@ describe('admin routes — upstream watch', () => {
 
       // The dual door still guards the new surface.
       expect((await withJob.request('/admin/upstream-watch')).status).toBe(401)
+    })
+  })
+})
+
+describe('admin routes — artifact signatures', () => {
+  const { privateKey, publicKey } = generateCryptoKeyPairSync('ed25519')
+  const signer = createArtifactSigner(
+    privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+  )
+  const publicPem = publicKey.export({ type: 'spki', format: 'pem' }).toString()
+
+  function buildSigningApp(db: CloudDatabase, store: ReturnType<typeof createInMemoryArtifactStore>, withSigner: boolean): Hono {
+    return createCloudApp({
+      db,
+      logger: silentLogger,
+      accessTokens,
+      accessTokenVerifier,
+      entitlements,
+      mail: { sendSetPasswordLink: async () => {} },
+      artifactStore: store,
+      linkBaseUrl: 'https://hub.test',
+      adminToken: ADMIN,
+      ...(withSigner ? { artifactSigner: signer } : {}),
+    })
+  }
+
+  it('a signing hub publishes verifiable signatures and serves them on download', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const store = createInMemoryArtifactStore()
+      const app = buildSigningApp(db, store, true)
+      expect((await app.request('/admin/catalog/publish', jsonInit(ADMIN, publishBody('signed-skill')))).status).toBe(201)
+
+      const userToken = await seedAccount(db, 'sig-shopper')
+      const download = await app.request(
+        '/catalog/signed-skill/versions/1.0.0/download',
+        auth(userToken),
+      )
+      expect(download.status).toBe(200)
+      const sha = download.headers.get('x-artifact-sha256') ?? ''
+      const signature = download.headers.get('x-artifact-signature') ?? ''
+      expect(signature).not.toBe('')
+      expect(verifyArtifactSha256Signature(publicPem, sha, signature)).toBe(true)
+    })
+  })
+
+  it('sign-missing backfills what a key-less hub published; unconfigured answers honestly', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const store = createInMemoryArtifactStore()
+      const bare = buildSigningApp(db, store, false)
+      expect((await bare.request('/admin/catalog/publish', jsonInit(ADMIN, publishBody('legacy-skill')))).status).toBe(201)
+      // The key-less hub: download carries NO signature header, and the
+      // backfill surface answers configured:false.
+      const userToken = await seedAccount(db, 'legacy-shopper')
+      const unsigned = await bare.request('/catalog/legacy-skill/versions/1.0.0/download', auth(userToken))
+      expect(unsigned.headers.get('x-artifact-signature')).toBeNull()
+      const off = await bare.request('/admin/catalog/sign-missing', { method: 'POST', headers: { authorization: `Bearer ${ADMIN}` } })
+      expect(await off.json()).toEqual({ configured: false })
+
+      // The signer arrives (same db + store): backfill signs the legacy row.
+      const signing = buildSigningApp(db, store, true)
+      expect((await signing.request('/admin/catalog/sign-missing', { method: 'POST' })).status).toBe(401)
+      const filled = await signing.request('/admin/catalog/sign-missing', { method: 'POST', headers: { authorization: `Bearer ${ADMIN}` } })
+      expect(await filled.json()).toEqual({
+        configured: true,
+        signed: ['legacy-skill@1.0.0'],
+        missingBytes: [],
+        shaMismatch: [],
+      })
+      const now = await signing.request('/catalog/legacy-skill/versions/1.0.0/download', auth(userToken))
+      const sha = now.headers.get('x-artifact-sha256') ?? ''
+      const signature = now.headers.get('x-artifact-signature') ?? ''
+      expect(verifyArtifactSha256Signature(publicPem, sha, signature)).toBe(true)
     })
   })
 })

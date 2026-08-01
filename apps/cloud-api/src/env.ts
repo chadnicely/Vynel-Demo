@@ -57,6 +57,12 @@ export const EnvSchema = z.object({
   // points it at a persistent volume. Chad's call (2026-08-02): the server
   // disk IS the store for now — R2 waits for real users.
   CLOUD_ARTIFACT_DIR: z.string().default('.data/cloud-artifacts'),
+  // Ed25519 key that signs each published artifact's sha256 — SEPARATE from
+  // the token keypair so rotating one never invalidates the other. OPTIONAL:
+  // unset = versions publish unsigned and the desktop verifies-if-present.
+  // Generate with `pnpm cloud:generate-keys` (its public half is the
+  // desktop's VYNEL_HUB_ARTIFACT_KEY).
+  CLOUD_ARTIFACT_SIGNING_PRIVATE_KEY: base64Pem.optional(),
   // The upstream-watch cron (Chad 2026-08-02: runs ON the hub). Points at
   // the anthropic-catalog manifest; the default works when the hub runs
   // from the repo (dev + today's deploy). To DISABLE the job, deploy
