@@ -4,7 +4,7 @@
 // archive, missing SKILL.md, duplicate).
 
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import JSZip from 'jszip'
@@ -76,6 +76,37 @@ describe('installCloudSkill', () => {
       expect(row.versionInstalled).toBe('1.0.0')
       const written = await readFile(row.installLocation, 'utf8')
       expect(written).toContain('Email Drafter')
+    })
+  })
+
+  it('materializes a multi-file artifact with its nested resources', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      const { bytes, sha } = await makeArtifact({
+        'SKILL.md': '# Canvas Design',
+        'fonts/Arsenal.ttf': 'ttf-bytes',
+        'templates/viewer.html': '<html/>',
+      })
+      const row = await installCloudSkill(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: tmp,
+        itemId: 'canvas-design',
+        scope: 'workspace',
+        artifactBytes: bytes,
+        expectedSha256: sha,
+        version: '1.0.0',
+      })
+      const skillFolder = join(row.installLocation, '..')
+      await expect(readFile(join(skillFolder, 'fonts/Arsenal.ttf'), 'utf8')).resolves.toBe(
+        'ttf-bytes',
+      )
+      await expect(readFile(join(skillFolder, 'templates/viewer.html'), 'utf8')).resolves.toBe(
+        '<html/>',
+      )
+      // Staging never lands inside the SCANNED skills root — a crash orphan
+      // there would be discovered and synced as a phantom skill.
+      await expect(readdir(join(tmp, '.claude', 'skills'))).resolves.toEqual(['canvas-design'])
     })
   })
 

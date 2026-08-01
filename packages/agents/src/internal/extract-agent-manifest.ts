@@ -8,7 +8,7 @@
 // SECURITY ORDERING (enforced by the caller): the artifact's sha256 is
 // verified against the catalog's recorded hash BEFORE this runs.
 //
-// Second private zip extractor after skills' `extract-skill-markdown.ts` —
+// Second private zip extractor after skills' `extract-skill-archive.ts` —
 // extract a shared home on the THIRD consumer (module notes, "Deferred").
 
 import JSZip from 'jszip'

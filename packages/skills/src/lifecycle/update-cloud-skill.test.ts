@@ -100,6 +100,48 @@ describe('updateCloudSkill', () => {
     })
   })
 
+  it('swaps the whole folder: new resources land, stale ones from the old version go', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seed(db)
+      const v1 = await makeArtifact({
+        'SKILL.md': '# Canvas Design v1',
+        'themes/old-theme.md': 'old',
+      })
+      const installed = await installCloudSkill(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: tmp,
+        itemId: 'canvas-design',
+        scope: 'workspace',
+        artifactBytes: v1.bytes,
+        expectedSha256: v1.sha,
+        version: '1.0.0',
+      })
+      const skillFolder = join(installed.installLocation, '..')
+      await expect(readFile(join(skillFolder, 'themes/old-theme.md'), 'utf8')).resolves.toBe('old')
+
+      const v2 = await makeArtifact({
+        'SKILL.md': '# Canvas Design v2',
+        'fonts/Arsenal.ttf': 'ttf-bytes',
+      })
+      await updateCloudSkill(db, {
+        userId: user.id,
+        installedSkillId: installed.id,
+        workspacePath: tmp,
+        artifactBytes: v2.bytes,
+        expectedSha256: v2.sha,
+        version: '1.1.0',
+      })
+
+      await expect(readFile(join(skillFolder, 'fonts/Arsenal.ttf'), 'utf8')).resolves.toBe(
+        'ttf-bytes',
+      )
+      await expect(readFile(join(skillFolder, 'themes/old-theme.md'), 'utf8')).rejects.toMatchObject(
+        { code: 'ENOENT' },
+      )
+    })
+  })
+
   it('repairs on a same-version re-run (rewrites the file, resets health)', async () => {
     await withTestDatabase(async (db) => {
       const { user, workspace } = seed(db)

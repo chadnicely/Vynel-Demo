@@ -16,7 +16,7 @@ import { ConflictError, ValidationError } from '@vynel/errors'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import * as installedSkillsRepository from '../repositories/index.js'
 import type { InstalledSkillRow, SkillScope } from '../repositories/index.js'
-import { extractSkillMarkdown } from '../internal/extract-skill-markdown.js'
+import { extractSkillArchive } from '../internal/extract-skill-archive.js'
 import { requireWorkspaceInstallBinding } from '../internal/require-workspace-install-binding.js'
 import { writeCloudSkillOnDisk } from '../internal/write-cloud-skill-on-disk.js'
 import type { StructuralLogger } from '../skills-types.js'
@@ -54,8 +54,9 @@ export async function installCloudSkill(
     )
   }
 
-  // 2. Extract the SKILL.md from the verified archive.
-  const markdown = await extractSkillMarkdown(input.artifactBytes)
+  // 2. Extract the full folder (SKILL.md + resources) from the verified
+  //    archive — official skills ship fonts/templates/scripts alongside it.
+  const { markdown, resources } = await extractSkillArchive(input.artifactBytes)
 
   // 3. Duplicate detection at the requested scope. Cloud skills use
   //    `skillId === itemId` (as bundled items already do).
@@ -73,6 +74,7 @@ export async function installCloudSkill(
     skillId: input.itemId,
     scope: input.scope,
     markdown,
+    resources,
   }
   if (workspaceBinding !== null) writeInput.workspacePath = workspaceBinding.workspacePath
   const { installLocation } = await writeCloudSkillOnDisk(writeInput)

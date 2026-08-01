@@ -19,7 +19,7 @@ import { NotFoundError, ValidationError } from '@vynel/errors'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import * as installedSkillsRepository from '../repositories/index.js'
 import type { InstalledSkillRow } from '../repositories/index.js'
-import { extractSkillMarkdown } from '../internal/extract-skill-markdown.js'
+import { extractSkillArchive } from '../internal/extract-skill-archive.js'
 import { writeCloudSkillOnDisk } from '../internal/write-cloud-skill-on-disk.js'
 import type { StructuralLogger } from '../skills-types.js'
 import { SKILL_UPDATED, type SkillUpdatedPayload } from '../skills-events.js'
@@ -48,8 +48,9 @@ export async function updateCloudSkill(
     )
   }
 
-  // 2. Extract from the verified archive.
-  const markdown = await extractSkillMarkdown(input.artifactBytes)
+  // 2. Extract the full folder from the verified archive. The writer's
+  //    stage-and-swap also drops files the new version no longer ships.
+  const { markdown, resources } = await extractSkillArchive(input.artifactBytes)
 
   // 3. Tenant-isolated lookup (the uninstall precedent).
   const row = installedSkillsRepository.findInstalledSkillById(db, input.installedSkillId)
@@ -73,6 +74,7 @@ export async function updateCloudSkill(
     skillId: row.skillId,
     scope: row.scope,
     markdown,
+    resources,
   }
   if (row.scope === 'workspace') writeInput.workspacePath = input.workspacePath as string
   const { installLocation } = await writeCloudSkillOnDisk(writeInput)

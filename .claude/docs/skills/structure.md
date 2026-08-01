@@ -41,7 +41,7 @@ is bookkeeping for what is physically on disk.
 | `packages/skills/src/internal/write-cloud-skill-on-disk.ts` | FS writer for cloud skills — `SAFE_SKILL_ID` guard + mkdir + write verbatim SKILL.md (no template, no MCP) |
 | `packages/skills/src/internal/uninstall-skill-from-disk.ts` | Removes the skill folder + patches MCP config to drop the skill's servers; idempotent |
 | `packages/skills/src/internal/update-mcp-servers-for-scope.ts` | Read-merge-write of `~/.claude.json` (user) or `<workspace>/.mcp.json` (workspace); touches only `mcpServers`, preserves all other keys |
-| `packages/skills/src/internal/extract-skill-markdown.ts` | Reads `SKILL.md` out of a verified zip artifact; zip-bomb caps (artifact 10 MB · entries 200 · markdown 512 KB) + declared-size + post-inflate backstops |
+| `packages/skills/src/internal/extract-skill-archive.ts` | Extracts the FULL skill folder (SKILL.md + resources) out of a verified zip; zip-bomb caps (artifact 10 MB · entries 200 · markdown 512 KB · resource 8 MB · total 32 MB) + per-entry path wall (traversal/absolute/backslash/symlink) + declared-size + post-inflate backstops |
 | `packages/skills/src/internal/read-declared-uncompressed-size.ts` | Defensive read of jszip's internal declared uncompressed size (returns null if the field moves) |
 | `packages/skills/src/internal/render-skill-markdown-template.ts` | `{{ settings.<key> }}` substitution in the SKILL.md template; unknown placeholders ship as-is (D7) |
 | `packages/skills/src/internal/validate-setting-value.ts` | Validates a scalar against a `SkillSettingSchema` (string / number / boolean / string-enum + constraints) |
@@ -125,7 +125,7 @@ Every mutating op writes/removes disk **first**, then co-commits state + outbox 
 | `listInstalledSkillsForContext(db, {userId, workspaceId})` | rows → definition lookup → settings → resolve | `listInstalledSkillsForUserAndWorkspace`, `findVerifiedSkillById`, `resolveSkillSettings` |
 | `listInstalledSkillsForUserAndWorkspace(db, input)` | Published RAW-row read for cross-domain consumers | repo passthrough |
 | `installSkill(db, input)` *(async)* | catalog check → validate → dup check → disk write → tx | `findVerifiedSkillById`, `validateSettingValue`, `findInstalledSkillByScope`, `installSkillOnDisk`, `insertInstalledSkill`, `upsertSkillSetting`, `insertOutboxEvent('skill.installed')` |
-| `installCloudSkill(db, input)` *(async)* | sha256 verify → extract → dup check → disk write → tx | `createHash`, `extractSkillMarkdown`, `findInstalledSkillByScope`, `writeCloudSkillOnDisk`, `insertInstalledSkill`, `insertOutboxEvent('skill.installed')` |
+| `installCloudSkill(db, input)` *(async)* | sha256 verify → extract → dup check → disk write → tx | `createHash`, `extractSkillArchive`, `findInstalledSkillByScope`, `writeCloudSkillOnDisk`, `insertInstalledSkill`, `insertOutboxEvent('skill.installed')` |
 | `uninstallSkill(db, input)` *(async)* | ownership → system-install guard → FS remove → tx | `findInstalledSkillById`, `findVerifiedSkillById`, `uninstallSkillFromDisk`, `hardDeleteInstalledSkill`, `insertOutboxEvent('skill.uninstalled')` |
 | `enableSkill(db, input)` *(async)* | ownership → no-op if enabled → rewrite SKILL.md → tx | `findInstalledSkillById`, `resolveSkillSettings`, `installSkillOnDisk`, `updateInstalledSkill`, `insertOutboxEvent('skill.enabled-changed')` |
 | `disableSkill(db, input)` *(async)* | ownership → no-op if disabled → remove files → tx | `findInstalledSkillById`, `uninstallSkillFromDisk`, `updateInstalledSkill`, `insertOutboxEvent('skill.enabled-changed')` |
@@ -187,7 +187,7 @@ flowchart TD
     B -- bundled catalog --> C[installSkill]
     B -- cloud artifact --> D[installCloudSkill]
     C --> C1[findVerifiedSkillById + validateSettingValue]
-    D --> D1[sha256 verify → extractSkillMarkdown]
+    D --> D1[sha256 verify → extractSkillArchive]
     C1 --> E[findInstalledSkillByScope: dup check]
     D1 --> E
     E --> F[DISK WRITE FIRST]
@@ -200,7 +200,7 @@ flowchart TD
 ```
 
 1. Entry is either `POST /skills/install` → `installSkill`, or the marketplace install path → `installCloudSkill` (cached cloud item) / `installSkill` (bundled fallback).
-2. **Bundled:** catalog membership confirmed (`NotFoundError` if unknown), each initial setting validated against the schema. **Cloud:** `sha256(bytes)` checked against the recorded hash *first* (`ValidationError` on mismatch), then `extractSkillMarkdown` reads `SKILL.md` from the verified zip under zip-bomb caps.
+2. **Bundled:** catalog membership confirmed (`NotFoundError` if unknown), each initial setting validated against the schema. **Cloud:** `sha256(bytes)` checked against the recorded hash *first* (`ValidationError` on mismatch), then `extractSkillArchive` reads `SKILL.md` from the verified zip under zip-bomb caps.
 3. `requireWorkspaceInstallBinding` enforces that a workspace-scope install carries both `workspaceId` + `workspacePath`.
 4. Duplicate check at the requested scope via `findInstalledSkillByScope` (`ConflictError` if present).
 5. **Disk write first (D8):** `resolveSkillsRoot` → `mkdir` the skill folder → write SKILL.md (bundled: `renderSkillMarkdownTemplate` `{{ settings.* }}`; cloud: verbatim, `SAFE_SKILL_ID`-guarded) → bundled skills with `requiredMcpServers` patch the MCP config (preserving all other keys). If this throws, no DB row exists — no orphan.
@@ -251,7 +251,7 @@ flowchart LR
 - **Disable is a real FS operation (D11), not a flag.** `isEnabled: false` means SKILL.md + MCP entries are physically gone; the agent cannot see the skill. Re-enable rewrites the files from current resolved settings.
 - **Uninstall is instant hard-delete (D13).** No `deletedAt`; the FK cascade purges `skill_settings`. Rows are 100% re-creatable by re-installing, so there's no soft-delete/restore story.
 - **MCP config patch is protective.** `updateMcpServersForScope` touches only `mcpServers` and preserves every other key. It treats only `ENOENT` as "write fresh"; malformed JSON or a non-object parse throws a descriptive error rather than clobbering a hand-edited `~/.claude.json`.
-- **Cloud-skill integrity chain.** `installCloudSkill` verifies sha256 *before* parsing, then `extractSkillMarkdown` enforces caps (artifact ≤ 10 MB, ≤ 200 entries, SKILL.md ≤ 512 KB) with a declared-size pre-check and a post-inflate backstop; `writeCloudSkillOnDisk` rejects any `skillId` that isn't a safe single kebab segment. Cloud skills are settings-free (no template render, no MCP config).
+- **Cloud-skill integrity chain.** `installCloudSkill` verifies sha256 *before* parsing, then `extractSkillArchive` enforces caps (artifact ≤ 10 MB, ≤ 200 entries, SKILL.md ≤ 512 KB, resource ≤ 8 MB, total ≤ 32 MB) plus the per-entry path wall (no traversal/absolute/backslash/symlink) with declared-size pre-checks and post-inflate backstops; `writeCloudSkillOnDisk` rejects any `skillId` that isn't a safe single kebab segment, re-asserts containment per resource, and stage-and-swaps the folder so a failed write never leaves a half-written skill. Cloud skills are settings-free (no template render, no MCP config).
 - **`skillId` is a loose ref, not an FK.** It points at the contracts catalog id for `verified-catalog`/`marketplace`, or the provider-reported name for `external`. `external` rows have no catalog definition — `findVerifiedSkillById` returns `null`, and `updateSkillSettings` throws `NotFoundError('skill', …)` for them (nothing to validate against).
 - **No `McpFeatureDescriptor`.** MCP exposure is 2 read GETs via `x-mcp` only (see MCP surface) — a deliberate divergence from the one-descriptor-per-feature convention.
 - **Schema location vs migration location.** Tables live in `packages/skills/src/schema/`; their DDL is baseline-folded into `packages/db/src/migrations-sqlite/0000_baseline.sql`. drizzle-kit finds them via explicit paths in `drizzle.sqlite.config.ts` — adding a skills table means editing that config, not just the leaf.

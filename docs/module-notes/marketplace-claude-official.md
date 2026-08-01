@@ -171,13 +171,44 @@ trust-review step per curated plugin is unavoidable anyway. That is fine: curati
 
 ## 5. Open decisions for Chad
 
-1. **Curation list v1** — proposal: the 4 document skills + 2–3 creative/enterprise picks.
-2. **Document-skills license call** after reading its terms: mirror / fetch-direct / drop.
+1. ~~Curation list v1~~ — **SETTLED (2026-08-01): all five** — canvas-design · theme-factory ·
+   internal-comms · slack-gif-creator · algorithmic-art.
+2. ~~Document-skills call~~ — **SETTLED (2026-08-01): delegate to the Claude CLI.** Chad's
+   framing: Vynel runs Claude Code via the Agent SDK — the user's own Claude Code installs
+   Anthropic's `document-skills` plugin from Anthropic's own marketplace
+   (`claude plugin marketplace add anthropics/skills` → `claude plugin install
+   document-skills@anthropic-agent-skills`). Anthropic→their-user via their tooling; Vynel
+   never hosts bytes, it orchestrates. Its own arc (needs: CLI/bundled-binary invocation from
+   the daemon, install detection, and the `options.plugins` cache-path attach for Vynel
+   sessions — plus the Phase-B smoke test on settings-declared plugins).
 3. ~~Distribution channel~~ — **SETTLED (2026-08-01): hub-published, Option 1** ("carry the
    curated slice"); update spine = hub re-publish + upstream-watch script (see Phase A §5).
-4. **Badge wording** for `anthropic-official` ("Claude official"? "By Anthropic"?).
+4. ~~Badge wording~~ — **SETTLED (2026-08-01): "By Anthropic"** (plain provenance, no implied
+   endorsement), keyed off `publisherTier === 'anthropic-official'`; Vynel's own badge stays
+   "Official".
 5. **Phase B timing:** start after Phase A, or park until the `mcp`-kind forks are decided
-   (recommended: park; Phase A alone delivers the visible win).
+   (recommended: park; Phase A alone delivers the visible win). The document-skills delegate
+   arc (decision 2) is the likely Phase-B opener.
+
+## Move 3+ build queue (post-decisions, 2026-08-01)
+
+- **Move 3 — full-folder skill artifacts (prerequisite):** all five allowlisted skills are
+  multi-file folders (canvas-design ships a 5.6 MB font library; theme packs, Python helpers,
+  JS templates) but the install path extracts ONLY SKILL.md — installing them today ships
+  broken skills. The extractor grows per-entry traversal/absolute/symlink guards (its header
+  reserved exactly this); the disk writer becomes stage-and-swap so an update never leaves a
+  half-written folder. All five fit the hub's 10 MB artifact cap.
+- **Move 4 — publish pipeline + credits + badge:** import script (pinned-SHA clone → zip each
+  allowlisted folder faithfully, licenses ride along → `cloud:publish` under publisher
+  `anthropic` / `anthropic-official`), `SkillCategory` widening (`creative` + `communication`),
+  the "By Anthropic" chip.
+- **Credits requirement (Chad, 2026-08-01): every marketplace resource credits its origin** —
+  publisher identity + git/website with as much detail as available. `publisherName`/
+  `publisherUrl` already ride the wire but the card never shows them; add a per-item
+  `sourceUrl` (hub column + cache + contract, e.g. the pinned
+  `github.com/anthropics/skills/tree/<sha>/skills/<id>` folder) and render a credit line
+  (publisher link + source link) on the card/detail. Applies to ALL items, not just Anthropic's.
+- **Move 5 — upstream-watch script** (pinned SHA vs upstream HEAD → flag for re-review).
 
 ## Deferred (named, not silent — from the Move-2 review, 2026-08-01)
 
@@ -192,6 +223,11 @@ trust-review step per curated plugin is unavoidable anyway. That is fine: curati
   re-render on `installedFromSource !== 'marketplace'` (or persist extracted markdown).
 - **sha-verify duplication:** the hash-compare block is verbatim in `install-cloud-skill.ts` and
   `update-cloud-skill.ts` — extract a shared `verifyArtifactSha256` internal on next touch.
+- **Pure-cloud enable-void (pre-existing, from the Move-3 review):** `enableSkill`
+  re-materializes only from the bundled catalog — for a marketplace-only skill it flips the flag
+  with NOTHING written to disk (recoverable via sync → repair-update). Moot if the
+  skills-install/uninstall-only arc removes enable/disable first; otherwise fix alongside the
+  template-clobber item above.
 
 **Standing requirement (Chad, 2026-08-01): native-disk interop.** Every installed item lands in
 the standard Claude ecosystem location so it works when the user runs Claude Code directly —

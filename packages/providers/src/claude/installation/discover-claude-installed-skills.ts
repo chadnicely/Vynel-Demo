@@ -49,6 +49,10 @@ async function scanSkillsDirectory(
 
   const skills: InstalledSkill[] = []
   for (const entry of entries) {
+    // Dot-entries are never skills — tooling/staging folders (e.g. a
+    // crash-orphaned `.staging-*`) must not be discovered and later ingested
+    // by the skills sync as phantom external rows.
+    if (entry.startsWith('.')) continue
     const skillMarkdownPath = path.join(skillsDirectory, entry, 'SKILL.md')
     let content: string
     try {
