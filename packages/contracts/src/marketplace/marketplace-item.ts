@@ -3,10 +3,7 @@
 // `contracts-exports-map`, consumers import the file directly
 // (`@vynel/contracts/marketplace/marketplace-item`); no barrel.
 
-import type {
-  SkillCategory,
-  SkillScope,
-} from '../skills/verified-skills/verified-skill-definition.js'
+import type { SkillScope } from '../skills/verified-skills/verified-skill-definition.js'
 
 /** Phase 1 emits only `'verified'`; the other two are reserved for
  * Phase 1.5+ items. Closed union — the UI compiles against all three
@@ -74,7 +71,10 @@ export type MarketplaceItem = {
   sourceUrl: string | null
   displayName: string
   oneLineDescription: string
-  category: SkillCategory
+  /** Open string — categories are admin-defined on the hub (2026-08-02);
+   * the UI renders them verbatim and derives filters from the data. The
+   * closed `SkillCategory` union stays for the BUNDLED verified catalog. */
+  category: string
   iconName: string
   version: string
   releasedAt: string
@@ -106,7 +106,7 @@ export type MarketplaceItem = {
 
 export type MarketplaceFilterInput = {
   items: MarketplaceItem[]
-  category?: SkillCategory
+  category?: string
   publisherTier?: PublisherTier
   installState?: 'installed' | 'not-installed'
   searchQuery?: string
@@ -115,7 +115,7 @@ export type MarketplaceFilterInput = {
 
 export type ListMarketplaceItemsInput = {
   userId: string
-  category?: SkillCategory
+  category?: string
   publisherTier?: PublisherTier
   installState?: 'installed' | 'not-installed'
   searchQuery?: string

@@ -16,6 +16,7 @@ import { importAnthropicItems, type AnthropicImportManifest } from './import-ant
 import { publishCatalogArtifact } from './publish-catalog-artifact.js'
 import { artifactKey, createInMemoryArtifactStore } from './artifact-store.js'
 import { findItemVersion, findItemWithPublisher } from './repositories/catalog-repository.js'
+import { zipArtifact } from './testing.js'
 
 let fixtureRepo: string
 let pinSha: string
@@ -128,7 +129,7 @@ describe('importAnthropicItems', () => {
   it('skips a hand-published version and publishes the rest around it', async () => {
     await withTestCloudDatabase(async (db) => {
       const store = createInMemoryArtifactStore()
-      const handBytes = Buffer.from('hand-published earlier')
+      const handBytes = await zipArtifact({ 'SKILL.md': 'hand-published earlier' })
       const input = manifest()
       await publishCatalogArtifact(db, store, {
         publisher: { ...input.publisher, url: input.publisher.url },

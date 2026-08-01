@@ -8,22 +8,16 @@
 
 import { z } from 'zod'
 
-export const SkillCategorySchema = z.enum([
-  'email',
-  'documents',
-  'calendar',
-  'files',
-  'research',
-  'notes',
-  'context',
-  'creative',
-  'communication',
-])
+// Categories are admin-defined on the hub (open strings, 2026-08-02) — the
+// desktop renders and filters them verbatim, so the wire schema is a bounded
+// string, not a closed union. The `SkillCategory` enum stays only for the
+// BUNDLED verified catalog (routes/skills/schemas.ts).
+const MarketplaceCategorySchema = z.string().min(1).max(60)
 
 export const PublisherTierSchema = z.enum(['verified', 'anthropic-official', 'community'])
 
 export const ListMarketplaceItemsQuerySchema = z.object({
-  category: SkillCategorySchema.optional(),
+  category: MarketplaceCategorySchema.optional(),
   publisherTier: PublisherTierSchema.optional(),
   installState: z.enum(['installed', 'not-installed']).optional(),
   searchQuery: z.string().min(0).max(200).optional(),
@@ -72,7 +66,7 @@ export const MarketplaceItemSchema = z.object({
   sourceUrl: z.string().nullable(),
   displayName: z.string(),
   oneLineDescription: z.string(),
-  category: SkillCategorySchema,
+  category: MarketplaceCategorySchema,
   iconName: z.string(),
   version: z.string(),
   releasedAt: z.string(),

@@ -73,12 +73,15 @@ async function handleSubmit() {
   }
   publishMutation.mutate(
     {
-      // v1 is curated-only: every item ships under the Vynel Team publisher.
+      // A version bump republishes the item's CURRENT publisher and item
+      // fields VERBATIM — publish upserts both rows, so anything omitted or
+      // hardcoded here would silently rewrite them (sourceUrl and the
+      // publisher identity were once dropped exactly that way).
       publisher: {
-        id: "vynel-team",
-        name: "Vynel Team",
-        tier: "verified",
-        url: null,
+        id: props.item.publisherId,
+        name: props.item.publisherName,
+        tier: props.item.publisherTier,
+        url: props.item.publisherUrl,
       },
       item: {
         itemId: props.item.itemId,
@@ -87,6 +90,7 @@ async function handleSubmit() {
         oneLineDescription: props.item.oneLineDescription,
         category: props.item.category,
         iconName: props.item.iconName,
+        sourceUrl: props.item.sourceUrl,
         recommendedScope: props.item.recommendedScope,
         minimumTier: props.item.minimumTier,
         status: props.item.status,

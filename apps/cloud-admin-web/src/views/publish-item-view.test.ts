@@ -25,6 +25,31 @@ function stubFileReader() {
   vi.stubGlobal("FileReader", StubFileReader);
 }
 
+/** URL-dispatching fetch double — the view now also reads /admin/catalog
+ *  (the category/publisher pickers derive their options from it). */
+function stubFetchRoutes(overrides: Record<string, () => unknown> = {}) {
+  const fetchMock = vi.fn(async (url: string) => {
+    const respond = (payload: unknown, status = 200) => ({
+      ok: status < 400,
+      status,
+      json: async () => payload,
+    });
+    for (const [path, payload] of Object.entries(overrides)) {
+      if (url === `/api${path}`) return respond(payload());
+    }
+    if (url === "/api/admin/catalog") return respond({ items: [] });
+    return respond({ code: "not_found", message: `no stub for ${url}` }, 404);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function callsTo(fetchMock: ReturnType<typeof vi.fn>, path: string) {
+  return fetchMock.mock.calls.filter(([url]) => url === `/api${path}`) as unknown as Array<
+    [string, RequestInit]
+  >;
+}
+
 async function mountView() {
   const router = createAppRouter();
   await router.push("/catalog/publish");
@@ -37,13 +62,17 @@ async function mountView() {
           VueQueryPlugin,
           {
             queryClient: new QueryClient({
-              defaultOptions: { mutations: { retry: false } },
+              defaultOptions: {
+                mutations: { retry: false },
+                queries: { retry: false },
+              },
             }),
           },
         ],
       ],
     },
   });
+  await flushPromises();
   return { wrapper, router };
 }
 
@@ -58,15 +87,21 @@ function setField(
   return field!.find("input, select, textarea").setValue(value);
 }
 
-async function fillAndSubmit(
+async function fillCommonFields(
   wrapper: Awaited<ReturnType<typeof mountView>>["wrapper"],
 ) {
   await setField(wrapper, "Item id", "daily-briefing");
   await setField(wrapper, "Display name", "Daily Briefing");
   await setField(wrapper, "One-line description", "A morning summary.");
-  await setField(wrapper, "Category", "productivity");
-  await setField(wrapper, "Icon name", "sunrise");
+  await wrapper.find('select[aria-label="Category"]').setValue("email");
+  await wrapper.find('.icon-cell[title="mail"]').trigger("click");
   await setField(wrapper, "Version (semver)", "1.0.0");
+}
+
+async function fillAndSubmitZip(
+  wrapper: Awaited<ReturnType<typeof mountView>>["wrapper"],
+) {
+  await fillCommonFields(wrapper);
   const fileInput = wrapper.find('input[type="file"]');
   Object.defineProperty(fileInput.element, "files", {
     value: [new File(["zip"], "artifact.zip")],
@@ -100,22 +135,18 @@ describe("PublishItemView", () => {
 
   it("submits the full publish body and routes to the new item", async () => {
     stubFileReader();
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      status: 201,
-      json: async () => ({ itemId: "daily-briefing", version: "1.0.0" }),
-    }));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetchRoutes({
+      "/admin/catalog/publish": () => ({ itemId: "daily-briefing", version: "1.0.0" }),
+    });
 
     const { wrapper, router } = await mountView();
-    await fillAndSubmit(wrapper);
+    await fillAndSubmitZip(wrapper);
 
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [
-      string,
-      RequestInit,
-    ];
-    expect(url).toBe("/api/admin/catalog/publish");
-    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    const calls = callsTo(fetchMock, "/admin/catalog/publish");
+    expect(calls).toHaveLength(1);
+    const body = JSON.parse(calls[0]![1].body as string) as Record<string, unknown>;
+    // Empty catalog → the picker's new-publisher form prefilled with the
+    // house identity.
     expect(body.publisher).toEqual({
       id: "vynel-team",
       name: "Vynel Team",
@@ -125,6 +156,9 @@ describe("PublishItemView", () => {
     expect(body.item).toMatchObject({
       itemId: "daily-briefing",
       kind: "skill",
+      category: "email",
+      iconName: "mail",
+      sourceUrl: null,
       status: "draft",
     });
     expect(body.version).toMatchObject({
@@ -145,20 +179,22 @@ describe("PublishItemView", () => {
 
   it("surfaces the hub's 409 duplicate-version message verbatim", async () => {
     stubFileReader();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "/api/admin/catalog")
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      return {
         ok: false,
         status: 409,
         json: async () => ({
           code: "conflict",
           message: "Version 1.0.0 of daily-briefing already exists.",
         }),
-      })),
-    );
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     const { wrapper } = await mountView();
-    await fillAndSubmit(wrapper);
+    await fillAndSubmitZip(wrapper);
 
     expect(wrapper.text()).toContain(
       "Version 1.0.0 of daily-briefing already exists.",
@@ -166,6 +202,7 @@ describe("PublishItemView", () => {
   });
 
   it("switches the manifest prefill with kind until the admin edits it", async () => {
+    stubFetchRoutes();
     const { wrapper } = await mountView();
 
     expect(manifestTextarea(wrapper).element.value).toBe(
@@ -179,5 +216,90 @@ describe("PublishItemView", () => {
     await manifestTextarea(wrapper).setValue('{"custom":true}');
     await setField(wrapper, "Kind", "skill");
     expect(manifestTextarea(wrapper).element.value).toBe('{"custom":true}');
+  });
+
+  it("repo mode: inspect prefills the form, submit posts to publish-from-repo", async () => {
+    const pin = "b".repeat(40);
+    const fetchMock = stubFetchRoutes({
+      "/admin/catalog/inspect-repo": () => ({
+        resolvedSha: pin,
+        sourceUrl: `https://github.com/anthropics/skills/tree/${pin}/skills/canvas-design`,
+        manifest: {
+          publisher: {
+            id: "anthropic",
+            name: "Anthropic",
+            tier: "anthropic-official",
+            url: "https://www.anthropic.com",
+          },
+          item: {
+            itemId: "canvas-design",
+            kind: "skill",
+            displayName: "Canvas Design",
+            oneLineDescription: "Designs canvases.",
+            category: "creative",
+            iconName: "palette",
+          },
+          version: { version: "1.0.0" },
+        },
+        detectedKind: "skill",
+        entryFile: "SKILL.md",
+      }),
+      "/admin/catalog/publish-from-repo": () => ({
+        itemId: "canvas-design",
+        version: "1.0.0",
+        resolvedSha: pin,
+        sourceUrl: `https://github.com/anthropics/skills/tree/${pin}/skills/canvas-design`,
+        bytes: 1234,
+      }),
+    });
+
+    const { wrapper } = await mountView();
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "From GitHub URL")!
+      .trigger("click");
+
+    await setField(wrapper, "GitHub repo URL", "https://github.com/anthropics/skills");
+    await setField(wrapper, "Branch / tag / commit", "main");
+    await setField(wrapper, "Folder in repo", "skills/canvas-design");
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "Inspect")!
+      .trigger("click");
+    await flushPromises();
+
+    // The manifest prefilled the form — including the "By Anthropic"-style
+    // publisher and the pin-anchored credit link.
+    const displayName = wrapper
+      .findAll("label.field")
+      .find((label) => label.text().includes("Display name"))!
+      .find("input").element as HTMLInputElement;
+    expect(displayName.value).toBe("Canvas Design");
+    expect(wrapper.text()).toContain("vynel-item.json found");
+
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    const calls = callsTo(fetchMock, "/admin/catalog/publish-from-repo");
+    expect(calls).toHaveLength(1);
+    const body = JSON.parse(calls[0]![1].body as string) as Record<string, unknown>;
+    expect(body.repo).toEqual({
+      url: "https://github.com/anthropics/skills",
+      ref: "main",
+      subpath: "skills/canvas-design",
+    });
+    expect(body.publisher).toEqual({
+      id: "anthropic",
+      name: "Anthropic",
+      tier: "anthropic-official",
+      url: "https://www.anthropic.com",
+    });
+    expect(body.item).toMatchObject({
+      itemId: "canvas-design",
+      category: "creative",
+      iconName: "palette",
+      sourceUrl: `https://github.com/anthropics/skills/tree/${pin}/skills/canvas-design`,
+    });
+    expect(body).not.toHaveProperty("artifactBase64");
   });
 });

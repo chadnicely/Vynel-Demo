@@ -12,7 +12,18 @@ import { createArtifactSigner } from './artifact-signer.js'
 import { signUnsignedVersions } from './sign-unsigned-versions.js'
 import { artifactKey, createInMemoryArtifactStore } from './artifact-store.js'
 import { findItemVersion } from './repositories/catalog-repository.js'
+import { zipArtifact } from './testing.js'
 import type { PublishItemInput } from './publish-input.js'
+
+// Publish inspects every artifact now — fixtures must be real zips. Distinct
+// contents keep distinct shas (the corrupt/tampered cases depend on it).
+const zips = {
+  signed: await zipArtifact({ 'SKILL.md': 'signed bytes' }),
+  unsigned: await zipArtifact({ 'SKILL.md': 'unsigned bytes' }),
+  intact: await zipArtifact({ 'SKILL.md': 'intact bytes' }),
+  gone: await zipArtifact({ 'SKILL.md': 'gone bytes' }),
+  original: await zipArtifact({ 'SKILL.md': 'original bytes' }),
+}
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519')
 const signer = createArtifactSigner(
@@ -45,12 +56,12 @@ describe('artifact signatures at publish', () => {
       await publishCatalogArtifact(
         db,
         store,
-        { ...publishInput('signed-skill'), artifactBytes: Buffer.from('signed bytes') },
+        { ...publishInput('signed-skill'), artifactBytes: zips.signed },
         signer,
       )
       await publishCatalogArtifact(db, store, {
         ...publishInput('unsigned-skill'),
-        artifactBytes: Buffer.from('unsigned bytes'),
+        artifactBytes: zips.unsigned,
       })
 
       const signed = await findItemVersion(db, { itemId: 'signed-skill', version: '1.0.0' })
@@ -75,20 +86,20 @@ describe('signUnsignedVersions', () => {
       // Three unsigned legacy rows: intact, bytes-gone, bytes-corrupted.
       await publishCatalogArtifact(db, store, {
         ...publishInput('intact'),
-        artifactBytes: Buffer.from('intact bytes'),
+        artifactBytes: zips.intact,
       })
       await publishCatalogArtifact(db, store, {
         ...publishInput('gone'),
-        artifactBytes: Buffer.from('gone bytes'),
+        artifactBytes: zips.gone,
       })
       await publishCatalogArtifact(db, store, {
         ...publishInput('corrupt'),
-        artifactBytes: Buffer.from('original bytes'),
+        artifactBytes: zips.original,
       })
       // The backfill runs against a store where 'gone' was never written and
       // 'corrupt' no longer hashes to its recorded sha.
       const lossyStore = createInMemoryArtifactStore()
-      await lossyStore.put(artifactKey('intact', '1.0.0'), Buffer.from('intact bytes'))
+      await lossyStore.put(artifactKey('intact', '1.0.0'), zips.intact)
       await lossyStore.put(artifactKey('corrupt', '1.0.0'), Buffer.from('TAMPERED bytes'))
 
       const report = await signUnsignedVersions(db, lossyStore, signer)

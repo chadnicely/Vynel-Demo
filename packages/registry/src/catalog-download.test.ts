@@ -15,9 +15,11 @@ import {
 } from './catalog-download.js'
 import { createInMemoryArtifactStore } from './artifact-store.js'
 import { setCatalogItemStatus } from './repositories/catalog-repository.js'
+import { zipArtifact } from './testing.js'
 import type { PublishItemInput } from './publish-input.js'
 
-const ARTIFACT = Buffer.from('zip-bytes-for-tests')
+// Publish inspects every artifact now — the fixture must be a real zip.
+const ARTIFACT = await zipArtifact({ 'SKILL.md': 'zip-bytes-for-tests' })
 
 function publishInput(over: Partial<PublishItemInput['item']> = {}): PublishItemInput {
   return {
@@ -129,6 +131,25 @@ describe('publishCatalogArtifact', () => {
     })
   })
 
+  it('inspects the archive before storing — a non-zip and a hostile entry both 400', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const store = createInMemoryArtifactStore()
+      await expect(
+        publishCatalogArtifact(db, store, {
+          ...publishInput(),
+          artifactBytes: Buffer.from('PK not actually a zip'),
+        }),
+      ).rejects.toMatchObject({ httpStatus: 400 })
+      await expect(
+        publishCatalogArtifact(db, store, {
+          ...publishInput(),
+          artifactBytes: await zipArtifact({ '/etc/evil': 'x' }),
+        }),
+      ).rejects.toMatchObject({ httpStatus: 400 })
+      expect(await store.exists('email-drafter@1.0.0.zip')).toBe(false)
+    })
+  })
+
   it('a rejected republish never overwrites the stored bytes (byte-immutability)', async () => {
     await withTestCloudDatabase(async (db) => {
       const store = createInMemoryArtifactStore()
@@ -137,7 +158,7 @@ describe('publishCatalogArtifact', () => {
       await expect(
         publishCatalogArtifact(db, store, {
           ...publishInput(),
-          artifactBytes: Buffer.from('different bytes'),
+          artifactBytes: await zipArtifact({ 'SKILL.md': 'different bytes' }),
         }),
       ).rejects.toMatchObject({ httpStatus: 409 })
       expect(await store.get('email-drafter@1.0.0.zip')).toEqual(ARTIFACT)

@@ -1,20 +1,10 @@
 <script setup lang="ts">
-import { computed, type Component } from "vue";
-import {
-  BadgeCheck,
-  Check,
-  FileText,
-  Film,
-  Inbox,
-  LayoutTemplate,
-  Mail,
-  Megaphone,
-  Palette,
-  Search,
-  Sparkles,
-} from "lucide-vue-next";
+import { computed } from "vue";
+import { BadgeCheck, Check } from "lucide-vue-next";
 import { workspaceMonogram } from "@vynel/ui";
 import type { MarketplaceItem } from "@vynel/contracts/marketplace/marketplace-item";
+import { isCatalogIconName } from "@vynel/contracts/marketplace/catalog-icons";
+import { CATALOG_ICONS } from "./catalog-icons.js";
 
 // One storefront card. Purely presentational — the section owns the single
 // install/uninstall mutation pair, so pending and error state stay scoped to
@@ -36,22 +26,12 @@ const emit = defineEmits<{
   "remove-blur": [];
 }>();
 
-// The catalog's lucide names, mapped statically so the bundle only carries
-// icons the shelf actually uses; an unknown name falls back to the item's
-// monogram (the workspace-mark idiom — a stable, derived initial).
-const CATALOG_ICONS: Record<string, Component> = {
-  mail: Mail,
-  inbox: Inbox,
-  search: Search,
-  "file-text": FileText,
-  palette: Palette,
-  "layout-template": LayoutTemplate,
-  megaphone: Megaphone,
-  film: Film,
-  sparkles: Sparkles,
-};
-
-const tileIcon = computed(() => CATALOG_ICONS[props.item.iconName] ?? null);
+// The shared catalog-icon map (typed to the contracts allowlist); an unknown
+// name falls back to the item's monogram (the workspace-mark idiom — a
+// stable, derived initial).
+const tileIcon = computed(() =>
+  isCatalogIconName(props.item.iconName) ? CATALOG_ICONS[props.item.iconName] : null,
+);
 const monogram = computed(() => workspaceMonogram(props.item.displayName));
 
 const isInstalled = computed(

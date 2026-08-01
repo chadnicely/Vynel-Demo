@@ -19,7 +19,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { zipSkillFolder, type AnthropicImportManifest } from '@vynel/registry'
+import { packItemFolder, type AnthropicImportManifest } from '@vynel/registry'
 
 function fail(message: string): never {
   // eslint-disable-next-line no-console -- CLI error channel
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
 
   for (const item of items) {
     const folder = join(sourceCheckout, 'skills', item.itemId)
-    const artifact = await zipSkillFolder(folder)
+    const artifact = await packItemFolder(folder, 'skill')
     const sourceUrl = `${manifest.upstream.repo}/tree/${manifest.upstream.pinnedSha}/skills/${item.itemId}`
 
     const response = await fetch(`${hubUrl}/admin/catalog/publish`, {

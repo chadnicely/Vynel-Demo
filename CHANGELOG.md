@@ -9,6 +9,33 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Publish marketplace items straight from GitHub.** The admin portal's publish page has a
+  "From GitHub URL" mode: paste a repo URL (plus optional branch/tag and folder), hit Inspect
+  to prefill the form — folders following the seed-bundle layout (`vynel-item.json`) prefill
+  everything — and publish. The hub resolves the ref to a pinned commit, clones it with the
+  same hardened git engine the Anthropic import uses (https + github.com only), packs the
+  folder kind-aware for all five kinds, and signs the artifact as usual. The credit link is
+  auto-derived from the exact commit.
+
+- **Real credits on the publish form.** The publisher is no longer hardcoded: pick an
+  existing publisher (its stored name/tier/url are sent verbatim so a publish can never
+  silently rename or re-tier it) or add a new one — including the "By Anthropic" official
+  tier — plus a source-URL field. Fixed along the way: publishing a new version of an item
+  used to silently wipe its source-URL credit link and reset its publisher; both now carry
+  forward correctly.
+
+- **Icon picker and category picker.** The free-text icon field is now a visual picker over
+  a curated set of 48 icons (with a live preview of the monogram fallback), shared as one
+  vocabulary between the portal and the app so a picked icon always renders. Category is a
+  dropdown of the categories already in use with a "+ new category" option — and new
+  categories now show up in the app as themselves instead of being silently relabeled
+  "Context".
+
+- **The hub now inspects every artifact before publishing it.** Uploaded or repo-packed zips
+  are checked for path traversal, symlinks, size bombs, and entry floods at publish time —
+  a bad artifact is refused with a clear error instead of shipping to installers. Repo
+  folders containing symlinks are refused outright at packing time.
+
 - **Marketplace downloads are now cryptographically signed.** The hub signs every artifact it
   publishes with a dedicated key, and the app checks that signature (plus the existing content
   hash) before installing anything — so what you install is provably what the hub published,

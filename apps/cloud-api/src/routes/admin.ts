@@ -19,7 +19,11 @@ import { listAccountsForAdmin } from '@vynel/cloud-db/repositories/accounts'
 import type { HubAdminAccount } from '@vynel/contracts/hub/admin'
 import {
   PublishItemSchema,
+  PublishFromRepoSchema,
+  InspectRepoSourceSchema,
   publishCatalogArtifact,
+  publishCatalogItemFromRepo,
+  inspectRepoSource,
   importAnthropicItems,
   signUnsignedVersions,
   listCatalogForAdmin,
@@ -176,6 +180,32 @@ export function buildAdminRoutes(options: CloudAppOptions) {
         )
         return c.json(result, 201)
       },
+    )
+    // Publish straight from a GitHub repo folder: the registry validates the
+    // URL against its allowlist (https + github.com only), resolves the ref
+    // to a pinned sha, clones, packs kind-aware, inspects, and publishes.
+    // Long-running is fine — an operator surface, like import-anthropic.
+    .post(
+      '/catalog/publish-from-repo',
+      bodyLimit({ maxSize: MAX_PUBLISH_BODY_BYTES }),
+      jsonValidator(PublishFromRepoSchema),
+      async (c) => {
+        const result = await publishCatalogItemFromRepo(
+          options.db,
+          options.artifactStore,
+          c.req.valid('json'),
+          options.artifactSigner,
+        )
+        return c.json(result, 201)
+      },
+    )
+    // The publish-from-repo PREVIEW: what would this repo folder publish?
+    // Returns the folder's vynel-item.json prefill (lenient) or the detected
+    // entry file + kind guess. Read-only.
+    .post(
+      '/catalog/inspect-repo',
+      jsonValidator(InspectRepoSourceSchema),
+      async (c) => c.json(await inspectRepoSource(c.req.valid('json'))),
     )
     // The upstream-drift cron's read surface (the portal's drift banner) +
     // an operator "check now". `configured: false` = the job isn't wired

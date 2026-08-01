@@ -4,18 +4,16 @@
 // `publishCatalogArtifact` — the one home for "a new catalog version
 // exists". Drives the admin portal's "Import Anthropic items" button; the
 // operator CLI (`pnpm cloud:import-anthropic`) keeps its local-reviewed-
-// checkout flow but shares `zipSkillFolder` from here.
+// checkout flow but shares `packItemFolder` (pack-item-folder.ts). Git runs
+// through the shared hardened home (git-fetch.ts).
 //
 // Idempotent by design: already-published versions are skipped (never
 // re-zipped, never overwritten) — a double-click on the button is a no-op
 // that doesn't even clone.
 
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, relative, sep } from 'node:path'
-import JSZip from 'jszip'
+import { join } from 'node:path'
 import { z } from 'zod'
 import { ConflictError, ValidationError } from '@vynel/errors'
 import type { CloudDatabase } from '@vynel/cloud-db'
@@ -23,10 +21,9 @@ import type { ArtifactStore } from './artifact-store.js'
 import type { ArtifactSigner } from './artifact-signer.js'
 import { publishCatalogArtifact } from './publish-catalog-artifact.js'
 import { findItemVersion } from './repositories/catalog-repository.js'
+import { cloneRepoAtPin } from './git-fetch.js'
+import { packItemFolder } from './pack-item-folder.js'
 import { KEBAB, SEMVER } from './publish-input.js'
-
-const execFileAsync = promisify(execFile)
-const GIT_TIMEOUT_MS = 10 * 60 * 1000
 
 // The shape of `scripts/anthropic-catalog/manifest.json`. Parsed here at the
 // boundary: the file arrives from disk, and its values reach git argv and
@@ -69,56 +66,6 @@ export type AnthropicImportItemResult = {
   bytes: number | null
 }
 
-async function runGit(args: string[]): Promise<void> {
-  // `protocol.ext.allow=never` blocks git's command-executing ext:: transport
-  // — the manifest repo value must only ever be a URL or a path.
-  await execFileAsync('git', ['-c', 'protocol.ext.allow=never', ...args], {
-    timeout: GIT_TIMEOUT_MS,
-    windowsHide: true,
-  })
-}
-
-// Fetch exactly the pinned commit — GitHub serves single-sha fetches, so the
-// happy path downloads one tree instead of the repo's history.
-async function cloneUpstreamAtPin(repo: string, pinnedSha: string, dir: string): Promise<void> {
-  try {
-    await runGit(['init', '--quiet', dir])
-    await runGit(['-C', dir, 'fetch', '--quiet', '--depth', '1', '--', repo, pinnedSha])
-    await runGit(['-C', dir, 'checkout', '--quiet', 'FETCH_HEAD'])
-  } catch {
-    // Some servers refuse unadvertised-sha fetches — fall back to a full
-    // clone + checkout of the pin (the CLI's original recipe). A failure
-    // here propagates with git's own message.
-    await rm(dir, { recursive: true, force: true })
-    await runGit(['clone', '--quiet', '--', repo, dir])
-    await runGit(['-C', dir, 'checkout', '--quiet', pinnedSha])
-  }
-}
-
-async function listFilesRecursively(dir: string, base = dir): Promise<string[]> {
-  const out: string[] = []
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name)
-    if (entry.isDirectory()) out.push(...(await listFilesRecursively(full, base)))
-    else out.push(relative(base, full))
-  }
-  return out
-}
-
-/** Zip a skill folder faithfully — every file, forward-slash paths, DEFLATE.
- *  Refuses a folder without a root SKILL.md (not a publishable skill). */
-export async function zipSkillFolder(folder: string): Promise<Buffer> {
-  const files = await listFilesRecursively(folder)
-  if (!files.includes('SKILL.md')) {
-    throw new ValidationError(`${folder} has no root SKILL.md — not a publishable skill folder.`)
-  }
-  const zip = new JSZip()
-  for (const relativePath of files) {
-    zip.file(relativePath.split(sep).join('/'), await readFile(join(folder, relativePath)))
-  }
-  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
-}
-
 export async function importAnthropicItems(
   db: CloudDatabase,
   artifactStore: ArtifactStore,
@@ -155,9 +102,9 @@ export async function importAnthropicItems(
 
   const cloneDir = await mkdtemp(join(tmpdir(), 'vynel-import-anthropic-'))
   try {
-    await cloneUpstreamAtPin(upstream.repo, upstream.pinnedSha, cloneDir)
+    await cloneRepoAtPin(upstream.repo, upstream.pinnedSha, cloneDir)
     for (const item of pending) {
-      const artifactBytes = await zipSkillFolder(join(cloneDir, 'skills', item.itemId))
+      const artifactBytes = await packItemFolder(join(cloneDir, 'skills', item.itemId), 'skill')
       try {
         await publishCatalogArtifact(db, artifactStore, {
           publisher: {

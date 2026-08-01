@@ -19,6 +19,7 @@ function makeItem(
     publisherId: "vynel-team",
     publisherName: "Vynel Team",
     publisherTier: "verified",
+    publisherUrl: null,
     displayName: "Daily Briefing",
     oneLineDescription: "A morning summary.",
     category: "productivity",

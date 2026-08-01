@@ -45,11 +45,33 @@ export {
 } from './upstream-watch.js'
 export {
   importAnthropicItems,
-  zipSkillFolder,
   AnthropicImportManifestSchema,
   type AnthropicImportManifest,
   type AnthropicImportItemResult,
 } from './import-anthropic.js'
+export {
+  packItemFolder,
+  ENTRY_FILE_BY_KIND,
+  ITEM_METADATA_FILE,
+  type PackableItemKind,
+} from './pack-item-folder.js'
+export {
+  inspectArtifactArchive,
+  type ArtifactArchiveFacts,
+} from './inspect-artifact-archive.js'
+export {
+  publishCatalogItemFromRepo,
+  PublishFromRepoSchema,
+  type PublishFromRepoInput,
+  type PublishFromRepoResult,
+} from './publish-from-repo.js'
+export {
+  inspectRepoSource,
+  InspectRepoSourceSchema,
+  type InspectRepoSourceInput,
+  type InspectRepoSourceResult,
+  type RepoItemManifestPrefill,
+} from './inspect-repo-source.js'
 export { createArtifactSigner, type ArtifactSigner } from './artifact-signer.js'
 export {
   signUnsignedVersions,

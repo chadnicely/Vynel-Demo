@@ -11,14 +11,10 @@
 // into a temp dir, then name-level-diffs each republished folder pin..HEAD.
 // `upstream.repo` may be a URL or a local path (tests use fixture repos).
 
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-
-const execFileAsync = promisify(execFile)
-const GIT_TIMEOUT_MS = 5 * 60 * 1000
+import { runGit } from './git-fetch.js'
 
 export type UpstreamWatchManifest = {
   upstream: { repo: string; pinnedSha: string }
@@ -46,16 +42,10 @@ export type UpstreamWatchReport = {
   repinRecipe: string | null
 }
 
-// `protocol.ext.allow=never` blocks git's command-executing ext:: transport
-// — the manifest repo value must only ever be a URL or a path.
-const GIT_HARDENING = ['-c', 'protocol.ext.allow=never']
-
-async function git(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('git', [...GIT_HARDENING, '-C', cwd, ...args], {
-    timeout: GIT_TIMEOUT_MS,
-    windowsHide: true,
-  })
-  return stdout.trim()
+// All git runs ride the shared hardened home (git-fetch.ts) — one place
+// carries the ext::-transport block and the timeout.
+function git(cwd: string, args: string[]): Promise<string> {
+  return runGit(['-C', cwd, ...args])
 }
 
 export async function checkUpstreamAgainstPin(
@@ -72,19 +62,14 @@ export async function checkUpstreamAgainstPin(
   }
   const cloneDir = await mkdtemp(join(tmpdir(), 'vynel-upstream-watch-'))
   try {
-    await execFileAsync(
-      'git',
-      [
-        ...GIT_HARDENING,
-        'clone',
-        '--filter=blob:none',
-        '--no-checkout',
-        '--',
-        manifest.upstream.repo,
-        cloneDir,
-      ],
-      { timeout: GIT_TIMEOUT_MS, windowsHide: true },
-    )
+    await runGit([
+      'clone',
+      '--filter=blob:none',
+      '--no-checkout',
+      '--',
+      manifest.upstream.repo,
+      cloneDir,
+    ])
     const upstreamHeadSha = await git(cloneDir, ['rev-parse', 'HEAD'])
     const checkedAt = new Date().toISOString()
 

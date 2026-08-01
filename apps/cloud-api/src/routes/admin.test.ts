@@ -21,13 +21,15 @@ import {
   type EntitlementTokenIssuer,
 } from '@vynel/accounts'
 import { createArtifactSigner, createInMemoryArtifactStore } from '@vynel/registry'
+import { zipArtifact } from '@vynel/registry/testing'
 import { verifyArtifactSha256Signature } from '@vynel/contracts/hub/artifact-signing'
 import type { HubAdminCatalogItem } from '@vynel/contracts/hub/admin'
 import { createCloudApp } from '../app.js'
 
 const ADMIN = 'test-admin-token-0123456789abcdef-0123456789abcdef'
 const silentLogger = pino({ level: 'silent' })
-const ARTIFACT = Buffer.from('PK fake zip bytes')
+// Publish inspects every artifact now — the fixture must be a real zip.
+const ARTIFACT = await zipArtifact({ 'SKILL.md': 'admin route test artifact' })
 
 let accessTokens: AccessTokenIssuer
 let accessTokenVerifier: AccessTokenVerifier
@@ -425,6 +427,56 @@ describe('admin routes — artifact signatures', () => {
       const sha = now.headers.get('x-artifact-sha256') ?? ''
       const signature = now.headers.get('x-artifact-signature') ?? ''
       expect(verifyArtifactSha256Signature(publicPem, sha, signature)).toBe(true)
+    })
+  })
+})
+
+describe('admin routes — publish from repo', () => {
+  // The heavy path (resolve → clone → pack → publish) lives in the registry
+  // test (packages/registry/src/publish-from-repo.test.ts) — here only the
+  // route's wiring: the validation envelope, the URL wall through HTTP, and
+  // the dual door.
+  it('maps a refused repo URL to the {code, message} 400 envelope; the dual door guards it', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const app = buildApp(db)
+      const body = {
+        ...publishBody('repo-skill'),
+        repo: { url: 'file:///etc/passwd', subpath: 'bundles/repo-skill' },
+      }
+      delete (body as Record<string, unknown>)['artifactBase64']
+      const refused = await app.request('/admin/catalog/publish-from-repo', jsonInit(ADMIN, body))
+      expect(refused.status).toBe(400)
+      const errorBody = (await refused.json()) as { code: string; message: string }
+      expect(errorBody.code).toBe('validation_failed')
+      expect(errorBody.message).toContain('https')
+
+      expect(
+        (await app.request('/admin/catalog/publish-from-repo', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        })).status,
+      ).toBe(401)
+
+      const inspectRefused = await app.request(
+        '/admin/catalog/inspect-repo',
+        jsonInit(ADMIN, { url: 'https://gitlab.com/acme/tools' }),
+      )
+      expect(inspectRefused.status).toBe(400)
+      expect(((await inspectRefused.json()) as { message: string }).message).toContain('github.com')
+    })
+  })
+
+  it('refuses a hostile zip through the direct publish route (the shared archive wall)', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const app = buildApp(db)
+      const body = publishBody('hostile-zip-skill')
+      body.artifactBase64 = Buffer.from('PK fake zip bytes').toString('base64')
+      const response = await app.request('/admin/catalog/publish', jsonInit(ADMIN, body))
+      expect(response.status).toBe(400)
+      const errorBody = (await response.json()) as { code: string; message: string }
+      expect(errorBody.code).toBe('validation_failed')
+      expect(errorBody.message).toContain('not a valid zip')
     })
   })
 })

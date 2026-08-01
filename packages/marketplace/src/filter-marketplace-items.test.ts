@@ -47,6 +47,15 @@ describe('filterAndSortMarketplaceItems', () => {
       expect(result.map((i) => i.itemId)).toEqual(['a'])
     })
 
+    it('narrows by an ADMIN-DEFINED category (open string — no closed union)', () => {
+      const items = [
+        makeItem({ itemId: 'a', skillId: 'a', category: 'data-science' }),
+        makeItem({ itemId: 'b', skillId: 'b', category: 'email' }),
+      ]
+      const result = filterAndSortMarketplaceItems({ items, category: 'data-science' })
+      expect(result.map((i) => i.itemId)).toEqual(['a'])
+    })
+
     it('narrows by publisherTier', () => {
       const items = [
         makeItem({ itemId: 'a', skillId: 'a', publisherTier: 'verified' }),

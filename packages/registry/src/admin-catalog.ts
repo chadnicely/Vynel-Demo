@@ -44,6 +44,7 @@ function toHubAdminCatalogItem(
     publisherId: publisher.id,
     publisherName: publisher.name,
     publisherTier: toHubPublisherTier(publisher.tier),
+    publisherUrl: publisher.url,
     displayName: item.displayName,
     oneLineDescription: item.oneLineDescription,
     category: item.category,

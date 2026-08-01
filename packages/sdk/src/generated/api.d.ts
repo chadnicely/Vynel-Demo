@@ -3785,7 +3785,7 @@ export interface operations {
     getWorkspacesByWorkspaceIdMarketplaceItems: {
         parameters: {
             query?: {
-                category?: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
+                category?: string;
                 publisherTier?: "verified" | "anthropic-official" | "community";
                 installState?: "installed" | "not-installed";
                 searchQuery?: string;
@@ -3817,8 +3817,7 @@ export interface operations {
                         sourceUrl: string | null;
                         displayName: string;
                         oneLineDescription: string;
-                        /** @enum {string} */
-                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
+                        category: string;
                         iconName: string;
                         version: string;
                         releasedAt: string;
@@ -3885,8 +3884,7 @@ export interface operations {
                         sourceUrl: string | null;
                         displayName: string;
                         oneLineDescription: string;
-                        /** @enum {string} */
-                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
+                        category: string;
                         iconName: string;
                         version: string;
                         releasedAt: string;
@@ -10448,7 +10446,7 @@ export interface operations {
     getMarketplaceItems: {
         parameters: {
             query?: {
-                category?: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
+                category?: string;
                 publisherTier?: "verified" | "anthropic-official" | "community";
                 installState?: "installed" | "not-installed";
                 searchQuery?: string;
@@ -10478,8 +10476,7 @@ export interface operations {
                         sourceUrl: string | null;
                         displayName: string;
                         oneLineDescription: string;
-                        /** @enum {string} */
-                        category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
+                        category: string;
                         iconName: string;
                         version: string;
                         releasedAt: string;

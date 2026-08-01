@@ -22,10 +22,12 @@ import {
 } from '@vynel/accounts'
 import { createCloudApp } from '../app.js'
 import { createInMemoryArtifactStore } from '@vynel/registry'
+import { zipArtifact } from '@vynel/registry/testing'
 
 const ADMIN = 'test-admin-token-0123456789abcdef-0123456789abcdef'
 const silentLogger = pino({ level: 'silent' })
-const ARTIFACT = Buffer.from('PK fake zip bytes')
+// Publish inspects every artifact now — the fixture must be a real zip.
+const ARTIFACT = await zipArtifact({ 'SKILL.md': 'catalog route test artifact' })
 const ARTIFACT_SHA = createHash('sha256').update(ARTIFACT).digest('hex')
 
 let accessTokens: AccessTokenIssuer
@@ -155,7 +157,7 @@ describe('catalog routes', () => {
       expect((await publish(app, { itemId: 'free-skill', minimumTier: 'basic' })).status).toBe(201)
 
       // Republish the same version with DIFFERENT bytes → 409, bytes untouched.
-      const tampered = { ...publishBody({ itemId: 'free-skill', minimumTier: 'basic' }), artifactBase64: Buffer.from('different bytes').toString('base64') }
+      const tampered = { ...publishBody({ itemId: 'free-skill', minimumTier: 'basic' }), artifactBase64: (await zipArtifact({ 'SKILL.md': 'different bytes' })).toString('base64') }
       const conflict = await app.request('/admin/catalog/publish', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${ADMIN}` },

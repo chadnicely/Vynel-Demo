@@ -1,17 +1,22 @@
-// The full publish use-case: validate the artifact bytes, hash them, store
-// them, and record the version — the one home for "a new catalog version
-// exists". The admin route only decodes the transport (base64) and calls this.
+// The full publish use-case: validate + INSPECT the artifact bytes (the hub
+// never records a zip it hasn't looked inside — traversal/symlink/bomb
+// entries are refused here, covering the direct upload AND the from-repo
+// path), hash them, store them, and record the version — the one home for
+// "a new catalog version exists". The admin route only decodes the
+// transport (base64) and calls this.
 
 import { createHash } from 'node:crypto'
 import { ConflictError, ValidationError } from '@vynel/errors'
+import { MAX_ARTIFACT_BYTES } from '@vynel/contracts/hub/artifact-archive-rules'
 import type { CloudDatabase } from '@vynel/cloud-db'
 import type { PublishItemInput } from './publish-input.js'
 import { publishItemVersion, type PublishResult } from './publish-item-version.js'
 import { findItemVersion } from './repositories/catalog-repository.js'
 import { artifactKey, type ArtifactStore } from './artifact-store.js'
+import { inspectArtifactArchive } from './inspect-artifact-archive.js'
 import type { ArtifactSigner } from './artifact-signer.js'
 
-export const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
+export { MAX_ARTIFACT_BYTES }
 
 export interface PublishCatalogArtifactInput extends PublishItemInput {
   /** The artifact zip's raw bytes (the route decodes the base64 transport). */
@@ -30,6 +35,7 @@ export async function publishCatalogArtifact(
   if (bytes.length === 0 || bytes.length > MAX_ARTIFACT_BYTES) {
     throw new ValidationError('Artifact is empty or exceeds the 10MB limit.')
   }
+  await inspectArtifactArchive(bytes)
   const artifactSha256 = createHash('sha256').update(bytes).digest('hex')
 
   // Conflict-check BEFORE the put: versions are byte-immutable. Storing first

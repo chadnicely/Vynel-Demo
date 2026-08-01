@@ -1811,17 +1811,8 @@
                       },
                       "category": {
                         "type": "string",
-                        "enum": [
-                          "email",
-                          "documents",
-                          "calendar",
-                          "files",
-                          "research",
-                          "notes",
-                          "context",
-                          "creative",
-                          "communication"
-                        ]
+                        "minLength": 1,
+                        "maxLength": 60
                       },
                       "iconName": {
                         "type": "string"
@@ -1953,17 +1944,8 @@
             "name": "category",
             "schema": {
               "type": "string",
-              "enum": [
-                "email",
-                "documents",
-                "calendar",
-                "files",
-                "research",
-                "notes",
-                "context",
-                "creative",
-                "communication"
-              ]
+              "minLength": 1,
+              "maxLength": 60
             }
           },
           {
@@ -2085,17 +2067,8 @@
                     },
                     "category": {
                       "type": "string",
-                      "enum": [
-                        "email",
-                        "documents",
-                        "calendar",
-                        "files",
-                        "research",
-                        "notes",
-                        "context",
-                        "creative",
-                        "communication"
-                      ]
+                      "minLength": 1,
+                      "maxLength": 60
                     },
                     "iconName": {
                       "type": "string"
@@ -18626,17 +18599,8 @@
                       },
                       "category": {
                         "type": "string",
-                        "enum": [
-                          "email",
-                          "documents",
-                          "calendar",
-                          "files",
-                          "research",
-                          "notes",
-                          "context",
-                          "creative",
-                          "communication"
-                        ]
+                        "minLength": 1,
+                        "maxLength": 60
                       },
                       "iconName": {
                         "type": "string"
@@ -18765,17 +18729,8 @@
             "name": "category",
             "schema": {
               "type": "string",
-              "enum": [
-                "email",
-                "documents",
-                "calendar",
-                "files",
-                "research",
-                "notes",
-                "context",
-                "creative",
-                "communication"
-              ]
+              "minLength": 1,
+              "maxLength": 60
             }
           },
           {

@@ -57,6 +57,15 @@ describe('cloudRowToMarketplaceItem', () => {
     expect(item.isOfficial).toBe(true)
   })
 
+  it('renders an admin-defined category VERBATIM — never coerced to a known one', () => {
+    // The regression this pins: unknown categories used to silently become
+    // 'context', hiding every new admin-defined category from users.
+    expect(cloudRowToMarketplaceItem(cacheRow({ category: 'data-science' })).category).toBe(
+      'data-science',
+    )
+    expect(cloudRowToMarketplaceItem(cacheRow({ category: 'creative' })).category).toBe('creative')
+  })
+
   it('mcp row: precomputes the server name from a parsable manifest; unparsable stays undefined', () => {
     const parsable = cloudRowToMarketplaceItem(
       cacheRow({

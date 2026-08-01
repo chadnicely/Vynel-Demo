@@ -6,6 +6,8 @@ import {
   useUpdateCatalogItem,
   type CatalogItemMetadataPatch,
 } from "../../composables/catalog/use-update-catalog-item.js";
+import CategorySelect from "./CategorySelect.vue";
+import IconPicker from "./IconPicker.vue";
 
 const props = defineProps<{ item: HubAdminCatalogItem }>();
 
@@ -46,8 +48,12 @@ const patch = computed<CatalogItemMetadataPatch>(() => {
     changed.displayName = form.displayName;
   if (form.oneLineDescription !== baseline.oneLineDescription)
     changed.oneLineDescription = form.oneLineDescription;
-  if (form.category !== baseline.category) changed.category = form.category;
-  if (form.iconName !== baseline.iconName) changed.iconName = form.iconName;
+  // '' = nothing picked (the pickers' cleared state) — never patch it in:
+  // the hub requires both fields non-empty.
+  if (form.category !== baseline.category && form.category !== "")
+    changed.category = form.category;
+  if (form.iconName !== baseline.iconName && form.iconName !== "")
+    changed.iconName = form.iconName;
   if (form.recommendedScope !== baseline.recommendedScope)
     changed.recommendedScope =
       form.recommendedScope === "" ? null : form.recommendedScope;
@@ -85,15 +91,13 @@ function save() {
       <span class="field-label">One-line description</span>
       <input v-model="form.oneLineDescription" class="text-input" type="text" />
     </label>
-    <div class="field-row">
-      <label class="field">
-        <span class="field-label">Category</span>
-        <input v-model="form.category" class="text-input" type="text" />
-      </label>
-      <label class="field">
-        <span class="field-label">Icon name</span>
-        <input v-model="form.iconName" class="text-input" type="text" />
-      </label>
+    <div class="field">
+      <span class="field-label">Category</span>
+      <CategorySelect v-model="form.category" />
+    </div>
+    <div class="field">
+      <span class="field-label">Icon</span>
+      <IconPicker v-model="form.iconName" :fallback-text="form.displayName" />
     </div>
     <label class="field">
       <span class="field-label">Source URL</span>

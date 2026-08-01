@@ -39,6 +39,10 @@ export interface HubAdminCatalogItem {
   readonly publisherId: string
   readonly publisherName: string
   readonly publisherTier: HubPublisherTier
+  /** The publisher's exact stored url — a version bump republishes the
+   * publisher row verbatim, so the portal must see EVERY field it re-sends
+   * (`upsertPublisher` would otherwise silently null it). */
+  readonly publisherUrl: string | null
   readonly displayName: string
   readonly oneLineDescription: string
   readonly category: string

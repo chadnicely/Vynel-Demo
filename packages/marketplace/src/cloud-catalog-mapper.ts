@@ -12,29 +12,8 @@ import type {
   MarketplaceItemKind,
   MarketplaceItemScope,
 } from '@vynel/contracts/marketplace/marketplace-item'
-import type {
-  SkillCategory,
-  SkillScope,
-} from '@vynel/contracts/skills/verified-skills/verified-skill-definition'
+import type { SkillScope } from '@vynel/contracts/skills/verified-skills/verified-skill-definition'
 import type { MarketplaceCloudCatalogRow } from './schema/cloud-catalog-cache.js'
-
-const SKILL_CATEGORIES: readonly SkillCategory[] = [
-  'email',
-  'documents',
-  'calendar',
-  'files',
-  'research',
-  'notes',
-  'context',
-  'creative',
-  'communication',
-]
-
-function toSkillCategory(raw: string): SkillCategory {
-  return (SKILL_CATEGORIES as readonly string[]).includes(raw)
-    ? (raw as SkillCategory)
-    : 'context'
-}
 
 // The cache stores the hub's tier text verbatim, so parsing it is HUB
 // vocabulary — the shared `toHubPublisherTier` is the one home. Its union is
@@ -74,7 +53,9 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
     sourceUrl: row.sourceUrl,
     displayName: row.displayName,
     oneLineDescription: row.oneLineDescription,
-    category: toSkillCategory(row.category),
+    // Verbatim: categories are admin-defined on the hub (open string) — the
+    // old silent coercion to 'context' hid every new category from users.
+    category: row.category,
     iconName: row.iconName,
     version: row.latestVersion,
     releasedAt: row.releasedAt,

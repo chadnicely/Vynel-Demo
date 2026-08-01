@@ -55,6 +55,13 @@ entry per task, reviewer per diff, full gate (`pnpm test`) before every commit.
   #-mentioned workspaces; workspace-scoped, not global ambient access).
 - "/" lists skills + commands; selecting inserts into the input (Claude Code style),
   send executes as prompt text. Runtime already accepts slash prompts.
+- Interaction (Chad, follow-up): @, /, # all behave the SAME way — typing the trigger
+  character immediately pops an anchored menu of the mentionable options at the caret
+  (agents/personas for @, skills+commands for /, workspaces for #); user picks by click
+  or arrow keys and the token is inserted. One shared suggestion-menu component, three
+  data sources. Filtering as the user keeps typing after the trigger is fine, but the
+  menu appears on the bare trigger character itself — it is a mention picker, not a
+  type-ahead-only autocomplete.
 - Grammar in `@vynel/contracts` (one home, with offsets); server re-parse of
   userMessageText is the source of truth; client payload is a hint only. Reuse orphaned
   `packages/orchestration/src/agents/resolve-mentions.ts`. # is per-message in v1.
@@ -84,8 +91,11 @@ entry per task, reviewer per diff, full gate (`pnpm test`) before every commit.
 ## Progress log (update as tasks complete)
 
 - [x] Decisions resolved with Chad (all batches above)
-- [ ] Baseline gate + env-fix commit
-- [ ] Task 1 — implement → review → fix → gate → commit
+- [x] Baseline gate + env-fix commit (fix was already committed pre-session, `430fb17`;
+      baseline gate green 3488)
+- [x] Task 1 — implement → review (1 MUST-FIX: symlink dereference in packItemFolder;
+      2 SHOULD-FIX: repoDisplayUrl ordering, missing bodyLimit — ALL FIXED) → gate green
+      3548 → committed. Playwright portal smoke after commit.
 - [ ] Task 4 — implement → review → fix → gate → commit
 - [ ] Task 2 — implement → review → fix → gate → commit
 - [ ] Task 3 — implement → review → fix → gate → commit

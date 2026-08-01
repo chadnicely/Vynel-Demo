@@ -13,21 +13,20 @@
 
 import JSZip from 'jszip'
 import { ValidationError } from '@vynel/errors'
+// The caps and path/symlink rules are SHARED with the hub's publish-time
+// inspection (`@vynel/registry`) through the contracts home — the desktop's
+// write wall and the hub's door wall can never drift.
+import {
+  MAX_ARCHIVE_ENTRIES,
+  MAX_ARCHIVE_ENTRY_BYTES,
+  MAX_ARCHIVE_TOTAL_UNCOMPRESSED_BYTES,
+  MAX_ARTIFACT_BYTES,
+  archiveEntryPathViolation,
+  isSymlinkUnixMode,
+} from '@vynel/contracts/hub/artifact-archive-rules'
 import { readDeclaredUncompressedSize } from './read-declared-uncompressed-size.js'
 
-const MAX_ENTRIES = 200
 const MAX_SKILL_MARKDOWN_BYTES = 512 * 1024
-// The hub's own artifact cap is 10 MB — anything larger can never be a
-// legitimate published skill. Capping the compressed input BEFORE loadAsync
-// is the first zip-bomb wall.
-const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
-const MAX_RESOURCE_BYTES = 8 * 1024 * 1024
-const MAX_TOTAL_UNCOMPRESSED_BYTES = 32 * 1024 * 1024
-
-// Unix mode type bits ride the zip's external attributes; S_IFLNK marks a
-// symlink entry — written to disk it could point anywhere, so reject.
-const S_IFMT = 0o170000
-const S_IFLNK = 0o120000
 
 export type SkillArchiveResource = {
   /** Forward-slash relative path inside the skill folder (validated safe). */
@@ -41,21 +40,10 @@ export type SkillArchive = {
 }
 
 function assertSafeRelativePath(name: string): void {
-  if (name.includes('\\')) {
-    throw new ValidationError(`The skill artifact entry '${name}' uses an unsafe path.`)
+  const violation = archiveEntryPathViolation(name)
+  if (violation !== null) {
+    throw new ValidationError(`The skill artifact entry '${name}' ${violation}.`)
   }
-  if (name.startsWith('/') || /^[A-Za-z]:/.test(name)) {
-    throw new ValidationError(`The skill artifact entry '${name}' uses an absolute path.`)
-  }
-  const segments = name.split('/')
-  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
-    throw new ValidationError(`The skill artifact entry '${name}' traverses outside the skill folder.`)
-  }
-}
-
-function isSymlinkEntry(entry: JSZip.JSZipObject): boolean {
-  const mode = entry.unixPermissions
-  return typeof mode === 'number' && (mode & S_IFMT) === S_IFLNK
 }
 
 export async function extractSkillArchive(artifact: Buffer): Promise<SkillArchive> {
@@ -71,7 +59,7 @@ export async function extractSkillArchive(artifact: Buffer): Promise<SkillArchiv
   }
 
   const entries = Object.values(zip.files)
-  if (entries.length > MAX_ENTRIES) {
+  if (entries.length > MAX_ARCHIVE_ENTRIES) {
     throw new ValidationError('The skill artifact has too many entries.')
   }
 
@@ -106,19 +94,19 @@ export async function extractSkillArchive(artifact: Buffer): Promise<SkillArchiv
       )
     }
     seenPathsFolded.add(folded)
-    if (isSymlinkEntry(entry)) {
+    if (isSymlinkUnixMode(entry.unixPermissions)) {
       throw new ValidationError(`The skill artifact entry '${entry.name}' is a symlink.`)
     }
     const declaredSize = readDeclaredUncompressedSize(entry)
-    if (declaredSize !== null && declaredSize > MAX_RESOURCE_BYTES) {
+    if (declaredSize !== null && declaredSize > MAX_ARCHIVE_ENTRY_BYTES) {
       throw new ValidationError(`The skill artifact entry '${entry.name}' exceeds the size limit.`)
     }
     const bytes = Buffer.from(await entry.async('nodebuffer'))
-    if (bytes.byteLength > MAX_RESOURCE_BYTES) {
+    if (bytes.byteLength > MAX_ARCHIVE_ENTRY_BYTES) {
       throw new ValidationError(`The skill artifact entry '${entry.name}' exceeds the size limit.`)
     }
     totalBytes += bytes.byteLength
-    if (totalBytes > MAX_TOTAL_UNCOMPRESSED_BYTES) {
+    if (totalBytes > MAX_ARCHIVE_TOTAL_UNCOMPRESSED_BYTES) {
       throw new ValidationError('The skill artifact inflates past the total size limit.')
     }
     resources.push({ relativePath: entry.name, bytes })

@@ -8,15 +8,16 @@ const item: HubAdminCatalogItem = {
   itemId: "daily-briefing",
   kind: "skill",
   status: "published",
-  publisherId: "vynel-team",
-  publisherName: "Vynel Team",
-  publisherTier: "verified",
+  publisherId: "acme",
+  publisherName: "Acme Tools",
+  publisherTier: "community",
+  publisherUrl: "https://acme.dev",
   displayName: "Daily Briefing",
   oneLineDescription: "A morning summary.",
   category: "productivity",
   iconName: "sunrise",
   recommendedScope: "user",
-  sourceUrl: null,
+  sourceUrl: "https://github.com/acme/tools/tree/abc1234/daily-briefing",
   minimumTier: "basic",
   createdAt: "2026-07-01T10:00:00.000Z",
   updatedAt: "2026-07-10T10:00:00.000Z",
@@ -91,6 +92,34 @@ describe("PublishVersionForm", () => {
     await fillAndSubmit(wrapper);
 
     expect(wrapper.text()).toContain("Reading the zip file was aborted.");
+  });
+
+  it("republishes the item's CURRENT publisher and sourceUrl verbatim", async () => {
+    // The regression this pins: the version-bump body once hardcoded the
+    // vynel-team publisher and omitted sourceUrl — every bump silently
+    // re-tiered the publisher and nulled the item's credit link.
+    stubFileReader("load");
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 201,
+      json: async () => ({ itemId: item.itemId, version: "1.0.0" }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const wrapper = mountForm();
+    await fillAndSubmit(wrapper);
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.publisher).toEqual({
+      id: "acme",
+      name: "Acme Tools",
+      tier: "community",
+      url: "https://acme.dev",
+    });
+    expect(body.item).toMatchObject({
+      sourceUrl: "https://github.com/acme/tools/tree/abc1234/daily-briefing",
+    });
   });
 
   it("resets the picked file — state AND the DOM input — after publishing", async () => {
