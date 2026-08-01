@@ -19,6 +19,7 @@ export type {
 export {
   SKILL_INSTALLED,
   SKILL_UNINSTALLED,
+  SKILL_UPDATED,
   SKILL_ENABLED_CHANGED,
   SKILL_SETTINGS_UPDATED,
 } from './skills-events.js'
@@ -26,6 +27,7 @@ export {
 export type {
   SkillInstalledPayload,
   SkillUninstalledPayload,
+  SkillUpdatedPayload,
   SkillEnabledChangedPayload,
   SkillSettingsUpdatedPayload,
 } from './skills-events.js'
@@ -44,6 +46,7 @@ export {
 } from './queries/list-installed-skills-for-user-and-workspace.js'
 export { installSkill, type InstallSkillInput } from './lifecycle/install-skill.js'
 export { installCloudSkill, type InstallCloudSkillInput } from './lifecycle/install-cloud-skill.js'
+export { updateCloudSkill, type UpdateCloudSkillInput } from './lifecycle/update-cloud-skill.js'
 export { uninstallSkill, type UninstallSkillInput } from './lifecycle/uninstall-skill.js'
 export { enableSkill, type EnableSkillInput } from './lifecycle/enable-skill.js'
 export { disableSkill, type DisableSkillInput } from './lifecycle/disable-skill.js'

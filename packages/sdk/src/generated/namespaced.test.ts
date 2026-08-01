@@ -88,18 +88,25 @@ const EXPECTED_SKILLS_METHODS = [
 
 // The marketplace namespace's methods, sorted. Two read GETs
 // (listItems / getItem) + install (M4b-2 — cloud artifact or bundled skill)
-// + uninstall (removal flows, 2026-07-13 — kind-dispatched like install);
-// none carry x-mcp (D9 — marketplace's reads are the join of skills' already-
-// exposed list_available + list_installed tools, redundant for the LLM).
-const EXPECTED_MARKETPLACE_METHODS = ['getItem', 'install', 'listItems', 'uninstall'] as const
+// + update (claude-official arc, 2026-08-01 — skills-only, to the catalog's
+// latest) + uninstall (removal flows, 2026-07-13 — kind-dispatched like
+// install). All five carry x-mcp (task 4b, 2026-07-26 — reverses D9).
+const EXPECTED_MARKETPLACE_METHODS = [
+  'getItem',
+  'install',
+  'listItems',
+  'uninstall',
+  'update',
+] as const
 
 // The marketplaceUser namespace's methods, sorted — the USER-scoped
 // `/marketplace` surface (the GLOBAL marketplace, 2026-07-13 — deliberate
-// spec addition): lists user+both items and installs/uninstalls at USER
-// scope. Distinct top namespace from the workspace-scoped `marketplace.*`
-// (the schedulesUser naming precedent). No getItem — the global section
-// renders from the list read alone. None carry x-mcp (D9, as above).
-const EXPECTED_MARKETPLACE_USER_METHODS = ['install', 'listItems', 'uninstall'] as const
+// spec addition): lists user+both items and installs/updates/uninstalls at
+// USER scope. Distinct top namespace from the workspace-scoped
+// `marketplace.*` (the schedulesUser naming precedent). No getItem — the
+// global section renders from the list read alone. None carry x-mcp (the
+// global surface stayed unexposed when task 4b exposed the workspace one).
+const EXPECTED_MARKETPLACE_USER_METHODS = ['install', 'listItems', 'uninstall', 'update'] as const
 
 // The schedules namespace's methods, sorted. The 3 read GETs (list /
 // listTemplates / listRuns) + the 6 mutating lifecycle routes all carry

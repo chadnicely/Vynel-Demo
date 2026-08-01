@@ -35,6 +35,7 @@ import {
   listInstalledSkillsForUserAndWorkspace,
   installSkill,
   installCloudSkill,
+  updateCloudSkill,
   uninstallSkill,
 } from '@vynel/skills'
 import { installCloudAgent, softDeleteAgent } from '@vynel/agents'
@@ -148,6 +149,61 @@ export async function installMarketplaceItem(
     { logger: ctx.logger },
   )
   return serializeInstalledSkillResponse(installed, itemId)
+}
+
+export type MarketplaceUpdateRequest = {
+  itemId: string
+  userId: string
+  // null = the GLOBAL surface (resolves against user-scope installs).
+  workspace: { id: string; path: string } | null
+}
+
+// Skills only — agents carry no installed version to compare (the annotator
+// returns null), so their update story is uninstall+reinstall until the
+// agent-update arc lands. The catalog's latest version is the only update
+// target: "update" always means "to what the card shows".
+export async function updateMarketplaceItem(
+  ctx: MarketplaceRequestContext,
+  request: MarketplaceUpdateRequest,
+) {
+  const { itemId, userId, workspace } = request
+  const item = getMarketplaceItem(
+    ctx.db,
+    { itemId, userId, ...surfaceSelectorFor(workspace) },
+    marketplaceDeps,
+  )
+  if (item.installStatus.kind !== 'installed') {
+    throw new NotFoundError('installed-item', itemId)
+  }
+  if (item.kind === 'agent') {
+    throw new ValidationError(
+      'Agent items cannot be updated in place yet — uninstall and reinstall to get the latest version.',
+    )
+  }
+  const cached = findCachedCloudItem(ctx.db, itemId)
+  const cloud = cached !== null && cached.kind === 'skill' ? cached : null
+  if (cloud === null) {
+    // Bundled-only items version with app releases; there is nothing newer
+    // to download.
+    throw new ValidationError('This item has no cloud version to update to.')
+  }
+  if (ctx.hubSession === undefined) {
+    throw new ValidationError('The hub is not available to download this update.')
+  }
+  const artifactBytes = await ctx.hubSession.downloadArtifact(itemId, cloud.latestVersion)
+  const updated = await updateCloudSkill(
+    ctx.db,
+    {
+      userId,
+      installedSkillId: item.installStatus.installedId,
+      workspacePath: workspace?.path ?? null,
+      artifactBytes,
+      expectedSha256: cloud.latestVersionSha256,
+      version: cloud.latestVersion,
+    },
+    { logger: ctx.logger },
+  )
+  return serializeInstalledSkillResponse(updated, itemId)
 }
 
 export type MarketplaceUninstallRequest = {

@@ -2585,6 +2585,107 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/marketplace/update": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The updated installed skill.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "skill"
+                    },
+                    "installedSkillId": {
+                      "type": "string"
+                    },
+                    "itemId": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "verified-catalog",
+                        "marketplace",
+                        "external"
+                      ]
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "installedSkillId",
+                    "itemId",
+                    "scope",
+                    "source",
+                    "version"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Agent item, no cloud version, or hub unavailable."
+          },
+          "404": {
+            "description": "Item not in catalog, not installed, OR workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdMarketplaceUpdate",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Update an installed skill to the catalog’s latest version.",
+        "x-sdk-name": "marketplace.update",
+        "x-mcp": {
+          "exposed": true,
+          "name": "update_marketplace_item",
+          "description": "Update an installed marketplace skill to the newest catalog version, by `itemId`. Use when the item shows a newer version than the installed one. Downloads and integrity-verifies the new artifact server-side, then replaces the installed SKILL.md. Skills only — agents must be uninstalled and reinstalled instead.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "itemId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "itemId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/marketplace/uninstall": {
       "post": {
         "responses": {
@@ -18809,6 +18910,92 @@
         "parameters": [],
         "summary": "Install a marketplace item at USER scope (available in every workspace).",
         "x-sdk-name": "marketplaceUser.install",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "itemId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "itemId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/marketplace/update": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The updated installed skill.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "skill"
+                    },
+                    "installedSkillId": {
+                      "type": "string"
+                    },
+                    "itemId": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace"
+                      ]
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "verified-catalog",
+                        "marketplace",
+                        "external"
+                      ]
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "installedSkillId",
+                    "itemId",
+                    "scope",
+                    "source",
+                    "version"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Agent item, no cloud version, or hub unavailable."
+          },
+          "404": {
+            "description": "Item not in the catalog, not surfaced at the user level, OR not installed at user scope."
+          }
+        },
+        "operationId": "postMarketplaceUpdate",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [],
+        "summary": "Update a USER-scope installed skill to the catalog’s latest version.",
+        "x-sdk-name": "marketplaceUser.update",
         "requestBody": {
           "content": {
             "application/json": {

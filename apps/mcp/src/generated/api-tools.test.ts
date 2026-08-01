@@ -160,6 +160,7 @@ const EXPECTED_TOOL_NAMES = [
   'uninstall_marketplace_item',
   'update_agent',
   'update_app',
+  'update_marketplace_item',
   'update_memory_entry',
   'update_plan',
   'update_task',

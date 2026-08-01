@@ -3073,6 +3073,44 @@ export const updateApp: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const updateMarketplaceItem: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'update_marketplace_item',
+    "Update an installed marketplace skill to the newest catalog version, by `itemId`. Use when the item shows a newer version than the installed one. Downloads and integrity-verifies the new artifact server-side, then replaces the installed SKILL.md. Skills only — agents must be uninstalled and reinstalled instead.",
+    {
+    workspaceId: z.string(),
+    itemId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/marketplace/update'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['itemId']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const updateMemoryEntry: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'update_memory_entry',
@@ -3272,6 +3310,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   uninstallMarketplaceItem,
   updateAgent,
   updateApp,
+  updateMarketplaceItem,
   updateMemoryEntry,
   updatePlan,
   updateTask,

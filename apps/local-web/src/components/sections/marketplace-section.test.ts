@@ -67,23 +67,27 @@ function makeClient(
   options: {
     items?: MarketplaceItem[];
     install?: (...args: unknown[]) => Promise<unknown>;
+    update?: (...args: unknown[]) => Promise<unknown>;
     uninstall?: (...args: unknown[]) => Promise<unknown>;
     userInstall?: (...args: unknown[]) => Promise<unknown>;
+    userUpdate?: (...args: unknown[]) => Promise<unknown>;
     userUninstall?: (...args: unknown[]) => Promise<unknown>;
   } = {},
 ) {
   const listItems = options.items ?? items;
   const install = options.install ?? (async () => installResult);
+  const update = options.update ?? (async () => installResult);
   const uninstall =
     options.uninstall ??
     (async () => ({ kind: "skill", installedSkillId: "sk1", itemId: "owned" }));
   return {
     hub: { getSession: async () => session },
-    marketplace: { listItems: async () => listItems, install, uninstall },
+    marketplace: { listItems: async () => listItems, install, update, uninstall },
     // The GLOBAL surface's endpoints — the same shelf, user scope.
     marketplaceUser: {
       listItems: async () => listItems,
       install: options.userInstall ?? (async () => installResult),
+      update: options.userUpdate ?? (async () => installResult),
       uninstall:
         options.userUninstall ??
         (async () => ({
@@ -286,6 +290,81 @@ describe("MarketplaceSection — uninstall", () => {
     await flushPromises();
 
     expect(wrapper.find(".row-action").exists()).toBe(false);
+    wrapper.unmount();
+  });
+});
+
+// Update appears ONLY on an installed skill whose catalog version moved past
+// the installed one — an up-to-date skill and an agent (versionInstalled
+// null) must never offer it, or the card promises an update the daemon
+// rejects.
+describe("MarketplaceSection — update flow", () => {
+  const updatableShelf: MarketplaceItem[] = [
+    makeItem({
+      itemId: "canvas-design",
+      displayName: "Canvas Design",
+      version: "1.1.0",
+      installStatus: {
+        kind: "installed",
+        scope: "workspace",
+        installedId: "sk-canvas",
+        versionInstalled: "1.0.0",
+      },
+    }),
+    makeItem({
+      itemId: "owned",
+      displayName: "Owned",
+      installStatus: {
+        kind: "installed",
+        scope: "workspace",
+        installedId: "sk1",
+        versionInstalled: "1.0.0",
+      },
+    }),
+    makeItem({
+      itemId: "focus-writer",
+      kind: "agent",
+      skillId: "focus-writer",
+      displayName: "Focus Writer",
+      version: "2.0.0",
+      installStatus: {
+        kind: "installed",
+        scope: "workspace",
+        installedId: "ag1",
+        versionInstalled: null,
+      },
+    }),
+  ];
+
+  it("shows Update only where the catalog is ahead, and drives the workspace endpoint", async () => {
+    const update = vi.fn(async () => installResult);
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      { items: updatableShelf, update },
+    );
+    await flushPromises();
+
+    const updateButtons = wrapper.findAll(".is-update");
+    expect(updateButtons).toHaveLength(1);
+
+    await updateButtons[0]!.trigger("click");
+    await flushPromises();
+    expect(update).toHaveBeenCalledWith("w1", { itemId: "canvas-design" });
+    wrapper.unmount();
+  });
+
+  it("drives the user-scoped endpoint on the GLOBAL surface", async () => {
+    const userUpdate = vi.fn(async () => installResult);
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      { items: updatableShelf, userUpdate },
+      { kind: "global" },
+    );
+    await flushPromises();
+
+    await wrapper.get(".is-update").trigger("click");
+    await flushPromises();
+    expect(userUpdate).toHaveBeenCalledWith({ itemId: "canvas-design" });
     wrapper.unmount();
   });
 });

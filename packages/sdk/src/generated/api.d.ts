@@ -306,6 +306,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/marketplace/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Update an installed skill to the catalog’s latest version. */
+        post: operations["postWorkspacesByWorkspaceIdMarketplaceUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/marketplace/uninstall": {
         parameters: {
             query?: never;
@@ -2049,6 +2066,23 @@ export interface paths {
         put?: never;
         /** Install a marketplace item at USER scope (available in every workspace). */
         post: operations["postMarketplaceInstall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/marketplace/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Update a USER-scope installed skill to the catalog’s latest version. */
+        post: operations["postMarketplaceUpdate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4070,6 +4104,58 @@ export interface operations {
             };
             /** @description Already installed at the requested scope. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdMarketplaceUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    itemId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The updated installed skill. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        kind: "skill";
+                        installedSkillId: string;
+                        itemId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        /** @enum {string} */
+                        source: "verified-catalog" | "marketplace" | "external";
+                        version: string;
+                    };
+                };
+            };
+            /** @description Agent item, no cloud version, or hub unavailable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Item not in catalog, not installed, OR workspace not found. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10553,6 +10639,56 @@ export interface operations {
             };
             /** @description Already installed at user scope. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postMarketplaceUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    itemId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The updated installed skill. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        kind: "skill";
+                        installedSkillId: string;
+                        itemId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        /** @enum {string} */
+                        source: "verified-catalog" | "marketplace" | "external";
+                        version: string;
+                    };
+                };
+            };
+            /** @description Agent item, no cloud version, or hub unavailable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Item not in the catalog, not surfaced at the user level, OR not installed at user scope. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

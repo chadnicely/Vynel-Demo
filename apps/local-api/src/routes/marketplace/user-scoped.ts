@@ -9,13 +9,16 @@
 //
 //   GET  /items      -> listMarketplaceItems (surface 'global')  [marketplaceUser.listItems]
 //   POST /install    -> user-scope install                       [marketplaceUser.install]
+//   POST /update     -> user-scope skill update (skills only)    [marketplaceUser.update]
 //   POST /uninstall  -> user-scope uninstall (per-kind dispatch) [marketplaceUser.uninstall]
 //
 // Install resolves the item ON this surface inside `item-lifecycle.ts`
 // (the ONE surface gate, shared with the workspace twin) — a workspace-only
 // item is not installable from here, and the 404 is identical to an
 // unknown id (no enumeration leak). The per-kind dispatch is shared
-// verbatim too. **No `x-mcp`** (D9, same as the workspace surface).
+// verbatim too. **No `x-mcp`** — the global surface stayed unexposed
+// when task 4b exposed the workspace one (agents install into the
+// workspace they run in).
 //
 // Locked Hono protocol: describeRoute -> validator -> `...userScoped` ->
 // handler on `factory.createApp()`; handlers THROW typed VynelError
@@ -32,6 +35,8 @@ import {
   ListMarketplaceItemsResponseSchema,
   InstallUserMarketplaceItemBodySchema,
   InstallMarketplaceItemResponseSchema,
+  UpdateMarketplaceItemBodySchema,
+  UpdateMarketplaceItemResponseSchema,
   UninstallMarketplaceItemBodySchema,
   UninstallMarketplaceItemResponseSchema,
 } from './schemas.js'
@@ -39,6 +44,7 @@ import { serializeMarketplaceItem } from './serializers.js'
 import {
   marketplaceDeps,
   installMarketplaceItem,
+  updateMarketplaceItem,
   uninstallMarketplaceItem,
 } from './item-lifecycle.js'
 
@@ -101,6 +107,34 @@ export const marketplaceUserApp = factory
         { itemId, userId: c.var.user.id, scope: 'user', workspace: null },
       )
       return c.json(installed, 201)
+    },
+  )
+  .post(
+    '/update',
+    describeRoute({
+      tags: ['marketplace'],
+      summary: 'Update a USER-scope installed skill to the catalog’s latest version.',
+      'x-sdk-name': 'marketplaceUser.update',
+      responses: {
+        200: {
+          description: 'The updated installed skill.',
+          content: { 'application/json': { schema: resolver(UpdateMarketplaceItemResponseSchema) } },
+        },
+        400: { description: 'Agent item, no cloud version, or hub unavailable.' },
+        404: { description: 'Item not in the catalog, not surfaced at the user level, OR not installed at user scope.' },
+      },
+    }),
+    validator('json', UpdateMarketplaceItemBodySchema),
+    ...userScoped,
+    async (c) => {
+      const { itemId } = c.req.valid('json')
+      // Resolves against USER-scoped installs only (surface 'global'); the
+      // user-scope disk home needs no workspace path.
+      const updated = await updateMarketplaceItem(
+        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger },
+        { itemId, userId: c.var.user.id, workspace: null },
+      )
+      return c.json(updated)
     },
   )
   .post(

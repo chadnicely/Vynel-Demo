@@ -1,7 +1,8 @@
 // Outbox event type constants + payload interfaces for the
-// `skills` domain. Per D16: four lifecycle events —
-// `skill.installed`, `skill.uninstalled`,
-// `skill.enabled-changed`, `skill.settings-updated`.
+// `skills` domain. Per D16: the lifecycle events —
+// `skill.installed`, `skill.uninstalled`, `skill.updated`
+// (claude-official arc, 2026-08-01), `skill.enabled-changed`,
+// `skill.settings-updated`.
 //
 // Each event row is co-committed in the same sync
 // `withTransaction(db, (tx) => …)` block as the state change via the
@@ -18,6 +19,7 @@
 
 export const SKILL_INSTALLED = 'skill.installed' as const
 export const SKILL_UNINSTALLED = 'skill.uninstalled' as const
+export const SKILL_UPDATED = 'skill.updated' as const
 export const SKILL_ENABLED_CHANGED = 'skill.enabled-changed' as const
 export const SKILL_SETTINGS_UPDATED = 'skill.settings-updated' as const
 
@@ -30,6 +32,17 @@ export type SkillInstalledPayload = {
   version: string
   source: 'verified-catalog' | 'marketplace' | 'external'
   installedAt: string
+}
+
+export type SkillUpdatedPayload = {
+  installedSkillId: string
+  userId: string
+  workspaceId: string | null
+  skillId: string
+  scope: 'user' | 'workspace'
+  previousVersion: string
+  version: string
+  updatedAt: string
 }
 
 export type SkillUninstalledPayload = {

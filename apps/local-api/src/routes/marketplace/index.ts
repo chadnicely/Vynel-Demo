@@ -1,7 +1,7 @@
 // HTTP routes for the `marketplace` domain's WORKSPACE surface, mounted
-// under `/workspaces/:workspaceId/marketplace`. Four routes: `GET /items`
+// under `/workspaces/:workspaceId/marketplace`. Five routes: `GET /items`
 // (list, annotated with install status) + `GET /items/:itemId` (detail) +
-// `POST /install` + `POST /uninstall`. Owner-filtered via
+// `POST /install` + `POST /update` + `POST /uninstall`. Owner-filtered via
 // `...workspaceScoped`. This surface lists items whose scope is
 // 'workspace' or 'both' (`surface: 'workspace'`); the GLOBAL twin lives
 // in `user-scoped.ts`. The per-kind install/uninstall dispatch and the
@@ -12,7 +12,7 @@
 // the old D7): a CLOUD item requires a server-side download + sha256 verify
 // before install, so the dispatch keys on cache membership — a cached
 // cloud item downloads its verified artifact, a bundled item renders its
-// in-code template. **All four routes are `x-mcp`-exposed** (task 4b, Chad
+// in-code template. **All five routes are `x-mcp`-exposed** (task 4b, Chad
 // 2026-07-26 — reverses D9's no-exposure call: install/uninstall are genuinely
 // useful agent tools, and they need the reads for itemId discovery, which the
 // skills lists don't carry).
@@ -38,6 +38,8 @@ import {
   MarketplaceItemSchema,
   InstallMarketplaceItemBodySchema,
   InstallMarketplaceItemResponseSchema,
+  UpdateMarketplaceItemBodySchema,
+  UpdateMarketplaceItemResponseSchema,
   UninstallMarketplaceItemBodySchema,
   UninstallMarketplaceItemResponseSchema,
 } from './schemas.js'
@@ -45,6 +47,7 @@ import { serializeMarketplaceItem } from './serializers.js'
 import {
   marketplaceDeps,
   installMarketplaceItem,
+  updateMarketplaceItem,
   uninstallMarketplaceItem,
 } from './item-lifecycle.js'
 
@@ -180,6 +183,53 @@ export const marketplaceApp = factory
         },
       )
       return c.json(installed, 201)
+    },
+  )
+  .post(
+    '/update',
+    describeRoute({
+      tags: ['marketplace'],
+      summary: 'Update an installed skill to the catalog’s latest version.',
+      'x-sdk-name': 'marketplace.update',
+      // Overwrites the installed SKILL.md with the newer official bytes —
+      // mutating (cards in ask mode) but not the DELETE tier: nothing is
+      // removed and a re-run is a repair.
+      'x-mcp': {
+        exposed: true,
+        name: 'update_marketplace_item',
+        description:
+          'Update an installed marketplace skill to the newest catalog version, by `itemId`. ' +
+          'Use when the item shows a newer version than the installed one. Downloads and ' +
+          'integrity-verifies the new artifact server-side, then replaces the installed ' +
+          'SKILL.md. Skills only — agents must be uninstalled and reinstalled instead.',
+        mutatingApproved: true,
+      },
+      responses: {
+        200: {
+          description: 'The updated installed skill.',
+          content: { 'application/json': { schema: resolver(UpdateMarketplaceItemResponseSchema) } },
+        },
+        400: { description: 'Agent item, no cloud version, or hub unavailable.' },
+        404: { description: 'Item not in catalog, not installed, OR workspace not found.' },
+      },
+    }),
+    validator('json', UpdateMarketplaceItemBodySchema),
+    ...workspaceScoped,
+    async (c) => {
+      const { itemId } = c.req.valid('json')
+      const workspace = c.var.workspace!
+      // Resolution + the skills-only dispatch live in `item-lifecycle.ts`,
+      // shared with the user-scoped twin. Targets the SAME row the card
+      // shows as "Installed" (the annotator's resolution).
+      const updated = await updateMarketplaceItem(
+        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger },
+        {
+          itemId,
+          userId: c.var.user.id,
+          workspace: { id: workspace.id, path: workspace.path },
+        },
+      )
+      return c.json(updated)
     },
   )
   .post(

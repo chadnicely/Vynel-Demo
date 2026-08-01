@@ -179,6 +179,20 @@ trust-review step per curated plugin is unavoidable anyway. That is fine: curati
 5. **Phase B timing:** start after Phase A, or park until the `mcp`-kind forks are decided
    (recommended: park; Phase A alone delivers the visible win).
 
+## Deferred (named, not silent — from the Move-2 review, 2026-08-01)
+
+- **Bundled-only Update-button truth gap:** `hasUpdate` fires on any installed skill whose
+  `versionInstalled !== item.version`, but a bundled-only item (no cloud cache row) 400s at the
+  daemon ("no cloud version to update to") — error surfaces on the card, not silent, but it's the
+  dead-button pattern the merge avoids. Honest fix = an explicit wire signal (`hasCloudArtifact`
+  or daemon-computed `updateAvailable`) on `MarketplaceItem`.
+- **Template-clobber drift class (pre-existing, widened):** for an id that is BOTH bundled and
+  cloud, `enableSkill` / `updateSkillSettings` re-render SKILL.md from the bundled template over
+  marketplace bytes while the row keeps the cloud `versionInstalled`. Follow-up: gate template
+  re-render on `installedFromSource !== 'marketplace'` (or persist extracted markdown).
+- **sha-verify duplication:** the hash-compare block is verbatim in `install-cloud-skill.ts` and
+  `update-cloud-skill.ts` — extract a shared `verifyArtifactSha256` internal on next touch.
+
 **Standing requirement (Chad, 2026-08-01): native-disk interop.** Every installed item lands in
 the standard Claude ecosystem location so it works when the user runs Claude Code directly —
 extends the disk-visibility rule (marketplace-kinds.md §"Disk visibility") from "user can SEE it"

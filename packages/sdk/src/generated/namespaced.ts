@@ -711,6 +711,14 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  update: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/marketplace/update"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/marketplace/update"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/marketplace/update", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   },
   marketplaceUser: {
   install: async (input: NonNullable<paths["/marketplace/install"]["post"]['requestBody']>['content']['application/json']) => {
@@ -729,6 +737,13 @@ export function makeNamespaced(client: Client<paths>) {
   },
   uninstall: async (input: NonNullable<paths["/marketplace/uninstall"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/marketplace/uninstall", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  update: async (input: NonNullable<paths["/marketplace/update"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/marketplace/update", {
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

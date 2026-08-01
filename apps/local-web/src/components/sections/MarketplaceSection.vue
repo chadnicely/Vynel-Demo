@@ -7,6 +7,7 @@ import type { SectionScope } from "./section-scope.js";
 import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
 import { useMarketplaceItems } from "../../composables/marketplace/use-marketplace-items.js";
 import { useInstallMarketplaceItem } from "../../composables/marketplace/use-install-marketplace-item.js";
+import { useUpdateMarketplaceItem } from "../../composables/marketplace/use-update-marketplace-item.js";
 import { useUninstallMarketplaceItem } from "../../composables/marketplace/use-uninstall-marketplace-item.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import MarketplaceItemCard from "./MarketplaceItemCard.vue";
@@ -84,6 +85,12 @@ function isInstalling(itemId: string): boolean {
   return install.isPending.value && install.variables.value?.itemId === itemId;
 }
 
+const update = useUpdateMarketplaceItem();
+
+function isUpdating(itemId: string): boolean {
+  return update.isPending.value && update.variables.value?.itemId === itemId;
+}
+
 // Removing is irreversible (a skill's settings die with the row; a cloud item
 // re-downloads on the next Get) — so, per the AccountDeviceRow / Notebook
 // idiom, Remove arms first and only a second explicit click uninstalls.
@@ -112,6 +119,9 @@ function isRemoving(itemId: string): boolean {
 function cardErrorFor(itemId: string): string | null {
   if (install.isError.value && install.variables.value?.itemId === itemId) {
     return formatSdkError(install.error.value);
+  }
+  if (update.isError.value && update.variables.value?.itemId === itemId) {
+    return formatSdkError(update.error.value);
   }
   if (uninstall.isError.value && uninstall.variables.value?.itemId === itemId) {
     return formatSdkError(uninstall.error.value);
@@ -204,10 +214,12 @@ function cardErrorFor(itemId: string): string | null {
           :item="item"
           :is-pro="isPro"
           :is-installing="isInstalling(item.itemId)"
+          :is-updating="isUpdating(item.itemId)"
           :is-removing="isRemoving(item.itemId)"
           :is-remove-armed="armedRemoveItemId === item.itemId"
           :error-message="cardErrorFor(item.itemId)"
           @install="install.mutate({ scope: props.scope, itemId: item.itemId })"
+          @update="update.mutate({ scope: props.scope, itemId: item.itemId })"
           @remove-request="requestRemove(item.itemId)"
           @remove-blur="disarmRemove(item.itemId)"
         />

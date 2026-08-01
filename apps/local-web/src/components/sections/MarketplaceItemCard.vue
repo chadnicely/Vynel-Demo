@@ -18,6 +18,7 @@ const props = defineProps<{
   item: MarketplaceItem;
   isPro: boolean;
   isInstalling: boolean;
+  isUpdating: boolean;
   isRemoving: boolean;
   isRemoveArmed: boolean;
   errorMessage: string | null;
@@ -25,6 +26,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   install: [];
+  update: [];
   "remove-request": [];
   "remove-blur": [];
 }>();
@@ -44,6 +46,23 @@ const monogram = computed(() => workspaceMonogram(props.item.displayName));
 
 const isInstalled = computed(
   () => props.item.installStatus.kind === "installed",
+);
+
+// Skills only — agents carry no installed version (null), so their card can
+// never claim an update it can't perform. `item.version` is the catalog's
+// latest (cloud-wins merge), the only update target. Deliberately `!==`, not
+// "newer than": a cloud-wins downgrade is still "get what the card shows",
+// and installed versions aren't guaranteed semver ('unknown' for external).
+const hasUpdate = computed(
+  () =>
+    props.item.kind === "skill" &&
+    props.item.installStatus.kind === "installed" &&
+    props.item.installStatus.versionInstalled !== null &&
+    props.item.installStatus.versionInstalled !== props.item.version,
+);
+
+const updateLabel = computed(() =>
+  props.isUpdating ? "Updating…" : "Update",
 );
 
 // Display-only: the real install gate is server-side. Shows while the user
@@ -131,6 +150,18 @@ const removeLabel = computed(() => {
         >
           <Check v-if="isInstalled" :size="11" />
           {{ installLabel }}
+        </button>
+        <!-- Update replaces the installed SKILL.md with the catalog's newer
+             version; the card's version line already shows the target. -->
+        <button
+          v-if="hasUpdate"
+          type="button"
+          class="pill is-update inline-flex cursor-default items-center rounded-full bg-info/15 px-2.5 py-px text-[11px] font-semibold text-info transition hover:bg-info/25 disabled:opacity-55"
+          :disabled="isUpdating"
+          :aria-label="`Update ${item.displayName} to v${item.version}`"
+          @click="emit('update')"
+        >
+          {{ updateLabel }}
         </button>
         <!-- Removal dispatches by installed kind server-side and flips the
              card back to Get; the arm-then-confirm two-step guards it. -->
