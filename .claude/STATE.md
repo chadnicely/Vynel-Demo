@@ -35,7 +35,24 @@ Remaining marketplace items = the module-notes deferred lists.
 checkboxes: ① skills install/uninstall-only ② polish batch ③ mcp/rule kinds + plugin updates
 ④ ops/production hardening — check items off as they land).
 
-## ✅ ARC 1 SKILLS INSTALL/UNINSTALL-ONLY — CODE-COMPLETE (2026-08-01), UNCOMMITTED
+## ✅ ARC 2 MARKETPLACE POLISH BATCH — CODE-COMPLETE (2026-08-02), UNCOMMITTED
+
+All four items landed (checklist in `.claude/plan/marketplace-remaining.md` Arc 2):
+① `MarketplaceItem.hasCloudArtifact` truth signal (cloud mapper sets it for skill rows only,
+bundled resolver false; card's `hasUpdate` gates on it — no dead Update buttons) ② portal
+Publisher column + `sourceUrl` edit end-to-end (registry zod mirrors publish-input,
+repo patch, metadata-form input) ③ plugin-reader seam folded into app injection
+(`marketplaceInstalledPluginsReader`, `marketplaceDepsWith()`; the providers module-mock
+hack is gone; all marketplace route tests hermetic) ④ housekeeping: shared
+`verify-artifact-sha256.ts`, marketplace MCP descriptions mention plugins,
+template-clobber settings-half guard in `update-skill-settings` (+ regression tests).
+Module-notes deferred lists updated (5 entries CLOSED). SDK+MCP regenerated; parity ×4 OK.
+Reviewer CLEAN (its allowlist tightening on the settings guard applied:
+`=== 'verified-catalog'`). **Full gate GREEN 2026-08-02 (3441 passed / 613 files).**
+Awaiting Chad's commit. Remaining marketplace arcs: ③ mcp/rule kinds + plugin updates
+(needs Chad's calls) · ④ ops hardening.
+
+## ✅ ARC 1 SKILLS INSTALL/UNINSTALL-ONLY — SHIPPED (`03ce7c5`, pushed 2026-08-02)
 
 The enable/disable pause state is GONE (reverses D11; full checklist ticked in
 `.claude/plan/marketplace-remaining.md` Arc 1): `isEnabled` column dropped (migration

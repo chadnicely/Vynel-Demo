@@ -13,13 +13,14 @@
 // Throws: ValidationError (sha mismatch / bad archive / missing workspace
 // path), NotFoundError (row missing or another user's — no enumeration leak).
 
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { withTransaction, type Database } from '@vynel/db'
 import { NotFoundError, ValidationError } from '@vynel/errors'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import * as installedSkillsRepository from '../repositories/index.js'
 import type { InstalledSkillRow } from '../repositories/index.js'
 import { extractSkillArchive } from '../internal/extract-skill-archive.js'
+import { verifyArtifactSha256 } from '../internal/verify-artifact-sha256.js'
 import { writeCloudSkillOnDisk } from '../internal/write-cloud-skill-on-disk.js'
 import type { StructuralLogger } from '../skills-types.js'
 import { SKILL_UPDATED, type SkillUpdatedPayload } from '../skills-events.js'
@@ -40,13 +41,8 @@ export async function updateCloudSkill(
   input: UpdateCloudSkillInput,
   deps: { logger?: StructuralLogger } = {},
 ): Promise<InstalledSkillRow> {
-  // 1. Integrity check FIRST (lowercase both sides — hub hex may be upper).
-  const actualSha256 = createHash('sha256').update(input.artifactBytes).digest('hex')
-  if (actualSha256.toLowerCase() !== input.expectedSha256.toLowerCase()) {
-    throw new ValidationError(
-      'The downloaded skill update failed its integrity check (sha256 mismatch) — update aborted.',
-    )
-  }
+  // 1. Integrity check FIRST — never parse/write unverified bytes.
+  verifyArtifactSha256(input.artifactBytes, input.expectedSha256, 'update')
 
   // 2. Extract the full folder from the verified archive. The writer's
   //    stage-and-swap also drops files the new version no longer ships.

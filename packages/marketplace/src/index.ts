@@ -23,6 +23,7 @@ export type {
 export type {
   InstalledSkillView,
   InstalledAgentView,
+  InstalledPluginView,
   MarketplaceDeps,
   MarketplaceInstallOwner,
 } from './marketplace-types.js'

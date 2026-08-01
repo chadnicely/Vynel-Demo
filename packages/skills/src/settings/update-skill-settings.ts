@@ -1,7 +1,9 @@
 // Updates the per-installation settings of an installed skill.
 // Validates every value against the catalog schema, persists the
 // upserts atomically with an outbox event, then re-renders the
-// on-disk SKILL.md from the new resolved settings.
+// on-disk SKILL.md from the new resolved settings — for
+// bundled-template rows only (a marketplace row's disk bytes are
+// the cloud artifact; see the guard below).
 //
 // Throws:
 //   - `NotFoundError('installed-skill', id)` — row missing OR
@@ -79,19 +81,26 @@ export async function updateSkillSettings(
     })
   })
 
-  // Re-render SKILL.md from the new resolved settings — installed means
-  // present on disk, so the render is unconditional.
-  const stored = skillSettingsRepository.listSettingsForInstalledSkill(db, input.installedSkillId)
-  const resolved = resolveSkillSettings(definition, stored)
-  const fsInput: Parameters<typeof installSkillOnDisk>[0] = {
-    skillDefinition: definition,
-    scope: row.scope,
-    resolvedSettings: resolved,
+  // Re-render SKILL.md from the new resolved settings — but only for rows
+  // whose disk bytes CAME from the bundled template (allowlist, not
+  // denylist: a marketplace row's folder is the cloud artifact, and an
+  // external row with a colliding skillId is someone's hand-made folder —
+  // rendering the template over either silently clobbers content the user
+  // chose; the template-clobber drift class, module-notes). Settings still
+  // persist and resolve for every source.
+  if (row.installedFromSource === 'verified-catalog') {
+    const stored = skillSettingsRepository.listSettingsForInstalledSkill(db, input.installedSkillId)
+    const resolved = resolveSkillSettings(definition, stored)
+    const fsInput: Parameters<typeof installSkillOnDisk>[0] = {
+      skillDefinition: definition,
+      scope: row.scope,
+      resolvedSettings: resolved,
+    }
+    if (row.scope === 'workspace' && input.workspacePath !== undefined) {
+      fsInput.workspacePath = input.workspacePath
+    }
+    await installSkillOnDisk(fsInput)
   }
-  if (row.scope === 'workspace' && input.workspacePath !== undefined) {
-    fsInput.workspacePath = input.workspacePath
-  }
-  await installSkillOnDisk(fsInput)
 
   const final = skillSettingsRepository.listSettingsForInstalledSkill(db, input.installedSkillId)
   return resolveSkillSettings(definition, final)

@@ -57,6 +57,8 @@ import {
   claudePluginDelegate,
   type MarketplacePluginDelegate,
 } from './services/marketplace-plugin-delegate.js'
+import { listInstalledClaudePlugins } from '@vynel/providers'
+import type { InstalledPluginView } from '@vynel/marketplace'
 import { featureGate } from './middleware/feature-gate.js'
 import { workspacesApp } from './routes/workspaces/index.js'
 import { hubApp } from './routes/hub/index.js'
@@ -117,6 +119,11 @@ export interface CreateAppOptions {
   // CLI seam). Production omits it (the real CLI); a route test injects a
   // fake so the HTTP stack never runs `claude plugin` commands.
   readonly marketplacePluginDelegate?: MarketplacePluginDelegate
+  // Override the marketplace's installed-plugin registry reader (the
+  // delegate's read twin). Production omits it (the provider's real
+  // `~/.claude/plugins` reader); a route test injects a stub so unmocked
+  // list routes never read this machine's registry.
+  readonly marketplaceInstalledPluginsReader?: () => InstalledPluginView[]
   // The `ask_user` waiter registry — one per process. Injectable so a test can
   // park/resolve waiters around a route call; production omits it and gets a
   // fresh instance.
@@ -200,6 +207,10 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
     if (options.hubSession !== undefined) c.set('hubSession', options.hubSession)
     c.set('marketplacePluginDelegate', options.marketplacePluginDelegate ?? claudePluginDelegate)
+    c.set(
+      'marketplaceInstalledPluginsReader',
+      options.marketplaceInstalledPluginsReader ?? listInstalledClaudePlugins,
+    )
     await next()
   })
 

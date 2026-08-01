@@ -85,6 +85,7 @@ function isKind(tab: KindTab): tab is HubItemKind {
           <th>Name</th>
           <th>Item id</th>
           <th>Kind</th>
+          <th>Publisher</th>
           <th>Status</th>
           <th>Min tier</th>
           <th>Latest</th>
@@ -101,6 +102,7 @@ function isKind(tab: KindTab): tab is HubItemKind {
           <td>{{ item.displayName }}</td>
           <td class="mono">{{ item.itemId }}</td>
           <td><KindChip :kind="item.kind" /></td>
+          <td>{{ item.publisherName }}</td>
           <td><StatusChip :status="item.status" /></td>
           <td>{{ item.minimumTier }}</td>
           <td class="mono">{{ latestVersion(item.versions) }}</td>

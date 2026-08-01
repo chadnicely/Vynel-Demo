@@ -184,7 +184,7 @@ export const skillsApp = factory
     '/installed/:installedSkillId/settings',
     describeRoute({
       tags: ['skills'],
-      summary: 'Update settings on an installed skill — re-renders SKILL.md.',
+      summary: 'Update settings on an installed skill — re-renders SKILL.md (template installs).',
       'x-sdk-name': 'skills.updateSettings',
       responses: {
         200: {

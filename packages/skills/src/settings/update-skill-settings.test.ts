@@ -11,7 +11,10 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { NotFoundError, ValidationError } from '@vynel/errors'
+import { createHash } from 'node:crypto'
+import JSZip from 'jszip'
 import { installSkill } from '../lifecycle/install-skill.js'
+import { installCloudSkill } from '../lifecycle/install-cloud-skill.js'
 import { updateSkillSettings } from './update-skill-settings.js'
 import { withHomeDir } from '../internal/resolve-host-home-dir.js'
 import { SKILL_SETTINGS_UPDATED } from '../skills-events.js'
@@ -90,6 +93,42 @@ describe('updateSkillSettings', () => {
         expect(payload.changedSettingKeys.sort()).toEqual(
           ['defaultSignOff', 'tonePreference'].sort(),
         )
+      })
+    })
+  })
+
+  it('persists settings for a marketplace row WITHOUT clobbering its cloud bytes', async () => {
+    await withFsAndDb(async (workspacePath, withDb) => {
+      await withDb(async (db) => {
+        const user = insertUser(db, makeUser())
+        insertWorkspace(db, makeWorkspace(user.id, workspacePath))
+        // email-drafter is a bundled∩cloud id — the case the guard exists
+        // for: a marketplace-sourced install whose skillId also resolves a
+        // bundled template definition.
+        const zip = new JSZip()
+        zip.file('SKILL.md', '# Email Drafter — CLOUD v9')
+        const bytes = await zip.generateAsync({ type: 'nodebuffer' })
+        const installed = await installCloudSkill(db, {
+          userId: user.id,
+          workspaceId: null,
+          workspacePath: null,
+          itemId: 'email-drafter',
+          scope: 'user',
+          artifactBytes: bytes,
+          expectedSha256: createHash('sha256').update(bytes).digest('hex'),
+          version: '9.0.0',
+        })
+
+        const resolved = await updateSkillSettings(db, {
+          userId: user.id,
+          installedSkillId: installed.id,
+          newSettings: { defaultSignOff: 'Cheers,' },
+        })
+        expect(resolved.defaultSignOff).toBe('Cheers,')
+
+        // The cloud artifact's bytes survive — no bundled-template render.
+        const content = await readFile(installed.installLocation, 'utf8')
+        expect(content).toBe('# Email Drafter — CLOUD v9')
       })
     })
   })

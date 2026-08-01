@@ -21,6 +21,10 @@ import type { HubCatalogItem } from '@vynel/contracts/hub/catalog'
 import { createApp } from '../../app.js'
 
 const silentLogger = pino({ level: 'silent' })
+
+// Hermetic plugin registry: the injectable reader seam keeps the list
+// annotator off this machine's real ~/.claude/plugins.
+const noInstalledPlugins = () => []
 let tmp: string
 
 beforeEach(async () => {
@@ -123,7 +127,7 @@ describe('POST /marketplace/uninstall', () => {
   it('uninstalls an installed SKILL item and flips its card back to not-installed', async () => {
     await withTestDatabase(async (db) => {
       const { workspace } = seed(db)
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}), marketplaceInstalledPluginsReader: noInstalledPlugins })
 
       const installRes = await installReq(app, workspace.id, 'email-drafter')
       expect(installRes.status).toBe(201)
@@ -147,7 +151,7 @@ describe('POST /marketplace/uninstall', () => {
       const { bytes, sha } = await agentArtifactZip()
       syncCloudCatalog(db, [cloudAgentItem(sha)], new Date())
       const downloadArtifact = vi.fn().mockResolvedValue(bytes)
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({ downloadArtifact }) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({ downloadArtifact }), marketplaceInstalledPluginsReader: noInstalledPlugins })
 
       const installRes = await installReq(app, workspace.id, 'focus-writer')
       expect(installRes.status).toBe(201)
@@ -173,7 +177,7 @@ describe('POST /marketplace/uninstall', () => {
   it('answers 404 for a catalog item that is not installed', async () => {
     await withTestDatabase(async (db) => {
       const { workspace } = seed(db)
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}), marketplaceInstalledPluginsReader: noInstalledPlugins })
 
       const res = await uninstallReq(app, workspace.id, 'email-drafter')
       expect(res.status).toBe(404)
@@ -187,7 +191,7 @@ describe('POST /marketplace/uninstall', () => {
   it('answers 404 for an unknown itemId (catalog miss)', async () => {
     await withTestDatabase(async (db) => {
       const { workspace } = seed(db)
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}), marketplaceInstalledPluginsReader: noInstalledPlugins })
 
       const res = await uninstallReq(app, workspace.id, 'never-published')
       expect(res.status).toBe(404)
@@ -203,7 +207,7 @@ describe('POST /marketplace/uninstall', () => {
       const { user, workspace } = seed(db)
       const { sha } = await agentArtifactZip()
       syncCloudCatalog(db, [cloudAgentItem(sha)], new Date())
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}), marketplaceInstalledPluginsReader: noInstalledPlugins })
 
       // Built in the agent builder (`source: 'user'`), NOT installed from
       // the marketplace — its slug happens to equal the catalog itemId.
@@ -255,7 +259,7 @@ describe('POST /marketplace/uninstall', () => {
       const { bytes, sha } = await agentArtifactZip()
       syncCloudCatalog(db, [cloudAgentItem(sha)], new Date())
       const downloadArtifact = vi.fn().mockResolvedValue(bytes)
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({ downloadArtifact }) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({ downloadArtifact }), marketplaceInstalledPluginsReader: noInstalledPlugins })
 
       expect((await installReq(app, workspace.id, 'email-drafter')).status).toBe(201)
       expect((await installReq(app, workspace.id, 'focus-writer')).status).toBe(201)

@@ -64,6 +64,10 @@ function verifiedSkillToMarketplaceItem(skill: VerifiedSkillDefinition): Marketp
     recommendedScope: skill.recommendedScope,
     scope: BUNDLED_ITEM_SCOPES[skill.skillId] ?? 'both',
     isOfficial: true,
+    // Bundled items version with app releases — nothing to download, so
+    // the Update button never shows for them. A same-id cloud row
+    // replaces this whole item at the merge (cloud wins).
+    hasCloudArtifact: false,
     // Annotated downstream by `annotateWithInstallStatus`. The
     // resolver returns the not-installed default so callers can use
     // the result as a `MarketplaceItem[]` even before annotation —

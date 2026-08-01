@@ -1059,7 +1059,7 @@ export const installCuratedAgent: McpToolFactory = (scope, app) =>
 export const installMarketplaceItem: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'install_marketplace_item',
-    "Install a marketplace item (a skill or agent) into this workspace. `itemId` from list_marketplace_items; `scope` \"workspace\" or \"user\" (user-scope = available in every workspace). Cloud artifacts are downloaded and integrity-verified server-side. Reversible via uninstall_marketplace_item. Side effect: the capability becomes available in sessions and appears in the user's panels.",
+    "Install a marketplace item (a skill, agent, or plugin) into this workspace. `itemId` from list_marketplace_items; `scope` \"workspace\" or \"user\" (user-scope = available in every workspace; plugins are always user-scope). Cloud artifacts are downloaded and integrity-verified server-side; plugins install through Claude Code's own plugin system. Reversible via uninstall_marketplace_item. Side effect: the capability becomes available in sessions and appears in the user's panels.",
     {
     workspaceId: z.string(),
     itemId: z.string(),
@@ -1656,7 +1656,7 @@ export const listKnowledgeSources: McpToolFactory = (scope, app) =>
 export const listMarketplaceItems: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_marketplace_items',
-    "Browse the marketplace for this workspace — skills and agents the user can install, each annotated with its install state. Optional filters: `category`, `publisherTier`, `installState`, `searchQuery`, `sortBy`. Use when the user wants a capability Vynel does not have yet (\"can you do X?\") — find the item, then install_marketplace_item with its id. Read-only.",
+    "Browse the marketplace for this workspace — skills, agents, and plugins the user can install, each annotated with its install state. Optional filters: `category`, `publisherTier`, `installState`, `searchQuery`, `sortBy`. Use when the user wants a capability Vynel does not have yet (\"can you do X?\") — find the item, then install_marketplace_item with its id. Read-only.",
     {
     workspaceId: z.string(),
     category: z.enum(['email', 'documents', 'calendar', 'files', 'research', 'notes', 'context', 'creative', 'communication']).optional(),
@@ -2945,7 +2945,7 @@ export const stopMonitor: McpToolFactory = (scope, app) =>
 export const uninstallMarketplaceItem: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'uninstall_marketplace_item',
-    "Uninstall a marketplace item from this workspace by `itemId`. A skill uninstall hard-deletes its files (re-install is possible but any local edits are lost); an agent uninstall is a soft-delete. Confirm intent when the user names the item loosely.",
+    "Uninstall a marketplace item from this workspace by `itemId`. A skill uninstall hard-deletes its files (re-install is possible but any local edits are lost); an agent uninstall is a soft-delete; a plugin uninstall removes it via Claude Code's plugin system. Confirm intent when the user names the item loosely.",
     {
     workspaceId: z.string(),
     itemId: z.string(),
@@ -3076,7 +3076,7 @@ export const updateApp: McpToolFactory = (scope, app) =>
 export const updateMarketplaceItem: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'update_marketplace_item',
-    "Update an installed marketplace skill to the newest catalog version, by `itemId`. Use when the item shows a newer version than the installed one. Downloads and integrity-verifies the new artifact server-side, then replaces the installed SKILL.md. Skills only — agents must be uninstalled and reinstalled instead.",
+    "Update an installed marketplace skill to the newest catalog version, by `itemId`. Use when the item shows a newer version than the installed one. Downloads and integrity-verifies the new artifact server-side, then replaces the installed SKILL.md. Skills only — agents and plugins must be uninstalled and reinstalled instead.",
     {
     workspaceId: z.string(),
     itemId: z.string(),

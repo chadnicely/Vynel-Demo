@@ -87,6 +87,12 @@ export type MarketplaceItem = {
    * match anchor (full key, never bare name — a same-named plugin from
    * another marketplace must not cross-match). */
   pluginKey?: string
+  /** True only when the hub carries a downloadable artifact the update
+   * route can serve (a cloud-cached SKILL item). Bundled-only items
+   * version with app releases — nothing newer to download — so the card
+   * gates its Update button on this instead of showing one the daemon
+   * would 400. */
+  hasCloudArtifact: boolean
   installStatus: MarketplaceItemInstallStatus
   /** Cloud items only: the access tier required to INSTALL. The UI shows a
    * "Pro" badge from this vs the current entitlement (display only — the real

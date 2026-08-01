@@ -90,6 +90,10 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
     ...(pluginManifest !== null
       ? { pluginKey: `${pluginManifest.pluginName}@${pluginManifest.marketplaceName}` }
       : {}),
+    // Only skill rows have an artifact the UPDATE route will serve —
+    // agents update by uninstall+reinstall, plugins via the CLI delegate
+    // (their update slice is a recorded Arc-3 item; widen this then).
+    hasCloudArtifact: kind === 'skill',
     installStatus: { kind: 'not-installed' },
     minimumTier: row.minimumTier === 'pro' ? 'pro' : 'basic',
   }

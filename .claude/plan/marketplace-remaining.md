@@ -30,20 +30,22 @@ and absent. Remove the enable/disable pause state (reverses skills D11).
 - Verified: scoped checks green, then the **full `pnpm test` gate GREEN 2026-08-02**
   (3439 passed / 613 files); reviewer clean
 
-## Arc 2 — marketplace polish batch (no decisions needed; one move)
+## Arc 2 — marketplace polish batch ✅ COMPLETE (gate green 2026-08-02)
 
-- [ ] **Update-button truth signal:** bundled-only items can show an Update the daemon 400s;
-      add an explicit `updateAvailable` (or `hasCloudArtifact`) to `MarketplaceItem` and gate
-      the card's `hasUpdate` on it
-- [ ] **Admin portal:** Publisher column beside Kind (Chad noticed the gap); `sourceUrl` edit
-      (zod line in `UpdateCatalogItemMetadataSchema` + repo patch field + form input)
-- [ ] **Plugin-reader seam:** fold `marketplaceDeps.listInstalledPlugins` into the injectable
-      seam (mirror `marketplacePluginDelegate`) so unmocked route tests stop reading the real
-      `~/.claude/plugins`
-- [ ] **Housekeeping:** shared `verifyArtifactSha256` internal (install/update dup);
-      MCP tool-description refresh (mention plugins); template-clobber guard for bundled∩cloud
-      ids (`installedFromSource !== 'marketplace'` gate on template re-render — partially moot
-      after Arc 1)
+- [x] **Update-button truth signal:** `MarketplaceItem.hasCloudArtifact` (merge-time fact —
+      true only for cloud-cached SKILL rows, exactly what the update route serves); the card's
+      `hasUpdate` gates on it; regression test for the bundled-drifted case
+- [x] **Admin portal:** Publisher column beside Kind; `sourceUrl` editable end-to-end (zod
+      mirrors publish-input, repo patch field, form input with ''↔null mapping)
+- [x] **Plugin-reader seam:** `marketplaceInstalledPluginsReader` on CreateAppOptions/context
+      (mirror of `marketplacePluginDelegate`); `marketplaceDepsWith(reader)` replaces the
+      static `marketplaceDeps`; all 4 marketplace route test files inject stubs — the
+      `vi.mock('@vynel/providers')` hack is gone
+- [x] **Housekeeping:** shared `internal/verify-artifact-sha256.ts` (install/update);
+      all four marketplace MCP descriptions mention plugins; template-clobber settings-half
+      guard (`installedFromSource !== 'marketplace'` on template re-render) + regression test
+- Verified: scoped checks green, reviewer clean (allowlist tightening applied), then the
+  **full `pnpm test` gate GREEN 2026-08-02** (3441 passed / 613 files)
 
 ## Arc 3 — the last catalog kinds (NEED CHAD'S CALLS first)
 

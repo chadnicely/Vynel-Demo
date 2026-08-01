@@ -34,6 +34,9 @@ function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
     recommendedScope: "workspace",
     scope: "both",
     isOfficial: false,
+    // Cloud-carried by default — the shelf's common case; bundled-only
+    // tests override to false.
+    hasCloudArtifact: true,
     installStatus: { kind: "not-installed" },
     ...overrides,
   };
@@ -340,9 +343,10 @@ describe("MarketplaceSection — provenance", () => {
   });
 });
 
-// Update appears ONLY on an installed skill whose catalog version moved past
-// the installed one — an up-to-date skill and an agent (versionInstalled
-// null) must never offer it, or the card promises an update the daemon
+// Update appears ONLY on an installed CLOUD skill whose catalog version moved
+// past the installed one — an up-to-date skill, an agent (versionInstalled
+// null), and a bundled-only skill (hasCloudArtifact false — nothing to
+// download) must never offer it, or the card promises an update the daemon
 // rejects.
 describe("MarketplaceSection — update flow", () => {
   const updatableShelf: MarketplaceItem[] = [
@@ -396,6 +400,32 @@ describe("MarketplaceSection — update flow", () => {
     await updateButtons[0]!.trigger("click");
     await flushPromises();
     expect(update).toHaveBeenCalledWith("w1", { itemId: "canvas-design" });
+    wrapper.unmount();
+  });
+
+  it("never offers Update on a bundled-only item, even with version drift", async () => {
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      {
+        items: [
+          makeItem({
+            itemId: "bundled-drifted",
+            displayName: "Bundled Drifted",
+            version: "1.1.0",
+            hasCloudArtifact: false,
+            installStatus: {
+              kind: "installed",
+              scope: "workspace",
+              installedId: "sk-bundled",
+              versionInstalled: "1.0.0",
+            },
+          }),
+        ],
+      },
+    );
+    await flushPromises();
+
+    expect(wrapper.findAll(".is-update")).toHaveLength(0);
     wrapper.unmount();
   });
 

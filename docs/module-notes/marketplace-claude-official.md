@@ -269,44 +269,39 @@ uninstall guard. Original plan below.
 
 ## Deferred (named, not silent — from the Phase-B slice-1 review, 2026-08-01)
 
-- **Installed-plugins reader seam asymmetry:** the delegate is injectable via `CreateAppOptions`
-  but `marketplaceDeps.listInstalledPlugins` binds the real registry reader — unmocked route
-  tests read the dev's real `~/.claude/plugins` (harmless today: only plugin-kind items with a
-  matching full key annotate; `user-scoped.test.ts` mocks it). Fold the reader into the
-  injectable seam on next touch so no route test touches the real home dir.
+- **Installed-plugins reader seam asymmetry — CLOSED 2026-08-02 (Arc 2):** the reader now
+  mirrors the delegate — `marketplaceInstalledPluginsReader` on `CreateAppOptions`/context
+  (real `listInstalledClaudePlugins` by default), `marketplaceDepsWith(reader)` replaces the
+  statically-bound `marketplaceDeps`, and every marketplace route test injects a stub (the
+  `vi.mock('@vynel/providers')` hack in `user-scoped.test.ts` is gone).
 - **Plugin installs emit no outbox event** — no Vynel DB state changes (Claude Code's registry
   is the source of truth), so invariant 8 doesn't bite; name it when an activity-feed consumer
   needs install events.
-- **MCP tool description drift:** `install_marketplace_item` says "a skill or agent" /
-  "artifacts integrity-verified server-side" — still literally accurate (plugins are structurally
-  user-scope → global surface → no MCP), but fold a plugin mention into the next regen touch.
-  If plugins ever ride MCP, that's a Chad call and belongs in the askApproval tier
-  (external-binary execution).
+- **MCP tool description drift — CLOSED 2026-08-02 (Arc 2):** all four marketplace tool
+  descriptions now name plugins (list/install/update/uninstall). If plugins ever ride MCP,
+  that's a Chad call and belongs in the askApproval tier (external-binary execution).
 - **`ValidationError` for CLI/binary failures** is semantically stretched — revisit if
   `@vynel/errors` grows a provider/engine error class.
 
 ## Deferred (named, not silent — from the Move-2 review, 2026-08-01)
 
-- **Bundled-only Update-button truth gap:** `hasUpdate` fires on any installed skill whose
-  `versionInstalled !== item.version`, but a bundled-only item (no cloud cache row) 400s at the
-  daemon ("no cloud version to update to") — error surfaces on the card, not silent, but it's the
-  dead-button pattern the merge avoids. Honest fix = an explicit wire signal (`hasCloudArtifact`
-  or daemon-computed `updateAvailable`) on `MarketplaceItem`.
-- **Template-clobber drift class (pre-existing; enable half CLOSED 2026-08-01):** for an id that
-  is BOTH bundled and cloud, `updateSkillSettings` re-renders SKILL.md from the bundled template
-  over marketplace bytes while the row keeps the cloud `versionInstalled`. The `enableSkill` half
-  died with the install/uninstall-only arc (enable/disable removed); the settings half remains —
-  and now re-renders unconditionally. Follow-up: gate template re-render on
-  `installedFromSource !== 'marketplace'` (or persist extracted markdown).
-- **sha-verify duplication:** the hash-compare block is verbatim in `install-cloud-skill.ts` and
-  `update-cloud-skill.ts` — extract a shared `verifyArtifactSha256` internal on next touch.
-- **Admin portal catalog table shows no publisher column** (Chad noticed 2026-08-01) — kind
-  says "skill" but nothing marks Anthropic provenance portal-side; add Publisher beside Kind on
-  the portal's next touch (same touch as the `sourceUrl` edit gap below).
-- **Admin portal can't edit `sourceUrl` (from the Move-4 review):** the publish composable type
-  carries it but `PublishItemView` has no form field and `UpdateCatalogItemMetadataSchema` omits
-  it — a wrong credit URL today needs a script republish with a version bump. Close on the
-  portal's next touch (zod line + repo patch field + form input).
+- **Bundled-only Update-button truth gap — CLOSED 2026-08-02 (Arc 2):** `MarketplaceItem` now
+  carries `hasCloudArtifact` (merge-time fact: true only for cloud-cached SKILL rows — exactly
+  what the update route can serve); the card's `hasUpdate` gates on it, so bundled-only items
+  never show an Update the daemon would 400.
+- **Template-clobber drift class — FULLY CLOSED 2026-08-02:** the `enableSkill` half died with
+  the install/uninstall-only arc; the settings half closed in Arc 2 — `updateSkillSettings`
+  allowlists its template re-render to `installedFromSource === 'verified-catalog'` (a
+  marketplace row's folder is the cloud artifact, an external row is the user's hand-made
+  folder; settings persist and resolve for every source, but only template-installed disk
+  bytes are ever re-rendered — reviewer's allowlist tightening). Regression test: "persists
+  settings for a marketplace row WITHOUT clobbering its cloud bytes".
+- **sha-verify duplication — CLOSED 2026-08-02 (Arc 2):** shared
+  `internal/verify-artifact-sha256.ts`, used by both install and update.
+- **Admin portal publisher column + `sourceUrl` edit — CLOSED 2026-08-02 (Arc 2):** Publisher
+  column beside Kind in the catalog table; `sourceUrl` editable end-to-end
+  (`UpdateCatalogItemMetadataSchema` mirrors publish-input's url().max(400), repo patch field,
+  metadata-form input with ''↔null mapping).
 - **Pure-cloud enable-void — CLOSED 2026-08-01:** the install/uninstall-only arc removed
   `enableSkill`/`disableSkill` entirely, so the flag-without-disk-write hole no longer exists.
 

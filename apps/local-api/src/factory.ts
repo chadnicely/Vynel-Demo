@@ -25,6 +25,7 @@ import type { AppProcessSupervisor } from '@vynel/apps'
 import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
+import type { InstalledPluginView } from '@vynel/marketplace'
 import type { MarketplacePluginDelegate } from './services/marketplace-plugin-delegate.js'
 import type {
   TurnEventBroadcaster,
@@ -94,6 +95,11 @@ export interface AppEnv {
     // Set once at construction (`app.ts`) — real CLI in production, a fake in
     // route tests.
     marketplacePluginDelegate: MarketplacePluginDelegate
+    // The marketplace's installed-plugin registry reader (the delegate's
+    // read twin). Set once at construction (`app.ts`) — the provider's real
+    // `~/.claude/plugins` reader in production, a stub in route tests so an
+    // unmocked list route never depends on the developer's machine.
+    marketplaceInstalledPluginsReader: () => InstalledPluginView[]
     // The process-wide map of `ask_user` tool calls awaiting the user's answer
     // (the blocking bridge's in-memory half). Set once at construction
     // (`app.ts`), like `fileWatcher` — the turn streams park waiters on it and

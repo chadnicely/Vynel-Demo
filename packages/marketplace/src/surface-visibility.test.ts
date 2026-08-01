@@ -39,6 +39,7 @@ function makeItem(scope: MarketplaceItem['scope']): MarketplaceItem {
     recommendedScope: 'user',
     scope,
     isOfficial: true,
+    hasCloudArtifact: false,
     installStatus: { kind: 'not-installed' },
   }
 }

@@ -8,6 +8,7 @@ export interface CatalogItemMetadataPatch {
   category?: string;
   iconName?: string;
   recommendedScope?: "user" | "workspace" | "both" | null;
+  sourceUrl?: string | null;
   minimumTier?: "basic" | "pro";
 }
 

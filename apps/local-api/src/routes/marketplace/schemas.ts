@@ -81,6 +81,9 @@ export const MarketplaceItemSchema = z.object({
   isOfficial: z.boolean(),
   // Plugin items only: Claude Code's `name@marketplace` registry key.
   pluginKey: z.string().optional(),
+  // True only when the hub carries an artifact the update route can serve —
+  // the card's Update button gates on this (no dead buttons on bundled items).
+  hasCloudArtifact: z.boolean(),
   installStatus: MarketplaceItemInstallStatusSchema,
   // Cloud items only — the UI's "Pro" badge (display); bundled items omit it.
   minimumTier: z.enum(['basic', 'pro']).optional(),

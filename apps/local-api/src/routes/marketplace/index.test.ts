@@ -26,6 +26,10 @@ import { createApp } from '../../app.js'
 
 const silentLogger = pino({ level: 'silent' })
 
+// Hermetic plugin registry: the injectable reader seam keeps the list
+// annotator off this machine's real ~/.claude/plugins.
+const noInstalledPlugins = () => []
+
 function seedWorld(
   db: Parameters<Parameters<typeof withTestDatabase>[0]>[0],
   workspacePath = '/fake/workspace/path',
@@ -74,7 +78,7 @@ describe('marketplace routes', () => {
     it('returns 200 with 1 annotated item for a fresh workspace', async () => {
       await withTestDatabase(async (db) => {
         const { workspace } = seedWorld(db)
-        const app = createApp({ db, logger: silentLogger })
+        const app = createApp({ db, logger: silentLogger, marketplaceInstalledPluginsReader: noInstalledPlugins })
         const res = await app.request(`/workspaces/${workspace.id}/marketplace/items`)
         expect(res.status).toBe(200)
         const body = (await res.json()) as Array<{
@@ -92,7 +96,7 @@ describe('marketplace routes', () => {
     it('respects ?category=email (narrows to 1 item)', async () => {
       await withTestDatabase(async (db) => {
         const { workspace } = seedWorld(db)
-        const app = createApp({ db, logger: silentLogger })
+        const app = createApp({ db, logger: silentLogger, marketplaceInstalledPluginsReader: noInstalledPlugins })
         const res = await app.request(`/workspaces/${workspace.id}/marketplace/items?category=email`)
         expect(res.status).toBe(200)
         const body = (await res.json()) as unknown[]
@@ -103,7 +107,7 @@ describe('marketplace routes', () => {
     it('respects ?category=documents (narrows to 0)', async () => {
       await withTestDatabase(async (db) => {
         const { workspace } = seedWorld(db)
-        const app = createApp({ db, logger: silentLogger })
+        const app = createApp({ db, logger: silentLogger, marketplaceInstalledPluginsReader: noInstalledPlugins })
         const res = await app.request(
           `/workspaces/${workspace.id}/marketplace/items?category=documents`,
         )
@@ -117,7 +121,7 @@ describe('marketplace routes', () => {
       await withIsolatedFs(async (workspacePath) => {
         await withTestDatabase(async (db) => {
           const { workspace } = seedWorld(db, workspacePath)
-          const app = createApp({ db, logger: silentLogger })
+          const app = createApp({ db, logger: silentLogger, marketplaceInstalledPluginsReader: noInstalledPlugins })
 
           const before = await app.request(
             `/workspaces/${workspace.id}/marketplace/items?installState=installed`,
@@ -152,7 +156,7 @@ describe('marketplace routes', () => {
     it('returns 200 with the annotated item for email-drafter', async () => {
       await withTestDatabase(async (db) => {
         const { workspace } = seedWorld(db)
-        const app = createApp({ db, logger: silentLogger })
+        const app = createApp({ db, logger: silentLogger, marketplaceInstalledPluginsReader: noInstalledPlugins })
         const res = await app.request(`/workspaces/${workspace.id}/marketplace/items/email-drafter`)
         expect(res.status).toBe(200)
         const body = (await res.json()) as { itemId: string; installStatus: { kind: string } }
@@ -164,7 +168,7 @@ describe('marketplace routes', () => {
     it('returns 404 with code=not_found for an unknown itemId', async () => {
       await withTestDatabase(async (db) => {
         const { workspace } = seedWorld(db)
-        const app = createApp({ db, logger: silentLogger })
+        const app = createApp({ db, logger: silentLogger, marketplaceInstalledPluginsReader: noInstalledPlugins })
         const res = await app.request(`/workspaces/${workspace.id}/marketplace/items/no-such-item`)
         expect(res.status).toBe(404)
         const body = (await res.json()) as { code: string }

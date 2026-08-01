@@ -29,26 +29,16 @@ import type { HubSession } from '@vynel/hub-account'
 import type { HubCatalogItem } from '@vynel/contracts/hub/catalog'
 import { createApp } from '../../app.js'
 
-// Hermetic plugin registry: the marketplace deps bind the provider's
-// `listInstalledClaudePlugins`, which reads the developer's REAL
-// `~/.claude/plugins` — mock it so annotation never depends on this
-// machine (default: nothing installed).
-const { listInstalledPluginsMock } = vi.hoisted(() => ({
-  listInstalledPluginsMock: vi.fn(
-    (): Array<{
-      key: string
-      pluginName: string
-      marketplaceName: string
-      version: string | null
-    }> => [],
-  ),
-}))
-vi.mock('@vynel/providers', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@vynel/providers')>()
-  return { ...actual, listInstalledClaudePlugins: listInstalledPluginsMock }
-})
+// Hermetic plugin registry via the app's injectable reader seam (the
+// `marketplacePluginDelegate` twin) — annotation never reads this
+// machine's real `~/.claude/plugins`. Tests stock the array; the stub
+// is passed to every createApp below.
+const installedPluginRows: Array<{ key: string; version: string | null }> = []
+const listInstalledPluginsStub = () => [...installedPluginRows]
 // A failed assertion must not leak a stocked registry into later tests.
-afterEach(() => listInstalledPluginsMock.mockReturnValue([]))
+afterEach(() => {
+  installedPluginRows.length = 0
+})
 
 const silentLogger = pino({ level: 'silent' })
 
@@ -133,7 +123,7 @@ describe('GET /marketplace/items (global surface)', () => {
         ],
         new Date(),
       )
-      const app = createApp({ db, logger: silentLogger })
+      const app = createApp({ db, logger: silentLogger, marketplaceInstalledPluginsReader: listInstalledPluginsStub })
       const res = await app.request('/marketplace/items')
       expect(res.status).toBe(200)
       const ids = ((await res.json()) as Array<{ itemId: string }>).map((i) => i.itemId)
@@ -162,7 +152,7 @@ describe('GET /marketplace/items (global surface)', () => {
           updatedAt: now,
           lastAccessedAt: now,
         })
-        const app = createApp({ db, logger: silentLogger })
+        const app = createApp({ db, logger: silentLogger, marketplaceInstalledPluginsReader: listInstalledPluginsStub })
         const installRes = await postJson(app, `/workspaces/${workspace.id}/marketplace/install`, {
           itemId: 'email-drafter',
           scope: 'workspace',
@@ -194,7 +184,7 @@ describe('POST /marketplace/install (user scope)', () => {
     await withIsolatedHome(async () => {
       await withTestDatabase(async (db) => {
         const user = seedUser(db)
-        const app = createApp({ db, logger: silentLogger })
+        const app = createApp({ db, logger: silentLogger, marketplaceInstalledPluginsReader: listInstalledPluginsStub })
         const res = await postJson(app, '/marketplace/install', { itemId: 'email-drafter' })
         expect(res.status).toBe(201)
         expect(await res.json()).toMatchObject({
@@ -244,6 +234,7 @@ describe('POST /marketplace/install (user scope)', () => {
           db,
           logger: silentLogger,
           hubSession: fakeHubSession({ downloadArtifact }),
+          marketplaceInstalledPluginsReader: listInstalledPluginsStub,
         })
 
         const res = await postJson(app, '/marketplace/install', { itemId: 'focus-writer' })
@@ -271,7 +262,7 @@ describe('POST /marketplace/install (user scope)', () => {
         [cloudCatalogItem({ itemId: 'workspace-only', recommendedScope: 'workspace' })],
         new Date(),
       )
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}), marketplaceInstalledPluginsReader: listInstalledPluginsStub })
       const res = await postJson(app, '/marketplace/install', { itemId: 'workspace-only' })
       expect(res.status).toBe(404)
       expect(((await res.json()) as { code: string }).code).toBe('not_found')
@@ -284,7 +275,7 @@ describe('POST /marketplace/uninstall (user scope)', () => {
     await withIsolatedHome(async () => {
       await withTestDatabase(async (db) => {
         const user = seedUser(db)
-        const app = createApp({ db, logger: silentLogger })
+        const app = createApp({ db, logger: silentLogger, marketplaceInstalledPluginsReader: listInstalledPluginsStub })
         expect(
           (await postJson(app, '/marketplace/install', { itemId: 'email-drafter' })).status,
         ).toBe(201)
@@ -316,7 +307,7 @@ describe('POST /marketplace/uninstall (user scope)', () => {
           updatedAt: now,
           lastAccessedAt: now,
         })
-        const app = createApp({ db, logger: silentLogger })
+        const app = createApp({ db, logger: silentLogger, marketplaceInstalledPluginsReader: listInstalledPluginsStub })
         expect(
           (
             await postJson(app, `/workspaces/${workspace.id}/marketplace/install`, {
@@ -364,7 +355,7 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
         new Date(),
       )
       const delegate = { install: vi.fn(async () => {}), uninstall: vi.fn(async () => {}) }
-      const app = createApp({ db, logger: silentLogger, marketplacePluginDelegate: delegate })
+      const app = createApp({ db, logger: silentLogger, marketplacePluginDelegate: delegate, marketplaceInstalledPluginsReader: listInstalledPluginsStub })
 
       const res = await postJson(app, '/marketplace/install', { itemId: 'document-skills' })
       expect(res.status).toBe(201)
@@ -376,14 +367,10 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
       })
       expect(delegate.install).toHaveBeenCalledWith(pluginManifest)
 
-      listInstalledPluginsMock.mockReturnValue([
-        {
-          key: 'document-skills@anthropic-agent-skills',
-          pluginName: 'document-skills',
-          marketplaceName: 'anthropic-agent-skills',
-          version: '1.0.0',
-        },
-      ])
+      installedPluginRows.push({
+        key: 'document-skills@anthropic-agent-skills',
+        version: '1.0.0',
+      })
       const listRes = await app.request('/marketplace/items')
       const items = (await listRes.json()) as Array<{
         itemId: string
@@ -412,7 +399,6 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
         pluginName: 'document-skills',
         marketplaceName: 'anthropic-agent-skills',
       })
-      listInstalledPluginsMock.mockReturnValue([])
     })
   })
 
@@ -437,16 +423,12 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
         ],
         new Date(),
       )
-      listInstalledPluginsMock.mockReturnValue([
-        {
-          key: 'document-skills@anthropic-agent-skills',
-          pluginName: 'document-skills',
-          marketplaceName: 'anthropic-agent-skills',
-          version: '1.0.0',
-        },
-      ])
+      installedPluginRows.push({
+        key: 'document-skills@anthropic-agent-skills',
+        version: '1.0.0',
+      })
       const delegate = { install: vi.fn(async () => {}), uninstall: vi.fn(async () => {}) }
-      const app = createApp({ db, logger: silentLogger, marketplacePluginDelegate: delegate })
+      const app = createApp({ db, logger: silentLogger, marketplacePluginDelegate: delegate, marketplaceInstalledPluginsReader: listInstalledPluginsStub })
 
       // No dead Get buttons: the descriptor-less plugin never surfaces.
       const listRes = await app.request('/marketplace/items')
@@ -456,7 +438,6 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
 
       const res = await postJson(app, '/marketplace/update', { itemId: 'document-skills' })
       expect(res.status).toBe(400)
-      listInstalledPluginsMock.mockReturnValue([])
     })
   })
 })

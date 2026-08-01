@@ -1670,7 +1670,7 @@
             "required": true
           }
         ],
-        "summary": "Update settings on an installed skill — re-renders SKILL.md.",
+        "summary": "Update settings on an installed skill — re-renders SKILL.md (template installs).",
         "x-sdk-name": "skills.updateSettings",
         "requestBody": {
           "content": {
@@ -1851,6 +1851,9 @@
                       "pluginKey": {
                         "type": "string"
                       },
+                      "hasCloudArtifact": {
+                        "type": "boolean"
+                      },
                       "installStatus": {
                         "oneOf": [
                           {
@@ -1923,6 +1926,7 @@
                       "recommendedScope",
                       "scope",
                       "isOfficial",
+                      "hasCloudArtifact",
                       "installStatus"
                     ]
                   }
@@ -2015,7 +2019,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "list_marketplace_items",
-          "description": "Browse the marketplace for this workspace — skills and agents the user can install, each annotated with its install state. Optional filters: `category`, `publisherTier`, `installState`, `searchQuery`, `sortBy`. Use when the user wants a capability Vynel does not have yet (\"can you do X?\") — find the item, then install_marketplace_item with its id. Read-only."
+          "description": "Browse the marketplace for this workspace — skills, agents, and plugins the user can install, each annotated with its install state. Optional filters: `category`, `publisherTier`, `installState`, `searchQuery`, `sortBy`. Use when the user wants a capability Vynel does not have yet (\"can you do X?\") — find the item, then install_marketplace_item with its id. Read-only."
         }
       }
     },
@@ -2116,6 +2120,9 @@
                     "pluginKey": {
                       "type": "string"
                     },
+                    "hasCloudArtifact": {
+                      "type": "boolean"
+                    },
                     "installStatus": {
                       "oneOf": [
                         {
@@ -2188,6 +2195,7 @@
                     "recommendedScope",
                     "scope",
                     "isOfficial",
+                    "hasCloudArtifact",
                     "installStatus"
                   ]
                 }
@@ -2378,7 +2386,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "install_marketplace_item",
-          "description": "Install a marketplace item (a skill or agent) into this workspace. `itemId` from list_marketplace_items; `scope` \"workspace\" or \"user\" (user-scope = available in every workspace). Cloud artifacts are downloaded and integrity-verified server-side. Reversible via uninstall_marketplace_item. Side effect: the capability becomes available in sessions and appears in the user's panels.",
+          "description": "Install a marketplace item (a skill, agent, or plugin) into this workspace. `itemId` from list_marketplace_items; `scope` \"workspace\" or \"user\" (user-scope = available in every workspace; plugins are always user-scope). Cloud artifacts are downloaded and integrity-verified server-side; plugins install through Claude Code's own plugin system. Reversible via uninstall_marketplace_item. Side effect: the capability becomes available in sessions and appears in the user's panels.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -2487,7 +2495,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "update_marketplace_item",
-          "description": "Update an installed marketplace skill to the newest catalog version, by `itemId`. Use when the item shows a newer version than the installed one. Downloads and integrity-verifies the new artifact server-side, then replaces the installed SKILL.md. Skills only — agents must be uninstalled and reinstalled instead.",
+          "description": "Update an installed marketplace skill to the newest catalog version, by `itemId`. Use when the item shows a newer version than the installed one. Downloads and integrity-verifies the new artifact server-side, then replaces the installed SKILL.md. Skills only — agents and plugins must be uninstalled and reinstalled instead.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -2611,7 +2619,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "uninstall_marketplace_item",
-          "description": "Uninstall a marketplace item from this workspace by `itemId`. A skill uninstall hard-deletes its files (re-install is possible but any local edits are lost); an agent uninstall is a soft-delete. Confirm intent when the user names the item loosely.",
+          "description": "Uninstall a marketplace item from this workspace by `itemId`. A skill uninstall hard-deletes its files (re-install is possible but any local edits are lost); an agent uninstall is a soft-delete; a plugin uninstall removes it via Claude Code's plugin system. Confirm intent when the user names the item loosely.",
           "mutatingApproved": true,
           "askApproval": true
         },
@@ -18510,6 +18518,9 @@
                       "pluginKey": {
                         "type": "string"
                       },
+                      "hasCloudArtifact": {
+                        "type": "boolean"
+                      },
                       "installStatus": {
                         "oneOf": [
                           {
@@ -18582,6 +18593,7 @@
                       "recommendedScope",
                       "scope",
                       "isOfficial",
+                      "hasCloudArtifact",
                       "installStatus"
                     ]
                   }

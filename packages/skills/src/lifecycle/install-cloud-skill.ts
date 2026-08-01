@@ -10,13 +10,14 @@
 // Throws: ValidationError (sha mismatch / bad archive), ConflictError (already
 // installed at scope).
 
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { withTransaction, type Database } from '@vynel/db'
-import { ConflictError, ValidationError } from '@vynel/errors'
+import { ConflictError } from '@vynel/errors'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import * as installedSkillsRepository from '../repositories/index.js'
 import type { InstalledSkillRow, SkillScope } from '../repositories/index.js'
 import { extractSkillArchive } from '../internal/extract-skill-archive.js'
+import { verifyArtifactSha256 } from '../internal/verify-artifact-sha256.js'
 import { requireWorkspaceInstallBinding } from '../internal/require-workspace-install-binding.js'
 import { writeCloudSkillOnDisk } from '../internal/write-cloud-skill-on-disk.js'
 import type { StructuralLogger } from '../skills-types.js'
@@ -45,14 +46,7 @@ export async function installCloudSkill(
     input.scope === 'workspace' ? requireWorkspaceInstallBinding(input) : null
 
   // 1. Integrity check FIRST — never parse/write unverified bytes.
-  //    Lowercase both sides: digest('hex') emits lowercase, but a hub
-  //    record may carry uppercase hex — casing must never fail a valid hash.
-  const actualSha256 = createHash('sha256').update(input.artifactBytes).digest('hex')
-  if (actualSha256.toLowerCase() !== input.expectedSha256.toLowerCase()) {
-    throw new ValidationError(
-      'The downloaded skill failed its integrity check (sha256 mismatch) — install aborted.',
-    )
-  }
+  verifyArtifactSha256(input.artifactBytes, input.expectedSha256, 'install')
 
   // 2. Extract the full folder (SKILL.md + resources) from the verified
   //    archive — official skills ship fonts/templates/scripts alongside it.

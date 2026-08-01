@@ -66,13 +66,16 @@ const officialBadgeLabel = computed(() =>
 );
 
 // Skills only — agents carry no installed version (null), so their card can
-// never claim an update it can't perform. `item.version` is the catalog's
-// latest (cloud-wins merge), the only update target. Deliberately `!==`, not
-// "newer than": a cloud-wins downgrade is still "get what the card shows",
-// and installed versions aren't guaranteed semver ('unknown' for external).
+// never claim an update it can't perform. `hasCloudArtifact` keeps the button
+// off bundled-only items (the daemon has nothing newer to download — it
+// would 400). `item.version` is the catalog's latest (cloud-wins merge), the
+// only update target. Deliberately `!==`, not "newer than": a cloud-wins
+// downgrade is still "get what the card shows", and installed versions
+// aren't guaranteed semver ('unknown' for external).
 const hasUpdate = computed(
   () =>
     props.item.kind === "skill" &&
+    props.item.hasCloudArtifact &&
     props.item.installStatus.kind === "installed" &&
     props.item.installStatus.versionInstalled !== null &&
     props.item.installStatus.versionInstalled !== props.item.version,

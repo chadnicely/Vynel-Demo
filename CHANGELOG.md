@@ -7,7 +7,20 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Update button now only appears when there is truly something to download.** Built-in
+  skills version with the app itself, so their cards no longer offer an Update that would
+  fail; only items the cloud catalog actually carries can show one. Changing settings on a
+  marketplace-installed skill also no longer risks overwriting the downloaded version's
+  content with the built-in template — settings save, the installed files stay exactly as
+  published.
+
 ### Changed
+
+- **Admin portal:** the catalog table shows each item's Publisher beside its Kind, and an
+  item's Source URL (the credit line's origin link) can now be corrected right in the
+  metadata form — no republish needed.
 
 - **Skills are now simply installed or not — the pause switch is gone.** A skill is one folder
   on disk, so the old Enable/Disable state (which quietly kept a database row while the files

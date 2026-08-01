@@ -40,7 +40,7 @@ import {
 } from '@vynel/skills'
 import { installCloudAgent, softDeleteAgent } from '@vynel/agents'
 import { listAgentsForUserAndWorkspace } from '@vynel/db/repositories/agents'
-import { listInstalledClaudePlugins } from '@vynel/providers'
+import type { MarketplaceDeps, InstalledPluginView } from '@vynel/marketplace'
 import { parsePluginItemManifest } from '@vynel/contracts/marketplace/plugin-item-manifest'
 import type { MarketplacePluginDelegate } from '../../services/marketplace-plugin-delegate.js'
 import { serializeInstalledSkillResponse } from './serializers.js'
@@ -51,12 +51,18 @@ import { serializeInstalledSkillResponse } from './serializers.js'
 // row's `source` rides along: the annotator matches marketplace-
 // installed (`source: 'community'`) agents only. Both readers honor
 // `workspaceId: null` = user-scope rows only (the global surface).
-export const marketplaceDeps = {
-  listInstalledSkills: listInstalledSkillsForUserAndWorkspace,
-  listInstalledAgents: listAgentsForUserAndWorkspace,
-  // Plugins live in Claude Code's own registry (`installed_plugins.json`),
-  // read via the provider seam — no DB, user-scope global by nature.
-  listInstalledPlugins: listInstalledClaudePlugins,
+// The PLUGIN reader is injected per request (the `pluginDelegate`
+// precedent): plugins live in Claude Code's own registry
+// (`installed_plugins.json`), so a statically-bound reader would make
+// every unmocked route test read the developer's real `~/.claude/plugins`.
+export function marketplaceDepsWith(
+  listInstalledPlugins: () => InstalledPluginView[],
+): MarketplaceDeps {
+  return {
+    listInstalledSkills: listInstalledSkillsForUserAndWorkspace,
+    listInstalledAgents: listAgentsForUserAndWorkspace,
+    listInstalledPlugins,
+  }
 }
 
 export type MarketplaceRequestContext = {
@@ -64,6 +70,7 @@ export type MarketplaceRequestContext = {
   hubSession: HubSession | undefined
   logger: Logger
   pluginDelegate: MarketplacePluginDelegate
+  listInstalledPlugins: () => InstalledPluginView[]
 }
 
 // null workspace = the GLOBAL surface; non-null = that workspace's surface.
@@ -96,7 +103,7 @@ export async function installMarketplaceItem(
   const gateItem = getMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
-    marketplaceDeps,
+    marketplaceDepsWith(ctx.listInstalledPlugins),
   )
   if (gateItem.kind === 'plugin') {
     // Delegate install: Claude Code's own plugin system pulls from the
@@ -196,7 +203,7 @@ export async function updateMarketplaceItem(
   const item = getMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
-    marketplaceDeps,
+    marketplaceDepsWith(ctx.listInstalledPlugins),
   )
   if (item.installStatus.kind !== 'installed') {
     throw new NotFoundError('installed-item', itemId)
@@ -248,7 +255,7 @@ export async function uninstallMarketplaceItem(
   const item = getMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
-    marketplaceDeps,
+    marketplaceDepsWith(ctx.listInstalledPlugins),
   )
   if (item.installStatus.kind !== 'installed') {
     throw new NotFoundError('installed-item', itemId)

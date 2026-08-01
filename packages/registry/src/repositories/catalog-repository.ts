@@ -103,6 +103,7 @@ export interface UpdateCatalogItemMetadataInput {
   readonly category?: string | undefined
   readonly iconName?: string | undefined
   readonly recommendedScope?: string | null | undefined
+  readonly sourceUrl?: string | null | undefined
   readonly minimumTier?: string | undefined
 }
 

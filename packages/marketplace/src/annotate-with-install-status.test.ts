@@ -27,6 +27,7 @@ function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
     recommendedScope: 'user',
     scope: 'both',
     isOfficial: true,
+    hasCloudArtifact: false,
     installStatus: { kind: 'not-installed' },
     ...overrides,
   }

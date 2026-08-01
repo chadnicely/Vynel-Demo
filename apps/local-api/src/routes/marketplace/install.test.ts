@@ -22,6 +22,10 @@ import type { HubCatalogItem } from '@vynel/contracts/hub/catalog'
 import { createApp } from '../../app.js'
 
 const silentLogger = pino({ level: 'silent' })
+
+// Hermetic plugin registry: the injectable reader seam keeps the list
+// annotator off this machine's real ~/.claude/plugins.
+const noInstalledPlugins = () => []
 let tmp: string
 
 beforeEach(async () => {
@@ -101,7 +105,7 @@ describe('POST /marketplace/install', () => {
       syncCloudCatalog(db, [cloudCatalogItem(sha)], new Date())
 
       const downloadArtifact = vi.fn().mockResolvedValue(bytes)
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({ downloadArtifact }) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({ downloadArtifact }), marketplaceInstalledPluginsReader: noInstalledPlugins })
 
       const res = await installReq(app, workspace.id, 'cloud-skill')
       expect(res.status).toBe(201)
@@ -118,7 +122,7 @@ describe('POST /marketplace/install', () => {
   it('installs a BUNDLED item from its template', async () => {
     await withTestDatabase(async (db) => {
       const { workspace } = seed(db)
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}), marketplaceInstalledPluginsReader: noInstalledPlugins })
       const res = await installReq(app, workspace.id, 'email-drafter')
       expect(res.status).toBe(201)
       expect(await res.json()).toMatchObject({
@@ -152,7 +156,7 @@ describe('POST /marketplace/install', () => {
       )
 
       const downloadArtifact = vi.fn().mockResolvedValue(bytes)
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({ downloadArtifact }) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({ downloadArtifact }), marketplaceInstalledPluginsReader: noInstalledPlugins })
 
       const res = await installReq(app, workspace.id, 'focus-writer')
       expect(res.status).toBe(201)
@@ -181,7 +185,7 @@ describe('POST /marketplace/install', () => {
         [cloudCatalogItem('a'.repeat(64), { itemId: 'some-mcp', kind: 'mcp' })],
         new Date(),
       )
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}), marketplaceInstalledPluginsReader: noInstalledPlugins })
 
       // Falls through to the bundled dispatch; with no bundled twin the
       // not-found is byte-identical (same entity + message shape) to a
@@ -211,7 +215,7 @@ describe('POST /marketplace/install', () => {
         new Date(),
       )
       const downloadArtifact = vi.fn()
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({ downloadArtifact }) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({ downloadArtifact }), marketplaceInstalledPluginsReader: noInstalledPlugins })
 
       const offSurfaceRes = await installReq(app, workspace.id, 'user-only-skill')
       const unknownRes = await installReq(app, workspace.id, 'never-published')
@@ -245,7 +249,7 @@ describe('POST /marketplace/install', () => {
         [cloudCatalogItem('a'.repeat(64), { itemId: 'email-drafter', kind: 'mcp' })],
         new Date(),
       )
-      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}) })
+      const app = createApp({ db, logger: silentLogger, hubSession: fakeHubSession({}), marketplaceInstalledPluginsReader: noInstalledPlugins })
       const res = await installReq(app, workspace.id, 'email-drafter')
       expect(res.status).toBe(201)
       expect(await res.json()).toMatchObject({

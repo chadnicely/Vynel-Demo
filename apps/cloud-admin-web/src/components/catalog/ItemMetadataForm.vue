@@ -24,6 +24,8 @@ function baselineFields(item: HubAdminCatalogItem) {
     category: item.category,
     iconName: item.iconName,
     recommendedScope,
+    // '' stands in for null (no upstream origin) in the text input.
+    sourceUrl: item.sourceUrl ?? "",
     minimumTier: item.minimumTier,
   };
 }
@@ -49,6 +51,8 @@ const patch = computed<CatalogItemMetadataPatch>(() => {
   if (form.recommendedScope !== baseline.recommendedScope)
     changed.recommendedScope =
       form.recommendedScope === "" ? null : form.recommendedScope;
+  if (form.sourceUrl.trim() !== baseline.sourceUrl)
+    changed.sourceUrl = form.sourceUrl.trim() === "" ? null : form.sourceUrl.trim();
   if (form.minimumTier !== baseline.minimumTier)
     changed.minimumTier = form.minimumTier;
   return changed;
@@ -91,6 +95,17 @@ function save() {
         <input v-model="form.iconName" class="text-input" type="text" />
       </label>
     </div>
+    <label class="field">
+      <span class="field-label">Source URL</span>
+      <!-- The credit line's upstream-origin link (e.g. the pinned
+           anthropics/skills folder). Empty = first-party, no Source link. -->
+      <input
+        v-model="form.sourceUrl"
+        class="text-input"
+        type="url"
+        placeholder="https://github.com/…"
+      />
+    </label>
     <div class="field-row">
       <label class="field">
         <span class="field-label">Recommended scope</span>

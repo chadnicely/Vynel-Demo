@@ -200,7 +200,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update settings on an installed skill — re-renders SKILL.md. */
+        /** Update settings on an installed skill — re-renders SKILL.md (template installs). */
         patch: operations["patchWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillIdSettings"];
         trace?: never;
     };
@@ -3828,6 +3828,7 @@ export interface operations {
                         scope: "user" | "workspace" | "both";
                         isOfficial: boolean;
                         pluginKey?: string;
+                        hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
                             kind: "not-installed";
@@ -3894,6 +3895,7 @@ export interface operations {
                         scope: "user" | "workspace" | "both";
                         isOfficial: boolean;
                         pluginKey?: string;
+                        hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
                             kind: "not-installed";
@@ -10453,6 +10455,7 @@ export interface operations {
                         scope: "user" | "workspace" | "both";
                         isOfficial: boolean;
                         pluginKey?: string;
+                        hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
                             kind: "not-installed";

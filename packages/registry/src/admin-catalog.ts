@@ -75,6 +75,9 @@ export const UpdateCatalogItemMetadataSchema = z
     category: z.string().min(1).max(60).optional(),
     iconName: z.string().min(1).max(60).optional(),
     recommendedScope: z.enum(['user', 'workspace', 'both']).nullable().optional(),
+    // Mirrors publish-input.ts — a published sourceUrl must round-trip the
+    // edit form; null clears a wrong credit link.
+    sourceUrl: z.string().url().max(400).nullable().optional(),
     minimumTier: z.enum(['basic', 'pro']).optional(),
   })
   // An empty patch is a caller bug, not a no-op success.
