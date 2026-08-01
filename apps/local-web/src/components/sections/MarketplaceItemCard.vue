@@ -65,21 +65,25 @@ const officialBadgeLabel = computed(() =>
   props.item.publisherTier === "anthropic-official" ? "By Anthropic" : "Official",
 );
 
-// Skills only — agents carry no installed version (null), so their card can
-// never claim an update it can't perform. `hasCloudArtifact` keeps the button
-// off bundled-only items (the daemon has nothing newer to download — it
-// would 400). `item.version` is the catalog's latest (cloud-wins merge), the
-// only update target. Deliberately `!==`, not "newer than": a cloud-wins
-// downgrade is still "get what the card shows", and installed versions
-// aren't guaranteed semver ('unknown' for external).
-const hasUpdate = computed(
-  () =>
-    props.item.kind === "skill" &&
-    props.item.hasCloudArtifact &&
-    props.item.installStatus.kind === "installed" &&
-    props.item.installStatus.versionInstalled !== null &&
-    props.item.installStatus.versionInstalled !== props.item.version,
-);
+// Skills (hub artifact — `hasCloudArtifact` keeps the button off
+// bundled-only items the daemon would 400) and plugins (the Claude CLI
+// delegate updates in place) offer Update; agents carry no installed
+// version (null) and mcp/rule refresh by reinstall, so their cards never
+// claim an update they can't perform. `item.version` is the catalog's
+// latest (cloud-wins merge), the only update target. Deliberately `!==`,
+// not "newer than": a cloud-wins downgrade is still "get what the card
+// shows", and installed versions aren't guaranteed semver.
+const hasUpdate = computed(() => {
+  const { installStatus } = props.item;
+  if (installStatus.kind !== "installed") return false;
+  if (
+    installStatus.versionInstalled === null ||
+    installStatus.versionInstalled === props.item.version
+  )
+    return false;
+  if (props.item.kind === "skill") return props.item.hasCloudArtifact;
+  return props.item.kind === "plugin";
+});
 
 const updateLabel = computed(() =>
   props.isUpdating ? "Updating…" : "Update",
@@ -209,8 +213,9 @@ const removeLabel = computed(() => {
           <Check v-if="isInstalled" :size="11" />
           {{ installLabel }}
         </button>
-        <!-- Update replaces the installed SKILL.md with the catalog's newer
-             version; the card's version line already shows the target. -->
+        <!-- Update replaces the installed files with the catalog's newer
+             version (skills from the hub artifact, plugins via Claude
+             Code's plugin system); the version line shows the target. -->
         <button
           v-if="hasUpdate"
           type="button"

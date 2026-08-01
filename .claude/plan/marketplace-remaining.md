@@ -74,8 +74,14 @@ reads; no notebook-leaf dependency) ④ work order = follow this plan's pipeline
       re-saves (pinned in rule-file-marker.test.ts). `rule-item-lifecycle.ts` +
       `rulesReaderFor`; seed `conventional-commits`; reviewer CLEAN (marker-mismatch
       install gate + parser tests applied)
-- [ ] **Plugin updates** — small slice: `claude plugin update` delegate + registry re-read
-      (today: uninstall/reinstall)
+- [x] **Plugin updates** ✅ CODE-COMPLETE 2026-08-02 (full gate pending) — `updateClaudePlugin`
+      (`claude plugin update <name>@<marketplace>`; no `--scope`, the installed entry fixes it),
+      delegate `update`, `updatePluginItem` with REGISTRY RE-READ version (response = what
+      Claude Code actually holds; test pins 1.1.1-registry vs 1.1.0-catalog), update response
+      = discriminated union, card Update for drifted plugins, refusal 400 test (rule item);
+      reviewer CLEAN (all 4 should-fixes applied). ⚠ Smoke note: `claude plugin update`
+      flag shape unverified against the live CLI — a wrong shape surfaces as an actionable
+      400, so the first real Update click proves it
 - [ ] **More official plugins** — machinery ships anything now; each addition = curation +
       trust review; plugins stay structurally user-scope (off the workspace tool)
 

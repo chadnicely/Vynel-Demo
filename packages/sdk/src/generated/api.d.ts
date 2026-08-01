@@ -281,7 +281,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Update an installed skill to the catalog’s latest version. */
+        /** Update an installed skill or plugin to the catalog’s latest version. */
         post: operations["postWorkspacesByWorkspaceIdMarketplaceUpdate"];
         delete?: never;
         options?: never;
@@ -2047,7 +2047,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Update a USER-scope installed skill to the catalog’s latest version. */
+        /** Update a USER-scope installed skill or plugin to the catalog’s latest version. */
         post: operations["postMarketplaceUpdate"];
         delete?: never;
         options?: never;
@@ -4032,7 +4032,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The updated installed skill. */
+            /** @description The updated installation, discriminated by kind (skill or plugin). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4048,10 +4048,16 @@ export interface operations {
                         /** @enum {string} */
                         source: "verified-catalog" | "marketplace" | "external";
                         version: string;
+                    } | {
+                        /** @constant */
+                        kind: "plugin";
+                        pluginKey: string;
+                        itemId: string;
+                        version: string | null;
                     };
                 };
             };
-            /** @description Agent item, no cloud version, or hub unavailable. */
+            /** @description Kind without in-place update, no cloud version, or hub unavailable. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10606,7 +10612,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The updated installed skill. */
+            /** @description The updated installation, discriminated by kind (skill or plugin). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10622,10 +10628,16 @@ export interface operations {
                         /** @enum {string} */
                         source: "verified-catalog" | "marketplace" | "external";
                         version: string;
+                    } | {
+                        /** @constant */
+                        kind: "plugin";
+                        pluginKey: string;
+                        itemId: string;
+                        version: string | null;
                     };
                 };
             };
-            /** @description Agent item, no cloud version, or hub unavailable. */
+            /** @description Kind without in-place update, no cloud version, or hub unavailable. */
             400: {
                 headers: {
                     [name: string]: unknown;

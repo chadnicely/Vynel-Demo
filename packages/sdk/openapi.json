@@ -2499,55 +2499,86 @@
       "post": {
         "responses": {
           "200": {
-            "description": "The updated installed skill.",
+            "description": "The updated installation, discriminated by kind (skill or plugin).",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "skill"
-                    },
-                    "installedSkillId": {
-                      "type": "string"
-                    },
-                    "itemId": {
-                      "type": "string"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "user",
-                        "workspace"
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "skill"
+                        },
+                        "installedSkillId": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "workspace"
+                          ]
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "verified-catalog",
+                            "marketplace",
+                            "external"
+                          ]
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "installedSkillId",
+                        "itemId",
+                        "scope",
+                        "source",
+                        "version"
                       ]
                     },
-                    "source": {
-                      "type": "string",
-                      "enum": [
-                        "verified-catalog",
-                        "marketplace",
-                        "external"
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "plugin"
+                        },
+                        "pluginKey": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "pluginKey",
+                        "itemId",
+                        "version"
                       ]
-                    },
-                    "version": {
-                      "type": "string"
                     }
-                  },
-                  "required": [
-                    "kind",
-                    "installedSkillId",
-                    "itemId",
-                    "scope",
-                    "source",
-                    "version"
                   ]
                 }
               }
             }
           },
           "400": {
-            "description": "Agent item, no cloud version, or hub unavailable."
+            "description": "Kind without in-place update, no cloud version, or hub unavailable."
           },
           "404": {
             "description": "Item not in catalog, not installed, OR workspace not found."
@@ -2567,12 +2598,12 @@
             "required": true
           }
         ],
-        "summary": "Update an installed skill to the catalog’s latest version.",
+        "summary": "Update an installed skill or plugin to the catalog’s latest version.",
         "x-sdk-name": "marketplace.update",
         "x-mcp": {
           "exposed": true,
           "name": "update_marketplace_item",
-          "description": "Update an installed marketplace skill to the newest catalog version, by `itemId`. Use when the item shows a newer version than the installed one. Downloads and integrity-verifies the new artifact server-side, then replaces the installed SKILL.md. Skills only — agents and plugins must be uninstalled and reinstalled instead.",
+          "description": "Update an installed marketplace skill or plugin to the newest catalog version, by `itemId`. Use when the item shows a newer version than the installed one. Skills download an integrity-verified artifact server-side that replaces the installed files; this tool also updates plugins, via Claude Code's own plugin system. Agents, MCP servers, and rules must be uninstalled and reinstalled instead.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -19023,55 +19054,86 @@
       "post": {
         "responses": {
           "200": {
-            "description": "The updated installed skill.",
+            "description": "The updated installation, discriminated by kind (skill or plugin).",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "skill"
-                    },
-                    "installedSkillId": {
-                      "type": "string"
-                    },
-                    "itemId": {
-                      "type": "string"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "user",
-                        "workspace"
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "skill"
+                        },
+                        "installedSkillId": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "workspace"
+                          ]
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "verified-catalog",
+                            "marketplace",
+                            "external"
+                          ]
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "installedSkillId",
+                        "itemId",
+                        "scope",
+                        "source",
+                        "version"
                       ]
                     },
-                    "source": {
-                      "type": "string",
-                      "enum": [
-                        "verified-catalog",
-                        "marketplace",
-                        "external"
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "plugin"
+                        },
+                        "pluginKey": {
+                          "type": "string"
+                        },
+                        "itemId": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "pluginKey",
+                        "itemId",
+                        "version"
                       ]
-                    },
-                    "version": {
-                      "type": "string"
                     }
-                  },
-                  "required": [
-                    "kind",
-                    "installedSkillId",
-                    "itemId",
-                    "scope",
-                    "source",
-                    "version"
                   ]
                 }
               }
             }
           },
           "400": {
-            "description": "Agent item, no cloud version, or hub unavailable."
+            "description": "Kind without in-place update, no cloud version, or hub unavailable."
           },
           "404": {
             "description": "Item not in the catalog, not surfaced at the user level, OR not installed at user scope."
@@ -19082,7 +19144,7 @@
           "marketplace"
         ],
         "parameters": [],
-        "summary": "Update a USER-scope installed skill to the catalog’s latest version.",
+        "summary": "Update a USER-scope installed skill or plugin to the catalog’s latest version.",
         "x-sdk-name": "marketplaceUser.update",
         "requestBody": {
           "content": {

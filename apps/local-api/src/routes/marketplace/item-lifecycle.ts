@@ -49,7 +49,7 @@ import type {
 } from '@vynel/marketplace'
 import type { MarketplacePluginDelegate } from '../../services/marketplace-plugin-delegate.js'
 import { serializeInstalledSkillResponse } from './serializers.js'
-import { installPluginItem, uninstallPluginItem } from './plugin-item-lifecycle.js'
+import { installPluginItem, updatePluginItem, uninstallPluginItem } from './plugin-item-lifecycle.js'
 import { installMcpItem, uninstallMcpItem, mcpServersReaderFor } from './mcp-item-lifecycle.js'
 import { installRuleItem, uninstallRuleItem, rulesReaderFor } from './rule-item-lifecycle.js'
 
@@ -200,10 +200,11 @@ export type MarketplaceUpdateRequest = {
   workspace: { id: string; path: string } | null
 }
 
-// Skills only — agents carry no installed version to compare (the annotator
-// returns null), so their update story is uninstall+reinstall until the
-// agent-update arc lands. The catalog's latest version is the only update
-// target: "update" always means "to what the card shows".
+// Skills update from the hub artifact; plugins update in place via the
+// Claude CLI delegate (2026-08-02). Agents carry no installed version to
+// compare, and mcp/rule config entries refresh by reinstall — their story
+// stays uninstall+reinstall. The catalog's latest version is the only
+// update target: "update" always means "to what the card shows".
 export async function updateMarketplaceItem(
   ctx: MarketplaceRequestContext,
   request: MarketplaceUpdateRequest,
@@ -221,9 +222,19 @@ export async function updateMarketplaceItem(
   if (item.installStatus.kind !== 'installed') {
     throw new NotFoundError('installed-item', itemId)
   }
+  if (item.kind === 'plugin') {
+    return updatePluginItem(
+      {
+        logger: ctx.logger,
+        pluginDelegate: ctx.pluginDelegate,
+        listInstalledPlugins: ctx.listInstalledPlugins,
+      },
+      { itemId, installedKey: item.installStatus.installedId },
+    )
+  }
   if (item.kind !== 'skill') {
     throw new ValidationError(
-      'Only skills support in-place updates — uninstall and reinstall to get the latest version.',
+      'Only skills and plugins support in-place updates — uninstall and reinstall to get the latest version.',
     )
   }
   const cached = findCachedCloudItem(ctx.db, itemId)

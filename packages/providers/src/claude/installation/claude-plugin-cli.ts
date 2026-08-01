@@ -108,6 +108,23 @@ export async function uninstallClaudePlugin(input: {
   )
 }
 
+/** In-place update to the marketplace's current version — the CLI refreshes
+ * its clone of the plugin marketplace and replaces the cached plugin
+ * (previously: uninstall + reinstall). Same native-layout guarantee as
+ * install. No `--scope` flag, unlike install/uninstall: update operates on
+ * the already-installed entry keyed by `name@marketplace`, where scope was
+ * fixed at install time. */
+export async function updateClaudePlugin(input: {
+  pluginName: string
+  marketplaceName: string
+  binaryPath?: string
+}): Promise<void> {
+  await runPluginCommand(
+    ['update', `${input.pluginName}@${input.marketplaceName}`],
+    input.binaryPath,
+  )
+}
+
 export type InstalledClaudePluginView = {
   /** `<pluginName>@<marketplaceName>` — the registry key and the ONLY match
    * anchor (a same-named plugin from another marketplace must never

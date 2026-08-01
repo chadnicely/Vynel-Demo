@@ -3076,7 +3076,7 @@ export const updateApp: McpToolFactory = (scope, app) =>
 export const updateMarketplaceItem: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'update_marketplace_item',
-    "Update an installed marketplace skill to the newest catalog version, by `itemId`. Use when the item shows a newer version than the installed one. Downloads and integrity-verifies the new artifact server-side, then replaces the installed SKILL.md. Skills only — agents and plugins must be uninstalled and reinstalled instead.",
+    "Update an installed marketplace skill or plugin to the newest catalog version, by `itemId`. Use when the item shows a newer version than the installed one. Skills download an integrity-verified artifact server-side that replaces the installed files; this tool also updates plugins, via Claude Code's own plugin system. Agents, MCP servers, and rules must be uninstalled and reinstalled instead.",
     {
     workspaceId: z.string(),
     itemId: z.string(),

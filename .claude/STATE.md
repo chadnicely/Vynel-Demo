@@ -35,7 +35,22 @@ Remaining marketplace items = the module-notes deferred lists.
 checkboxes: ① skills install/uninstall-only ② polish batch ③ mcp/rule kinds + plugin updates
 ④ ops/production hardening — check items off as they land).
 
-## ✅ ARC 3 SLICE 2: `rule` KIND — GATE GREEN + SMOKED (2026-08-02), awaiting commit
+## ✅ ARC 3 SLICE 3: PLUGIN UPDATES — CODE-COMPLETE (2026-08-02), UNCOMMITTED — ARC 3 DONE
+
+The last Arc-3 slice: plugins update in place via `updateClaudePlugin` (`claude plugin
+update <name>@<marketplace>`; no `--scope` — the installed entry fixes it, WHY-commented) →
+delegate `update` → `updatePluginItem` in plugin-item-lifecycle (shared `splitPluginKey`
+guard now used by uninstall too). **Response version = REGISTRY RE-READ** (what Claude Code
+actually holds, not the catalog number — test pins registry-1.1.1 vs catalog-1.1.0). Update
+response schema → discriminated union (skill|plugin); card `hasUpdate` rewritten (skill needs
+hasCloudArtifact; plugin allowed on drift; agents/mcp/rule never — truth-table reviewed);
+new 400-refusal test (rule item). Reviewer CLEAN, all 4 should-fixes applied. Scoped verify
+green (39 tests + parity ×4 + typechecks). ⚠ **Full gate + commit pending; smoke = the
+first real Update click on a drifted plugin also proves the live CLI's `update` flag shape**
+(a mismatch surfaces as an actionable 400, not silent). With this, ARC 3 IS COMPLETE —
+remaining marketplace work = Arc 4 ops hardening only.
+
+## ✅ ARC 3 SLICE 2: `rule` KIND — SHIPPED + SMOKED (`fa394d1`, 2026-08-02)
 
 Config-is-truth twin of mcp with the PROVENANCE-MARKER upgrade (Chad's own hand-written
 `~/.claude/rules/*.md` live in the same folder): installed rules open with

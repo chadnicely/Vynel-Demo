@@ -21,6 +21,7 @@ export {
 export {
   installClaudePlugin,
   uninstallClaudePlugin,
+  updateClaudePlugin,
   listInstalledClaudePlugins,
   resolveBundledClaudeBinary,
   type InstallClaudePluginInput,

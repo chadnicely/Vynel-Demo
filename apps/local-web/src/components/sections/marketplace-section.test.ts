@@ -403,6 +403,38 @@ describe("MarketplaceSection — update flow", () => {
     wrapper.unmount();
   });
 
+  it("offers Update on a version-drifted plugin (the CLI delegate updates in place)", async () => {
+    const update = vi.fn(async () => installResult);
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      {
+        items: [
+          makeItem({
+            itemId: "document-skills",
+            displayName: "Documents Pack",
+            kind: "plugin",
+            version: "1.1.0",
+            hasCloudArtifact: false,
+            pluginKey: "document-skills@anthropic-agent-skills",
+            installStatus: {
+              kind: "installed",
+              scope: "user",
+              installedId: "document-skills@anthropic-agent-skills",
+              versionInstalled: "1.0.0",
+            },
+          }),
+        ],
+        update,
+      },
+    );
+    await flushPromises();
+
+    await wrapper.get(".is-update").trigger("click");
+    await flushPromises();
+    expect(update).toHaveBeenCalledWith("w1", { itemId: "document-skills" });
+    wrapper.unmount();
+  });
+
   it("never offers Update on a bundled-only item, even with version drift", async () => {
     const wrapper = mountSection(
       { kind: "signed-out" },

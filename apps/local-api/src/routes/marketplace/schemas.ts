@@ -113,16 +113,26 @@ export const UpdateMarketplaceItemBodySchema = z.object({
   itemId: z.string().min(1).max(200),
 })
 
-// Skills only (agents have no in-place update yet) — the install response's
-// skill branch, not a union.
-export const UpdateMarketplaceItemResponseSchema = z.object({
-  kind: z.literal('skill'),
-  installedSkillId: z.string(),
-  itemId: z.string(),
-  scope: SkillScopeSchema,
-  source: z.enum(['verified-catalog', 'marketplace', 'external']),
-  version: z.string(),
-})
+// Skills (hub artifact) + plugins (Claude CLI delegate) update in place;
+// the other kinds have no in-place update. The plugin variant's version is
+// the REGISTRY RE-READ after the delegate ran — what Claude Code actually
+// holds, not the catalog's number.
+export const UpdateMarketplaceItemResponseSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('skill'),
+    installedSkillId: z.string(),
+    itemId: z.string(),
+    scope: SkillScopeSchema,
+    source: z.enum(['verified-catalog', 'marketplace', 'external']),
+    version: z.string(),
+  }),
+  z.object({
+    kind: z.literal('plugin'),
+    pluginKey: z.string(),
+    itemId: z.string(),
+    version: z.string().nullable(),
+  }),
+])
 
 // Mirrors the install response's kind discrimination: the uninstalled
 // row's id in its owning leaf (installed_skills.id / agents.id).

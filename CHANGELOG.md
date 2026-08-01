@@ -9,6 +9,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Plugins now update in place.** When a plugin's publisher ships a newer version, its
+  marketplace card shows the same Update button skills have — one click and Claude Code's
+  own plugin system replaces it, no more uninstall-and-reinstall. The version shown after
+  updating is read back from Claude Code's registry, so the card always tells the truth
+  about what's actually installed.
+
 - **Rules in the marketplace.** The last catalog kind: reusable guidance files — starting
   with Conventional Commits — install as plain markdown into Claude's native rules folder
   (`~/.claude/rules/` for everywhere, the workspace's `.claude/rules/` for one project), so

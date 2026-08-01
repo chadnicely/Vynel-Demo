@@ -123,14 +123,14 @@ export const marketplaceUserApp = factory
     '/update',
     describeRoute({
       tags: ['marketplace'],
-      summary: 'Update a USER-scope installed skill to the catalog’s latest version.',
+      summary: 'Update a USER-scope installed skill or plugin to the catalog’s latest version.',
       'x-sdk-name': 'marketplaceUser.update',
       responses: {
         200: {
-          description: 'The updated installed skill.',
+          description: 'The updated installation, discriminated by kind (skill or plugin).',
           content: { 'application/json': { schema: resolver(UpdateMarketplaceItemResponseSchema) } },
         },
-        400: { description: 'Agent item, no cloud version, or hub unavailable.' },
+        400: { description: 'Kind without in-place update, no cloud version, or hub unavailable.' },
         404: { description: 'Item not in the catalog, not surfaced at the user level, OR not installed at user scope.' },
       },
     }),

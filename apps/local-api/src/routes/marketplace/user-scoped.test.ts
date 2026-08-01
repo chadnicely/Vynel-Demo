@@ -354,7 +354,11 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
         ],
         new Date(),
       )
-      const delegate = { install: vi.fn(async () => {}), uninstall: vi.fn(async () => {}) }
+      const delegate = {
+        install: vi.fn(async () => {}),
+        uninstall: vi.fn(async () => {}),
+        update: vi.fn(async () => {}),
+      }
       const app = createApp({ db, logger: silentLogger, marketplacePluginDelegate: delegate, marketplaceInstalledPluginsReader: listInstalledPluginsStub })
 
       const res = await postJson(app, '/marketplace/install', { itemId: 'document-skills' })
@@ -402,7 +406,7 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
     })
   })
 
-  it('rejects update for a plugin item and drops one with an unparsable manifest', async () => {
+  it('updates a plugin in place via the delegate + reports the registry re-read version', async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)
       syncCloudCatalog(
@@ -412,6 +416,7 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
             itemId: 'document-skills',
             kind: 'plugin',
             recommendedScope: 'user',
+            latestVersion: '1.1.0',
             latestVersionManifestJson: JSON.stringify(pluginManifest),
           }),
           cloudCatalogItem({
@@ -427,7 +432,18 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
         key: 'document-skills@anthropic-agent-skills',
         version: '1.0.0',
       })
-      const delegate = { install: vi.fn(async () => {}), uninstall: vi.fn(async () => {}) }
+      const delegate = {
+        install: vi.fn(async () => {}),
+        uninstall: vi.fn(async () => {}),
+        // The real delegate drives `claude plugin update`, after which the
+        // registry holds whatever the publisher's marketplace ACTUALLY
+        // ships — deliberately different from the catalog's 1.1.0 here, so
+        // the assertion proves the response is the registry re-read and
+        // not the catalog number.
+        update: vi.fn(async () => {
+          installedPluginRows[0]!.version = '1.1.1'
+        }),
+      }
       const app = createApp({ db, logger: silentLogger, marketplacePluginDelegate: delegate, marketplaceInstalledPluginsReader: listInstalledPluginsStub })
 
       // No dead Get buttons: the descriptor-less plugin never surfaces.
@@ -437,7 +453,17 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
       expect(ids).not.toContain('broken-plugin')
 
       const res = await postJson(app, '/marketplace/update', { itemId: 'document-skills' })
-      expect(res.status).toBe(400)
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({
+        kind: 'plugin',
+        pluginKey: 'document-skills@anthropic-agent-skills',
+        itemId: 'document-skills',
+        version: '1.1.1',
+      })
+      expect(delegate.update).toHaveBeenCalledWith({
+        pluginName: 'document-skills',
+        marketplaceName: 'anthropic-agent-skills',
+      })
     })
   })
 })
@@ -737,6 +763,35 @@ describe('rule kind — config-is-truth install/uninstall', () => {
           ruleId: 'conventional-commits',
           itemId: 'conventional-commits',
         })
+      })
+    })
+  })
+
+  it('update 400s for a rule item — no in-place update outside skills and plugins', async () => {
+    await withIsolatedHome(async () => {
+      await withTestDatabase(async (db) => {
+        seedUser(db)
+        syncCloudCatalog(
+          db,
+          [
+            cloudCatalogItem({
+              itemId: 'conventional-commits',
+              kind: 'rule',
+              recommendedScope: 'both',
+              latestVersionManifestJson: JSON.stringify(ruleManifest),
+            }),
+          ],
+          new Date(),
+        )
+        const app = createApp({
+          db,
+          logger: silentLogger,
+          marketplaceInstalledPluginsReader: listInstalledPluginsStub,
+        })
+        await postJson(app, '/marketplace/install', { itemId: 'conventional-commits' })
+
+        const res = await postJson(app, '/marketplace/update', { itemId: 'conventional-commits' })
+        expect(res.status).toBe(400)
       })
     })
   })

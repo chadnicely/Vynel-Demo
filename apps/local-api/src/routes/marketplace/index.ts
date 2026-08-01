@@ -205,28 +205,29 @@ export const marketplaceApp = factory
     '/update',
     describeRoute({
       tags: ['marketplace'],
-      summary: 'Update an installed skill to the catalog’s latest version.',
+      summary: 'Update an installed skill or plugin to the catalog’s latest version.',
       'x-sdk-name': 'marketplace.update',
-      // Overwrites the installed SKILL.md with the newer official bytes —
+      // Overwrites the installed SKILL.md with the newer official bytes
+      // (skills) or drives Claude Code's plugin update (plugins) —
       // mutating (cards in ask mode) but not the DELETE tier: nothing is
       // removed and a re-run is a repair.
       'x-mcp': {
         exposed: true,
         name: 'update_marketplace_item',
         description:
-          'Update an installed marketplace skill to the newest catalog version, by `itemId`. ' +
-          'Use when the item shows a newer version than the installed one. Downloads and ' +
-          'integrity-verifies the new artifact server-side, then replaces the installed ' +
-          'SKILL.md. Skills only — agents and plugins must be uninstalled and reinstalled ' +
-          'instead.',
+          'Update an installed marketplace skill or plugin to the newest catalog version, by ' +
+          '`itemId`. Use when the item shows a newer version than the installed one. Skills ' +
+          'download an integrity-verified artifact server-side that replaces the installed ' +
+          'files; this tool also updates plugins, via Claude Code\'s own plugin system. ' +
+          'Agents, MCP servers, and rules must be uninstalled and reinstalled instead.',
         mutatingApproved: true,
       },
       responses: {
         200: {
-          description: 'The updated installed skill.',
+          description: 'The updated installation, discriminated by kind (skill or plugin).',
           content: { 'application/json': { schema: resolver(UpdateMarketplaceItemResponseSchema) } },
         },
-        400: { description: 'Agent item, no cloud version, or hub unavailable.' },
+        400: { description: 'Kind without in-place update, no cloud version, or hub unavailable.' },
         404: { description: 'Item not in catalog, not installed, OR workspace not found.' },
       },
     }),
