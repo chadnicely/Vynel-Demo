@@ -304,3 +304,53 @@ describe('admin routes — the catalog lifecycle', () => {
     })
   })
 })
+
+describe('admin routes — upstream watch', () => {
+  it('answers configured:false without the job, and serves the stub state with it', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const bare = buildApp(db)
+      const off = await bare.request('/admin/upstream-watch', {
+        headers: { authorization: `Bearer ${ADMIN}` },
+      })
+      expect(await off.json()).toEqual({ configured: false })
+
+      const report = {
+        checkedAt: '2026-08-02T09:00:00.000Z',
+        repo: 'anthropics/skills',
+        pinnedSha: 'a'.repeat(40),
+        upstreamHeadSha: 'b'.repeat(40),
+        upToDate: false,
+        movedCount: 1,
+        items: [{ itemId: 'canvas-design', version: '1.0.0', changed: true, changedFiles: ['skills/canvas-design/SKILL.md'] }],
+        repinRecipe: 're-pin recipe',
+      }
+      const state = { report, lastError: null, lastRunAt: report.checkedAt }
+      const withJob = createCloudApp({
+        db,
+        logger: silentLogger,
+        accessTokens,
+        accessTokenVerifier,
+        entitlements,
+        mail: { sendSetPasswordLink: async () => {} },
+        artifactStore: createInMemoryArtifactStore(),
+        linkBaseUrl: 'https://hub.test',
+        adminToken: ADMIN,
+        upstreamWatch: { state: () => state, runNow: async () => state, stop: () => {} },
+      })
+
+      const res = await withJob.request('/admin/upstream-watch', {
+        headers: { authorization: `Bearer ${ADMIN}` },
+      })
+      expect(await res.json()).toEqual({ configured: true, ...state })
+
+      const check = await withJob.request('/admin/upstream-watch/check', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${ADMIN}` },
+      })
+      expect(await check.json()).toEqual({ configured: true, ...state })
+
+      // The dual door still guards the new surface.
+      expect((await withJob.request('/admin/upstream-watch')).status).toBe(401)
+    })
+  })
+})

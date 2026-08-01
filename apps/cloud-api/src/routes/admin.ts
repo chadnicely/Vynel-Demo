@@ -171,4 +171,20 @@ export function buildAdminRoutes(options: CloudAppOptions) {
         return c.json(result, 201)
       },
     )
+    // The upstream-drift cron's read surface (the portal's drift banner) +
+    // an operator "check now". `configured: false` = the job isn't wired
+    // (tests, or a deploy without the anthropic-catalog manifest).
+    .get('/upstream-watch', (c) => {
+      if (options.upstreamWatch === undefined) {
+        return c.json({ configured: false as const })
+      }
+      return c.json({ configured: true as const, ...options.upstreamWatch.state() })
+    })
+    .post('/upstream-watch/check', async (c) => {
+      if (options.upstreamWatch === undefined) {
+        return c.json({ configured: false as const })
+      }
+      const state = await options.upstreamWatch.runNow()
+      return c.json({ configured: true as const, ...state })
+    })
 }

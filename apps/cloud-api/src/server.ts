@@ -15,6 +15,7 @@ import {
 import { loadEnv } from './env.js'
 import { createCloudApp } from './app.js'
 import { createFilesystemArtifactStore } from '@vynel/registry'
+import { startUpstreamWatchJob } from './services/upstream-watch-job.js'
 
 export async function boot(): Promise<void> {
   const env = loadEnv()
@@ -29,7 +30,15 @@ export async function boot(): Promise<void> {
   await closeCloudDatabase(directDb)
 
   const db = createCloudDatabase({ url: env.CLOUD_DATABASE_URL })
+  // The upstream-drift "cron" (Chad 2026-08-02: runs on the hub). The
+  // manifest path is re-read every run, so a re-pin needs no restart.
+  const upstreamWatch = startUpstreamWatchJob({
+    manifestPath: env.CLOUD_UPSTREAM_MANIFEST_PATH,
+    intervalMs: env.CLOUD_UPSTREAM_CHECK_INTERVAL_HOURS * 60 * 60 * 1000,
+    logger,
+  })
   const app = createCloudApp({
+    upstreamWatch,
     db,
     logger,
     accessTokens: await createAccessTokenIssuer({
@@ -61,6 +70,7 @@ export async function boot(): Promise<void> {
 
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'cloud-api shutdown initiated')
+    upstreamWatch.stop()
     server.close(() => {
       void closeCloudDatabase(db).then(() => {
         logger.info({}, 'cloud-api shutdown complete')

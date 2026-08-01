@@ -1545,6 +1545,9 @@ importers:
       '@vynel/local-api':
         specifier: workspace:*
         version: link:../apps/local-api
+      '@vynel/registry':
+        specifier: workspace:*
+        version: link:../packages/registry
       '@vynel/sealing':
         specifier: workspace:*
         version: link:../packages/sealing

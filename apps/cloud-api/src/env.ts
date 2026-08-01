@@ -54,8 +54,16 @@ export const EnvSchema = z.object({
   CLOUD_PUBLIC_BASE_URL: z.string().url(),
   // Directory holding marketplace artifact bytes (filesystem ArtifactStore).
   // Defaults under the repo-root .data so dev "just works"; a server deploy
-  // points it at a persistent volume.
+  // points it at a persistent volume. Chad's call (2026-08-02): the server
+  // disk IS the store for now — R2 waits for real users.
   CLOUD_ARTIFACT_DIR: z.string().default('.data/cloud-artifacts'),
+  // The upstream-watch cron (Chad 2026-08-02: runs ON the hub). Points at
+  // the anthropic-catalog manifest; the default works when the hub runs
+  // from the repo (dev + today's deploy). To DISABLE the job, deploy
+  // without the file — a missing manifest logs one warning per run and the
+  // hub keeps serving.
+  CLOUD_UPSTREAM_MANIFEST_PATH: z.string().default('scripts/anthropic-catalog/manifest.json'),
+  CLOUD_UPSTREAM_CHECK_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
 })
 
 export type Env = z.infer<typeof EnvSchema>

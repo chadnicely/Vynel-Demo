@@ -85,16 +85,29 @@ reads; no notebook-leaf dependency) ④ work order = follow this plan's pipeline
 - [ ] **More official plugins** — machinery ships anything now; each addition = curation +
       trust review; plugins stay structurally user-scope (off the workspace tool)
 
-## Arc 4 — operations & production hardening (someday, before real users)
+## Arc 4 — operations & production hardening (assessed 2026-08-02; mostly gated on Chad)
 
-- [ ] **Upstream-watch automation:** schedule `pnpm cloud:check-anthropic` (cron/schedules leaf)
-      + notify on drift; manual today. Re-pin recipe prints in its output
-- [ ] **Hub production track** (deferred from M4a, module-notes cloud-api): R2 object storage
-      move + per-artifact Ed25519 signatures (separate key from the token key) ·
-      `minAppVersion` enforcement (needs D2 installer stamping real versions) · real mail
-      sender (dev logs password links) · portal publishes official items (today CLI-only)
+- [x] **Upstream-watch automation** ✅ CODE-COMPLETE 2026-08-02 (Chad's call: a cron ON the
+      hub, not a desktop schedule) — logic extracted to `@vynel/registry` `upstream-watch.ts`
+      (blob-less clone, per-folder pin..HEAD verdicts, re-pin recipe; local-git-fixture
+      tests; arg-injection hardened); cloud-api runs it as an in-process daily job
+      (`upstream-watch-job.ts`, first run 15s post-boot, manifest re-read per run,
+      env `CLOUD_UPSTREAM_MANIFEST_PATH`/`_INTERVAL_HOURS`); `GET/POST /admin/upstream-watch`
+      behind the dual door; portal CatalogView shows an amber drift banner when republished
+      folders moved. The CLI (`pnpm cloud:check-anthropic`) is now a thin printer over the
+      same module (live-smoked: up to date @b29e7cf)
+- [ ] **Hub production track** — per-item reality:
+      · R2 object storage — OUT OF V1 (Chad 2026-08-02, twice-confirmed): the server-disk
+        filesystem ArtifactStore ships as v1's store; R2 is a FUTURE implement (needs his
+        Cloudflare bucket + token; the swap stays small — the interface was built for it)
+      · per-artifact Ed25519 signatures — implementable now (own arc; separate key from the
+        token key; hub signs at publish, desktop verifies at download)
+      · `minAppVersion` enforcement — BLOCKED on D2 installer stamping real versions
+      · real mail sender — BLOCKED on Chad's provider choice + API key (dev logs links today)
+      · portal publishes official items — implementable now (portal trigger for the
+        import-anthropic pipeline; today CLI-only)
 - [ ] **Plugin installs → outbox/activity:** no Vynel state changes today so no event; add a
-      recorded event if/when the activity feed should show plugin installs
+      recorded event if/when Chad wants the activity feed to show plugin installs
 
 ## Standing rules this plan inherits
 

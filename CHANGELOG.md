@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The hub now watches Anthropic's upstream for you.** Once a day, the cloud server checks
+  whether Anthropic has changed any of the skills your marketplace republishes (against the
+  reviewed, pinned snapshot). When something moved, the admin portal's catalog page shows an
+  amber banner naming exactly which items changed and how to review + re-publish — nothing
+  ever updates automatically; the human review stays the curation promise. The manual
+  `pnpm cloud:check-anthropic` still works and now shares the same engine.
+
 - **Plugins now update in place.** When a plugin's publisher ships a newer version, its
   marketplace card shows the same Update button skills have — one click and Claude Code's
   own plugin system replaces it, no more uninstall-and-reinstall. The version shown after

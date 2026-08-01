@@ -37,3 +37,9 @@ export {
   CatalogItemStatusSchema,
   type UpdateCatalogItemMetadataPatch,
 } from './admin-catalog.js'
+export {
+  checkUpstreamAgainstPin,
+  type UpstreamWatchManifest,
+  type UpstreamWatchReport,
+  type UpstreamWatchItemVerdict,
+} from './upstream-watch.js'

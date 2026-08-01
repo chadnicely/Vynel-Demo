@@ -5,6 +5,7 @@ import type { HubItemKind } from "@vynel/contracts/hub/catalog";
 import KindChip from "../components/catalog/KindChip.vue";
 import StatusChip from "../components/catalog/StatusChip.vue";
 import { useAdminCatalog } from "../composables/catalog/use-admin-catalog.js";
+import { useUpstreamWatch } from "../composables/catalog/use-upstream-watch.js";
 import { formatDate } from "../lib/format.js";
 
 const KIND_TABS = ["all", "skill", "agent", "mcp", "rule", "plugin"] as const;
@@ -13,6 +14,22 @@ type KindTab = (typeof KIND_TABS)[number];
 const router = useRouter();
 const catalogQuery = useAdminCatalog();
 const activeKind = ref<KindTab>("all");
+
+// The hub's daily upstream-drift check — a banner only when Anthropic's
+// repo moved past our pin in a folder we republish (curation nudge, never
+// an auto-update).
+const upstreamQuery = useUpstreamWatch();
+const upstreamDrift = computed(() => {
+  const report = upstreamQuery.data.value?.report;
+  if (!report || report.movedCount === 0) return null;
+  return {
+    movedCount: report.movedCount,
+    total: report.items.length,
+    movedIds: report.items.filter((i) => i.changed).map((i) => i.itemId),
+    pin: report.pinnedSha.slice(0, 7),
+    head: report.upstreamHeadSha.slice(0, 7),
+  };
+});
 
 const filteredItems = computed(() => {
   const items = catalogQuery.data.value ?? [];
@@ -45,6 +62,13 @@ function isKind(tab: KindTab): tab is HubItemKind {
         Add Marketplace Catalog
       </RouterLink>
     </header>
+    <p v-if="upstreamDrift" class="drift-banner">
+      Anthropic's upstream moved past our pin ({{ upstreamDrift.pin }} →
+      {{ upstreamDrift.head }}): {{ upstreamDrift.movedCount }} of
+      {{ upstreamDrift.total }} republished item(s) changed —
+      {{ upstreamDrift.movedIds.join(", ") }}. Review and re-pin via
+      <code>pnpm cloud:import-anthropic</code>.
+    </p>
     <div class="kind-tabs" role="tablist">
       <button
         v-for="tab in KIND_TABS"
@@ -124,6 +148,16 @@ function isKind(tab: KindTab): tab is HubItemKind {
 .page-title {
   font-size: 17px;
   margin: 0;
+}
+
+.drift-banner {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--warn, #b58900);
+  border-radius: var(--radius-s);
+  color: var(--ink-1);
+  background: color-mix(in srgb, var(--warn, #b58900) 12%, transparent);
+  font-size: 12.5px;
 }
 
 .kind-tabs {

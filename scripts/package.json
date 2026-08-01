@@ -10,6 +10,7 @@
     "@vynel/contracts": "workspace:*",
     "@vynel/db": "workspace:*",
     "@vynel/local-api": "workspace:*",
+    "@vynel/registry": "workspace:*",
     "@vynel/sealing": "workspace:*",
     "@vynel/server-install": "workspace:*",
     "@vynel/testing": "workspace:*",

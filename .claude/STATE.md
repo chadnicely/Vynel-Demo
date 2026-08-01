@@ -35,7 +35,24 @@ Remaining marketplace items = the module-notes deferred lists.
 checkboxes: ① skills install/uninstall-only ② polish batch ③ mcp/rule kinds + plugin updates
 ④ ops/production hardening — check items off as they land).
 
-## ✅ ARC 3 SLICE 3: PLUGIN UPDATES — CODE-COMPLETE (2026-08-02), UNCOMMITTED — ARC 3 DONE
+## ✅ ARC 4 SLICE 1: HUB UPSTREAM-WATCH CRON — CODE-COMPLETE (2026-08-02), UNCOMMITTED
+
+Chad's calls: the drift check runs as a CRON ON THE HUB (not a desktop schedule) + R2 stays
+PARKED (server-disk ArtifactStore is the deliberate choice; documented in env.ts + plan).
+Shipped: `@vynel/registry` `upstream-watch.ts` (extracted from the CLI — blob-less clone,
+per-folder pin..HEAD verdicts, re-pin recipe; local-git-fixture tests; `--` + 40-hex-sha
+arg-injection hardening) · cloud-api `upstream-watch-job.ts` (daily timer, first run 15s
+post-boot, manifest re-read per run, last-good-report kept on failure, unref'd + stopped on
+shutdown; env `CLOUD_UPSTREAM_MANIFEST_PATH`/`_INTERVAL_HOURS`) · `GET/POST
+/admin/upstream-watch` behind the dual door · portal CatalogView amber drift banner ·
+CLI now a thin printer over the module (LIVE-SMOKED twice: up to date @b29e7cf, exit 0).
+Reviewer CLEAN (both should-fixes applied: plan-doc contradiction + git-arg hardening).
+**Full gate GREEN 2026-08-02 (3471 passed / 617 files).** R2 = OUT OF V1 (Chad,
+twice-confirmed — future implement; server disk ships). Remaining Arc 4 = signatures /
+portal-publish (implementable) · minAppVersion/mail (BLOCKED on D2/provider).
+Plugin-feed events: Chad said NOT YET (recorded).
+
+## ✅ ARC 3 SLICE 3: PLUGIN UPDATES — SHIPPED (`92bc663`, 2026-08-02) — ARC 3 DONE
 
 The last Arc-3 slice: plugins update in place via `updateClaudePlugin` (`claude plugin
 update <name>@<marketplace>`; no `--scope` — the installed entry fixes it, WHY-commented) →
