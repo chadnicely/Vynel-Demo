@@ -1,8 +1,7 @@
 // Updates the per-installation settings of an installed skill.
 // Validates every value against the catalog schema, persists the
 // upserts atomically with an outbox event, then re-renders the
-// on-disk SKILL.md from the new resolved settings IF the skill
-// is currently enabled.
+// on-disk SKILL.md from the new resolved settings.
 //
 // Throws:
 //   - `NotFoundError('installed-skill', id)` — row missing OR
@@ -80,20 +79,19 @@ export async function updateSkillSettings(
     })
   })
 
-  // If enabled, re-render SKILL.md from the new resolved settings.
-  if (row.isEnabled) {
-    const stored = skillSettingsRepository.listSettingsForInstalledSkill(db, input.installedSkillId)
-    const resolved = resolveSkillSettings(definition, stored)
-    const fsInput: Parameters<typeof installSkillOnDisk>[0] = {
-      skillDefinition: definition,
-      scope: row.scope,
-      resolvedSettings: resolved,
-    }
-    if (row.scope === 'workspace' && input.workspacePath !== undefined) {
-      fsInput.workspacePath = input.workspacePath
-    }
-    await installSkillOnDisk(fsInput)
+  // Re-render SKILL.md from the new resolved settings — installed means
+  // present on disk, so the render is unconditional.
+  const stored = skillSettingsRepository.listSettingsForInstalledSkill(db, input.installedSkillId)
+  const resolved = resolveSkillSettings(definition, stored)
+  const fsInput: Parameters<typeof installSkillOnDisk>[0] = {
+    skillDefinition: definition,
+    scope: row.scope,
+    resolvedSettings: resolved,
   }
+  if (row.scope === 'workspace' && input.workspacePath !== undefined) {
+    fsInput.workspacePath = input.workspacePath
+  }
+  await installSkillOnDisk(fsInput)
 
   const final = skillSettingsRepository.listSettingsForInstalledSkill(db, input.installedSkillId)
   return resolveSkillSettings(definition, final)

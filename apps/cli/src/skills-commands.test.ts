@@ -19,8 +19,6 @@ function stubClient(): { client: VynelClient; calls: Array<{ method: string; arg
       listAvailable: record('listAvailable'),
       install: record('install'),
       uninstall: record('uninstall'),
-      enable: record('enable'),
-      disable: record('disable'),
       synchronize: record('synchronize'),
     },
   } as unknown as VynelClient
@@ -60,16 +58,6 @@ describe('vynel skills', () => {
     const { client, calls } = stubClient()
     await run(client, ['skills', 'uninstall', 'inst_1', '-w', 'ws_1'])
     expect(calls).toStrictEqual([{ method: 'uninstall', args: ['ws_1', 'inst_1'] }])
-  })
-
-  it('enable + disable pass the installedSkillId + workspace', async () => {
-    const { client, calls } = stubClient()
-    await run(client, ['skills', 'enable', 'inst_1', '-w', 'ws_1'])
-    await run(client, ['skills', 'disable', 'inst_2', '-w', 'ws_1'])
-    expect(calls).toStrictEqual([
-      { method: 'enable', args: ['ws_1', 'inst_1'] },
-      { method: 'disable', args: ['ws_1', 'inst_2'] },
-    ])
   })
 
   it('synchronize passes just the workspace', async () => {

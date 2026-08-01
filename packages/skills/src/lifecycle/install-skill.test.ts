@@ -83,7 +83,6 @@ describe('installSkill', () => {
         // Row persisted.
         expect(installed.skillId).toBe('email-drafter')
         expect(installed.scope).toBe('user')
-        expect(installed.isEnabled).toBe(true)
         expect(installed.installHealth).toBe('healthy')
 
         // Settings persisted.

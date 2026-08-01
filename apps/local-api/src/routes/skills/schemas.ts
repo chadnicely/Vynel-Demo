@@ -92,7 +92,6 @@ export const InstalledSkillRowSchema = z.object({
   workspaceId: z.string().nullable(),
   installedFromSource: InstalledFromSourceSchema,
   versionInstalled: z.string(),
-  isEnabled: z.boolean(),
   installHealth: InstallHealthSchema,
   installHealthMessage: z.string().nullable(),
   installedAt: z.string(),

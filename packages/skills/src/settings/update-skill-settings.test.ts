@@ -12,7 +12,6 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { NotFoundError, ValidationError } from '@vynel/errors'
 import { installSkill } from '../lifecycle/install-skill.js'
-import { disableSkill } from '../lifecycle/disable-skill.js'
 import { updateSkillSettings } from './update-skill-settings.js'
 import { withHomeDir } from '../internal/resolve-host-home-dir.js'
 import { SKILL_SETTINGS_UPDATED } from '../skills-events.js'
@@ -58,7 +57,7 @@ async function withFsAndDb<T>(
 }
 
 describe('updateSkillSettings', () => {
-  it('persists new settings + re-renders SKILL.md when enabled', async () => {
+  it('persists new settings + re-renders SKILL.md', async () => {
     await withFsAndDb(async (workspacePath, withDb) => {
       await withDb(async (db) => {
         const user = insertUser(db, makeUser())
@@ -91,33 +90,6 @@ describe('updateSkillSettings', () => {
         expect(payload.changedSettingKeys.sort()).toEqual(
           ['defaultSignOff', 'tonePreference'].sort(),
         )
-      })
-    })
-  })
-
-  it('persists settings BUT skips SKILL.md re-render when disabled', async () => {
-    await withFsAndDb(async (workspacePath, withDb) => {
-      await withDb(async (db) => {
-        const user = insertUser(db, makeUser())
-        const workspace = insertWorkspace(db, makeWorkspace(user.id, workspacePath))
-        const installed = await installSkill(db, {
-          userId: user.id,
-          workspaceId: workspace.id,
-          workspacePath,
-          skillId: 'email-drafter',
-          scope: 'user',
-        })
-        await disableSkill(db, { userId: user.id, installedSkillId: installed.id })
-
-        // Update settings while disabled — should succeed, no file rewrite.
-        const resolved = await updateSkillSettings(db, {
-          userId: user.id,
-          installedSkillId: installed.id,
-          newSettings: { defaultSignOff: 'XYZ' },
-        })
-        expect(resolved.defaultSignOff).toBe('XYZ')
-        // The file is gone because disable removed it (D11), and we
-        // didn't re-render because disabled.
       })
     })
   })

@@ -102,7 +102,6 @@ export async function synchronizeSkillsWithProvider(
         installLocation: providerSkill.installLocation,
         installHealth: 'healthy',
         installHealthMessage: null,
-        isEnabled: true,
         installedAt: now,
         updatedAt: now,
       })

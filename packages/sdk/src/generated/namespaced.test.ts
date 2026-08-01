@@ -72,12 +72,11 @@ const EXPECTED_CHANNELS_USER_METHODS = [
   'setGroupPolicy',
 ] as const
 
-// The skills namespace's methods, sorted. The 2 read GETs + the 6
+// The skills namespace's methods, sorted. The 2 read GETs + the 4
 // mutating lifecycle/settings routes all carry `x-sdk-name` (x-mcp is a
-// separate, narrower opt-in — only the 2 GETs are MCP-exposed).
+// separate, narrower opt-in — only the 2 GETs are MCP-exposed). No
+// enable/disable pair — skills are install/uninstall-only (2026-08-01).
 const EXPECTED_SKILLS_METHODS = [
-  'disable',
-  'enable',
   'install',
   'listAvailable',
   'listInstalled',

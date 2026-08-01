@@ -23,7 +23,7 @@
 // 100% re-creatable by re-installing — no audit retention value).
 
 import { sql } from 'drizzle-orm'
-import { table, id, text, timestamp, boolean, index, uniqueIndex } from '@vynel/db/dialect'
+import { table, id, text, timestamp, index, uniqueIndex } from '@vynel/db/dialect'
 import { users } from '@vynel/db/schema/users'
 import { workspaces } from '@vynel/db/schema/workspaces'
 
@@ -73,8 +73,6 @@ export const installedSkills = table(
     // Default `healthy` is the optimistic post-install state.
     installHealth: text().$type<InstallHealth>().notNull(),
     installHealthMessage: text(),
-
-    isEnabled: boolean().notNull(),
 
     installedAt: timestamp().notNull(),
     updatedAt: timestamp().notNull(),

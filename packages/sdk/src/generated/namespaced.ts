@@ -1365,20 +1365,6 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   skills: {
-  disable: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable"]["post"]['parameters']>['path']["workspaceId"], installedSkillId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable"]["post"]['parameters']>['path']["installedSkillId"]) => {
-    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable", {
-      params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
-    })
-    if (error || data === undefined) throw new SdkError(response, error ?? data)
-    return data
-  },
-  enable: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/enable"]["post"]['parameters']>['path']["workspaceId"], installedSkillId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/enable"]["post"]['parameters']>['path']["installedSkillId"]) => {
-    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}/enable", {
-      params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
-    })
-    if (error || data === undefined) throw new SdkError(response, error ?? data)
-    return data
-  },
   install: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/install"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/skills/install"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/install", {
       params: { path: { workspaceId: workspaceId } },

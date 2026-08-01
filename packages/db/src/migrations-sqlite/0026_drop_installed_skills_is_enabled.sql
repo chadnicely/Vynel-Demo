@@ -1,0 +1,1 @@
+ALTER TABLE `installed_skills` DROP COLUMN `is_enabled`;

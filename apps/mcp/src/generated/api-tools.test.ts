@@ -22,7 +22,8 @@ import {
 //     remove_knowledge_source, `mutatingApproved` auto-mode) + list_*.
 //   - skills (`apps/local-api/src/routes/skills/index.ts`): 2 read-only
 //     GETs (list_available_skills / list_installed_skills); the mutating
-//     install/enable/disable/uninstall/settings routes carry NO x-mcp.
+//     install/uninstall/settings routes carry NO x-mcp (skills are
+//     install/uninstall-only — no enable/disable pair since 2026-08-01).
 //   - channels (`apps/local-api/src/routes/channels/index.ts`): 2 read-only
 //     GETs (list_channels / list_allowed_senders); the mutating
 //     connect/disconnect/enable/disable/allowed-sender routes carry NO x-mcp

@@ -53,7 +53,6 @@ export function serializeInstalledSkillRow(row: InstalledSkillRow): unknown {
     workspaceId: row.workspaceId,
     installedFromSource: row.installedFromSource,
     versionInstalled: row.versionInstalled,
-    isEnabled: row.isEnabled,
     installHealth: row.installHealth,
     installHealthMessage: row.installHealthMessage,
     installedAt: row.installedAt.toISOString(),

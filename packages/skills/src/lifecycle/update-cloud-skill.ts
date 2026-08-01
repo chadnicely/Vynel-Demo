@@ -62,13 +62,6 @@ export async function updateCloudSkill(
       `Updating ${row.skillId} needs its workspace path — call from the workspace surface that installed it.`,
     )
   }
-  // Disable is REAL (D11): the folder is gone so the agent can't see the
-  // skill. Writing the update would silently re-materialize it while the row
-  // still says disabled — refuse instead.
-  if (!row.isEnabled) {
-    throw new ValidationError(`${row.skillId} is disabled — enable it first, then update.`)
-  }
-
   // 4. FS OVERWRITE FIRST (D8) — failure here leaves the old row intact.
   const writeInput: Parameters<typeof writeCloudSkillOnDisk>[0] = {
     skillId: row.skillId,

@@ -1505,7 +1505,7 @@ export const listGlobalMonitors: McpToolFactory = (scope, app) =>
 export const listInstalledSkills: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_installed_skills',
-    "List skills installed in the current user+workspace context (owner-scoped). Returns the union of user-scope (available across every workspace) + workspace-scope (this workspace only) entries, each with version, scope, isEnabled flag, install health, and resolved settings. Read-only — use this to know what skills the agent currently has available, not to install them.",
+    "List skills installed in the current user+workspace context (owner-scoped). Returns the union of user-scope (available across every workspace) + workspace-scope (this workspace only) entries, each with version, scope, install health, and resolved settings. Read-only — use this to know what skills the agent currently has available, not to install them.",
     {
     workspaceId: z.string(),
   },

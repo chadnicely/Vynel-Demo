@@ -35,17 +35,19 @@ Remaining marketplace items = the module-notes deferred lists.
 checkboxes: ① skills install/uninstall-only ② polish batch ③ mcp/rule kinds + plugin updates
 ④ ops/production hardening — check items off as they land).
 
-## ⏭ NEXT SESSION FIRST: skills become INSTALL/UNINSTALL ONLY (Chad, 2026-08-01)
+## ✅ ARC 1 SKILLS INSTALL/UNINSTALL-ONLY — CODE-COMPLETE (2026-08-01), UNCOMMITTED
 
-Chad's call (AskUserQuestion, deliberate): **remove the enable/disable pause state from the
-skills leaf** — a skill is one file on disk; the only honest states are present/absent.
-Reverses D11. Scope sketch: drop `isEnabled` (migration), delete
-`enable-skill.ts`/`disable-skill.ts` + `SKILL_ENABLED_CHANGED` + the two routes + panel toggle +
-`update-cloud-skill.ts`'s disabled guard (+ its test), sweep `isEnabled` from types/serializers/
-annotator views, regen SDK/MCP (pinned rosters shrink), check
-`synchronize-skills-with-provider` + `list-installed-skills-for-context` + `update-skill-settings`
-("re-renders if enabled" → always). ⚠ Turning off then = uninstall = settings hard-delete —
-surface that in the removal UX. Chad: "don't focus on it this session — fix next session."
+The enable/disable pause state is GONE (reverses D11; full checklist ticked in
+`.claude/plan/marketplace-remaining.md` Arc 1): `isEnabled` column dropped (migration
+`0026_drop_installed_skills_is_enabled`, drizzle-generated, single DROP COLUMN),
+`enable-skill.ts`/`disable-skill.ts`/`SKILL_ENABLED_CHANGED`/two routes/CLI commands/panel
+On/Off pill deleted, `update-cloud-skill` disabled guard removed, `update-skill-settings`
+re-renders unconditionally, SDK+MCP regenerated (skills SDK roster 8→6; MCP roster unchanged),
+armed marketplace Remove now warns "Removes it from this device and deletes its settings."
+Module-notes deferred updated (enable-void CLOSED; template-clobber's settings half remains).
+CHANGELOG updated. **Full `pnpm test` gate GREEN (2026-08-02: 3439 passed / 613 files);**
+reviewer CLEAN. Awaiting Chad's commit. Reviewer confirm-note: any row that was disabled
+BEFORE the migration survives as `missing-on-disk` (sync surfaces it; uninstall resolves).
 
 ## ✅ DASHBOARD V2 ARC STARTED (2026-07-31, committed `dac0bef`, pushed)
 

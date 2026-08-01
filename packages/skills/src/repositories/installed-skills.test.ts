@@ -64,7 +64,6 @@ function makeInstalledSkill(
     installLocation: `/tmp/vynel/skills/${randomUUID()}/SKILL.md`,
     installHealth: 'healthy',
     installHealthMessage: null,
-    isEnabled: true,
     installedAt: now,
     updatedAt: now,
     ...overrides,

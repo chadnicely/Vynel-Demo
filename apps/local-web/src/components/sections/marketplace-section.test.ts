@@ -261,7 +261,7 @@ describe("MarketplaceSection — uninstall", () => {
     await flushPromises();
     expect(uninstall).not.toHaveBeenCalled();
 
-    const confirmButton = wrapper.get('[aria-label="Confirm remove Owned"]');
+    const confirmButton = wrapper.get('[aria-label="Confirm remove Owned — its settings are deleted too"]');
     expect(confirmButton.text()).toBe("Sure?");
     await confirmButton.trigger("click");
     await flushPromises();
@@ -283,7 +283,7 @@ describe("MarketplaceSection — uninstall", () => {
     await flushPromises();
 
     await wrapper.get('[aria-label="Remove Owned"]').trigger("click");
-    await wrapper.get('[aria-label="Confirm remove Owned"]').trigger("blur");
+    await wrapper.get('[aria-label="Confirm remove Owned — its settings are deleted too"]').trigger("blur");
     await flushPromises();
 
     expect(uninstall).not.toHaveBeenCalled();
@@ -601,7 +601,7 @@ describe("MarketplaceSection — global surface", () => {
     await flushPromises();
 
     await wrapper.get('[aria-label="Remove Owned"]').trigger("click");
-    await wrapper.get('[aria-label="Confirm remove Owned"]').trigger("click");
+    await wrapper.get('[aria-label="Confirm remove Owned — its settings are deleted too"]').trigger("click");
     await flushPromises();
 
     expect(userUninstall).toHaveBeenCalledWith({ itemId: "owned" });

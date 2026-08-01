@@ -1,11 +1,11 @@
 // Integration tests for the MUTATING `/workspaces/:workspaceId/skills/...`
-// routes (DELETE / enable / disable / PATCH settings). The GET +
-// POST /install routes live in `index.test.ts`. Split per
-// structure-standard.md "File size cap" (code-reviewer C1).
+// routes (DELETE / PATCH settings). The GET + POST /install routes live
+// in `index.test.ts`. Split per structure-standard.md "File size cap"
+// (code-reviewer C1).
 //
 // User-scope installs are redirected to a per-test tmp home dir via
-// `withIsolatedFs` — disable/uninstall DELETE the on-disk skill folder,
-// so without the home seam these would wipe the dev's real
+// `withIsolatedFs` — uninstall DELETES the on-disk skill folder, so
+// without the home seam these would wipe the dev's real
 // `~/.claude/skills/email-drafter/`.
 
 import { describe, it, expect } from 'vitest'
@@ -54,8 +54,8 @@ function seedWorld(
 }
 
 // Isolate the workspace dir + host home dir to per-test tmpdirs so
-// user-scope installs (and the disable/uninstall deletes they trigger)
-// never touch the dev's real `~/.claude/skills/`. See the companion note
+// user-scope installs (and the uninstall deletes they trigger) never
+// touch the dev's real `~/.claude/skills/`. See the companion note
 // in `index.test.ts`.
 async function withIsolatedFs<T>(fn: (workspacePath: string) => Promise<T>): Promise<T> {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'vynel-skills-routes-mut-test-'))
@@ -105,40 +105,6 @@ describe('skills routes — mutations', () => {
             { method: 'DELETE' },
           )
           expect(res.status).toBe(404)
-        })
-      })
-    })
-  })
-
-  describe('POST /skills/installed/:id/enable + /disable', () => {
-    it('disable then enable round-trip — both 200', async () => {
-      await withIsolatedFs(async (workspacePath) => {
-        await withTestDatabase(async (db) => {
-          const { workspace } = seedWorld(db, workspacePath)
-          const app = createApp({ db, logger: silentLogger })
-
-          const installRes = await app.request(`/workspaces/${workspace.id}/skills/install`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ skillId: 'email-drafter', scope: 'user' }),
-          })
-          const installed = (await installRes.json()) as { id: string }
-
-          const disableRes = await app.request(
-            `/workspaces/${workspace.id}/skills/installed/${installed.id}/disable`,
-            { method: 'POST' },
-          )
-          expect(disableRes.status).toBe(200)
-          const disabled = (await disableRes.json()) as { isEnabled: boolean }
-          expect(disabled.isEnabled).toBe(false)
-
-          const enableRes = await app.request(
-            `/workspaces/${workspace.id}/skills/installed/${installed.id}/enable`,
-            { method: 'POST' },
-          )
-          expect(enableRes.status).toBe(200)
-          const enabled = (await enableRes.json()) as { isEnabled: boolean }
-          expect(enabled.isEnabled).toBe(true)
         })
       })
     })

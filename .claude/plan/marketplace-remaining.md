@@ -5,24 +5,30 @@ Phase B slice 1, all shipped + smoked; commits `c3acafd`…`eb6bccb`). Full cont
 `docs/module-notes/marketplace-claude-official.md` (decisions, findings, deferred rationale) +
 `.claude/STATE.md`. This file is the ordered TODO; check items off as arcs land.
 
-## Arc 1 — skills become INSTALL/UNINSTALL ONLY (decided; NEXT SESSION'S OPENER)
+## Arc 1 — skills become INSTALL/UNINSTALL ONLY ✅ COMPLETE (gate green 2026-08-02)
 
 Chad's call (2026-08-01): a skill is one file-tree on disk — the only honest states are present
 and absent. Remove the enable/disable pause state (reverses skills D11).
 
-- [ ] Drop `installed_skills.isEnabled` — migration via **drizzle-kit generate ONLY** (memory:
-      `drizzle-generate-never-handwrite-migrations`)
-- [ ] Delete `enable-skill.ts` + `disable-skill.ts` (+ tests) and the two routes
-      (`POST /installed/:id/enable|disable`); panel toggle in local-web; `SKILL_ENABLED_CHANGED`
-      event + payload
-- [ ] Remove `update-cloud-skill.ts`'s disabled guard + its test (moot without the state)
-- [ ] Sweep `isEnabled` from types/serializers/schemas/views; SDK+MCP regen (pinned rosters)
-- [ ] Re-check `update-skill-settings.ts` ("re-renders if enabled" → always),
-      `synchronize-skills-with-provider.ts`, `list-installed-skills-for-context.ts`
-- [ ] **UX:** Remove confirm must say settings are deleted (disable used to preserve them)
-- [ ] Free wins: closes the pure-cloud enable-void + the enable half of template-clobber
-      (both recorded in module-notes deferred)
+- [x] Drop `installed_skills.isEnabled` — migration `0026_drop_installed_skills_is_enabled`
+      via drizzle-kit generate (single clean `DROP COLUMN`)
+- [x] Delete `enable-skill.ts` + `disable-skill.ts` (+ tests) and the two routes
+      (`POST /installed/:id/enable|disable`); local-web On/Off pill removed
+      (WorkspaceSectionPanel); `SKILL_ENABLED_CHANGED` event + payload gone; CLI
+      `skills enable|disable` commands gone
+- [x] Remove `update-cloud-skill.ts`'s disabled guard + its test (moot without the state)
+- [x] Sweep `isEnabled` from types/serializers/schemas/views; SDK+MCP regen (skills SDK
+      roster 8 → 6 methods; MCP tools unchanged — enable/disable never carried x-mcp)
+- [x] Re-check `update-skill-settings.ts` (re-renders unconditionally now),
+      `synchronize-skills-with-provider.ts` (insert minus the flag),
+      `list-installed-skills-for-context.ts` (never read it)
+- [x] **UX:** armed Remove now shows "Removes it from this device and deletes its settings."
+      + extended aria-label on the marketplace card
+- [x] Free wins: pure-cloud enable-void CLOSED; template-clobber's enable half closed
+      (settings half remains — recorded in module-notes deferred)
 - Scope note: skills only — agents keep their enabled state (`options.agents` resolution)
+- Verified: scoped checks green, then the **full `pnpm test` gate GREEN 2026-08-02**
+  (3439 passed / 613 files); reviewer clean
 
 ## Arc 2 — marketplace polish batch (no decisions needed; one move)
 

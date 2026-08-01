@@ -40,7 +40,6 @@ function makeInstalledSkill(userId: string): NewInstalledSkillRow {
     installLocation: `/tmp/vynel/skills/${randomUUID()}/SKILL.md`,
     installHealth: 'healthy',
     installHealthMessage: null,
-    isEnabled: true,
     installedAt: now,
     updatedAt: now,
   }

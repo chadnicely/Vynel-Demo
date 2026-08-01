@@ -93,7 +93,6 @@ export async function installCloudSkill(
       installLocation,
       installHealth: 'healthy',
       installHealthMessage: null,
-      isEnabled: true,
       installedAt: now,
       updatedAt: now,
     })

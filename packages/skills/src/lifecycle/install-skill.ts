@@ -95,7 +95,6 @@ export async function installSkill(
       installLocation,
       installHealth: 'healthy',
       installHealthMessage: null,
-      isEnabled: true,
       installedAt: now,
       updatedAt: now,
     })

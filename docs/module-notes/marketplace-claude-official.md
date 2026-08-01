@@ -292,10 +292,12 @@ uninstall guard. Original plan below.
   daemon ("no cloud version to update to") — error surfaces on the card, not silent, but it's the
   dead-button pattern the merge avoids. Honest fix = an explicit wire signal (`hasCloudArtifact`
   or daemon-computed `updateAvailable`) on `MarketplaceItem`.
-- **Template-clobber drift class (pre-existing, widened):** for an id that is BOTH bundled and
-  cloud, `enableSkill` / `updateSkillSettings` re-render SKILL.md from the bundled template over
-  marketplace bytes while the row keeps the cloud `versionInstalled`. Follow-up: gate template
-  re-render on `installedFromSource !== 'marketplace'` (or persist extracted markdown).
+- **Template-clobber drift class (pre-existing; enable half CLOSED 2026-08-01):** for an id that
+  is BOTH bundled and cloud, `updateSkillSettings` re-renders SKILL.md from the bundled template
+  over marketplace bytes while the row keeps the cloud `versionInstalled`. The `enableSkill` half
+  died with the install/uninstall-only arc (enable/disable removed); the settings half remains —
+  and now re-renders unconditionally. Follow-up: gate template re-render on
+  `installedFromSource !== 'marketplace'` (or persist extracted markdown).
 - **sha-verify duplication:** the hash-compare block is verbatim in `install-cloud-skill.ts` and
   `update-cloud-skill.ts` — extract a shared `verifyArtifactSha256` internal on next touch.
 - **Admin portal catalog table shows no publisher column** (Chad noticed 2026-08-01) — kind
@@ -305,11 +307,8 @@ uninstall guard. Original plan below.
   carries it but `PublishItemView` has no form field and `UpdateCatalogItemMetadataSchema` omits
   it — a wrong credit URL today needs a script republish with a version bump. Close on the
   portal's next touch (zod line + repo patch field + form input).
-- **Pure-cloud enable-void (pre-existing, from the Move-3 review):** `enableSkill`
-  re-materializes only from the bundled catalog — for a marketplace-only skill it flips the flag
-  with NOTHING written to disk (recoverable via sync → repair-update). Moot if the
-  skills-install/uninstall-only arc removes enable/disable first; otherwise fix alongside the
-  template-clobber item above.
+- **Pure-cloud enable-void — CLOSED 2026-08-01:** the install/uninstall-only arc removed
+  `enableSkill`/`disableSkill` entirely, so the flag-without-disk-write hole no longer exists.
 
 **Standing requirement (Chad, 2026-08-01): native-disk interop.** Every installed item lands in
 the standard Claude ecosystem location so it works when the user runs Claude Code directly —

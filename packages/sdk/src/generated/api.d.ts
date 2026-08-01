@@ -187,40 +187,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{workspaceId}/skills/installed/{installedSkillId}/enable": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Enable an installed skill — rewrites files from current settings. */
-        post: operations["postWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillIdEnable"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Disable an installed skill — removes files from disk; preserves row + settings. */
-        post: operations["postWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillIdDisable"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings": {
         parameters: {
             query?: never;
@@ -234,7 +200,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update settings on an installed skill — re-renders SKILL.md if enabled. */
+        /** Update settings on an installed skill — re-renders SKILL.md. */
         patch: operations["patchWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillIdSettings"];
         trace?: never;
     };
@@ -3593,7 +3559,6 @@ export interface operations {
                         /** @enum {string} */
                         installedFromSource: "verified-catalog" | "marketplace" | "external";
                         versionInstalled: string;
-                        isEnabled: boolean;
                         /** @enum {string} */
                         installHealth: "healthy" | "missing-on-disk" | "mcp-config-drift" | "failed-install";
                         installHealthMessage: string | null;
@@ -3678,7 +3643,6 @@ export interface operations {
                         /** @enum {string} */
                         installedFromSource: "verified-catalog" | "marketplace" | "external";
                         versionInstalled: string;
-                        isEnabled: boolean;
                         /** @enum {string} */
                         installHealth: "healthy" | "missing-on-disk" | "mcp-config-drift" | "failed-install";
                         installHealthMessage: string | null;
@@ -3735,96 +3699,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Installed-skill row not found OR owned by another user. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    postWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillIdEnable: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                installedSkillId: string;
-                workspaceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The updated installed-skill row. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        id: string;
-                        skillId: string;
-                        /** @enum {string} */
-                        scope: "user" | "workspace";
-                        workspaceId: string | null;
-                        /** @enum {string} */
-                        installedFromSource: "verified-catalog" | "marketplace" | "external";
-                        versionInstalled: string;
-                        isEnabled: boolean;
-                        /** @enum {string} */
-                        installHealth: "healthy" | "missing-on-disk" | "mcp-config-drift" | "failed-install";
-                        installHealthMessage: string | null;
-                        installedAt: string;
-                        updatedAt: string;
-                    };
-                };
-            };
-            /** @description Installed-skill row not found OR owned by another user. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    postWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillIdDisable: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                installedSkillId: string;
-                workspaceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The updated installed-skill row. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        id: string;
-                        skillId: string;
-                        /** @enum {string} */
-                        scope: "user" | "workspace";
-                        workspaceId: string | null;
-                        /** @enum {string} */
-                        installedFromSource: "verified-catalog" | "marketplace" | "external";
-                        versionInstalled: string;
-                        isEnabled: boolean;
-                        /** @enum {string} */
-                        installHealth: "healthy" | "missing-on-disk" | "mcp-config-drift" | "failed-install";
-                        installHealthMessage: string | null;
-                        installedAt: string;
-                        updatedAt: string;
-                    };
-                };
             };
             /** @description Installed-skill row not found OR owned by another user. */
             404: {

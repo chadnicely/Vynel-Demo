@@ -59,7 +59,6 @@ function makeInstalledSkillRow(
     installLocation: '/never-used-in-test',
     installHealth: 'healthy',
     installHealthMessage: null,
-    isEnabled: true,
     installedAt: now,
     updatedAt: now,
     ...overrides,

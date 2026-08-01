@@ -1214,9 +1214,6 @@
                       "versionInstalled": {
                         "type": "string"
                       },
-                      "isEnabled": {
-                        "type": "boolean"
-                      },
                       "installHealth": {
                         "type": "string",
                         "enum": [
@@ -1389,7 +1386,6 @@
                       "workspaceId",
                       "installedFromSource",
                       "versionInstalled",
-                      "isEnabled",
                       "installHealth",
                       "installHealthMessage",
                       "installedAt",
@@ -1425,7 +1421,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "list_installed_skills",
-          "description": "List skills installed in the current user+workspace context (owner-scoped). Returns the union of user-scope (available across every workspace) + workspace-scope (this workspace only) entries, each with version, scope, isEnabled flag, install health, and resolved settings. Read-only — use this to know what skills the agent currently has available, not to install them."
+          "description": "List skills installed in the current user+workspace context (owner-scoped). Returns the union of user-scope (available across every workspace) + workspace-scope (this workspace only) entries, each with version, scope, install health, and resolved settings. Read-only — use this to know what skills the agent currently has available, not to install them."
         }
       }
     },
@@ -1469,9 +1465,6 @@
                     "versionInstalled": {
                       "type": "string"
                     },
-                    "isEnabled": {
-                      "type": "boolean"
-                    },
                     "installHealth": {
                       "type": "string",
                       "enum": [
@@ -1501,7 +1494,6 @@
                     "workspaceId",
                     "installedFromSource",
                     "versionInstalled",
-                    "isEnabled",
                     "installHealth",
                     "installHealthMessage",
                     "installedAt",
@@ -1622,232 +1614,6 @@
         "x-sdk-name": "skills.uninstall"
       }
     },
-    "/workspaces/{workspaceId}/skills/installed/{installedSkillId}/enable": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "The updated installed-skill row.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "skillId": {
-                      "type": "string"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "user",
-                        "workspace"
-                      ]
-                    },
-                    "workspaceId": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "installedFromSource": {
-                      "type": "string",
-                      "enum": [
-                        "verified-catalog",
-                        "marketplace",
-                        "external"
-                      ]
-                    },
-                    "versionInstalled": {
-                      "type": "string"
-                    },
-                    "isEnabled": {
-                      "type": "boolean"
-                    },
-                    "installHealth": {
-                      "type": "string",
-                      "enum": [
-                        "healthy",
-                        "missing-on-disk",
-                        "mcp-config-drift",
-                        "failed-install"
-                      ]
-                    },
-                    "installHealthMessage": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "installedAt": {
-                      "type": "string"
-                    },
-                    "updatedAt": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "skillId",
-                    "scope",
-                    "workspaceId",
-                    "installedFromSource",
-                    "versionInstalled",
-                    "isEnabled",
-                    "installHealth",
-                    "installHealthMessage",
-                    "installedAt",
-                    "updatedAt"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Installed-skill row not found OR owned by another user."
-          }
-        },
-        "operationId": "postWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillIdEnable",
-        "tags": [
-          "skills"
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "installedSkillId",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "workspaceId",
-            "required": true
-          }
-        ],
-        "summary": "Enable an installed skill — rewrites files from current settings.",
-        "x-sdk-name": "skills.enable"
-      }
-    },
-    "/workspaces/{workspaceId}/skills/installed/{installedSkillId}/disable": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "The updated installed-skill row.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "skillId": {
-                      "type": "string"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "user",
-                        "workspace"
-                      ]
-                    },
-                    "workspaceId": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "installedFromSource": {
-                      "type": "string",
-                      "enum": [
-                        "verified-catalog",
-                        "marketplace",
-                        "external"
-                      ]
-                    },
-                    "versionInstalled": {
-                      "type": "string"
-                    },
-                    "isEnabled": {
-                      "type": "boolean"
-                    },
-                    "installHealth": {
-                      "type": "string",
-                      "enum": [
-                        "healthy",
-                        "missing-on-disk",
-                        "mcp-config-drift",
-                        "failed-install"
-                      ]
-                    },
-                    "installHealthMessage": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "installedAt": {
-                      "type": "string"
-                    },
-                    "updatedAt": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "skillId",
-                    "scope",
-                    "workspaceId",
-                    "installedFromSource",
-                    "versionInstalled",
-                    "isEnabled",
-                    "installHealth",
-                    "installHealthMessage",
-                    "installedAt",
-                    "updatedAt"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Installed-skill row not found OR owned by another user."
-          }
-        },
-        "operationId": "postWorkspacesByWorkspaceIdSkillsInstalledByInstalledSkillIdDisable",
-        "tags": [
-          "skills"
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "installedSkillId",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "workspaceId",
-            "required": true
-          }
-        ],
-        "summary": "Disable an installed skill — removes files from disk; preserves row + settings.",
-        "x-sdk-name": "skills.disable"
-      }
-    },
     "/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings": {
       "patch": {
         "responses": {
@@ -1904,7 +1670,7 @@
             "required": true
           }
         ],
-        "summary": "Update settings on an installed skill — re-renders SKILL.md if enabled.",
+        "summary": "Update settings on an installed skill — re-renders SKILL.md.",
         "x-sdk-name": "skills.updateSettings",
         "requestBody": {
           "content": {

@@ -7,6 +7,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Changed
+
+- **Skills are now simply installed or not — the pause switch is gone.** A skill is one folder
+  on disk, so the old Enable/Disable state (which quietly kept a database row while the files
+  were gone) has been removed everywhere: the routes, the SDK and CLI commands, the panel's
+  On/Off pill, and the database column itself. Updating a skill's settings now always rewrites
+  its files, and the marketplace's armed Remove button says plainly what removal means:
+  "Removes it from this device and deletes its settings."
+
 ### Added
 
 - **The Documents Pack — Word, Excel, PowerPoint, and PDF, by Anthropic.** The marketplace now

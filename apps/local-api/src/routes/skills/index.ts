@@ -1,14 +1,15 @@
-// The `skills` HTTP surface — 8 routes mounted under
+// The `skills` HTTP surface — 6 routes mounted under
 // `/workspaces/:workspaceId/skills` from `apps/local-api/src/app.ts`:
 //
 //   GET    /available                              -> listAvailableSkills          [x-mcp]
 //   GET    /installed                              -> listInstalledSkillsForContext [x-mcp]
 //   POST   /install                                -> installSkill
 //   DELETE /installed/:installedSkillId            -> uninstallSkill
-//   POST   /installed/:installedSkillId/enable     -> enableSkill
-//   POST   /installed/:installedSkillId/disable    -> disableSkill
 //   PATCH  /installed/:installedSkillId/settings   -> updateSkillSettings
 //   POST   /synchronize                            -> synchronizeSkillsWithProvider
+//
+// No enable/disable pair: skills are install/uninstall-only
+// (2026-08-01) — one file-tree on disk, present or absent.
 //
 // Locked Hono protocol per `coding-standard.md` "Hono routes" +
 // `sdk-mcp.md`: describeRoute (from the local openapi.js wrapper
@@ -35,8 +36,6 @@ import {
   listInstalledSkillsForContext,
   installSkill,
   uninstallSkill,
-  enableSkill,
-  disableSkill,
   updateSkillSettings,
   synchronizeSkillsWithProvider,
 } from '@vynel/skills'
@@ -107,9 +106,9 @@ export const skillsApp = factory
         description:
           'List skills installed in the current user+workspace context (owner-scoped). ' +
           'Returns the union of user-scope (available across every workspace) + workspace-scope ' +
-          '(this workspace only) entries, each with version, scope, isEnabled flag, install ' +
-          'health, and resolved settings. Read-only — use this to know what skills the agent ' +
-          'currently has available, not to install them.',
+          '(this workspace only) entries, each with version, scope, install health, and ' +
+          'resolved settings. Read-only — use this to know what skills the agent currently ' +
+          'has available, not to install them.',
       },
     }),
     ...workspaceScoped,
@@ -181,63 +180,11 @@ export const skillsApp = factory
       return c.body(null, 204)
     },
   )
-  .post(
-    '/installed/:installedSkillId/enable',
-    describeRoute({
-      tags: ['skills'],
-      summary: 'Enable an installed skill — rewrites files from current settings.',
-      'x-sdk-name': 'skills.enable',
-      responses: {
-        200: {
-          description: 'The updated installed-skill row.',
-          content: { 'application/json': { schema: resolver(InstalledSkillRowSchema) } },
-        },
-        404: { description: 'Installed-skill row not found OR owned by another user.' },
-      },
-    }),
-    validator('param', InstalledSkillIdParamSchema),
-    ...workspaceScoped,
-    async (c) => {
-      const { installedSkillId } = c.req.valid('param')
-      const updated = await enableSkill(c.var.db, {
-        userId: c.var.user.id,
-        installedSkillId,
-        workspacePath: c.var.workspace!.path,
-      })
-      return c.json(serializeInstalledSkillRow(updated))
-    },
-  )
-  .post(
-    '/installed/:installedSkillId/disable',
-    describeRoute({
-      tags: ['skills'],
-      summary: 'Disable an installed skill — removes files from disk; preserves row + settings.',
-      'x-sdk-name': 'skills.disable',
-      responses: {
-        200: {
-          description: 'The updated installed-skill row.',
-          content: { 'application/json': { schema: resolver(InstalledSkillRowSchema) } },
-        },
-        404: { description: 'Installed-skill row not found OR owned by another user.' },
-      },
-    }),
-    validator('param', InstalledSkillIdParamSchema),
-    ...workspaceScoped,
-    async (c) => {
-      const { installedSkillId } = c.req.valid('param')
-      const updated = await disableSkill(c.var.db, {
-        userId: c.var.user.id,
-        installedSkillId,
-        workspacePath: c.var.workspace!.path,
-      })
-      return c.json(serializeInstalledSkillRow(updated))
-    },
-  )
   .patch(
     '/installed/:installedSkillId/settings',
     describeRoute({
       tags: ['skills'],
-      summary: 'Update settings on an installed skill — re-renders SKILL.md if enabled.',
+      summary: 'Update settings on an installed skill — re-renders SKILL.md.',
       'x-sdk-name': 'skills.updateSettings',
       responses: {
         200: {

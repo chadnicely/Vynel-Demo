@@ -20,7 +20,6 @@ export {
   SKILL_INSTALLED,
   SKILL_UNINSTALLED,
   SKILL_UPDATED,
-  SKILL_ENABLED_CHANGED,
   SKILL_SETTINGS_UPDATED,
 } from './skills-events.js'
 
@@ -28,7 +27,6 @@ export type {
   SkillInstalledPayload,
   SkillUninstalledPayload,
   SkillUpdatedPayload,
-  SkillEnabledChangedPayload,
   SkillSettingsUpdatedPayload,
 } from './skills-events.js'
 
@@ -48,8 +46,6 @@ export { installSkill, type InstallSkillInput } from './lifecycle/install-skill.
 export { installCloudSkill, type InstallCloudSkillInput } from './lifecycle/install-cloud-skill.js'
 export { updateCloudSkill, type UpdateCloudSkillInput } from './lifecycle/update-cloud-skill.js'
 export { uninstallSkill, type UninstallSkillInput } from './lifecycle/uninstall-skill.js'
-export { enableSkill, type EnableSkillInput } from './lifecycle/enable-skill.js'
-export { disableSkill, type DisableSkillInput } from './lifecycle/disable-skill.js'
 export { updateSkillSettings, type UpdateSkillSettingsInput } from './settings/update-skill-settings.js'
 export {
   synchronizeSkillsWithProvider,

@@ -1,11 +1,8 @@
 // Removes a skill's on-disk folder + cleans MCP config entries.
 // Idempotent — re-call after a successful uninstall returns
 // silently. Per coding.md §1.2 (only filesystem writer for these
-// paths).
-//
-// Used both by `uninstallSkill` (hard removal) and `disableSkill`
-// (preserves the DB row + settings, just takes the files off
-// disk so the agent no longer sees the skill). Per D11.
+// paths). Used by `uninstallSkill` (hard removal — the only way a
+// skill leaves disk since install/uninstall-only, 2026-08-01).
 
 import path from 'node:path'
 import { rm } from 'node:fs/promises'

@@ -226,7 +226,7 @@ const removeLabel = computed(() => {
           :disabled="isRemoving"
           :aria-label="
             isRemoveArmed
-              ? `Confirm remove ${item.displayName}`
+              ? `Confirm remove ${item.displayName} — its settings are deleted too`
               : `Remove ${item.displayName}`
           "
           @click="emit('remove-request')"
@@ -236,6 +236,12 @@ const removeLabel = computed(() => {
         </button>
       </div>
     </footer>
+
+    <!-- Removal is total (install/uninstall-only — no pause state that
+         preserves settings), so the armed state says what's at stake. -->
+    <p v-if="isRemoveArmed" class="m-0 text-[11px] text-danger">
+      Removes it from this device and deletes its settings.
+    </p>
 
     <p v-if="errorMessage" class="m-0 text-[11px] text-danger" role="alert">
       {{ errorMessage }}

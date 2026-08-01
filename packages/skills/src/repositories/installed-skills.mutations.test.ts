@@ -64,7 +64,6 @@ function makeInstalledSkill(
     installLocation: `/tmp/vynel/skills/${randomUUID()}/SKILL.md`,
     installHealth: 'healthy',
     installHealthMessage: null,
-    isEnabled: true,
     installedAt: now,
     updatedAt: now,
     ...overrides,
@@ -85,7 +84,6 @@ describe('installed-skills repository — mutations', () => {
         expect(inserted.skillId).toBe(newRow.skillId)
         expect(inserted.scope).toBe('workspace')
         expect(inserted.installHealthMessage).toBe(newRow.installHealthMessage)
-        expect(inserted.isEnabled).toBe(true)
       })
     })
 
@@ -133,11 +131,9 @@ describe('installed-skills repository — mutations', () => {
         const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
         return sleep(5).then(() => {
           const updated = updateInstalledSkill(db, inserted.id, user.id, {
-            isEnabled: false,
             installHealth: 'missing-on-disk',
             installHealthMessage: 'SKILL.md gone',
           })
-          expect(updated?.isEnabled).toBe(false)
           expect(updated?.installHealth).toBe('missing-on-disk')
           expect(updated?.installHealthMessage).toBe('SKILL.md gone')
           expect(updated?.updatedAt.getTime()).toBeGreaterThan(beforeUpdate)
@@ -148,7 +144,9 @@ describe('installed-skills repository — mutations', () => {
     it('returns null when no row matches', async () => {
       await withTestDatabase((db) => {
         const user = insertUser(db, makeUser())
-        expect(updateInstalledSkill(db, 'nonexistent', user.id, { isEnabled: false })).toBeNull()
+        expect(
+          updateInstalledSkill(db, 'nonexistent', user.id, { installHealth: 'missing-on-disk' }),
+        ).toBeNull()
       })
     })
 
@@ -157,8 +155,10 @@ describe('installed-skills repository — mutations', () => {
         const owner = insertUser(db, makeUser())
         const other = insertUser(db, makeUser())
         const inserted = insertInstalledSkill(db, makeInstalledSkill(owner.id, null))
-        expect(updateInstalledSkill(db, inserted.id, other.id, { isEnabled: false })).toBeNull()
-        expect(findInstalledSkillById(db, inserted.id)?.isEnabled).toBe(true)
+        expect(
+          updateInstalledSkill(db, inserted.id, other.id, { installHealth: 'missing-on-disk' }),
+        ).toBeNull()
+        expect(findInstalledSkillById(db, inserted.id)?.installHealth).toBe('healthy')
       })
     })
   })

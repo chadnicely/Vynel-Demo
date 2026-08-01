@@ -13,7 +13,6 @@ import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { installCloudSkill } from './install-cloud-skill.js'
-import { disableSkill } from './disable-skill.js'
 import { updateCloudSkill } from './update-cloud-skill.js'
 
 async function makeArtifact(files: Record<string, string>): Promise<{ bytes: Buffer; sha: string }> {
@@ -213,30 +212,6 @@ describe('updateCloudSkill', () => {
           version: '1.1.0',
         }),
       ).rejects.toMatchObject({ code: 'not_found' })
-    })
-  })
-
-  it('refuses to update a disabled skill (disable is real — no silent re-materialization)', async () => {
-    await withTestDatabase(async (db) => {
-      const { user, workspace } = seed(db)
-      const installed = await installV1(db, user.id, workspace.id)
-      await disableSkill(db, {
-        userId: user.id,
-        installedSkillId: installed.id,
-        workspacePath: tmp,
-      })
-
-      const next = await makeArtifact({ 'SKILL.md': '# Canvas Design v2' })
-      await expect(
-        updateCloudSkill(db, {
-          userId: user.id,
-          installedSkillId: installed.id,
-          workspacePath: tmp,
-          artifactBytes: next.bytes,
-          expectedSha256: next.sha,
-          version: '1.1.0',
-        }),
-      ).rejects.toMatchObject({ code: 'validation_failed' })
     })
   })
 

@@ -167,7 +167,8 @@ const skills = computed(() => skillsQuery.data.value ?? []);
       </div>
     </header>
 
-    <!-- Skills — the only section still hosted inline. -->
+    <!-- Skills — the only section still hosted inline. Installed means
+         present on disk (install/uninstall-only) — no On/Off state. -->
     <div class="rows">
       <div v-for="skill in skills" :key="skill.id" class="row">
         <div class="row-main">
@@ -178,9 +179,6 @@ const skills = computed(() => skillsQuery.data.value ?? []);
             {{ skill.definition?.oneLineDescription ?? "" }}
           </p>
         </div>
-        <span class="pill" :class="skill.isEnabled ? 'is-on' : 'is-off'">
-          {{ skill.isEnabled ? "On" : "Off" }}
-        </span>
       </div>
     </div>
   </div>
@@ -252,22 +250,5 @@ const skills = computed(() => skillsQuery.data.value ?? []);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.pill {
-  flex: none;
-  font: 600 11px/1.6 var(--font-ui);
-  border-radius: 99px;
-  padding: 1px 10px;
-}
-
-.pill.is-on {
-  color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 14%, transparent);
-}
-
-.pill.is-off {
-  color: var(--ink-3);
-  background: var(--row-active);
 }
 </style>

@@ -56,22 +56,6 @@ export function registerSkillsCommands(program: Command, getClient: () => VynelC
     })
 
   skills
-    .command('enable <installedSkillId>')
-    .description('Enable an installed skill')
-    .requiredOption('-w, --workspace <id>', 'workspace id')
-    .action(async (installedSkillId: string, opts: { workspace: string }) => {
-      printResult(await getClient().skills.enable(opts.workspace, installedSkillId))
-    })
-
-  skills
-    .command('disable <installedSkillId>')
-    .description('Disable an installed skill')
-    .requiredOption('-w, --workspace <id>', 'workspace id')
-    .action(async (installedSkillId: string, opts: { workspace: string }) => {
-      printResult(await getClient().skills.disable(opts.workspace, installedSkillId))
-    })
-
-  skills
     .command('synchronize')
     .description('Re-sync installed skills with the provider on disk')
     .requiredOption('-w, --workspace <id>', 'workspace id')
