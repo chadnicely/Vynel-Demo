@@ -28,6 +28,9 @@ export interface CloudAppOptions {
    * /admin/upstream-watch surface answers `configured: false` (tests, or a
    * deploy without the manifest). */
   readonly upstreamWatch?: UpstreamWatchJob
+  /** Path to the anthropic-catalog manifest (the same file the watch reads);
+   * absent = POST /admin/catalog/import-anthropic answers `configured: false`. */
+  readonly anthropicManifestPath?: string
   /** Test seam — flows and rate-limit windows read time through this. */
   readonly now?: () => Date
 }

@@ -39,6 +39,9 @@ export async function boot(): Promise<void> {
   })
   const app = createCloudApp({
     upstreamWatch,
+    // The portal's "Import Anthropic items" button publishes from the same
+    // pinned manifest the watch monitors.
+    anthropicManifestPath: env.CLOUD_UPSTREAM_MANIFEST_PATH,
     db,
     logger,
     accessTokens: await createAccessTokenIssuer({

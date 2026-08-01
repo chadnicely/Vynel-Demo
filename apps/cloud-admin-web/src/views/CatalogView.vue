@@ -5,6 +5,7 @@ import type { HubItemKind } from "@vynel/contracts/hub/catalog";
 import KindChip from "../components/catalog/KindChip.vue";
 import StatusChip from "../components/catalog/StatusChip.vue";
 import { useAdminCatalog } from "../composables/catalog/use-admin-catalog.js";
+import { useImportAnthropic } from "../composables/catalog/use-import-anthropic.js";
 import { useUpstreamWatch } from "../composables/catalog/use-upstream-watch.js";
 import { formatDate } from "../lib/format.js";
 
@@ -18,6 +19,21 @@ const activeKind = ref<KindTab>("all");
 // The hub's daily upstream-drift check — a banner only when Anthropic's
 // repo moved past our pin in a folder we republish (curation nudge, never
 // an auto-update).
+// One-click server-side publish of the pinned anthropic-catalog manifest —
+// idempotent, so re-clicks just report "skipped".
+const importMutation = useImportAnthropic();
+const importSummary = computed(() => {
+  const response = importMutation.data.value;
+  if (!response) return null;
+  if (!response.configured) {
+    return "The hub runs without the anthropic-catalog manifest — nothing to import.";
+  }
+  const published =
+    response.items?.filter((item) => item.outcome === "published").length ?? 0;
+  const skipped = (response.items?.length ?? 0) - published;
+  return `Import finished: ${published} published · ${skipped} skipped (already current).`;
+});
+
 const upstreamQuery = useUpstreamWatch();
 const upstreamDrift = computed(() => {
   const report = upstreamQuery.data.value?.report;
@@ -55,13 +71,27 @@ function isKind(tab: KindTab): tab is HubItemKind {
   <section>
     <header class="page-header">
       <h1 class="page-title">Catalog</h1>
-      <RouterLink
-        class="button button-primary"
-        :to="{ name: 'catalog-publish' }"
-      >
-        Add Marketplace Catalog
-      </RouterLink>
+      <div class="page-actions">
+        <button
+          type="button"
+          class="button"
+          :disabled="importMutation.isPending.value"
+          @click="importMutation.mutate()"
+        >
+          {{ importMutation.isPending.value ? "Importing…" : "Import Anthropic items" }}
+        </button>
+        <RouterLink
+          class="button button-primary"
+          :to="{ name: 'catalog-publish' }"
+        >
+          Add Marketplace Catalog
+        </RouterLink>
+      </div>
     </header>
+    <p v-if="importMutation.isError.value" class="form-error">
+      Import failed: {{ importMutation.error.value?.message }}
+    </p>
+    <p v-else-if="importSummary" class="muted-note">{{ importSummary }}</p>
     <p v-if="upstreamDrift" class="drift-banner">
       Anthropic's upstream moved past our pin ({{ upstreamDrift.pin }} →
       {{ upstreamDrift.head }}): {{ upstreamDrift.movedCount }} of
@@ -148,6 +178,12 @@ function isKind(tab: KindTab): tab is HubItemKind {
 .page-title {
   font-size: 17px;
   margin: 0;
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .drift-banner {

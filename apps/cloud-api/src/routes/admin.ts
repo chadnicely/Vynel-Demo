@@ -4,9 +4,11 @@
 // signed-in admin-role account, role read FRESH). Thin: routes only decode
 // transport; every rule lives in `@vynel/registry` / `@vynel/accounts`.
 
+import { readFile } from 'node:fs/promises'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
+import { NotFoundError, ValidationError } from '@vynel/errors'
 import {
   assignAccountRole,
   assignAccountTier,
@@ -18,6 +20,7 @@ import type { HubAdminAccount } from '@vynel/contracts/hub/admin'
 import {
   PublishItemSchema,
   publishCatalogArtifact,
+  importAnthropicItems,
   listCatalogForAdmin,
   updateCatalogItemMetadata,
   setCatalogItemLifecycleStatus,
@@ -186,5 +189,27 @@ export function buildAdminRoutes(options: CloudAppOptions) {
       }
       const state = await options.upstreamWatch.runNow()
       return c.json({ configured: true as const, ...state })
+    })
+    // The portal's "Import Anthropic items" button: publish the pinned
+    // anthropic-catalog manifest server-side (clone at pin → zip → publish;
+    // already-published versions skip). Long-running is fine — an operator
+    // surface, like /upstream-watch/check above.
+    .post('/catalog/import-anthropic', async (c) => {
+      if (options.anthropicManifestPath === undefined) {
+        return c.json({ configured: false as const })
+      }
+      const raw = await readFile(options.anthropicManifestPath, 'utf8').catch(() => {
+        throw new NotFoundError('anthropic-catalog manifest', options.anthropicManifestPath)
+      })
+      let manifest: unknown
+      try {
+        manifest = JSON.parse(raw)
+      } catch {
+        throw new ValidationError(
+          `anthropic-catalog manifest at ${options.anthropicManifestPath} is not valid JSON.`,
+        )
+      }
+      const { items } = await importAnthropicItems(options.db, options.artifactStore, manifest)
+      return c.json({ configured: true as const, items })
     })
 }

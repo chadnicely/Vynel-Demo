@@ -46,8 +46,12 @@ export type UpstreamWatchReport = {
   repinRecipe: string | null
 }
 
+// `protocol.ext.allow=never` blocks git's command-executing ext:: transport
+// — the manifest repo value must only ever be a URL or a path.
+const GIT_HARDENING = ['-c', 'protocol.ext.allow=never']
+
 async function git(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('git', ['-C', cwd, ...args], {
+  const { stdout } = await execFileAsync('git', [...GIT_HARDENING, '-C', cwd, ...args], {
     timeout: GIT_TIMEOUT_MS,
     windowsHide: true,
   })
@@ -70,7 +74,15 @@ export async function checkUpstreamAgainstPin(
   try {
     await execFileAsync(
       'git',
-      ['clone', '--filter=blob:none', '--no-checkout', '--', manifest.upstream.repo, cloneDir],
+      [
+        ...GIT_HARDENING,
+        'clone',
+        '--filter=blob:none',
+        '--no-checkout',
+        '--',
+        manifest.upstream.repo,
+        cloneDir,
+      ],
       { timeout: GIT_TIMEOUT_MS, windowsHide: true },
     )
     const upstreamHeadSha = await git(cloneDir, ['rev-parse', 'HEAD'])

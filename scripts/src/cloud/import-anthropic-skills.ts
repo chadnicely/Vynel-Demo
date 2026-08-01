@@ -17,25 +17,9 @@
 // a partial import); bump the manifest version to ship an update.
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative, sep } from 'node:path'
-import JSZip from 'jszip'
-
-type ManifestItem = {
-  itemId: string
-  displayName: string
-  oneLineDescription: string
-  category: string
-  iconName: string
-  recommendedScope: string
-  version: string
-}
-
-type AnthropicCatalogManifest = {
-  upstream: { repo: string; pinnedSha: string }
-  publisher: { id: string; name: string; tier: string; url: string }
-  items: ManifestItem[]
-}
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { zipSkillFolder, type AnthropicImportManifest } from '@vynel/registry'
 
 function fail(message: string): never {
   // eslint-disable-next-line no-console -- CLI error channel
@@ -47,25 +31,6 @@ function fail(message: string): never {
 function argValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag)
   return index !== -1 ? process.argv[index + 1] : undefined
-}
-
-function listFiles(dir: string, base = dir, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry)
-    if (statSync(full).isDirectory()) listFiles(full, base, out)
-    else out.push(relative(base, full))
-  }
-  return out
-}
-
-async function zipSkillFolder(folder: string): Promise<Buffer> {
-  const zip = new JSZip()
-  const files = listFiles(folder)
-  if (!files.includes('SKILL.md')) fail(`${folder} has no root SKILL.md`)
-  for (const rel of files) {
-    zip.file(rel.split(sep).join('/'), readFileSync(join(folder, rel)))
-  }
-  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
 }
 
 async function main(): Promise<void> {
@@ -83,7 +48,7 @@ async function main(): Promise<void> {
     fail('--only requires an itemId (e.g. --only canvas-design)')
   }
 
-  const manifest: AnthropicCatalogManifest = JSON.parse(
+  const manifest: AnthropicImportManifest = JSON.parse(
     readFileSync(join('scripts', 'anthropic-catalog', 'manifest.json'), 'utf8'),
   )
 

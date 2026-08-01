@@ -354,3 +354,24 @@ describe('admin routes — upstream watch', () => {
     })
   })
 })
+
+describe('admin routes — import anthropic', () => {
+  // The heavy path (clone → zip → publish) lives in the registry test
+  // (packages/registry/src/import-anthropic.test.ts) — here only the
+  // route's wiring: unconfigured answer + the dual door.
+  it('answers configured:false without the manifest path; the dual door guards it', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const app = buildApp(db)
+      const off = await app.request('/admin/catalog/import-anthropic', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${ADMIN}` },
+      })
+      expect(off.status).toBe(200)
+      expect(await off.json()).toEqual({ configured: false })
+
+      expect(
+        (await app.request('/admin/catalog/import-anthropic', { method: 'POST' })).status,
+      ).toBe(401)
+    })
+  })
+})

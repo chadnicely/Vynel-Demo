@@ -17,6 +17,7 @@
     "@vynel/contracts": "workspace:*",
     "@vynel/errors": "workspace:*",
     "drizzle-orm": "^0.45.0",
+    "jszip": "^3.10.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

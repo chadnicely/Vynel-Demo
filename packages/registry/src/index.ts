@@ -43,3 +43,10 @@ export {
   type UpstreamWatchReport,
   type UpstreamWatchItemVerdict,
 } from './upstream-watch.js'
+export {
+  importAnthropicItems,
+  zipSkillFolder,
+  AnthropicImportManifestSchema,
+  type AnthropicImportManifest,
+  type AnthropicImportItemResult,
+} from './import-anthropic.js'

@@ -4,9 +4,9 @@
 
 import { z } from 'zod'
 
-const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+export const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 // Semver: major.minor.patch with an optional -prerelease / +build.
-const SEMVER = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)*$/
+export const SEMVER = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)*$/
 
 export const PublishItemSchema = z.object({
   publisher: z.object({
