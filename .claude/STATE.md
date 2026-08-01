@@ -35,7 +35,12 @@ Remaining marketplace items = the module-notes deferred lists.
 checkboxes: ① skills install/uninstall-only ② polish batch ③ mcp/rule kinds + plugin updates
 ④ ops/production hardening — check items off as they land).
 
-## ✅ ARC 3 SLICE 1: `mcp` KIND — CODE-COMPLETE (2026-08-02), UNCOMMITTED
+## ✅ ARC 3 SLICE 1: `mcp` KIND — SHIPPED + SMOKED (`dc950bd`, pushed 2026-08-02)
+
+**Smoked by Chad end-to-end:** playwright-mcp published → Get on the Desktop\vynel workspace →
+entry verified in that workspace's `.mcp.json` (user config untouched) → fresh session drove
+the browser ("Tested its working"). Playwright was pre-installed on his machine, so no npx
+first-run delay.
 
 Chad's calls settled via AskUserQuestion (recorded in plan Arc 3): config-is-truth · sessions
 install via tool auto-tier no card · rule = plain `.claude/rules/` files · follow the plan's
@@ -49,11 +54,9 @@ home seam (route tests hermetic) · card chip "MCP" · seed `scripts/seed-catalo
 (@playwright/mcp via npx, Microsoft, verified tier, scope both). Global root installs via
 delegation (its routing toolset unchanged). Reviewer CLEAN (file-split should-fix applied;
 +2 composition tests: user-scope-from-workspace-surface landing, dual-scope uninstall
-sequence). **Full gate GREEN 2026-08-02 (3452 passed / 614 files).** Awaiting Chad's commit
-(⚠ Arc 2's `916f701` is still UNPUSHED — the push carries both). Smoke = publish
-playwright-mcp (`pnpm cloud:publish scripts/seed-catalog/playwright-mcp`) → Get in app →
-entry in `~/.claude.json` → session uses the browser. Next Arc-3 slices: `rule` kind
-(plain files) → plugin updates.
+sequence). Full gate GREEN 2026-08-02 (3452 passed / 614 files); committed `dc950bd`,
+pushed (carried Arc 2's `916f701` up too). Next Arc-3 slices: `rule` kind (plain
+`.claude/rules/` files) → plugin updates.
 
 ## ✅ ARC 2 MARKETPLACE POLISH BATCH — SHIPPED (`916f701`)
 
