@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The Documents Pack — Word, Excel, PowerPoint, and PDF, by Anthropic.** The marketplace now
+  carries its first plugin: Anthropic's document skills, installed through Claude's own plugin
+  system — you click Get, and Anthropic delivers the pack to you directly through their
+  channel. Once installed it works everywhere: in Vynel's assistant and in Claude Code itself,
+  because it lands in Claude's standard plugin home. Plugin items wear a Plugin chip, get their
+  own marketplace filter, and uninstall the same one-click way.
+
 - **Anthropic's official skills, in your marketplace.** Five hand-picked skills by Anthropic —
   Canvas Design (posters and visual art), Theme Factory (styled slides and pages), Internal
   Comms (status reports and announcements), Slack GIF Creator, and Algorithmic Art — can now be

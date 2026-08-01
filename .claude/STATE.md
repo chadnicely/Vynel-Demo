@@ -21,7 +21,15 @@ Gate green (3440). ⚠ Drizzle lesson memorized: NEVER hand-write migrations
 account provisioned (cnicely32@gmail.com, admin/pro; dev password-links = minted token via the
 opaque-secret recipe when the log line is lost) → portal shows the rows → app install of
 canvas-design → **skill used successfully**. Phase A COMPLETE. Move 5 committed `8df0d83`.
-Remaining marketplace items = the module-notes deferred list (+ portal publisher column).
+
+**✅ PHASE B SLICE 1 SHIPPED + SMOKED (`284315b`, 2026-08-01):** the `plugin` kind is live —
+installs delegate to the SDK's BUNDLED `claude` binary (`claude-plugin-cli.ts` provider seam;
+no standalone CLI needed), Documents Pack (document-skills, By Anthropic) published from
+`scripts/seed-catalog/document-skills` and installed+used by Chad. Native session pickup smoked
+(frontend-design test). Plugins are STRUCTURALLY user-scope (mapper forces it — keeps the
+external-binary delegate off the non-carded workspace MCP tool). Deferred list in module notes
+(reader-seam asymmetry · no outbox on plugin installs · MCP description drift · portal columns).
+Remaining marketplace items = the module-notes deferred lists.
 
 ## ⏭ NEXT SESSION FIRST: skills become INSTALL/UNINSTALL ONLY (Chad, 2026-08-01)
 

@@ -214,7 +214,14 @@ trust-review step per curated plugin is unavoidable anyway. That is fine: curati
   `options.plugins` contingency is dead. (A session already running at install time picks the
   plugin up on its next session start — note in UI copy if users get confused.)
 
-## Phase B slice 1 — document-skills via CLI delegate (PLANNED, awaiting Chad's okay)
+## Phase B slice 1 — document-skills via CLI delegate (✅ SHIPPED `284315b` + SMOKED, 2026-08-01)
+
+**Chad's end-to-end smoke passed:** Documents Pack published from the seed bundle → Get in the
+app's global marketplace → the bundled-CLI delegate registered anthropics/skills + installed
+document-skills → the doc skills work in Vynel sessions (and in Claude Code directly — same
+native install). Review hardening landed with the slice: plugins forced to user scope
+structurally (never on the workspace MCP tool), marketplace repo-mismatch refusal, malformed-key
+uninstall guard. Original plan below.
 
 1. **Provider seam `ClaudePluginCli`** (`packages/providers/src/claude/installation/`): locate
    the bundled `claude.exe` (platform-package resolution + env override), `execFile` the plugin
