@@ -12,7 +12,7 @@
 //   pnpm cloud:import-anthropic -- --source <checkout> [--only <itemId>]
 //
 // Env: CLOUD_ADMIN_TOKEN (required); VYNEL_HUB_URL or --url (default
-// http://localhost:8890). An operator/dev tool — reads process.env directly.
+// http://localhost:18890). An operator/dev tool — reads process.env directly.
 // A version that is already published is SKIPPED (409 → safe re-runs after
 // a partial import); bump the manifest version to ship an update.
 
@@ -75,7 +75,7 @@ async function main(): Promise<void> {
   }
   const hubUrl =
     (argValue('--url') ?? process.env['VYNEL_HUB_URL'])?.replace(/\/+$/, '') ??
-    'http://localhost:8890'
+    'http://localhost:18890'
   const adminToken = process.env['CLOUD_ADMIN_TOKEN']
   if (adminToken === undefined || adminToken === '') fail('CLOUD_ADMIN_TOKEN is not set')
   const only = argValue('--only')

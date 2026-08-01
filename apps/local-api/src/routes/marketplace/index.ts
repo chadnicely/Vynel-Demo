@@ -50,6 +50,7 @@ import {
   updateMarketplaceItem,
   uninstallMarketplaceItem,
 } from './item-lifecycle.js'
+import { mcpServersReaderFor } from './mcp-item-lifecycle.js'
 
 export const marketplaceApp = factory
   .createApp()
@@ -63,8 +64,8 @@ export const marketplaceApp = factory
         exposed: true,
         name: 'list_marketplace_items',
         description:
-          'Browse the marketplace for this workspace — skills, agents, and plugins the user ' +
-          'can install, each annotated with its install state. Optional filters: `category`, ' +
+          'Browse the marketplace for this workspace — skills, agents, plugins, and MCP ' +
+          'servers the user can install, each annotated with its install state. Optional filters: `category`, ' +
           '`publisherTier`, `installState`, `searchQuery`, `sortBy`. Use when the user wants a ' +
           'capability Vynel does not have yet ("can you do X?") — find the item, then ' +
           'install_marketplace_item with its id. Read-only.',
@@ -96,7 +97,10 @@ export const marketplaceApp = factory
       const items = listMarketplaceItems(
         c.var.db,
         input,
-        marketplaceDepsWith(c.var.marketplaceInstalledPluginsReader),
+        marketplaceDepsWith(
+          c.var.marketplaceInstalledPluginsReader,
+          mcpServersReaderFor({ path: c.var.workspace!.path }),
+        ),
       )
       return c.json(items.map(serializeMarketplaceItem))
     },
@@ -135,7 +139,10 @@ export const marketplaceApp = factory
           surface: 'workspace',
           workspaceId: c.var.workspace!.id,
         },
-        marketplaceDepsWith(c.var.marketplaceInstalledPluginsReader),
+        marketplaceDepsWith(
+          c.var.marketplaceInstalledPluginsReader,
+          mcpServersReaderFor({ path: c.var.workspace!.path }),
+        ),
       )
       return c.json(serializeMarketplaceItem(item))
     },
@@ -150,11 +157,12 @@ export const marketplaceApp = factory
         exposed: true,
         name: 'install_marketplace_item',
         description:
-          'Install a marketplace item (a skill, agent, or plugin) into this workspace. ' +
-          '`itemId` from list_marketplace_items; `scope` "workspace" or "user" (user-scope = ' +
-          'available in every workspace; plugins are always user-scope). Cloud artifacts are ' +
-          'downloaded and integrity-verified server-side; plugins install through Claude ' +
-          'Code\'s own plugin system. Reversible via uninstall_marketplace_item. Side effect: ' +
+          'Install a marketplace item (a skill, agent, plugin, or MCP server) into this ' +
+          'workspace. `itemId` from list_marketplace_items; `scope` "workspace" or "user" ' +
+          '(user-scope = available in every workspace; plugins are always user-scope). Cloud ' +
+          'artifacts are downloaded and integrity-verified server-side; plugins install ' +
+          'through Claude Code\'s own plugin system; MCP servers are written into the ' +
+          'scope\'s Claude config. Reversible via uninstall_marketplace_item. Side effect: ' +
           'the capability becomes available in sessions and appears in the user\'s panels.',
         mutatingApproved: true,
       },
@@ -253,7 +261,8 @@ export const marketplaceApp = factory
           'Uninstall a marketplace item from this workspace by `itemId`. A skill uninstall ' +
           'hard-deletes its files (re-install is possible but any local edits are lost); an ' +
           'agent uninstall is a soft-delete; a plugin uninstall removes it via Claude Code\'s ' +
-          'plugin system. Confirm intent when the user names the item loosely.',
+          'plugin system; an MCP-server uninstall removes its Claude-config entry. Confirm ' +
+          'intent when the user names the item loosely.',
         mutatingApproved: true,
         askApproval: true,
       },

@@ -8,7 +8,7 @@
 /** The engine daemon's port — local desktop, remote server, and the tunnel's
  *  local end all use the SAME number, so switching modes never re-plumbs a
  *  URL anywhere. */
-export const VYNEL_ENGINE_PORT = 8998
+export const VYNEL_ENGINE_PORT = 18892
 
 /** The voice daemon's loopback overlay channel. */
-export const VYNEL_VOICE_DAEMON_PORT = 8997
+export const VYNEL_VOICE_DAEMON_PORT = 18893

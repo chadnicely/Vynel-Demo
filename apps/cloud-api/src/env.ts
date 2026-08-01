@@ -25,7 +25,7 @@ const base64Pem = z
   })
 
 export const EnvSchema = z.object({
-  CLOUD_PORT: z.coerce.number().int().positive().default(8890),
+  CLOUD_PORT: z.coerce.number().int().positive().default(18890),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   // Pooled URL for the app; the DIRECT (non-pooled) URL for the boot
   // migrator (postgres-phase2.md §1). With no pooler they're the same —

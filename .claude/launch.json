@@ -5,19 +5,19 @@
       "name": "cloud-admin-web",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@vynel/cloud-admin-web", "dev"],
-      "port": 8891
+      "port": 18891
     },
     {
       "name": "local-dev",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:local"],
-      "port": 8999
+      "port": 18894
     },
     {
       "name": "local-web",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@vynel/local-web", "dev"],
-      "port": 8999
+      "port": 18894
     }
   ]
 }

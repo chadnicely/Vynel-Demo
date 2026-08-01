@@ -36,7 +36,7 @@ export const EnvSchema = z.object({
   // off only to an already-connected tab, else answer natively).
   VYNEL_VOICE_JARVIS_WINDOW: z.enum(['0', '1']).default('1'),
   // Where the floating window points (local-web's /jarvis route).
-  VYNEL_VOICE_JARVIS_URL: z.string().url().default('http://localhost:8999/jarvis'),
+  VYNEL_VOICE_JARVIS_URL: z.string().url().default('http://localhost:18894/jarvis'),
   VYNEL_VOICE_JARVIS_BROWSER: z.enum(['chrome', 'msedge']).default('chrome'),
   // The Tauri overlay executable — launched on wake when it exists and no
   // overlay is connected; otherwise the Chrome app-window is the fallback.

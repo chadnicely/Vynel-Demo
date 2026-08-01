@@ -1,7 +1,7 @@
 // The desktop shell stays deliberately thin: window flags + (in release) the
 // daemon sidecar lifecycle. All UI behavior lives in the local-web views the
 // windows load — dev from Vite (devUrl), release from the daemon-hosted
-// gateway (frontendDist http://127.0.0.1:8998, see local-api gateway.ts).
+// gateway (frontendDist http://127.0.0.1:18892, see local-api gateway.ts).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::Manager;

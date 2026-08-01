@@ -3808,7 +3808,7 @@ export interface operations {
                     "application/json": {
                         itemId: string;
                         /** @enum {string} */
-                        kind: "skill" | "agent" | "plugin";
+                        kind: "skill" | "agent" | "plugin" | "mcp";
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -3828,6 +3828,7 @@ export interface operations {
                         scope: "user" | "workspace" | "both";
                         isOfficial: boolean;
                         pluginKey?: string;
+                        mcpServerName?: string;
                         hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
@@ -3875,7 +3876,7 @@ export interface operations {
                     "application/json": {
                         itemId: string;
                         /** @enum {string} */
-                        kind: "skill" | "agent" | "plugin";
+                        kind: "skill" | "agent" | "plugin" | "mcp";
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -3895,6 +3896,7 @@ export interface operations {
                         scope: "user" | "workspace" | "both";
                         isOfficial: boolean;
                         pluginKey?: string;
+                        mcpServerName?: string;
                         hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
@@ -3970,6 +3972,14 @@ export interface operations {
                         kind: "plugin";
                         pluginKey: string;
                         itemId: string;
+                        version: string | null;
+                    } | {
+                        /** @constant */
+                        kind: "mcp";
+                        serverName: string;
+                        itemId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
                         version: string | null;
                     };
                 };
@@ -4086,6 +4096,11 @@ export interface operations {
                         /** @constant */
                         kind: "plugin";
                         pluginKey: string;
+                        itemId: string;
+                    } | {
+                        /** @constant */
+                        kind: "mcp";
+                        serverName: string;
                         itemId: string;
                     };
                 };
@@ -10435,7 +10450,7 @@ export interface operations {
                     "application/json": {
                         itemId: string;
                         /** @enum {string} */
-                        kind: "skill" | "agent" | "plugin";
+                        kind: "skill" | "agent" | "plugin" | "mcp";
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -10455,6 +10470,7 @@ export interface operations {
                         scope: "user" | "workspace" | "both";
                         isOfficial: boolean;
                         pluginKey?: string;
+                        mcpServerName?: string;
                         hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
@@ -10519,6 +10535,14 @@ export interface operations {
                         kind: "plugin";
                         pluginKey: string;
                         itemId: string;
+                        version: string | null;
+                    } | {
+                        /** @constant */
+                        kind: "mcp";
+                        serverName: string;
+                        itemId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
                         version: string | null;
                     };
                 };
@@ -10631,6 +10655,11 @@ export interface operations {
                         /** @constant */
                         kind: "plugin";
                         pluginKey: string;
+                        itemId: string;
+                    } | {
+                        /** @constant */
+                        kind: "mcp";
+                        serverName: string;
                         itemId: string;
                     };
                 };

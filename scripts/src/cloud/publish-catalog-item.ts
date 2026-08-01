@@ -6,7 +6,7 @@
 //   pnpm cloud:publish scripts/seed-catalog/email-drafter
 //
 // Env: CLOUD_ADMIN_TOKEN (required); VYNEL_HUB_URL or --url (default
-// http://localhost:8890). An operator/dev tool — reads process.env directly.
+// http://localhost:18890). An operator/dev tool — reads process.env directly.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
@@ -36,7 +36,7 @@ async function main(): Promise<void> {
   const urlFlag = process.argv.indexOf('--url')
   const hubUrl = (
     urlFlag !== -1 ? process.argv[urlFlag + 1] : process.env['VYNEL_HUB_URL']
-  )?.replace(/\/+$/, '') ?? 'http://localhost:8890'
+  )?.replace(/\/+$/, '') ?? 'http://localhost:18890'
   const adminToken = process.env['CLOUD_ADMIN_TOKEN']
   if (adminToken === undefined || adminToken === '') fail('CLOUD_ADMIN_TOKEN is not set')
 

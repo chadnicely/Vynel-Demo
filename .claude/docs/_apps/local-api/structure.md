@@ -216,8 +216,8 @@ All eight live in `services/` and run **in-process** — the unifying reason is 
 | `DB_PATH` | `.data/vynel.dev.db` | resolved against **repo root**, not cwd — keeps api + worker on one file (bug note in `env.ts`) |
 | `DB_URL` | — | Postgres only |
 | `LOG_LEVEL` | `info` | |
-| `PORT` | `8998` | the api/gateway loopback port |
-| `VYNEL_VOICE_DAEMON_URL` | `http://127.0.0.1:8997` | the gateway's `/voice/*` proxy target |
+| `PORT` | `18892` | the api/gateway loopback port |
+| `VYNEL_VOICE_DAEMON_URL` | `http://127.0.0.1:18893` | the gateway's `/voice/*` proxy target |
 | `VYNEL_WEB_UI_DIST` | `apps/local-web/dist` | index.html present → sidecar mode |
 | `VYNEL_EMBEDDINGS_CACHE_DIR` | `.models/embeddings` | outside `node_modules` |
 | `VYNEL_FIRST_LAUNCH_GATE_ENABLED` | `1` (ON) | prod-safe; set `0` in a dev `.env` before the wizard exists |

@@ -3,7 +3,7 @@
 // membership). The OS closes the job handle when THIS process dies — by any
 // path: graceful exit, crash, taskkill /F — and kills the whole tree with it.
 // This closes the sliver daemon.rs's stop() can't: a shell death that never
-// runs the exit handler would otherwise orphan node.exe holding port 8998.
+// runs the exit handler would otherwise orphan node.exe holding port 18892.
 //
 // The handle is deliberately never closed by us — its lifetime IS the
 // mechanism. A creation failure degrades to the pre-B2 behavior (stop() still

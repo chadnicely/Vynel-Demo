@@ -146,7 +146,7 @@ describe('runProvision', () => {
       const mintedToken = openSecret(masterKey, row?.sealedAuthToken ?? '')
       expect(envFile).toContain(`VYNEL_AUTH_TOKEN=${mintedToken}`)
       expect(envFile).toContain('VYNEL_REMOTE_ENGINE=1')
-      expect(envFile).toContain('PORT=8998')
+      expect(envFile).toContain('PORT=18892')
       expect(envFile).toContain('VYNEL_MASTER_KEY_FILE=/home/dana/.vynel/master.key')
       expect(envFile).toContain('VYNEL_APP_VERSION=9.9.9-test')
 

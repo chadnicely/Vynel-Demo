@@ -48,7 +48,7 @@ const SkillScopeSchema = z.enum(['user', 'workspace'])
 // distinct from the install scope above.
 const MarketplaceItemScopeSchema = z.enum(['user', 'workspace', 'both'])
 
-export const MarketplaceItemKindSchema = z.enum(['skill', 'agent', 'plugin'])
+export const MarketplaceItemKindSchema = z.enum(['skill', 'agent', 'plugin', 'mcp'])
 
 const MarketplaceItemInstallStatusSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('not-installed') }),
@@ -81,6 +81,8 @@ export const MarketplaceItemSchema = z.object({
   isOfficial: z.boolean(),
   // Plugin items only: Claude Code's `name@marketplace` registry key.
   pluginKey: z.string().optional(),
+  // Mcp items only: the entry key inside the Claude config's mcpServers map.
+  mcpServerName: z.string().optional(),
   // True only when the hub carries an artifact the update route can serve —
   // the card's Update button gates on this (no dead buttons on bundled items).
   hasCloudArtifact: z.boolean(),
@@ -140,6 +142,12 @@ export const UninstallMarketplaceItemResponseSchema = z.discriminatedUnion('kind
     pluginKey: z.string(),
     itemId: z.string(),
   }),
+  // Config-is-truth: the removed config entry's server name IS the identity.
+  z.object({
+    kind: z.literal('mcp'),
+    serverName: z.string(),
+    itemId: z.string(),
+  }),
 ])
 
 // Discriminated by item kind (C-agents): a skill install answers with the
@@ -167,6 +175,15 @@ export const InstallMarketplaceItemResponseSchema = z.discriminatedUnion('kind',
     kind: z.literal('plugin'),
     pluginKey: z.string(),
     itemId: z.string(),
+    version: z.string().nullable(),
+  }),
+  // Mcp installs write one Claude-config entry (config-is-truth) — the
+  // server name is the identity; no Vynel row.
+  z.object({
+    kind: z.literal('mcp'),
+    serverName: z.string(),
+    itemId: z.string(),
+    scope: SkillScopeSchema,
     version: z.string().nullable(),
   }),
 ])

@@ -203,9 +203,9 @@ sheet, consumed only via the package export (no deep imports):
 
 ## Dev server, proxy & env
 
-`env.ts` is the app's env boundary (Zod, node-context only): `LOCAL_WEB_PORT` (default 8999),
-`LOCAL_API_URL` (default `http://127.0.0.1:8998`), `VYNEL_VOICE_DAEMON_URL` (default
-`http://127.0.0.1:8997`). `vite.config.ts` binds the port (`strictPort`) and proxies:
+`env.ts` is the app's env boundary (Zod, node-context only): `LOCAL_WEB_PORT` (default 18894),
+`LOCAL_API_URL` (default `http://127.0.0.1:18892`), `VYNEL_VOICE_DAEMON_URL` (default
+`http://127.0.0.1:18893`). `vite.config.ts` binds the port (`strictPort`) and proxies:
 
 - `/api` → `LOCAL_API_URL`, `changeOrigin`, **no rewrite** — the local API has no CORS (loopback-only),
   so the dev server fronts it, and the daemon's gateway serves `/api/*` itself so dev and packaged

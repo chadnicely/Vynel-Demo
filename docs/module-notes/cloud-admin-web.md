@@ -11,8 +11,8 @@ desktop) and hub-served static hosting remain.**
 
 `apps/cloud-admin-web` — Vue 3 + Vite + @tanstack/vue-query SPA (subagent-built to spec, mirrors
 local-web idioms: per-feature composables + keys files, happy-dom project tests, dark token CSS).
-Run: `pnpm --filter @vynel/cloud-admin-web dev` → `http://localhost:8891` (Vite proxies `/api` →
-`localhost:8890`, prefix-stripped — the gateway dev==prod-paths precedent).
+Run: `pnpm --filter @vynel/cloud-admin-web dev` → `http://localhost:18891` (Vite proxies `/api` →
+`localhost:18890`, prefix-stripped — the gateway dev==prod-paths precedent).
 
 - **Session**: access token in sessionStorage ONLY (deliberate: admin tool, per-browser-session
   credentials; refresh-token persistence is non-scope until hub-served). 401 → session cleared →

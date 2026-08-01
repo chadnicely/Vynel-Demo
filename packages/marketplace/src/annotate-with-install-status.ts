@@ -14,6 +14,7 @@ import type {
 } from '@vynel/contracts/marketplace/marketplace-item'
 import type {
   InstalledAgentView,
+  InstalledMcpServerView,
   InstalledPluginView,
   InstalledSkillView,
 } from './marketplace-types.js'
@@ -23,6 +24,7 @@ export type AnnotateInput = {
   installedSkills: InstalledSkillView[]
   installedAgents: InstalledAgentView[]
   installedPlugins: InstalledPluginView[]
+  installedMcpServers: InstalledMcpServerView[]
 }
 
 export function annotateWithInstallStatus(input: AnnotateInput): MarketplaceItem[] {
@@ -33,8 +35,31 @@ export function annotateWithInstallStatus(input: AnnotateInput): MarketplaceItem
         ? determineAgentInstallStatus(item, input.installedAgents)
         : item.kind === 'plugin'
           ? determinePluginInstallStatus(item, input.installedPlugins)
-          : determineSkillInstallStatus(item, input.installedSkills),
+          : item.kind === 'mcp'
+            ? determineMcpInstallStatus(item, input.installedMcpServers)
+            : determineSkillInstallStatus(item, input.installedSkills),
   }))
+}
+
+function determineMcpInstallStatus(
+  item: MarketplaceItem,
+  installedMcpServers: InstalledMcpServerView[],
+): MarketplaceItemInstallStatus {
+  // Config-is-truth: the entry key in the scope's Claude MCP config is the
+  // whole installed state. `installedId` is the server name — the uninstall
+  // route resolves the config entry to remove through this same match.
+  const matches = installedMcpServers.filter((s) => s.name === item.mcpServerName)
+  if (matches.length === 0) return { kind: 'not-installed' }
+  // D12: workspace-scope match preferred when both configs carry the name.
+  const match = matches.find((s) => s.scope === 'workspace') ?? matches[0]!
+  return {
+    kind: 'installed',
+    scope: match.scope,
+    installedId: match.name,
+    // A config entry records no version — like agents, the card never
+    // offers an update (hasCloudArtifact is false for mcp items anyway).
+    versionInstalled: null,
+  }
 }
 
 function determinePluginInstallStatus(

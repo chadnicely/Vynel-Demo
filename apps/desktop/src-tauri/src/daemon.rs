@@ -3,7 +3,7 @@
 // node.exe runs the compiled dist/server.mjs beside the exe, state in
 // app_data) and REPO (dev checkout — `node --import tsx`, unchanged D1 flow).
 // The port probe doubles as the health check — the daemon binds
-// 127.0.0.1:8998 as the LAST step of a successful boot (migrations + services
+// 127.0.0.1:18892 as the LAST step of a successful boot (migrations + services
 // first, see local-api boot.ts).
 //
 // Shutdown is a hard kill (TerminateProcess): SQLite in WAL mode survives it,
@@ -22,7 +22,7 @@ use std::time::Duration;
 
 // Matches the PORT default in apps/local-api/src/env.ts and the frontendDist
 // URL in tauri.conf.json — the one address the whole sidecar mode hangs on.
-const DAEMON_ADDRESS: &str = "127.0.0.1:8998";
+const DAEMON_ADDRESS: &str = "127.0.0.1:18892";
 const SPAWN_ATTEMPTS: u32 = 3;
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -246,7 +246,7 @@ fn bundled_daemon_command(bundled: &BundledLaunch, entry: &str) -> std::io::Resu
         ))
         .arg(entry)
         .current_dir(&bundled.backend_dir)
-        .env("PORT", "8998")
+        .env("PORT", "18892")
         .env("DB_PATH", data_dir.join("vynel.db"))
         .env("VYNEL_ASSETS_DIR", bundled.backend_dir.join("assets"))
         .env("VYNEL_WEB_UI_DIST", &bundled.web_dir)

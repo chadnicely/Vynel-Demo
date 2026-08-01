@@ -61,8 +61,20 @@ export type InstalledPluginView = {
   version: string | null
 }
 
+// The two fields the annotator reads off a standalone MCP-server config
+// entry (config-is-truth: presence of the key in the scope's Claude MCP
+// config IS installed; `@vynel/skills` owns the config read — same
+// structural-view rule). The ROUTE binds the reader with the surface's
+// config paths (user config alone for global; ∪ workspace `.mcp.json`
+// for a workspace surface), so the deps call stays argument-free.
+export type InstalledMcpServerView = {
+  name: string
+  scope: SkillScope
+}
+
 export type MarketplaceDeps = {
   listInstalledSkills: (db: Database, input: MarketplaceInstallOwner) => InstalledSkillView[]
   listInstalledAgents: (db: Database, input: MarketplaceInstallOwner) => InstalledAgentView[]
   listInstalledPlugins: () => InstalledPluginView[]
+  listInstalledMcpServers: () => InstalledMcpServerView[]
 }

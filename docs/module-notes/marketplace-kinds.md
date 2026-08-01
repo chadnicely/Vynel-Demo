@@ -10,13 +10,15 @@ no hub change"); the desktop actively filters everything but `skill` at ONE line
 
 **Why agents first:** `installCuratedAgent → createAgent` is a proven catalog-definition→row
 pipeline; the agents route header explicitly reserves "`POST /agents/install` from the marketplace
-(community agents)". `mcp`/`rule`/`plugin` remain FILTERED from browse (comment says why) — honest
-UI over dead Get buttons:
-- `rule` waits for the instructions-notebook leaf (arc ④) — that's its install target.
-- `mcp` needs two Chad calls: which leaf OWNS a standalone MCP install (today MCP config writes are
-  a skills-internal side-effect), and whether it cards (skills' precedent is the silent write —
-  but a standalone "add a server to ~/.claude.json" might deserve the approval card).
-- `plugin` has no desktop semantics at all yet.
+(community agents)". Of the once-filtered kinds, only `rule` remains off the shelf:
+- `rule` — Chad's call (2026-08-02): installs as plain `.claude/rules/*.md` files (native
+  location Claude Code reads), no notebook-leaf dependency; its slice is next in Arc 3.
+- `mcp` — SHIPPED 2026-08-02 (both forks settled by Chad): **config-is-truth** (no leaf owns a
+  table; the scope's Claude MCP config IS the state, written via the skills leaf's single-writer
+  ops in `packages/skills/src/mcp-servers/`), and **no card** (rides the workspace install tool
+  at the standard mutatingApproved tier; the global root installs via delegation). Curation
+  rule: two catalog items must never declare the same `serverName` (they would cross-match).
+- `plugin` — SHIPPED (Phase B): delegates to Claude Code's own plugin system.
 
 ## The shape
 
@@ -80,9 +82,10 @@ the in-app builder disk visibility, but needs a story for hand-edited files vs. 
 
 ## Deferred (named, not silent)
 
-- `mcp` kind (two forks above) · `rule` kind (rides arc ④) · `plugin` kind (undefined) ·
-  update-flow ("catalog version > installed → Update") · shared artifact-extractor home ·
-  bundled agents in the marketplace (curated agents already have their own surface).
+- ~~`mcp` kind~~ SHIPPED 2026-08-02 (config-is-truth, forks settled) · `rule` kind (plain
+  `.claude/rules/` files — next Arc-3 slice) · ~~`plugin` kind~~ SHIPPED (Phase B delegate) ·
+  ~~update-flow~~ SHIPPED (skills; gated on `hasCloudArtifact`) · shared artifact-extractor
+  home · bundled agents in the marketplace (curated agents already have their own surface).
 - ~~Slug-collision drift~~ — CLOSED (source-filtered) on 2026-07-12: the annotator now matches
   agents on slug === itemId AND `source === 'community'`, so a USER-created agent with a colliding
   slug neither shows "Installed" nor gets soft-deleted by `POST /uninstall`.

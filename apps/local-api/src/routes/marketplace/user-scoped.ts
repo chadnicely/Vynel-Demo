@@ -47,6 +47,7 @@ import {
   updateMarketplaceItem,
   uninstallMarketplaceItem,
 } from './item-lifecycle.js'
+import { mcpServersReaderFor } from './mcp-item-lifecycle.js'
 
 export const marketplaceUserApp = factory
   .createApp()
@@ -81,7 +82,7 @@ export const marketplaceUserApp = factory
       const items = listMarketplaceItems(
         c.var.db,
         input,
-        marketplaceDepsWith(c.var.marketplaceInstalledPluginsReader),
+        marketplaceDepsWith(c.var.marketplaceInstalledPluginsReader, mcpServersReaderFor(null)),
       )
       return c.json(items.map(serializeMarketplaceItem))
     },

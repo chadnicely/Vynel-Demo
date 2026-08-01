@@ -6,6 +6,7 @@
 
 import { toHubPublisherTier } from '@vynel/contracts/hub/catalog'
 import { parsePluginItemManifest } from '@vynel/contracts/marketplace/plugin-item-manifest'
+import { parseMcpItemManifest } from '@vynel/contracts/marketplace/mcp-item-manifest'
 import type {
   MarketplaceItem,
   MarketplaceItemKind,
@@ -40,7 +41,7 @@ function toSkillCategory(raw: string): SkillCategory {
 // structurally identical to the desktop's `PublisherTier`, so no re-map.
 
 function toItemKind(raw: string): MarketplaceItemKind {
-  return raw === 'agent' || raw === 'plugin' ? raw : 'skill'
+  return raw === 'agent' || raw === 'plugin' || raw === 'mcp' ? raw : 'skill'
 }
 
 // The cache row's `recommendedScope` text doubles as the hub's SURFACING
@@ -59,6 +60,10 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
   // undefined; the merge drops such rows (no dead Get buttons).
   const pluginManifest =
     kind === 'plugin' ? parsePluginItemManifest(row.latestVersionManifestJson) : null
+  // Mcp rows precompute the config's server-name key the same way — the
+  // manifest IS the install (config-is-truth), so an unparsable one means
+  // the item cannot install at all and the merge drops it.
+  const mcpManifest = kind === 'mcp' ? parseMcpItemManifest(row.latestVersionManifestJson) : null
   return {
     itemId: row.itemId,
     kind,
@@ -90,6 +95,7 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
     ...(pluginManifest !== null
       ? { pluginKey: `${pluginManifest.pluginName}@${pluginManifest.marketplaceName}` }
       : {}),
+    ...(mcpManifest !== null ? { mcpServerName: mcpManifest.serverName } : {}),
     // Only skill rows have an artifact the UPDATE route will serve —
     // agents update by uninstall+reinstall, plugins via the CLI delegate
     // (their update slice is a recorded Arc-3 item; widen this then).

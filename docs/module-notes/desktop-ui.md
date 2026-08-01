@@ -41,7 +41,7 @@
   consumes it now; the future cloud `web` reuses it. Components are icon-agnostic (slots) and
   data-blind (props in, events out) — data wiring lives in the app.
 - **Ports from env, never hardcoded** — `apps/local-web/env.ts` (Zod): `LOCAL_WEB_PORT`
-  (default 8999) + `LOCAL_API_URL` (default `http://127.0.0.1:8998`), fed from the repo-root `.env`.
+  (default 18894) + `LOCAL_API_URL` (default `http://127.0.0.1:18892`), fed from the repo-root `.env`.
 - **Approvals are notifications, not just chat cards** — an approval must be visible + decidable
   from ANY view (badge + actionable toast stack in the shell), and via OS notifications once the
   Tauri shell lands (M6). The global chat view is the single control surface where a non-technical

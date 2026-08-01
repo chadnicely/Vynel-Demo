@@ -1,6 +1,6 @@
 // Window creation lives in code (not tauri.conf.json) because release builds
 // must delay it until the daemon sidecar is listening — a config window would
-// load http://127.0.0.1:8998 before anything serves it and freeze an error
+// load http://127.0.0.1:18892 before anything serves it and freeze an error
 // page. Dev creates immediately (`pnpm dev` owns the servers).
 
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};

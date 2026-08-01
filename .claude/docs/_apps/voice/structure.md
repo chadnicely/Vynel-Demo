@@ -35,7 +35,7 @@ The daemon imports **types + Sherpa classes** from voice-engine and **`detectWak
 | `apps/voice/src/loop/voice-session-types.ts` | the injected seams — `VoiceSessionState`, `VoiceBrainEvent`, `VoiceSessionIo` |
 | `apps/voice/src/brain/run-brain-turn.ts` | the brain client — POST utterance to `local-api /root/turn`, stream SSE → `VoiceBrainEvent`s; pins the Haiku triage model + `voice: true` |
 | `apps/voice/src/brain/sse-frames.ts` | minimal SSE frame parser (`event`/`data`, chunk-boundary tolerant) — pure |
-| `apps/voice/src/overlay/overlay-channel.ts` | the loopback Hono server (port 8997) for browser Jarvis views — SSE `/events`, `/session/end`, `/speak`, `/synthesize` |
+| `apps/voice/src/overlay/overlay-channel.ts` | the loopback Hono server (port 18893) for browser Jarvis views — SSE `/events`, `/session/end`, `/speak`, `/synthesize` |
 | `apps/voice/src/overlay/jarvis-window.ts` | launch/focus the floating Jarvis window — Tauri overlay exe preferred, Chrome/Edge `--app` fallback |
 | `apps/voice/src/**/*.test.ts` | colocated Vitest tests: `audio-format`, `wav-encode`, `run-brain-turn`, `sse-frames`, `voice-session-driver`, `jarvis-window`, `overlay-channel` |
 
@@ -73,7 +73,7 @@ Key behaviors:
 - **Speak queue** (`speak()` / `#drainSpeakQueue`) — external text (the `speak` tool, proactive lines) drains when the audio path is free; it drains even while `handed-off` (the daemon speaker is idle; the browser owns only the mic). A `#drainPriorState` restores exactly where the drain interrupted, and an `#endHandoffPending` flag rescues a handoff-release that arrived mid-drain (the "deaf-daemon" bug guard).
 - **Echo defense** — after speaking, the mic stays closed until the shell calls `notifyPlaybackDrained()` (real playback end, not merely "stopped sending").
 
-## HTTP surface — the overlay channel (`overlay-channel.ts`, port 8997)
+## HTTP surface — the overlay channel (`overlay-channel.ts`, port 18893)
 
 A small loopback Hono server (`@hono/node-server`), CORS-open because it binds `127.0.0.1` only. Heartbeat `ping` events (15 s) keep proxies from idling the SSE socket.
 
@@ -90,7 +90,7 @@ An undelivered wake is held (`pendingWake`) and replayed to the next eligible co
 
 Two distinct surfaces share the `/voice` path, resolved by route order in `apps/local-api/src/gateway.ts`:
 
-- **`local-api /voice/speak`** (`apps/local-api/src/routes/voice/index.ts`) — the `speak` MCP tool (`rootSurface`, `mutatingApproved`). Any global session (voice triage, global root, a scheduled briefing) calls it; `speakThroughDaemon` relays to the daemon's overlay `/speak` at `VYNEL_VOICE_DAEMON_URL` (default `http://127.0.0.1:8997`) with a 4 s timeout — a daemon that's down returns `{ spoken: false, reason }` (a soft success: "answer in text instead"). Mounted at `/voice` behind `featureGate('voice')` (`app.ts:119,168`).
+- **`local-api /voice/speak`** (`apps/local-api/src/routes/voice/index.ts`) — the `speak` MCP tool (`rootSurface`, `mutatingApproved`). Any global session (voice triage, global root, a scheduled briefing) calls it; `speakThroughDaemon` relays to the daemon's overlay `/speak` at `VYNEL_VOICE_DAEMON_URL` (default `http://127.0.0.1:18893`) with a 4 s timeout — a daemon that's down returns `{ spoken: false, reason }` (a soft success: "answer in text instead"). Mounted at `/voice` behind `featureGate('voice')` (`app.ts:119,168`).
 - **The gateway `/voice/*` proxy** — the gateway forwards `/voice/*` (prefix stripped) to the **daemon's overlay channel** (SSE wake events, `/synthesize`, `/session/end`). It deliberately **shadows** local-api's own `/voice/speak` at root paths; externally the tool surface is `/api/voice/*`, and out-of-process SDK/MCP consumers dispatch through the `/api` mount (`gateway.ts:1-19,50-86`). If the daemon is unreachable the proxy returns `502 voice_daemon_unreachable` with a "start it with `pnpm dev:voice`" pointer.
 - **Dev twin** — `apps/local-web/vite.config.ts` proxies `/voice` → the daemon (strips the prefix); the gateway is that proxy's production form.
 
@@ -154,11 +154,11 @@ flowchart LR
 ## Who launches it
 
 - **Standalone / dev only (Phase 1).** `pnpm dev:voice` (`pnpm --filter @vynel/voice-daemon dev` — `node --watch --import tsx src/main.ts`) or as part of `pnpm dev:full` (`package.json`). Requires local-api already up on `VYNEL_API_URL`.
-- **Nothing auto-supervises the voice daemon yet.** The desktop's `daemon.rs` supervises the **local-api brain** (port 8998), not this daemon. The relationship runs the other way: on a Jarvis wake the voice daemon *launches* the desktop overlay window (`jarvis-window.ts` → `vynel-desktop.exe --jarvis-only`, `apps/desktop/src-tauri/src/main.rs:16`), or a Chrome/Edge `--app` window on local-web's `/jarvis` route as fallback.
+- **Nothing auto-supervises the voice daemon yet.** The desktop's `daemon.rs` supervises the **local-api brain** (port 18892), not this daemon. The relationship runs the other way: on a Jarvis wake the voice daemon *launches* the desktop overlay window (`jarvis-window.ts` → `vynel-desktop.exe --jarvis-only`, `apps/desktop/src-tauri/src/main.rs:16`), or a Chrome/Edge `--app` window on local-web's `/jarvis` route as fallback.
 
 ## Config & gotchas
 
-- **Env** (`env.ts`): `VYNEL_API_URL` (default `http://127.0.0.1:8998`), `VYNEL_VOICE_MODELS_DIR` (`.models/voice`), `VYNEL_VOICE_TTS` (`kokoro`|`piper-lessac`), `VYNEL_VOICE_STT` (`moonshine-base`|`moonshine-tiny`), `VYNEL_VOICE_ID`, `VYNEL_VOICE_IDLE_TIMEOUT_MS` (15 s), `VYNEL_VOICE_DAEMON_PORT` (8997), `VYNEL_VOICE_JARVIS_WINDOW` (`1`), `VYNEL_VOICE_JARVIS_URL` (`…:8999/jarvis`), `VYNEL_VOICE_JARVIS_BROWSER`, `VYNEL_VOICE_JARVIS_APP` (Tauri exe path).
+- **Env** (`env.ts`): `VYNEL_API_URL` (default `http://127.0.0.1:18892`), `VYNEL_VOICE_MODELS_DIR` (`.models/voice`), `VYNEL_VOICE_TTS` (`kokoro`|`piper-lessac`), `VYNEL_VOICE_STT` (`moonshine-base`|`moonshine-tiny`), `VYNEL_VOICE_ID`, `VYNEL_VOICE_IDLE_TIMEOUT_MS` (15 s), `VYNEL_VOICE_DAEMON_PORT` (18893), `VYNEL_VOICE_JARVIS_WINDOW` (`1`), `VYNEL_VOICE_JARVIS_URL` (`…:18894/jarvis`), `VYNEL_VOICE_JARVIS_BROWSER`, `VYNEL_VOICE_JARVIS_APP` (Tauri exe path).
 - **node-cpal `.d.ts` is stale.** `cpal.ts` is the single corrected boundary: it `createRequire`s the addon and types it against the real runtime (`createStream(deviceId, isInput, config, cb)` with **string** device ids; the callback is required even for output streams). Don't reach around it.
 - **WASAPI keep-alive** — an idle Windows output stream goes cold and the next write is silent; the shell trickles ~50 ms silence between real audio (`audio-shell.ts:22,57-62`). The `PLAYBACK_TAIL_MS` (350) drain estimate is LIVE-TUNE territory (needs a real mic).
 - **No ffmpeg** — despite the module sometimes being described as "node-cpal + ffmpeg", the daemon uses **no** ffmpeg. All format conversion is pure-JS: `audio-format.ts` (resample/downmix/upmix) + `wav-encode.ts` (16-bit WAV). A grep of `apps/voice`, `packages/voice-engine`, `scripts`, and `package.json` finds zero ffmpeg references.

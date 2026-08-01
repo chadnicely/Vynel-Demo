@@ -11,7 +11,7 @@
 // agent rows with scope 'user').
 
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import JSZip from 'jszip'
@@ -438,6 +438,233 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
 
       const res = await postJson(app, '/marketplace/update', { itemId: 'document-skills' })
       expect(res.status).toBe(400)
+    })
+  })
+})
+
+describe('mcp kind — config-is-truth install/uninstall', () => {
+  const playwrightManifest = {
+    serverName: 'playwright',
+    transport: 'stdio',
+    commandOrUrl: 'npx',
+    args: ['@playwright/mcp@latest'],
+  }
+
+  it('user scope end-to-end: Get writes ~/.claude.json, list flips to Installed, Remove clears it', async () => {
+    await withIsolatedHome(async () => {
+      await withTestDatabase(async (db) => {
+        seedUser(db)
+        syncCloudCatalog(
+          db,
+          [
+            cloudCatalogItem({
+              itemId: 'playwright-mcp',
+              kind: 'mcp',
+              recommendedScope: 'both',
+              latestVersionManifestJson: JSON.stringify(playwrightManifest),
+            }),
+            cloudCatalogItem({
+              itemId: 'broken-mcp',
+              kind: 'mcp',
+              recommendedScope: 'both',
+              latestVersionManifestJson: '{"nope":true}',
+            }),
+          ],
+          new Date(),
+        )
+        const app = createApp({
+          db,
+          logger: silentLogger,
+          marketplaceInstalledPluginsReader: listInstalledPluginsStub,
+        })
+
+        // No dead Get buttons: the descriptor-less mcp row never surfaces.
+        const ids = (
+          (await (await app.request('/marketplace/items')).json()) as Array<{ itemId: string }>
+        ).map((i) => i.itemId)
+        expect(ids).toContain('playwright-mcp')
+        expect(ids).not.toContain('broken-mcp')
+
+        const res = await postJson(app, '/marketplace/install', { itemId: 'playwright-mcp' })
+        expect(res.status).toBe(201)
+        expect(await res.json()).toEqual({
+          kind: 'mcp',
+          serverName: 'playwright',
+          itemId: 'playwright-mcp',
+          scope: 'user',
+          version: '1.0.0',
+        })
+
+        const items = (await (await app.request('/marketplace/items')).json()) as Array<{
+          itemId: string
+          installStatus: unknown
+        }>
+        expect(items.find((i) => i.itemId === 'playwright-mcp')?.installStatus).toEqual({
+          kind: 'installed',
+          scope: 'user',
+          installedId: 'playwright',
+          versionInstalled: null,
+        })
+
+        const un = await postJson(app, '/marketplace/uninstall', { itemId: 'playwright-mcp' })
+        expect(un.status).toBe(200)
+        expect(await un.json()).toEqual({
+          kind: 'mcp',
+          serverName: 'playwright',
+          itemId: 'playwright-mcp',
+        })
+        const after = (await (await app.request('/marketplace/items')).json()) as Array<{
+          itemId: string
+          installStatus: { kind: string }
+        }>
+        expect(after.find((i) => i.itemId === 'playwright-mcp')?.installStatus.kind).toBe(
+          'not-installed',
+        )
+      })
+    })
+  })
+
+  it('workspace scope: the entry lands in that workspace\'s .mcp.json', async () => {
+    await withIsolatedHome(async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const now = new Date()
+        const workspaceDir = mkdtempSync(join(tmpdir(), 'vynel-marketplace-mcp-ws-'))
+        try {
+          const workspace = insertWorkspace(db, {
+            id: randomUUID(),
+            userId: user.id,
+            name: 'Acme',
+            kind: 'small-business',
+            path: workspaceDir,
+            isArchived: false,
+            createdAt: now,
+            updatedAt: now,
+            lastAccessedAt: now,
+          })
+          syncCloudCatalog(
+            db,
+            [
+              cloudCatalogItem({
+                itemId: 'playwright-mcp',
+                kind: 'mcp',
+                recommendedScope: 'both',
+                latestVersionManifestJson: JSON.stringify(playwrightManifest),
+              }),
+            ],
+            new Date(),
+          )
+          const app = createApp({
+            db,
+            logger: silentLogger,
+            marketplaceInstalledPluginsReader: listInstalledPluginsStub,
+          })
+
+          const res = await postJson(app, `/workspaces/${workspace.id}/marketplace/install`, {
+            itemId: 'playwright-mcp',
+            scope: 'workspace',
+          })
+          expect(res.status).toBe(201)
+          expect(await res.json()).toMatchObject({ kind: 'mcp', scope: 'workspace' })
+
+          const workspaceConfig = JSON.parse(
+            readFileSync(join(workspaceDir, '.mcp.json'), 'utf8'),
+          ) as { mcpServers: Record<string, unknown> }
+          expect(Object.keys(workspaceConfig.mcpServers)).toEqual(['playwright'])
+
+          // The workspace surface shows Installed at workspace scope; the
+          // GLOBAL surface (user config only) still shows Get.
+          const wsItems = (await (
+            await app.request(`/workspaces/${workspace.id}/marketplace/items`)
+          ).json()) as Array<{ itemId: string; installStatus: { kind: string; scope?: string } }>
+          expect(wsItems.find((i) => i.itemId === 'playwright-mcp')?.installStatus).toMatchObject({
+            kind: 'installed',
+            scope: 'workspace',
+          })
+          const globalItems = (await (await app.request('/marketplace/items')).json()) as Array<{
+            itemId: string
+            installStatus: { kind: string }
+          }>
+          expect(globalItems.find((i) => i.itemId === 'playwright-mcp')?.installStatus.kind).toBe(
+            'not-installed',
+          )
+        } finally {
+          rmSync(workspaceDir, { recursive: true, force: true })
+        }
+      })
+    })
+  })
+
+  it('dual scope: user install from the workspace surface lands in ~/.claude.json; uninstall peels workspace first (D12), then user', async () => {
+    await withIsolatedHome(async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const now = new Date()
+        const workspaceDir = mkdtempSync(join(tmpdir(), 'vynel-marketplace-mcp-dual-'))
+        try {
+          const workspace = insertWorkspace(db, {
+            id: randomUUID(),
+            userId: user.id,
+            name: 'Acme',
+            kind: 'small-business',
+            path: workspaceDir,
+            isArchived: false,
+            createdAt: now,
+            updatedAt: now,
+            lastAccessedAt: now,
+          })
+          syncCloudCatalog(
+            db,
+            [
+              cloudCatalogItem({
+                itemId: 'playwright-mcp',
+                kind: 'mcp',
+                recommendedScope: 'both',
+                latestVersionManifestJson: JSON.stringify(playwrightManifest),
+              }),
+            ],
+            new Date(),
+          )
+          const app = createApp({
+            db,
+            logger: silentLogger,
+            marketplaceInstalledPluginsReader: listInstalledPluginsStub,
+          })
+          const base = `/workspaces/${workspace.id}/marketplace`
+
+          // User-scope install issued FROM the workspace surface — the
+          // entry lands in the HOME config, not the workspace's.
+          const userRes = await postJson(app, `${base}/install`, {
+            itemId: 'playwright-mcp',
+            scope: 'user',
+          })
+          expect(userRes.status).toBe(201)
+          expect(await userRes.json()).toMatchObject({ kind: 'mcp', scope: 'user' })
+          expect(existsSync(join(workspaceDir, '.mcp.json'))).toBe(false)
+
+          await postJson(app, `${base}/install`, { itemId: 'playwright-mcp', scope: 'workspace' })
+
+          const statusOf = async () =>
+            (
+              (await (await app.request(`${base}/items`)).json()) as Array<{
+                itemId: string
+                installStatus: { kind: string; scope?: string }
+              }>
+            ).find((i) => i.itemId === 'playwright-mcp')?.installStatus
+
+          expect(await statusOf()).toMatchObject({ kind: 'installed', scope: 'workspace' })
+
+          // First Remove peels the D12-preferred workspace entry — the
+          // user-scope install remains, no stranded state.
+          await postJson(app, `${base}/uninstall`, { itemId: 'playwright-mcp' })
+          expect(await statusOf()).toMatchObject({ kind: 'installed', scope: 'user' })
+
+          await postJson(app, `${base}/uninstall`, { itemId: 'playwright-mcp' })
+          expect(await statusOf()).toEqual({ kind: 'not-installed' })
+        } finally {
+          rmSync(workspaceDir, { recursive: true, force: true })
+        }
+      })
     })
   })
 })

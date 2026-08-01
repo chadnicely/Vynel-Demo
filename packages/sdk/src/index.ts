@@ -35,7 +35,7 @@ export { SdkError } from './errors.js'
  *
  * `baseUrl` is the only required field. In `apps/web` dev, leave it as
  * the empty string — the Vite dev server proxies `/workspaces`,
- * `/users`, ... to the `apps/local-api` process on `http://localhost:8998`.
+ * `/users`, ... to the `apps/local-api` process on `http://localhost:18892`.
  * In tests, point it at the test-server URL.
  *
  * Phase 1 has no auth. Phase 2 will widen this with `getAuthToken` +

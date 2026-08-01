@@ -44,7 +44,7 @@ const { data, error } = await vynelApi.GET('/workspaces', {
 ```
 
 In `apps/web` dev, `baseUrl: ''` works because Vite proxies the API
-path prefixes to `http://localhost:8998`. Phase 1 has no auth — the
+path prefixes to `http://localhost:18892`. Phase 1 has no auth — the
 bearer-token + 401-interceptor middleware lands alongside the Phase 2
 `auth` domain.
 

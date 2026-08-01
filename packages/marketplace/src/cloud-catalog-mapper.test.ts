@@ -56,4 +56,28 @@ describe('cloudRowToMarketplaceItem', () => {
     expect(item.publisherTier).toBe('verified')
     expect(item.isOfficial).toBe(true)
   })
+
+  it('mcp row: precomputes the server name from a parsable manifest; unparsable stays undefined', () => {
+    const parsable = cloudRowToMarketplaceItem(
+      cacheRow({
+        itemId: 'playwright-mcp',
+        kind: 'mcp',
+        latestVersionManifestJson: JSON.stringify({
+          serverName: 'playwright',
+          transport: 'stdio',
+          commandOrUrl: 'npx',
+          args: ['@playwright/mcp@latest'],
+        }),
+      }),
+    )
+    expect(parsable.kind).toBe('mcp')
+    expect(parsable.mcpServerName).toBe('playwright')
+    // Config entries carry no downloadable artifact — never an Update button.
+    expect(parsable.hasCloudArtifact).toBe(false)
+
+    const broken = cloudRowToMarketplaceItem(
+      cacheRow({ itemId: 'broken-mcp', kind: 'mcp', latestVersionManifestJson: '{"nope":1}' }),
+    )
+    expect(broken.mcpServerName).toBeUndefined()
+  })
 })

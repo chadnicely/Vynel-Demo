@@ -5,8 +5,8 @@ describe("parseLocalWebEnv", () => {
   it("applies defaults when nothing is set", () => {
     const env = parseLocalWebEnv({});
 
-    expect(env.LOCAL_WEB_PORT).toBe(8999);
-    expect(env.LOCAL_API_URL).toBe("http://127.0.0.1:8998");
+    expect(env.LOCAL_WEB_PORT).toBe(18894);
+    expect(env.LOCAL_API_URL).toBe("http://127.0.0.1:18892");
   });
 
   it("coerces the port and accepts overrides", () => {

@@ -15,9 +15,10 @@
 //
 // Install dispatch (M4b-2 + C-agents): a CACHED cloud item downloads its
 // verified artifact (sha256-checked in the leaf) and installs per its kind;
-// anything else falls through to the bundled-template `installSkill` — a
-// cached NON-INSTALLABLE kind (mcp/rule/plugin) must never shadow a same-id
-// bundled skill.
+// `plugin` delegates to Claude Code's own plugin system, `mcp` writes the
+// scope's Claude MCP config (config-is-truth, 2026-08-02); anything else
+// falls through to the bundled-template `installSkill` — a cached
+// NON-INSTALLABLE kind (rule) must never shadow a same-id bundled skill.
 //
 // Uninstall dispatch: the surface resolution doubles as the exact per-kind
 // resolution the list annotator uses — so the row removed is the one the
@@ -40,10 +41,15 @@ import {
 } from '@vynel/skills'
 import { installCloudAgent, softDeleteAgent } from '@vynel/agents'
 import { listAgentsForUserAndWorkspace } from '@vynel/db/repositories/agents'
-import type { MarketplaceDeps, InstalledPluginView } from '@vynel/marketplace'
-import { parsePluginItemManifest } from '@vynel/contracts/marketplace/plugin-item-manifest'
+import type {
+  MarketplaceDeps,
+  InstalledPluginView,
+  InstalledMcpServerView,
+} from '@vynel/marketplace'
 import type { MarketplacePluginDelegate } from '../../services/marketplace-plugin-delegate.js'
 import { serializeInstalledSkillResponse } from './serializers.js'
+import { installPluginItem, uninstallPluginItem } from './plugin-item-lifecycle.js'
+import { installMcpItem, uninstallMcpItem, mcpServersReaderFor } from './mcp-item-lifecycle.js'
 
 // Agents' install-status reader binds the kernel repo directly — the
 // `@vynel/agents` leaf export (`listAgentsForWorkspace`) is async, and
@@ -57,11 +63,13 @@ import { serializeInstalledSkillResponse } from './serializers.js'
 // every unmocked route test read the developer's real `~/.claude/plugins`.
 export function marketplaceDepsWith(
   listInstalledPlugins: () => InstalledPluginView[],
+  listInstalledMcpServers: () => InstalledMcpServerView[],
 ): MarketplaceDeps {
   return {
     listInstalledSkills: listInstalledSkillsForUserAndWorkspace,
     listInstalledAgents: listAgentsForUserAndWorkspace,
     listInstalledPlugins,
+    listInstalledMcpServers,
   }
 }
 
@@ -103,26 +111,16 @@ export async function installMarketplaceItem(
   const gateItem = getMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
-    marketplaceDepsWith(ctx.listInstalledPlugins),
+    marketplaceDepsWith(ctx.listInstalledPlugins, mcpServersReaderFor(workspace)),
   )
   if (gateItem.kind === 'plugin') {
-    // Delegate install: Claude Code's own plugin system pulls from the
-    // publisher's marketplace repo — no artifact download, no scope choice
-    // (plugins are user-scope global; their `recommendedScope: 'user'`
-    // keeps them off the workspace surface entirely).
-    const cachedPlugin = findCachedCloudItem(ctx.db, itemId)
-    const manifest = parsePluginItemManifest(cachedPlugin?.latestVersionManifestJson ?? null)
-    if (manifest === null) {
-      throw new ValidationError('This plugin item carries no install descriptor — re-sync the catalog.')
-    }
-    await ctx.pluginDelegate.install(manifest)
-    ctx.logger.info({ itemId, pluginKey: gateItem.pluginKey }, 'marketplace plugin installed')
-    return {
-      kind: 'plugin' as const,
-      pluginKey: `${manifest.pluginName}@${manifest.marketplaceName}`,
-      itemId,
-      version: cachedPlugin?.latestVersion ?? null,
-    }
+    return installPluginItem(
+      { db: ctx.db, logger: ctx.logger, pluginDelegate: ctx.pluginDelegate },
+      { itemId, pluginKey: gateItem.pluginKey },
+    )
+  }
+  if (gateItem.kind === 'mcp') {
+    return installMcpItem({ db: ctx.db, logger: ctx.logger }, { itemId, scope, workspace })
   }
   const cached = findCachedCloudItem(ctx.db, itemId)
   const cloud =
@@ -203,7 +201,7 @@ export async function updateMarketplaceItem(
   const item = getMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
-    marketplaceDepsWith(ctx.listInstalledPlugins),
+    marketplaceDepsWith(ctx.listInstalledPlugins, mcpServersReaderFor(workspace)),
   )
   if (item.installStatus.kind !== 'installed') {
     throw new NotFoundError('installed-item', itemId)
@@ -255,27 +253,27 @@ export async function uninstallMarketplaceItem(
   const item = getMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
-    marketplaceDepsWith(ctx.listInstalledPlugins),
+    marketplaceDepsWith(ctx.listInstalledPlugins, mcpServersReaderFor(workspace)),
   )
   if (item.installStatus.kind !== 'installed') {
     throw new NotFoundError('installed-item', itemId)
   }
   if (item.kind === 'plugin') {
-    // installedId IS the registry key (`name@marketplace`) — plugin names
-    // never contain '@', so the FIRST '@' is the split (same rule as the
-    // provider's registry reader). The guard mirrors the reader's: a
-    // malformed key must never drive the CLI with a garbage split.
-    const key = item.installStatus.installedId
-    const atIndex = key.indexOf('@')
-    if (atIndex <= 0 || atIndex === key.length - 1) {
-      throw new ValidationError(`Installed plugin key '${key}' is malformed — cannot uninstall.`)
-    }
-    await ctx.pluginDelegate.uninstall({
-      pluginName: key.slice(0, atIndex),
-      marketplaceName: key.slice(atIndex + 1),
-    })
-    ctx.logger.info({ itemId, pluginKey: key }, 'marketplace plugin uninstalled')
-    return { kind: 'plugin' as const, pluginKey: key, itemId }
+    return uninstallPluginItem(
+      { logger: ctx.logger, pluginDelegate: ctx.pluginDelegate },
+      { itemId, installedKey: item.installStatus.installedId },
+    )
+  }
+  if (item.kind === 'mcp') {
+    return uninstallMcpItem(
+      { logger: ctx.logger },
+      {
+        itemId,
+        serverName: item.installStatus.installedId,
+        serverScope: item.installStatus.scope,
+        workspace,
+      },
+    )
   }
   if (item.kind === 'agent') {
     await softDeleteAgent(

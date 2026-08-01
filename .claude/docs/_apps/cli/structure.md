@@ -14,7 +14,7 @@
 |---|---|
 | ► `apps/cli/src/bin.ts` | executable entry (`bin.vynel` → `dist/bin.js`) — builds the real `VynelClient` **lazily** from env, `parseAsync(process.argv)`, maps a thrown command error to stderr + exit code |
 | `apps/cli/src/index.ts` | `buildProgram(getClient)` — side-effect-free; names the program, sets version, registers the 5 command groups. Injected client factory makes it unit-testable |
-| `apps/cli/src/env.ts` | Zod-validated env — the single `process.env` read; `VYNEL_API_URL` (default `http://localhost:8998`) |
+| `apps/cli/src/env.ts` | Zod-validated env — the single `process.env` read; `VYNEL_API_URL` (default `http://localhost:18892`) |
 | `apps/cli/src/output.ts` | `printResult` (JSON to stdout) + `formatError` — pure `unknown → { message, exitCode }`, `SdkError`-aware |
 | `apps/cli/src/knowledge-commands.ts` | `vynel knowledge …` — 8 commands: search / list / get / status / reindex / add-source / sources / remove-source |
 | `apps/cli/src/skills-commands.ts` | `vynel skills …` — 7 commands: list / available / install / uninstall / enable / disable / synchronize |
@@ -124,7 +124,7 @@ flowchart LR
 
 ## Config & gotchas
 
-- **`VYNEL_API_URL`** (`env.ts`) is the only config — default `http://localhost:8998` (the local-api dev port). It is read in exactly one place per the coding standard; trailing slashes are stripped before the `/api` suffix is appended.
+- **`VYNEL_API_URL`** (`env.ts`) is the only config — default `http://localhost:18892` (the local-api dev port). It is read in exactly one place per the coding standard; trailing slashes are stripped before the `/api` suffix is appended.
 - **`/api` mount, deliberately.** `bin.ts` targets `${apiUrl}/api`, the gateway's one external surface. The comment warns that dispatching at root would let the voice-daemon proxy's `/voice/*` shadow the API's own voice routes (`bin.ts:15-17`).
 - **Client is lazy so `--help`/`--version` work offline** — `getClient()` builds nothing until a command action fires (`client ??=`). Do not hoist the client build to module load or you break the no-server help path.
 - **204 commands print a synthetic confirmation.** `uninstall` / `disconnect` / `delete` return no body; each awaits the call then `printResult`s `{ <verb>: id }` so the operator sees which id acted (e.g. `skills-commands.ts:53-55`).

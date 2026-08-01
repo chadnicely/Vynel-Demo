@@ -147,7 +147,7 @@ the reply spoken sentence-by-sentence via browser `speechSynthesis`. **Fork reso
 
 | Fork | Resolution |
 |------|------------|
-| Daemon↔browser signaling | The **daemon hosts a loopback Hono server** (`apps/voice/src/overlay/overlay-channel.ts`, `VYNEL_VOICE_DAEMON_PORT` default **8997**): `GET /events` SSE (state replay on connect + wake/state events + 15s ping) · `POST /session/end`. local-web reaches it through a new Vite **`/voice` proxy** (`VYNEL_VOICE_DAEMON_URL`). No `@hono/node-ws` needed — events flow one way, the end-signal is a plain POST. |
+| Daemon↔browser signaling | The **daemon hosts a loopback Hono server** (`apps/voice/src/overlay/overlay-channel.ts`, `VYNEL_VOICE_DAEMON_PORT` default **18893**): `GET /events` SSE (state replay on connect + wake/state events + 15s ping) · `POST /session/end`. local-web reaches it through a new Vite **`/voice` proxy** (`VYNEL_VOICE_DAEMON_URL`). No `@hono/node-ws` needed — events flow one way, the end-signal is a plain POST. |
 | What runs where after wake | **The browser owns the whole active session.** Driver gained a `'handed-off'` state + injected `WakeHandoff` seam: with an overlay client connected, wake publishes `{kind:'wake', command}` (same-breath command included) and the daemon goes deaf until `POST /session/end` or the client disconnects (`onClientsGone`) → back asleep. That deafness IS the cross-process echo defense — the daemon never hears the browser's TTS. |
 | Daemon's own STT/TTS | **Kept as the no-browser fallback.** Zero overlay clients → the native Moonshine+Kokoro loop runs exactly as before. |
 | Speak (browser) | **`speechSynthesis`**, sentence-by-sentence via the shared `SpokenSentenceBuffer` (prefers a Google en voice). Kokoro-streamed-to-browser is a later quality improve behind the same `SentenceSpeaker` interface. |
@@ -189,17 +189,17 @@ doesn't exist in Tauri's WebView2 — **since DISPROVED by a live probe; see the
   PowerShell `AppActivate('Vynel Jarvis')` — the title JarvisView sets (keep in sync). A **10 s connect
   watchdog** in main.ts ends the handoff if a launched window never connects (Chrome missing / web
   down) so a failed launch can't leave the daemon deaf. Env: `VYNEL_VOICE_JARVIS_WINDOW` ('1') ·
-  `VYNEL_VOICE_JARVIS_URL` (default `http://localhost:8999/jarvis`) · `VYNEL_VOICE_JARVIS_BROWSER`
+  `VYNEL_VOICE_JARVIS_URL` (default `http://localhost:18894/jarvis`) · `VYNEL_VOICE_JARVIS_BROWSER`
   (chrome|msedge). `0` restores the previous behavior (hand off only to a connected tab, else native).
 - The window tries `window.close()` when the session settles (allowed while its history is a single
   entry); if Chrome refuses, it stays idle and the next wake reuses it instantly (focus, no launch).
-- ⚠ Dev papercut found live: Vite can bind **IPv6-only** (`[::1]:8999`) — IPv4 `127.0.0.1` probes fail
+- ⚠ Dev papercut found live: Vite can bind **IPv6-only** (`[::1]:18894`) — IPv4 `127.0.0.1` probes fail
   while `localhost` (→ ::1 in Chrome) works. The jarvis URL default uses `localhost` for this reason.
 
 ### ✅ BUILT same-day on the probe: the Tauri always-on-top overlay + Kokoro overlay voice
 Chad greenlit both. **`apps/desktop`** is a deliberately thin Tauri v2 shell: ONE frameless,
 transparent, always-on-top 420×560 window (`label: jarvis`, title "Vynel Jarvis") rendering
-**local-web's `/jarvis` route** off the dev server (`devUrl localhost:8999`; `frontendDist` points at
+**local-web's `/jarvis` route** off the dev server (`devUrl localhost:18894`; `frontendDist` points at
 local-web's build for later). All overlay behavior lives in the WEB view via `withGlobalTauri` (no
 Tauri npm dep — `composables/voice/tauri-overlay-window.ts` wraps the `__TAURI__` global):
 **reveal (show+focus) on wake · dismiss (hide) when the session settles · park bottom-right · rounded

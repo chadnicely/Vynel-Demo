@@ -4,8 +4,8 @@
   "version": "0.1.1",
   "identifier": "app.vynel.desktop",
   "build": {
-    "devUrl": "http://localhost:8999",
-    "frontendDist": "http://127.0.0.1:8998"
+    "devUrl": "http://localhost:18894",
+    "frontendDist": "http://127.0.0.1:18892"
   },
   "app": {
     "withGlobalTauri": true,

@@ -35,7 +35,27 @@ Remaining marketplace items = the module-notes deferred lists.
 checkboxes: ① skills install/uninstall-only ② polish batch ③ mcp/rule kinds + plugin updates
 ④ ops/production hardening — check items off as they land).
 
-## ✅ ARC 2 MARKETPLACE POLISH BATCH — CODE-COMPLETE (2026-08-02), UNCOMMITTED
+## ✅ ARC 3 SLICE 1: `mcp` KIND — CODE-COMPLETE (2026-08-02), UNCOMMITTED
+
+Chad's calls settled via AskUserQuestion (recorded in plan Arc 3): config-is-truth · sessions
+install via tool auto-tier no card · rule = plain `.claude/rules/` files · follow the plan's
+pipeline. Shipped: `McpItemManifest` contract (= `SkillRequiredMcpServer` shape) · skills
+`mcp-servers/` concern folder (install/remove + SYNC list over `~/.claude.json` mcpServers /
+workspace `.mcp.json`; single-writer rule) · marketplace kind widening + `mcpServerName`
+annotation anchor (workspace-preferred D12, version-less, `hasCloudArtifact` false) ·
+per-kind dispatch SPLIT: `mcp-item-lifecycle.ts` + `plugin-item-lifecycle.ts` (file-size
+ceiling; item-lifecycle back to 302) · `mcpServersReaderFor(workspace|null)` rides skills'
+home seam (route tests hermetic) · card chip "MCP" · seed `scripts/seed-catalog/playwright-mcp`
+(@playwright/mcp via npx, Microsoft, verified tier, scope both). Global root installs via
+delegation (its routing toolset unchanged). Reviewer CLEAN (file-split should-fix applied;
++2 composition tests: user-scope-from-workspace-surface landing, dual-scope uninstall
+sequence). **Full gate GREEN 2026-08-02 (3452 passed / 614 files).** Awaiting Chad's commit
+(⚠ Arc 2's `916f701` is still UNPUSHED — the push carries both). Smoke = publish
+playwright-mcp (`pnpm cloud:publish scripts/seed-catalog/playwright-mcp`) → Get in app →
+entry in `~/.claude.json` → session uses the browser. Next Arc-3 slices: `rule` kind
+(plain files) → plugin updates.
+
+## ✅ ARC 2 MARKETPLACE POLISH BATCH — SHIPPED (`916f701`)
 
 All four items landed (checklist in `.claude/plan/marketplace-remaining.md` Arc 2):
 ① `MarketplaceItem.hasCloudArtifact` truth signal (cloud mapper sets it for skill rows only,
@@ -48,9 +68,8 @@ hack is gone; all marketplace route tests hermetic) ④ housekeeping: shared
 template-clobber settings-half guard in `update-skill-settings` (+ regression tests).
 Module-notes deferred lists updated (5 entries CLOSED). SDK+MCP regenerated; parity ×4 OK.
 Reviewer CLEAN (its allowlist tightening on the settings guard applied:
-`=== 'verified-catalog'`). **Full gate GREEN 2026-08-02 (3441 passed / 613 files).**
-Awaiting Chad's commit. Remaining marketplace arcs: ③ mcp/rule kinds + plugin updates
-(needs Chad's calls) · ④ ops hardening.
+`=== 'verified-catalog'`). Full gate GREEN 2026-08-02 (3441 passed / 613 files); committed
+`916f701`. Remaining marketplace arcs: ③ rule kind + plugin updates · ④ ops hardening.
 
 ## ✅ ARC 1 SKILLS INSTALL/UNINSTALL-ONLY — SHIPPED (`03ce7c5`, pushed 2026-08-02)
 

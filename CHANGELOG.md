@@ -7,6 +7,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Added
+
+- **MCP servers in the marketplace.** A new kind of marketplace item: tool connections
+  (MCP servers) the assistant can use — starting with Playwright Browser, which lets it
+  operate real web pages. Installing one writes a single entry into Claude's own
+  configuration (`~/.claude.json` for everywhere, the workspace's `.mcp.json` for just that
+  workspace), so it works in Claude Code directly too; removing it deletes that entry. No
+  hidden state — the config file is the truth, and the assistant can install these for you
+  when you ask.
+
 ### Fixed
 
 - **The Update button now only appears when there is truly something to download.** Built-in
@@ -17,6 +27,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   published.
 
 ### Changed
+
+- **All service ports moved to a 5-digit serial block.** The whole stack now sits on one
+  contiguous range: `18890` cloud hub · `18891` admin portal · `18892` engine API · `18893`
+  voice daemon · `18894` web dev server (previously scattered across 8890/8891/8997/8998/8999).
+  If you have a `.env` override or a bookmark pointing at an old port, update it.
 
 - **Admin portal:** the catalog table shows each item's Publisher beside its Kind, and an
   item's Source URL (the credit line's origin link) can now be corrected right in the

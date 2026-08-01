@@ -106,6 +106,7 @@ describe('cloud catalog merge', () => {
           ],
           listInstalledAgents: () => [],
           listInstalledPlugins: () => [],
+          listInstalledMcpServers: () => [],
         },
       )
       const drafter = items.filter((i) => i.itemId === 'email-drafter')
@@ -126,6 +127,7 @@ describe('cloud catalog merge', () => {
             { id: 'a1', slug: 'focus-writer', workspaceId: 'w', source: 'community' },
           ],
           listInstalledPlugins: () => [],
+          listInstalledMcpServers: () => [],
         },
       )
       const agent = items.find((i) => i.itemId === 'focus-writer')

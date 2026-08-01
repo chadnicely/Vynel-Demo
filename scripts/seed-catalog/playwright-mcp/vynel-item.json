@@ -1,0 +1,32 @@
+{
+  "publisher": {
+    "id": "microsoft",
+    "name": "Microsoft",
+    "tier": "verified",
+    "url": "https://github.com/microsoft"
+  },
+  "item": {
+    "itemId": "playwright-mcp",
+    "kind": "mcp",
+    "displayName": "Playwright Browser",
+    "oneLineDescription": "Let the assistant browse and operate real web pages — click, type, and read sites.",
+    "category": "research",
+    "iconName": "search",
+    "recommendedScope": "both",
+    "minimumTier": "basic",
+    "sourceUrl": "https://github.com/microsoft/playwright-mcp",
+    "status": "published"
+  },
+  "version": {
+    "version": "1.0.0",
+    "changelog": "Config-is-truth install: one mcpServers entry running @playwright/mcp via npx.",
+    "manifest": {
+      "serverName": "playwright",
+      "transport": "stdio",
+      "commandOrUrl": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "environment": {}
+    },
+    "minAppVersion": null
+  }
+}

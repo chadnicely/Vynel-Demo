@@ -8,7 +8,7 @@
 1. **Bootstrap = local-first + restart.** The local engine always onboards first; choosing
    "my server" provisions from the running local daemon, persists the choice where the shell
    reads it pre-boot, and applies on app restart (the updater's restart muscle).
-2. **Tunnel = node + ssh2, bundled in the payload.** Local HTTP listener on 8998 forwarding
+2. **Tunnel = node + ssh2, bundled in the payload.** Local HTTP listener on 18892 forwarding
    over ssh2 `forwardOut`, injecting the bearer header — web UI/SDK unchanged, credentials
    stay sealed, supervised exactly like the daemon child.
 3. **Verification = WSL2 (systemd + sshd) for D0/D1 smoke, a real VPS for final E2E.**
@@ -74,8 +74,8 @@ in `packages/ssh-servers/src/sealing/master-key.ts` already exists for exactly t
   parameterized `createKeyringVault(entryName)` is the more extensible keyring pattern.
 - `startFakeSshServer` test harness (real ssh2 loopback server) — extend for key auth + SFTP.
 - The shell's process supervision is mode-agnostic: `LaunchPlan` gains a `Remote` arm and
-  the existing spawn/Job-Object/watch loop supervises a tunnel child unchanged. Port 8998 is
-  hardcoded in five places — a `remote:8998 → 127.0.0.1:8998` forward leaves ALL untouched.
+  the existing spawn/Job-Object/watch loop supervises a tunnel child unchanged. Port 18892 is
+  hardcoded in five places — a `remote:18892 → 127.0.0.1:18892` forward leaves ALL untouched.
 - `ssh_servers` schema/sealing precedent for credential rows; next migration number **0022**.
 - Desktop-control gates itself off on linux remotes for free (`resolveDesktopOs()` guard →
   descriptor `build()` returns null). Voice needs explicit gating (loopback default URL would
@@ -229,7 +229,7 @@ No option is free; this needs Chad. Nothing in D4 assumes an answer.
    a UI proxy. **Recommendation: (a)** — smallest structural change, matches the updater
    restart precedent, and the local engine is useful during provisioning anyway.
 2. **Tunnel implementation** — (a) a small tunnel entry bundled into the payload (node +
-   ssh2: local HTTP listener on 8998 forwarding over `forwardOut`, injecting the bearer
+   ssh2: local HTTP listener on 18892 forwarding over `forwardOut`, injecting the bearer
    header so web/SDK need ZERO changes; unseals credentials via the existing keyring path;
    supervised exactly like the daemon child). (b) Shell out to Windows' bundled `ssh.exe`
    (needs a plaintext key file + OpenSSH-format known_hosts on disk; cannot inject the

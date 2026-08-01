@@ -38,7 +38,7 @@ The spine of an app shell. `server.ts:19` `boot()`:
 1. **Env** — `loadEnv()` parses `process.env` once (cached). Missing/invalid → throw at boot.
 2. **Migrate on the DIRECT connection** — `createCloudDatabase({ url: CLOUD_DIRECT_DATABASE_URL ?? CLOUD_DATABASE_URL, maxConnections: 1 })` → `runCloudMigrations` → `closeCloudDatabase`. The migrator bypasses any transaction-mode pooler (postgres-phase2.md §1); with no pooler the two URLs are identical.
 3. **App on the POOLED client** — a second `createCloudDatabase({ url: CLOUD_DATABASE_URL })` feeds `createCloudApp(options)`.
-4. **Serve** — `@hono/node-server` binds `hostname: '0.0.0.0'`, `port: CLOUD_PORT` (default 8890). **Contrast `local-api`, which is loopback-only** — the hub is public behind Chad's proxy.
+4. **Serve** — `@hono/node-server` binds `hostname: '0.0.0.0'`, `port: CLOUD_PORT` (default 18890). **Contrast `local-api`, which is loopback-only** — the hub is public behind Chad's proxy.
 5. **Shutdown** — SIGINT/SIGTERM → `server.close()` → `closeCloudDatabase(db)` → `process.exit(0)`.
 
 **What boot injects into `CloudAppOptions`** (`server.ts:32-56`):
@@ -111,7 +111,7 @@ No in-process ticks or `apps/worker`. All work is request-driven. Migrations run
 
 ## Web surface — separate app, HTTP-only
 
-`cloud-api` is the **backend for** `apps/cloud-admin-web`; it does **not** serve that UI's assets. In dev, `cloud-admin-web` is its own Vite server on `:8891` and proxies `/api/*` → `cloud-api` on `:8890` (`apps/cloud-admin-web/vite.config.ts`). Hub-served prod (mounting the built assets behind the same `/api` strip) is an explicit **future** comment there, not shipped. The desktop app likewise consumes the hub over HTTP only.
+`cloud-api` is the **backend for** `apps/cloud-admin-web`; it does **not** serve that UI's assets. In dev, `cloud-admin-web` is its own Vite server on `:18891` and proxies `/api/*` → `cloud-api` on `:18890` (`apps/cloud-admin-web/vite.config.ts`). Hub-served prod (mounting the built assets behind the same `/api` strip) is an explicit **future** comment there, not shipped. The desktop app likewise consumes the hub over HTTP only.
 
 ## Pipeline — a platform webhook, end to end (the thin-adapter thesis)
 
@@ -168,7 +168,7 @@ flowchart LR
 
 ## Config & gotchas
 
-- **`cloud-admin-web` is NOT served by this app** — despite the module-notes phrasing, cloud-api is only the *backend*; the portal is a separate Vite app (`:8891`) proxying `/api` → `:8890`. Hub-served prod is a future comment in `vite.config.ts`. (Correction against the brief.)
+- **`cloud-admin-web` is NOT served by this app** — despite the module-notes phrasing, cloud-api is only the *backend*; the portal is a separate Vite app (`:18891`) proxying `/api` → `:18890`. Hub-served prod is a future comment in `vite.config.ts`. (Correction against the brief.)
 - **Binds `0.0.0.0`** (`server.ts:58`) — a hosted, publicly reachable service behind a reverse proxy. Do not confuse with `local-api`'s loopback binding.
 - **Base64-PEM env keys** — Ed25519 PEMs are multiline; both keys arrive base64-encoded of the full PEM text. `env.ts` decodes + asserts `-----BEGIN`. Generate with `pnpm cloud:generate-keys`.
 - **One private key, two issuers** — `CLOUD_ACCESS_TOKEN_PRIVATE_KEY` signs both access + entitlement tokens; the `kid` (`CLOUD_TOKEN_KEY_ID`) is stamped by the entitlement issuer only, for rotation overlap.

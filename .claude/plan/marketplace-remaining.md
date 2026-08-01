@@ -47,18 +47,30 @@ and absent. Remove the enable/disable pause state (reverses skills D11).
 - Verified: scoped checks green, reviewer clean (allowlist tightening applied), then the
   **full `pnpm test` gate GREEN 2026-08-02** (3441 passed / 613 files)
 
-## Arc 3 — the last catalog kinds (NEED CHAD'S CALLS first)
+## Arc 3 — the last catalog kinds (CALLS SETTLED 2026-08-02, AskUserQuestion)
 
-- [ ] **`mcp` kind** — two recorded forks (docs/module-notes/marketplace-kinds.md): which leaf
-      OWNS a standalone MCP install (today MCP config writes are a skills-internal side effect),
-      and does a standalone "add a server" install CARD. Desktop bridge option: write BOTH
-      `~/.claude.json` (Claude Code) and `claude_desktop_config.json` (Claude Desktop)
-- [ ] **`rule` kind** — waits on the instructions-notebook leaf as its install target
+Chad's calls: ① mcp kind = **config-is-truth** (plugin pattern — the Claude config file is the
+source of truth, no Vynel table) ② **sessions (global or workspace) can install MCP servers
+via the tool, auto-tier, NO card** (standard mutatingApproved like skill installs — not
+askApproval) ③ rule kind = **plain `.claude/rules/*.md` files** (native location Claude Code
+reads; no notebook-leaf dependency) ④ work order = follow this plan's pipeline.
+
+- [x] **`mcp` kind** ✅ COMPLETE (gate green 2026-08-02, 3452/614) — config-is-truth end-to-end: `McpItemManifest`
+      contract (shape = skills' `SkillRequiredMcpServer`, parse-at-merge, unparsable filtered);
+      skills `mcp-servers/` ops (install/remove/list over `~/.claude.json` + workspace
+      `.mcp.json` — the leaf's single-writer rule); annotator matches by serverName (workspace
+      preferred D12, version-less); per-kind dispatch split into `mcp-item-lifecycle.ts` +
+      `plugin-item-lifecycle.ts` (file-size ceiling); rides the existing workspace install tool
+      (mutatingApproved, no card — Chad's call; the global root reaches it via delegation);
+      seed item `playwright-mcp` (@playwright/mcp via npx); reviewer CLEAN.
+      `claude_desktop_config.json` bridge deferred until Chad uses Claude Desktop.
+      Curation rule (reviewer): two catalog items must never declare the same `serverName`
+- [ ] **`rule` kind** — installs as `<scope>/.claude/rules/<id>.md` (user scope `~/.claude/
+      rules/`); config-is-truth twin (file presence = installed)
 - [ ] **Plugin updates** — small slice: `claude plugin update` delegate + registry re-read
       (today: uninstall/reinstall)
 - [ ] **More official plugins** — machinery ships anything now; each addition = curation +
-      trust review. OPEN CALL: hooks/MCP-bearing plugins should likely require the askApproval
-      tier (external code execution) before any rides an MCP tool
+      trust review; plugins stay structurally user-scope (off the workspace tool)
 
 ## Arc 4 — operations & production hardening (someday, before real users)
 

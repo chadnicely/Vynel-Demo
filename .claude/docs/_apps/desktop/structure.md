@@ -16,7 +16,7 @@
 | `src-tauri/src/daemon.rs` | the local-api sidecar lifecycle (release only) — port probe / spawn / supervise-with-backoff / hard-kill on exit. Global `Mutex<DaemonState>`. **Spawns ONLY `local-api`** — never `worker` or `voice` |
 | `src-tauri/src/windows.rs` | window creation in code (so release can delay it until the daemon binds) — the `main` app window (unless `--jarvis-only`) + the always-on-top transparent `jarvis` overlay |
 | `src-tauri/build.rs` | Tauri build hook — just `tauri_build::build()` |
-| `src-tauri/tauri.conf.json` | app config — product/identifier, `devUrl` (`:8999`) vs `frontendDist` (`127.0.0.1:8998`), empty `windows: []` (windows are code-created), `bundle.active: false` |
+| `src-tauri/tauri.conf.json` | app config — product/identifier, `devUrl` (`:18894`) vs `frontendDist` (`127.0.0.1:18892`), empty `windows: []` (windows are code-created), `bundle.active: false` |
 | `src-tauri/capabilities/default.json` | Tauri v2 capability grant — the `jarvis` window's self-management permissions (show/hide/focus/set-position/start-dragging) |
 | `src-tauri/Cargo.toml` | Rust manifest — crate `vynel-desktop`, edition 2021, deps `tauri = "2"` (default features), `tauri-build = "2"` |
 | `apps/desktop/package.json` | pnpm shim — `@vynel/desktop`, `dev`/`build` = `tauri dev`/`tauri build`; dev-dep `@tauri-apps/cli ^2.1.0`. No app source |
@@ -27,7 +27,7 @@
 
 The shell has two boot paths chosen at compile time by `cfg!(debug_assertions)` (`main.rs:21`).
 
-**Dev (`pnpm dev` / `tauri dev`)** — `pnpm dev` already owns the API + the Vite server, so `setup()` calls `windows::create_windows` immediately. Windows load `devUrl` = `http://localhost:8999` (Vite).
+**Dev (`pnpm dev` / `tauri dev`)** — `pnpm dev` already owns the API + the Vite server, so `setup()` calls `windows::create_windows` immediately. Windows load `devUrl` = `http://localhost:18894` (Vite).
 
 **Release (`tauri build`)** — the UI + API are served by the daemon, so windows must **not** open until the port is listening (a config-declared window would load `frontendDist` before anything serves it and freeze on an error page — the reason `tauri.conf.json` ships `windows: []` and window creation lives in Rust). `setup()` calls `daemon::ensure_daemon_then_open_windows`, which runs the whole wait **off-thread** so `setup()` returns and the event loop can paint.
 
@@ -36,7 +36,7 @@ The shell has two boot paths chosen at compile time by `cfg!(debug_assertions)` 
 ```mermaid
 flowchart TD
     A["setup() release branch"] --> B["ensure_daemon_then_open_windows (off-thread)"]
-    B --> C{"port 127.0.0.1:8998 listening?"}
+    B --> C{"port 127.0.0.1:18892 listening?"}
     C -- yes --> H["attach — skip spawn"]
     C -- no --> D["supervise_daemon (own thread)"]
     D --> E{"resolve_repo_root ok?"}
@@ -46,10 +46,10 @@ flowchart TD
     C --> I["wait_for_port (≤60s, bails early if abandoned)"]
     H --> I
     I --> J["run_on_main_thread → windows::create_windows"]
-    J --> K["windows load frontendDist http://127.0.0.1:8998"]
+    J --> K["windows load frontendDist http://127.0.0.1:18892"]
 ```
 
-1. **Probe** — `port_is_listening()` TCP-connects `127.0.0.1:8998` (300 ms). If already served (e.g. a running `pnpm dev`), the shell **attaches** and skips spawning (`daemon.rs:48`).
+1. **Probe** — `port_is_listening()` TCP-connects `127.0.0.1:18892` (300 ms). If already served (e.g. a running `pnpm dev`), the shell **attaches** and skips spawning (`daemon.rs:48`).
 2. **Resolve repo root** — `resolve_repo_root()`: `VYNEL_DESKTOP_REPO_ROOT` env override first, else walk up from the exe until a dir contains `apps/local-api/src/server.ts` (`daemon.rs:185`). None found → `abandoned = true`, give up.
 3. **Spawn** — `spawn_daemon()` runs `node --env-file-if-exists=<root>/.env --import tsx src/server.ts` with cwd `apps/local-api` (`daemon.rs:164`). On Windows, `CREATE_NO_WINDOW` (`0x0800_0000`) suppresses the console flash.
 4. **Supervise** — `watch_until_exit()` polls `try_wait` every 500 ms; an unexpected exit respawns with linear backoff (`500 ms × attempt`), capped at `SPAWN_ATTEMPTS = 3` total spawns; exhaustion → `abandoned = true`.
@@ -77,7 +77,7 @@ Closing the `main` window calls `AppHandle::exit(0)` (`main.rs:38`) — without 
 
 ## Config & gotchas
 
-- **Ports.** `frontendDist`/daemon port `8998` (matches `apps/local-api/src/env.ts` `PORT` default and the `DAEMON_ADDRESS` const in `daemon.rs:23`); `devUrl` `8999` (Vite). The whole sidecar mode hangs on `8998` — it's duplicated in three places (Rust const, `tauri.conf.json`, local-api env) and must stay in sync.
+- **Ports.** `frontendDist`/daemon port `18892` (matches `apps/local-api/src/env.ts` `PORT` default and the `DAEMON_ADDRESS` const in `daemon.rs:23`); `devUrl` `18894` (Vite). The whole sidecar mode hangs on `18892` — it's duplicated in three places (Rust const, `tauri.conf.json`, local-api env) and must stay in sync.
 - **Env override.** `VYNEL_DESKTOP_REPO_ROOT` forces the repo root for the D1 checkout-run daemon; invalid values (no `apps/local-api`) are ignored with an `eprintln`.
 - **Diagnostics are terminal-only.** The `eprintln!` daemon diagnostics are swallowed by a windowed release build — deferred to D2 (the Tauri log plugin). Launch from a terminal to see them.
 - **`bundle.active: false`.** No installer/bundle is produced yet — this is intentional. See "Not here yet" below.
@@ -99,7 +99,7 @@ The code carries explicit `D2:` markers for what's deferred:
 
 | Unit | Direction | Mechanism | What crosses |
 |---|---|---|---|
-| [local-api](../local-api/overview.md) | out | spawned child process | `node --import tsx src/server.ts`; probes/serves `127.0.0.1:8998` (see `gateway.ts`) |
+| [local-api](../local-api/overview.md) | out | spawned child process | `node --import tsx src/server.ts`; probes/serves `127.0.0.1:18892` (see `gateway.ts`) |
 | [local-web](../local-web/overview.md) | out | webview URL load | `main`→`/`, `jarvis`→`/jarvis`; overlay control via `composables/voice/tauri-overlay-window.ts` |
 | [voice](../../voice/overview.md) | in | process launch | `jarvis-window.ts` runs this exe `--jarvis-only` on wake |
 | Tauri v2 runtime | out | crate dep | `tauri = "2"` — `Builder`, `WebviewWindowBuilder`, `AppHandle`, capability system |
@@ -107,7 +107,7 @@ The code carries explicit `D2:` markers for what's deferred:
 ```mermaid
 flowchart LR
     voice[voice daemon] -- "--jarvis-only" --> D[desktop shell]
-    D -- "spawn node" --> api[local-api :8998]
+    D -- "spawn node" --> api[local-api :18892]
     D -- "load / and /jarvis" --> web[local-web views]
     web -. "served by" .-> api
     web -. "core:window:* via capability" .-> D

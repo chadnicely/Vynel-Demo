@@ -49,7 +49,13 @@ function annotate(
   installedSkills: InstalledSkillView[] = [],
   installedAgents: InstalledAgentView[] = [],
 ): MarketplaceItem[] {
-  return annotateWithInstallStatus({ catalogItems, installedSkills, installedAgents, installedPlugins: [] })
+  return annotateWithInstallStatus({
+    catalogItems,
+    installedSkills,
+    installedAgents,
+    installedPlugins: [],
+    installedMcpServers: [],
+  })
 }
 
 describe('annotateWithInstallStatus', () => {
@@ -184,5 +190,55 @@ describe('annotateWithInstallStatus — agent items (C-agents)', () => {
       scope: 'user',
       installedId: 'installed',
     })
+  })
+
+  // Config-is-truth mcp matching: server-name key against the surface's
+  // config entries; workspace config preferred when both carry the name.
+  const mcpItem = makeItem({
+    itemId: 'playwright-mcp',
+    kind: 'mcp',
+    skillId: 'playwright-mcp',
+    mcpServerName: 'playwright',
+  })
+
+  it('mcp: matches the config entry by server name (version-less)', () => {
+    const [annotated] = annotateWithInstallStatus({
+      catalogItems: [mcpItem],
+      installedSkills: [],
+      installedAgents: [],
+      installedPlugins: [],
+      installedMcpServers: [{ name: 'playwright', scope: 'user' }],
+    })
+    expect(annotated?.installStatus).toEqual({
+      kind: 'installed',
+      scope: 'user',
+      installedId: 'playwright',
+      versionInstalled: null,
+    })
+  })
+
+  it('mcp: prefers the workspace config when both scopes carry the name (D12)', () => {
+    const [annotated] = annotateWithInstallStatus({
+      catalogItems: [mcpItem],
+      installedSkills: [],
+      installedAgents: [],
+      installedPlugins: [],
+      installedMcpServers: [
+        { name: 'playwright', scope: 'user' },
+        { name: 'playwright', scope: 'workspace' },
+      ],
+    })
+    expect(annotated?.installStatus).toMatchObject({ kind: 'installed', scope: 'workspace' })
+  })
+
+  it('mcp: a different server name never flips the card', () => {
+    const [annotated] = annotateWithInstallStatus({
+      catalogItems: [mcpItem],
+      installedSkills: [],
+      installedAgents: [],
+      installedPlugins: [],
+      installedMcpServers: [{ name: 'other-server', scope: 'user' }],
+    })
+    expect(annotated?.installStatus).toEqual({ kind: 'not-installed' })
   })
 })

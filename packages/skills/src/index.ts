@@ -52,3 +52,15 @@ export {
   type SynchronizeSkillsWithProviderInput,
   type SynchronizeSkillsResult,
 } from './lifecycle/synchronize-skills-with-provider.js'
+// Standalone MCP-server config ops (marketplace `mcp` kind, config-is-truth) —
+// exported from THIS leaf because it is the only writer of the Claude MCP
+// config files (coding.md §1.2).
+export {
+  installMcpServerForScope,
+  type InstallMcpServerForScopeInput,
+} from './mcp-servers/install-mcp-server-for-scope.js'
+export {
+  removeMcpServerForScope,
+  type RemoveMcpServerForScopeInput,
+} from './mcp-servers/remove-mcp-server-for-scope.js'
+export { listMcpServerNamesForScope } from './mcp-servers/list-mcp-server-names-for-scope.js'

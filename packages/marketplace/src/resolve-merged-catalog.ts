@@ -16,14 +16,20 @@ export function resolveMergedCatalog(db: Database): MarketplaceItem[] {
   for (const item of resolveCatalogSources()) byId.set(item.itemId, item)
   for (const row of listCloudCatalog(db)) {
     // Only INSTALLABLE kinds surface — honest UI over dead Get buttons:
-    // `rule` waits for the instructions-notebook leaf (its install
-    // target), `mcp` needs two open calls (which leaf owns a standalone
-    // MCP install; whether it cards). `plugin` installs via the Claude
-    // CLI delegate (Phase B) — but only with a parsable delegate
-    // manifest, or its Get button would be dead.
-    if (row.kind !== 'skill' && row.kind !== 'agent' && row.kind !== 'plugin') continue
+    // `rule` still waits for its slice (Arc 3). `plugin` installs via the
+    // Claude CLI delegate; `mcp` installs by writing the scope's Claude
+    // MCP config (config-is-truth, 2026-08-02) — each surfaces only with
+    // a parsable manifest, or its Get button would be dead.
+    if (
+      row.kind !== 'skill' &&
+      row.kind !== 'agent' &&
+      row.kind !== 'plugin' &&
+      row.kind !== 'mcp'
+    )
+      continue
     const item = cloudRowToMarketplaceItem(row)
     if (row.kind === 'plugin' && item.pluginKey === undefined) continue
+    if (row.kind === 'mcp' && item.mcpServerName === undefined) continue
     byId.set(row.itemId, item) // cloud wins
   }
   return [...byId.values()]

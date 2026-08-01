@@ -65,7 +65,7 @@ flowchart TD
 
 ## HTTP surface (consumed, not owned)
 
-Every request goes through `adminApiFetch` (`src/lib/admin-api.ts`) as `` fetch(`/api${path}`) ``. In dev, Vite proxies `/api/*` → `http://localhost:8890` with the `/api` prefix stripped (`vite.config.ts`); the future hub-served prod mode mounts the same `/api` strip (the gateway "dev == prod paths" precedent). All `/admin/*` calls hit `apps/cloud-api/src/routes/admin.ts`, guarded by the dual-door `requireAdminAccess` (static `CLOUD_ADMIN_TOKEN` bearer OR a fresh-read admin-role JWT).
+Every request goes through `adminApiFetch` (`src/lib/admin-api.ts`) as `` fetch(`/api${path}`) ``. In dev, Vite proxies `/api/*` → `http://localhost:18890` with the `/api` prefix stripped (`vite.config.ts`); the future hub-served prod mode mounts the same `/api` strip (the gateway "dev == prod paths" precedent). All `/admin/*` calls hit `apps/cloud-api/src/routes/admin.ts`, guarded by the dual-door `requireAdminAccess` (static `CLOUD_ADMIN_TOKEN` bearer OR a fresh-read admin-role JWT).
 
 | Method | Path (hub-relative) | Purpose | Called by |
 |---|---|---|---|
@@ -117,7 +117,7 @@ flowchart TD
 
 | Unit | Direction | Mechanism | What crosses |
 |---|---|---|---|
-| [cloud-api](../cloud-api/overview.md) `/admin` + `/auth` | out | HTTP over `/api` (dev proxy → :8890) | sign-in, catalog CRUD + publish, account provision/role/tier/status |
+| [cloud-api](../cloud-api/overview.md) `/admin` + `/auth` | out | HTTP over `/api` (dev proxy → :18890) | sign-in, catalog CRUD + publish, account provision/role/tier/status |
 | `@vynel/contracts/hub/*` | out | import (types only) | `HubSessionResponse`, `HubAdminCatalogItem`, `HubAdminAccount`, `HubAccountRole`, `HubItemKind`, `HubTier` |
 | [registry](../../registry/overview.md) | out (indirect) | via cloud-api | publish/lifecycle handled hub-side; portal is a face |
 | [accounts](../../accounts/overview.md) | out (indirect) | via cloud-api | provision/role/tier/status handled hub-side |
@@ -135,7 +135,7 @@ flowchart LR
 
 ## Config & gotchas
 
-- **Dev proxy, prefix-stripped.** `vite.config.ts` proxies `/api/*` → `http://localhost:8890` and strips `/api`; port is `strictPort: 8891`. Run: `pnpm --filter @vynel/cloud-admin-web dev`.
+- **Dev proxy, prefix-stripped.** `vite.config.ts` proxies `/api/*` → `http://localhost:18890` and strips `/api`; port is `strictPort: 18891`. Run: `pnpm --filter @vynel/cloud-admin-web dev`.
 - **Session is `sessionStorage`-only, per tab.** `admin-session-state.ts` deliberately never persists a refresh token — the access token expires on its own; sign-out is a local clear + `queryClient.clear()` so the next account can't flash the previous one's data. Refresh-token persistence is non-scope until hub-served.
 - **One catalog cache entry serves list + detail.** There is no per-item GET; `CatalogItemView` `.find()`s its item in the list query. Fine at admin scale; a stale list means a stale detail.
 - **Two shell-level statuses are magic.** `adminApiFetch` alone owns the 401 (clear session) and 403 (forbidden card) reactions — views never handle them. A new call site inherits this for free.

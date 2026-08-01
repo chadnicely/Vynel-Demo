@@ -24,7 +24,7 @@ Two directions live side by side (both named in `src/index.ts`):
 | `apps/mcp/src/generated/api-tools.ts` | **GENERATED — do not edit.** 32 workspace `McpToolFactory`s (`generatedMcpTools`) + 6 routing (`generatedRoutingMcpTools`); each closes over `(scope, app)` and dispatches through `app(...)`. Uses the SDK `tool()` builder |
 | ► `apps/mcp/src/external-server.ts` | the `vynel-mcp` **bin** — loads env, reads `@vynel/sdk/openapi.json`, builds a fetch dispatcher to the api's `/api` mount, serves over stdio |
 | `apps/mcp/src/external-mcp-server.ts` | `collectExternalTools` / `buildExternalMcpServer` — walks the OpenAPI spec, builds live Zod input shapes, registers each `x-mcp.exposed` route as a tool dispatched via injected `FetchDispatch` |
-| `apps/mcp/src/env.ts` | Zod env — the single `process.env` read; only `VYNEL_API_URL` (default `http://localhost:8998`). No `PORT` (stdio transport) |
+| `apps/mcp/src/env.ts` | Zod env — the single `process.env` read; only `VYNEL_API_URL` (default `http://localhost:18892`). No `PORT` (stdio transport) |
 | `apps/mcp/src/external-mcp-server.test.ts` | direction-② tests (tool set + handler dispatch against a stub) |
 | `apps/mcp/src/vynel-mcp-feature-descriptor.test.ts` | descriptor shape + capability-gate tests |
 | `apps/mcp/src/generated/api-tools.test.ts` | guards the generated registry |
@@ -151,7 +151,7 @@ flowchart LR
 - **Routing `destructiveHint` ≠ carded** — `route_to_workspace`/`send_to_channel`/`speak` are annotated destructive but only `register_workspace` is in `mutatingToolNames`, so only it cards.
 - **External dispatch concatenates `+ '/api'`** rather than `new URL(path, base)` — an absolute path would replace the mount prefix and break the `speak` tool's `/voice/*` route (see `external-server.ts` comment).
 - **stdio hygiene** — stdout is the MCP channel; every status/error line goes to stderr.
-- **Env:** only `VYNEL_API_URL` (default `http://localhost:8998`), named to match the CLI and dodge a host's bare `API_URL`. No `PORT` (stdio). A Phase-2 bearer relay would add `VYNEL_API_TOKEN`.
+- **Env:** only `VYNEL_API_URL` (default `http://localhost:18892`), named to match the CLI and dodge a host's bare `API_URL`. No `PORT` (stdio). A Phase-2 bearer relay would add `VYNEL_API_TOKEN`.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [overview.md](./overview.md).*

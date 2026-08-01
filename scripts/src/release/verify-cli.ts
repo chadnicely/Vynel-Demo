@@ -5,7 +5,7 @@
 // Asserts on the packed tarball (what npm would actually publish), then runs
 // the real programs: --help offline, one live CLI command, and an MCP
 // initialize handshake over stdio — both against the daemon on
-// VYNEL_API_URL (default: the installed app on :8998). Requires the daemon
+// VYNEL_API_URL (default: the installed app on :18892). Requires the daemon
 // to be running; says so actionably when it is not.
 
 import { spawn, spawnSync } from 'node:child_process'
@@ -18,7 +18,7 @@ const repoRoot = resolve(here, '..', '..', '..')
 const publishDir = join(repoRoot, 'apps', 'cli', 'dist-npm')
 // The spawned CLI/MCP children read the same env var — probe and programs
 // must agree on which daemon is under test.
-const apiUrl = process.env['VYNEL_API_URL'] ?? 'http://localhost:8998'
+const apiUrl = process.env['VYNEL_API_URL'] ?? 'http://localhost:18892'
 
 const failures: string[] = []
 function assertThat(condition: boolean, message: string): void {

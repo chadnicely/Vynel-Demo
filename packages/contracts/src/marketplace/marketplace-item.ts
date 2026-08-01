@@ -38,10 +38,11 @@ export type MarketplaceSurfaceSelector =
   | { surface: 'workspace'; workspaceId: string }
 
 /** The DESKTOP's item-kind union — only kinds the app can actually
- * install ever reach the wire (mcp/rule/plugin stay filtered at the
- * merge; widening later is additive). The hub-side registry union is
- * the wider `HubItemKind`. Slice C-agents. */
-export type MarketplaceItemKind = 'skill' | 'agent' | 'plugin'
+ * install ever reach the wire (`rule` stays filtered at the merge;
+ * widening later is additive). The hub-side registry union is the
+ * wider `HubItemKind`. Slice C-agents; `mcp` landed 2026-08-02
+ * (config-is-truth). */
+export type MarketplaceItemKind = 'skill' | 'agent' | 'plugin' | 'mcp'
 
 /** Install-status discriminator. Phase 1 has two variants (no
  * `'installed-with-update-available'` per D8). Generalized when the
@@ -87,6 +88,10 @@ export type MarketplaceItem = {
    * match anchor (full key, never bare name — a same-named plugin from
    * another marketplace must not cross-match). */
   pluginKey?: string
+  /** Mcp items only: the entry key inside the Claude config's `mcpServers`
+   * map — the install-status match anchor (config-is-truth: presence of
+   * this key in the scope's config IS the installed state). */
+  mcpServerName?: string
   /** True only when the hub carries a downloadable artifact the update
    * route can serve (a cloud-cached SKILL item). Bundled-only items
    * version with app releases — nothing newer to download — so the card
