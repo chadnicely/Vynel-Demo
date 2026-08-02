@@ -6,6 +6,7 @@ import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
 import ProcessingBanner from "../components/chat/ProcessingBanner.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
+import TodoDock from "../components/chat/TodoDock.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
 import TasksPanel from "../components/tasks/TasksPanel.vue";
 import FileEditorView from "../components/workspace/FileEditorView.vue";
@@ -307,6 +308,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       />
 
       <footer class="composer-dock">
+        <TodoDock :session-id="activeSessionId" />
         <QueuedMessageChips
           :queued="queuedSend.queued.value"
           @remove="queuedSend.removeQueued"

@@ -1601,6 +1601,37 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  todos: {
+  delete: async (todoId: NonNullable<paths["/todos/{todoId}"]["delete"]['parameters']>['path']["todoId"]) => {
+    const { error, response } = await client["DELETE"]("/todos/{todoId}", {
+      params: { path: { todoId: todoId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  list: async (options: NonNullable<paths["/todos"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/todos", {
+      params: { query: options },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  setForSession: async (input: NonNullable<paths["/todos"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/todos", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  updateStatus: async (todoId: NonNullable<paths["/todos/{todoId}"]["patch"]['parameters']>['path']["todoId"], input: NonNullable<paths["/todos/{todoId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/todos/{todoId}", {
+      params: { path: { todoId: todoId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   users: {
   getMe: async () => {
     const { data, error, response } = await client["GET"]("/users/me")

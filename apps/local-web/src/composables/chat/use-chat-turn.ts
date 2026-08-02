@@ -17,6 +17,10 @@ import type { ActiveTurnView } from "./active-turn-view.js";
 import { sessionKeys } from "./session-keys.js";
 import type { SessionScope } from "./session-scope.js";
 import { workspaceKeys } from "../workspaces/workspace-keys.js";
+import {
+  invalidateWorkViews,
+  isWorkMutatingToolName,
+} from "./work-view-invalidation.js";
 
 // Drives one live turn against the real SSE stream. Each ChatTurnEvent folds
 // into the active-turn view (transport-blind — the same pure fold the parser
@@ -70,6 +74,14 @@ export function useChatTurn(options: {
       // A fresh conversation appears in the Sessions library mid-turn — the
       // full sessionKeys.all reconcile still runs once the turn settles.
       void queryClient.invalidateQueries({ queryKey: sessionKeys.overview() });
+    }
+    // The assistant just wrote the task list or the step dock — refresh them
+    // NOW so the dock ticks while the turn is still running, not after it.
+    if (
+      event.kind === "tool-call-completed" &&
+      isWorkMutatingToolName(event.toolCall.toolName)
+    ) {
+      void invalidateWorkViews(queryClient);
     }
   }
 
@@ -151,6 +163,10 @@ export function useChatTurn(options: {
       queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
       new Promise((resolve) => setTimeout(resolve, 8000)),
     ]);
+    // The turn may have written tasks or steps through its own tools — the
+    // settle used to reconcile only the session views, leaving both stale
+    // until something else refetched.
+    void invalidateWorkViews(queryClient);
     // A global (brain) turn can create a workspace via register_workspace —
     // refresh the list so a newly created one appears without a manual refetch.
     if (scope.kind === "global") {

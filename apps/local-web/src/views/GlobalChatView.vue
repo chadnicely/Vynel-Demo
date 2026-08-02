@@ -7,6 +7,7 @@ import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
 import ProcessingBanner from "../components/chat/ProcessingBanner.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
+import TodoDock from "../components/chat/TodoDock.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
 import AccountSection from "../components/sections/AccountSection.vue";
 import AgentsSection from "../components/sections/AgentsSection.vue";
@@ -421,6 +422,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       />
 
       <footer class="composer-dock">
+        <TodoDock :session-id="activeSessionId" />
         <QueuedMessageChips
           :queued="queuedSend.queued.value"
           @remove="queuedSend.removeQueued"

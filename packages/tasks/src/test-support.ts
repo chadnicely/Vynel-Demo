@@ -6,10 +6,10 @@ import { randomUUID } from 'node:crypto'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import type { Database } from '@vynel/db'
-import type { NewTask } from './repositories/index.js'
+import type { NewSessionTodo, NewTask } from './repositories/index.js'
 
-export { insertTask } from './repositories/index.js'
-export type { NewTask } from './repositories/index.js'
+export { insertTask, insertSessionTodo } from './repositories/index.js'
+export type { NewTask, NewSessionTodo } from './repositories/index.js'
 
 export function seedUserWorkspace(db: Database): { userId: string; workspaceId: string } {
   const now = new Date()
@@ -35,6 +35,27 @@ export function seedUserWorkspace(db: Database): { userId: string; workspaceId: 
     lastAccessedAt: now,
   })
   return { userId: user.id, workspaceId: workspace.id }
+}
+
+export function makeSessionTodo(
+  userId: string,
+  sessionId: string,
+  overrides: Partial<NewSessionTodo> = {},
+): NewSessionTodo {
+  const now = new Date()
+  return {
+    id: randomUUID(),
+    userId,
+    workspaceId: null,
+    sessionId,
+    title: 'Read the brief',
+    status: 'open',
+    orderIndex: 0,
+    completedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  }
 }
 
 export function makeTask(

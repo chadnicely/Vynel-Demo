@@ -6,9 +6,12 @@ import { describe, expect, it, vi } from "vitest";
 import { defineComponent, h, ref } from "vue";
 import { mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { useWatchedTurn, type WatchedTurnSnapshot } from "./use-watched-turn.js";
+import { taskKeys } from "../tasks/task-keys.js";
+import { todoKeys } from "../todos/todo-keys.js";
 
 function sseFrame(kind: string, payload: object): Uint8Array {
   return new TextEncoder().encode(
@@ -62,6 +65,10 @@ function makeHarness(options?: { suppressed?: () => boolean }) {
   const refetchDetail = vi.fn(async (): Promise<WatchedTurnSnapshot> => makeSnapshot());
 
   const sessionId = ref<string | null>(null);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
   let watched!: ReturnType<typeof useWatchedTurn>;
   let activity!: ReturnType<typeof useActivityStore>;
   const Host = defineComponent({
@@ -77,7 +84,9 @@ function makeHarness(options?: { suppressed?: () => boolean }) {
   });
   const wrapper = mount(Host, {
     global: {
-      plugins: [createPinia()],
+      // The watcher refreshes the task/step views when a WATCHED turn writes
+      // them, so it resolves a query client like every other chat composable.
+      plugins: [createPinia(), [VueQueryPlugin, { queryClient }]],
       provide: { [vynelClientKey as symbol]: fakeClient },
     },
   });
@@ -87,6 +96,7 @@ function makeHarness(options?: { suppressed?: () => boolean }) {
     GET,
     refetchDetail,
     handles,
+    invalidateQueries,
     watched: () => watched,
     activity: () => activity,
   };
@@ -219,6 +229,51 @@ describe("useWatchedTurn", () => {
     await new Promise((resolve) => setTimeout(resolve, 120));
     expect(harness.watched().view.value).toBeNull();
     expect(harness.refetchDetail).not.toHaveBeenCalled();
+    harness.wrapper.unmount();
+  });
+
+  // The work-view refresh at a LIVE-EVENT INGEST — pinned here because this
+  // harness drives real SSE frames. The same four lines sit in use-chat-turn
+  // and use-session-turn; without a test at an ingest, deleting them anywhere
+  // restores the stale-dock bug silently.
+  it("refreshes the task + step views when a watched turn writes them", async () => {
+    const harness = makeHarness();
+    harness.sessionId.value = "sdk-1";
+    await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
+    harness.invalidateQueries.mockClear();
+
+    harness.handles[0]!.push("tool-call-completed", {
+      kind: "tool-call-completed",
+      toolCall: { id: "tc-1", toolName: "mcp__vynel__set_todos", status: "completed" },
+    });
+    await vi.waitFor(() => {
+      const keys = harness.invalidateQueries.mock.calls.map((call) => {
+        const filters = call[0];
+        return typeof filters === "function" ? filters().queryKey : filters?.queryKey;
+      });
+      expect(keys).toContainEqual(todoKeys.all);
+      expect(keys).toContainEqual(taskKeys.all);
+    });
+    harness.wrapper.unmount();
+  });
+
+  it("ignores a read tool — no refresh storm on every list call", async () => {
+    const harness = makeHarness();
+    harness.sessionId.value = "sdk-1";
+    await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
+    harness.invalidateQueries.mockClear();
+
+    harness.handles[0]!.push("tool-call-completed", {
+      kind: "tool-call-completed",
+      toolCall: { id: "tc-2", toolName: "mcp__vynel__list_tasks", status: "completed" },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    const keys = harness.invalidateQueries.mock.calls.map((call) => {
+      const filters = call[0];
+      return typeof filters === "function" ? filters().queryKey : filters?.queryKey;
+    });
+    expect(keys).not.toContainEqual(todoKeys.all);
     harness.wrapper.unmount();
   });
 

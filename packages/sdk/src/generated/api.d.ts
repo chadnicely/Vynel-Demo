@@ -1775,6 +1775,42 @@ export interface paths {
         patch: operations["patchTasksByTaskId"];
         trace?: never;
     };
+    "/todos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List one session's working steps, in order. */
+        get: operations["getTodos"];
+        /** Replace the calling session's working-step list. */
+        put: operations["putTodos"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/todos/{todoId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a working step (hard delete). */
+        delete: operations["deleteTodosByTodoId"];
+        options?: never;
+        head?: never;
+        /** Move a working step (open / in-progress / done). */
+        patch: operations["patchTodosByTodoId"];
+        trace?: never;
+    };
     "/plans": {
         parameters: {
             query?: never;
@@ -9635,6 +9671,185 @@ export interface operations {
                 content?: never;
             };
             /** @description No such task owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getTodos: {
+        parameters: {
+            query: {
+                sessionId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of SessionTodo. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        sessionId: string;
+                        title: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        orderIndex: number;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putTodos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    todos: {
+                        title: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description The stored list, in order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        sessionId: string;
+                        title: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        orderIndex: number;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+            /** @description Validation error, or this turn has no watching session. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The calling session could not be resolved. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteTodosByTodoId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                todoId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Step removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such step owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchTodosByTodoId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                todoId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "open" | "in-progress" | "done";
+                };
+            };
+        };
+        responses: {
+            /** @description Step updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        sessionId: string;
+                        title: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        orderIndex: number;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such step owned by this user. */
             404: {
                 headers: {
                     [name: string]: unknown;

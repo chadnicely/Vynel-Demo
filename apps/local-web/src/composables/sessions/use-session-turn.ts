@@ -14,6 +14,10 @@ import { useActivityStore } from "../../stores/activity-store.js";
 import { readChatTurnEvents } from "../chat/chat-turn-stream.js";
 import { sessionKeys } from "../chat/session-keys.js";
 import {
+  invalidateWorkViews,
+  isWorkMutatingToolName,
+} from "../chat/work-view-invalidation.js";
+import {
   applyChatTurnEvent,
   createActiveTurnView,
 } from "../chat/active-turn-view.js";
@@ -106,6 +110,15 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
         if (view.value !== null) {
           view.value = applyChatTurnEvent(view.value, event);
         }
+        // The session just wrote its task list or step dock — refresh both
+        // while the turn runs (the use-chat-turn rule; this thread has a dock
+        // of its own).
+        if (
+          event.kind === "tool-call-completed" &&
+          isWorkMutatingToolName(event.toolCall.toolName)
+        ) {
+          void invalidateWorkViews(queryClient);
+        }
         if (event.kind === "turn-stream-ended") break;
       }
       // The stream closed with NO terminal frame at all — a server crash
@@ -148,6 +161,8 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
       queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
       new Promise((resolve) => setTimeout(resolve, 8000)),
     ]);
+    // Tasks + steps the turn wrote through its own tools (the use-chat-turn rule).
+    void invalidateWorkViews(queryClient);
     view.value = null;
   }
 

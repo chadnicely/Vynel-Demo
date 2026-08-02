@@ -115,6 +115,14 @@ entry per task, reviewer per diff, full gate (`pnpm test`) before every commit.
       stop-mid-run for agent leaves, McpToolFn 5th copy (CHAD FORK — two conflicting
       recorded stances), persona-ambiguity UX, token highlighting, ChatComposer split
       (602 lines).
-- [ ] Task 5 — implement → review → fix → gate → commit
+- [x] Task 5 — implement (Opus) → review CLEAN (1 should-fix: pin the routing
+      descriptor's contributePrompt + workspace Working-steps section in tests — APPLIED)
+      → gate → committed. session_todos in @vynel/tasks (migration 0028 generated,
+      chain verified idempotent), set_todos non-carding on all surfaces via the
+      per-turn mutable session carrier (x-vynel-turn-session, server-stamped, lazy
+      read), TodoDock in all three hosts, work-view-invalidation one-home (also fixes
+      the pre-existing tasks-never-refresh bug). Deferred (module notes): background
+      turns prompted-but-400 until the header threads through delegation ticks;
+      no reorder affordance; fold cosmetics.
 - [ ] Final reverify (full gate + cross-task review) + CHANGELOG + STATE.md + report
 - [ ] Shutdown

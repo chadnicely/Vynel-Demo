@@ -290,6 +290,9 @@ describe('makeNamespaced — shape', () => {
       'sshServers',
       'tasks',
       'tasksUser',
+      // test: correct expectation — the working-steps dock added `todos`
+      // (/todos: the agent's whole-list replace + the user's dock ops).
+      'todos',
       'users',
       'voice',
       'workspaceApps',

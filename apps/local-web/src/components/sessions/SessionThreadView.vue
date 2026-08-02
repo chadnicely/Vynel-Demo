@@ -4,6 +4,7 @@ import { PresenceDot, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../chat/ThreadStream.vue";
 import AppComposer from "../chat/AppComposer.vue";
 import QueuedMessageChips from "../chat/QueuedMessageChips.vue";
+import TodoDock from "../chat/TodoDock.vue";
 import { useSessionDetail } from "../../composables/chat/use-session-detail.js";
 import { useSessionTurn } from "../../composables/sessions/use-session-turn.js";
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
@@ -129,6 +130,7 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
     </p>
 
     <footer v-if="props.chattable" class="composer-dock">
+      <TodoDock :session-id="props.sessionId" />
       <QueuedMessageChips
         :queued="queuedSend.queued.value"
         @remove="queuedSend.removeQueued"

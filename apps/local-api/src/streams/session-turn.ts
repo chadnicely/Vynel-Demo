@@ -31,6 +31,7 @@ import {
   mergeComposedSessionMcpServers,
 } from '../sessions/compose-session-mcp-servers.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
+import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { resolveSpawnedSessionRunCwd } from '../sessions/spawned-session-ground.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import type { StartSessionTurnRequestSchema } from '../routes/sessions/schemas.js'
@@ -60,9 +61,14 @@ export async function streamSpawnedSessionTurn(
   // its delegated turns attach — or the hidden global-root cwd + nothing for a
   // global-grounded one (its delegated turns run bare too).
   const runCwdPath = resolveSpawnedSessionRunCwd(db, spawned)
+  // The turn's own session identity — the segment it resumes (re-resolved
+  // after the queue wait below, and again on a mid-turn compaction swap). The
+  // dock the user has open on this thread is keyed by that same segment id.
+  const turnSession = createTurnSessionCarrier(sessionId)
+  const turnSessionAppRequest = turnSession.wrapAppRequest(c.var.appRequest)
   const backgroundMcp =
     spawned.workspaceId !== null
-      ? (await buildWorkspaceBackgroundMcpComposer(c.var.appRequest))({
+      ? (await buildWorkspaceBackgroundMcpComposer(turnSessionAppRequest))({
           db,
           userId,
           workspaceId: spawned.workspaceId,
@@ -93,7 +99,7 @@ export async function streamSpawnedSessionTurn(
         {
           db,
           userId,
-          appRequest: c.var.appRequest,
+          appRequest: turnSessionAppRequest,
           ...(spawned.workspaceId !== null ? { workspaceId: spawned.workspaceId } : {}),
         },
       )
@@ -131,6 +137,8 @@ export async function streamSpawnedSessionTurn(
         return
       }
       const resumeSessionId = head.currentSdkSessionId
+      // The head may have moved while we queued — re-stamp before the turn runs.
+      turnSession.resolve(resumeSessionId)
 
       const turnStream = startChatTurn(
         db,
@@ -209,9 +217,11 @@ export async function streamSpawnedSessionTurn(
               sdkSessionId: event.session.id,
             })
             activity.sessionResolved(event.session.id)
+            turnSession.resolve(event.session.id)
             mentionPlan?.onSessionResolved(event.session.id)
           } else if (event.kind === 'user-message-persisted') {
             activity.sessionResolved(event.message.sessionId)
+            turnSession.resolve(event.message.sessionId)
             mentionPlan?.onSessionResolved(event.message.sessionId)
           }
           await stream.writeSSE({ event: event.kind, data: JSON.stringify(event) })

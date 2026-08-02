@@ -30,6 +30,7 @@ import {
 } from '@vynel/session/runtime'
 import type { AppEnv, HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
+import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { writeSseSafely } from './write-sse-safely.js'
@@ -51,8 +52,9 @@ class GlobalRootSseSink implements SessionSink {
     private readonly logger: Logger,
     /** The turn's activity-feed handle — session identity + tool-step narration. */
     private readonly activity?: SessionTurnActivityHandle,
-    /** Chat-mentions: fires with the turn's session identity so the mention
-     *  dispatches enqueue with their provenance edge (idempotent downstream). */
+    /** Fires with the turn's session identity the moment it is known — the
+     *  mention dispatches enqueue with their provenance edge, and the ambient
+     *  session header starts stamping (both idempotent downstream). */
     private readonly onSessionResolved?: (sdkSessionId: string) => void,
   ) {}
 
@@ -118,10 +120,15 @@ export async function streamGlobalRootTurn(
   // rides the mode header so a delegation this turn enqueues inherits it. Absent →
   // undefined → the core's bypass default + no header (pre-mode behavior).
   const permissionMode = input.mode !== undefined ? toPermissionMode(input.mode) : undefined
-  const appRequest =
+  const modeAwareAppRequest =
     permissionMode !== undefined
       ? wrapAppRequestWithMode(c.var.appRequest, permissionMode)
       : c.var.appRequest
+  // The turn's own session identity (`set_todos` writes the dock of exactly
+  // this session). The global root resolves its conversation INSIDE the core
+  // runner, so the carrier is filled from the stream's first frame.
+  const turnSession = createTurnSessionCarrier()
+  const appRequest = turnSession.wrapAppRequest(modeAwareAppRequest)
 
   // Compose the global root's MCP attachment: the routing tools (the root is a
   // MANAGER — list + delegate + channel-send). No workspaceId — the global root
@@ -264,12 +271,10 @@ export async function streamGlobalRootTurn(
           // Persist the roster the engine reports — feeds the model picker.
           onModelsDiscovered: buildRecordDiscoveredModels(c.var.db, c.var.user.id, c.var.logger),
         },
-        new GlobalRootSseSink(
-          stream,
-          c.var.logger,
-          activity,
-          mentionPlan !== null ? mentionPlan.onSessionResolved : undefined,
-        ),
+        new GlobalRootSseSink(stream, c.var.logger, activity, (sdkSessionId) => {
+          turnSession.resolve(sdkSessionId)
+          mentionPlan?.onSessionResolved(sdkSessionId)
+        }),
       )
     } finally {
       activity.end()

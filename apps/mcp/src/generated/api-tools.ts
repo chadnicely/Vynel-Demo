@@ -2768,6 +2768,42 @@ export const setAgentEnabled: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const setTodos: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'set_todos',
+    "Keep the working-step list the user watches under the chat while you work — the same discipline as your built-in todo list, except these steps are VISIBLE to the user. Send your COMPLETE current list every time: `todos` is an array of objects, each { \"title\": \"<short step in plain language>\", \"status\": \"open\" | \"in-progress\" | \"done\" }, in the order you will work them. The list is REPLACED wholesale — omit a step and it disappears; send an empty array when the work is finished and the dock should clear. Exactly one step should be \"in-progress\" at a time: mark it the moment you start it and \"done\" the moment it is actually finished, then send the list again. Titles are what the user reads (\"Draft the newsletter\"), never technical mechanics. Do not narrate this bookkeeping in your reply. Only works on a turn the user is watching; if it says there is no active session, simply carry on without it.",
+    {
+    todos: z.array(z.record(z.unknown())),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/todos'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['todos']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const speak: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'speak',
@@ -3304,6 +3340,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   searchMemory,
   sendMessage,
   setAgentEnabled,
+  setTodos,
   startApp,
   stopApp,
   stopMonitor,
@@ -3333,6 +3370,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   sendTaskToSession,
   sendTaskToWorkspace,
   sendToChannel,
+  setTodos,
   speak,
   stopGlobalMonitor,
 ]

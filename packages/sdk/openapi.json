@@ -16037,6 +16037,376 @@
         "x-sdk-name": "tasksUser.delete"
       }
     },
+    "/todos": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The stored list, in order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "in-progress",
+                          "done"
+                        ]
+                      },
+                      "orderIndex": {
+                        "type": "number"
+                      },
+                      "completedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "sessionId",
+                      "title",
+                      "status",
+                      "orderIndex",
+                      "completedAt",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or this turn has no watching session."
+          },
+          "404": {
+            "description": "The calling session could not be resolved."
+          }
+        },
+        "operationId": "putTodos",
+        "tags": [
+          "todos"
+        ],
+        "parameters": [],
+        "summary": "Replace the calling session's working-step list.",
+        "x-sdk-name": "todos.setForSession",
+        "x-mcp": {
+          "exposed": true,
+          "name": "set_todos",
+          "description": "Keep the working-step list the user watches under the chat while you work — the same discipline as your built-in todo list, except these steps are VISIBLE to the user. Send your COMPLETE current list every time: `todos` is an array of objects, each { \"title\": \"<short step in plain language>\", \"status\": \"open\" | \"in-progress\" | \"done\" }, in the order you will work them. The list is REPLACED wholesale — omit a step and it disappears; send an empty array when the work is finished and the dock should clear. Exactly one step should be \"in-progress\" at a time: mark it the moment you start it and \"done\" the moment it is actually finished, then send the list again. Titles are what the user reads (\"Draft the newsletter\"), never technical mechanics. Do not narrate this bookkeeping in your reply. Only works on a turn the user is watching; if it says there is no active session, simply carry on without it.",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceSurface": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "todos": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "in-progress",
+                            "done"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "status"
+                      ]
+                    },
+                    "maxItems": 50
+                  }
+                },
+                "required": [
+                  "todos"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of SessionTodo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "in-progress",
+                          "done"
+                        ]
+                      },
+                      "orderIndex": {
+                        "type": "number"
+                      },
+                      "completedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "sessionId",
+                      "title",
+                      "status",
+                      "orderIndex",
+                      "completedAt",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          }
+        },
+        "operationId": "getTodos",
+        "tags": [
+          "todos"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "List one session's working steps, in order.",
+        "x-sdk-name": "todos.list"
+      }
+    },
+    "/todos/{todoId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Step updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "orderIndex": {
+                      "type": "number"
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "sessionId",
+                    "title",
+                    "status",
+                    "orderIndex",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "No such step owned by this user."
+          }
+        },
+        "operationId": "patchTodosByTodoId",
+        "tags": [
+          "todos"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "todoId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Move a working step (open / in-progress / done).",
+        "x-sdk-name": "todos.updateStatus",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "in-progress",
+                      "done"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Step removed."
+          },
+          "404": {
+            "description": "No such step owned by this user."
+          }
+        },
+        "operationId": "deleteTodosByTodoId",
+        "tags": [
+          "todos"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "todoId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Remove a working step (hard delete).",
+        "x-sdk-name": "todos.delete"
+      }
+    },
     "/plans": {
       "get": {
         "responses": {

@@ -30,6 +30,7 @@ import { findChatSessionById } from '@vynel/chat/repositories'
 import type { AppEnv } from '../factory.js'
 import { loadEnv } from '../env.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
+import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { writeSseSafely } from './write-sse-safely.js'
@@ -95,6 +96,11 @@ export async function streamChatTurn(
     },
     { logger: c.var.logger },
   )
+  // The turn's own session identity, stamped onto every request its tools make
+  // (`set_todos` writes the dock of exactly this session). Created BEFORE
+  // composition and resolved below/from the stream — a fresh conversation has
+  // no id yet at this point.
+  const turnSession = createTurnSessionCarrier()
   const composedMcp = composeSessionMcpServers(
     [
       vynelWorkspaceInteractiveDescriptor,
@@ -107,7 +113,7 @@ export async function streamChatTurn(
       db: c.var.db,
       userId: c.var.user.id,
       workspaceId: c.var.workspace!.id,
-      appRequest: c.var.appRequest,
+      appRequest: turnSession.wrapAppRequest(c.var.appRequest),
     },
     { enabledCapabilityIds },
   )
@@ -130,6 +136,9 @@ export async function streamChatTurn(
   const resumeSessionId = primaryTarget
     ? (primaryTarget.resumeSdkSessionId ?? undefined)
     : input.resumeSessionId
+  // A resumed turn knows its session before the first frame — stamp it now so
+  // even a tool called on the very first event carries the identity.
+  if (resumeSessionId !== undefined) turnSession.resolve(resumeSessionId)
   // Dev/test swap-trigger override (Slice 2 live UI smoke); unset → production 0.85.
   const pressureThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
 
@@ -240,10 +249,12 @@ export async function streamChatTurn(
         if (event.kind === 'session-created') {
           effectiveSdkSessionId = event.session.id
           activity.sessionResolved(event.session.id)
+          turnSession.resolve(event.session.id)
           mentionPlan?.onSessionResolved(event.session.id)
         } else if (event.kind === 'user-message-persisted') {
           // A resumed turn never emits session-created — this is its identity.
           activity.sessionResolved(event.message.sessionId)
+          turnSession.resolve(event.message.sessionId)
           mentionPlan?.onSessionResolved(event.message.sessionId)
         } else if (event.kind === 'usage-reported') {
           occupancyTokens =

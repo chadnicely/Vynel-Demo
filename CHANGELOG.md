@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A live step list under every chat.** Claude now keeps its working steps — the small
+  todo list Claude Code users know — in a compact panel right above the chat input, in
+  workspace chats, the Global chat, and session threads. Steps tick from open to
+  in-progress to done live during the turn, you can check items off or remove them
+  yourself, the list survives reloads and session resumes, and the panel disappears when
+  there's nothing on it. Steps are per-session and separate from your Tasks list — tasks
+  are the work, steps are how the current work is going. This also fixes a long-standing
+  staleness bug: tasks Claude created or completed mid-turn now refresh in the side panel
+  immediately instead of after a manual reload.
+
 - **@ mentions, / commands, and # workspace references in every chat.** Typing `@` pops a
   picker of your agents and workspace personas: a mentioned agent picks the message up and
   runs it in the background, and its report lands back in the chat you sent it from

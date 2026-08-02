@@ -49,12 +49,16 @@ const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly string[]>> 
     'mcp__vynel__update_memory_entry',
     'mcp__vynel__add_memory_from_file',
   ],
+  // `tasks` owns BOTH halves of the work-tracking leaf: the durable task list
+  // and the per-session working steps (`set_todos`) — one toggle, because a
+  // user turning "Tasks" off means "stop keeping lists for me".
   tasks: [
     'mcp__vynel__list_tasks',
     'mcp__vynel__create_task',
     'mcp__vynel__update_task',
     'mcp__vynel__complete_task',
     'mcp__vynel__list_my_tasks',
+    'mcp__vynel__set_todos',
   ],
   plans: [
     'mcp__vynel__list_plans',
@@ -85,6 +89,19 @@ const TASKS_PROMPT_INSTRUCTIONS = [
     'bookkeeping.',
 ].join('\n')
 
+// The working-steps dock (session-todos): the step-level twin of the task
+// list. Contributed on EVERY surface — workspace turns gate it behind `tasks`
+// (below), the global root gets it ungated (it has no capability rows).
+const TODOS_PROMPT_INSTRUCTIONS = [
+  '## Working steps',
+  'The user watches a small step list under the chat, and you keep it with set_todos. Use it the ' +
+    'way you use your own todo list: the moment a request needs more than a couple of steps, send ' +
+    'the whole list (title + status per step), mark the one you are on "in-progress", and send the ' +
+    'list again with it "done" the moment it is finished — one step in progress at a time. Send an ' +
+    'empty list when the work is done and the dock should clear. Titles are plain language the ' +
+    'user recognizes, never technical mechanics. Never narrate the bookkeeping.',
+].join('\n')
+
 const PLANS_PROMPT_INSTRUCTIONS = [
   '## Plans',
   'The user keeps date-wise plans (create_plan / update_plan / complete_plan / list_plans) — ' +
@@ -108,10 +125,12 @@ const JOURNAL_PROMPT_INSTRUCTIONS = [
     'entries as a faithful record; never narrate the bookkeeping.',
 ].join('\n')
 
-// Section order is stable (tasks → plans → journal) so the composed prompt
-// never reshuffles between turns.
+// Section order is stable (tasks → todos → plans → journal) so the composed
+// prompt never reshuffles between turns. Tasks and todos share the `tasks`
+// capability — the durable list and its step-level twin ride one toggle.
 const CAPABILITY_PROMPT_SECTIONS: readonly { capabilityId: string; section: string }[] = [
   { capabilityId: 'tasks', section: TASKS_PROMPT_INSTRUCTIONS },
+  { capabilityId: 'tasks', section: TODOS_PROMPT_INSTRUCTIONS },
   { capabilityId: 'plans', section: PLANS_PROMPT_INSTRUCTIONS },
   { capabilityId: 'journal', section: JOURNAL_PROMPT_INSTRUCTIONS },
 ]
@@ -178,9 +197,16 @@ export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {
 // capability gate. `register_workspace` rides the generated ask-approval tier
 // (route-level `x-mcp.askApproval`) — Chad 2026-07-26 dropped it from the
 // every-mode set: it cards in ask mode, runs uncarded in auto/bypass.
+// The root keeps working steps too (`set_todos` rides both surfaces) — the
+// dock is per SESSION, and the global chat is a session like any other. The
+// section is contributed UNGATED here: the root has no workspace, so no
+// capability rows can exist for it, and a single-entry `capabilityGatedTools`
+// would make the composer drop this descriptor's whole prompt the moment that
+// one capability went missing.
 export const vynelRoutingDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
   build: (context) => buildGlobalRootMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
+  contributePrompt: () => TODOS_PROMPT_INSTRUCTIONS,
 }

@@ -10,6 +10,7 @@
 // never left. An idle attach costs one SSE with 25s heartbeats.
 
 import { onScopeDispose, shallowRef, watch } from "vue";
+import { useQueryClient } from "@tanstack/vue-query";
 import type {
   ChatMessageResponse,
   ChatToolCallResponse,
@@ -24,6 +25,10 @@ import {
   type ActiveTurnView,
 } from "./active-turn-view.js";
 import { seedWatchedTurnView } from "./watched-turn-seed.js";
+import {
+  invalidateWorkViews,
+  isWorkMutatingToolName,
+} from "./work-view-invalidation.js";
 
 export interface WatchedTurnSnapshot {
   messages: ChatMessageResponse[];
@@ -57,6 +62,7 @@ export function useWatchedTurn(options: {
 }) {
   const vynel = useVynel();
   const activity = useActivityStore();
+  const queryClient = useQueryClient();
   const view = shallowRef<ActiveTurnView | null>(null);
 
   let disposed = false;
@@ -140,6 +146,17 @@ export function useWatchedTurn(options: {
             if (event.kind === "turn-stream-ended") {
               sawTurnEnd = true;
               break;
+            }
+            // A turn this view only WATCHES (another tab, a schedule fire)
+            // still writes the task list + the step dock — refresh them here
+            // too, or the watched thread's dock sits stale for the whole turn
+            // (the own-stream rule, use-chat-turn.ts). Checked before the seed
+            // branch: a buffered frame counts the same as an applied one.
+            if (
+              event.kind === "tool-call-completed" &&
+              isWorkMutatingToolName(event.toolCall.toolName)
+            ) {
+              void invalidateWorkViews(queryClient);
             }
             if (isSeeded) {
               view.value = applyChatTurnEvent(

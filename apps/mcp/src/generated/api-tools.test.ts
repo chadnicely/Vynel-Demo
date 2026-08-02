@@ -155,6 +155,10 @@ const EXPECTED_TOOL_NAMES = [
   'search_memory',
   'send_message',
   'set_agent_enabled',
+  // The working-steps dock (2026-08-02): `x-mcp.workspaceSurface` keeps it in
+  // the plain workspace array alongside its routing membership below — one
+  // name on every surface, so the toolset never flips per turn origin.
+  'set_todos',
   'start_app',
   'stop_app',
   'stop_monitor',
@@ -193,6 +197,9 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   'send_task_to_workspace',
   'send_message',
   'send_to_channel',
+  // The working-steps dock (2026-08-02): `rootSurface` + `workspaceSurface` —
+  // the global chat is a session with a dock like any other.
+  'set_todos',
   'speak',
   'stop_global_monitor',
 ] as const

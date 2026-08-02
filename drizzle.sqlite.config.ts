@@ -47,6 +47,7 @@ export default defineConfig({
     '../schedules/src/schema/schedules.ts',
     '../schedules/src/schema/schedule-runs.ts',
     '../tasks/src/schema/tasks.ts',
+    '../tasks/src/schema/session-todos.ts',
     '../plans/src/schema/plans.ts',
     '../journal/src/schema/journal-entries.ts',
     '../monitors/src/schema/monitors.ts',

@@ -69,15 +69,18 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__update_memory_entry',
       'mcp__vynel__add_memory_from_file',
     ])
-    // `tasks` gates all five task tools (tasks module, 2026-07-17). The exact
-    // list is pinned so a typo'd gate name can't silently leave a tool ungated
-    // (the composer spec-tests the mechanism with fakes only).
+    // `tasks` gates all five task tools (tasks module, 2026-07-17) PLUS the
+    // working-steps writer (session-todos, 2026-08-02) — both halves of the
+    // work-tracking leaf ride one toggle. The exact list is pinned so a typo'd
+    // gate name can't silently leave a tool ungated (the composer spec-tests
+    // the mechanism with fakes only).
     expect(vynelWorkspaceDescriptor.capabilityGatedTools?.tasks).toEqual([
       'mcp__vynel__list_tasks',
       'mcp__vynel__create_task',
       'mcp__vynel__update_task',
       'mcp__vynel__complete_task',
       'mcp__vynel__list_my_tasks',
+      'mcp__vynel__set_todos',
     ])
     // `plans` and `journal` gate their whole toolsets the same way (plans +
     // journal modules, 2026-07-23). The journal agent door is append+read
@@ -101,6 +104,10 @@ describe('vynelWorkspaceDescriptor', () => {
     const withTasks = vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['tasks']))
     expect(withTasks).toContain('list_tasks')
     expect(withTasks).toContain('complete_task')
+    // The tasks toggle also carries the per-session step-list discipline —
+    // dropping it silently loses the todo dock's prompt on workspaces.
+    expect(withTasks).toContain('## Working steps')
+    expect(withTasks).toContain('set_todos')
     // Only the enabled capability's section — no plans/journal lines steering
     // the model into denied tools.
     expect(withTasks).not.toContain('create_plan')
@@ -132,6 +139,15 @@ describe('vynelWorkspaceDescriptor', () => {
     // section at all. An undefined set (no capability info) also drops them.
     expect(vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['memory']))).toBeNull()
     expect(vynelWorkspaceDescriptor.contributePrompt?.(context)).toBeNull()
+  })
+
+  it('the routing descriptor carries the working-steps discipline ungated', () => {
+    // The global root has no capability set — its step-list prompt rides the
+    // routing descriptor unconditionally. Losing it silently strips the todo
+    // dock's discipline from the root chat.
+    const prompt = vynelRoutingDescriptor.contributePrompt?.(fakeContext())
+    expect(prompt).toContain('## Working steps')
+    expect(prompt).toContain('set_todos')
   })
 
   it('build() returns a live server for a workspace context', () => {

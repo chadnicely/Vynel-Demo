@@ -37,6 +37,7 @@ import { schedulesApp } from './routes/schedules/index.js'
 import { schedulesUserApp } from './routes/schedules/user-scoped.js'
 import { tasksApp } from './routes/tasks/index.js'
 import { tasksUserApp } from './routes/tasks/user-scoped.js'
+import { todosApp } from './routes/todos/index.js'
 import { plansApp } from './routes/plans/index.js'
 import { plansUserApp } from './routes/plans/user-scoped.js'
 import { monitorsApp } from './routes/monitors/index.js'
@@ -292,6 +293,10 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // CLI surface; global tasks are creatable, listable, and manageable here.
   // `/plans` + `/journal` are its date-wise + daily-record twins.
   app.route('/tasks', tasksUserApp)
+  // `/todos` — the working-steps dock under the chat (session-scoped steps, the
+  // step-level half of the tasks leaf). Both doors live here: `PUT /` is the
+  // agent's whole-list replace, the rest is the user's dock.
+  app.route('/todos', todosApp)
   app.route('/plans', plansUserApp)
   app.route('/monitors', monitorsUserApp)
   app.route('/journal', journalUserApp)
