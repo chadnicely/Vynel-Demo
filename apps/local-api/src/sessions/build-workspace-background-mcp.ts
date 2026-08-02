@@ -29,6 +29,7 @@ import {
   wrapAppRequestWithReportCaller,
   type ReportCaller,
 } from './report-caller-header.js'
+import { wrapAppRequestWithReportRequester } from './report-requester-header.js'
 
 export type WorkspaceBackgroundMcpComposer = (input: {
   db: Database
@@ -92,6 +93,10 @@ export type DelegatedTurnMcpComposer = (input: {
    *  a spawned session and its grounding workspace share a workspaceId, but
    *  their requesters differ). Absent for workspace-root targets. */
   targetPrimarySessionId?: string
+  /** The ORIGINATING chat's workspace (chat-mentions) — stamped as the
+   *  requester-override header so this turn's reports land in the chat that
+   *  asked. Absent = the standing report topology. */
+  requesterWorkspaceId?: string
 }) => ComposedSessionMcpServers
 
 export async function buildDelegatedTurnMcpComposer(
@@ -101,7 +106,16 @@ export async function buildDelegatedTurnMcpComposer(
     '@vynel/mcp'
   )
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  return ({ db, userId, workspaceId, target, targetPrimarySessionId, threadId, jobId }) => {
+  return ({
+    db,
+    userId,
+    workspaceId,
+    target,
+    targetPrimarySessionId,
+    threadId,
+    jobId,
+    requesterWorkspaceId,
+  }) => {
     // The caller identity (session-comms): stamped server-side onto every
     // request this routed turn's tools make, so `report_to_requester` resolves
     // the requester from WHO is running — never from model input. A spawned
@@ -116,12 +130,18 @@ export async function buildDelegatedTurnMcpComposer(
           : null
     const callerAwareAppRequest =
       caller !== null ? wrapAppRequestWithReportCaller(appRequest, caller) : appRequest
+    // The requester override (chat-mentions): the job recorded WHICH chat
+    // asked — this turn's reports land there instead of the global root.
+    const requesterAwareAppRequest =
+      requesterWorkspaceId !== undefined
+        ? wrapAppRequestWithReportRequester(callerAwareAppRequest, requesterWorkspaceId)
+        : callerAwareAppRequest
     // Chain continuation rides the SAME dispatcher wrapping as the caller
     // identity — both are ambient turn context the model never sees.
     const threadAwareAppRequest =
       threadId !== undefined
-        ? wrapAppRequestWithDelegationThread(callerAwareAppRequest, threadId)
-        : callerAwareAppRequest
+        ? wrapAppRequestWithDelegationThread(requesterAwareAppRequest, threadId)
+        : requesterAwareAppRequest
     const jobAwareAppRequest =
       jobId !== undefined
         ? wrapAppRequestWithDelegationJob(threadAwareAppRequest, jobId)

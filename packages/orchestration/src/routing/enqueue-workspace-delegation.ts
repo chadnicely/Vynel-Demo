@@ -53,6 +53,12 @@ export interface EnqueueWorkspaceDelegationInput {
   model?: string
   /** The root's thinking-effort pick for the routed turn. Omit for the adaptive default. */
   thinkingEffort?: ThinkingEffortLevel
+  /** WHERE this task's report lands (chat-mentions): the ORIGINATING chat's
+   *  workspace primary — a `@persona` mention typed in another workspace's chat
+   *  reports back to THAT chat, not the global root. Omit = the global root
+   *  (every pre-mentions caller, byte-for-byte). LOOSE ref — never the target
+   *  workspace itself. */
+  requesterWorkspaceId?: string
 }
 
 /** Enqueue a workspace delegation as a pending job and return its id. Callable
@@ -99,6 +105,7 @@ export function enqueueWorkspaceDelegation(
     permissionMode: input.permissionMode ?? null,
     model: input.model ?? null,
     thinkingEffort: input.thinkingEffort ?? null,
+    requesterWorkspaceId: input.requesterWorkspaceId ?? null,
     createdAt: now,
   })
   return id

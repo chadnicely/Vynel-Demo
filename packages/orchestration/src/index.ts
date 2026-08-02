@@ -19,8 +19,10 @@ export {
 } from './agents/compose-session-agents.js'
 export {
   resolveMentions,
-  parseMentionSlugs,
   type ResolveMentionsInput,
+  type PersonaMention,
+  type WorkspaceRefMatch,
+  type ResolvedComposerMentions,
 } from './agents/resolve-mentions.js'
 
 export {
@@ -54,6 +56,12 @@ export {
   enqueueSessionDelegation,
   type EnqueueSessionDelegationInput,
 } from './routing/enqueue-session-delegation.js'
+// Chat-mentions: a `@agent` mention becomes ONE deterministic background leaf
+// run — the tick's agent-run branch consumes these rows.
+export {
+  enqueueAgentRun,
+  type EnqueueAgentRunInput,
+} from './routing/enqueue-agent-run.js'
 // Session-comms (the revert flow): a child's report travels UP as a queued
 // notify turn on the requester's conversation — the tick's report-delivery
 // branch consumes these rows.

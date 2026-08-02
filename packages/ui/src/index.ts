@@ -8,6 +8,7 @@ export { default as CodeBlock } from "./components/CodeBlock.vue";
 export { default as CommandPalette } from "./components/CommandPalette.vue";
 export { default as ConfirmButton } from "./components/ConfirmButton.vue";
 export { default as ContextMenu } from "./components/ContextMenu.vue";
+export { default as InlineSuggestMenu } from "./components/InlineSuggestMenu.vue";
 export { default as ContextRing } from "./components/ContextRing.vue";
 export { default as DropdownMenu } from "./components/DropdownMenu.vue";
 export { default as EmptyState } from "./components/EmptyState.vue";
@@ -47,6 +48,10 @@ export {
 export { workspaceMonogram } from "./lib/workspace-monogram.js";
 export type { CommandItem } from "./components/CommandPalette.vue";
 export type { ComposerOption } from "./components/ChatComposer.vue";
+export type {
+  ComposerSuggestItem,
+  ComposerSuggestSources,
+} from "./lib/use-composer-suggest.js";
 export type { MenuItemModel } from "./components/menu-shared.js";
 export type { SegmentedTab } from "./components/SegmentedTabs.vue";
 export type { SelectChipOption } from "./components/SelectChip.vue";

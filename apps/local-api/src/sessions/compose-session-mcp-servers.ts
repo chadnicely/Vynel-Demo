@@ -103,3 +103,26 @@ export function composeSessionMcpServers(
     systemPromptAppend: promptSections.join('\n\n'),
   }
 }
+
+/** Merge two composed attachments (chat-mentions: the spawned-thread stream
+ *  composes its background set through the SHARED composer — which hides the
+ *  descriptor list — and the per-turn study descriptor separately). Server
+ *  names must not collide; the study server's name is unique by construction. */
+export function mergeComposedSessionMcpServers(
+  base: ComposedSessionMcpServers,
+  extra: ComposedSessionMcpServers,
+): ComposedSessionMcpServers {
+  return {
+    mcpServers: { ...base.mcpServers, ...extra.mcpServers },
+    allowedMcpToolPatterns: [...base.allowedMcpToolPatterns, ...extra.allowedMcpToolPatterns],
+    deniedMcpToolPatterns: [...base.deniedMcpToolPatterns, ...extra.deniedMcpToolPatterns],
+    mutatingToolNames: [...base.mutatingToolNames, ...extra.mutatingToolNames],
+    askModeApprovalToolNames: [
+      ...base.askModeApprovalToolNames,
+      ...extra.askModeApprovalToolNames,
+    ],
+    systemPromptAppend: [base.systemPromptAppend, extra.systemPromptAppend]
+      .filter((section) => section !== '')
+      .join('\n\n'),
+  }
+}

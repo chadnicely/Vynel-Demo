@@ -9,6 +9,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **@ mentions, / commands, and # workspace references in every chat.** Typing `@` pops a
+  picker of your agents and workspace personas: a mentioned agent picks the message up and
+  runs it in the background, and its report lands back in the chat you sent it from
+  (mentioning a persona like @Sarah routes the message to her workspace the same way).
+  Typing `/` at the start pops your slash commands and installed skills and inserts them
+  Claude Code-style. Typing `#` pops your workspaces: referencing one gives the session
+  read-only tools to actually study that workspace for that message — browse its files,
+  read them, get an overview — and nothing more. All three pickers open on the bare
+  trigger character, filter as you type, and work with arrow keys or click. IME
+  composition (e.g. CJK input) is never interrupted by the pickers or Enter-to-send.
+
 - **New menus: Rules, Commands, MCP Servers — and Skills everywhere.** The sidebar now shows
   all five Claude-config surfaces in both Global and workspace scopes: your rules files
   (hand-written ones included, with a "Managed by Vynel" chip on marketplace-installed ones),

@@ -24,10 +24,11 @@ export type DelegationJobStatus = 'pending' | 'claimed' | 'completed' | 'failed'
 
 // What a queue row IS (session-comms, the revert flow): a 'task' row runs the
 // delegated work; a 'report-delivery' row runs a NOTIFY turn on the REQUESTER's
-// conversation with a child's report as the attributed inbound message. Stored
-// nullable — NULL means 'task' (every legacy row), so the migration is a pure
-// additive ALTER.
-export type DelegationJobKind = 'task' | 'report-delivery'
+// conversation with a child's report as the attributed inbound message; an
+// 'agent-run' row (chat-mentions) runs ONE agent leaf on the user's message and
+// delivers its result deterministically as a report. Stored nullable — NULL
+// means 'task' (every legacy row), so the migration is a pure additive ALTER.
+export type DelegationJobKind = 'task' | 'report-delivery' | 'agent-run'
 
 export const delegationJobs = table(
   'delegation_jobs',
@@ -120,6 +121,19 @@ export const delegationJobs = table(
     // would ALSO have its chat reply scraped and sent, waking the requester
     // twice with overlapping content.
     reportedAt: timestamp(),
+    // 'agent-run' rows only (chat-mentions): the agent to run, resolved FRESH
+    // at claim time (workspace scope preferred, then user scope — the
+    // `createLeafSession` rule). Null on every other kind.
+    agentSlug: text(),
+    // WHERE this job's report should land (chat-mentions): the ORIGINATING
+    // chat's workspace primary; null = the global root (the pre-mentions
+    // behavior, byte-for-byte). LOOSE ref — NOT a FK: a deleted originating
+    // workspace must fail the report over to the global root, never cascade
+    // the job away. Read by 'task' rows (the delegated turn's
+    // report_to_requester + the give-up failure push) and 'agent-run' rows
+    // (the deterministic result delivery). Distinct from `workspaceId`, which
+    // stays "the TARGET/grounding" — one column, one reading each.
+    requesterWorkspaceId: text(),
     // RETRY bookkeeping (recoverable-failure requeue — the channels outbound
     // shape). All nullable so the migration stays a pure additive ALTER:
     // NULL attemptCount reads as 0; NULL nextAttemptAt reads as "due now".

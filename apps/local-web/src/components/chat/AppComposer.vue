@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { ChatComposer } from "@vynel/ui";
+import { ChatComposer, type ComposerSuggestItem } from "@vynel/ui";
 import { SESSION_MODES } from "@vynel/session";
 import type { SessionMode } from "@vynel/session";
 import {
@@ -10,19 +10,31 @@ import {
   type AvailableChatModel,
 } from "@vynel/contracts/chat/available-models";
 import { THINKING_EFFORT_OPTIONS } from "@vynel/contracts/chat/thinking-effort";
+import {
+  buildMentionSuggestions,
+  buildSlashSuggestions,
+  buildWorkspaceSuggestions,
+  selectOtherWorkspaces,
+} from "./composer-suggestion-rosters.js";
+import type { SectionScope } from "../sections/section-scope.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import type { ComposerThinkingEffort } from "../../stores/ui-store.js";
 import { useAvailableModels } from "../../composables/models/use-available-models.js";
+import { useAgents } from "../../composables/agents/use-agents.js";
+import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
+import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
+import { useCommands } from "../../composables/commands/use-commands.js";
 import { useDictation } from "../../composables/voice/use-dictation.js";
 import { filesToTurnAttachments } from "../../composables/chat/turn-attachments.js";
 import type { TurnAttachmentInput } from "../../composables/chat/turn-attachments.js";
 
 // The app-bound composer: binds the shared ChatComposer to Vynel state — the
-// real curated model allowlist + session-mode vocabulary, and the shared
-// composer selections. The composer mic DICTATES (speech types into the
-// draft); talking with the assistant is the top-bar mic → voice overlay.
-// Picked/pasted files are encoded + validated here, so the views receive
-// wire-ready attachments.
+// real curated model allowlist + session-mode vocabulary, the shared composer
+// selections, and the mention-picker rosters (@ agents+personas, # workspaces,
+// / skills+commands — scope-aware via the host's `scope`). The composer mic
+// DICTATES (speech types into the draft); talking with the assistant is the
+// top-bar mic → voice overlay. Picked/pasted files are encoded + validated
+// here, so the views receive wire-ready attachments.
 const props = withDefaults(
   defineProps<{
     streaming?: boolean | undefined;
@@ -34,8 +46,12 @@ const props = withDefaults(
      *  the attach affordance disappears instead of eating a typed message.
      *  Defaults TRUE explicitly (boolean-absent casting would strip it). */
     allowAttachments?: boolean | undefined;
+    /** The chat surface's scope — picks the mention rosters (workspace chats
+     *  see their workspace's agents ∪ user scope + workspace skills/commands).
+     *  Defaults to the global surface. */
+    scope?: SectionScope | undefined;
   }>(),
-  { allowAttachments: true },
+  { allowAttachments: true, scope: () => ({ kind: "global" }) as SectionScope },
 );
 
 const emit = defineEmits<{
@@ -88,6 +104,36 @@ const modeOptions = SESSION_MODES.map((mode) => ({
 
 const effortOptions = [...THINKING_EFFORT_OPTIONS];
 
+// ── Mention-picker rosters (chat-mentions) ──────────────────────────
+// The insert tokens come from the contracts grammar's format helpers, so what
+// the picker writes is exactly what the server re-parses. The server resolves
+// against real rows regardless — these rosters are UX, never authority.
+const scope = computed<SectionScope>(() => props.scope);
+const agentsQuery = useAgents(scope);
+const workspacesQuery = useWorkspaceList();
+const skillsQuery = useInstalledSkills(scope);
+const commandsQuery = useCommands(scope);
+
+const currentWorkspaceId = computed(() =>
+  props.scope.kind === "workspace" ? props.scope.workspaceId : null,
+);
+
+const otherWorkspaces = computed(() =>
+  selectOtherWorkspaces(workspacesQuery.data.value ?? [], currentWorkspaceId.value),
+);
+
+const mentionSuggestions = computed<ComposerSuggestItem[]>(() =>
+  buildMentionSuggestions(agentsQuery.data.value ?? [], otherWorkspaces.value),
+);
+
+const workspaceSuggestions = computed<ComposerSuggestItem[]>(() =>
+  buildWorkspaceSuggestions(otherWorkspaces.value),
+);
+
+const slashSuggestions = computed<ComposerSuggestItem[]>(() =>
+  buildSlashSuggestions(commandsQuery.data.value ?? [], skillsQuery.data.value ?? []),
+);
+
 const notice = computed(
   () => attachmentNotice.value ?? dictation.error.value ?? undefined,
 );
@@ -132,6 +178,9 @@ async function onSend(text: string, files: File[]) {
     :context-fraction="props.contextFraction ?? null"
     :context-tooltip="props.contextTooltip ?? undefined"
     :allow-attachments="props.allowAttachments"
+    :mention-suggestions="mentionSuggestions"
+    :workspace-suggestions="workspaceSuggestions"
+    :slash-suggestions="slashSuggestions"
     show-voice
     :voice-active="dictation.isDictating.value"
     :notice="notice"

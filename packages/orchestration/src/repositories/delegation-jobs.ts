@@ -148,9 +148,16 @@ export function claimNextPendingDelegationJob(
         ? and(
             eq(delegationJobs.status, 'pending'),
             dueNow,
+            // An AGENT-RUN row (chat-mentions) is exempt from the workspace
+            // exclusion: its `workspaceId` is the leaf's GROUNDING, not a
+            // conversation it resumes — its pool key is its own job id, so a
+            // busy workspace slot must not starve it (a 600s task delegation
+            // would otherwise skip a pending mention run every tick). The
+            // retry-backoff gate above still applies.
             or(
               isNull(delegationJobs.workspaceId),
               notInArray(delegationJobs.workspaceId, [...excludeTargetKeys]),
+              eq(delegationJobs.jobKind, 'agent-run'),
             ),
             or(
               isNull(delegationJobs.targetPrimarySessionId),

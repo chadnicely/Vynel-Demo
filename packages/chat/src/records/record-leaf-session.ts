@@ -27,7 +27,8 @@ export type RecordLeafSessionInput = {
   /** The leaf's SDK session id — the recorded segment's PK (D15). */
   sessionId: string
   userId: string
-  workspaceId: string
+  /** Null for a GLOBAL-grounded leaf (chat-mentions) — no workspace to file under. */
+  workspaceId: string | null
   providerId: AiAgentProviderId
   /** The delegated agent's slug — seeds an honest leaf title. */
   agentSlug: string

@@ -45,6 +45,7 @@ import {
   REPORT_CALLER_HEADER,
   type ReportCaller,
 } from '../../sessions/report-caller-header.js'
+import { REPORT_REQUESTER_HEADER } from '../../sessions/report-requester-header.js'
 import { routingApp } from './index.js'
 
 const silentLogger = pino({ level: 'silent' })
@@ -778,6 +779,68 @@ describe('POST /routing/report (session-comms — report_to_requester)', () => {
       expect(job?.taskText).toBe('All docs are current.')
       expect(job?.workspaceName).toBe('Mark · Acme')
       expect(job?.parentSessionId).toBe('ws-primary-r1')
+    })
+  })
+
+  it('the requester-override header (chat-mentions) reroutes a WORKSPACE caller to the ORIGINATING workspace', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const target = seedManagedWorkspace(db, user.id, 'Target')
+      const origin = seedManagedWorkspace(db, user.id, 'Origin')
+      await seedLinkedWorkspacePrimaryFor(db, user.id, target.id, 'ws-target-r1')
+      const app = makeHarness(db)
+
+      const res = await postJson(
+        app,
+        '/routing/report',
+        { report: 'Launch is on track.' },
+        {
+          [REPORT_CALLER_HEADER]: serializeReportCaller({
+            kind: 'workspace-primary',
+            workspaceId: target.id,
+          }),
+          [REPORT_REQUESTER_HEADER]: origin.id,
+        },
+      )
+      expect(res.status).toBe(200)
+      const { jobId } = (await res.json()) as { jobId: string }
+
+      // The delivery targets the ORIGINATING workspace's primary, not the root.
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.jobKind).toBe('report-delivery')
+      expect(job?.workspaceId).toBe(origin.id)
+      expect(job?.workspacePath).toBe(origin.path)
+      expect(job?.workspaceName).toBe('Mark · Target') // still labeled FROM the reporter
+    })
+  })
+
+  it('a foreign or self requester-override falls back to the global root', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const target = seedManagedWorkspace(db, user.id, 'Target')
+      await seedLinkedWorkspacePrimaryFor(db, user.id, target.id, 'ws-target-r2')
+      const stranger = seedUser(db)
+      const foreign = seedManagedWorkspace(db, stranger.id, 'Foreign')
+      const app = makeHarness(db)
+
+      for (const overrideId of [foreign.id, target.id]) {
+        const res = await postJson(
+          app,
+          '/routing/report',
+          { report: 'r' },
+          {
+            [REPORT_CALLER_HEADER]: serializeReportCaller({
+              kind: 'workspace-primary',
+              workspaceId: target.id,
+            }),
+            [REPORT_REQUESTER_HEADER]: overrideId,
+          },
+        )
+        expect(res.status).toBe(200)
+        const { jobId } = (await res.json()) as { jobId: string }
+        const job = findDelegationJobById(db, jobId)
+        expect(job?.workspaceId).toBeNull() // global root — never a foreign/self reroute
+      }
     })
   })
 

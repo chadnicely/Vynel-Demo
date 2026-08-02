@@ -30,6 +30,7 @@ import {
 } from '@vynel/session/runtime'
 import type { AppEnv, HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
+import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-root-conversation.js'
@@ -50,14 +51,21 @@ class GlobalRootSseSink implements SessionSink {
     private readonly logger: Logger,
     /** The turn's activity-feed handle — session identity + tool-step narration. */
     private readonly activity?: SessionTurnActivityHandle,
+    /** Chat-mentions: fires with the turn's session identity so the mention
+     *  dispatches enqueue with their provenance edge (idempotent downstream). */
+    private readonly onSessionResolved?: (sdkSessionId: string) => void,
   ) {}
 
   async onEvent(event: ChatTurnEvent): Promise<void> {
     // `user-message-persisted` fires on new AND resumed turns; `session-created`
     // only on a new/swapped segment — tap both so every turn resolves.
-    if (event.kind === 'session-created') this.activity?.sessionResolved(event.session.id)
-    else if (event.kind === 'user-message-persisted')
+    if (event.kind === 'session-created') {
+      this.activity?.sessionResolved(event.session.id)
+      this.onSessionResolved?.(event.session.id)
+    } else if (event.kind === 'user-message-persisted') {
       this.activity?.sessionResolved(event.message.sessionId)
+      this.onSessionResolved?.(event.message.sessionId)
+    }
     // Narrate tool steps + approval bells on the feed (the desktop overlay,
     // the activity panel).
     if (this.activity !== undefined) publishTurnActivityStep(this.activity, event)
@@ -146,6 +154,23 @@ export async function streamGlobalRootTurn(
   // descriptor excludes itself when no reader was wired at boot (off-Windows /
   // tests), so composition stays safe everywhere.
   const { desktopFeatureDescriptor } = await import('@vynel/desktop-control')
+  // Chat-mentions: re-parse the message server-side — @/@Persona dispatches
+  // (enqueued once the turn's session resolves) + the per-turn # study
+  // descriptor. Never throws; null = a token-free turn. The global root
+  // grounds agent leaves in its hidden cwd.
+  const mentionPlan = await prepareComposerMentionTurn(
+    c.var.db,
+    {
+      userId: c.var.user.id,
+      userMessageText: input.userMessageText,
+      originWorkspaceId: null,
+      originWorkspacePath: ensureGlobalRootWorkspaceDir(),
+      ...(permissionMode !== undefined ? { permissionMode } : {}),
+      ...(input.model !== undefined ? { model: input.model } : {}),
+      ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
+    },
+    { logger: c.var.logger },
+  )
   const composedMcp = composeSessionMcpServers(
     [
       vynelRoutingDescriptor,
@@ -153,6 +178,7 @@ export async function streamGlobalRootTurn(
       askFeatureDescriptor,
       desktopFeatureDescriptor,
       ...sshFeatureDescriptors,
+      ...(mentionPlan?.studyDescriptor ? [mentionPlan.studyDescriptor] : []),
     ],
     {
       db: c.var.db,
@@ -229,12 +255,21 @@ export async function streamGlobalRootTurn(
           allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
           mutatingToolNames: composedMcp.mutatingToolNames,
           askModeApprovalToolNames: composedMcp.askModeApprovalToolNames,
-          mcpSystemPromptAppend: composedMcp.systemPromptAppend,
+          // The mention-dispatch note (chat-mentions) rides the same seam as
+          // the per-feature prompt sections.
+          mcpSystemPromptAppend: [composedMcp.systemPromptAppend, mentionPlan?.systemPromptAppend ?? '']
+            .filter((section) => section !== '')
+            .join('\n\n'),
           ...(agentSlugs.length > 0 ? { agents: sessionAgents } : {}),
           // Persist the roster the engine reports — feeds the model picker.
           onModelsDiscovered: buildRecordDiscoveredModels(c.var.db, c.var.user.id, c.var.logger),
         },
-        new GlobalRootSseSink(stream, c.var.logger, activity),
+        new GlobalRootSseSink(
+          stream,
+          c.var.logger,
+          activity,
+          mentionPlan !== null ? mentionPlan.onSessionResolved : undefined,
+        ),
       )
     } finally {
       activity.end()

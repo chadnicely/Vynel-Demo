@@ -321,6 +321,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
               ? `Ask ${activeWorkspace.managerName} for anything…`
               : `Ask about ${activeWorkspace?.name ?? 'this workspace'}…`
           "
+          :scope="scope"
           :context-fraction="occupancy.fraction.value"
           :context-tooltip="occupancy.tooltip.value"
           @send="queuedSend.submit"

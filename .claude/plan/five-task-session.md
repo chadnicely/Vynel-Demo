@@ -107,7 +107,14 @@ entry per task, reviewer per diff, full gate (`pnpm test`) before every commit.
       on re-run; recurring flake noted for the report) → committed. Deferred (module
       notes): OAuth, rule/command editing, MCP edit-in-place, URL query-param masking
       polish, AddMcpServerDialog 319 lines.
-- [ ] Task 3 — implement → review → fix → gate → commit
+- [x] Task 3 — implement (Fable) → review (0 must-fix; 3 should-fix: agent-run claim
+      starvation exemption, IME isComposing guard incl. the pre-existing send bug,
+      roster token round-trip filters — ALL FIXED by the implementer) → gate green
+      3733/657 → committed. Zero wire changes; migration 0027 drizzle-generated
+      (additive nullable). Deferred (module notes): spawned-thread report landing,
+      stop-mid-run for agent leaves, McpToolFn 5th copy (CHAD FORK — two conflicting
+      recorded stances), persona-ambiguity UX, token highlighting, ChatComposer split
+      (602 lines).
 - [ ] Task 5 — implement → review → fix → gate → commit
 - [ ] Final reverify (full gate + cross-task review) + CHANGELOG + STATE.md + report
 - [ ] Shutdown

@@ -1523,12 +1523,24 @@ importers:
 
   packages/workspaces:
     dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.3.213
+        version: 0.3.213(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@vynel/db':
         specifier: workspace:*
         version: link:../db
       '@vynel/errors':
         specifier: workspace:*
         version: link:../errors
+      '@vynel/mcp-contract':
+        specifier: workspace:*
+        version: link:../mcp-contract
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       '@vynel/testing':
         specifier: workspace:*

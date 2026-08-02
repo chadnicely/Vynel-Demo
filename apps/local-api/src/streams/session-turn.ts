@@ -26,6 +26,11 @@ import { findSpawnedSessionBySegmentId, findSpawnedSessionById } from '@vynel/se
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AppEnv } from '../factory.js'
 import { buildWorkspaceBackgroundMcpComposer } from '../sessions/build-workspace-background-mcp.js'
+import {
+  composeSessionMcpServers,
+  mergeComposedSessionMcpServers,
+} from '../sessions/compose-session-mcp-servers.js'
+import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { resolveSpawnedSessionRunCwd } from '../sessions/spawned-session-ground.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import type { StartSessionTurnRequestSchema } from '../routes/sessions/schemas.js'
@@ -55,7 +60,7 @@ export async function streamSpawnedSessionTurn(
   // its delegated turns attach — or the hidden global-root cwd + nothing for a
   // global-grounded one (its delegated turns run bare too).
   const runCwdPath = resolveSpawnedSessionRunCwd(db, spawned)
-  const composedMcp =
+  const backgroundMcp =
     spawned.workspaceId !== null
       ? (await buildWorkspaceBackgroundMcpComposer(c.var.appRequest))({
           db,
@@ -63,6 +68,40 @@ export async function streamSpawnedSessionTurn(
           workspaceId: spawned.workspaceId,
         })
       : null
+
+  // Chat-mentions: re-parse the message server-side. @ dispatches ground in
+  // the session's OWN ground (reports land at its grounding workspace's chat,
+  // or the global root — spawned sessions are leaves and never receive
+  // deliveries themselves); # composes the per-turn study descriptor, merged
+  // over the background set (or standing alone on a global-grounded session).
+  const mentionPlan = await prepareComposerMentionTurn(
+    db,
+    {
+      userId,
+      userMessageText: input.userMessageText,
+      originWorkspaceId: spawned.workspaceId,
+      originWorkspacePath: runCwdPath,
+      permissionMode: toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE),
+      ...(input.model !== undefined ? { model: input.model } : {}),
+      ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
+    },
+    { logger: c.var.logger },
+  )
+  const studyMcp = mentionPlan?.studyDescriptor
+    ? composeSessionMcpServers(
+        [mentionPlan.studyDescriptor],
+        {
+          db,
+          userId,
+          appRequest: c.var.appRequest,
+          ...(spawned.workspaceId !== null ? { workspaceId: spawned.workspaceId } : {}),
+        },
+      )
+    : null
+  const composedMcp =
+    backgroundMcp !== null && studyMcp !== null
+      ? mergeComposedSessionMcpServers(backgroundMcp, studyMcp)
+      : (backgroundMcp ?? studyMcp)
 
   const locks = c.var.sessionTargetLocks
   const turnEvents = c.var.turnEvents
@@ -113,16 +152,14 @@ export async function streamSpawnedSessionTurn(
           // routed-turn bypass default).
           permissionMode: toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE),
           // The system prompt carries ONLY the MCP composer's per-feature
-          // sections — never ROUTED_TASK_INSTRUCTIONS (this is the user, not a
-          // routed background task); the session's identity rides its transcript.
+          // sections + the mention-dispatch note — never
+          // ROUTED_TASK_INSTRUCTIONS (this is the user, not a routed
+          // background task); the session's identity rides its transcript.
           ...(composedMcp !== null
             ? {
                 mcpServers: composedMcp.mcpServers,
                 allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
                 deniedToolNames: composedMcp.deniedMcpToolPatterns,
-                ...(composedMcp.systemPromptAppend !== ''
-                  ? { systemPromptAppend: composedMcp.systemPromptAppend }
-                  : {}),
                 ...(composedMcp.mutatingToolNames.length > 0
                   ? { alwaysRequireApprovalToolNames: composedMcp.mutatingToolNames }
                   : {}),
@@ -131,6 +168,13 @@ export async function streamSpawnedSessionTurn(
                   : {}),
               }
             : {}),
+          ...(() => {
+            const sections = [
+              composedMcp?.systemPromptAppend ?? '',
+              mentionPlan?.systemPromptAppend ?? '',
+            ].filter((section) => section !== '')
+            return sections.length > 0 ? { systemPromptAppend: sections.join('\n\n') } : {}
+          })(),
           // A mid-turn compaction swap keeps the stock hidden presentation —
           // the spawned entry's identity stays its first (listed, named)
           // segment (the delegateToSpawnedSession shape).
@@ -165,8 +209,10 @@ export async function streamSpawnedSessionTurn(
               sdkSessionId: event.session.id,
             })
             activity.sessionResolved(event.session.id)
+            mentionPlan?.onSessionResolved(event.session.id)
           } else if (event.kind === 'user-message-persisted') {
             activity.sessionResolved(event.message.sessionId)
+            mentionPlan?.onSessionResolved(event.message.sessionId)
           }
           await stream.writeSSE({ event: event.kind, data: JSON.stringify(event) })
         }

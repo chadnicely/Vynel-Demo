@@ -174,6 +174,72 @@ describe('delegation_jobs repository', () => {
     })
   })
 
+  it("an AGENT-RUN row claims through its workspace's busy key (chat-mentions — no starvation); task/session rows still hold", async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const busyWorkspace = insertWorkspace(db, makeWorkspace(user.id))
+      // Oldest: a normal TASK row on the busy workspace — must keep holding.
+      const heldTask = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, busyWorkspace.id, {
+          createdAt: new Date('2026-06-01T00:00:00Z'),
+        }),
+      )
+      // Newer: an agent-run GROUNDED in the same workspace — its workspaceId is
+      // the leaf's resolution scope, not a conversation it resumes, so the
+      // busy slot must not starve it.
+      const agentRun = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, busyWorkspace.id, {
+          createdAt: new Date('2026-06-01T00:01:00Z'),
+          jobKind: 'agent-run',
+          agentSlug: 'code-reviewer',
+        }),
+      )
+
+      const claimed = claimNextPendingDelegationJob(db, new Date(), {
+        excludeTargetKeys: [busyWorkspace.id],
+      })
+      expect(claimed?.id).toBe(agentRun.id)
+
+      // The task row is still held by the exclusion…
+      expect(
+        claimNextPendingDelegationJob(db, new Date(), {
+          excludeTargetKeys: [busyWorkspace.id],
+        }),
+      ).toBeNull()
+      // …and claims once the key frees.
+      expect(claimNextPendingDelegationJob(db, new Date())?.id).toBe(heldTask.id)
+    })
+  })
+
+  it('an agent-run row still honors the retry-backoff gate while exempt from the workspace exclusion', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, {
+          createdAt: new Date('2026-06-01T00:00:00Z'),
+          jobKind: 'agent-run',
+          agentSlug: 'code-reviewer',
+          // Requeued with backoff — not due yet at claim time.
+          nextAttemptAt: new Date('2026-06-02T00:00:00Z'),
+        }),
+      )
+      expect(
+        claimNextPendingDelegationJob(db, new Date('2026-06-01T12:00:00Z'), {
+          excludeTargetKeys: [workspace.id],
+        }),
+      ).toBeNull()
+      expect(
+        claimNextPendingDelegationJob(db, new Date('2026-06-02T12:00:00Z'), {
+          excludeTargetKeys: [workspace.id],
+        })?.agentSlug,
+      ).toBe('code-reviewer')
+    })
+  })
+
   it('exclusion is NULL-safe across BOTH target columns (Slice ④): a busy workspace never hides a session-target job, and vice versa', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

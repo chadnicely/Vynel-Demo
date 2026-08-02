@@ -28,9 +28,11 @@ export type SessionReference = string
 
 export type CreateLeafSessionInput = {
   userId: string
-  /** The workspace the leaf runs in + the scope the agent slug resolves at. */
-  workspaceId: string
-  /** The leaf's cwd (the workspace folder on disk). */
+  /** The workspace the leaf runs in + the scope the agent slug resolves at.
+   *  Null = a GLOBAL-grounded leaf (chat-mentions): user-scope agents only,
+   *  running in the global root's hidden cwd. */
+  workspaceId: string | null
+  /** The leaf's cwd (the workspace folder on disk, or the global root's dir). */
   workspacePath: string
   /** Which agent ("hand") to delegate to. */
   agentSlug: string
@@ -58,13 +60,16 @@ export async function createLeafSession(
   // the user scope (the @mention resolution — a user-scoped agent is available in
   // every workspace, the same union `listAgentsForWorkspace` exposes). The leaf
   // still runs IN the target workspace (`workspacePath`) regardless of where the
-  // agent row lives. `workspaceId` here is the agent-RESOLUTION scope.
+  // agent row lives. `workspaceId` here is the agent-RESOLUTION scope; a
+  // GLOBAL-grounded leaf (null) resolves at the user scope only.
   const agent =
-    (await findAgentBySlug(db, {
-      userId: input.userId,
-      workspaceId: input.workspaceId,
-      slug: input.agentSlug,
-    })) ??
+    (input.workspaceId !== null
+      ? await findAgentBySlug(db, {
+          userId: input.userId,
+          workspaceId: input.workspaceId,
+          slug: input.agentSlug,
+        })
+      : null) ??
     (await findAgentBySlug(db, {
       userId: input.userId,
       workspaceId: null,

@@ -1,30 +1,10 @@
-// Manager persona naming (brain-tree Ch5). Each workspace's manager has a NAME —
-// "Mark is handling vynel". `workspaces.managerName` is auto-assigned a default on
-// create + is renameable; pre-existing rows (null) resolve a DEFAULT here,
-// deterministically by workspace id so the fallback is STABLE across reads.
+// Manager persona naming (brain-tree Ch5). The derivation MOVED to
+// `@vynel/contracts/workspaces/manager-name` (chat-mentions): the composer's
+// @-persona picker derives the same names client-side, and contracts is the
+// bundle-safe home for pure shared logic. Re-exported here so the domain's
+// public surface (and every existing server import) is unchanged.
 
-import type { Workspace } from '@vynel/db/repositories/workspaces'
-
-// A curated set of friendly first names. The pick is deterministic (by workspace id),
-// so a workspace always shows the same default; the user can rename. Collisions across
-// workspaces are fine — the workspace half of the label ("Mark · vynel") disambiguates.
-const MANAGER_NAMES = [
-  'Mark', 'Sarah', 'James', 'Emma', 'David', 'Olivia', 'Daniel', 'Sophia',
-  'Michael', 'Grace', 'Ethan', 'Maya', 'Lucas', 'Chloe', 'Noah', 'Ava',
-  'Leo', 'Mia', 'Owen', 'Zoe', 'Ryan', 'Lily', 'Adam', 'Nora',
-] as const
-
-/** A stable default manager name for a workspace — deterministic by id, so a null
- *  `managerName` resolves to the SAME name on every read (the fallback must not drift). */
-export function deriveDefaultManagerName(workspaceId: string): string {
-  let index = 0
-  for (let i = 0; i < workspaceId.length; i += 1) {
-    index = (index + workspaceId.charCodeAt(i)) % MANAGER_NAMES.length
-  }
-  return MANAGER_NAMES[index]!
-}
-
-/** The workspace's manager name — the explicit `managerName` if set, else a stable default. */
-export function resolveManagerName(workspace: Pick<Workspace, 'id' | 'managerName'>): string {
-  return workspace.managerName ?? deriveDefaultManagerName(workspace.id)
-}
+export {
+  deriveDefaultManagerName,
+  resolveManagerName,
+} from '@vynel/contracts/workspaces/manager-name'

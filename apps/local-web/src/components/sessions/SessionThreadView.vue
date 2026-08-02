@@ -58,6 +58,17 @@ const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
 );
 
+// The mention rosters follow the session's GROUNDING (a workspace-grounded
+// spawned thread sees that workspace's agents/skills/commands; a
+// global-grounded one the user scope) — mirroring where the server grounds
+// this thread's @ dispatches.
+const composerScope = computed(() => {
+  const workspaceId = detailQuery.data.value?.session.workspaceId ?? null;
+  return workspaceId === null
+    ? ({ kind: "global" } as const)
+    : ({ kind: "workspace", workspaceId } as const);
+});
+
 const decideApproval = useDecideApproval();
 
 function onDecideApproval(
@@ -133,6 +144,7 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
         :streaming="turn.isStreaming.value"
         :placeholder="`Message ${props.title}…`"
         :allow-attachments="false"
+        :scope="composerScope"
         @send="queuedSend.submit"
         @interrupt="turn.interrupt"
       />

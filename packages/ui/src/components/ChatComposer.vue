@@ -11,6 +11,12 @@ export interface ComposerOption {
 import { computed, nextTick, ref, watch } from "vue";
 import ContextRing from "./ContextRing.vue";
 import SelectChip from "./SelectChip.vue";
+import InlineSuggestMenu from "./InlineSuggestMenu.vue";
+import {
+  useComposerSuggest,
+  type ComposerSuggestItem,
+  type ComposerSuggestSources,
+} from "../lib/use-composer-suggest.js";
 
 // THE chat input, used by every chat surface: multiline draft, model + mode
 // chips, optional voice, file attachments (picker, paste, drag-drop),
@@ -45,6 +51,12 @@ const props = withDefaults(
    *  Vue's boolean-absent casting would otherwise read "not passed" as false
    *  and strip attachments from every chat surface. */
   allowAttachments?: boolean | undefined;
+  /** Mention-picker rosters (chat-mentions) — the host wires real data;
+   *  absent lists keep that trigger's picker off. Items carry their exact
+   *  insert token, so the composer stays grammar-blind. */
+  mentionSuggestions?: ComposerSuggestItem[] | undefined;
+  workspaceSuggestions?: ComposerSuggestItem[] | undefined;
+  slashSuggestions?: ComposerSuggestItem[] | undefined;
   }>(),
   { allowAttachments: true },
 );
@@ -63,6 +75,26 @@ const attachments = ref<File[]>([]);
 const textareaElement = ref<HTMLTextAreaElement | null>(null);
 const fileInputElement = ref<HTMLInputElement | null>(null);
 const isDropTarget = ref(false);
+
+// The mention pickers (@ agents/personas, # workspaces, / skills+commands):
+// typing the bare trigger pops the anchored menu at the caret; typing filters;
+// Enter/Tab/click inserts the token (the machinery lives in the composable —
+// this component only wires events and renders the menu).
+const suggestSources = computed<ComposerSuggestSources>(() => ({
+  ...(props.mentionSuggestions !== undefined ? { "@": props.mentionSuggestions } : {}),
+  ...(props.workspaceSuggestions !== undefined ? { "#": props.workspaceSuggestions } : {}),
+  ...(props.slashSuggestions !== undefined ? { "/": props.slashSuggestions } : {}),
+}));
+const suggest = useComposerSuggest({
+  draft,
+  textareaElement,
+  sources: suggestSources,
+});
+// Clamp the menu's caret anchor so it never overflows the composer's width.
+const suggestMenuStyle = computed(() => ({
+  left: `${Math.max(0, Math.min(suggest.caretLeft.value, 480))}px`,
+  bottom: "100%",
+}));
 
 // Attachments default ON — only an explicit false opts a surface out.
 const attachmentsAllowed = computed(() => props.allowAttachments);
@@ -85,14 +117,28 @@ function submit() {
   emit("send", text, attachments.value);
   draft.value = "";
   attachments.value = [];
+  suggest.close();
   if (textareaElement.value) textareaElement.value.style.height = "auto";
 }
 
 function onKeydown(event: KeyboardEvent) {
+  // An IME composition commit (CJK input) owns its Enter — neither a pick nor
+  // a send (the suggest handler guards itself the same way; keyCode 229 is
+  // the legacy composition signal). Pre-existing bug class in the send path,
+  // fixed alongside the picker.
+  if (event.isComposing || event.keyCode === 229) return;
+  // The open mention picker owns navigation keys (Enter picks, never sends).
+  if (suggest.onKeydown(event)) return;
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
     submit();
   }
+}
+
+// The trigger context follows the LIVE caret — recompute after the DOM applied
+// the keystroke (input), and on caret moves (click / keyup for arrows+Home/End).
+function refreshSuggest() {
+  void nextTick(() => suggest.refresh());
 }
 
 function onFilesPicked(event: Event) {
@@ -190,16 +236,31 @@ function onDrop(event: DragEvent) {
       </span>
     </div>
 
-    <textarea
-      ref="textareaElement"
-      v-model="draft"
-      class="input"
-      rows="1"
-      :placeholder="props.placeholder ?? 'Ask for anything…'"
-      @input="autoGrow"
-      @keydown="onKeydown"
-      @paste="onPaste"
-    />
+    <div class="input-anchor">
+      <InlineSuggestMenu
+        v-if="suggest.isOpen.value"
+        :items="suggest.items.value"
+        :active-index="suggest.activeIndex.value"
+        :style="suggestMenuStyle"
+        @select="suggest.select"
+        @hover="(index) => (suggest.activeIndex.value = index)"
+      />
+      <textarea
+        ref="textareaElement"
+        v-model="draft"
+        class="input"
+        rows="1"
+        :placeholder="props.placeholder ?? 'Ask for anything…'"
+        @input="
+          autoGrow();
+          refreshSuggest();
+        "
+        @keydown="onKeydown"
+        @keyup="refreshSuggest"
+        @click="refreshSuggest"
+        @paste="onPaste"
+      />
+    </div>
 
     <div class="toolbar">
       <button
@@ -420,6 +481,12 @@ function onDrop(event: DragEvent) {
 .attachment-remove:hover {
   color: var(--ink-1);
   background: var(--row-hover);
+}
+
+/* The mention menu anchors here — above the input, at the caret's x. */
+.input-anchor {
+  position: relative;
+  display: grid;
 }
 
 .input {

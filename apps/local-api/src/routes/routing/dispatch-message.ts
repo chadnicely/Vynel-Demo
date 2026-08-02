@@ -51,6 +51,10 @@ import {
   parseReportCallerHeader,
   REPORT_CALLER_HEADER,
 } from '../../sessions/report-caller-header.js'
+import {
+  parseReportRequesterHeader,
+  REPORT_REQUESTER_HEADER,
+} from '../../sessions/report-requester-header.js'
 import { resolveSpawnedSessionRunCwd } from '../../sessions/spawned-session-ground.js'
 
 /** What a dispatch produced: the queue handle plus where it actually landed. */
@@ -171,6 +175,9 @@ export async function dispatchReportToRequester(
   let reporterSessionId: string | null
   let reporterLabel: string
   let requester: ReportDeliveryRequester
+  // Set only when the requester-override rerouted the delivery — the honest
+  // `deliveredTo` (reporterLabel would name the SENDER, not the destination).
+  let requesterLabel: string | null = null
   if (caller.kind === 'spawned-session') {
     // A spawned session reports to its CREATOR: its grounding workspace's
     // primary, else the global root (a gone grounding workspace falls through —
@@ -195,7 +202,12 @@ export async function dispatchReportToRequester(
           }
         : { kind: 'global-root' }
   } else {
-    // A workspace primary reports to the global root (the tree's top).
+    // A workspace primary reports to the global root (the tree's top) — UNLESS
+    // the turn carries the requester-override header (chat-mentions): a
+    // `@persona` mention typed in ANOTHER workspace's chat stamped the
+    // ORIGINATING workspace on the job, and its report belongs in that chat.
+    // Ownership-checked; a gone/foreign/self override falls through to the
+    // global root (upward chains still terminate there).
     const workspace = await getWorkspaceById(c.var.db, caller.workspaceId, c.var.user.id)
     const primary = findPrimaryConversation(c.var.db, {
       userId: c.var.user.id,
@@ -203,7 +215,20 @@ export async function dispatchReportToRequester(
     })
     reporterSessionId = primary?.currentSdkSessionId ?? null
     reporterLabel = composeManagerSourceLabel(workspace.name, resolveManagerName(workspace))
-    requester = { kind: 'global-root' }
+    const requesterOverrideId = parseReportRequesterHeader(c.req.header(REPORT_REQUESTER_HEADER))
+    const requesterWorkspace =
+      requesterOverrideId !== undefined && requesterOverrideId !== workspace.id
+        ? await getWorkspaceById(c.var.db, requesterOverrideId, c.var.user.id).catch(() => null)
+        : null
+    requester =
+      requesterWorkspace !== null
+        ? {
+            kind: 'workspace-primary',
+            workspaceId: requesterWorkspace.id,
+            workspacePath: requesterWorkspace.path,
+          }
+        : { kind: 'global-root' }
+    if (requesterWorkspace !== null) requesterLabel = requesterWorkspace.name
   }
   if (reporterSessionId === null) {
     // The caller is mid-turn on this very conversation, so a missing link means
@@ -234,7 +259,11 @@ export async function dispatchReportToRequester(
     markDelegationJobReported(c.var.db, runningJobId, new Date())
   }
 
-  return { jobId, deliveredTo: requester.kind === 'global-root' ? 'Global' : reporterLabel }
+  return {
+    jobId,
+    deliveredTo:
+      requester.kind === 'global-root' ? 'Global' : (requesterLabel ?? reporterLabel),
+  }
 }
 
 /** Parse the unified tool's `to` field. The shape is validated by the schema, so

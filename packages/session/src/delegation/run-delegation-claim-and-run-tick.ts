@@ -28,7 +28,6 @@ import {
   ApprovalWaitGate,
   claimNextPendingDelegationJob,
   completeDelegationJob,
-  enqueueReportDelivery,
   failDelegationJob,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   markDelegationsSurfacedToRoot,
@@ -37,10 +36,7 @@ import {
   type DelegateForRouting,
   type DelegationJob,
 } from '@vynel/orchestration'
-import {
-  extractEmbeddedErrorCode,
-  requeueIfRecoverable,
-} from './classify-turn-failure.js'
+import { settleFailedDelegationAttempt } from './settle-failed-delegation-attempt.js'
 import { type ChatTurnEvent } from '@vynel/chat'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'
@@ -49,6 +45,7 @@ import * as primarySessionsRepository from '../repositories/index.js'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
 import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
+import { runAgentRunJob } from './run-agent-run-job.js'
 import { runReportDeliveryJob, type RunGlobalRootReportTurn } from './run-report-delivery-tick.js'
 import { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
 import {
@@ -114,6 +111,11 @@ export interface RunDelegationTickDeps {
      *  resolves the SESSION (not just its grounding workspace) and can never
      *  mis-address (session-comms fork 2). Absent for workspace-root targets. */
     targetPrimarySessionId?: string
+    /** The ORIGINATING chat's workspace (chat-mentions) — the api edge stamps
+     *  the requester-override header from it so this turn's
+     *  `report_to_requester` lands in the chat that asked, not the global
+     *  root. Absent = the pre-mentions topology. */
+    requesterWorkspaceId?: string
   }) => RoutedTurnMcpAttachment
   /** The GLOBAL-root notify runner for report-delivery jobs (session-comms) —
    *  the api edge binds `runGlobalRootTurn` with report attribution + steer.
@@ -161,16 +163,35 @@ export async function runDelegationClaimAndRunTick(
   // global-requester report-delivery row (session-comms: the global root is
   // one conversation — at most one notify turn runs; the claim skips the rest
   // while the key is busy, so they wait as PENDING instead of burning budget
-  // in the root-lock queue). The job id is a defensive fallback for a
-  // targetless TASK row (the enqueue ops preclude it) — it excludes nothing
-  // real.
+  // in the root-lock queue). An AGENT-RUN row (chat-mentions) keys on its OWN
+  // id: the leaf runs FRESH — it resumes no conversation, so it must never
+  // reserve (or wait on) its grounding workspace's single-writer slot. The job
+  // id is otherwise a defensive fallback for a targetless TASK row (the
+  // enqueue ops preclude it) — it excludes nothing real.
+  const claimedKind = claimed.jobKind ?? 'task'
   const targetKey =
-    claimed.targetPrimarySessionId ??
-    claimed.workspaceId ??
-    ((claimed.jobKind ?? 'task') === 'report-delivery'
-      ? GLOBAL_ROOT_DELIVERY_TARGET_KEY
-      : claimed.id)
+    claimedKind === 'agent-run'
+      ? claimed.id
+      : (claimed.targetPrimarySessionId ??
+        claimed.workspaceId ??
+        (claimedKind === 'report-delivery' ? GLOBAL_ROOT_DELIVERY_TARGET_KEY : claimed.id))
   deps.onRunStarted?.({ jobId: claimed.id, targetKey })
+
+  // Chat-mentions: an 'agent-run' row runs the mentioned agent as a FRESH leaf
+  // and delivers its clean result to the originating chat deterministically.
+  if (claimedKind === 'agent-run') {
+    return runAgentRunJob(
+      db,
+      {
+        provider: deps.provider,
+        logger: deps.logger,
+        activityFeed: deps.activityFeed,
+        ...(deps.cancelRegistry !== undefined ? { cancelRegistry: deps.cancelRegistry } : {}),
+        budgetMs: deps.budgetMs ?? DELEGATION_RUN_BUDGET_MS,
+      },
+      claimed,
+    )
+  }
 
   // Session-comms: a 'report-delivery' row runs the NOTIFY branch — a real turn
   // on the requester's conversation with the child's report as the inbound
@@ -178,7 +199,7 @@ export async function runDelegationClaimAndRunTick(
   // workspace's id (single-writer with task jobs on the same primary), or the
   // job id for the global root (nothing to exclude — the root-turn lock
   // serializes those). NULL = 'task' (every legacy row).
-  if ((claimed.jobKind ?? 'task') === 'report-delivery') {
+  if (claimedKind === 'report-delivery') {
     return runReportDeliveryJob(
       db,
       {
@@ -319,6 +340,11 @@ export async function runDelegationClaimAndRunTick(
             // grounding workspace.
             ...(claimed.targetPrimarySessionId !== null
               ? { targetPrimarySessionId: claimed.targetPrimarySessionId }
+              : {}),
+            // The originating chat's workspace (chat-mentions) — reports from
+            // this turn land there instead of the global root.
+            ...(claimed.requesterWorkspaceId !== null
+              ? { requesterWorkspaceId: claimed.requesterWorkspaceId }
               : {}),
           })
         : undefined
@@ -543,7 +569,11 @@ export async function runDelegationClaimAndRunTick(
         failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
         deps.logger.warn({ jobId: claimed.id }, 'delegation job stopped by the user')
       } else {
-        settleFailedDelegationAttempt(db, claimed, outcome.message, deps)
+        settleFailedDelegationAttempt(db, claimed, outcome.message, {
+          logger: deps.logger,
+          queueLabel: 'delegation',
+          retryHint: 're-send the task with send_message if it should be retried.',
+        })
       }
     }
     return true
@@ -562,56 +592,3 @@ export async function runDelegationClaimAndRunTick(
   }
 }
 
-/** A failed (non-stopped) attempt: a transient failure requeues with backoff;
- *  the terminal failure is PUSHED to the global root as a report delivery — a
- *  real notify turn telling the user it failed and that re-sending retries it.
- *  Before this, failures sat in the pull-only next-turn catch-up net. */
-function settleFailedDelegationAttempt(
-  db: Database,
-  claimed: DelegationJob,
-  errorMessage: string,
-  deps: RunDelegationTickDeps,
-): void {
-  if (requeueIfRecoverable(db, claimed, errorMessage, deps.logger, 'delegation')) return
-
-  const attemptCount = (claimed.attemptCount ?? 0) + 1
-  failDelegationJob(db, claimed.id, errorMessage, new Date(), {
-    ...(extractEmbeddedErrorCode(errorMessage) !== null
-      ? { errorCode: extractEmbeddedErrorCode(errorMessage)! }
-      : {}),
-  })
-  deps.logger.warn(
-    { jobId: claimed.id, attemptCount, message: errorMessage },
-    'delegation job failed terminally',
-  )
-
-  // Give-up push for TASK rows only (a failed report-delivery must never spawn
-  // another delivery — the anti-cascade invariant).
-  if ((claimed.jobKind ?? 'task') !== 'task') return
-  try {
-    const taskPreview =
-      claimed.taskText.length > 160 ? `${claimed.taskText.slice(0, 160)}…` : claimed.taskText
-    const threadId = resolveThreadIdOf(claimed)
-    enqueueReportDelivery(db, {
-      ...(threadId !== null ? { threadId } : {}),
-      userId: claimed.userId,
-      reporterSessionId:
-        claimed.targetPrimarySessionId ?? claimed.workspaceId ?? claimed.parentSessionId,
-      reporterLabel: claimed.workspaceName ?? 'Background task',
-      reportBody:
-        `The background task "${taskPreview}" failed` +
-        `${attemptCount > 1 ? ` after ${attemptCount} attempts` : ''}: ${errorMessage}. ` +
-        'Tell the user it failed, and re-send the task with send_message if it should be retried.',
-      requester: { kind: 'global-root' },
-    })
-    // Surfaced via the push — keep the pull net from repeating it next turn.
-    markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
-  } catch (err) {
-    // The failed row stays in the root catch-up net — the user still learns of
-    // it on their next turn even when the push could not be enqueued.
-    deps.logger.error(
-      { err, jobId: claimed.id },
-      'failed to enqueue the delegation-failure report',
-    )
-  }
-}

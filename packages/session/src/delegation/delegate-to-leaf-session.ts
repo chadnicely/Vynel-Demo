@@ -10,12 +10,12 @@
 // emit the parent→child `session.delegated` edge for the monitor. The root
 // absorbs only the clean result.
 //
-// NOTE (brain-tree Phase 1): PARKED for the Phase 3 agent layer. The routing path
-// no longer binds this — `send_task_to_workspace` now routes into the workspace's own
-// ROOT brain (`delegate-to-workspace-root.ts`, the thin path). This fresh-agent
-// ("hand") delegation returns UNDER the workspace root when the locked 3-level
-// hierarchy is built (global → workspace-root → agent). Kept + tested as the
-// building block for that slice — do not delete.
+// CONSUMERS: the chat-mentions 'agent-run' queue branch (`run-agent-run-job.ts`)
+// — a `@agent` mention becomes one background leaf run of exactly this shape.
+// The routing path does NOT bind this — `send_task_to_workspace` routes into the
+// workspace's own ROOT brain (`delegate-to-workspace-root.ts`, the thin path);
+// the locked 3-level hierarchy (global → workspace-root → agent) also builds on
+// this when it lands.
 
 import type { Database } from '@vynel/db'
 import type { AiAgentProvider, AiAgentProviderId } from '@vynel/providers'
@@ -26,8 +26,9 @@ export type DelegateToLeafSessionInput = {
   /** The delegating (parent) session — the root or a manager. */
   parentSessionId: string
   userId: string
-  workspaceId: string
-  /** The leaf's cwd (the workspace folder on disk). */
+  /** Null for a GLOBAL-grounded leaf (chat-mentions): user-scope agent, global cwd. */
+  workspaceId: string | null
+  /** The leaf's cwd (the workspace folder on disk, or the global root's dir). */
   workspacePath: string
   /** Which agent ("hand") to delegate to. */
   agentSlug: string

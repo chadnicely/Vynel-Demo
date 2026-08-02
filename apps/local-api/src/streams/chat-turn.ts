@@ -30,6 +30,7 @@ import { findChatSessionById } from '@vynel/chat/repositories'
 import type { AppEnv } from '../factory.js'
 import { loadEnv } from '../env.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
+import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import type { z } from 'zod'
@@ -77,12 +78,30 @@ export async function streamChatTurn(
   const enabledCapabilityIds = new Set(
     listEnabledCapabilities(c.var.db, c.var.workspace!.id).map((capability) => capability.id),
   )
+  // Chat-mentions: re-parse the message server-side — @/@Persona dispatches
+  // (enqueued once the turn's session resolves) + the per-turn # study
+  // descriptor. Never throws; null = a token-free turn.
+  const turnPermissionMode = toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE)
+  const mentionPlan = await prepareComposerMentionTurn(
+    c.var.db,
+    {
+      userId: c.var.user.id,
+      userMessageText: input.userMessageText,
+      originWorkspaceId: c.var.workspace!.id,
+      originWorkspacePath: c.var.workspace!.path,
+      permissionMode: turnPermissionMode,
+      ...(input.model !== undefined ? { model: input.model } : {}),
+      ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
+    },
+    { logger: c.var.logger },
+  )
   const composedMcp = composeSessionMcpServers(
     [
       vynelWorkspaceInteractiveDescriptor,
       notebookFeatureDescriptor,
       askFeatureDescriptor,
       ...sshFeatureDescriptors,
+      ...(mentionPlan?.studyDescriptor ? [mentionPlan.studyDescriptor] : []),
     ],
     {
       db: c.var.db,
@@ -165,7 +184,7 @@ export async function streamChatTurn(
         // per-user setting once that lands). The mode is the user's trust
         // level for the whole turn: ask cards the floor, auto defers to the
         // classifier, bypass never asks (2026-07-30 stance).
-        permissionMode: toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE),
+        permissionMode: turnPermissionMode,
         mcpServers: composedMcp.mcpServers,
         allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
         // Deny a disabled capability's tools (from the composer); the system prompt
@@ -175,7 +194,13 @@ export async function streamChatTurn(
         // silent divergence from the global-root stream (found in the ask build;
         // the notebook's standing line never reached workspace turns).
         deniedToolNames: composedMcp.deniedMcpToolPatterns,
-        systemPromptAppend: [composed.systemPromptAppend, composedMcp.systemPromptAppend]
+        systemPromptAppend: [
+          composed.systemPromptAppend,
+          composedMcp.systemPromptAppend,
+          // The mention-dispatch note (chat-mentions) — the model must know
+          // the mentioned work is already running.
+          mentionPlan?.systemPromptAppend ?? '',
+        ]
           .filter((section) => section !== '')
           .join('\n\n'),
         // A feature's declared mutating tools card even under bypass (additive to
@@ -215,9 +240,11 @@ export async function streamChatTurn(
         if (event.kind === 'session-created') {
           effectiveSdkSessionId = event.session.id
           activity.sessionResolved(event.session.id)
+          mentionPlan?.onSessionResolved(event.session.id)
         } else if (event.kind === 'user-message-persisted') {
           // A resumed turn never emits session-created — this is its identity.
           activity.sessionResolved(event.message.sessionId)
+          mentionPlan?.onSessionResolved(event.message.sessionId)
         } else if (event.kind === 'usage-reported') {
           occupancyTokens =
             event.inputTokens + event.cacheReadInputTokens + event.cacheCreationInputTokens
