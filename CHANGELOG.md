@@ -43,6 +43,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   dev servers exempt), and adding a name that already exists is refused instead of silently
   overwriting. A note on workspace scope explains the config file lives in the project.
 
+### Changed
+
+- **The side menu reads in a deliberate order now.** Home, Chat and Sessions still lead;
+  below them the menu groups by what things *are* — first Claude's own resources (Agents,
+  Skills, Rules, Commands, MCP Servers), then Vynel's features led by Marketplace
+  (Channels, Schedules, Tasks, Plans, Journal, Knowledge, Memory, Notebook, Apps,
+  Servers), then the system rows (Where Vynel runs, Account, Application). Same order in
+  the Global menu and in every workspace, so the menu reads the same wherever you are.
+
 ### Fixed
 
 - **Remote MCP servers from the marketplace now actually work.** The config writer used to

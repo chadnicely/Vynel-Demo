@@ -2,22 +2,22 @@
 // (WorkspaceView) and the per-section panel (WorkspaceSectionPanel).
 
 export type WorkspaceSectionId =
+  | "agents"
   | "skills"
+  | "rules"
+  | "commands"
+  | "mcp-servers"
+  | "marketplace"
   | "channels"
   | "schedules"
   | "tasks"
   | "plans"
   | "journal"
-  | "apps"
-  | "ssh-servers"
   | "knowledge"
-  | "marketplace"
   | "memory"
   | "notebook"
-  | "agents"
-  | "rules"
-  | "commands"
-  | "mcp-servers";
+  | "apps"
+  | "ssh-servers";
 
 export interface WorkspaceSectionMeta {
   id: WorkspaceSectionId;
@@ -25,12 +25,32 @@ export interface WorkspaceSectionMeta {
   hint: string;
 }
 
+// Order is the menu's reading order, and it tells a story: what the assistant
+// IS (its Claude-native resources), then what Vynel adds on top — Marketplace
+// first, because that's where you go to get more of everything above it.
 export const WORKSPACE_SECTIONS: WorkspaceSectionMeta[] = [
+  { id: "agents", label: "Agents", hint: "Specialists it can delegate to" },
   {
     id: "skills",
     label: "Skills",
     hint: "What your assistant knows how to do",
   },
+  {
+    id: "rules",
+    label: "Rules",
+    hint: "Standing instructions it always follows here",
+  },
+  {
+    id: "commands",
+    label: "Commands",
+    hint: "Reusable slash commands it can run",
+  },
+  {
+    id: "mcp-servers",
+    label: "MCP Servers",
+    hint: "Tool servers it can reach — add your own",
+  },
+  { id: "marketplace", label: "Marketplace", hint: "Add new curated skills" },
   {
     id: "channels",
     label: "Channels",
@@ -57,6 +77,17 @@ export const WORKSPACE_SECTIONS: WorkspaceSectionMeta[] = [
     hint: "The daily record of what happened",
   },
   {
+    id: "knowledge",
+    label: "Knowledge",
+    hint: "Folders it can read and search",
+  },
+  { id: "memory", label: "Memory", hint: "What it remembers about your work" },
+  {
+    id: "notebook",
+    label: "Notebook",
+    hint: "Playbooks it reads when a task calls for them",
+  },
+  {
     id: "apps",
     label: "Apps",
     hint: "The apps this project runs — start, stop, watch",
@@ -65,33 +96,5 @@ export const WORKSPACE_SECTIONS: WorkspaceSectionMeta[] = [
     id: "ssh-servers",
     label: "Servers",
     hint: "The machines it can reach and manage over SSH",
-  },
-  {
-    id: "knowledge",
-    label: "Knowledge",
-    hint: "Folders it can read and search",
-  },
-  { id: "marketplace", label: "Marketplace", hint: "Add new curated skills" },
-  { id: "memory", label: "Memory", hint: "What it remembers about your work" },
-  {
-    id: "notebook",
-    label: "Notebook",
-    hint: "Playbooks it reads when a task calls for them",
-  },
-  { id: "agents", label: "Agents", hint: "Specialists it can delegate to" },
-  {
-    id: "rules",
-    label: "Rules",
-    hint: "Standing instructions it always follows here",
-  },
-  {
-    id: "commands",
-    label: "Commands",
-    hint: "Reusable slash commands it can run",
-  },
-  {
-    id: "mcp-servers",
-    label: "MCP Servers",
-    hint: "Tool servers it can reach — add your own",
   },
 ];
