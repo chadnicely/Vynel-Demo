@@ -11,12 +11,16 @@ import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
 import AccountSection from "../components/sections/AccountSection.vue";
 import AgentsSection from "../components/sections/AgentsSection.vue";
 import ChannelsSection from "../components/sections/ChannelsSection.vue";
+import CommandsSection from "../components/sections/CommandsSection.vue";
 import KnowledgeSection from "../components/sections/KnowledgeSection.vue";
 import LockedFeatureCard from "../components/sections/LockedFeatureCard.vue";
 import MarketplaceSection from "../components/sections/MarketplaceSection.vue";
+import McpServersSection from "../components/sections/McpServersSection.vue";
 import MemorySection from "../components/sections/MemorySection.vue";
 import NotebookSection from "../components/sections/NotebookSection.vue";
+import RulesSection from "../components/sections/RulesSection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
+import SkillsSection from "../components/sections/SkillsSection.vue";
 import SshServersSection from "../components/sections/SshServersSection.vue";
 import EngineSection from "../components/sections/EngineSection.vue";
 import TasksSection from "../components/sections/TasksSection.vue";
@@ -69,6 +73,10 @@ const GLOBAL_SECTION_IDS = [
   "notebook",
   "marketplace",
   "agents",
+  "skills",
+  "rules",
+  "commands",
+  "mcp-servers",
   "account",
 ] as const;
 type GlobalSectionId = (typeof GLOBAL_SECTION_IDS)[number];
@@ -352,6 +360,24 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         <!-- Agents (like notebook): core delegation surface — no tier gate. -->
         <AgentsSection
           v-else-if="shell.mainView === 'agents'"
+          :scope="{ kind: 'global' }"
+        />
+        <!-- Claude-config surfaces (skills/rules/commands/mcp): core assistant
+             plumbing like agents — no tier gate. -->
+        <SkillsSection
+          v-else-if="shell.mainView === 'skills'"
+          :scope="{ kind: 'global' }"
+        />
+        <RulesSection
+          v-else-if="shell.mainView === 'rules'"
+          :scope="{ kind: 'global' }"
+        />
+        <CommandsSection
+          v-else-if="shell.mainView === 'commands'"
+          :scope="{ kind: 'global' }"
+        />
+        <McpServersSection
+          v-else-if="shell.mainView === 'mcp-servers'"
           :scope="{ kind: 'global' }"
         />
         <LockedFeatureCard

@@ -221,6 +221,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List rule files this workspace resolves: user ∪ workspace. */
+        get: operations["getWorkspacesByWorkspaceIdRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List slash commands this workspace resolves: user ∪ workspace. */
+        get: operations["getWorkspacesByWorkspaceIdCommands"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/mcp-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List MCP servers this workspace resolves: user ∪ workspace, secrets masked. */
+        get: operations["getWorkspacesByWorkspaceIdMcp-servers"];
+        put?: never;
+        /** Add a custom MCP server to this workspace's .mcp.json. */
+        post: operations["postWorkspacesByWorkspaceIdMcp-servers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/mcp-servers/{serverName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an MCP server from this workspace's .mcp.json. */
+        delete: operations["deleteWorkspacesByWorkspaceIdMcp-serversByServerName"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/marketplace/items": {
         parameters: {
             query?: never;
@@ -2176,6 +2245,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/skills/installed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's USER-SCOPE installed skills (the global view). */
+        get: operations["getSkillsInstalled"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every rule file in the user's ~/.claude/rules folder. */
+        get: operations["getRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's global slash commands (~/.claude/commands). */
+        get: operations["getCommands"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's global MCP servers (~/.claude.json), secrets masked. */
+        get: operations["getMcp-servers"];
+        put?: never;
+        /** Add a custom MCP server to the global config (~/.claude.json). */
+        post: operations["postMcp-servers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp-servers/{serverName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an MCP server from the global config. */
+        delete: operations["deleteMcp-serversByServerName"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/approvals/pending": {
         parameters: {
             query?: never;
@@ -3813,6 +3968,248 @@ export interface operations {
                         externalDiscoveredCount: number;
                     };
                 };
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All rule files across both scopes, scope + provenance per row. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        rules: {
+                            ruleId: string;
+                            fileName: string;
+                            title: string;
+                            content: string;
+                            /** @enum {string} */
+                            scope: "user" | "workspace";
+                            marketplace: {
+                                ruleId: string;
+                                version: string;
+                            } | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdCommands: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One row per command file across both scopes, scope per row. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        commands: {
+                            commandName: string;
+                            relativePath: string;
+                            description: string | null;
+                            argumentHint: string | null;
+                            bodyPreview: string | null;
+                            /** @enum {string} */
+                            scope: "user" | "workspace";
+                        }[];
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "getWorkspacesByWorkspaceIdMcp-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Masked rows with a scope chip each (user | workspace). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        servers: {
+                            serverName: string;
+                            /** @enum {string} */
+                            scope: "user" | "workspace";
+                            /** @enum {string} */
+                            transport: "stdio" | "http" | "sse";
+                            commandOrUrl: string;
+                            args: string[];
+                            environmentKeys: string[];
+                            headers: {
+                                name: string;
+                                hasValue: boolean;
+                            }[];
+                        }[];
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postWorkspacesByWorkspaceIdMcp-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    serverName: string;
+                    /** @constant */
+                    transport: "stdio";
+                    command: string;
+                    /** @default [] */
+                    args?: string[];
+                    /** @default {} */
+                    environment?: {
+                        [key: string]: string;
+                    };
+                } | {
+                    serverName: string;
+                    /** @constant */
+                    transport: "http";
+                    url: string;
+                    /** @default {} */
+                    headers?: {
+                        [key: string]: string;
+                    };
+                } | {
+                    serverName: string;
+                    /** @constant */
+                    transport: "sse";
+                    url: string;
+                    /** @default {} */
+                    headers?: {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description The added server, masked. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        serverName: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        /** @enum {string} */
+                        transport: "stdio" | "http" | "sse";
+                        commandOrUrl: string;
+                        args: string[];
+                        environmentKeys: string[];
+                        headers: {
+                            name: string;
+                            hasValue: boolean;
+                        }[];
+                    };
+                };
+            };
+            /** @description Invalid body, or a non-https remote URL (loopback exempt). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A server with that name already exists in this workspace's config. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "deleteWorkspacesByWorkspaceIdMcp-serversByServerName": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverName: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found, or no such server in this workspace's config. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -11082,6 +11479,275 @@ export interface operations {
                         } | null;
                     };
                 };
+            };
+        };
+    };
+    getSkillsInstalled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User-scope installs only (workspaceId null), each joined with its catalog definition. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        skillId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        installedFromSource: "verified-catalog" | "marketplace" | "external";
+                        versionInstalled: string;
+                        /** @enum {string} */
+                        installHealth: "healthy" | "missing-on-disk" | "mcp-config-drift" | "failed-install";
+                        installHealthMessage: string | null;
+                        installedAt: string;
+                        updatedAt: string;
+                        definition: {
+                            skillId: string;
+                            displayName: string;
+                            oneLineDescription: string;
+                            /** @enum {string} */
+                            category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
+                            iconName: string;
+                            version: string;
+                            /** @enum {string} */
+                            recommendedScope: "user" | "workspace";
+                            isSystemInstalled: boolean;
+                            settingsSchema: {
+                                settingKey: string;
+                                displayLabel: string;
+                                description: string;
+                                /** @enum {string} */
+                                type: "string" | "number" | "boolean" | "string-enum";
+                                defaultValue: string | number | boolean;
+                                enumValues?: string[];
+                                validationConstraints?: {
+                                    min?: number;
+                                    max?: number;
+                                    minLength?: number;
+                                    maxLength?: number;
+                                };
+                            }[];
+                        } | null;
+                        resolvedSettings: {
+                            [key: string]: string | number | boolean;
+                        };
+                    }[];
+                };
+            };
+        };
+    };
+    getRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All rule files (hand-written + marketplace), provenance per row. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        rules: {
+                            ruleId: string;
+                            fileName: string;
+                            title: string;
+                            content: string;
+                            /** @enum {string} */
+                            scope: "user" | "workspace";
+                            marketplace: {
+                                ruleId: string;
+                                version: string;
+                            } | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    getCommands: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One row per command file, namespaced by subfolder. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        commands: {
+                            commandName: string;
+                            relativePath: string;
+                            description: string | null;
+                            argumentHint: string | null;
+                            bodyPreview: string | null;
+                            /** @enum {string} */
+                            scope: "user" | "workspace";
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    "getMcp-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Masked rows — header/env values never leave the backend. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        servers: {
+                            serverName: string;
+                            /** @enum {string} */
+                            scope: "user" | "workspace";
+                            /** @enum {string} */
+                            transport: "stdio" | "http" | "sse";
+                            commandOrUrl: string;
+                            args: string[];
+                            environmentKeys: string[];
+                            headers: {
+                                name: string;
+                                hasValue: boolean;
+                            }[];
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    "postMcp-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    serverName: string;
+                    /** @constant */
+                    transport: "stdio";
+                    command: string;
+                    /** @default [] */
+                    args?: string[];
+                    /** @default {} */
+                    environment?: {
+                        [key: string]: string;
+                    };
+                } | {
+                    serverName: string;
+                    /** @constant */
+                    transport: "http";
+                    url: string;
+                    /** @default {} */
+                    headers?: {
+                        [key: string]: string;
+                    };
+                } | {
+                    serverName: string;
+                    /** @constant */
+                    transport: "sse";
+                    url: string;
+                    /** @default {} */
+                    headers?: {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description The added server, masked. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        serverName: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        /** @enum {string} */
+                        transport: "stdio" | "http" | "sse";
+                        commandOrUrl: string;
+                        args: string[];
+                        environmentKeys: string[];
+                        headers: {
+                            name: string;
+                            hasValue: boolean;
+                        }[];
+                    };
+                };
+            };
+            /** @description Invalid body, or a non-https remote URL (loopback exempt). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A server with that name already exists in the global config. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "deleteMcp-serversByServerName": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No server with that name in the global config. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

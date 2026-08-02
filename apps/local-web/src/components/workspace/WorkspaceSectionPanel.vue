@@ -1,81 +1,35 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import {
-  Blocks,
-  BookOpen,
-  Bot,
-  Brain,
-  CalendarClock,
-  ListChecks,
-  NotebookText,
-  Radio,
-  Server,
-  Sparkles,
-  SquarePlay,
-} from "lucide-vue-next";
 import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
-import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
 import AgentsSection from "../sections/AgentsSection.vue";
 import AppsSection from "../sections/AppsSection.vue";
 import ChannelsSection from "../sections/ChannelsSection.vue";
+import CommandsSection from "../sections/CommandsSection.vue";
 import KnowledgeSection from "../sections/KnowledgeSection.vue";
 import LockedFeatureCard from "../sections/LockedFeatureCard.vue";
 import MarketplaceSection from "../sections/MarketplaceSection.vue";
+import McpServersSection from "../sections/McpServersSection.vue";
 import MemorySection from "../sections/MemorySection.vue";
 import NotebookSection from "../sections/NotebookSection.vue";
+import RulesSection from "../sections/RulesSection.vue";
 import SchedulesSection from "../sections/SchedulesSection.vue";
+import SkillsSection from "../sections/SkillsSection.vue";
 import SshServersSection from "../sections/SshServersSection.vue";
 import TasksSection from "../sections/TasksSection.vue";
 import PlansSection from "../sections/PlansSection.vue";
 import JournalSection from "../sections/JournalSection.vue";
-import { WORKSPACE_SECTIONS } from "./workspace-sections.js";
-import type {
-  WorkspaceSectionId,
-  WorkspaceSectionMeta,
-} from "./workspace-sections.js";
+import type { WorkspaceSectionId } from "./workspace-sections.js";
 
+// The drawer panel is pure dispatch now: every section id has a dedicated
+// scope-aware component (skills was the last inline holdout — extracted to
+// SkillsSection with the config-surfaces move).
 const props = defineProps<{
   section: WorkspaceSectionId;
   workspaceId: string;
 }>();
 
-const SECTION_ICONS = {
-  skills: Sparkles,
-  channels: Radio,
-  schedules: CalendarClock,
-  tasks: ListChecks,
-  apps: SquarePlay,
-  "ssh-servers": Server,
-  knowledge: BookOpen,
-  marketplace: Blocks,
-  memory: Brain,
-  notebook: NotebookText,
-  agents: Bot,
-} as const;
-
-const FALLBACK_META: WorkspaceSectionMeta = {
-  id: "skills",
-  label: "Section",
-  hint: "",
-};
-
-const sectionMeta = computed(
-  () =>
-    WORKSPACE_SECTIONS.find((row) => row.id === props.section) ?? FALLBACK_META,
-);
-
 // Tier gating: a locked section renders the upgrade card in place of its
 // component — the drawer item stays visible, so the lock is discoverable.
 const { isLocked } = useHubFeatures();
-
-// Skills fetch only while theirs is the active drawer panel — the composable
-// passes `enabled` through to vue-query, so the inactive read stays idle.
-const skillsQuery = useInstalledSkills(
-  () => props.workspaceId,
-  computed(() => props.section === "skills"),
-);
-
-const skills = computed(() => skillsQuery.data.value ?? []);
 </script>
 
 <template>
@@ -140,6 +94,19 @@ const skills = computed(() => skillsQuery.data.value ?? []);
     v-else-if="props.section === 'agents'"
     :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
   />
+  <!-- Claude-config surfaces (rules/commands/mcp): core plumbing — no tier gate. -->
+  <RulesSection
+    v-else-if="props.section === 'rules'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
+  <CommandsSection
+    v-else-if="props.section === 'commands'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
+  <McpServersSection
+    v-else-if="props.section === 'mcp-servers'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
 
   <template v-else-if="props.section === 'marketplace'">
     <!-- A locked marketplace never asks for rows the daemon would answer
@@ -154,101 +121,8 @@ const skills = computed(() => skillsQuery.data.value ?? []);
     />
   </template>
 
-  <div v-else class="section-panel">
-    <header class="section-header">
-      <component
-        :is="SECTION_ICONS[props.section]"
-        :size="15"
-        class="section-icon"
-      />
-      <div>
-        <p class="section-title">{{ sectionMeta.label }}</p>
-        <p class="section-hint">{{ sectionMeta.hint }}</p>
-      </div>
-    </header>
-
-    <!-- Skills — the only section still hosted inline. Installed means
-         present on disk (install/uninstall-only) — no On/Off state. -->
-    <div class="rows">
-      <div v-for="skill in skills" :key="skill.id" class="row">
-        <div class="row-main">
-          <p class="row-title">
-            {{ skill.definition?.displayName ?? skill.skillId }}
-          </p>
-          <p class="row-sub">
-            {{ skill.definition?.oneLineDescription ?? "" }}
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
+  <SkillsSection
+    v-else
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
 </template>
-
-<style scoped>
-.section-panel {
-  display: grid;
-  gap: 10px;
-}
-
-.section-header {
-  display: flex;
-  gap: 10px;
-  padding: 2px 4px;
-}
-
-.section-icon {
-  color: var(--ink-2);
-  flex: none;
-  margin-top: 2px;
-}
-
-.section-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 600 13px/1.5 var(--font-ui);
-}
-
-.section-hint {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-}
-
-.rows {
-  display: grid;
-  gap: 4px;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-s);
-  background: var(--bg-raised);
-}
-
-.row-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.row-title {
-  margin: 0;
-  color: var(--ink-1);
-  font: 500 12.5px/1.5 var(--font-ui);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.row-sub {
-  margin: 1px 0 0;
-  color: var(--ink-3);
-  font: 400 11.5px/1.5 var(--font-ui);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-</style>

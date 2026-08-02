@@ -14,7 +14,10 @@ export type WorkspaceSectionId =
   | "marketplace"
   | "memory"
   | "notebook"
-  | "agents";
+  | "agents"
+  | "rules"
+  | "commands"
+  | "mcp-servers";
 
 export interface WorkspaceSectionMeta {
   id: WorkspaceSectionId;
@@ -76,4 +79,19 @@ export const WORKSPACE_SECTIONS: WorkspaceSectionMeta[] = [
     hint: "Playbooks it reads when a task calls for them",
   },
   { id: "agents", label: "Agents", hint: "Specialists it can delegate to" },
+  {
+    id: "rules",
+    label: "Rules",
+    hint: "Standing instructions it always follows here",
+  },
+  {
+    id: "commands",
+    label: "Commands",
+    hint: "Reusable slash commands it can run",
+  },
+  {
+    id: "mcp-servers",
+    label: "MCP Servers",
+    hint: "Tool servers it can reach — add your own",
+  },
 ];

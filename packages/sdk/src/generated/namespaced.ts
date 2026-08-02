@@ -442,6 +442,22 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  commands: {
+  list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/commands"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/commands", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  commandsUser: {
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/commands")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   dashboard: {
   getOverview: async () => {
     const { data, error, response } = await client["GET"]("/dashboard/overview")
@@ -755,6 +771,51 @@ export function makeNamespaced(client: Client<paths>) {
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
+  },
+  },
+  mcpServers: {
+  add: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/mcp-servers"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/mcp-servers"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/mcp-servers", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/mcp-servers"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/mcp-servers", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  remove: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/mcp-servers/{serverName}"]["delete"]['parameters']>['path']["workspaceId"], serverName: NonNullable<paths["/workspaces/{workspaceId}/mcp-servers/{serverName}"]["delete"]['parameters']>['path']["serverName"]) => {
+    const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/mcp-servers/{serverName}", {
+      params: { path: { workspaceId: workspaceId, serverName: serverName } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  },
+  mcpServersUser: {
+  add: async (input: NonNullable<paths["/mcp-servers"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/mcp-servers", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/mcp-servers")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  remove: async (serverName: NonNullable<paths["/mcp-servers/{serverName}"]["delete"]['parameters']>['path']["serverName"]) => {
+    const { error, response } = await client["DELETE"]("/mcp-servers/{serverName}", {
+      params: { path: { serverName: serverName } },
+    })
+    if (error) throw new SdkError(response, error)
+
   },
   },
   memory: {
@@ -1170,6 +1231,22 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  rules: {
+  list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/rules"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/rules", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  rulesUser: {
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/rules")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   schedules: {
   create: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/schedules"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/schedules"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/schedules", {
@@ -1422,6 +1499,13 @@ export function makeNamespaced(client: Client<paths>) {
       params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
       body: input,
     })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  skillsUser: {
+  listInstalled: async () => {
+    const { data, error, response } = await client["GET"]("/skills/installed")
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },

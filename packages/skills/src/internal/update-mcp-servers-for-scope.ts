@@ -43,16 +43,35 @@ export async function updateMcpServersForScope(
   }
 
   for (const server of input.serversToAdd) {
-    existingServers[server.serverName] = {
-      command: server.commandOrUrl,
-      args: server.args,
-      env: server.environment,
-      transport: server.transport,
-    }
+    existingServers[server.serverName] = toClaudeMcpServerEntry(server)
   }
 
   const newConfig = { ...existingConfig, mcpServers: existingServers }
   await writeFile(configPath, JSON.stringify(newConfig, null, 2), 'utf8')
+}
+
+// The exact shapes Claude Code reads (SDK `McpStdioServerConfig` /
+// `McpHttpServerConfig` / `McpSSEServerConfig`), keyed by `type`. The
+// explicit `type: 'stdio'` is optional per the SDK but written anyway —
+// self-documenting, and it keeps the reader's discrimination symmetric.
+// Remote entries carry NO command/args/env; empty headers are omitted
+// rather than written as `headers: {}`.
+function toClaudeMcpServerEntry(server: SkillRequiredMcpServer): Record<string, unknown> {
+  if (server.transport === 'stdio') {
+    return {
+      type: 'stdio',
+      command: server.commandOrUrl,
+      args: server.args,
+      env: server.environment,
+    }
+  }
+  return {
+    type: server.transport,
+    url: server.url,
+    ...(server.headers !== undefined && Object.keys(server.headers).length > 0
+      ? { headers: server.headers }
+      : {}),
+  }
 }
 
 type McpConfigShape = {

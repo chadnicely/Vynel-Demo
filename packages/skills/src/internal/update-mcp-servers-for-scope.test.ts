@@ -96,9 +96,7 @@ describe('updateMcpServersForScope', () => {
           {
             serverName: 'fresh',
             transport: 'http',
-            commandOrUrl: 'http://x',
-            args: [],
-            environment: {},
+            url: 'https://x.example.com/mcp',
           },
         ],
         serversToRemove: [],
@@ -106,6 +104,99 @@ describe('updateMcpServersForScope', () => {
 
       const after = JSON.parse(await readFile(mcpPath, 'utf8'))
       expect(after.mcpServers.fresh).toBeDefined()
+    })
+  })
+
+  // The exact entry shapes Claude Code reads (SDK McpStdioServerConfig /
+  // McpHttpServerConfig / McpSSEServerConfig) — keyed by `type`, never the
+  // pre-fix bogus `transport` key.
+  it('writes a stdio server as {type, command, args, env}', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      await updateMcpServersForScope({
+        scope: 'workspace',
+        workspacePath,
+        serversToAdd: [
+          {
+            serverName: 'playwright',
+            transport: 'stdio',
+            commandOrUrl: 'npx',
+            args: ['@playwright/mcp@latest'],
+            environment: { HEADLESS: '1' },
+          },
+        ],
+        serversToRemove: [],
+      })
+
+      const after = JSON.parse(await readFile(join(workspacePath, '.mcp.json'), 'utf8'))
+      expect(after.mcpServers.playwright).toEqual({
+        type: 'stdio',
+        command: 'npx',
+        args: ['@playwright/mcp@latest'],
+        env: { HEADLESS: '1' },
+      })
+    })
+  })
+
+  it('writes a remote server as {type, url, headers} with no process fields', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      await updateMcpServersForScope({
+        scope: 'workspace',
+        workspacePath,
+        serversToAdd: [
+          {
+            serverName: 'linear',
+            transport: 'sse',
+            url: 'https://mcp.example.com/sse',
+            headers: { Authorization: 'Bearer token-123' },
+          },
+        ],
+        serversToRemove: [],
+      })
+
+      const after = JSON.parse(await readFile(join(workspacePath, '.mcp.json'), 'utf8'))
+      expect(after.mcpServers.linear).toEqual({
+        type: 'sse',
+        url: 'https://mcp.example.com/sse',
+        headers: { Authorization: 'Bearer token-123' },
+      })
+    })
+  })
+
+  it('omits empty headers on a remote server instead of writing headers: {}', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      await updateMcpServersForScope({
+        scope: 'workspace',
+        workspacePath,
+        serversToAdd: [
+          { serverName: 'open', transport: 'http', url: 'https://mcp.example.com/mcp' },
+        ],
+        serversToRemove: [],
+      })
+
+      const after = JSON.parse(await readFile(join(workspacePath, '.mcp.json'), 'utf8'))
+      expect(after.mcpServers.open).toEqual({ type: 'http', url: 'https://mcp.example.com/mcp' })
+    })
+  })
+
+  it('leaves a pre-fix legacy {command, transport} entry untouched by unrelated writes', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      const mcpPath = join(workspacePath, '.mcp.json')
+      await mkdir(workspacePath, { recursive: true })
+      const legacyEntry = { command: 'https://old.example.com', args: [], env: {}, transport: 'sse' }
+      await writeFile(mcpPath, JSON.stringify({ mcpServers: { legacy: legacyEntry } }), 'utf8')
+
+      await updateMcpServersForScope({
+        scope: 'workspace',
+        workspacePath,
+        serversToAdd: [
+          { serverName: 'fresh', transport: 'http', url: 'https://x.example.com/mcp' },
+        ],
+        serversToRemove: [],
+      })
+
+      const after = JSON.parse(await readFile(mcpPath, 'utf8'))
+      expect(after.mcpServers.legacy).toEqual(legacyEntry)
+      expect(after.mcpServers.fresh).toEqual({ type: 'http', url: 'https://x.example.com/mcp' })
     })
   })
 

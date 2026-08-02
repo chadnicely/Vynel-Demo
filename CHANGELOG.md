@@ -7,7 +7,27 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Added
+
+- **New menus: Rules, Commands, MCP Servers — and Skills everywhere.** The sidebar now shows
+  all five Claude-config surfaces in both Global and workspace scopes: your rules files
+  (hand-written ones included, with a "Managed by Vynel" chip on marketplace-installed ones),
+  your slash commands, your installed skills (now visible from Global too), and every
+  configured MCP server with its scope and transport.
+
+- **Add your own MCP server.** From the MCP Servers menu you can connect a custom server —
+  a local command or a remote URL — at Global or workspace scope, with auth headers for
+  remote servers. Header values are write-only: they land in Claude's config file and are
+  never shown back, logged, or sent over the wire again. Remote URLs require https (local
+  dev servers exempt), and adding a name that already exists is refused instead of silently
+  overwriting. A note on workspace scope explains the config file lives in the project.
+
 ### Fixed
+
+- **Remote MCP servers from the marketplace now actually work.** The config writer used to
+  save every server in a command-style shape Claude Code couldn't read for remote (URL)
+  servers; it now writes exactly what Claude Code expects for each transport, reads old
+  entries tolerantly, and never touches entries it doesn't own.
 
 - **The Global tab now shows only global things.** Plans, schedules, tasks, journal, servers,
   notebook, knowledge, and the tasks side-panel used to show every workspace's items when

@@ -1752,6 +1752,563 @@
         "x-sdk-name": "skills.synchronize"
       }
     },
+    "/workspaces/{workspaceId}/rules": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "All rule files across both scopes, scope + provenance per row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ruleId": {
+                            "type": "string"
+                          },
+                          "fileName": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          },
+                          "marketplace": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "ruleId": {
+                                "type": "string"
+                              },
+                              "version": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "ruleId",
+                              "version"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "ruleId",
+                          "fileName",
+                          "title",
+                          "content",
+                          "scope",
+                          "marketplace"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "rules"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdRules",
+        "tags": [
+          "rules"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List rule files this workspace resolves: user ∪ workspace.",
+        "x-sdk-name": "rules.list"
+      }
+    },
+    "/workspaces/{workspaceId}/commands": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "One row per command file across both scopes, scope per row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "commands": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "commandName": {
+                            "type": "string"
+                          },
+                          "relativePath": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "argumentHint": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "bodyPreview": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "commandName",
+                          "relativePath",
+                          "description",
+                          "argumentHint",
+                          "bodyPreview",
+                          "scope"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "commands"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdCommands",
+        "tags": [
+          "commands"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List slash commands this workspace resolves: user ∪ workspace.",
+        "x-sdk-name": "commands.list"
+      }
+    },
+    "/workspaces/{workspaceId}/mcp-servers": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Masked rows with a scope chip each (user | workspace).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "servers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "serverName": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          },
+                          "transport": {
+                            "type": "string",
+                            "enum": [
+                              "stdio",
+                              "http",
+                              "sse"
+                            ]
+                          },
+                          "commandOrUrl": {
+                            "type": "string"
+                          },
+                          "args": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "environmentKeys": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "headers": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "hasValue": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasValue"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "serverName",
+                          "scope",
+                          "transport",
+                          "commandOrUrl",
+                          "args",
+                          "environmentKeys",
+                          "headers"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "servers"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdMcp-servers",
+        "tags": [
+          "mcp-servers"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List MCP servers this workspace resolves: user ∪ workspace, secrets masked.",
+        "x-sdk-name": "mcpServers.list"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The added server, masked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "serverName": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace"
+                      ]
+                    },
+                    "transport": {
+                      "type": "string",
+                      "enum": [
+                        "stdio",
+                        "http",
+                        "sse"
+                      ]
+                    },
+                    "commandOrUrl": {
+                      "type": "string"
+                    },
+                    "args": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "environmentKeys": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "headers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "hasValue": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "hasValue"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "serverName",
+                    "scope",
+                    "transport",
+                    "commandOrUrl",
+                    "args",
+                    "environmentKeys",
+                    "headers"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, or a non-https remote URL (loopback exempt)."
+          },
+          "404": {
+            "description": "Workspace not found."
+          },
+          "409": {
+            "description": "A server with that name already exists in this workspace's config."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdMcp-servers",
+        "tags": [
+          "mcp-servers"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Add a custom MCP server to this workspace's .mcp.json.",
+        "x-sdk-name": "mcpServers.add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "serverName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "transport": {
+                        "type": "string",
+                        "const": "stdio"
+                      },
+                      "command": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "args": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "maxItems": 32,
+                        "default": []
+                      },
+                      "environment": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        "default": {}
+                      }
+                    },
+                    "required": [
+                      "serverName",
+                      "transport",
+                      "command"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "serverName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "transport": {
+                        "type": "string",
+                        "const": "http"
+                      },
+                      "url": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "headers": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        "default": {}
+                      }
+                    },
+                    "required": [
+                      "serverName",
+                      "transport",
+                      "url"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "serverName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "transport": {
+                        "type": "string",
+                        "const": "sse"
+                      },
+                      "url": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "headers": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        "default": {}
+                      }
+                    },
+                    "required": [
+                      "serverName",
+                      "transport",
+                      "url"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/mcp-servers/{serverName}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Removed."
+          },
+          "404": {
+            "description": "Workspace not found, or no such server in this workspace's config."
+          }
+        },
+        "operationId": "deleteWorkspacesByWorkspaceIdMcp-serversByServerName",
+        "tags": [
+          "mcp-servers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serverName",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Remove an MCP server from this workspace's .mcp.json.",
+        "x-sdk-name": "mcpServers.remove"
+      }
+    },
     "/workspaces/{workspaceId}/marketplace/items": {
       "get": {
         "responses": {
@@ -20075,6 +20632,743 @@
         ],
         "summary": "List the user's GLOBAL memory entries (no workspace anchor).",
         "x-sdk-name": "memoryUser.list"
+      }
+    },
+    "/skills/installed": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "User-scope installs only (workspaceId null), each joined with its catalog definition.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "skillId": {
+                        "type": "string"
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "workspace"
+                        ]
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "installedFromSource": {
+                        "type": "string",
+                        "enum": [
+                          "verified-catalog",
+                          "marketplace",
+                          "external"
+                        ]
+                      },
+                      "versionInstalled": {
+                        "type": "string"
+                      },
+                      "installHealth": {
+                        "type": "string",
+                        "enum": [
+                          "healthy",
+                          "missing-on-disk",
+                          "mcp-config-drift",
+                          "failed-install"
+                        ]
+                      },
+                      "installHealthMessage": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "installedAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      },
+                      "definition": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "skillId": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "oneLineDescription": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "email",
+                              "documents",
+                              "calendar",
+                              "files",
+                              "research",
+                              "notes",
+                              "context",
+                              "creative",
+                              "communication"
+                            ]
+                          },
+                          "iconName": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "recommendedScope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          },
+                          "isSystemInstalled": {
+                            "type": "boolean"
+                          },
+                          "settingsSchema": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "settingKey": {
+                                  "type": "string"
+                                },
+                                "displayLabel": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "string",
+                                    "number",
+                                    "boolean",
+                                    "string-enum"
+                                  ]
+                                },
+                                "defaultValue": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    }
+                                  ]
+                                },
+                                "enumValues": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "validationConstraints": {
+                                  "type": "object",
+                                  "properties": {
+                                    "min": {
+                                      "type": "number"
+                                    },
+                                    "max": {
+                                      "type": "number"
+                                    },
+                                    "minLength": {
+                                      "type": "number"
+                                    },
+                                    "maxLength": {
+                                      "type": "number"
+                                    }
+                                  }
+                                }
+                              },
+                              "required": [
+                                "settingKey",
+                                "displayLabel",
+                                "description",
+                                "type",
+                                "defaultValue"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "skillId",
+                          "displayName",
+                          "oneLineDescription",
+                          "category",
+                          "iconName",
+                          "version",
+                          "recommendedScope",
+                          "isSystemInstalled",
+                          "settingsSchema"
+                        ]
+                      },
+                      "resolvedSettings": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "boolean"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "skillId",
+                      "scope",
+                      "workspaceId",
+                      "installedFromSource",
+                      "versionInstalled",
+                      "installHealth",
+                      "installHealthMessage",
+                      "installedAt",
+                      "updatedAt",
+                      "definition",
+                      "resolvedSettings"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getSkillsInstalled",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [],
+        "summary": "List the user's USER-SCOPE installed skills (the global view).",
+        "x-sdk-name": "skillsUser.listInstalled"
+      }
+    },
+    "/rules": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "All rule files (hand-written + marketplace), provenance per row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ruleId": {
+                            "type": "string"
+                          },
+                          "fileName": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          },
+                          "marketplace": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "ruleId": {
+                                "type": "string"
+                              },
+                              "version": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "ruleId",
+                              "version"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "ruleId",
+                          "fileName",
+                          "title",
+                          "content",
+                          "scope",
+                          "marketplace"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "rules"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getRules",
+        "tags": [
+          "rules"
+        ],
+        "parameters": [],
+        "summary": "List every rule file in the user's ~/.claude/rules folder.",
+        "x-sdk-name": "rulesUser.list"
+      }
+    },
+    "/commands": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "One row per command file, namespaced by subfolder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "commands": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "commandName": {
+                            "type": "string"
+                          },
+                          "relativePath": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "argumentHint": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "bodyPreview": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "commandName",
+                          "relativePath",
+                          "description",
+                          "argumentHint",
+                          "bodyPreview",
+                          "scope"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "commands"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getCommands",
+        "tags": [
+          "commands"
+        ],
+        "parameters": [],
+        "summary": "List the user's global slash commands (~/.claude/commands).",
+        "x-sdk-name": "commandsUser.list"
+      }
+    },
+    "/mcp-servers": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Masked rows — header/env values never leave the backend.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "servers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "serverName": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          },
+                          "transport": {
+                            "type": "string",
+                            "enum": [
+                              "stdio",
+                              "http",
+                              "sse"
+                            ]
+                          },
+                          "commandOrUrl": {
+                            "type": "string"
+                          },
+                          "args": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "environmentKeys": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "headers": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "hasValue": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasValue"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "serverName",
+                          "scope",
+                          "transport",
+                          "commandOrUrl",
+                          "args",
+                          "environmentKeys",
+                          "headers"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "servers"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getMcp-servers",
+        "tags": [
+          "mcp-servers"
+        ],
+        "parameters": [],
+        "summary": "List the user's global MCP servers (~/.claude.json), secrets masked.",
+        "x-sdk-name": "mcpServersUser.list"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The added server, masked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "serverName": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace"
+                      ]
+                    },
+                    "transport": {
+                      "type": "string",
+                      "enum": [
+                        "stdio",
+                        "http",
+                        "sse"
+                      ]
+                    },
+                    "commandOrUrl": {
+                      "type": "string"
+                    },
+                    "args": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "environmentKeys": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "headers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "hasValue": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "hasValue"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "serverName",
+                    "scope",
+                    "transport",
+                    "commandOrUrl",
+                    "args",
+                    "environmentKeys",
+                    "headers"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, or a non-https remote URL (loopback exempt)."
+          },
+          "409": {
+            "description": "A server with that name already exists in the global config."
+          }
+        },
+        "operationId": "postMcp-servers",
+        "tags": [
+          "mcp-servers"
+        ],
+        "parameters": [],
+        "summary": "Add a custom MCP server to the global config (~/.claude.json).",
+        "x-sdk-name": "mcpServersUser.add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "serverName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "transport": {
+                        "type": "string",
+                        "const": "stdio"
+                      },
+                      "command": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "args": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "maxItems": 32,
+                        "default": []
+                      },
+                      "environment": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        "default": {}
+                      }
+                    },
+                    "required": [
+                      "serverName",
+                      "transport",
+                      "command"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "serverName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "transport": {
+                        "type": "string",
+                        "const": "http"
+                      },
+                      "url": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "headers": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        "default": {}
+                      }
+                    },
+                    "required": [
+                      "serverName",
+                      "transport",
+                      "url"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "serverName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "transport": {
+                        "type": "string",
+                        "const": "sse"
+                      },
+                      "url": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "headers": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        "default": {}
+                      }
+                    },
+                    "required": [
+                      "serverName",
+                      "transport",
+                      "url"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp-servers/{serverName}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Removed."
+          },
+          "404": {
+            "description": "No server with that name in the global config."
+          }
+        },
+        "operationId": "deleteMcp-serversByServerName",
+        "tags": [
+          "mcp-servers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serverName",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          }
+        ],
+        "summary": "Remove an MCP server from the global config.",
+        "x-sdk-name": "mcpServersUser.remove"
       }
     },
     "/approvals/pending": {

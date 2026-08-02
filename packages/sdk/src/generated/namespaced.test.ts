@@ -235,6 +235,12 @@ describe('makeNamespaced — shape', () => {
       'channels',
       'channelsUser',
       'chat',
+      // test: correct expectation — the config-surfaces slice (2026-08-02)
+      // added the Claude-config route twins (rules / commands / mcp-servers,
+      // workspace + user each) and the user-scoped skills anchor the GLOBAL
+      // menus read.
+      'commands',
+      'commandsUser',
       'dashboard',
       // test: correct expectation — the usage-statistics slice (2026-07-31)
       // added `dashboardWorkspace` (GET /workspaces/:id/dashboard/usage, the
@@ -254,6 +260,8 @@ describe('makeNamespaced — shape', () => {
       'knowledgeUser',
       'marketplace',
       'marketplaceUser',
+      'mcpServers',
+      'mcpServersUser',
       'memory',
       'memoryUser',
       // the monitors module (2026-07-26) — a two-door namespace like plans:
@@ -267,6 +275,8 @@ describe('makeNamespaced — shape', () => {
       'providers',
       'root',
       'routing',
+      'rules',
+      'rulesUser',
       'schedules',
       'schedulesUser',
       // test: correct expectation — Phase D2 added `serverInstall` (the
@@ -276,6 +286,7 @@ describe('makeNamespaced — shape', () => {
       // (GET /sessions/overview, the unified session list).
       'sessions',
       'skills',
+      'skillsUser',
       'sshServers',
       'tasks',
       'tasksUser',

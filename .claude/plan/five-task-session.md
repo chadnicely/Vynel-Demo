@@ -102,7 +102,11 @@ entry per task, reviewer per diff, full gate (`pnpm test`) before every commit.
       deliberate move (nullable column migration + MemoryEntrySchema.workspaceId.nullable()
       + global create path). Deferred-improves recorded by reviewer: SessionScope/SectionScope
       twin types unification; ssh Global chip redundant on Global menu.
-- [ ] Task 2 — implement → review → fix → gate → commit
+- [x] Task 2 — implement (Fable) → review CLEAN (1 comment should-fix, applied) → gate
+      green 3637/648 (one transient voice-overlay flake on first run — passes isolated +
+      on re-run; recurring flake noted for the report) → committed. Deferred (module
+      notes): OAuth, rule/command editing, MCP edit-in-place, URL query-param masking
+      polish, AddMcpServerDialog 319 lines.
 - [ ] Task 3 — implement → review → fix → gate → commit
 - [ ] Task 5 — implement → review → fix → gate → commit
 - [ ] Final reverify (full gate + cross-task review) + CHANGELOG + STATE.md + report

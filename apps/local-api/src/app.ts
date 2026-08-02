@@ -22,6 +22,13 @@ import { openApiInfo } from './openapi.js'
 import { knowledgeApp } from './routes/knowledge/index.js'
 import { knowledgeUserApp } from './routes/knowledge/user-scoped.js'
 import { skillsApp } from './routes/skills/index.js'
+import { skillsUserApp } from './routes/skills/user-scoped.js'
+import { rulesApp } from './routes/rules/index.js'
+import { rulesUserApp } from './routes/rules/user-scoped.js'
+import { commandsApp } from './routes/commands/index.js'
+import { commandsUserApp } from './routes/commands/user-scoped.js'
+import { mcpServersApp } from './routes/mcp-servers/index.js'
+import { mcpServersUserApp } from './routes/mcp-servers/user-scoped.js'
 import { marketplaceApp } from './routes/marketplace/index.js'
 import { marketplaceUserApp } from './routes/marketplace/user-scoped.js'
 import { channelsApp } from './routes/channels/index.js'
@@ -250,6 +257,11 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
 
   app.route('/workspaces/:workspaceId/knowledge', knowledgeApp)
   app.route('/workspaces/:workspaceId/skills', skillsApp)
+  // Claude-config surfaces (rules / commands / mcp-servers): the workspace
+  // twins FUSE scopes the way Claude Code resolves them in a project.
+  app.route('/workspaces/:workspaceId/rules', rulesApp)
+  app.route('/workspaces/:workspaceId/commands', commandsApp)
+  app.route('/workspaces/:workspaceId/mcp-servers', mcpServersApp)
   app.route('/workspaces/:workspaceId/marketplace', marketplaceApp)
   app.route('/workspaces/:workspaceId/channels', channelsApp)
   app.route('/workspaces/:workspaceId/schedules', schedulesApp)
@@ -304,6 +316,12 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // shows global items and nothing else.
   app.route('/knowledge', knowledgeUserApp)
   app.route('/memory', memoryUserApp)
+  // `/skills` + the Claude-config surfaces: the GLOBAL anchors — user-scope
+  // entries only (their workspace twins above fuse scopes).
+  app.route('/skills', skillsUserApp)
+  app.route('/rules', rulesUserApp)
+  app.route('/commands', commandsUserApp)
+  app.route('/mcp-servers', mcpServersUserApp)
   app.route('/approvals', approvalsUserApp)
   app.route('/users', usersApp)
   app.route('/onboarding', onboardingApp)

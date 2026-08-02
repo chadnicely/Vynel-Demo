@@ -68,23 +68,44 @@ export type SkillCategory =
 export type SkillScope = 'user' | 'workspace'
 
 /**
- * The MCP-server requirement a Verified skill declares. Consumed
- * by the installer's `updateMcpServersForScope`, which merges
- * this entry into the user's `~/.claude.json` (or workspace's
- * `.mcp.json`) `mcpServers` field. We touch only the
- * `mcpServers` field — the user's hand-edited other keys are
- * preserved. Per blueprint §6.2 + coding.md §1.2.
+ * The MCP-server spec a Verified skill (or standalone mcp item /
+ * custom add) declares. Consumed by the installer's
+ * `updateMcpServersForScope`, which merges this entry into the
+ * user's `~/.claude.json` (or workspace's `.mcp.json`)
+ * `mcpServers` field. We touch only the `mcpServers` field — the
+ * user's hand-edited other keys are preserved. Per blueprint
+ * §6.2 + coding.md §1.2.
+ *
+ * Discriminated on `transport` because the shapes Claude Code
+ * reads are disjoint (SDK `McpStdioServerConfig` vs
+ * `McpHttpServerConfig`/`McpSSEServerConfig`): a stdio server is
+ * a local process (command/args/env); a remote server is a URL +
+ * optional auth headers — it has no command to run. Header
+ * VALUES are secrets: they may live in the config file, never in
+ * logs or list responses.
  */
-export type SkillRequiredMcpServer = {
+export type SkillRequiredMcpServer = SkillRequiredMcpServerStdio | SkillRequiredMcpServerRemote
+
+export type SkillRequiredMcpServerStdio = {
   /** Unique identifier within the MCP servers map. */
   serverName: string
-  transport: 'stdio' | 'http' | 'sse'
-  /** For stdio: the executable command. For http/sse: the URL. */
+  transport: 'stdio'
+  /** The executable command. */
   commandOrUrl: string
-  /** For stdio: command args. For http/sse: empty. */
+  /** Command args. */
   args: string[]
   /** Env vars passed to the MCP server process. */
   environment: Record<string, string>
+}
+
+export type SkillRequiredMcpServerRemote = {
+  /** Unique identifier within the MCP servers map. */
+  serverName: string
+  transport: 'http' | 'sse'
+  /** The remote endpoint URL. */
+  url: string
+  /** Static auth headers (e.g. Authorization) — secret values. */
+  headers?: Record<string, string>
 }
 
 export type SkillSettingSchema = {

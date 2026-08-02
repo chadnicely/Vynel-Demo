@@ -14,7 +14,9 @@ import { resolveSkillSettings, type ResolvedSkillSettings } from '../settings/re
 
 export type ListInstalledSkillsForContextInput = {
   userId: string
-  workspaceId: string
+  // null = user-scope rows only — the GLOBAL skills view has no workspace
+  // to union in (mirrors the repo's null convention).
+  workspaceId: string | null
 }
 
 export type InstalledSkillWithDefinitionAndSettings = {

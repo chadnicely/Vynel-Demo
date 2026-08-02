@@ -57,15 +57,18 @@ async function readMcpServers(
       continue
     }
     const transport = resolveTransport(rawConfig['type'])
+    const isRemote = transport !== 'stdio'
     servers.push({
       providerId: 'claude',
       scope,
       serverName,
       transport,
-      commandOrUrl:
-        transport === 'stdio' ? asString(rawConfig['command']) : asString(rawConfig['url']),
-      args: asStringArray(rawConfig['args']),
-      environment: asStringRecord(rawConfig['env']),
+      commandOrUrl: isRemote ? asString(rawConfig['url']) : asString(rawConfig['command']),
+      // Round-trip honesty per shape: stdio carries args/env, remote carries
+      // headers — never both (a remote entry has no process to spawn).
+      args: isRemote ? [] : asStringArray(rawConfig['args']),
+      environment: isRemote ? {} : asStringRecord(rawConfig['env']),
+      headers: isRemote ? asStringRecord(rawConfig['headers']) : {},
       // `.mcp.json` / `~/.claude.json` carry no per-server enabled flag in the
       // base shape; a configured server is treated as enabled (settings-level
       // enable/disable nuance is deferred — no Phase 1 consumer needs it).
@@ -75,6 +78,10 @@ async function readMcpServers(
   return servers
 }
 
+// Discriminates on Claude Code's `type` key. Anything else — including the
+// pre-fix writer's legacy `{command, transport}` entries, which carry no
+// `type` — reads as stdio: that IS how Claude Code executes such an entry,
+// so the honest read matches the runtime behavior.
 function resolveTransport(rawType: unknown): McpServerTransport {
   return rawType === 'sse' || rawType === 'http' ? rawType : 'stdio'
 }

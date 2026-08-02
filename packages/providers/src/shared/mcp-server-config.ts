@@ -22,6 +22,10 @@ export type McpServerConfig = {
   commandOrUrl: string
   /** For stdio: the args. For http/sse: empty. */
   args: string[]
+  /** For stdio: env vars. For http/sse: empty. Values are secrets — never log. */
   environment: Record<string, string>
+  /** For http/sse: static auth headers. For stdio: empty. Values are secrets —
+   *  they must be masked before leaving the backend (names + presence only). */
+  headers: Record<string, string>
   isEnabled: boolean
 }

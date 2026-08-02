@@ -64,6 +64,14 @@ export {
   type RemoveMcpServerForScopeInput,
 } from './mcp-servers/remove-mcp-server-for-scope.js'
 export { listMcpServerNamesForScope } from './mcp-servers/list-mcp-server-names-for-scope.js'
+export {
+  listMcpServersForScope,
+  type ConfiguredMcpServer,
+} from './mcp-servers/list-mcp-servers-for-scope.js'
+export {
+  addCustomMcpServerForScope,
+  type AddCustomMcpServerForScopeInput,
+} from './mcp-servers/add-custom-mcp-server-for-scope.js'
 // Marketplace rule-file ops (marketplace `rule` kind, config-is-truth) —
 // same single-writer rationale; the provenance marker keeps the user's own
 // `.claude/rules/*.md` files untouchable.
@@ -79,3 +87,15 @@ export {
   listInstalledRulesForScope,
   type InstalledRuleFile,
 } from './rules/list-installed-rules-for-scope.js'
+// The Rules view's UNFILTERED folder read — every `.md`, hand-written
+// included, each carrying its marketplace provenance (or null).
+export {
+  listAllRuleFilesForScope,
+  type RuleFileForScope,
+} from './rules/list-all-rule-files-for-scope.js'
+// The Commands view's folder read (`.claude/commands/`) — also the "/" menu's
+// planned data source.
+export {
+  listCommandsForScope,
+  type CommandFileForScope,
+} from './commands/list-commands-for-scope.js'
