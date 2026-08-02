@@ -1,7 +1,25 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-01.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-02.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ✅ FIVE-TASK SESSION (2026-08-02) — ALL FIVE SHIPPED + PUSHED
+
+**Full report: `.claude/reports/2026-08-02-five-task-session.md`. Decisions + progress:
+`.claude/plan/five-task-session.md`.** One agent per task, code-reviewer per diff, all
+fixes applied, green full gate per commit (final: 3771/665). Commits: T1 `1dff848`
+(portal publish-from-GitHub all five kinds + credits/publisher picker + curated icon
+picker + open categories + publish-time zip walls) · T4 `85dc504` (Global menus =
+workspaceId IS NULL everywhere; knowledge/memory global routes; ⚠ memory NOT NULL
+ceiling = Chad decision) · T2 `89c868a` (Rules/Commands/Skills/MCP-Servers sections
+both scopes + add-custom-MCP w/ header auth masked wire; THE WRITER FIX: remote MCP
+now writes real {type,url,headers}) · T3 `49abdfd` (@ agent background-run + report-to-
+originating-chat, # workspace-study read tools, / picker; grammar one home in contracts,
+zero wire changes, migration 0027) · T5 `5b068ee` (session_todos + set_todos non-carding
+on all surfaces via lazy per-turn session carrier; TodoDock in three hosts; migration
+0028; fixes the mid-turn task-staleness bug). Chad's live-smoke list + open decisions
+(memory ceiling · McpToolFn fifth copy · background-turn todos) in the report. Voice
+overlay test flaked once under parallel load (pre-existing, passes isolated).
 
 ## ✅ CLAUDE-OFFICIAL MARKETPLACE ARC (2026-08-01) — Phase A CODE-COMPLETE, smoke pending
 

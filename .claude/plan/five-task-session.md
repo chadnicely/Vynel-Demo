@@ -124,5 +124,5 @@ entry per task, reviewer per diff, full gate (`pnpm test`) before every commit.
       the pre-existing tasks-never-refresh bug). Deferred (module notes): background
       turns prompted-but-400 until the header threads through delegation ticks;
       no reorder affordance; fold cosmetics.
-- [ ] Final reverify (full gate + cross-task review) + CHANGELOG + STATE.md + report
-- [ ] Shutdown
+- [x] Final reverify (gate 3771/665 on final tree, all commits pushed) + CHANGELOG + STATE.md + report
+- [x] Shutdown (60s delay, after final push)
