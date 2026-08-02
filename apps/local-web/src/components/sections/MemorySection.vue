@@ -3,34 +3,30 @@ import { computed, ref } from "vue";
 import { Brain, Plus } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import { useMemoryEntriesInScope } from "../../composables/memory/use-memory-entries-in-scope.js";
-import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import AddMemoryDialog from "./AddMemoryDialog.vue";
 import SectionHeader from "./SectionHeader.vue";
 import type { SectionScope } from "./section-scope.js";
 
-// What Claude remembers, on either surface: the global menu is the brain's
-// overview across every workspace; a workspace drawer shows that room's.
-// Claude adds memories itself through its memory tools — this section lets
-// the user read them and add their own by hand.
+// What Claude remembers, on either surface: the global menu holds the user's
+// OWN memories (anchored to no workspace); a workspace drawer shows that
+// room's. Claude adds memories itself through its memory tools — this section
+// lets the user read them and add their own by hand.
 const props = defineProps<{
   scope: SectionScope;
 }>();
 
-const KIND_LABELS: Record<string, string> = {
-  person: "Person",
-  preference: "Preference",
-  "business-fact": "Business fact",
-  "recurring-pattern": "Pattern",
-  note: "Note",
-};
+// What the memory is MADE OF, not what it's about (tags carry meaning now) and
+// not who wrote it — Claude's own entries and the onboarding seeds are both
+// `user-manual`. `createdSource` already records it, so nothing new is stored.
+function sourceLabel(createdSource: string): string {
+  return createdSource === "file-import" ? "File" : "Text";
+}
 
 const entriesQuery = useMemoryEntriesInScope(props.scope);
 const entries = computed(() =>
   (entriesQuery.data.value ?? []).filter((entry) => !entry.isArchived),
 );
-
-const { scopeLabel } = useScopeLabel();
 
 const isAddOpen = ref(false);
 
@@ -76,8 +72,8 @@ function onCreated() {
           >
             {{ entry.title }}
             <span
-              class="kind-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
-              >{{ KIND_LABELS[entry.kind] ?? entry.kind }}</span
+              class="source-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
+              >{{ sourceLabel(entry.createdSource) }}</span
             >
             <!-- "context" is the always-known marker; gold is the attention accent. -->
             <span
@@ -97,11 +93,6 @@ function onCreated() {
               />
               {{ tag }}
             </span>
-            <span
-              v-if="props.scope.kind === 'global'"
-              class="scope-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
-              >{{ scopeLabel(entry.workspaceId) }}</span
-            >
           </p>
           <p class="m-0 mt-0.5 line-clamp-2 text-sm text-ink-1">
             {{ entry.body }}

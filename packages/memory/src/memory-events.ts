@@ -20,7 +20,8 @@ export const MEMORY_ENTRY_HARD_DELETED = 'memory.entry-hard-deleted' as const
 export type MemoryEntryCreatedPayload = {
   entryId: string
   userId: string
-  workspaceId: string
+  /** Null for a USER-level (global) memory — it belongs to no workspace. */
+  workspaceId: string | null
   kind: 'person' | 'preference' | 'business-fact' | 'recurring-pattern' | 'note'
   category: 'user' | 'preferences' | 'memory'
   section: string
@@ -31,14 +32,16 @@ export type MemoryEntryCreatedPayload = {
 export type MemoryEntryUpdatedPayload = {
   entryId: string
   userId: string
-  workspaceId: string
+  /** Null for a USER-level (global) memory — see MemoryEntryCreatedPayload. */
+  workspaceId: string | null
   updatedFields: string[]
   updatedAt: string
 }
 
 export type MemoryEntryArchivedPayload = {
   userId: string
-  workspaceId: string
+  /** Null for a USER-level (global) memory — see MemoryEntryCreatedPayload. */
+  workspaceId: string | null
   category: 'user' | 'preferences' | 'memory'
   section: string
   count: number

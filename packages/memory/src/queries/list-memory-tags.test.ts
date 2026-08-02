@@ -56,4 +56,38 @@ describe('listMemoryTags', () => {
       expect(new Set(tags).size).toBe(tags.length)
     })
   })
+
+  // The global panel picks from the user's OWN vault — a workspace's tags are
+  // that room's business and must not leak into it (or the reverse).
+  it('reads the user-level vault when given a userId, never a workspace tag', async () => {
+    await withTestDatabase((db) => {
+      const { user, workspace } = seedWorld(db)
+      createMemoryEntry(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        kind: 'note',
+        body: 'Vendor list lives in the shared drive.',
+        category: 'memory',
+        section: 'ops',
+        createdSource: 'user-manual',
+        tags: ['vendors'],
+      })
+      createMemoryEntry(db, {
+        userId: user.id,
+        workspaceId: null,
+        kind: 'note',
+        body: 'I fly out of Heathrow.',
+        category: 'memory',
+        section: 'Notes',
+        createdSource: 'user-manual',
+        tags: ['travel'],
+      })
+
+      const userTags = listMemoryTags(db, { userId: user.id })
+      expect(userTags).toContain('travel')
+      expect(userTags).not.toContain('vendors')
+
+      expect(listMemoryTags(db, { workspaceId: workspace.id })).not.toContain('travel')
+    })
+  })
 })

@@ -20,7 +20,9 @@ import { MEMORY_ENTRY_CREATED, type MemoryEntryCreatedPayload } from '../memory-
 
 export type CreateMemoryEntryInput = {
   userId: string
-  workspaceId: string
+  /** Null anchors the entry at the USER level — a global memory, owned by the
+   *  person rather than by any one workspace. */
+  workspaceId: string | null
   kind: MemoryEntryKind
   title?: string
   body: string

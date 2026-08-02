@@ -59,14 +59,9 @@ export function listEntriesForWorkspace(
 
 // The user's GLOBAL entries — the ones anchored to no workspace at all.
 // The global memory surface's read; a workspace surface uses the sibling
-// above.
-//
-// SCHEMA CEILING: `workspaceId` is declared with `id()`, which is NOT NULL by
-// dialect contract, so no global entry can be written today and this read is
-// always empty. It is still the correct read for the settled "Global =
-// workspaceId IS NULL" rule, and starts returning rows unchanged the moment
-// the column goes nullable and a global write path lands. (knowledge_sources
-// took the other branch — `text().references(...)` — for exactly this.)
+// above. `workspaceId` went nullable in migration 0029 (`text().references`,
+// the channels precedent), so these rows are real: the user-scoped routes in
+// `apps/local-api/src/routes/memory/user-scoped.ts` are their write path.
 export function listGlobalEntriesForUser(
   db: Database,
   userId: string,

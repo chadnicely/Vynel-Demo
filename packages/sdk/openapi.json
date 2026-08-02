@@ -10648,7 +10648,10 @@
                             "type": "string"
                           },
                           "workspaceId": {
-                            "type": "string"
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           },
                           "kind": {
                             "type": "string",
@@ -10864,7 +10867,10 @@
                       "type": "string"
                     },
                     "workspaceId": {
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -11187,7 +11193,10 @@
                       "type": "string"
                     },
                     "workspaceId": {
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -11412,7 +11421,10 @@
                       "type": "string"
                     },
                     "workspaceId": {
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -11556,7 +11568,10 @@
                       "type": "string"
                     },
                     "workspaceId": {
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -20819,7 +20834,10 @@
                             "type": "string"
                           },
                           "workspaceId": {
-                            "type": "string"
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           },
                           "kind": {
                             "type": "string",
@@ -21002,6 +21020,387 @@
         ],
         "summary": "List the user's GLOBAL memory entries (no workspace anchor).",
         "x-sdk-name": "memoryUser.list"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "SerializedMemoryEntry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "preference",
+                        "business-fact",
+                        "recurring-pattern",
+                        "note"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "preferences",
+                        "memory"
+                      ]
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "sourceMessageId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdSource": {
+                      "type": "string",
+                      "enum": [
+                        "workspace-seed",
+                        "user-manual",
+                        "onboarding-seed",
+                        "file-import"
+                      ]
+                    },
+                    "embeddingPresent": {
+                      "type": "boolean"
+                    },
+                    "embeddingModelVersion": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "isArchived": {
+                      "type": "boolean"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "lastMentionedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "kind",
+                    "title",
+                    "body",
+                    "category",
+                    "section",
+                    "sourceMessageId",
+                    "createdSource",
+                    "embeddingPresent",
+                    "embeddingModelVersion",
+                    "isArchived",
+                    "tags",
+                    "createdAt",
+                    "updatedAt",
+                    "lastMentionedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          }
+        },
+        "operationId": "postMemoryEntries",
+        "tags": [
+          "memory"
+        ],
+        "parameters": [],
+        "summary": "Create a GLOBAL memory entry (no workspace anchor).",
+        "x-sdk-name": "memoryUser.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "person",
+                      "preference",
+                      "business-fact",
+                      "recurring-pattern",
+                      "note"
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 10000
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "preferences",
+                      "memory"
+                    ]
+                  },
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "maxItems": 8
+                  }
+                },
+                "required": [
+                  "kind",
+                  "body",
+                  "category",
+                  "section"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memory/entries/from-file": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "SerializedMemoryEntry (imported).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "preference",
+                        "business-fact",
+                        "recurring-pattern",
+                        "note"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "preferences",
+                        "memory"
+                      ]
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "sourceMessageId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdSource": {
+                      "type": "string",
+                      "enum": [
+                        "workspace-seed",
+                        "user-manual",
+                        "onboarding-seed",
+                        "file-import"
+                      ]
+                    },
+                    "embeddingPresent": {
+                      "type": "boolean"
+                    },
+                    "embeddingModelVersion": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "isArchived": {
+                      "type": "boolean"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "lastMentionedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "kind",
+                    "title",
+                    "body",
+                    "category",
+                    "section",
+                    "sourceMessageId",
+                    "createdSource",
+                    "embeddingPresent",
+                    "embeddingModelVersion",
+                    "isArchived",
+                    "tags",
+                    "createdAt",
+                    "updatedAt",
+                    "lastMentionedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (missing, unreadable, unsupported, or too long)."
+          }
+        },
+        "operationId": "postMemoryEntriesFrom-file",
+        "tags": [
+          "memory"
+        ],
+        "parameters": [],
+        "summary": "Import a single on-disk file as a GLOBAL memory entry.",
+        "x-sdk-name": "memoryUser.importFile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "absolutePath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "maxItems": 8
+                  }
+                },
+                "required": [
+                  "absolutePath"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memory/tags": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ tags: string[] } — \"context\" always leads.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "tags"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getMemoryTags",
+        "tags": [
+          "memory"
+        ],
+        "parameters": [],
+        "summary": "List the user's global memory tags (in use + suggested defaults).",
+        "x-sdk-name": "memoryUser.listTags"
       }
     },
     "/skills/installed": {

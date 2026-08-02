@@ -59,6 +59,24 @@ export function listDistinctMemoryTagsForWorkspace(db: Database, workspaceId: st
   return rows.map((row) => row.tag)
 }
 
+/** The same read for a user's GLOBAL entries — those anchored to no workspace. */
+export function listDistinctMemoryTagsForUser(db: Database, userId: string): string[] {
+  const rows = db
+    .selectDistinct({ tag: memoryTags.tag })
+    .from(memoryTags)
+    .innerJoin(memoryEntries, eq(memoryTags.memoryEntryId, memoryEntries.id))
+    .where(
+      and(
+        eq(memoryEntries.userId, userId),
+        isNull(memoryEntries.workspaceId),
+        isNull(memoryEntries.deletedAt),
+      ),
+    )
+    .orderBy(memoryTags.tag)
+    .all()
+  return rows.map((row) => row.tag)
+}
+
 /** The workspace's live entries wearing a given tag, freshest first — the
  *  `context` session-start read. */
 export function listEntriesByTag(

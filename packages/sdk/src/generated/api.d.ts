@@ -2274,6 +2274,41 @@ export interface paths {
         /** List the user's GLOBAL memory entries (no workspace anchor). */
         get: operations["getMemoryEntries"];
         put?: never;
+        /** Create a GLOBAL memory entry (no workspace anchor). */
+        post: operations["postMemoryEntries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memory/entries/from-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import a single on-disk file as a GLOBAL memory entry. */
+        post: operations["postMemoryEntriesFrom-file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memory/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's global memory tags (in use + suggested defaults). */
+        get: operations["getMemoryTags"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -7600,7 +7635,7 @@ export interface operations {
                         entries: {
                             id: string;
                             userId: string;
-                            workspaceId: string;
+                            workspaceId: string | null;
                             /** @enum {string} */
                             kind: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
                             title: string;
@@ -7668,7 +7703,7 @@ export interface operations {
                     "application/json": {
                         id: string;
                         userId: string;
-                        workspaceId: string;
+                        workspaceId: string | null;
                         /** @enum {string} */
                         kind: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
                         title: string;
@@ -7774,7 +7809,7 @@ export interface operations {
                     "application/json": {
                         id: string;
                         userId: string;
-                        workspaceId: string;
+                        workspaceId: string | null;
                         /** @enum {string} */
                         kind: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
                         title: string;
@@ -7863,7 +7898,7 @@ export interface operations {
                     "application/json": {
                         id: string;
                         userId: string;
-                        workspaceId: string;
+                        workspaceId: string | null;
                         /** @enum {string} */
                         kind: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
                         title: string;
@@ -7953,7 +7988,7 @@ export interface operations {
                     "application/json": {
                         id: string;
                         userId: string;
-                        workspaceId: string;
+                        workspaceId: string | null;
                         /** @enum {string} */
                         kind: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
                         title: string;
@@ -11669,7 +11704,7 @@ export interface operations {
                         entries: {
                             id: string;
                             userId: string;
-                            workspaceId: string;
+                            workspaceId: string | null;
                             /** @enum {string} */
                             kind: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
                             title: string;
@@ -11692,6 +11727,144 @@ export interface operations {
                             lastMentionedAt: string | null;
                             id: string;
                         } | null;
+                    };
+                };
+            };
+        };
+    };
+    postMemoryEntries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    kind: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
+                    title?: string;
+                    body: string;
+                    /** @enum {string} */
+                    category: "user" | "preferences" | "memory";
+                    section: string;
+                    tags?: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description SerializedMemoryEntry. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        kind: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
+                        title: string;
+                        body: string;
+                        /** @enum {string} */
+                        category: "user" | "preferences" | "memory";
+                        section: string;
+                        sourceMessageId: string | null;
+                        /** @enum {string} */
+                        createdSource: "workspace-seed" | "user-manual" | "onboarding-seed" | "file-import";
+                        embeddingPresent: boolean;
+                        embeddingModelVersion: string | null;
+                        isArchived: boolean;
+                        tags: string[];
+                        createdAt: string;
+                        updatedAt: string;
+                        lastMentionedAt: string | null;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postMemoryEntriesFrom-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    absolutePath: string;
+                    tags?: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description SerializedMemoryEntry (imported). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        kind: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
+                        title: string;
+                        body: string;
+                        /** @enum {string} */
+                        category: "user" | "preferences" | "memory";
+                        section: string;
+                        sourceMessageId: string | null;
+                        /** @enum {string} */
+                        createdSource: "workspace-seed" | "user-manual" | "onboarding-seed" | "file-import";
+                        embeddingPresent: boolean;
+                        embeddingModelVersion: string | null;
+                        isArchived: boolean;
+                        tags: string[];
+                        createdAt: string;
+                        updatedAt: string;
+                        lastMentionedAt: string | null;
+                    };
+                };
+            };
+            /** @description Validation error (missing, unreadable, unsupported, or too long). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getMemoryTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { tags: string[] } — "context" always leads. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tags: string[];
                     };
                 };
             };

@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useMemoryTags } from "../../composables/memory/use-memory-tags.js";
+import type { SectionScope } from "./section-scope.js";
 
-// The tags field of the add-memory dialog: toggle the workspace's known tags
-// (the API leads with "context" — the always-in-context marker, gold-dotted)
-// or coin a new one inline. The parent owns the selection; this owns the
+// The tags field of the add-memory dialog: toggle the vault's known tags (the
+// API leads with "context" — the always-in-context marker, gold-dotted) or
+// coin a new one inline. The parent owns the selection; this owns the
 // vocabulary read and the normalize/cap rules.
 const MAX_TAGS = 8;
 const MAX_TAG_LENGTH = 32;
 
 const props = defineProps<{
-  workspaceId: string | null;
+  scope: SectionScope;
   selected: string[];
 }>();
 
@@ -18,7 +19,7 @@ const emit = defineEmits<{
   "update:selected": [tags: string[]];
 }>();
 
-const tagsQuery = useMemoryTags(() => props.workspaceId);
+const tagsQuery = useMemoryTags(() => props.scope);
 const knownTags = computed(() => tagsQuery.data.value ?? []);
 
 // A freshly coined tag isn't in the vocabulary yet — still render its chip.
@@ -118,9 +119,16 @@ function addNewTag() {
       </span>
     </div>
     <p v-if="tagError" class="m-0 text-xs text-danger" role="alert">{{ tagError }}</p>
-    <span class="text-[11px] text-ink-3">
+    <!-- "context" auto-loads into a WORKSPACE session only, so the global
+         surface must not promise it — global memories are stored against your
+         account and read on demand, not injected. -->
+    <span v-if="props.scope.kind === 'workspace'" class="text-[11px] text-ink-3">
       Tag "context" to make this part of what Claude always knows in this
       workspace.
+    </span>
+    <span v-else class="text-[11px] text-ink-3">
+      These live with your account rather than one workspace — tags are how you
+      and Claude find them again.
     </span>
   </div>
 </template>

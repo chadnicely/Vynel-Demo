@@ -80,7 +80,8 @@ export const MemoryEntryParamSchema = z.object({
 export const MemoryEntrySchema = z.object({
   id: z.string(),
   userId: z.string(),
-  workspaceId: z.string(),
+  /** Null for a USER-level (global) memory — it belongs to no workspace. */
+  workspaceId: z.string().nullable(),
   kind: MemoryEntryKindSchema,
   title: z.string(),
   body: z.string(),

@@ -887,10 +887,29 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   memoryUser: {
+  create: async (input: NonNullable<paths["/memory/entries"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/memory/entries", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  importFile: async (input: NonNullable<paths["/memory/entries/from-file"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/memory/entries/from-file", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   list: async (options?: NonNullable<paths["/memory/entries"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/memory/entries", {
       params: { ...(options && { query: options }) },
     })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listTags: async () => {
+    const { data, error, response } = await client["GET"]("/memory/tags")
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },

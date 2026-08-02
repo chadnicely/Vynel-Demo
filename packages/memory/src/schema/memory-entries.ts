@@ -38,7 +38,11 @@ export const memoryEntries = table(
   {
     id: id().primaryKey(),
     userId: id().references(() => users.id, { onDelete: 'cascade' }),
-    workspaceId: id().references(() => workspaces.id, { onDelete: 'cascade' }),
+    // Nullable: NULL = a USER-level (global) memory owned by the person, not
+    // by any one workspace; a non-null value anchors it to that workspace.
+    // Mirrors `channels.workspaceId` (approvals precedent). Uses
+    // `text().references(...)` since `id()` is NOT NULL by contract.
+    workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
 
     kind: text().$type<MemoryEntryKind>().notNull(),
     title: text().notNull(),

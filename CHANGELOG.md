@@ -43,7 +43,24 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   dev servers exempt), and adding a name that already exists is refused instead of silently
   overwriting. A note on workspace scope explains the config file lives in the project.
 
+### Added
+
+- **Global memory is yours, not a workspace's.** Memory added from the Global menu now
+  belongs to *you* — it isn't filed into some workspace behind your back (which is what
+  used to happen: the dialog quietly picked one). The Global menu stopped asking which
+  workspace, because there's nothing to ask. Memories added inside a workspace still
+  belong to that workspace, exactly as before. Global memories are stored and listed
+  today; having Claude pull them into a workspace conversation on demand comes next, so
+  the "context" tag — which auto-loads a memory into every session — is still described
+  only where it actually does that, inside a workspace.
+
 ### Changed
+
+- **Adding a memory no longer asks what "kind" it is.** The five-way Note / Preference /
+  Person / Business fact / Pattern picker is gone from the add-memory dialog — tags were
+  already doing that job, and doing it better, so now they do it alone. Each memory in
+  the list is chipped by what it's made of instead: **Text** for a written memory,
+  **File** for one imported from a document. Nothing you'd already saved changed.
 
 - **Where you are decides where things go.** Create dialogs no longer ask "global or which
   workspace?" — open one from the Global menu and it's global; open it inside a workspace and
@@ -77,7 +94,8 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   and memory got real global read endpoints instead of stitching every workspace together
   client-side. Note: global memory entries can't be created yet (the storage schema pins
   every memory to a workspace), so Global → Memory shows an honest empty state until that
-  ceiling is lifted deliberately.
+  ceiling is lifted deliberately. *(Lifted in [Unreleased] — see "Global memory is yours,
+  not a workspace's".)*
 
 ### Added
 

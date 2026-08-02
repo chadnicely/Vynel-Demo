@@ -20,7 +20,8 @@ const MAX_IMPORT_CHARS = 20_000
 
 export type ImportMemoryEntryFromFileInput = {
   userId: string
-  workspaceId: string
+  /** Null imports at the USER level — a global memory (see createMemoryEntry). */
+  workspaceId: string | null
   absolutePath: string
   tags?: string[]
 }

@@ -170,7 +170,11 @@ describe("MemorySection", () => {
     expect(wrapper.text()).toContain("Invoice cadence");
   });
 
-  it("lists a workspace's entries with kind chips, hiding archived ones", async () => {
+  // SPEC CHANGE (2026-08-03): tags are the taxonomy now, so the row's chip
+  // stopped naming the memory's KIND (Preference / Person / …) and names how it
+  // got here instead — Text for anything written, File for an import. Both
+  // entry types wear the chip.
+  it("chips each entry by how it arrived, hiding archived ones", async () => {
     const client = {
       workspaces: {
         list: async () => [{ id: "w1", name: "vynel", isArchived: false }],
@@ -179,7 +183,12 @@ describe("MemorySection", () => {
         list: async () => ({
           entries: [
             makeEntry(),
-            makeEntry({ id: "m2", isArchived: true, title: "Old" }),
+            makeEntry({
+              id: "m2",
+              title: "Handbook",
+              createdSource: "file-import",
+            }),
+            makeEntry({ id: "m3", isArchived: true, title: "Old" }),
           ],
           nextCursor: null,
         }),
@@ -194,9 +203,13 @@ describe("MemorySection", () => {
     });
     await flushPromises();
 
-    expect(wrapper.findAll(".row")).toHaveLength(1);
+    const rows = wrapper.findAll(".row");
+    expect(rows).toHaveLength(2);
     expect(wrapper.text()).toContain("Invoice cadence");
-    expect(wrapper.text()).toContain("Preference");
+    expect(rows[0]!.find(".source-chip").text()).toBe("Text");
+    expect(rows[1]!.find(".source-chip").text()).toBe("File");
+    // The old kind vocabulary is gone from the row entirely.
+    expect(wrapper.text()).not.toContain("Preference");
     expect(wrapper.text()).not.toContain("Old");
   });
 
@@ -252,6 +265,20 @@ describe("AddMemoryDialog", () => {
           return makeEntry();
         },
       },
+      // The user-level twin: no workspace argument at all. A global write that
+      // reached `memory.*` would be filed in some arbitrary room, so the two
+      // namespaces stay separate in the fake exactly as they are on the wire.
+      memoryUser: {
+        listTags: async () => ({ tags: ["context", "reminder"] }),
+        create: async (body: unknown) => {
+          calls.create?.push([null, body]);
+          return makeEntry({ workspaceId: null });
+        },
+        importFile: async (body: unknown) => {
+          calls.importFile?.push([null, body]);
+          return makeEntry({ workspaceId: null });
+        },
+      },
     } as unknown as VynelClient;
   }
 
@@ -277,9 +304,10 @@ describe("AddMemoryDialog", () => {
       .click();
   }
 
-  // The surface decides the scope everywhere — but memory is workspace-owned
-  // (no global entries yet), so the Global menu has nothing to derive and is
-  // the one place still allowed to ask.
+  // SPEC CHANGE (2026-08-03): global memory became USER-level — an entry with
+  // no workspace anchor at all. The Global menu therefore stopped asking which
+  // workspace to file into (it used to pick one silently) and writes through
+  // the user-scoped routes instead.
   it("files into the open workspace without asking which one", async () => {
     const createCalls: unknown[] = [];
     mountDialog(makeClient({ create: createCalls }), {
@@ -303,18 +331,16 @@ describe("AddMemoryDialog", () => {
     expect((createCalls[0] as [string, unknown])[0]).toBe("w1");
   });
 
-  it("still asks which workspace from the Global menu", async () => {
-    mountDialog(makeClient({}));
-    await flushPromises();
-    expect(latestDialog().querySelector("select")).not.toBeNull();
-  });
-
-  it("saves a memory into the chosen workspace with the kind's filing defaults", async () => {
+  it("writes a user-level memory from the Global menu, asking nothing", async () => {
     const createCalls: unknown[] = [];
     const wrapper = mountDialog(makeClient({ create: createCalls }));
     await flushPromises();
 
     const dialog = latestDialog();
+    expect(dialog.querySelector("select")).toBeNull();
+    // No Kind picker either — tags are the taxonomy now.
+    expect(dialog.textContent).not.toContain("Business fact");
+
     const body = dialog.querySelector<HTMLTextAreaElement>("textarea")!;
     body.value = "Invoices due on the 15th";
     body.dispatchEvent(new Event("input"));
@@ -323,9 +349,10 @@ describe("AddMemoryDialog", () => {
     clickButton(dialog, "Save memory");
     await flushPromises();
 
+    // `null` marks the user-scoped route — no workspace argument exists there.
     expect(createCalls).toEqual([
       [
-        "w1",
+        null,
         {
           kind: "note",
           body: "Invoices due on the 15th",
@@ -340,8 +367,6 @@ describe("AddMemoryDialog", () => {
   it("sends toggled and freshly coined tags with the create", async () => {
     const createCalls: unknown[] = [];
     mountDialog(makeClient({ create: createCalls }));
-    await flushPromises();
-    // The tags read enables only once the workspace select is seeded.
     await flushPromises();
 
     const dialog = latestDialog();
@@ -363,7 +388,7 @@ describe("AddMemoryDialog", () => {
 
     expect(createCalls).toEqual([
       [
-        "w1",
+        null,
         {
           kind: "note",
           body: "Invoices due on the 15th",
@@ -391,8 +416,29 @@ describe("AddMemoryDialog", () => {
     await flushPromises();
 
     expect(importCalls).toEqual([
-      ["w1", { absolutePath: "C:\\Users\\KLONE\\notes.md" }],
+      [null, { absolutePath: "C:\\Users\\KLONE\\notes.md" }],
     ]);
     expect(wrapper.emitted("created")).toHaveLength(1);
+  });
+
+  it("imports into the open workspace when opened from a room", async () => {
+    const importCalls: unknown[] = [];
+    mountDialog(makeClient({ importFile: importCalls }), {
+      kind: "workspace",
+      workspaceId: "w1",
+    });
+    await flushPromises();
+
+    const dialog = latestDialog();
+    clickButton(dialog, "From a file");
+    await flushPromises();
+    clickButton(dialog, "notes.md");
+    await flushPromises();
+    clickButton(dialog, "Import file");
+    await flushPromises();
+
+    expect(importCalls).toEqual([
+      ["w1", { absolutePath: "C:\\Users\\KLONE\\notes.md" }],
+    ]);
   });
 });

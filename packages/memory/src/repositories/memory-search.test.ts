@@ -5,10 +5,16 @@
 
 import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
+import { sql } from 'drizzle-orm'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { insertEntry } from './memory-entries.js'
+import {
+  hardDeleteEntriesDeletedBefore,
+  insertEntry,
+  softDeleteEntry,
+  updateEntry,
+} from './memory-entries.js'
 import { searchEntries, upsertVectorIndex, deleteVectorIndex } from './memory-search.js'
 
 const EMBEDDING_DIM = 384
@@ -158,6 +164,39 @@ describe('memory-search repository', () => {
 
         expect(results).toHaveLength(1)
         expect(results[0]?.matchedTitle).toContain('Visible')
+      })
+    })
+
+    // The FTS index is external-content, kept in sync by three triggers from
+    // the baseline. Migration 0029 rebuilt `memory_entries` to drop a NOT NULL,
+    // which drops a table's triggers with it — 0029 recreates them. The insert
+    // trigger is covered by every test above; these pin the other two, whose
+    // failure mode is silent (stale hits, orphaned rows) rather than an error.
+    it('keeps the index in step when an entry is edited or hard-deleted', async () => {
+      await withTestDatabase((db) => {
+        const user = insertUser(db, makeUser())
+        const workspace = insertWorkspace(db, makeWorkspace(user.id))
+        const entry = insertEntry(
+          db,
+          makeEntry(user.id, workspace.id, 'Supplier', 'tomato delivery every Friday'),
+        )
+        const search = (textQuery: string) =>
+          searchEntries(db, { workspaceId: workspace.id, textQuery, mode: 'fts' })
+
+        // UPDATE trigger: the old body must stop matching, the new one start.
+        updateEntry(db, entry.id, { body: 'cucumber delivery every Friday' })
+        expect(search('tomato')).toHaveLength(0)
+        expect(search('cucumber')).toHaveLength(1)
+
+        // DELETE trigger: a purge must leave no orphan behind IN THE INDEX.
+        // Asserting through searchEntries would prove nothing — its JOIN to
+        // memory_entries hides an orphan either way. Read the index directly.
+        softDeleteEntry(db, entry.id, new Date())
+        hardDeleteEntriesDeletedBefore(db, new Date(Date.now() + 60_000))
+        const orphans = db.all<{ n: number }>(
+          sql`SELECT count(*) AS n FROM memory_entries_fts WHERE memory_entries_fts MATCH 'cucumber'`,
+        )
+        expect(orphans[0]?.n).toBe(0)
       })
     })
 

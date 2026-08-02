@@ -144,4 +144,41 @@ describe('createMemoryEntry', () => {
       expect(entry.title).toBe('A short note.')
     })
   })
+
+  // A GLOBAL memory belongs to the PERSON, not to any workspace — it anchors
+  // on no workspace at all, and the outbox event says so rather than naming
+  // some arbitrary room.
+  it('creates a user-level entry with no workspace anchor', async () => {
+    await withTestDatabase((db) => {
+      const now = new Date()
+      const user = insertUser(db, {
+        id: randomUUID(),
+        displayName: 'T',
+        emailAddress: null,
+        locale: 'en-US',
+        timezone: 'UTC',
+        hasCompletedOnboarding: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const entry = createMemoryEntry(db, {
+        userId: user.id,
+        workspaceId: null,
+        kind: 'note',
+        body: 'I prefer plain language over jargon.',
+        category: 'memory',
+        section: 'Notes',
+        createdSource: 'user-manual',
+        tags: ['preference'],
+      })
+
+      expect(entry.workspaceId).toBeNull()
+      expect(listMemoryTagsForEntries(db, [entry.id]).get(entry.id)).toEqual(['preference'])
+
+      const events = listOutboxEventsByType(db, MEMORY_ENTRY_CREATED)
+      expect(events).toHaveLength(1)
+      expect((events[0]!.payload as { workspaceId: string | null }).workspaceId).toBeNull()
+    })
+  })
 })

@@ -39,7 +39,13 @@ export async function generateMemoryEmbeddings(
       const embedding = await generateEmbedding(`${entry.title}\n\n${entry.body}`)
       withTransaction(db, (tx) => {
         updateEntryEmbedding(tx, entry.id, embedding, EMBEDDING_MODEL_VERSION)
-        upsertVectorIndex(tx, entry.id, entry.workspaceId, embedding)
+        // The vec0 index partitions by workspace, so a USER-level (global)
+        // memory has no partition to sit in — it stays out until cross-
+        // workspace on-demand retrieval is designed. The embedding itself is
+        // still stored on the row, so that build has its data waiting.
+        if (entry.workspaceId !== null) {
+          upsertVectorIndex(tx, entry.id, entry.workspaceId, embedding)
+        }
       })
       succeeded += 1
     } catch (err) {
