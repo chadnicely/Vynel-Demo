@@ -159,41 +159,21 @@ describe("AddServerDialog", () => {
     wrapper.unmount();
   });
 
-  it("goes global from a workspace when 'available everywhere' is on", async () => {
-    const { wrapper, addCalls } = makeHarness({
-      kind: "workspace",
-      workspaceId: "w1",
-    });
+  // SPEC CHANGE (2026-08-03): the surface decides the scope — no create modal
+  // asks again. The "available everywhere" escape hatch is gone; a server added
+  // from a workspace belongs to that workspace, full stop. (Test replaced: it
+  // drove the toggle to flip a workspace open into a global create.)
+  it("never offers a scope escape hatch, on either surface", async () => {
+    makeHarness({ kind: "workspace", workspaceId: "w1" });
     await flushPromises();
-
-    const dialog = dialogElement();
-    await fillConnectionFields(dialog);
-    await typeInto(dialog, "Password", "hunter two");
-
-    const toggle = dialog.querySelector<HTMLInputElement>(
-      '[aria-label="Make it available everywhere"]',
-    )!;
-    toggle.checked = true;
-    toggle.dispatchEvent(new Event("change"));
-    await flushPromises();
-
-    submit(dialog);
-    await flushPromises();
-
-    expect(addCalls).toEqual([
-      {
-        scope: "global",
-        name: "My web server",
-        host: "example.com",
-        port: 22,
-        username: "root",
-        credentials: { authKind: "password", password: "hunter two" },
-      },
-    ]);
-    wrapper.unmount();
+    expect(
+      dialogElement().querySelector(
+        '[aria-label="Make it available everywhere"]',
+      ),
+    ).toBeNull();
   });
 
-  it("keeps Add disabled without a credential, and never shows the scope toggle globally", async () => {
+  it("keeps Add disabled without a credential", async () => {
     makeHarness({ kind: "global" });
     await flushPromises();
 
@@ -204,8 +184,5 @@ describe("AddServerDialog", () => {
       (candidate) => candidate.textContent?.trim() === "Add server",
     )!;
     expect(button.disabled).toBe(true);
-    expect(
-      dialog.querySelector('[aria-label="Make it available everywhere"]'),
-    ).toBeNull();
   });
 });

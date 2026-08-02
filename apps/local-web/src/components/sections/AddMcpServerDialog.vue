@@ -3,7 +3,6 @@ import { computed, ref, watch } from "vue";
 import { Modal } from "@vynel/ui";
 import { useAddMcpServer } from "../../composables/mcp-servers/use-add-mcp-server.js";
 import type { AddMcpServerBody } from "../../composables/mcp-servers/use-add-mcp-server.js";
-import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import KeyValueRowsField from "./KeyValueRowsField.vue";
 import type { KeyValueRow } from "./KeyValueRowsField.vue";
@@ -11,11 +10,12 @@ import type { SectionScope } from "./section-scope.js";
 
 // Add a custom MCP server: a local command (stdio) or a remote https endpoint
 // (http/sse) with auth as static headers — written straight into the Claude
-// config the scope picker names (Chad 2026-08-02: headers-in-config, both
-// scopes offered; OAuth deferred). Secrets leave this form exactly once, in
-// the POST; every read back is masked.
+// config for the surface it was opened from (headers-in-config, Chad
+// 2026-08-02; OAuth deferred). Secrets leave this form exactly once, in the
+// POST; every read back is masked.
 const props = defineProps<{
   open: boolean;
+  /** The surface this was opened from — it IS the scope, never a suggestion. */
   defaultScope: SectionScope;
 }>();
 
@@ -31,21 +31,12 @@ const TRANSPORTS: { id: Transport; label: string }[] = [
 ];
 
 const serverName = ref("");
-const scopeChoice = ref<"user" | "workspace">("user");
-const workspaceChoice = ref("");
 const transport = ref<Transport>("stdio");
 const command = ref("");
 const argsText = ref("");
 const url = ref("");
 const headerRows = ref<KeyValueRow[]>([]);
 const envRows = ref<KeyValueRow[]>([]);
-
-const workspacesQuery = useWorkspaceList();
-const workspaces = computed(() =>
-  (workspacesQuery.data.value ?? []).filter((row) => !row.isArchived),
-);
-// The workspace option only exists where a workspace can receive the file.
-const offersWorkspaceScope = computed(() => workspaces.value.length > 0);
 
 const addServer = useAddMcpServer();
 
@@ -54,13 +45,6 @@ watch(
   (open) => {
     if (!open) return;
     serverName.value = "";
-    // Global is the settled default on every surface; a workspace drawer
-    // preselects its own room as the workspace choice.
-    scopeChoice.value = "user";
-    workspaceChoice.value =
-      props.defaultScope.kind === "workspace"
-        ? props.defaultScope.workspaceId
-        : (workspaces.value[0]?.id ?? "");
     transport.value = "stdio";
     command.value = "";
     argsText.value = "";
@@ -94,8 +78,6 @@ const urlError = computed(() => {
 
 const canSubmit = computed(() => {
   if (serverName.value.trim() === "" || addServer.isPending.value) return false;
-  if (scopeChoice.value === "workspace" && workspaceChoice.value === "")
-    return false;
   if (isRemote.value) return url.value.trim() !== "" && urlError.value === null;
   return command.value.trim() !== "";
 });
@@ -133,8 +115,12 @@ function submit() {
           headers: toRecord(headerRows.value),
         };
   addServer.mutate(
-    scopeChoice.value === "workspace"
-      ? { scope: "workspace", workspaceId: workspaceChoice.value, body }
+    props.defaultScope.kind === "workspace"
+      ? {
+          scope: "workspace",
+          workspaceId: props.defaultScope.workspaceId,
+          body,
+        }
       : { scope: "user", body },
     { onSuccess: () => emit("close") },
   );
@@ -166,60 +152,14 @@ function onOpenChange(open: boolean) {
         />
       </label>
 
-      <div class="grid gap-1.5">
-        <span class="text-[11.5px] font-semibold text-ink-2">Where it applies</span>
-        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Scope">
-          <button
-            type="button"
-            class="cursor-default rounded-full border px-3 py-1 text-[11.5px] font-medium transition"
-            :class="
-              scopeChoice === 'user'
-                ? 'border-gold bg-gold-soft text-ink-1'
-                : 'border-hair bg-panel text-ink-2 hover:border-hair-strong hover:text-ink-1'
-            "
-            :aria-pressed="scopeChoice === 'user'"
-            @click="scopeChoice = 'user'"
-          >
-            Global
-          </button>
-          <button
-            v-if="offersWorkspaceScope"
-            type="button"
-            class="cursor-default rounded-full border px-3 py-1 text-[11.5px] font-medium transition"
-            :class="
-              scopeChoice === 'workspace'
-                ? 'border-gold bg-gold-soft text-ink-1'
-                : 'border-hair bg-panel text-ink-2 hover:border-hair-strong hover:text-ink-1'
-            "
-            :aria-pressed="scopeChoice === 'workspace'"
-            @click="scopeChoice = 'workspace'"
-          >
-            Workspace
-          </button>
-        </div>
-        <template v-if="scopeChoice === 'workspace'">
-          <select
-            v-if="props.defaultScope.kind === 'global'"
-            v-model="workspaceChoice"
-            aria-label="Workspace"
-            class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
-          >
-            <option
-              v-for="workspace in workspaces"
-              :key="workspace.id"
-              :value="workspace.id"
-            >
-              {{ workspace.name }}
-            </option>
-          </select>
-          <span class="teaching-note text-[11px] text-ink-3">
-            This writes a .mcp.json file inside the workspace's folder — if
-            that folder is a git project, the file can be committed along with
-            it, so keep your own .gitignore in mind when the server carries
-            secrets.
-          </span>
-        </template>
-      </div>
+      <p
+        v-if="props.defaultScope.kind === 'workspace'"
+        class="teaching-note m-0 text-[11px] text-ink-3"
+      >
+        This writes a .mcp.json file inside the workspace's folder — if that
+        folder is a git project, the file can be committed along with it, so
+        keep your own .gitignore in mind when the server carries secrets.
+      </p>
 
       <div class="grid gap-1.5">
         <span class="text-[11.5px] font-semibold text-ink-2">Kind</span>

@@ -328,7 +328,10 @@ describe("WriteBookDialog", () => {
     expect(wrapper.emitted("saved")).toHaveLength(1);
   });
 
-  it("defaults the scope picker to the section's workspace and sends its id", async () => {
+  // SPEC CHANGE (2026-08-03): the surface decides the scope — the Everywhere /
+  // One workspace picker is gone from creation, so these two cases now pin the
+  // ONLY way a book's scope is chosen: where you opened the dialog from.
+  it("creates a workspace book from a workspace surface", async () => {
     const createCalls: unknown[] = [];
     mount(WriteBookDialog, {
       props: {
@@ -358,7 +361,7 @@ describe("WriteBookDialog", () => {
     ]);
   });
 
-  it("edits an existing book (no scope picker) via updateDocument", async () => {
+  it("edits an existing book via updateDocument, never restating scope", async () => {
     const updateCalls: unknown[] = [];
     const wrapper = mount(WriteBookDialog, {
       props: {
@@ -371,7 +374,8 @@ describe("WriteBookDialog", () => {
     await flushPromises();
 
     const dialog = latestDialog();
-    // Scope is immutable after creation — no picker in edit mode.
+    // Scope is immutable after creation (delete + recreate to move a book),
+    // and the create path doesn't ask either — nothing about it appears here.
     expect(dialog.textContent).not.toContain("Where it applies");
     fillAndSave(dialog, "New title", "New body.");
     await flushPromises();

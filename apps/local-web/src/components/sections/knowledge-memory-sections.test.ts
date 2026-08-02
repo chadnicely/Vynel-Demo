@@ -255,12 +255,12 @@ describe("AddMemoryDialog", () => {
     } as unknown as VynelClient;
   }
 
-  function mountDialog(client: VynelClient) {
+  function mountDialog(
+    client: VynelClient,
+    scope: SectionScope = { kind: "global" },
+  ) {
     return mount(AddMemoryDialog, {
-      props: {
-        open: true,
-        defaultScope: { kind: "global" } satisfies SectionScope,
-      },
+      props: { open: true, defaultScope: scope },
       global: globalConfig(client),
     });
   }
@@ -276,6 +276,38 @@ describe("AddMemoryDialog", () => {
       .find((b) => b.textContent?.trim() === label)!
       .click();
   }
+
+  // The surface decides the scope everywhere — but memory is workspace-owned
+  // (no global entries yet), so the Global menu has nothing to derive and is
+  // the one place still allowed to ask.
+  it("files into the open workspace without asking which one", async () => {
+    const createCalls: unknown[] = [];
+    mountDialog(makeClient({ create: createCalls }), {
+      kind: "workspace",
+      workspaceId: "w1",
+    });
+    await flushPromises();
+
+    const dialog = latestDialog();
+    expect(dialog.querySelector("select")).toBeNull();
+
+    const body = dialog.querySelector<HTMLTextAreaElement>("textarea")!;
+    body.value = "Standup is at 9.";
+    body.dispatchEvent(new Event("input"));
+    await flushPromises();
+
+    clickButton(dialog, "Save memory");
+    await flushPromises();
+
+    expect(createCalls).toHaveLength(1);
+    expect((createCalls[0] as [string, unknown])[0]).toBe("w1");
+  });
+
+  it("still asks which workspace from the Global menu", async () => {
+    mountDialog(makeClient({}));
+    await flushPromises();
+    expect(latestDialog().querySelector("select")).not.toBeNull();
+  });
 
   it("saves a memory into the chosen workspace with the kind's filing defaults", async () => {
     const createCalls: unknown[] = [];

@@ -10,10 +10,10 @@ import type { SectionScope } from "./section-scope.js";
 
 // Add a folder OR a single file to the knowledge vault: walk the real
 // filesystem, click a file to pick just it — otherwise the OPEN folder is the
-// selection (the workspace-dialog convention) — then choose where the
-// knowledge lives.
+// selection (the workspace-dialog convention).
 const props = defineProps<{
   open: boolean;
+  /** The surface this was opened from — it IS the scope, never a suggestion. */
   defaultScope: SectionScope;
 }>();
 
@@ -26,8 +26,6 @@ const emit = defineEmits<{
 const browsePath = ref<string | null>(null);
 // A clicked file wins over the open folder; navigating clears it.
 const selectedFilePath = ref<string | null>(null);
-// "global" or a workspaceId.
-const scopeChoice = ref<string>("global");
 
 const isOpen = computed(() => props.open);
 const listingQuery = useDirectoryListing(browsePath, isOpen, {
@@ -46,10 +44,6 @@ watch(
     if (!open) return;
     browsePath.value = null;
     selectedFilePath.value = null;
-    scopeChoice.value =
-      props.defaultScope.kind === "workspace"
-        ? props.defaultScope.workspaceId
-        : "global";
     addSource.reset();
   },
   { immediate: true },
@@ -69,14 +63,14 @@ function pickFile(path: string) {
   selectedFilePath.value = selectedFilePath.value === path ? null : path;
 }
 
-// Every knowledge route anchors on a workspace — a GLOBAL source anchors on
-// the chosen (or first) workspace. No workspaces at all → nothing to anchor.
-const anchorWorkspaceId = computed(() => {
-  if (scopeChoice.value !== "global") return scopeChoice.value;
-  if (props.defaultScope.kind === "workspace")
-    return props.defaultScope.workspaceId;
-  return workspaces.value[0]?.id ?? null;
-});
+// Every knowledge route anchors on a workspace, even a GLOBAL source — from
+// the Global menu that's the first workspace. No workspaces → nothing to
+// anchor on, which the guard below reports.
+const anchorWorkspaceId = computed(() =>
+  props.defaultScope.kind === "workspace"
+    ? props.defaultScope.workspaceId
+    : (workspaces.value[0]?.id ?? null),
+);
 
 const canAdd = computed(
   () =>
@@ -96,7 +90,7 @@ function add() {
     {
       anchorWorkspaceId: anchorWorkspaceId.value!,
       absolutePath: selectedPath.value,
-      scope: scopeChoice.value === "global" ? "global" : "workspace",
+      scope: props.defaultScope.kind,
     },
     { onSuccess: () => emit("added") },
   );
@@ -194,23 +188,6 @@ function onOpenChange(open: boolean) {
           what Claude studies.
         </span>
       </div>
-
-      <label class="grid gap-1.5">
-        <span class="text-[11.5px] font-semibold text-ink-2">Where it lives</span>
-        <select
-          v-model="scopeChoice"
-          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
-        >
-          <option value="global">Global — searchable everywhere</option>
-          <option
-            v-for="workspace in workspaces"
-            :key="workspace.id"
-            :value="workspace.id"
-          >
-            {{ workspace.name }} workspace only
-          </option>
-        </select>
-      </label>
 
       <p
         v-if="anchorWorkspaceId === null"

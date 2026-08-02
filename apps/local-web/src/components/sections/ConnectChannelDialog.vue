@@ -3,7 +3,6 @@ import { computed, ref, watch } from "vue";
 import type { ChannelKind } from "@vynel/contracts/channels/channel-http";
 import { Modal } from "@vynel/ui";
 import { useConnectChannel } from "../../composables/channels/use-connect-channel.js";
-import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import ChannelBrandIcon from "../channels/ChannelBrandIcon.vue";
 import { CHANNEL_CATALOG } from "../channels/channel-catalog.js";
@@ -11,11 +10,11 @@ import type { SectionScope } from "./section-scope.js";
 
 // Connect a channel — fully catalog-driven: pick an available kind, fill
 // ITS credential fields (Telegram = one token; Zoom = the five Marketplace
-// values), name it, choose where it lives. Credentials flow straight to
-// the connect route and are never echoed back.
+// values), name it. Credentials flow straight to the connect route and are
+// never echoed back.
 const props = defineProps<{
   open: boolean;
-  /** Where the dialog was opened from — pre-selects the scope. */
+  /** The surface this was opened from — it IS the scope, never a suggestion. */
   defaultScope: SectionScope;
 }>();
 
@@ -35,13 +34,6 @@ const entry = computed(() => CHANNEL_CATALOG[selectedKind.value]);
 const displayName = ref("");
 const credentialValues = ref<Record<string, string>>({});
 const allowedSenderId = ref("");
-// "global" or a workspaceId — the select's simple value shape.
-const scopeChoice = ref<string>("global");
-
-const workspacesQuery = useWorkspaceList();
-const workspaces = computed(() =>
-  (workspacesQuery.data.value ?? []).filter((row) => !row.isArchived),
-);
 
 const connectChannel = useConnectChannel();
 
@@ -58,19 +50,13 @@ function selectKind(kind: ChannelKind) {
   connectChannel.reset();
 }
 
-// A fresh dialog per open — and the scope follows where it was opened from.
-// `immediate` covers a dialog mounted already-open (the watcher would
-// otherwise never seed the scope).
+// A fresh dialog per open. `immediate` covers a dialog mounted already-open.
 watch(
   () => props.open,
   (open) => {
     if (!open) return;
     selectedKind.value = "telegram";
     seedForKind("telegram");
-    scopeChoice.value =
-      props.defaultScope.kind === "workspace"
-        ? props.defaultScope.workspaceId
-        : "global";
     connectChannel.reset();
   },
   { immediate: true },
@@ -112,9 +98,13 @@ function connect() {
       : {}),
   };
   connectChannel.mutate(
-    scopeChoice.value === "global"
-      ? { scope: "global", ...shared }
-      : { scope: "workspace", workspaceId: scopeChoice.value, ...shared },
+    props.defaultScope.kind === "workspace"
+      ? {
+          scope: "workspace",
+          workspaceId: props.defaultScope.workspaceId,
+          ...shared,
+        }
+      : { scope: "global", ...shared },
     { onSuccess: () => emit("connected") },
   );
 }
@@ -204,23 +194,6 @@ function onOpenChange(open: boolean) {
           @keydown.enter.prevent="connect"
         />
         <span class="text-[11px] text-ink-3">{{ entry.allowedSenderField.hint }}</span>
-      </label>
-
-      <label class="grid gap-1.5">
-        <span class="text-[11.5px] font-semibold text-ink-2">Where it lives</span>
-        <select
-          v-model="scopeChoice"
-          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
-        >
-          <option value="global">Global — Claude everywhere</option>
-          <option
-            v-for="workspace in workspaces"
-            :key="workspace.id"
-            :value="workspace.id"
-          >
-            {{ workspace.name }} workspace
-          </option>
-        </select>
       </label>
 
       <p v-if="errorMessage" class="m-0 text-xs text-danger" role="alert">

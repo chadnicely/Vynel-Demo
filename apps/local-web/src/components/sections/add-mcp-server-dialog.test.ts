@@ -138,8 +138,12 @@ describe("AddMcpServerDialog — remote", () => {
   });
 });
 
+// SPEC CHANGE (2026-08-03): the surface decides the scope — no create modal
+// asks again. The Global/Workspace picker is gone, so opening from a workspace
+// posts to THAT workspace (it used to default to global on every surface and
+// need a click), and the .mcp.json teaching note now rides the surface.
 describe("AddMcpServerDialog — scope", () => {
-  it("workspace scope shows the teaching note and posts to the workspace route", async () => {
+  it("a workspace surface posts to the workspace route and teaches about .mcp.json", async () => {
     const { addUser, addWorkspace } = makeHarness({
       kind: "workspace",
       workspaceId: "w1",
@@ -147,9 +151,14 @@ describe("AddMcpServerDialog — scope", () => {
     await flushPromises();
     const dialog = dialogElement();
 
-    await clickButton(dialog, "Workspace");
     expect(dialog.textContent).toContain(".mcp.json");
     expect(dialog.textContent).toContain(".gitignore");
+    // Nothing to pick — the scope came in with the surface.
+    expect(
+      [...dialog.querySelectorAll("button")].some(
+        (button) => button.textContent?.trim() === "Workspace",
+      ),
+    ).toBe(false);
 
     await typeByPlaceholder(dialog, "e.g. linear", "ws-tool");
     await typeByPlaceholder(dialog, "e.g. npx", "node");

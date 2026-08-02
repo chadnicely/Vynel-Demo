@@ -2,7 +2,6 @@
 import { computed, ref, watch } from "vue";
 import { Modal, SegmentedTabs } from "@vynel/ui";
 import { useCreateSchedule } from "../../composables/schedules/use-create-schedule.js";
-import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import {
   ONE_TIME_PRESETS,
@@ -15,9 +14,10 @@ import type { SectionScope } from "./section-scope.js";
 
 // Create a schedule: what Claude should do, and when — once (quick presets or
 // a picked instant) or on a repeating cadence (daily / weekly / monthly at a
-// time). Scope picker mirrors the connect dialog: everywhere, or one room.
+// time).
 const props = defineProps<{
   open: boolean;
+  /** The surface this was opened from — it IS the scope, never a suggestion. */
   defaultScope: SectionScope;
 }>();
 
@@ -56,17 +56,10 @@ const frequency = ref<RepeatFrequency>("daily");
 const time = ref("09:00");
 const weekday = ref(1);
 const dayOfMonth = ref(1);
-const scopeChoice = ref<string>("global");
-
-const workspacesQuery = useWorkspaceList();
-const workspaces = computed(() =>
-  (workspacesQuery.data.value ?? []).filter((row) => !row.isArchived),
-);
 
 const createSchedule = useCreateSchedule();
 
-// `immediate` covers a dialog mounted already-open (the watcher would
-// otherwise never seed the scope).
+// `immediate` covers a dialog mounted already-open.
 watch(
   () => props.open,
   (open) => {
@@ -80,10 +73,6 @@ watch(
     time.value = "09:00";
     weekday.value = 1;
     dayOfMonth.value = 1;
-    scopeChoice.value =
-      props.defaultScope.kind === "workspace"
-        ? props.defaultScope.workspaceId
-        : "global";
     createSchedule.reset();
   },
   { immediate: true },
@@ -154,9 +143,14 @@ function create() {
           }),
         };
   createSchedule.mutate(
-    scopeChoice.value === "global"
-      ? { scope: "global", ...shared, ...when }
-      : { scope: "workspace", workspaceId: scopeChoice.value, ...shared, ...when },
+    props.defaultScope.kind === "workspace"
+      ? {
+          scope: "workspace",
+          workspaceId: props.defaultScope.workspaceId,
+          ...shared,
+          ...when,
+        }
+      : { scope: "global", ...shared, ...when },
     { onSuccess: () => emit("created") },
   );
 }
@@ -319,23 +313,6 @@ function onOpenChange(open: boolean) {
           placeholder="e.g. Morning digest"
           class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
         />
-      </label>
-
-      <label class="grid gap-1.5">
-        <span class="text-[11.5px] font-semibold text-ink-2">Where it lives</span>
-        <select
-          v-model="scopeChoice"
-          class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1"
-        >
-          <option value="global">Global — Claude everywhere</option>
-          <option
-            v-for="workspace in workspaces"
-            :key="workspace.id"
-            :value="workspace.id"
-          >
-            {{ workspace.name }} workspace
-          </option>
-        </select>
       </label>
 
       <p v-if="errorMessage" class="m-0 text-xs text-danger" role="alert">

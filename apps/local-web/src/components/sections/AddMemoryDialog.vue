@@ -240,7 +240,10 @@ function onOpenChange(open: boolean) {
         :workspace-id="workspaceChoice || null"
       />
 
-      <label class="grid gap-1.5">
+      <!-- A workspace surface IS the scope, so it never asks. The Global menu
+           has nothing to derive — memory is workspace-owned today (no global
+           entries), so there the workspace has to be chosen. -->
+      <label v-if="props.defaultScope.kind === 'global'" class="grid gap-1.5">
         <span class="text-[11.5px] font-semibold text-ink-2">Workspace</span>
         <select
           v-model="workspaceChoice"

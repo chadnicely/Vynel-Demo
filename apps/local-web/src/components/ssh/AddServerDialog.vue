@@ -35,11 +35,6 @@ const authKind = ref<AuthKind>("password");
 const password = ref("");
 const privateKey = ref("");
 const passphrase = ref("");
-const isAvailableEverywhere = ref(false);
-
-const isWorkspaceContext = computed(
-  () => props.defaultScope.kind === "workspace",
-);
 
 const addServer = useAddSshServer();
 
@@ -57,7 +52,6 @@ watch(
     password.value = "";
     privateKey.value = "";
     passphrase.value = "";
-    isAvailableEverywhere.value = false;
     addServer.reset();
   },
   { immediate: true },
@@ -118,7 +112,7 @@ function add() {
     credentials,
   };
   addServer.mutate(
-    props.defaultScope.kind === "workspace" && !isAvailableEverywhere.value
+    props.defaultScope.kind === "workspace"
       ? {
           scope: "workspace",
           workspaceId: props.defaultScope.workspaceId,
@@ -266,19 +260,6 @@ function onOpenChange(open: boolean) {
         Your password/key is encrypted and never shown again — not even to
         Claude.
       </p>
-
-      <label
-        v-if="isWorkspaceContext"
-        class="flex items-center gap-2 text-[12px] text-ink-2"
-      >
-        <input
-          v-model="isAvailableEverywhere"
-          type="checkbox"
-          aria-label="Make it available everywhere"
-          class="size-3.5 accent-[var(--gold)]"
-        />
-        Make it available everywhere, not just this workspace
-      </label>
 
       <p v-if="errorMessage" class="m-0 text-xs text-danger" role="alert">
         {{ errorMessage }}

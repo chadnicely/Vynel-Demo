@@ -45,6 +45,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Where you are decides where things go.** Create dialogs no longer ask "global or which
+  workspace?" — open one from the Global menu and it's global; open it inside a workspace and
+  it belongs to that workspace. The scope picker is gone from connecting a channel, creating a
+  schedule, adding knowledge, writing a notebook book, adding an MCP server, and adding an SSH
+  server (which also loses its "make it available everywhere" checkbox). To create something at
+  the other level, switch there first. Rows still show a "Global" badge so you can tell an
+  inherited item from a local one at a glance. One exception: memories still live in a workspace
+  (global memory isn't built yet), so the Global menu still asks which workspace to file into —
+  inside a workspace it just files there.
+
 - **The side menu reads in a deliberate order now.** Home, Chat and Sessions still lead;
   below them the menu groups by what things *are* — first Claude's own resources (Agents,
   Skills, Rules, Commands, MCP Servers), then Vynel's features led by Marketplace
