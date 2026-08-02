@@ -108,11 +108,15 @@ const effortOptions = [...THINKING_EFFORT_OPTIONS];
 // The insert tokens come from the contracts grammar's format helpers, so what
 // the picker writes is exactly what the server re-parses. The server resolves
 // against real rows regardless — these rosters are UX, never authority.
+// RESOLVED, not owned: a picker must offer everything this chat can actually
+// reach, which includes the user-level agents/skills/commands a session here
+// inherits. The menus ask the other question — what the scope owns — and read
+// the same composables without this flag.
 const scope = computed<SectionScope>(() => props.scope);
-const agentsQuery = useAgents(scope);
+const agentsQuery = useAgents(scope, { resolved: true });
 const workspacesQuery = useWorkspaceList();
-const skillsQuery = useInstalledSkills(scope);
-const commandsQuery = useCommands(scope);
+const skillsQuery = useInstalledSkills(scope, { resolved: true });
+const commandsQuery = useCommands(scope, { resolved: true });
 
 const currentWorkspaceId = computed(() =>
   props.scope.kind === "workspace" ? props.scope.workspaceId : null,

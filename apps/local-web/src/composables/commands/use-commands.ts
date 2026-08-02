@@ -3,26 +3,34 @@ import { useQuery } from "@tanstack/vue-query";
 import type { SectionScope } from "../../components/sections/section-scope.js";
 import { useVynel } from "../use-vynel.js";
 
-/** The slash commands a SURFACE resolves: a workspace drawer lists user ∪
- *  that workspace's `.claude/commands`; the global menu lists the user folder
- *  only. Task 3's "/" mention menu reads the same rows. */
-export function useCommands(scope: MaybeRefOrGetter<SectionScope>) {
+/** The slash commands a SURFACE owns — the workspace's own `.claude/commands`,
+ *  or the user folder on the global menu, so the list matches disk. `resolved`
+ *  switches to what is runnable there (user ∪ workspace): the "/" picker's
+ *  question. The two answers are cached apart. */
+export function useCommands(
+  scope: MaybeRefOrGetter<SectionScope>,
+  options: { resolved?: boolean } = {},
+) {
   const vynel = useVynel();
+  const isResolved = options.resolved === true;
   return useQuery({
     queryKey: computed(() => {
       const surface = toValue(scope);
       return [
         "commands",
-        "list",
+        isResolved ? "resolved" : "owned",
         surface.kind === "workspace" ? surface.workspaceId : "user",
       ];
     }),
     queryFn: async () => {
       const surface = toValue(scope);
-      const response =
-        surface.kind === "workspace"
-          ? await vynel.commands.list(surface.workspaceId)
-          : await vynel.commandsUser.list();
+      // The global surface resolves its own user folder and nothing else.
+      if (surface.kind !== "workspace") {
+        return (await vynel.commandsUser.list()).commands;
+      }
+      const response = isResolved
+        ? await vynel.commands.listResolved(surface.workspaceId)
+        : await vynel.commands.list(surface.workspaceId);
       return response.commands;
     },
   });

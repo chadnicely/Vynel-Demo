@@ -15,6 +15,9 @@ export type ListAgentsForWorkspaceInput = {
   // null = user-scope agents ONLY — the GLOBAL Agents surface has no
   // workspace to union in (mirrors the repo's null convention).
   workspaceId: string | null
+  /** Drop user-scope rows: what the workspace OWNS (its menu) rather than what
+   *  a session there resolves (the "@" picker and Claude's own tool). */
+  ownedByWorkspaceOnly?: boolean
 }
 
 export async function listAgentsForWorkspace(

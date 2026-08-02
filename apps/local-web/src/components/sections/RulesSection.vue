@@ -7,8 +7,10 @@ import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import type { SectionScope } from "./section-scope.js";
 import SectionHeader from "./SectionHeader.vue";
 
-// The rules on either surface — EVERY `.claude/rules/*.md` file Claude Code
-// loads there, the user's hand-written ones included. A marketplace-installed
+// The rules a surface OWNS — the `.claude/rules/*.md` files in that folder on
+// disk, the user's hand-written ones included. A global rule still LOADS in a
+// workspace session; it is simply the Global menu's to show and to manage.
+// A marketplace-installed
 // rule wears a "Managed by Vynel" chip (the AgentsSection SOURCE_LABELS
 // idiom); rows open read-only in a dialog. Editing is deliberately out of
 // scope for v1 — these are the user's own files on disk.
@@ -34,7 +36,7 @@ const viewingRule = ref<OpenRule | null>(null);
 const sectionHint = computed(() =>
   props.scope.kind === "global"
     ? "Standing instructions Claude follows in every workspace"
-    : "Standing instructions it always follows here",
+    : "Standing instructions kept in this workspace",
 );
 </script>
 

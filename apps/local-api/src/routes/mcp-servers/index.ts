@@ -1,11 +1,13 @@
 // The WORKSPACE-scoped `mcp-servers` HTTP surface — mounted at
 // `/workspaces/:workspaceId/mcp-servers` from `apps/local-api/src/app.ts`.
-// The workspace MCP view fuses scopes the way Claude Code resolves them in a
-// project (user + that workspace's `.mcp.json`, scope chip per row); the
-// mutations touch ONLY the workspace's own `.mcp.json` — a user-scope add or
-// remove goes through the user twin, so each config file has one route home.
+// Every verb here speaks for the workspace's OWN `.mcp.json` and nothing else,
+// so the list mirrors that file on disk and the read agrees with the writes
+// beside it. A user-scope server still applies to a session here, but it is
+// the Global menu's to show and to remove — one config file, one route home.
+// (Listing user rows here is what let a click in room A delete a server from
+// every room.) No composer picker reads MCP servers: no `/resolved` twin.
 //
-//   GET    /             -> user ∪ workspace rows, masked, scope chip per row
+//   GET    /             -> the workspace's own rows, masked
 //   POST   /             -> addCustomMcpServerForScope (workspace .mcp.json)
 //   DELETE /:serverName  -> removeMcpServerForScope    (workspace .mcp.json)
 //
@@ -36,11 +38,11 @@ export const mcpServersApp = factory
     '/',
     describeRoute({
       tags: ['mcp-servers'],
-      summary: 'List MCP servers this workspace resolves: user ∪ workspace, secrets masked.',
+      summary: "List the workspace's OWN MCP servers (its .mcp.json), secrets masked.",
       'x-sdk-name': 'mcpServers.list',
       responses: {
         200: {
-          description: 'Masked rows with a scope chip each (user | workspace).',
+          description: "Masked rows from the workspace's own `.mcp.json`.",
           content: { 'application/json': { schema: resolver(ListMcpServersResponseSchema) } },
         },
         404: { description: 'Workspace not found.' },
@@ -50,12 +52,9 @@ export const mcpServersApp = factory
     (c) => {
       const workspacePath = c.var.workspace!.path
       return c.json({
-        servers: [
-          ...listMcpServersForScope('user').map((server) => serializeMcpServer(server, 'user')),
-          ...listMcpServersForScope('workspace', workspacePath).map((server) =>
-            serializeMcpServer(server, 'workspace'),
-          ),
-        ],
+        servers: listMcpServersForScope('workspace', workspacePath).map((server) =>
+          serializeMcpServer(server, 'workspace'),
+        ),
       })
     },
   )

@@ -14,10 +14,19 @@ export function registerSkillsCommands(program: Command, getClient: () => VynelC
 
   skills
     .command('list')
-    .description('List installed skills for the workspace')
+    .description("List the skills installed into the workspace (what it owns)")
     .requiredOption('-w, --workspace <id>', 'workspace id')
-    .action(async (opts: { workspace: string }) => {
-      printResult(await getClient().skills.listInstalled(opts.workspace))
+    // Without this the split would silently shorten `skills list`: the default
+    // is now the workspace's own installs, so `--resolved` is how you still ask
+    // what a session running there can actually reach (user ∪ workspace).
+    .option('--resolved', 'include user-scope skills — everything available there')
+    .action(async (opts: { workspace: string; resolved?: boolean }) => {
+      const client = getClient()
+      printResult(
+        opts.resolved === true
+          ? await client.skills.listInstalledResolved(opts.workspace)
+          : await client.skills.listInstalled(opts.workspace),
+      )
     })
 
   skills

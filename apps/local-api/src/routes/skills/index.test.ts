@@ -144,7 +144,38 @@ describe('skills routes', () => {
       })
     })
 
-    it('returns the installed list after POST /install', async () => {
+    // SPEC CHANGE (2026-08-03): `/installed` is the MENU's read — what this
+    // workspace OWNS — so a user-scope install belongs to the Global menu and
+    // no longer appears here. `/installed/resolved` is what a session can
+    // actually reach, and is what Claude's `list_installed_skills` reads.
+    it('lists a workspace-scope install, not a user-scope one', async () => {
+      await withIsolatedFs(async (workspacePath) => {
+        await withTestDatabase(async (db) => {
+          const { workspace } = seedWorld(db, workspacePath)
+          const app = createApp({ db, logger: silentLogger })
+
+          const install = (scope: string) =>
+            app.request(`/workspaces/${workspace.id}/skills/install`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ skillId: 'email-drafter', scope }),
+            })
+          expect((await install('user')).status).toBe(201)
+
+          const userOnly = await app.request(`/workspaces/${workspace.id}/skills/installed`)
+          expect((await userOnly.json()) as unknown[]).toEqual([])
+
+          expect((await install('workspace')).status).toBe(201)
+          const listRes = await app.request(`/workspaces/${workspace.id}/skills/installed`)
+          const list = (await listRes.json()) as Array<{ skillId: string; scope: string }>
+          expect(list.map((row) => [row.skillId, row.scope])).toEqual([
+            ['email-drafter', 'workspace'],
+          ])
+        })
+      })
+    })
+
+    it('returns the resolved union after POST /install', async () => {
       await withIsolatedFs(async (workspacePath) => {
         await withTestDatabase(async (db) => {
           const { workspace } = seedWorld(db, workspacePath)
@@ -157,7 +188,9 @@ describe('skills routes', () => {
           })
           expect(installRes.status).toBe(201)
 
-          const listRes = await app.request(`/workspaces/${workspace.id}/skills/installed`)
+          const listRes = await app.request(
+            `/workspaces/${workspace.id}/skills/installed/resolved`,
+          )
           const list = (await listRes.json()) as Array<{
             skillId: string
             resolvedSettings: Record<string, unknown>

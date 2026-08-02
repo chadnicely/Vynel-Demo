@@ -16,6 +16,7 @@ function stubClient(): { client: VynelClient; calls: Array<{ method: string; arg
   const client = {
     skills: {
       listInstalled: record('listInstalled'),
+      listInstalledResolved: record('listInstalledResolved'),
       listAvailable: record('listAvailable'),
       install: record('install'),
       uninstall: record('uninstall'),
@@ -38,6 +39,14 @@ describe('vynel skills', () => {
     const { client, calls } = stubClient()
     await run(client, ['skills', 'list', '-w', 'ws_1'])
     expect(calls).toStrictEqual([{ method: 'listInstalled', args: ['ws_1'] }])
+  })
+
+  // The owned/resolved split (2026-08-03) made the default narrower, so the old
+  // answer needs a way to still be asked.
+  it('list --resolved reads via skills.listInstalledResolved', async () => {
+    const { client, calls } = stubClient()
+    await run(client, ['skills', 'list', '-w', 'ws_1', '--resolved'])
+    expect(calls).toStrictEqual([{ method: 'listInstalledResolved', args: ['ws_1'] }])
   })
 
   it('available reads via skills.listAvailable', async () => {

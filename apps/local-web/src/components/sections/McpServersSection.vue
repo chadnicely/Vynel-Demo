@@ -10,12 +10,12 @@ import AddMcpServerDialog from "./AddMcpServerDialog.vue";
 import type { SectionScope } from "./section-scope.js";
 import SectionHeader from "./SectionHeader.vue";
 
-// The MCP servers on either surface — every entry the scope's Claude config
-// carries (marketplace-installed and hand-added alike), each with transport +
-// scope chips and a command-or-url summary. SECRETS STAY MASKED: the API
-// sends header NAMES + presence only, so a value can never render here.
-// "Add server" opens the custom-add form; removing edits the row's own
-// config file.
+// The MCP servers a surface OWNS — the entries in ITS OWN Claude config (a
+// workspace's `.mcp.json`, or `~/.claude.json` on the global menu),
+// marketplace-installed and hand-added alike, each with transport + scope
+// chips and a command-or-url summary. One config file per surface, so removing
+// here can only touch the file this surface speaks for. SECRETS STAY MASKED:
+// the API sends header NAMES + presence only, so a value can never render.
 const props = defineProps<{
   scope: SectionScope;
 }>();
@@ -59,8 +59,9 @@ function requestRemove(server: { scope: "user" | "workspace"; serverName: string
     return;
   }
   armedRemoveKey.value = null;
-  // The row's OWN scope picks the config file — a Global row on a workspace
-  // surface still removes from ~/.claude.json.
+  // The row's OWN scope picks the config file. Each surface now lists only
+  // what it owns, so the workspace branch is the only one a room can reach —
+  // the user branch serves the Global menu, whose rows carry scope 'user'.
   removeServer.mutate(
     server.scope === "workspace" && props.scope.kind === "workspace"
       ? {

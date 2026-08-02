@@ -4,7 +4,8 @@
 // under `/workspaces/:workspaceId/`).
 //
 //   POST   /agents                  -> createAgent (source 'user')
-//   GET    /agents?workspaceId=      -> listAgentsForWorkspace
+//   GET    /agents?workspaceId=      -> the agents that scope OWNS (the menu)
+//   GET    /agents/resolved?workspaceId= -> user ∪ workspace          [x-mcp]
 //   GET    /agents/curated           -> the curated catalog (browse source)
 //   POST   /agents/curated/install   -> installCuratedAgent (seed install)
 //   GET    /agents/:slug             -> getAgentBySlugOrThrow
@@ -146,8 +147,46 @@ export const agentsApp = factory
     '/',
     describeRoute({
       tags: ['agents'],
-      summary: 'List agents: user-scope ∪ a workspace, or user-scope only (no workspaceId).',
+      summary: "List the agents a scope OWNS: a workspace's own, or user-scope.",
       'x-sdk-name': 'agents.list',
+      responses: {
+        200: {
+          description:
+            "Array of agents, newest first — the workspace's own when workspaceId is given; user-scope only when omitted (the global surface).",
+          content: { 'application/json': { schema: resolver(ListAgentsResponseSchema) } },
+        },
+        404: { description: 'Workspace not found.' },
+      },
+    }),
+    validator('query', ListAgentsQuerySchema),
+    ...userScoped,
+    async (c) => {
+      const { workspaceId } = c.req.valid('query')
+      const userId = c.var.user.id
+      // Verify ownership of the workspace before listing (global surface
+      // passes no workspaceId — user-scope rows only, nothing to verify).
+      if (workspaceId !== undefined) {
+        await getWorkspaceById(c.var.db, workspaceId, userId)
+      }
+      const agents = await listAgentsForWorkspace(c.var.db, {
+        userId,
+        workspaceId: workspaceId ?? null,
+        ownedByWorkspaceOnly: true,
+      })
+      return c.json(agents.map(serializeAgent))
+    },
+  )
+  // The union — every agent a session running there can delegate to. Claude's
+  // own `list_agents` reads this, and so does the composer's "@" picker; the
+  // bare `/` above answers the different question the menu asks. Declared
+  // before `/:slug`, like `/curated`, so the static segment is never read as a
+  // slug — keep it that way rather than relying on router precedence.
+  .get(
+    '/resolved',
+    describeRoute({
+      tags: ['agents'],
+      summary: 'List every agent available in a scope: user-scope ∪ the workspace.',
+      'x-sdk-name': 'agents.listResolved',
       'x-mcp': {
         exposed: true,
         name: 'list_agents',
@@ -172,8 +211,6 @@ export const agentsApp = factory
     async (c) => {
       const { workspaceId } = c.req.valid('query')
       const userId = c.var.user.id
-      // Verify ownership of the workspace before listing (global surface
-      // passes no workspaceId — user-scope rows only, nothing to verify).
       if (workspaceId !== undefined) {
         await getWorkspaceById(c.var.db, workspaceId, userId)
       }

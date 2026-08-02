@@ -3,26 +3,35 @@ import { useQuery } from "@tanstack/vue-query";
 import type { SectionScope } from "../../components/sections/section-scope.js";
 import { useVynel } from "../use-vynel.js";
 
-/** Installed skills on a SURFACE: a workspace drawer lists user-scope ∪ that
- *  workspace's installs (the workspace route's fusion); the global menu lists
- *  user-scope installs only. Keyed under `["skills", "installed"]` so a
- *  marketplace install/uninstall refreshes every shelf. */
-export function useInstalledSkills(scope: MaybeRefOrGetter<SectionScope>) {
+/** Skills installed INTO a surface — a workspace's own installs, or the user's
+ *  on the global menu, so the list matches what is on disk there. `resolved`
+ *  switches to what a session there can reach (user ∪ workspace): the "/"
+ *  picker's question. Cached apart from the menu's answer. Keyed under
+ *  `["skills", "installed"]` so a marketplace install refreshes every shelf. */
+export function useInstalledSkills(
+  scope: MaybeRefOrGetter<SectionScope>,
+  options: { resolved?: boolean } = {},
+) {
   const vynel = useVynel();
+  const isResolved = options.resolved === true;
   return useQuery({
     queryKey: computed(() => {
       const surface = toValue(scope);
       return [
         "skills",
         "installed",
+        isResolved ? "resolved" : "owned",
         surface.kind === "workspace" ? surface.workspaceId : "user",
       ];
     }),
     queryFn: () => {
       const surface = toValue(scope);
-      return surface.kind === "workspace"
-        ? vynel.skills.listInstalled(surface.workspaceId)
-        : vynel.skillsUser.listInstalled();
+      // The global surface has no workspace to union in — its user-scope
+      // shelf IS what resolves there, so both modes read the same route.
+      if (surface.kind !== "workspace") return vynel.skillsUser.listInstalled();
+      return isResolved
+        ? vynel.skills.listInstalledResolved(surface.workspaceId)
+        : vynel.skills.listInstalled(surface.workspaceId);
     },
   });
 }

@@ -17,6 +17,9 @@ export type ListInstalledSkillsForContextInput = {
   // null = user-scope rows only — the GLOBAL skills view has no workspace
   // to union in (mirrors the repo's null convention).
   workspaceId: string | null
+  /** Drop user-scope rows: what the workspace OWNS (its menu) rather than what
+   *  resolves in a session there (the "/" picker and Claude's own tool). */
+  ownedByWorkspaceOnly?: boolean
 }
 
 export type InstalledSkillWithDefinitionAndSettings = {

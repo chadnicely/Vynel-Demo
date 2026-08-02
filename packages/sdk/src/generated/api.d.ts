@@ -143,8 +143,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List skills installed in this user+workspace context. */
+        /** List the skills installed INTO this workspace (what it owns). */
         get: operations["getWorkspacesByWorkspaceIdSkillsInstalled"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/skills/installed/resolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every skill available here: user ∪ workspace. */
+        get: operations["getWorkspacesByWorkspaceIdSkillsInstalledResolved"];
         put?: never;
         post?: never;
         delete?: never;
@@ -228,7 +245,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List rule files this workspace resolves: user ∪ workspace. */
+        /** List the workspace's OWN rule files (its folder on disk). */
         get: operations["getWorkspacesByWorkspaceIdRules"];
         put?: never;
         post?: never;
@@ -245,8 +262,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List slash commands this workspace resolves: user ∪ workspace. */
+        /** List the workspace's OWN slash commands (its folder on disk). */
         get: operations["getWorkspacesByWorkspaceIdCommands"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/commands/resolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every slash command runnable here: user ∪ workspace. */
+        get: operations["getWorkspacesByWorkspaceIdCommandsResolved"];
         put?: never;
         post?: never;
         delete?: never;
@@ -262,7 +296,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List MCP servers this workspace resolves: user ∪ workspace, secrets masked. */
+        /** List the workspace's OWN MCP servers (its .mcp.json), secrets masked. */
         get: operations["getWorkspacesByWorkspaceIdMcp-servers"];
         put?: never;
         /** Add a custom MCP server to this workspace's .mcp.json. */
@@ -2632,11 +2666,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List agents: user-scope ∪ a workspace, or user-scope only (no workspaceId). */
+        /** List the agents a scope OWNS: a workspace's own, or user-scope. */
         get: operations["getAgents"];
         put?: never;
         /** Create an agent (user-built; source "user"). */
         post: operations["postAgents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/resolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every agent available in a scope: user-scope ∪ the workspace. */
+        get: operations["getAgentsResolved"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3804,6 +3855,79 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Workspace-scope installs joined with their catalog definition (if any) + settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        skillId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        installedFromSource: "verified-catalog" | "marketplace" | "external";
+                        versionInstalled: string;
+                        /** @enum {string} */
+                        installHealth: "healthy" | "missing-on-disk" | "mcp-config-drift" | "failed-install";
+                        installHealthMessage: string | null;
+                        installedAt: string;
+                        updatedAt: string;
+                        definition: {
+                            skillId: string;
+                            displayName: string;
+                            oneLineDescription: string;
+                            /** @enum {string} */
+                            category: "email" | "documents" | "calendar" | "files" | "research" | "notes" | "context" | "creative" | "communication";
+                            iconName: string;
+                            version: string;
+                            /** @enum {string} */
+                            recommendedScope: "user" | "workspace";
+                            isSystemInstalled: boolean;
+                            settingsSchema: {
+                                settingKey: string;
+                                displayLabel: string;
+                                description: string;
+                                /** @enum {string} */
+                                type: "string" | "number" | "boolean" | "string-enum";
+                                defaultValue: string | number | boolean;
+                                enumValues?: string[];
+                                validationConstraints?: {
+                                    min?: number;
+                                    max?: number;
+                                    minLength?: number;
+                                    maxLength?: number;
+                                };
+                            }[];
+                        } | null;
+                        resolvedSettings: {
+                            [key: string]: string | number | boolean;
+                        };
+                    }[];
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdSkillsInstalledResolved: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
             /** @description Each installed skill joined with its catalog definition (if any) + resolved settings. */
             200: {
                 headers: {
@@ -4053,7 +4177,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description All rule files across both scopes, scope + provenance per row. */
+            /** @description Rule files in the workspace's `.claude/rules/`, provenance per row. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4085,6 +4209,45 @@ export interface operations {
         };
     };
     getWorkspacesByWorkspaceIdCommands: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One row per command file in the workspace's `.claude/commands`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        commands: {
+                            commandName: string;
+                            relativePath: string;
+                            description: string | null;
+                            argumentHint: string | null;
+                            bodyPreview: string | null;
+                            /** @enum {string} */
+                            scope: "user" | "workspace";
+                        }[];
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdCommandsResolved: {
         parameters: {
             query?: never;
             header?: never;
@@ -4134,7 +4297,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Masked rows with a scope chip each (user | workspace). */
+            /** @description Masked rows from the workspace's own `.mcp.json`. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12829,7 +12992,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Array of agents, newest first (user-scope ∪ the workspace when workspaceId is given; user-scope only when omitted — the global surface). */
+            /** @description Array of agents, newest first — the workspace's own when workspaceId is given; user-scope only when omitted (the global surface). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12954,6 +13117,60 @@ export interface operations {
             };
             /** @description An agent with that slug already exists at the requested scope. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAgentsResolved: {
+        parameters: {
+            query?: {
+                workspaceId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of agents, newest first (user-scope ∪ the workspace when workspaceId is given; user-scope only when omitted — the global surface). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        slug: string;
+                        name: string;
+                        description: string;
+                        icon: string | null;
+                        prompt: string;
+                        model: string | null;
+                        /** @enum {string|null} */
+                        effort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                        /** @enum {string|null} */
+                        permissionMode: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "dontAsk" | "auto" | null;
+                        background: boolean;
+                        allowedTools: string[] | null;
+                        disallowedTools: string[] | null;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        source: "vynel" | "user" | "community";
+                        /** @enum {string} */
+                        trustTier: "verified" | "anthropic-official" | "community";
+                        enabled: boolean;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

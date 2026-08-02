@@ -8,8 +8,9 @@ import type { SectionScope } from "./section-scope.js";
 import SectionHeader from "./SectionHeader.vue";
 
 // The skills shelf on either surface (extracted from the workspace drawer's
-// last inline list): a workspace drawer shows user-scope ∪ that room's
-// installs; the global menu the user-scope shelf only. Installed means
+// last inline list): a workspace drawer shows the installs made INTO that
+// room; the global menu the user-scope shelf. Each list mirrors what is on
+// disk at that scope — a session there still reaches both. Installed means
 // present on disk (install/uninstall-only — no On/Off state); install and
 // uninstall stay in the Marketplace. Read-only here.
 const props = defineProps<{
@@ -24,7 +25,7 @@ const { scopeLabel } = useScopeLabel();
 const sectionHint = computed(() =>
   props.scope.kind === "global"
     ? "What Claude knows how to do, in every workspace"
-    : "What your assistant knows how to do",
+    : "Skills installed into this workspace",
 );
 </script>
 

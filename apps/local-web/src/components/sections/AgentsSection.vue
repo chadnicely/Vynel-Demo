@@ -8,9 +8,12 @@ import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import type { SectionScope } from "./section-scope.js";
 import SectionHeader from "./SectionHeader.vue";
 
-// The agents section, on either surface: the global menu shows the
-// user-scope specialists (available in every workspace); a workspace drawer
-// shows those plus that room's own. Every source appears — curated installs,
+// The agents section, on either surface: the global menu shows the user-scope
+// specialists (available in every workspace); a workspace drawer shows the
+// ones added to THAT room. Its sessions can still delegate to the global ones
+// — the "@" picker reads the resolved union — but this shelf is what the room
+// owns, so nothing here manages a global agent. Every source appears — curated
+// installs,
 // marketplace (community) installs, and hand-built agents — each wearing a
 // provenance chip; the pill toggles whether the session resolver offers it.
 const props = defineProps<{
@@ -35,10 +38,13 @@ function toggleAgent(agent: { id: string; enabled: boolean }) {
   setEnabled.mutate({ agentId: agent.id, enabled: !agent.enabled });
 }
 
+// The workspace wording says "added here" rather than "it can delegate to":
+// this shelf is what the room OWNS, and a session here can also delegate to
+// every global agent above it.
 const sectionHint = computed(() =>
   props.scope.kind === "global"
     ? "Specialists Claude can delegate to, in every workspace"
-    : "Specialists it can delegate to",
+    : "Specialists added to this workspace",
 );
 </script>
 

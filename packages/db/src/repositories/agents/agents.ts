@@ -80,16 +80,22 @@ export type ListAgentsForUserAndWorkspaceInput = {
   // null = user-scope rows ONLY (the global marketplace surface has no
   // workspace to union in) — mirrors `findAgentBySlug`'s null convention.
   workspaceId: string | null
+  /** Drop the user-scope rows: what this workspace OWNS rather than what a
+   *  session here resolves. Ignored when `workspaceId` is null. */
+  ownedByWorkspaceOnly?: boolean
 }
 
 // With a workspaceId: the union of user-scope rows (workspaceId IS NULL —
 // available in every workspace) + workspace-scope rows for THIS workspace.
 // Live rows only, newest first. Phase 1 list size is bounded by the curated
 // catalog + the user's own agents — small in practice.
-function workspaceUnionClause(workspaceId: string | null) {
-  return workspaceId === null
-    ? isNull(agents.workspaceId)
-    : or(isNull(agents.workspaceId), eq(agents.workspaceId, workspaceId))
+function workspaceUnionClause(workspaceId: string | null, ownedByWorkspaceOnly = false) {
+  if (workspaceId === null) return isNull(agents.workspaceId)
+  // Owned = what this workspace holds, the question its menu asks. The union
+  // is what a session running here can reach — the "@" picker and Claude's
+  // own `list_agents` want that one.
+  if (ownedByWorkspaceOnly) return eq(agents.workspaceId, workspaceId)
+  return or(isNull(agents.workspaceId), eq(agents.workspaceId, workspaceId))
 }
 
 export function listAgentsForUserAndWorkspace(
@@ -103,7 +109,7 @@ export function listAgentsForUserAndWorkspace(
       and(
         eq(agents.userId, input.userId),
         isNull(agents.deletedAt),
-        workspaceUnionClause(input.workspaceId),
+        workspaceUnionClause(input.workspaceId, input.ownedByWorkspaceOnly === true),
       ),
     )
     .orderBy(desc(agents.createdAt))
@@ -111,10 +117,13 @@ export function listAgentsForUserAndWorkspace(
 }
 
 // As above, but only enabled agents — the input to
-// `resolveEnabledAgentsForSession`.
+// `resolveEnabledAgentsForSession`, i.e. the set a live session may delegate
+// to. That set is ALWAYS the union: narrowing it would strip every user-level
+// agent from a running session. The `Omit` makes the compiler say so, rather
+// than leaving a knob this function silently ignores.
 export function listEnabledAgentsForUserAndWorkspace(
   db: Database,
-  input: ListAgentsForUserAndWorkspaceInput,
+  input: Omit<ListAgentsForUserAndWorkspaceInput, 'ownedByWorkspaceOnly'>,
 ): AgentRow[] {
   return db
     .select()

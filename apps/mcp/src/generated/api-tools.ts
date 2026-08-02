@@ -1104,7 +1104,7 @@ export const listAgents: McpToolFactory = (scope, app) =>
   },
     async (args: Record<string, unknown>) => {
       try {
-        const pathStr = '/agents'
+        const pathStr = '/agents/resolved'
         const queryParams = new URLSearchParams()
         for (const k of ['workspaceId']) {
           const v = args[k]
@@ -1511,7 +1511,7 @@ export const listInstalledSkills: McpToolFactory = (scope, app) =>
   },
     async (args: Record<string, unknown>) => {
       try {
-        let pathStr = '/workspaces/{workspaceId}/skills/installed'
+        let pathStr = '/workspaces/{workspaceId}/skills/installed/resolved'
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
         const requestBody: string | undefined = undefined

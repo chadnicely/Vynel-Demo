@@ -114,7 +114,13 @@ describe('user-scoped /commands', () => {
 })
 
 describe('workspace-scoped /workspaces/:workspaceId/commands', () => {
-  it('fuses user ∪ workspace commands with scope chips', async () => {
+  // SPEC CHANGE (2026-08-03): the two questions were split. `GET /` is the
+  // MENU's read and must mirror the workspace's own folder on disk, so a
+  // user-level command no longer appears there (listing one invited managing a
+  // global file from a room that doesn't own it). `GET /resolved` is what the
+  // composer's "/" picker asks — everything runnable here — and keeps the union,
+  // because settingSources really does load both.
+  it('lists only the workspace’s own commands', async () => {
     await withWorld(async ({ app, homeDir, workspaceDir, workspaceId }) => {
       const userCommands = join(homeDir, '.claude', 'commands')
       const wsCommands = join(workspaceDir, '.claude', 'commands')
@@ -124,6 +130,24 @@ describe('workspace-scoped /workspaces/:workspaceId/commands', () => {
       writeFileSync(join(wsCommands, 'here-only.md'), 'Room command.\n', 'utf8')
 
       const res = await app.request(`/workspaces/${workspaceId}/commands`)
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { commands: { commandName: string; scope: string }[] }
+      expect(body.commands.map((command) => [command.commandName, command.scope])).toEqual([
+        ['here-only', 'workspace'],
+      ])
+    })
+  })
+
+  it('fuses user ∪ workspace commands on /resolved, with scope chips', async () => {
+    await withWorld(async ({ app, homeDir, workspaceDir, workspaceId }) => {
+      const userCommands = join(homeDir, '.claude', 'commands')
+      const wsCommands = join(workspaceDir, '.claude', 'commands')
+      mkdirSync(userCommands, { recursive: true })
+      mkdirSync(wsCommands, { recursive: true })
+      writeFileSync(join(userCommands, 'everywhere.md'), 'Global command.\n', 'utf8')
+      writeFileSync(join(wsCommands, 'here-only.md'), 'Room command.\n', 'utf8')
+
+      const res = await app.request(`/workspaces/${workspaceId}/commands/resolved`)
       expect(res.status).toBe(200)
       const body = (await res.json()) as { commands: { commandName: string; scope: string }[] }
       expect(body.commands.map((command) => [command.commandName, command.scope])).toEqual([

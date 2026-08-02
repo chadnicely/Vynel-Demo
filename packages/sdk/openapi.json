@@ -1176,7 +1176,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "Each installed skill joined with its catalog definition (if any) + resolved settings.",
+            "description": "Workspace-scope installs joined with their catalog definition (if any) + settings.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1416,8 +1416,256 @@
             "required": true
           }
         ],
-        "summary": "List skills installed in this user+workspace context.",
-        "x-sdk-name": "skills.listInstalled",
+        "summary": "List the skills installed INTO this workspace (what it owns).",
+        "x-sdk-name": "skills.listInstalled"
+      }
+    },
+    "/workspaces/{workspaceId}/skills/installed/resolved": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Each installed skill joined with its catalog definition (if any) + resolved settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "skillId": {
+                        "type": "string"
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "workspace"
+                        ]
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "installedFromSource": {
+                        "type": "string",
+                        "enum": [
+                          "verified-catalog",
+                          "marketplace",
+                          "external"
+                        ]
+                      },
+                      "versionInstalled": {
+                        "type": "string"
+                      },
+                      "installHealth": {
+                        "type": "string",
+                        "enum": [
+                          "healthy",
+                          "missing-on-disk",
+                          "mcp-config-drift",
+                          "failed-install"
+                        ]
+                      },
+                      "installHealthMessage": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "installedAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      },
+                      "definition": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "skillId": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "oneLineDescription": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "email",
+                              "documents",
+                              "calendar",
+                              "files",
+                              "research",
+                              "notes",
+                              "context",
+                              "creative",
+                              "communication"
+                            ]
+                          },
+                          "iconName": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "recommendedScope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          },
+                          "isSystemInstalled": {
+                            "type": "boolean"
+                          },
+                          "settingsSchema": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "settingKey": {
+                                  "type": "string"
+                                },
+                                "displayLabel": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "string",
+                                    "number",
+                                    "boolean",
+                                    "string-enum"
+                                  ]
+                                },
+                                "defaultValue": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    }
+                                  ]
+                                },
+                                "enumValues": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "validationConstraints": {
+                                  "type": "object",
+                                  "properties": {
+                                    "min": {
+                                      "type": "number"
+                                    },
+                                    "max": {
+                                      "type": "number"
+                                    },
+                                    "minLength": {
+                                      "type": "number"
+                                    },
+                                    "maxLength": {
+                                      "type": "number"
+                                    }
+                                  }
+                                }
+                              },
+                              "required": [
+                                "settingKey",
+                                "displayLabel",
+                                "description",
+                                "type",
+                                "defaultValue"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "skillId",
+                          "displayName",
+                          "oneLineDescription",
+                          "category",
+                          "iconName",
+                          "version",
+                          "recommendedScope",
+                          "isSystemInstalled",
+                          "settingsSchema"
+                        ]
+                      },
+                      "resolvedSettings": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "boolean"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "skillId",
+                      "scope",
+                      "workspaceId",
+                      "installedFromSource",
+                      "versionInstalled",
+                      "installHealth",
+                      "installHealthMessage",
+                      "installedAt",
+                      "updatedAt",
+                      "definition",
+                      "resolvedSettings"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdSkillsInstalledResolved",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List every skill available here: user ∪ workspace.",
+        "x-sdk-name": "skills.listInstalledResolved",
         "x-mcp": {
           "exposed": true,
           "name": "list_installed_skills",
@@ -1756,7 +2004,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "All rule files across both scopes, scope + provenance per row.",
+            "description": "Rule files in the workspace's `.claude/rules/`, provenance per row.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1841,7 +2089,7 @@
             "required": true
           }
         ],
-        "summary": "List rule files this workspace resolves: user ∪ workspace.",
+        "summary": "List the workspace's OWN rule files (its folder on disk).",
         "x-sdk-name": "rules.list"
       }
     },
@@ -1849,7 +2097,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "One row per command file across both scopes, scope per row.",
+            "description": "One row per command file in the workspace's `.claude/commands`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1928,15 +2176,102 @@
             "required": true
           }
         ],
-        "summary": "List slash commands this workspace resolves: user ∪ workspace.",
+        "summary": "List the workspace's OWN slash commands (its folder on disk).",
         "x-sdk-name": "commands.list"
+      }
+    },
+    "/workspaces/{workspaceId}/commands/resolved": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "One row per command file across both scopes, scope per row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "commands": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "commandName": {
+                            "type": "string"
+                          },
+                          "relativePath": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "argumentHint": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "bodyPreview": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "commandName",
+                          "relativePath",
+                          "description",
+                          "argumentHint",
+                          "bodyPreview",
+                          "scope"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "commands"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdCommandsResolved",
+        "tags": [
+          "commands"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List every slash command runnable here: user ∪ workspace.",
+        "x-sdk-name": "commands.listResolved"
       }
     },
     "/workspaces/{workspaceId}/mcp-servers": {
       "get": {
         "responses": {
           "200": {
-            "description": "Masked rows with a scope chip each (user | workspace).",
+            "description": "Masked rows from the workspace's own `.mcp.json`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2036,7 +2371,7 @@
             "required": true
           }
         ],
-        "summary": "List MCP servers this workspace resolves: user ∪ workspace, secrets masked.",
+        "summary": "List the workspace's OWN MCP servers (its .mcp.json), secrets masked.",
         "x-sdk-name": "mcpServers.list"
       },
       "post": {
@@ -24201,7 +24536,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "Array of agents, newest first (user-scope ∪ the workspace when workspaceId is given; user-scope only when omitted — the global surface).",
+            "description": "Array of agents, newest first — the workspace's own when workspaceId is given; user-scope only when omitted (the global surface).",
             "content": {
               "application/json": {
                 "schema": {
@@ -24369,8 +24704,184 @@
             }
           }
         ],
-        "summary": "List agents: user-scope ∪ a workspace, or user-scope only (no workspaceId).",
-        "x-sdk-name": "agents.list",
+        "summary": "List the agents a scope OWNS: a workspace's own, or user-scope.",
+        "x-sdk-name": "agents.list"
+      }
+    },
+    "/agents/resolved": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of agents, newest first (user-scope ∪ the workspace when workspaceId is given; user-scope only when omitted — the global surface).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "slug": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "icon": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "prompt": {
+                        "type": "string"
+                      },
+                      "model": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "effort": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          null
+                        ]
+                      },
+                      "permissionMode": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "default",
+                          "acceptEdits",
+                          "bypassPermissions",
+                          "plan",
+                          "dontAsk",
+                          "auto",
+                          null
+                        ]
+                      },
+                      "background": {
+                        "type": "boolean"
+                      },
+                      "allowedTools": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "disallowedTools": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "workspace"
+                        ]
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "vynel",
+                          "user",
+                          "community"
+                        ]
+                      },
+                      "trustTier": {
+                        "type": "string",
+                        "enum": [
+                          "verified",
+                          "anthropic-official",
+                          "community"
+                        ]
+                      },
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "name",
+                      "description",
+                      "icon",
+                      "prompt",
+                      "model",
+                      "effort",
+                      "permissionMode",
+                      "background",
+                      "allowedTools",
+                      "disallowedTools",
+                      "scope",
+                      "workspaceId",
+                      "source",
+                      "trustTier",
+                      "enabled",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getAgentsResolved",
+        "tags": [
+          "agents"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "summary": "List every agent available in a scope: user-scope ∪ the workspace.",
+        "x-sdk-name": "agents.listResolved",
         "x-mcp": {
           "exposed": true,
           "name": "list_agents",

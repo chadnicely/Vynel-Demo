@@ -68,6 +68,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  listResolved: async (options?: NonNullable<paths["/agents/resolved"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/agents/resolved", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   setEnabled: async (agentId: NonNullable<paths["/agents/{agentId}/enable"]["post"]['parameters']>['path']["agentId"], input: NonNullable<paths["/agents/{agentId}/enable"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/agents/{agentId}/enable", {
       params: { path: { agentId: agentId } },
@@ -445,6 +452,13 @@ export function makeNamespaced(client: Client<paths>) {
   commands: {
   list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/commands"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/commands", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listResolved: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/commands/resolved"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/commands/resolved", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
@@ -1494,6 +1508,13 @@ export function makeNamespaced(client: Client<paths>) {
   },
   listInstalled: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/skills/installed", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listInstalledResolved: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/resolved"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/skills/installed/resolved", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

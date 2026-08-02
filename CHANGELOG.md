@@ -54,6 +54,20 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   the "context" tag — which auto-loads a memory into every session — is still described
   only where it actually does that, inside a workspace.
 
+### Fixed
+
+- **A workspace's menus now show that workspace, and nothing else.** Agents, Skills, Rules,
+  Commands and MCP Servers used to list your global items alongside the workspace's own,
+  which made a room's menu disagree with its folder on disk — and let one click there
+  change something everywhere. Removing an MCP server from inside a workspace could delete
+  it from *every* workspace, and switching a global agent off in one room switched it off
+  in all of them. Each menu now lists only what that scope owns, so you manage global
+  things on Global and a workspace's things in the workspace. **Nothing about what Claude
+  can actually use changed**: in chat, the `@` and `/` pickers still offer everything
+  available there, your global commands and agents included, and Claude's own tools still
+  see the full set. (`vynel skills list` follows the menus and now shows a workspace's own
+  installs; pass `--resolved` for everything available there.)
+
 ### Changed
 
 - **Adding a memory no longer asks what "kind" it is.** The five-way Note / Preference /

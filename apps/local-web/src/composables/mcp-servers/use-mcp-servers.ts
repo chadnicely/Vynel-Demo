@@ -3,9 +3,11 @@ import { useQuery } from "@tanstack/vue-query";
 import type { SectionScope } from "../../components/sections/section-scope.js";
 import { useVynel } from "../use-vynel.js";
 
-/** The MCP servers a SURFACE resolves, MASKED (header/env values never reach
- *  the client): a workspace drawer lists user ∪ that workspace's config with
- *  scope chips; the global menu lists ~/.claude.json only. Keyed under
+/** The MCP servers a SURFACE OWNS, MASKED (header/env values never reach the
+ *  client): a workspace drawer lists that workspace's own `.mcp.json`, the
+ *  global menu `~/.claude.json`. One config file per surface, so the list
+ *  agrees with the add/remove beside it — listing user rows in a room is what
+ *  let a click there delete a server from every room. Keyed under
  *  `["mcp-servers"]` so an add/remove on either surface refreshes both. */
 export function useMcpServers(scope: MaybeRefOrGetter<SectionScope>) {
   const vynel = useVynel();

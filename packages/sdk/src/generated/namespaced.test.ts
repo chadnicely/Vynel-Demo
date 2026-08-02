@@ -72,14 +72,19 @@ const EXPECTED_CHANNELS_USER_METHODS = [
   'setGroupPolicy',
 ] as const
 
-// The skills namespace's methods, sorted. The 2 read GETs + the 4
+// The skills namespace's methods, sorted. The 3 read GETs + the 4
 // mutating lifecycle/settings routes all carry `x-sdk-name` (x-mcp is a
-// separate, narrower opt-in — only the 2 GETs are MCP-exposed). No
-// enable/disable pair — skills are install/uninstall-only (2026-08-01).
+// separate, narrower opt-in). No enable/disable pair — skills are
+// install/uninstall-only (2026-08-01). `listInstalled` is what this
+// workspace OWNS (the menu, mirroring disk); `listInstalledResolved` is
+// what a session there can reach, user ∪ workspace — the "/" picker's read
+// and the one carrying `list_installed_skills` (owned/resolved split,
+// 2026-08-03).
 const EXPECTED_SKILLS_METHODS = [
   'install',
   'listAvailable',
   'listInstalled',
+  'listInstalledResolved',
   'synchronize',
   'uninstall',
   'updateSettings',

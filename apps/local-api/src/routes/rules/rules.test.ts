@@ -114,7 +114,11 @@ describe('user-scoped /rules', () => {
 })
 
 describe('workspace-scoped /workspaces/:workspaceId/rules', () => {
-  it('fuses user ∪ workspace rules with scope chips', async () => {
+  // SPEC CHANGE (2026-08-03): the menu mirrors the folder on disk, so a
+  // user-level rule is no longer listed under a workspace — the Global menu
+  // owns it. (It still APPLIES to a session here; nothing about resolution
+  // changed.) No composer picker reads rules, so there is no /resolved twin.
+  it('lists only the workspace’s own rules', async () => {
     await withWorld(async ({ app, homeDir, workspaceDir, workspaceId }) => {
       const userRules = join(homeDir, '.claude', 'rules')
       const wsRules = join(workspaceDir, '.claude', 'rules')
@@ -127,7 +131,6 @@ describe('workspace-scoped /workspaces/:workspaceId/rules', () => {
       expect(res.status).toBe(200)
       const body = (await res.json()) as { rules: { ruleId: string; scope: string }[] }
       expect(body.rules.map((rule) => [rule.ruleId, rule.scope])).toEqual([
-        ['global-rule', 'user'],
         ['room-rule', 'workspace'],
       ])
     })

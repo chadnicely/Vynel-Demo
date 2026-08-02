@@ -78,6 +78,10 @@ export type ListInstalledSkillsForUserAndWorkspaceInput = {
   // workspace to union in) — mirrors `findInstalledSkillByScope`'s null
   // convention above.
   workspaceId: string | null
+  /** Drop the user-scope rows: what this workspace OWNS, not what resolves
+   *  here. The menu asks the former, a session asks the latter. Ignored when
+   *  `workspaceId` is null — there is no workspace to own anything. */
+  ownedByWorkspaceOnly?: boolean
 }
 
 export function listInstalledSkillsForUserAndWorkspace(
@@ -91,7 +95,12 @@ export function listInstalledSkillsForUserAndWorkspace(
   const workspaceClause =
     input.workspaceId === null
       ? isNull(installedSkills.workspaceId)
-      : or(isNull(installedSkills.workspaceId), eq(installedSkills.workspaceId, input.workspaceId))
+      : input.ownedByWorkspaceOnly === true
+        ? eq(installedSkills.workspaceId, input.workspaceId)
+        : or(
+            isNull(installedSkills.workspaceId),
+            eq(installedSkills.workspaceId, input.workspaceId),
+          )
   return db
     .select()
     .from(installedSkills)

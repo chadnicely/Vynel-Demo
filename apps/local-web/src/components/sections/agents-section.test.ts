@@ -41,11 +41,13 @@ function makeAgent(overrides: Record<string, unknown> = {}) {
 
 function makeClient(options: {
   list?: (...args: unknown[]) => Promise<unknown>;
+  listResolved?: (...args: unknown[]) => Promise<unknown>;
   setEnabled?: (...args: unknown[]) => Promise<unknown>;
 } = {}) {
   return {
     agents: {
       list: options.list ?? (async () => [makeAgent()]),
+      listResolved: options.listResolved ?? (async () => [makeAgent()]),
       setEnabled:
         options.setEnabled ?? (async () => makeAgent({ enabled: false })),
     },
@@ -144,12 +146,19 @@ describe("AgentsSection — rows", () => {
 });
 
 describe("AgentsSection — surfaces", () => {
-  it("asks for the workspace union on the workspace surface", async () => {
+  // SPEC CHANGE (2026-08-03): the menu asks what the scope OWNS (`agents.list`)
+  // so the shelf mirrors disk; the composer's "@" picker asks what a session
+  // there can reach (`agents.listResolved`, user ∪ workspace). The section must
+  // never reach for the resolved route, or a global agent reappears in a room's
+  // shelf with manage controls the room doesn't own.
+  it("asks for the workspace's OWN agents, never the resolved union", async () => {
     const list = vi.fn(async () => [makeAgent()]);
-    const wrapper = mountSection(makeClient({ list }));
+    const listResolved = vi.fn(async () => [makeAgent()]);
+    const wrapper = mountSection(makeClient({ list, listResolved }));
     await flushPromises();
 
     expect(list).toHaveBeenCalledWith({ workspaceId: "w1" });
+    expect(listResolved).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 

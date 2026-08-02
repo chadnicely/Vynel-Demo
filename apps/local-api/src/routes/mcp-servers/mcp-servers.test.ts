@@ -185,7 +185,10 @@ describe('user-scoped /mcp-servers', () => {
 })
 
 describe('workspace-scoped /workspaces/:workspaceId/mcp-servers', () => {
-  it('lists the user ∪ workspace union with scope chips, masked', async () => {
+  // SPEC CHANGE (2026-08-03): every verb here speaks for the workspace's own
+  // `.mcp.json`, so the read now agrees with the writes beside it. Listing user
+  // rows was what let a click in one room delete a server from every room.
+  it('lists only the workspace’s own servers, masked', async () => {
     await withWorld(async ({ app, homeDir, workspaceDir, workspaceId }) => {
       writeFileSync(
         join(homeDir, '.claude.json'),
@@ -209,10 +212,9 @@ describe('workspace-scoped /workspaces/:workspaceId/mcp-servers', () => {
       }
       expect(JSON.stringify(body)).not.toContain('shh')
       expect(body.servers.map((s) => [s.serverName, s.scope])).toEqual([
-        ['global', 'user'],
         ['roomy', 'workspace'],
       ])
-      expect(body.servers[1]!.headers).toEqual([{ name: 'X-Key', hasValue: true }])
+      expect(body.servers[0]!.headers).toEqual([{ name: 'X-Key', hasValue: true }])
     })
   })
 

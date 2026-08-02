@@ -7,10 +7,11 @@ import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
 import type { SectionScope } from "./section-scope.js";
 import SectionHeader from "./SectionHeader.vue";
 
-// The slash commands on either surface — every `.claude/commands/*.md` file
-// Claude Code resolves there (subfolders namespace: git/commit.md →
-// /git:commit). Read-only: the files are the user's own; Task 3's "/" menu
-// will offer the same rows in the composer.
+// The slash commands a surface OWNS — the `.claude/commands/*.md` files in
+// that folder on disk (subfolders namespace: git/commit.md → /git:commit).
+// Read-only: the files are the user's own. The composer's "/" menu asks the
+// other question — everything runnable there — and reads the resolved union,
+// so a global command still works in a room without appearing in its shelf.
 const props = defineProps<{
   scope: SectionScope;
 }>();
@@ -30,7 +31,7 @@ function scopeChip(rowScope: "user" | "workspace"): string {
 const sectionHint = computed(() =>
   props.scope.kind === "global"
     ? "Reusable prompts Claude runs by name, in every workspace"
-    : "Reusable slash commands it can run",
+    : "Slash commands kept in this workspace",
 );
 </script>
 

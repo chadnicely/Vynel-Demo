@@ -53,7 +53,11 @@ async function createUserScopeAgent(
 }
 
 describe('GET /agents', () => {
-  it('returns the user-scope ∪ workspace-scope agents for the session', async () => {
+  // SPEC CHANGE (2026-08-03): the two questions were split. `GET /agents` is
+  // the MENU's read — what a scope OWNS — so a user-scope agent no longer shows
+  // under a workspace. `GET /agents/resolved` is what the composer's "@" picker
+  // and Claude's own `list_agents` ask, and keeps the union.
+  it('returns only the workspace-scope agents for a workspace', async () => {
     await withTestDatabase(async (db) => {
       const user = getOrCreateLocalUser(db, { logger })
       const workspace = seedWorkspace(db, user.id)
@@ -63,6 +67,21 @@ describe('GET /agents', () => {
       expect(created.status).toBe(201)
 
       const res = await app.request(`/agents?workspaceId=${workspace.id}`)
+      expect(res.status).toBe(200)
+      expect((await res.json()) as Array<{ slug: string }>).toEqual([])
+    })
+  })
+
+  it('returns the user-scope ∪ workspace-scope agents on /agents/resolved', async () => {
+    await withTestDatabase(async (db) => {
+      const user = getOrCreateLocalUser(db, { logger })
+      const workspace = seedWorkspace(db, user.id)
+      const app = createApp({ db, logger })
+
+      const created = await createUserScopeAgent(app, 'inbox-helper')
+      expect(created.status).toBe(201)
+
+      const res = await app.request(`/agents/resolved?workspaceId=${workspace.id}`)
       expect(res.status).toBe(200)
       const body = (await res.json()) as Array<{ slug: string }>
       expect(body).toHaveLength(1)

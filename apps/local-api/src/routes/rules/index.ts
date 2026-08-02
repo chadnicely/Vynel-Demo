@@ -1,9 +1,12 @@
 // The WORKSPACE-scoped `rules` HTTP surface — mounted at
-// `/workspaces/:workspaceId/rules` from `apps/local-api/src/app.ts`. Fuses
-// scopes the way Claude Code loads rules in a project (the user's global
-// rules + the workspace's own `.claude/rules/`), scope chip per row.
+// `/workspaces/:workspaceId/rules` from `apps/local-api/src/app.ts`.
 //
-//   GET / -> user rows ∪ workspace rows
+//   GET / -> the workspace's OWN `.claude/rules/` files
+//
+// Scope-exact so the list mirrors the folder on disk. A user-level rule DOES
+// still apply to a session here (settingSources loads both) — but it is not
+// this workspace's to show or to manage; the Global menu owns it. No composer
+// picker reads rules, so there is no `/resolved` twin to build.
 //
 // Read-only v1. No x-mcp (management surface for the human).
 
@@ -21,11 +24,11 @@ export const rulesApp = factory
     '/',
     describeRoute({
       tags: ['rules'],
-      summary: 'List rule files this workspace resolves: user ∪ workspace.',
+      summary: "List the workspace's OWN rule files (its folder on disk).",
       'x-sdk-name': 'rules.list',
       responses: {
         200: {
-          description: 'All rule files across both scopes, scope + provenance per row.',
+          description: "Rule files in the workspace's `.claude/rules/`, provenance per row.",
           content: { 'application/json': { schema: resolver(ListRulesResponseSchema) } },
         },
         404: { description: 'Workspace not found.' },
@@ -35,12 +38,9 @@ export const rulesApp = factory
     (c) => {
       const workspacePath = c.var.workspace!.path
       return c.json({
-        rules: [
-          ...listAllRuleFilesForScope('user').map((rule) => serializeRuleFile(rule, 'user')),
-          ...listAllRuleFilesForScope('workspace', workspacePath).map((rule) =>
-            serializeRuleFile(rule, 'workspace'),
-          ),
-        ],
+        rules: listAllRuleFilesForScope('workspace', workspacePath).map((rule) =>
+          serializeRuleFile(rule, 'workspace'),
+        ),
       })
     },
   )

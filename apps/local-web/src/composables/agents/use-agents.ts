@@ -3,26 +3,36 @@ import { useQuery } from "@tanstack/vue-query";
 import type { SectionScope } from "../../components/sections/section-scope.js";
 import { useVynel } from "../use-vynel.js";
 
-/** The agents visible on a SURFACE: a workspace drawer lists user-scope ∪
- *  that workspace's agents (what its sessions can delegate to); the global
- *  menu lists user-scope agents only. Keyed under the `["agents"]` prefix so
- *  a marketplace install/uninstall (either surface) refreshes every shelf. */
-export function useAgents(scope: MaybeRefOrGetter<SectionScope>) {
+/** The agents a SURFACE owns — a workspace's own, or the user's on the global
+ *  menu. `resolved` switches to what a session THERE can delegate to (user ∪
+ *  workspace): the "@" picker's question, not the menu's. The two answers are
+ *  cached apart, or the picker would be served the menu's shorter list.
+ *  Keyed under `["agents"]` so a marketplace install refreshes every shelf. */
+export function useAgents(
+  scope: MaybeRefOrGetter<SectionScope>,
+  options: { resolved?: boolean } = {},
+) {
   const vynel = useVynel();
+  const isResolved = options.resolved === true;
   return useQuery({
     queryKey: computed(() => {
       const surface = toValue(scope);
       return [
         "agents",
-        "list",
+        isResolved ? "resolved" : "list",
         surface.kind === "workspace" ? surface.workspaceId : "user",
       ];
     }),
     queryFn: () => {
       const surface = toValue(scope);
-      return surface.kind === "workspace"
-        ? vynel.agents.list({ workspaceId: surface.workspaceId })
-        : vynel.agents.list();
+      if (surface.kind !== "workspace") {
+        // No workspace to union in — the user shelf IS what resolves globally.
+        return isResolved ? vynel.agents.listResolved() : vynel.agents.list();
+      }
+      const query = { workspaceId: surface.workspaceId };
+      return isResolved
+        ? vynel.agents.listResolved(query)
+        : vynel.agents.list(query);
     },
   });
 }

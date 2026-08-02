@@ -3,9 +3,10 @@ import { useQuery } from "@tanstack/vue-query";
 import type { SectionScope } from "../../components/sections/section-scope.js";
 import { useVynel } from "../use-vynel.js";
 
-/** The rule files a SURFACE resolves: a workspace drawer lists user ∪ that
- *  workspace's `.claude/rules` (how Claude Code loads them in a project);
- *  the global menu lists the user folder only. */
+/** The rule files a SURFACE OWNS: a workspace drawer lists that workspace's
+ *  `.claude/rules`, the global menu the user folder — each list mirrors the
+ *  folder on disk. A user-level rule still APPLIES to a session in a
+ *  workspace; it is simply the Global menu's to show and to manage. */
 export function useRules(scope: MaybeRefOrGetter<SectionScope>) {
   const vynel = useVynel();
   return useQuery({

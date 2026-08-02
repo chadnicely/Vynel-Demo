@@ -1,12 +1,18 @@
-// The `skills` HTTP surface — 6 routes mounted under
+// The `skills` HTTP surface — 7 routes mounted under
 // `/workspaces/:workspaceId/skills` from `apps/local-api/src/app.ts`:
 //
 //   GET    /available                              -> listAvailableSkills          [x-mcp]
-//   GET    /installed                              -> listInstalledSkillsForContext [x-mcp]
+//   GET    /installed                              -> the workspace's OWN installs
+//   GET    /installed/resolved                     -> user ∪ workspace             [x-mcp]
 //   POST   /install                                -> installSkill
 //   DELETE /installed/:installedSkillId            -> uninstallSkill
 //   PATCH  /installed/:installedSkillId/settings   -> updateSkillSettings
 //   POST   /synchronize                            -> synchronizeSkillsWithProvider
+//
+// The two GETs answer different questions: `/installed` is the MENU's read and
+// mirrors what is installed INTO this workspace; `/installed/resolved` is what
+// a session running here can actually reach, which is why Claude's
+// `list_installed_skills` — and the composer's "/" picker — read that one.
 //
 // No enable/disable pair: skills are install/uninstall-only
 // (2026-08-01) — one file-tree on disk, present or absent.
@@ -90,8 +96,36 @@ export const skillsApp = factory
     '/installed',
     describeRoute({
       tags: ['skills'],
-      summary: 'List skills installed in this user+workspace context.',
+      summary: "List the skills installed INTO this workspace (what it owns).",
       'x-sdk-name': 'skills.listInstalled',
+      responses: {
+        200: {
+          description:
+            'Workspace-scope installs joined with their catalog definition (if any) + settings.',
+          content: { 'application/json': { schema: resolver(ListInstalledSkillsResponseSchema) } },
+        },
+        404: { description: 'Workspace not found.' },
+      },
+    }),
+    ...workspaceScoped,
+    (c) => {
+      const list = listInstalledSkillsForContext(c.var.db, {
+        userId: c.var.user.id,
+        workspaceId: c.var.workspace!.id,
+        ownedByWorkspaceOnly: true,
+      })
+      return c.json(list.map(serializeInstalledSkillWithDefinition))
+    },
+  )
+  // The union — what a session running HERE can actually reach. Claude's own
+  // tool reads this one, and so does the composer's "/" picker; the bare
+  // `/installed` above answers the different question the menu asks.
+  .get(
+    '/installed/resolved',
+    describeRoute({
+      tags: ['skills'],
+      summary: 'List every skill available here: user ∪ workspace.',
+      'x-sdk-name': 'skills.listInstalledResolved',
       responses: {
         200: {
           description:
