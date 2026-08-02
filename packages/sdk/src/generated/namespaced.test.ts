@@ -247,9 +247,15 @@ describe('makeNamespaced — shape', () => {
       'journal',
       'journalUser',
       'knowledge',
+      // test: correct expectation — the global-scoping slice (2026-08-02)
+      // gave knowledge + memory their user-scoped twins, the anchors the
+      // GLOBAL menus read (only null-workspace rows; the workspace routes
+      // keep their fusion).
+      'knowledgeUser',
       'marketplace',
       'marketplaceUser',
       'memory',
+      'memoryUser',
       // the monitors module (2026-07-26) — a two-door namespace like plans:
       // the workspace surface and its global twin.
       'monitors',

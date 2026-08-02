@@ -115,6 +115,31 @@ describe("NotebookSection", () => {
     expect(body.textContent).toContain("Step one: pick the stack.");
   });
 
+  it("the global menu lists ONLY global books", async () => {
+    const client = makeClient({
+      listDocuments: async () => ({
+        documents: [
+          makeDocument(),
+          makeDocument({
+            id: "d2",
+            scope: "workspace",
+            workspaceId: "w1",
+            title: "Workspace book",
+          }),
+        ],
+      }),
+    });
+    const wrapper = mount(NotebookSection, {
+      props: { scope: { kind: "global" } satisfies SectionScope },
+      global: globalConfig(client),
+    });
+    await flushPromises();
+
+    expect(wrapper.findAll(".row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("How we publish the newsletter");
+    expect(wrapper.text()).not.toContain("Workspace book");
+  });
+
   it("hides another workspace's books on a workspace surface, keeping global ones", async () => {
     const client = makeClient({
       listDocuments: async () => ({

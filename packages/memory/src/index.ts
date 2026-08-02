@@ -40,7 +40,9 @@ export {
 // Read ops
 export {
   listMemoryEntriesForWorkspace,
+  listGlobalMemoryEntriesForUser,
   type ListMemoryEntriesInput,
+  type ListGlobalMemoryEntriesInput,
   type ListMemoryEntriesResult,
   type ListMemoryEntriesCursor,
 } from './queries/list-memory-entries-for-workspace.js'

@@ -413,7 +413,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       </footer>
     </section>
 
-    <TasksPanel v-if="ui.isTasksPanelOpen" />
+    <TasksPanel v-if="ui.isTasksPanelOpen" :scope="{ kind: 'global' }" />
   </div>
 </template>
 

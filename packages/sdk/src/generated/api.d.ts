@@ -2142,6 +2142,40 @@ export interface paths {
         patch: operations["patchNotebookDocumentsByDocumentId"];
         trace?: never;
     };
+    "/knowledge/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's GLOBAL knowledge sources (no workspace anchor). */
+        get: operations["getKnowledgeSources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memory/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's GLOBAL memory entries (no workspace anchor). */
+        get: operations["getMemoryEntries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/approvals/pending": {
         parameters: {
             query?: never;
@@ -10958,6 +10992,96 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getKnowledgeSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { sources: SerializedKnowledgeSourceListItem[] }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sources: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string | null;
+                            /** @enum {string} */
+                            scope: "workspace" | "global";
+                            /** @enum {string} */
+                            sourceKind: "directory" | "file";
+                            absolutePath: string;
+                            createdAt: string;
+                            updatedAt: string;
+                            documentCount: number;
+                            indexedDocumentCount: number;
+                            failedDocumentCount: number;
+                            lastIndexedAt: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    getMemoryEntries: {
+        parameters: {
+            query?: {
+                kind?: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
+                includeArchived?: boolean;
+                cursorLastMentionedAt?: string | null;
+                cursorId?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { entries: SerializedMemoryEntry[], nextCursor }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entries: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string;
+                            /** @enum {string} */
+                            kind: "person" | "preference" | "business-fact" | "recurring-pattern" | "note";
+                            title: string;
+                            body: string;
+                            /** @enum {string} */
+                            category: "user" | "preferences" | "memory";
+                            section: string;
+                            sourceMessageId: string | null;
+                            /** @enum {string} */
+                            createdSource: "workspace-seed" | "user-manual" | "onboarding-seed" | "file-import";
+                            embeddingPresent: boolean;
+                            embeddingModelVersion: string | null;
+                            isArchived: boolean;
+                            tags: string[];
+                            createdAt: string;
+                            updatedAt: string;
+                            lastMentionedAt: string | null;
+                        }[];
+                        nextCursor: {
+                            lastMentionedAt: string | null;
+                            id: string;
+                        } | null;
+                    };
+                };
             };
         };
     };

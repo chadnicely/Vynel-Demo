@@ -220,6 +220,29 @@ describe("SchedulesSection", () => {
     expect(updateCalls).toEqual([["s1", { isEnabled: false }]]);
   });
 
+  it("the global menu lists ONLY global (null-workspace) schedules", async () => {
+    const client = {
+      schedulesUser: {
+        list: async () => [
+          makeSchedule(),
+          makeSchedule({
+            id: "s2",
+            workspaceId: "w1",
+            displayName: "Room digest",
+          }),
+        ],
+      },
+      workspaces: { list: async () => [] },
+    } as unknown as VynelClient;
+
+    const wrapper = mountSection(SchedulesSection, { kind: "global" }, client);
+    await flushPromises();
+
+    expect(wrapper.findAll(".row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("Morning digest");
+    expect(wrapper.text()).not.toContain("Room digest");
+  });
+
   it("invites scheduling when there is nothing yet", async () => {
     const client = {
       schedulesUser: { list: async () => [] },

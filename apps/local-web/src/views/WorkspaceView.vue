@@ -338,7 +338,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       @open-file="openFileOnCanvas"
     />
 
-    <TasksPanel v-if="ui.isTasksPanelOpen" />
+    <TasksPanel v-if="ui.isTasksPanelOpen" :scope="scope" />
   </div>
 </template>
 

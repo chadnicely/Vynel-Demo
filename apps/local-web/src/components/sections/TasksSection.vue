@@ -27,7 +27,8 @@ const deleteTask = useDeleteTask();
 
 const tasks = computed(() => {
   const rows = tasksQuery.data.value ?? [];
-  if (props.scope.kind === "global") return rows;
+  if (props.scope.kind === "global")
+    return rows.filter((row) => row.workspaceId === null);
   const workspaceId = props.scope.workspaceId;
   return rows.filter(
     (row) => row.workspaceId === null || row.workspaceId === workspaceId,

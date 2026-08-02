@@ -7,6 +7,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Global tab now shows only global things.** Plans, schedules, tasks, journal, servers,
+  notebook, knowledge, and the tasks side-panel used to show every workspace's items when
+  viewed from Global; each now shows only items that actually live at the global level
+  (workspace views are unchanged — they still show their own items plus global ones, and the
+  tasks side-panel no longer mixes other workspaces' tasks into a workspace view). Knowledge
+  and memory got real global read endpoints instead of stitching every workspace together
+  client-side. Note: global memory entries can't be created yet (the storage schema pins
+  every memory to a workspace), so Global → Memory shows an honest empty state until that
+  ceiling is lifted deliberately.
+
 ### Added
 
 - **Publish marketplace items straight from GitHub.** The admin portal's publish page has a

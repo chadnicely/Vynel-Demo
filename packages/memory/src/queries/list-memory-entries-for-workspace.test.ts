@@ -4,7 +4,10 @@ import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { insertEntry, type NewMemoryEntry } from '../repositories/index.js'
-import { listMemoryEntriesForWorkspace } from './list-memory-entries-for-workspace.js'
+import {
+  listGlobalMemoryEntriesForUser,
+  listMemoryEntriesForWorkspace,
+} from './list-memory-entries-for-workspace.js'
 
 function seedUser(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
   const now = new Date()
@@ -131,6 +134,25 @@ describe('listMemoryEntriesForWorkspace', () => {
         includeArchived: true,
       })
       expect(withArchived.entries.map((e) => e.title).sort()).toEqual(['a', 'c'])
+    })
+  })
+})
+
+describe('listGlobalMemoryEntriesForUser', () => {
+  // See the SCHEMA CEILING note on the repo's `listGlobalEntriesForUser`
+  // test: `workspace_id` is NOT NULL today, so the global set is always
+  // empty. What this pins is that a workspace's entries never surface on the
+  // global read, and that the empty page still answers in the paged envelope.
+  it("answers the paged envelope without any workspace's entries", async () => {
+    await withTestDatabase((db) => {
+      const u = seedUser(db)
+      const w = seedWorkspace(db, u.id)
+      insertEntry(db, makeEntry(u.id, w.id, { title: 'a' }))
+
+      expect(listGlobalMemoryEntriesForUser(db, { userId: u.id })).toEqual({
+        entries: [],
+        nextCursor: null,
+      })
     })
   })
 })

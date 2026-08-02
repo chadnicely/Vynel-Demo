@@ -10,6 +10,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   findEntryById,
   listEntriesForWorkspace,
+  listGlobalEntriesForUser,
   listEntriesForKindBundle,
   findEntriesNeedingEmbedding,
   insertEntry,
@@ -236,6 +237,27 @@ describe('memory-entries repository', () => {
           cursor: { lastMentionedAt: last2.lastMentionedAt, id: last2.id },
         })
         expect(page3).toHaveLength(0)
+      })
+    })
+  })
+
+  describe('listGlobalEntriesForUser', () => {
+    // The GLOBAL memory surface's read: entries anchored to NO workspace.
+    // SCHEMA CEILING — `memory_entries.workspace_id` is NOT NULL (`id()` is
+    // NOT NULL by dialect contract, unlike knowledge_sources' `text()`), so a
+    // global entry cannot be written yet and this read is always empty. What
+    // it must guarantee today is that no workspace's entries leak into the
+    // global list; it starts returning rows unchanged once a nullable
+    // workspace column + a global write path land.
+    it("excludes every workspace-anchored entry — the global list never shows a workspace's memory", async () => {
+      await withTestDatabase((db) => {
+        const user = insertUser(db, makeUser())
+        const workspace = insertWorkspace(db, makeWorkspace(user.id))
+        const other = insertWorkspace(db, makeWorkspace(user.id))
+        insertEntry(db, makeEntry(user.id, workspace.id, { title: 'in a workspace' }))
+        insertEntry(db, makeEntry(user.id, other.id, { title: 'in another workspace' }))
+
+        expect(listGlobalEntriesForUser(db, user.id)).toEqual([])
       })
     })
   })

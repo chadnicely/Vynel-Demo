@@ -23,7 +23,8 @@ const { scopeLabel } = useScopeLabel();
 
 const schedules = computed(() => {
   const rows = schedulesQuery.data.value ?? [];
-  if (props.scope.kind === "global") return rows;
+  if (props.scope.kind === "global")
+    return rows.filter((row) => row.workspaceId === null);
   const workspaceId = props.scope.workspaceId;
   return rows.filter(
     (row) => row.workspaceId === null || row.workspaceId === workspaceId,

@@ -1,11 +1,13 @@
-// `listMemoryEntriesForWorkspace` — read op for the panel's entry
-// list view. Thin wrapper over `listEntriesForWorkspace` (repo)
-// that converts the API-side ISO-string cursor to the repo's `Date`
-// cursor + returns the `nextCursor` envelope. Recency-first,
-// NULLS-LAST cursor pagination.
+// The panel's entry-list reads — one per scope. Thin wrappers over the
+// repo (`listEntriesForWorkspace` / `listGlobalEntriesForUser`) that
+// convert the API-side ISO-string cursor to the repo's `Date` cursor and
+// return the `nextCursor` envelope. Recency-first, NULLS-LAST cursor
+// pagination.
 
 import {
   listEntriesForWorkspace,
+  listGlobalEntriesForUser,
+  type ListEntriesOptions,
   type MemoryEntry,
   type MemoryEntryKind,
 } from '../repositories/index.js'
@@ -16,12 +18,19 @@ export type ListMemoryEntriesCursor = {
   id: string
 }
 
-export type ListMemoryEntriesInput = {
-  workspaceId: string
+type ListMemoryEntriesFilters = {
   kind?: MemoryEntryKind
   includeArchived?: boolean
   cursor?: ListMemoryEntriesCursor | null
   limit?: number
+}
+
+export type ListMemoryEntriesInput = ListMemoryEntriesFilters & {
+  workspaceId: string
+}
+
+export type ListGlobalMemoryEntriesInput = ListMemoryEntriesFilters & {
+  userId: string
 }
 
 export type ListMemoryEntriesResult = {
@@ -35,26 +44,40 @@ export function listMemoryEntriesForWorkspace(
   db: Database,
   input: ListMemoryEntriesInput,
 ): ListMemoryEntriesResult {
-  const limit = input.limit ?? DEFAULT_PAGE_SIZE
-  const cursor = input.cursor
+  return pageEntries(input, (options) => listEntriesForWorkspace(db, input.workspaceId, options))
+}
+
+// The GLOBAL surface's read — entries anchored to no workspace at all.
+export function listGlobalMemoryEntriesForUser(
+  db: Database,
+  input: ListGlobalMemoryEntriesInput,
+): ListMemoryEntriesResult {
+  return pageEntries(input, (options) => listGlobalEntriesForUser(db, input.userId, options))
+}
+
+// The one home for the cursor translation + the nextCursor envelope; the
+// two reads above differ only in which rows they page over.
+function pageEntries(
+  filters: ListMemoryEntriesFilters,
+  read: (options: ListEntriesOptions) => MemoryEntry[],
+): ListMemoryEntriesResult {
+  const limit = filters.limit ?? DEFAULT_PAGE_SIZE
+  const cursor = filters.cursor
     ? {
-        lastMentionedAt: input.cursor.lastMentionedAt
-          ? new Date(input.cursor.lastMentionedAt)
+        lastMentionedAt: filters.cursor.lastMentionedAt
+          ? new Date(filters.cursor.lastMentionedAt)
           : null,
-        id: input.cursor.id,
+        id: filters.cursor.id,
       }
     : null
 
   // Conditional spread for optional fields — exactOptionalPropertyTypes
-  // rejects `{ kind: input.kind }` when input.kind is `undefined`.
-  const options: Parameters<typeof listEntriesForWorkspace>[2] = {
-    cursor,
-    limit,
-  }
-  if (input.kind !== undefined) options.kind = input.kind
-  if (input.includeArchived !== undefined) options.includeArchived = input.includeArchived
+  // rejects `{ kind: filters.kind }` when filters.kind is `undefined`.
+  const options: ListEntriesOptions = { cursor, limit }
+  if (filters.kind !== undefined) options.kind = filters.kind
+  if (filters.includeArchived !== undefined) options.includeArchived = filters.includeArchived
 
-  const entries = listEntriesForWorkspace(db, input.workspaceId, options)
+  const entries = read(options)
 
   // nextCursor is null when the result didn't fill the page (no more
   // rows behind us in the sort order).

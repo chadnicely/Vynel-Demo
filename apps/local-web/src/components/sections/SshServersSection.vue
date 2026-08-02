@@ -10,7 +10,8 @@ import type { SectionScope } from "./section-scope.js";
 
 // The servers section, on either surface: the machines Claude can reach over
 // SSH. A workspace drawer shows its own servers plus the global ones; the
-// global menu shows everything (the channels/schedules filter convention).
+// global menu shows ONLY global servers (the channels filter convention —
+// where you are IS the scope).
 const props = defineProps<{
   scope: SectionScope;
 }>();
@@ -19,7 +20,8 @@ const serversQuery = useSshServers(true);
 
 const servers = computed(() => {
   const rows = serversQuery.data.value ?? [];
-  if (props.scope.kind === "global") return rows;
+  if (props.scope.kind === "global")
+    return rows.filter((row) => row.workspaceId === null);
   const workspaceId = props.scope.workspaceId;
   return rows.filter(
     (row) => row.workspaceId === null || row.workspaceId === workspaceId,

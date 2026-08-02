@@ -19770,6 +19770,313 @@
         "x-sdk-name": "notebook.deleteDocument"
       }
     },
+    "/knowledge/sources": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ sources: SerializedKnowledgeSourceListItem[] }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "userId": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "workspace",
+                              "global"
+                            ]
+                          },
+                          "sourceKind": {
+                            "type": "string",
+                            "enum": [
+                              "directory",
+                              "file"
+                            ]
+                          },
+                          "absolutePath": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          },
+                          "documentCount": {
+                            "type": "number"
+                          },
+                          "indexedDocumentCount": {
+                            "type": "number"
+                          },
+                          "failedDocumentCount": {
+                            "type": "number"
+                          },
+                          "lastIndexedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "userId",
+                          "workspaceId",
+                          "scope",
+                          "sourceKind",
+                          "absolutePath",
+                          "createdAt",
+                          "updatedAt",
+                          "documentCount",
+                          "indexedDocumentCount",
+                          "failedDocumentCount",
+                          "lastIndexedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "sources"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getKnowledgeSources",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [],
+        "summary": "List the user's GLOBAL knowledge sources (no workspace anchor).",
+        "x-sdk-name": "knowledgeUser.listSources"
+      }
+    },
+    "/memory/entries": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ entries: SerializedMemoryEntry[], nextCursor }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "userId": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "person",
+                              "preference",
+                              "business-fact",
+                              "recurring-pattern",
+                              "note"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "preferences",
+                              "memory"
+                            ]
+                          },
+                          "section": {
+                            "type": "string"
+                          },
+                          "sourceMessageId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdSource": {
+                            "type": "string",
+                            "enum": [
+                              "workspace-seed",
+                              "user-manual",
+                              "onboarding-seed",
+                              "file-import"
+                            ]
+                          },
+                          "embeddingPresent": {
+                            "type": "boolean"
+                          },
+                          "embeddingModelVersion": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "isArchived": {
+                            "type": "boolean"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          },
+                          "lastMentionedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "userId",
+                          "workspaceId",
+                          "kind",
+                          "title",
+                          "body",
+                          "category",
+                          "section",
+                          "sourceMessageId",
+                          "createdSource",
+                          "embeddingPresent",
+                          "embeddingModelVersion",
+                          "isArchived",
+                          "tags",
+                          "createdAt",
+                          "updatedAt",
+                          "lastMentionedAt"
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "lastMentionedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "lastMentionedAt",
+                        "id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "entries",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getMemoryEntries",
+        "tags": [
+          "memory"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "person",
+                "preference",
+                "business-fact",
+                "recurring-pattern",
+                "note"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "includeArchived",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorLastMentionedAt",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursorId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "summary": "List the user's GLOBAL memory entries (no workspace anchor).",
+        "x-sdk-name": "memoryUser.list"
+      }
+    },
     "/approvals/pending": {
       "get": {
         "responses": {

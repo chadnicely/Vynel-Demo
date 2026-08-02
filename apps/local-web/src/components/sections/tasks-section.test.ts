@@ -86,6 +86,24 @@ describe("TasksSection", () => {
     expect(wrapper.text()).toContain("Claude");
   });
 
+  it("the global menu lists ONLY global (null-workspace) tasks", async () => {
+    const client = {
+      tasksUser: {
+        list: async () => [
+          makeTask(),
+          makeTask({ id: "t2", workspaceId: "w1", title: "Draft the brief" }),
+        ],
+      },
+    } as unknown as VynelClient;
+
+    const { wrapper } = mountSection({ kind: "global" }, client);
+    await flushPromises();
+
+    expect(wrapper.findAll(".row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("Ship the launch email");
+    expect(wrapper.text()).not.toContain("Draft the brief");
+  });
+
   it("creates from the inline composer and clears it (Enter submits)", async () => {
     const createCalls: unknown[] = [];
     const client = {

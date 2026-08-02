@@ -2,32 +2,26 @@ import { useQuery } from "@tanstack/vue-query";
 import { useVynel } from "../use-vynel.js";
 import type { SectionScope } from "../../components/sections/section-scope.js";
 
-// Memory entries visible from a surface. Entries live IN a workspace today
-// (global memory is on the roadmap — the tagging/sources build in
-// docs/module-notes/memory.md), so the GLOBAL surface aggregates every
-// workspace's entries as the brain's overview.
+// Memory entries visible from a surface. A workspace lists its own entries;
+// the GLOBAL surface lists ONLY the user's global (null-workspace) entries,
+// off its own user-scoped route — where you are IS the scope (the channels
+// convention).
 export function useMemoryEntriesInScope(scope: SectionScope) {
   const vynel = useVynel();
   return useQuery({
     queryKey:
       scope.kind === "workspace"
         ? ["memory", "entries", scope.workspaceId]
-        : ["memory", "entries", "all"],
+        : ["memory", "entries", "global"],
     queryFn: async () => {
-      // KNOWN truncation: the list route pages at 50/workspace and this read
-      // takes only the first page (nextCursor ignored) — a cursor-follow is
-      // the follow-up once someone's memory actually outgrows a page.
-      if (scope.kind === "workspace") {
-        const response = await vynel.memory.list(scope.workspaceId, {});
-        return response.entries;
-      }
-      const workspaces = await vynel.workspaces.list();
-      const perWorkspace = await Promise.all(
-        workspaces
-          .filter((row) => !row.isArchived)
-          .map((row) => vynel.memory.list(row.id, {})),
-      );
-      return perWorkspace.flatMap((response) => response.entries);
+      // KNOWN truncation: both reads page at 50 and this takes only the
+      // first page (nextCursor ignored) — a cursor-follow is the follow-up
+      // once someone's memory actually outgrows a page.
+      const response =
+        scope.kind === "workspace"
+          ? await vynel.memory.list(scope.workspaceId, {})
+          : await vynel.memoryUser.list({});
+      return response.entries;
     },
   });
 }

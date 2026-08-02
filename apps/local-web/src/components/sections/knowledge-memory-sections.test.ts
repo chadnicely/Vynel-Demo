@@ -63,31 +63,21 @@ function globalConfig(
 }
 
 describe("KnowledgeSection", () => {
-  it("aggregates every workspace's view on the global surface, deduping global sources", async () => {
+  // test: correct expectation for scope visibility — was "the global surface
+  // aggregates every workspace's view" (it rendered w2's own source under
+  // Global), now "ONLY the user's global sources", read off the user-scoped
+  // route. Codifies the settled Global = workspaceId IS NULL rule.
+  it("the global menu lists ONLY the user's global sources", async () => {
     const client = {
-      workspaces: {
-        list: async () => [
-          { id: "w1", name: "vynel", isArchived: false },
-          { id: "w2", name: "blog", isArchived: false },
-        ],
+      knowledgeUser: {
+        listSources: async () => ({ sources: [makeSource()] }),
       },
-      knowledge: {
-        // The same global source appears in BOTH workspaces' views; w2 also
-        // has its own source. The merge must yield exactly two rows.
-        listSources: async (workspaceId: string) => ({
-          sources:
-            workspaceId === "w1"
-              ? [makeSource()]
-              : [
-                  makeSource(),
-                  makeSource({
-                    id: "src2",
-                    workspaceId: "w2",
-                    scope: "workspace",
-                    absolutePath: "C:\\blog\\posts",
-                  }),
-                ],
-        }),
+      // A fan-out over workspaces would throw here — the global surface has
+      // its own anchor now and must never reach for the workspace route.
+      workspaces: {
+        list: async () => {
+          throw new Error("the global surface must not fan out per workspace");
+        },
       },
     } as unknown as VynelClient;
 
@@ -97,17 +87,48 @@ describe("KnowledgeSection", () => {
     });
     await flushPromises();
 
+    expect(wrapper.findAll(".row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("Notes");
+    expect(wrapper.text()).toContain("Global");
+  });
+
+  it("a workspace surface keeps the route's fusion — its own + the global ones", async () => {
+    const client = {
+      workspaces: {
+        list: async () => [{ id: "w1", name: "vynel", isArchived: false }],
+      },
+      knowledge: {
+        listSources: async () => ({
+          sources: [
+            makeSource(),
+            makeSource({
+              id: "src2",
+              workspaceId: "w1",
+              scope: "workspace",
+              absolutePath: "C:\\blog\\posts",
+            }),
+          ],
+        }),
+      },
+    } as unknown as VynelClient;
+
+    const wrapper = mount(KnowledgeSection, {
+      props: {
+        scope: { kind: "workspace", workspaceId: "w1" } satisfies SectionScope,
+      },
+      global: globalConfig(client),
+    });
+    await flushPromises();
+
     expect(wrapper.findAll(".row")).toHaveLength(2);
     expect(wrapper.text()).toContain("Notes");
     expect(wrapper.text()).toContain("posts");
-    expect(wrapper.text()).toContain("Global");
-    expect(wrapper.text()).toContain("blog");
   });
 
   it("invites the first folder when the vault is empty", async () => {
     const client = {
       workspaces: { list: async () => [] },
-      knowledge: { listSources: async () => ({ sources: [] }) },
+      knowledgeUser: { listSources: async () => ({ sources: [] }) },
     } as unknown as VynelClient;
 
     const wrapper = mount(KnowledgeSection, {
@@ -122,6 +143,33 @@ describe("KnowledgeSection", () => {
 });
 
 describe("MemorySection", () => {
+  it("the global menu reads the user-scoped route — global entries only", async () => {
+    const client = {
+      memoryUser: {
+        list: async () => ({
+          entries: [makeEntry({ workspaceId: null })],
+          nextCursor: null,
+        }),
+      },
+      // A fan-out over workspaces would throw here — the global surface has
+      // its own anchor now and must never reach for the workspace route.
+      workspaces: {
+        list: async () => {
+          throw new Error("the global surface must not fan out per workspace");
+        },
+      },
+    } as unknown as VynelClient;
+
+    const wrapper = mount(MemorySection, {
+      props: { scope: { kind: "global" } satisfies SectionScope },
+      global: globalConfig(client),
+    });
+    await flushPromises();
+
+    expect(wrapper.findAll(".row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("Invoice cadence");
+  });
+
   it("lists a workspace's entries with kind chips, hiding archived ones", async () => {
     const client = {
       workspaces: {

@@ -680,6 +680,13 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  knowledgeUser: {
+  listSources: async () => {
+    const { data, error, response } = await client["GET"]("/knowledge/sources")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   marketplace: {
   getItem: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items/{itemId}"]["get"]['parameters']>['path']["workspaceId"], itemId: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items/{itemId}"]["get"]['parameters']>['path']["itemId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/marketplace/items/{itemId}", {
@@ -813,6 +820,15 @@ export function makeNamespaced(client: Client<paths>) {
     const { data, error, response } = await client["PATCH"]("/workspaces/{workspaceId}/memory/entries/{entryId}", {
       params: { path: { workspaceId: workspaceId, entryId: entryId } },
       body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  memoryUser: {
+  list: async (options?: NonNullable<paths["/memory/entries"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/memory/entries", {
+      params: { ...(options && { query: options }) },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data

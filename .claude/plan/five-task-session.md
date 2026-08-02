@@ -96,7 +96,12 @@ entry per task, reviewer per diff, full gate (`pnpm test`) before every commit.
 - [x] Task 1 — implement → review (1 MUST-FIX: symlink dereference in packItemFolder;
       2 SHOULD-FIX: repoDisplayUrl ordering, missing bodyLimit — ALL FIXED) → gate green
       3548 → committed. Playwright portal smoke after commit.
-- [ ] Task 4 — implement → review → fix → gate → commit
+- [x] Task 4 — implement (Opus) → review CLEAN (no fixes) → gate green 3563 → committed.
+      ⚠ DECISION FOR CHAD: memory_entries.workspace_id is NOT NULL — global memory rows
+      cannot exist yet. Read path built + honest empty state; lifting the ceiling =
+      deliberate move (nullable column migration + MemoryEntrySchema.workspaceId.nullable()
+      + global create path). Deferred-improves recorded by reviewer: SessionScope/SectionScope
+      twin types unification; ssh Global chip redundant on Global menu.
 - [ ] Task 2 — implement → review → fix → gate → commit
 - [ ] Task 3 — implement → review → fix → gate → commit
 - [ ] Task 5 — implement → review → fix → gate → commit

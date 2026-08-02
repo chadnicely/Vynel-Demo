@@ -23,7 +23,8 @@ const documentsQuery = useNotebookDocuments();
 const ownBooks = computed(() => {
   const documents = documentsQuery.data.value ?? [];
   const scope = props.scope;
-  if (scope.kind === "global") return documents;
+  if (scope.kind === "global")
+    return documents.filter((document) => document.scope === "global");
   // A workspace surface shows what Claude sees from that workspace:
   // global books plus that workspace's own.
   return documents.filter(

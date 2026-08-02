@@ -79,6 +79,28 @@ describe("JournalSection", () => {
     expect(wrapper.text()).toContain("Claude");
   });
 
+  it("the global menu lists ONLY global (null-workspace) entries", async () => {
+    const client = {
+      journalUser: {
+        list: async () => [
+          makeEntry(),
+          makeEntry({
+            id: "j2",
+            workspaceId: "w1",
+            content: "Fixed the booking bug.",
+          }),
+        ],
+      },
+    } as unknown as VynelClient;
+
+    const wrapper = mountSection({ kind: "global" }, client);
+    await flushPromises();
+
+    expect(wrapper.findAll(".row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("Shipped the newsletter draft.");
+    expect(wrapper.text()).not.toContain("Fixed the booking bug.");
+  });
+
   it("appends from the inline composer with today's date default and clears it", async () => {
     const createCalls: unknown[] = [];
     const client = {

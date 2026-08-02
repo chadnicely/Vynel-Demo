@@ -5,14 +5,14 @@
 // Phase 1 SYNC return values per
 // `.claude/memory/decisions/phase-1-sync-transactions.md`.
 //
-// Cursor pagination on listEntriesForWorkspace uses keyset on
+// Cursor pagination on the entry-list reads uses keyset on
 // (lastMentionedAt DESC NULLS LAST, id DESC) per D22. The cursor's
 // NULLS-LAST branch handles the cross-over from non-null entries to
 // NULL ones — see the comment block at the cursor logic for the
 // reasoning; blueprint §4.1's example code was missing the `OR
 // isNull` branch (a pre-rule-era drift; corrected here).
 
-import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   memoryEntries,
@@ -29,7 +29,7 @@ export type {
   MemoryEntryCategory,
 } from '../schema/memory-entries.js'
 
-// Defensive caps on listEntriesForWorkspace per coding-standard.md
+// Defensive caps on the entry-list reads per coding-standard.md
 // "Structure / patterns" — every list* that scales with tenant data
 // is capped at the repo layer too (the Zod schema also clamps at the
 // HTTP boundary).
@@ -41,20 +41,53 @@ export function findEntryById(db: Database, entryId: string): MemoryEntry | null
   return row ?? null
 }
 
-export type ListEntriesForWorkspaceOptions = {
+export type ListEntriesOptions = {
   kind?: MemoryEntryKind
   includeArchived?: boolean
   cursor?: { lastMentionedAt: Date | null; id: string } | null
   limit?: number
 }
 
+// This workspace's entries.
 export function listEntriesForWorkspace(
   db: Database,
   workspaceId: string,
-  options: ListEntriesForWorkspaceOptions = {},
+  options: ListEntriesOptions = {},
+): MemoryEntry[] {
+  return listEntriesInScope(db, eq(memoryEntries.workspaceId, workspaceId), options)
+}
+
+// The user's GLOBAL entries — the ones anchored to no workspace at all.
+// The global memory surface's read; a workspace surface uses the sibling
+// above.
+//
+// SCHEMA CEILING: `workspaceId` is declared with `id()`, which is NOT NULL by
+// dialect contract, so no global entry can be written today and this read is
+// always empty. It is still the correct read for the settled "Global =
+// workspaceId IS NULL" rule, and starts returning rows unchanged the moment
+// the column goes nullable and a global write path lands. (knowledge_sources
+// took the other branch — `text().references(...)` — for exactly this.)
+export function listGlobalEntriesForUser(
+  db: Database,
+  userId: string,
+  options: ListEntriesOptions = {},
+): MemoryEntry[] {
+  return listEntriesInScope(
+    db,
+    and(eq(memoryEntries.userId, userId), isNull(memoryEntries.workspaceId))!,
+    options,
+  )
+}
+
+// The one home for the entry-list read: filters + the NULLS-LAST keyset
+// pagination. Callers differ only in which rows are in scope.
+function listEntriesInScope(
+  db: Database,
+  scopeCondition: SQL,
+  options: ListEntriesOptions,
 ): MemoryEntry[] {
   const limit = Math.min(options.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
-  const conditions = [eq(memoryEntries.workspaceId, workspaceId), isNull(memoryEntries.deletedAt)]
+  const conditions = [scopeCondition, isNull(memoryEntries.deletedAt)]
   if (!options.includeArchived) conditions.push(eq(memoryEntries.isArchived, false))
   if (options.kind) conditions.push(eq(memoryEntries.kind, options.kind))
 

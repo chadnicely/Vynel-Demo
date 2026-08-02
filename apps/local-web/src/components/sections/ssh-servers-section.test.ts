@@ -51,20 +51,23 @@ function mountSection(scope: SectionScope, client: VynelClient) {
 }
 
 describe("SshServersSection", () => {
-  it("shows every server at the global scope, with the mono target and a Global chip", async () => {
+  // test: correct expectation for scope visibility — was "the global menu
+  // shows every server", now "ONLY global (null-workspace) servers" per the
+  // settled Global = workspaceId IS NULL rule (the channels convention).
+  it("the global menu lists ONLY global servers, with the mono target and a Global chip", async () => {
     const client = {
       sshServers: {
         list: async () => [
           makeServer(),
           makeServer({
             id: "srv2",
-            workspaceId: "w1",
-            name: "Staging box",
+            name: "Backup box",
             host: "staging.example.com",
             port: 2222,
             username: "deploy",
             lastConnectedAt: "2026-07-17T09:00:00.000Z",
           }),
+          makeServer({ id: "srv3", workspaceId: "w1", name: "Room server" }),
         ],
       },
     } as unknown as VynelClient;
@@ -75,8 +78,9 @@ describe("SshServersSection", () => {
     expect(wrapper.findAll(".row")).toHaveLength(2);
     expect(wrapper.text()).toContain("root@example.com:22");
     expect(wrapper.text()).toContain("deploy@staging.example.com:2222");
-    // The chip marks only the global row; connection notes read as words.
-    expect(wrapper.findAll(".scope-chip")).toHaveLength(1);
+    expect(wrapper.text()).not.toContain("Room server");
+    // The chip marks the global rows; connection notes read as words.
+    expect(wrapper.findAll(".scope-chip")).toHaveLength(2);
     expect(wrapper.text()).toContain("Never connected");
     // The relative wording depends on the wall clock — assert the stable part.
     expect(wrapper.text()).toContain("Last connected");

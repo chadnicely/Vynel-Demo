@@ -90,6 +90,24 @@ describe("PlansSection", () => {
     expect(wrapper.text()).toContain("Claude");
   });
 
+  it("the global menu lists ONLY global (null-workspace) plans", async () => {
+    const client = {
+      plansUser: {
+        list: async () => [
+          makePlan(),
+          makePlan({ id: "p2", workspaceId: "w1", title: "Bookkeeping day" }),
+        ],
+      },
+    } as unknown as VynelClient;
+
+    const { wrapper } = mountSection({ kind: "global" }, client);
+    await flushPromises();
+
+    expect(wrapper.findAll(".row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("Ship the spring campaign");
+    expect(wrapper.text()).not.toContain("Bookkeeping day");
+  });
+
   it("creates from the inline composer with today's date default and clears the title", async () => {
     const createCalls: unknown[] = [];
     const client = {

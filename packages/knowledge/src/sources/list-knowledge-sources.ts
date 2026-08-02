@@ -12,6 +12,10 @@ import {
 // users/scopes.
 export { listAllKnowledgeSources } from '../repositories/index.js'
 
+// The GLOBAL surface's read — only the user's global sources, no workspace
+// anchor (the user-scoped route behind the global knowledge menu).
+export { listGlobalKnowledgeSourcesForUser } from '../repositories/index.js'
+
 // The per-source indexing rollup the sources-list route decorates rows with.
 export { summarizeKnowledgeDocumentsBySource } from '../repositories/index.js'
 export type { SourceDocumentSummary } from '../repositories/index.js'

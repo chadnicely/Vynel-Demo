@@ -20,6 +20,7 @@ import type { DesktopNotificationReader } from '@vynel/desktop-control'
 import type { AppEnv } from './factory.js'
 import { openApiInfo } from './openapi.js'
 import { knowledgeApp } from './routes/knowledge/index.js'
+import { knowledgeUserApp } from './routes/knowledge/user-scoped.js'
 import { skillsApp } from './routes/skills/index.js'
 import { marketplaceApp } from './routes/marketplace/index.js'
 import { marketplaceUserApp } from './routes/marketplace/user-scoped.js'
@@ -46,6 +47,7 @@ import { approvalsUserApp } from './routes/approvals/user-scoped.js'
 import { chatApp } from './routes/chat/index.js'
 import { filesApp } from './routes/files/index.js'
 import { memoryApp } from './routes/memory/index.js'
+import { memoryUserApp } from './routes/memory/user-scoped.js'
 import { notebookApp } from './routes/notebook/index.js'
 import { capabilitiesApp } from './routes/capabilities/index.js'
 import { usersApp } from './routes/users/index.js'
@@ -296,6 +298,12 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // (global or one workspace) and the shelf read takes an optional
   // `workspaceId` for a workspace turn's view.
   app.route('/notebook', notebookApp)
+  // `/knowledge` + `/memory` are the GLOBAL surfaces' anchors: unlike their
+  // workspace-scoped twins (which FUSE a workspace's rows with the user's
+  // global ones) these list ONLY the null-workspace rows, so the global menu
+  // shows global items and nothing else.
+  app.route('/knowledge', knowledgeUserApp)
+  app.route('/memory', memoryUserApp)
   app.route('/approvals', approvalsUserApp)
   app.route('/users', usersApp)
   app.route('/onboarding', onboardingApp)

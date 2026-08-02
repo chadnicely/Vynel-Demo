@@ -3,6 +3,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import type { VynelClient } from "@vynel/sdk";
+import type { SectionScope } from "../sections/section-scope.js";
 import TasksPanel from "./TasksPanel.vue";
 
 function makeTask(overrides: Record<string, unknown> = {}) {
@@ -22,8 +23,12 @@ function makeTask(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function mountPanel(client: VynelClient) {
+function mountPanel(
+  client: VynelClient,
+  scope: SectionScope = { kind: "global" },
+) {
   return mount(TasksPanel, {
+    props: { scope },
     global: {
       plugins: [
         [
@@ -58,6 +63,44 @@ describe("TasksPanel", () => {
     expect(wrapper.text()).toContain("Ship the launch email");
     expect(wrapper.text()).toContain("Draft the brief");
     expect(wrapper.text()).not.toContain("Old news");
+    expect(wrapper.get(".count-chip").text()).toBe("2 open");
+  });
+
+  it("narrows to the scope it sits in — global shows only global work", async () => {
+    const client = {
+      tasksUser: {
+        list: async () => [
+          makeTask(),
+          makeTask({ id: "t2", workspaceId: "w1", title: "Room work" }),
+        ],
+      },
+    } as unknown as VynelClient;
+
+    const wrapper = mountPanel(client);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Ship the launch email");
+    expect(wrapper.text()).not.toContain("Room work");
+    expect(wrapper.get(".count-chip").text()).toBe("1 open");
+  });
+
+  it("a workspace surface sees its own work plus the global work", async () => {
+    const client = {
+      tasksUser: {
+        list: async () => [
+          makeTask(),
+          makeTask({ id: "t2", workspaceId: "w1", title: "Room work" }),
+          makeTask({ id: "t3", workspaceId: "OTHER", title: "Elsewhere" }),
+        ],
+      },
+    } as unknown as VynelClient;
+
+    const wrapper = mountPanel(client, { kind: "workspace", workspaceId: "w1" });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Ship the launch email");
+    expect(wrapper.text()).toContain("Room work");
+    expect(wrapper.text()).not.toContain("Elsewhere");
     expect(wrapper.get(".count-chip").text()).toBe("2 open");
   });
 
