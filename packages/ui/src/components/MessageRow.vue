@@ -6,6 +6,7 @@ import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
 import PresenceDot from "./PresenceDot.vue";
 import AttachmentChips from "./AttachmentChips.vue";
+import ClaudeMark from "./ClaudeMark.vue";
 import {
   workspaceAccentVar,
   workspaceNameFromLabel,
@@ -30,6 +31,10 @@ const props = withDefaults(
      *  so the host names who speaks here (the global thread passes "Claude",
      *  a workspace room its manager persona). */
     assistantName?: string;
+    /** The surface assistant's custom avatar (a data URL from Customize).
+     *  Null falls back to the Claude mark — which also covers every row NOT
+     *  authored by the surface's own assistant (reports, global-root). */
+    assistantIconUrl?: string | null;
     /** False for an assistant row continuing the previous row's turn — the
      *  host groups consecutive same-author rows under ONE author line, so a
      *  reloaded thread reads like the live overlay (one "Claude:", N blocks). */
@@ -39,6 +44,7 @@ const props = withDefaults(
     linkedSessionLive: undefined,
     showWatchChip: true,
     assistantName: "Assistant",
+    assistantIconUrl: null,
     showHeader: true,
   },
 );
@@ -87,6 +93,25 @@ const roleLabel = computed(() => {
 });
 
 const isAssistant = computed(() => props.message.role === "assistant");
+
+// The glyph beside assistant-authored lines: the surface's custom persona
+// image only when the row speaks AS that persona; every other assistant
+// author (reports, global-root) wears the Claude mark — it's all Claude
+// underneath. User lines get no glyph.
+const authorAvatar = computed<{ imageUrl: string | null } | null>(() => {
+  if (props.message.role === "user" && !isInboundReport.value) return null;
+  const speaksAsSurfaceAssistant =
+    props.message.role === "assistant" &&
+    props.message.sourceKind !== "global-root" &&
+    !(
+      (props.message.sourceKind === "workspace-manager" ||
+        props.message.sourceKind === "agent") &&
+      props.message.sourceLabel
+    );
+  return {
+    imageUrl: speaksAsSurfaceAssistant ? (props.assistantIconUrl ?? null) : null,
+  };
+});
 
 // When this message happened — quiet meta beside the author, so a reopened
 // conversation reads as a timeline, not an undated wall.
@@ -184,6 +209,10 @@ const accentVar = computed(() => {
   >
     <div v-if="props.showHeader" class="row-header">
     <p class="role-label">
+      <span v-if="authorAvatar" class="author-avatar" aria-hidden="true">
+        <img v-if="authorAvatar.imageUrl" :src="authorAvatar.imageUrl" alt="" />
+        <ClaudeMark v-else :size="14" />
+      </span>
       {{ roleLabel }}
       <span v-if="originBadge" class="origin-badge">
         <!-- Inline glyphs keep @vynel/ui icon-library-free -->
@@ -336,6 +365,9 @@ const accentVar = computed(() => {
 
 .role-label {
   margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   color: var(--ink-3);
   font: 600 10.5px/1.5 var(--font-ui);
   text-transform: uppercase;
@@ -348,8 +380,30 @@ const accentVar = computed(() => {
 
 .row-header {
   display: flex;
-  align-items: baseline;
+  /* Center, not baseline: the author line leads with the avatar chip, whose
+     flex "baseline" is its bottom edge — baseline-aligning would sink the
+     time label below the name. */
+  align-items: center;
   gap: 8px;
+}
+
+.author-avatar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  overflow: hidden;
+  /* The soft identity tint makes the spark read as a colorful chip, not a
+     stray glyph — same coral family as the mark itself. */
+  background: var(--claude-mark-soft);
+}
+
+.author-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .time-label {
@@ -364,14 +418,12 @@ const accentVar = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: 6px;
   padding: 0 7px;
   border: 1px solid var(--hair);
   border-radius: 99px;
   color: var(--ink-3);
   font: 500 9.5px/1.7 var(--font-ui);
   letter-spacing: 0.04em;
-  vertical-align: 1px;
 }
 
 .plain-body {

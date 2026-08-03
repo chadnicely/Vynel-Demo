@@ -17,6 +17,16 @@
 /** How many `--ws-*` accent tokens exist — pickers iterate 1..N. */
 export const WORKSPACE_ACCENT_SLOTS = 6;
 
+// Names mirror tokens.css `--ws-1..6` (both themes keep the same hue per
+// slot); a slot beyond the named set falls back to its number. One home —
+// the menu swatches and the standalone picker announce the same names.
+const WS_SLOT_NAMES = ["Teal", "Blue", "Indigo", "Purple", "Rose", "Green"];
+
+/** Human name for an accent slot ("Teal"), for swatch aria-labels. */
+export function workspaceSlotName(slot: number): string {
+  return WS_SLOT_NAMES[slot - 1] ?? `Color ${slot}`;
+}
+
 /** Extract the workspace name from `sourceLabel` (its LAST " · " segment — the
  *  label is "<manager> · <workspace>"), display case preserved. The one home
  *  for that parse — the Watch chip's label and the color slots both use it. */

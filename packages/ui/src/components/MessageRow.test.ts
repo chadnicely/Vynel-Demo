@@ -250,3 +250,39 @@ describe("MessageRow", () => {
     expect(user.find(".message-row").classes()).not.toContain("has-accent");
   });
 });
+
+describe("MessageRow author avatar", () => {
+  it("a plain assistant row wears the Claude mark by default and the custom image when given", () => {
+    const marked = mount(MessageRow, { props: { message: makeMessage() } });
+    expect(marked.find(".author-avatar svg").exists()).toBe(true);
+
+    const custom = mount(MessageRow, {
+      props: {
+        message: makeMessage(),
+        assistantIconUrl: "data:image/png;base64,AAAA",
+      },
+    });
+    const img = custom.find(".author-avatar img");
+    expect(img.exists()).toBe(true);
+    expect(img.attributes("src")).toBe("data:image/png;base64,AAAA");
+  });
+
+  it("rows NOT authored by the surface assistant keep the Claude mark, and user rows get no glyph", () => {
+    const globalRoot = mount(MessageRow, {
+      props: {
+        message: makeMessage({ sourceKind: "global-root" }),
+        assistantIconUrl: "data:image/png;base64,AAAA",
+      },
+    });
+    expect(globalRoot.find(".author-avatar img").exists()).toBe(false);
+    expect(globalRoot.find(".author-avatar svg").exists()).toBe(true);
+
+    const user = mount(MessageRow, {
+      props: {
+        message: makeMessage({ role: "user", body: "hi" }),
+        assistantIconUrl: "data:image/png;base64,AAAA",
+      },
+    });
+    expect(user.find(".author-avatar").exists()).toBe(false);
+  });
+});

@@ -1,18 +1,17 @@
 <script setup lang="ts">
 import { DropdownMenuItem } from "reka-ui";
-import { WORKSPACE_ACCENT_SLOTS } from "../lib/workspace-color.js";
+import {
+  WORKSPACE_ACCENT_SLOTS,
+  workspaceSlotName,
+} from "../lib/workspace-color.js";
 import { menuLabelClass } from "./menu-shared.js";
 
 // A color-pick row for INSIDE a DropdownMenu (its `footer` slot): Auto plus
 // the workspace accent palette. Each swatch is a REAL menu item — reka's
 // modal menu swallows Tab and only roves registered items, so plain buttons
 // here would be unreachable by keyboard. Select is prevented, so the menu
-// stays open and picks live-preview on whatever the consumer paints.
-//
-// Names mirror tokens.css `--ws-1..6` (both themes keep the same hue per
-// slot); a slot beyond the named set falls back to its number.
-const WS_SLOT_NAMES = ["Teal", "Blue", "Indigo", "Purple", "Rose", "Green"];
-
+// stays open and picks live-preview on whatever the consumer paints. The
+// standalone twin for ordinary surfaces is WorkspaceColorPicker.
 const props = withDefaults(
   defineProps<{ selectedSlot: number | null; label?: string }>(),
   { label: "Color" },
@@ -24,10 +23,6 @@ const paletteSlots = Array.from(
   { length: WORKSPACE_ACCENT_SLOTS },
   (_, index) => index + 1,
 );
-
-function slotName(slot: number): string {
-  return WS_SLOT_NAMES[slot - 1] ?? `Color ${slot}`;
-}
 
 function onPick(event: Event, slot: number | null) {
   event.preventDefault();
@@ -51,8 +46,8 @@ function onPick(event: Event, slot: number | null) {
       <DropdownMenuItem
         v-for="slot in paletteSlots"
         :key="slot"
-        :aria-label="slotName(slot)"
-        :text-value="slotName(slot)"
+        :aria-label="workspaceSlotName(slot)"
+        :text-value="workspaceSlotName(slot)"
         class="size-5 cursor-default rounded-full outline-none transition hover:scale-110 data-[highlighted]:scale-110"
         :class="props.selectedSlot === slot ? 'ring-2 ring-ink-1 ring-offset-1 ring-offset-raised' : ''"
         :style="{ background: `var(--ws-${slot})` }"
