@@ -25,6 +25,7 @@ export {
 // reading the /routing/report route shares with the tick's attribution.
 export { type RunGlobalRootReportTurn } from './run-report-delivery-tick.js'
 export { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
+export { resolveColleagueAgent } from './resolve-colleague-agent.js'
 export {
   delegateToLeafSession,
   type DelegateToLeafSessionInput,

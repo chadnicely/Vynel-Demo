@@ -6,7 +6,10 @@ export type {
   CreateSpawnedSessionInput,
   CreateSpawnedSessionResult,
 } from './create-spawned-session.js'
-export { findSpawnedSessionBySegmentId } from './find-spawned-session-by-segment.js'
+export {
+  findSpawnedSessionBySegmentId,
+  findRoutableSessionBySegmentId,
+} from './find-spawned-session-by-segment.js'
 export type { FindSpawnedSessionBySegmentIdInput } from './find-spawned-session-by-segment.js'
-export { findSpawnedSessionById } from './find-spawned-session-by-id.js'
+export { findSpawnedSessionById, findAgentSessionById } from './find-spawned-session-by-id.js'
 export type { FindSpawnedSessionByIdInput } from './find-spawned-session-by-id.js'

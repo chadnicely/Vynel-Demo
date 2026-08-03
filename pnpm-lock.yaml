@@ -1296,6 +1296,9 @@ importers:
 
   packages/session:
     dependencies:
+      '@vynel/agents':
+        specifier: workspace:*
+        version: link:../agents
       '@vynel/capabilities':
         specifier: workspace:*
         version: link:../capabilities
@@ -1342,9 +1345,6 @@ importers:
         specifier: ^9.5.0
         version: 9.14.0
     devDependencies:
-      '@vynel/agents':
-        specifier: workspace:*
-        version: link:../agents
       '@vynel/approvals':
         specifier: workspace:*
         version: link:../approvals

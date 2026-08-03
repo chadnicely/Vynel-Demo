@@ -79,6 +79,18 @@ per-task. Every message is attributed: from the user, from a session, or from a 
   `attach-delegation-tool-outcomes.ts:75` — update rows must not render as tasks / label chips.
 - Use the A2 one-home helpers (`DELIVERY_JOB_KINDS`, `isDeliveryJobKind`, `isWorkJobKind`) —
   never re-spell kind literals.
+- The tick has NO update-delivery run branch yet (targetKey + claim gate landed early with A4) —
+  a claimed update row would fall into the task path. The run branch MUST land WITH the producer.
+
+## B-slice notes (from the A4 review)
+
+- GLOBAL colleagues (workspaceId null) are invisible in the Sessions panel — `SessionsView.vue`
+  global scope filters `scope === 'spawned'`; widen to agents when the panel work lands.
+- Liveness-scope inconsistency: a mention run announces workspace-scoped when grounded; a
+  task-branch run on the SAME colleague announces global (spawned precedent) — unify when the
+  live view builds on the feed.
+- B6 direct-send into a colleague must acquire the same `SessionTargetLocks` key (the key is
+  already the primary id; `POST /sessions/:id/turn` 404s agent scope until then).
 
 ## Move map
 

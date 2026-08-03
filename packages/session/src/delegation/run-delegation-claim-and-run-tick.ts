@@ -42,9 +42,11 @@ import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import * as primarySessionsRepository from '../repositories/index.js'
+import { resolveColleagueAgent } from './resolve-colleague-agent.js'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
 import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
+import { delegateToAgentSession } from './delegate-to-agent-session.js'
 import { runAgentRunJob } from './run-agent-run-job.js'
 import { runReportDeliveryJob, type RunGlobalRootReportTurn } from './run-report-delivery-tick.js'
 import { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
@@ -103,7 +105,7 @@ export interface RunDelegationTickDeps {
     db: Database
     userId: string
     workspaceId: string | null
-    target: 'workspace-root' | 'spawned-session'
+    target: 'workspace-root' | 'spawned-session' | 'agent-session'
     threadId?: string
     jobId?: string
     /** The spawned primary a 'spawned-session' target resumes — the api edge
@@ -158,27 +160,30 @@ export async function runDelegationClaimAndRunTick(
       : {}),
   })
   if (claimed === null) return false
-  // The pool's exclusion key: the spawned primary id for a session target, the
-  // workspace id for a workspace target, the SHARED synthetic key for a
-  // global-requester report-delivery row (session-comms: the global root is
-  // one conversation — at most one notify turn runs; the claim skips the rest
-  // while the key is busy, so they wait as PENDING instead of burning budget
-  // in the root-lock queue). An AGENT-RUN row (chat-mentions) keys on its OWN
-  // id: the leaf runs FRESH — it resumes no conversation, so it must never
-  // reserve (or wait on) its grounding workspace's single-writer slot. The job
-  // id is otherwise a defensive fallback for a targetless TASK row (the
-  // enqueue ops preclude it) — it excludes nothing real.
+  // The pool's exclusion key: the session-target primary id (a spawned session
+  // OR an agent colleague — persona-sessions: two mentions of one colleague run
+  // FIFO on its primary id), the workspace id for a workspace target, the
+  // SHARED synthetic key for a global-requester DELIVERY row (session-comms:
+  // the global root is one conversation — at most one notify turn runs; the
+  // claim skips the rest while the key is busy, so they wait as PENDING instead
+  // of burning budget in the root-lock queue). An agent-run row's grounding
+  // `workspaceId` is NOT a conversation it resumes, so it never reserves that
+  // slot (the claim's agent-run exemption); a legacy agent-run row without a
+  // stamped colleague keys on its own id. The job id is otherwise a defensive
+  // fallback for a targetless TASK row (the enqueue ops preclude it).
   const claimedKind = claimed.jobKind ?? 'task'
   const targetKey =
     claimedKind === 'agent-run'
-      ? claimed.id
+      ? (claimed.targetPrimarySessionId ?? claimed.id)
       : (claimed.targetPrimarySessionId ??
         claimed.workspaceId ??
-        (claimedKind === 'report-delivery' ? GLOBAL_ROOT_DELIVERY_TARGET_KEY : claimed.id))
+        (claimedKind === 'report-delivery' || claimedKind === 'update-delivery'
+          ? GLOBAL_ROOT_DELIVERY_TARGET_KEY
+          : claimed.id))
   deps.onRunStarted?.({ jobId: claimed.id, targetKey })
 
-  // Chat-mentions: an 'agent-run' row runs the mentioned agent as a FRESH leaf
-  // and delivers its clean result to the originating chat deterministically.
+  // Persona-sessions: an 'agent-run' row resumes the mentioned agent's
+  // COLLEAGUE session; its spoken send_message is the only report path.
   if (claimedKind === 'agent-run') {
     return runAgentRunJob(
       db,
@@ -186,8 +191,12 @@ export async function runDelegationClaimAndRunTick(
         provider: deps.provider,
         logger: deps.logger,
         activityFeed: deps.activityFeed,
+        ...(deps.turnEvents !== undefined ? { turnEvents: deps.turnEvents } : {}),
         ...(deps.cancelRegistry !== undefined ? { cancelRegistry: deps.cancelRegistry } : {}),
         budgetMs: deps.budgetMs ?? DELEGATION_RUN_BUDGET_MS,
+        ...(deps.composeWorkspaceMcpServers !== undefined
+          ? { composeWorkspaceMcpServers: deps.composeWorkspaceMcpServers }
+          : {}),
       },
       claimed,
     )
@@ -284,14 +293,65 @@ export async function runDelegationClaimAndRunTick(
     // global-spawned target and every workspace-target job) — picks the MCP
     // attachment's grounding workspace below.
     let spawnedTargetWorkspaceId: string | null = null
+    // Persona-sessions: a session target may be an agent COLLEAGUE — resolved
+    // here so the delegate + MCP target branch on it below.
+    let colleagueAgent: {
+      slug: string
+      name: string
+      prompt: string
+      allowedTools: string[]
+      disallowedTools: string[]
+      model: string | null
+    } | null = null
     if (claimed.targetPrimarySessionId !== null) {
       const targetPrimary = primarySessionsRepository.findPrimarySessionById(
         db,
         claimed.targetPrimarySessionId,
       )
       spawnedTargetWorkspaceId = targetPrimary?.workspaceId ?? null
-      targetName = resolveSpawnedSessionDisplayName(db, targetPrimary)
-      managerName = undefined
+      if (targetPrimary?.scope === 'agent') {
+        // A colleague target: resolve its agent fresh (workspace-then-user,
+        // the one home). A gone agent or a missing scopeRef is a FAILED
+        // ATTEMPT, not bookkeeping — it settles through the give-up push so
+        // the requester hears about it (the agent-run resolution-phase rule).
+        const slug = targetPrimary.scopeRef
+        const agent =
+          slug !== null
+            ? await resolveColleagueAgent(db, {
+                userId: claimed.userId,
+                workspaceId: targetPrimary.workspaceId,
+                slug,
+              })
+            : null
+        if (slug === null || agent === null) {
+          settleFailedDelegationAttempt(
+            db,
+            claimed,
+            slug === null
+              ? 'agent-scope target has no scopeRef (corrupt colleague row)'
+              : `no agent "${slug}" resolves for the targeted colleague any more`,
+            {
+              logger: deps.logger,
+              queueLabel: 'delegation',
+              retryHint: 're-send the task with send_message if it should be retried.',
+            },
+          )
+          return true
+        }
+        colleagueAgent = {
+          slug,
+          name: agent.name,
+          prompt: agent.prompt,
+          allowedTools: agent.allowedTools ?? [],
+          disallowedTools: agent.disallowedTools ?? [],
+          model: agent.model,
+        }
+        targetName = agent.name
+        managerName = undefined
+      } else {
+        targetName = resolveSpawnedSessionDisplayName(db, targetPrimary)
+        managerName = undefined
+      }
     } else {
       const workspace =
         claimed.workspaceId !== null ? findWorkspaceById(db, claimed.workspaceId) : null
@@ -334,7 +394,12 @@ export async function runDelegationClaimAndRunTick(
             ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
             jobId: claimed.id,
             workspaceId: mcpGroundingWorkspaceId,
-            target: claimed.targetPrimarySessionId !== null ? 'spawned-session' : 'workspace-root',
+            target:
+              claimed.targetPrimarySessionId !== null
+                ? colleagueAgent !== null
+                  ? 'agent-session'
+                  : 'spawned-session'
+                : 'workspace-root',
             // The caller identity for `report_to_requester` (session-comms): a
             // spawned target's tool calls must resolve as the SESSION, not its
             // grounding workspace.
@@ -386,29 +451,53 @@ export async function runDelegationClaimAndRunTick(
       logger: deps.logger,
     }
 
-    // Branch on the target (Slice ④): a session job resumes the spawned
-    // primary's continuing conversation; a workspace job is byte-for-byte the
-    // pre-slice path. Captured for closure narrowing.
+    // Branch on the target (Slice ④ + persona-sessions): an agent-scope
+    // session job resumes the COLLEAGUE's continuing conversation; a spawned
+    // session job resumes the spawned primary's; a workspace job is
+    // byte-for-byte the pre-slice path. Captured for closure narrowing.
     const spawnedTargetId = claimed.targetPrimarySessionId
+    const agentTarget = colleagueAgent
     const delegate: DelegateForRouting =
-      spawnedTargetId !== null
+      spawnedTargetId !== null && agentTarget !== null
         ? (delegationInput) =>
-            delegateToSpawnedSession(db, deps.provider, {
+            delegateToAgentSession(db, deps.provider, {
               parentSessionId: delegationInput.parentSessionId,
               userId: delegationInput.userId,
               targetPrimarySessionId: spawnedTargetId,
               runCwdPath,
-              sessionName: targetName,
+              agentSlug: agentTarget.slug,
+              agentName: agentTarget.name,
+              agentPrompt: agentTarget.prompt,
+              agentAllowedTools: agentTarget.allowedTools,
+              agentDisallowedTools: agentTarget.disallowedTools,
               taskText: delegationInput.taskText,
+              // v1 parity with spawned targets: the sender reads as the
+              // system-relayed global root (the recorded compromise).
+              userAttribution: { userSourceKind: 'global-root' },
               ...sharedRunnerOptions,
+              // The agent's own model backs the job's pick (job pick wins).
+              ...(claimed.model === null && agentTarget.model !== null
+                ? { model: agentTarget.model }
+                : {}),
             })
-        : (delegationInput) =>
-            delegateToWorkspaceRoot(db, deps.provider, {
-              ...delegationInput,
-              workspaceName: targetName,
-              ...(managerName !== undefined ? { managerName } : {}),
-              ...sharedRunnerOptions,
-            })
+        : spawnedTargetId !== null
+          ? (delegationInput) =>
+              delegateToSpawnedSession(db, deps.provider, {
+                parentSessionId: delegationInput.parentSessionId,
+                userId: delegationInput.userId,
+                targetPrimarySessionId: spawnedTargetId,
+                runCwdPath,
+                sessionName: targetName,
+                taskText: delegationInput.taskText,
+                ...sharedRunnerOptions,
+              })
+          : (delegationInput) =>
+              delegateToWorkspaceRoot(db, deps.provider, {
+                ...delegationInput,
+                workspaceName: targetName,
+                ...(managerName !== undefined ? { managerName } : {}),
+                ...sharedRunnerOptions,
+              })
 
     const outcome = await routeRequest(
       {

@@ -1,46 +1,72 @@
 // `runAgentRunJob` — runs ONE claimed 'agent-run' job to a terminal state
-// (chat-mentions): a `@agent` mention became this row; the leaf runs FRESH
-// (`delegateToLeafSession` — its own SDK session, recorded hidden, safety
-// backstop inherited, carded tools fail-closed DENIED) on the user's message,
-// and the leaf's clean result is delivered DETERMINISTICALLY to the
-// ORIGINATING chat as a report-delivery job. Called by
-// `runDelegationClaimAndRunTick` after the claim (pool slot already reserved
-// on the job's OWN id — a leaf resumes no conversation, so it holds no
-// single-writer key).
+// (persona-sessions): a `@agent` mention resumes that agent's COLLEAGUE
+// session (`delegateToAgentSession` — the continuing scope-'agent' primary;
+// persona + memory accumulate across mentions). Called by
+// `runDelegationClaimAndRunTick` after the claim; the pool slot is reserved on
+// the COLLEAGUE primary id (single-writer — two mentions of one colleague run
+// FIFO), falling back to the job's own id for a legacy row.
 //
-// WHY deterministic delivery (vs the task branch's no-harvest rule): a leaf
-// has no send_message and no conversation — `resultText` IS its designed
-// return value (the delegateToLeafSession contract: "the root absorbs only
-// the clean result"). Capturing it here is not harvesting a chat reply; it is
-// the only way the result exists at all.
+// NO HARVEST — the leaf-era deterministic result→report conversion is RETIRED:
+// a colleague has `send_message` and a real conversation, so its ack/updates/
+// report are its OWN spoken words (the task-branch rule, now universal). The
+// completed branch co-commits complete + mark-surfaced only; a silent
+// completion settles the chip and answers status pulls, nothing more.
+//
+// Approvals: record-and-park (`buildRoutedApprovalHandler`) replaces the
+// leaf's fail-closed denial — a colleague turn is a routed turn like any
+// other; `permissionMode` threads from the job row.
 
 import { withTransaction, type Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import {
+  ApprovalWaitGate,
   completeDelegationJob,
-  enqueueReportDelivery,
   failDelegationJob,
   markDelegationsSurfacedToRoot,
   resolveThreadIdOf,
   routeRequest,
   type DelegationJob,
 } from '@vynel/orchestration'
+import type { AgentRow } from '@vynel/db/repositories/agents'
+import { resolveColleagueAgent } from './resolve-colleague-agent.js'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
-import { delegateToLeafSession } from './delegate-to-leaf-session.js'
+import { type ChatTurnEvent } from '@vynel/chat'
+import { getOrCreateContinuingSession } from '../continuity/index.js'
+import * as primarySessionsRepository from '../repositories/index.js'
+import { delegateToAgentSession } from './delegate-to-agent-session.js'
+import { settleFailedDelegationAttempt } from './settle-failed-delegation-attempt.js'
 import {
-  resolveJobReportRequester,
-  settleFailedDelegationAttempt,
-} from './settle-failed-delegation-attempt.js'
+  buildRoutedApprovalHandler,
+  type RoutedApprovalHandler,
+} from './build-routed-approval-handler.js'
+import { traceChannelKey, type TurnEventBroadcaster } from './turn-event-broadcaster.js'
 import type { DelegationCancelRegistry } from './delegation-cancel-registry.js'
 import type { SessionActivityFeed } from '../runtime/session-activity-feed.js'
+import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
 
 export interface RunAgentRunJobDeps {
   provider: AiAgentProvider
   logger: Logger
   activityFeed: SessionActivityFeed
+  /** The turn-event pub/sub — the colleague turn publishes on its session +
+   *  trace channels (Watch everywhere). Omit → no observers. */
+  turnEvents?: TurnEventBroadcaster
   cancelRegistry?: DelegationCancelRegistry
   /** Resolved by the caller (the tick owns the default). */
   budgetMs: number
+  /** The delegated-turn MCP composition (the api edge binds it) — target
+   *  'agent-session' composes the colleague's toolset + caller identity.
+   *  Optional only for MCP-less test harnesses (the tick's contract). */
+  composeWorkspaceMcpServers?: (input: {
+    db: Database
+    userId: string
+    workspaceId: string | null
+    target: 'workspace-root' | 'spawned-session' | 'agent-session'
+    threadId?: string
+    jobId?: string
+    targetPrimarySessionId?: string
+    requesterWorkspaceId?: string
+  }) => RoutedTurnMcpAttachment
 }
 
 /** Run one claimed agent-run job to a terminal state. Always returns true (a
@@ -51,8 +77,6 @@ export async function runAgentRunJob(
   claimed: DelegationJob,
 ): Promise<boolean> {
   const partialSessionId = claimed.partialSessionId ?? undefined
-  // The enqueue-time agent display name (column reuse — the report label).
-  const agentLabel = claimed.workspaceName ?? claimed.agentSlug ?? 'Agent'
 
   const cancelHandle =
     deps.cancelRegistry !== undefined && partialSessionId !== undefined
@@ -61,12 +85,12 @@ export async function runAgentRunJob(
 
   deps.logger.info(
     { jobId: claimed.id, agentSlug: claimed.agentSlug, workspaceId: claimed.workspaceId },
-    'agent-run: claimed — running the mentioned agent leaf',
+    'agent-run: claimed — running the mentioned colleague turn',
   )
 
-  // A leaf run is global-scoped on the liveness feed when ungrounded (the
-  // session-target shape); workspace-scoped when the mention came from a
-  // workspace chat. Begun immediately before try (zombie-turn doctrine).
+  // A colleague run announces on the liveness feed under its GROUNDING (the
+  // session-target shape when global). Begun immediately before try
+  // (zombie-turn doctrine).
   const activityHandle = deps.activityFeed.begin({
     userId: claimed.userId,
     ...(claimed.workspaceId === null
@@ -74,91 +98,196 @@ export async function runAgentRunJob(
       : { scopeKind: 'workspace' as const, workspaceId: claimed.workspaceId }),
     origin: 'delegation',
   })
+  // Hoisted so the failure paths can abandon any still-parked approval —
+  // fail-closed, never a hanging SDK agent (the tick's shape).
+  let approvalHandler: RoutedApprovalHandler | null = null
   try {
-    const agentSlug = claimed.agentSlug
-    if (agentSlug === null) {
-      throw new Error('agent-run job has no agentSlug (corrupt row)')
+    // ── Resolution phase — a failure here (deleted agent, corrupt row) is a
+    // FAILED ATTEMPT, not bookkeeping: it settles through the give-up push so
+    // the requester hears about it (ack-first makes silent death a broken
+    // promise). The outer catch below stays the plain-fail last resort.
+    let resolved: {
+      agentSlug: string
+      runCwdPath: string
+      agent: AgentRow
+      colleague: primarySessionsRepository.PrimarySessionRow
     }
-    const runCwdPath = claimed.workspacePath
-    if (runCwdPath === null) {
-      throw new Error('agent-run job has no run cwd (workspacePath is null — corrupt row)')
-    }
+    try {
+      const agentSlug = claimed.agentSlug
+      if (agentSlug === null) {
+        throw new Error('agent-run job has no agentSlug (corrupt row)')
+      }
+      const runCwdPath = claimed.workspacePath
+      if (runCwdPath === null) {
+        throw new Error('agent-run job has no run cwd (workspacePath is null — corrupt row)')
+      }
 
-    // The same timeout-raced, never-reject coordination task jobs get. The
-    // delegate closure captures its own grounding; leaf approvals are
-    // fail-closed auto-denied inside `createLeafSession` (no waitGate needed —
-    // nothing ever parks).
-    const groundingWorkspaceId = claimed.workspaceId
+      // Resolve the agent FRESH at claim time (workspace-then-user, the one
+      // home). A deleted agent fails the attempt honestly.
+      const agent = await resolveColleagueAgent(db, {
+        userId: claimed.userId,
+        workspaceId: claimed.workspaceId,
+        slug: agentSlug,
+      })
+      if (agent === null) {
+        throw new Error(`agent-run: no agent "${agentSlug}" resolves for this scope any more`)
+      }
+
+      // Resolve the COLLEAGUE primary: the enqueue-time stamp, verified; a
+      // legacy/failed stamp falls back to get-or-create (idempotent — the same
+      // identity the enqueue would have stamped).
+      const stamped =
+        claimed.targetPrimarySessionId !== null
+          ? primarySessionsRepository.findPrimarySessionById(db, claimed.targetPrimarySessionId)
+          : null
+      const colleague =
+        stamped !== null && stamped.userId === claimed.userId && stamped.scope === 'agent'
+          ? stamped
+          : await getOrCreateContinuingSession(db, {
+              userId: claimed.userId,
+              scope: 'agent',
+              workspaceId: claimed.workspaceId,
+              scopeRef: agentSlug,
+            })
+      resolved = { agentSlug, runCwdPath, agent, colleague }
+    } catch (resolutionErr) {
+      settleFailedDelegationAttempt(
+        db,
+        claimed,
+        resolutionErr instanceof Error ? resolutionErr.message : String(resolutionErr),
+        {
+          logger: deps.logger,
+          queueLabel: 'agent-run',
+          retryHint: `mention the agent again (@${claimed.agentSlug ?? 'agent'}) to retry it.`,
+        },
+      )
+      return true
+    }
+    const { agentSlug, runCwdPath, agent, colleague } = resolved
+
+    // Surface-up: one gate + handler per job — record-and-park, the routed
+    // shape (the leaf's fail-closed denier is retired with the leaf).
+    const waitGate = new ApprovalWaitGate()
+    const handler = buildRoutedApprovalHandler({
+      db,
+      logger: deps.logger,
+      provider: deps.provider,
+      workspaceName: agent.name,
+      waitGate,
+    })
+    approvalHandler = handler
+
+    // The colleague's MCP attachment — ALWAYS composed (both groundings): a
+    // colleague has no bare-priming history, so its toolset is consistent from
+    // turn 1, and `send_message` is how it speaks at all.
+    const claimedThreadId = resolveThreadIdOf(claimed)
+    const mcpAttachment = deps.composeWorkspaceMcpServers?.({
+      db,
+      userId: claimed.userId,
+      workspaceId: colleague.workspaceId,
+      target: 'agent-session',
+      ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+      jobId: claimed.id,
+      targetPrimarySessionId: colleague.id,
+      ...(claimed.requesterWorkspaceId !== null
+        ? { requesterWorkspaceId: claimed.requesterWorkspaceId }
+        : {}),
+    })
+
+    const turnEvents = deps.turnEvents
     const outcome = await routeRequest(
       {
         userId: claimed.userId,
         parentSessionId: claimed.parentSessionId,
-        targetWorkspaceId: groundingWorkspaceId ?? claimed.id,
+        targetWorkspaceId: colleague.id,
         targetWorkspacePath: runCwdPath,
         taskText: claimed.taskText,
         timeoutMs: deps.budgetMs,
       },
       {
         delegate: (delegationInput) =>
-          delegateToLeafSession(db, deps.provider, {
+          delegateToAgentSession(db, deps.provider, {
             parentSessionId: delegationInput.parentSessionId,
             userId: delegationInput.userId,
-            workspaceId: groundingWorkspaceId,
-            workspacePath: runCwdPath,
+            targetPrimarySessionId: colleague.id,
+            runCwdPath,
             agentSlug,
+            agentName: agent.name,
+            agentPrompt: agent.prompt,
+            agentAllowedTools: agent.allowedTools ?? [],
+            agentDisallowedTools: agent.disallowedTools ?? [],
             taskText: delegationInput.taskText,
+            // The inbound reads as relayed from the ORIGINATING chat: the
+            // workspace manager context when grounded, else the global root.
+            userAttribution: {
+              userSourceKind: claimed.workspaceId === null ? 'global-root' : 'workspace-manager',
+            },
             providerId: DEFAULT_PROVIDER_ID,
-            ...(claimed.model !== null ? { model: claimed.model } : {}),
+            ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+            ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
+            ...(claimed.model !== null
+              ? { model: claimed.model }
+              : agent.model !== null
+                ? { model: agent.model }
+                : {}),
+            ...(claimed.thinkingEffort !== null ? { thinkingEffort: claimed.thinkingEffort } : {}),
+            ...(mcpAttachment !== undefined ? { mcpAttachment } : {}),
+            approvalHandler: handler,
+            ...(turnEvents !== undefined ? { turnEvents } : {}),
+            ...(turnEvents !== undefined && partialSessionId !== undefined
+              ? {
+                  observer: {
+                    onTurnEvent: (event: ChatTurnEvent) =>
+                      turnEvents.publish(traceChannelKey(partialSessionId), event),
+                    onTurnEnded: () => turnEvents.end(traceChannelKey(partialSessionId)),
+                  },
+                }
+              : {}),
+            onSessionResolved: (sdkSessionId: string) => {
+              cancelHandle?.sessionResolved(sdkSessionId)
+              activityHandle.sessionResolved(sdkSessionId)
+            },
+            logger: deps.logger,
           }),
         logger: deps.logger,
+        waitGate,
       },
     )
 
     if (outcome.status === 'completed' && cancelHandle?.isCancelRequested()) {
       // Stop always wins at terminal time (the task-tick policy, kept coherent).
+      await approvalHandler.abandonParked()
       failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
       deps.logger.info(
         { jobId: claimed.id },
-        'agent-run: stopped by the user at terminal time (report suppressed)',
+        'agent-run: stopped by the user at terminal time',
       )
     } else if (outcome.status === 'completed') {
-      // A silent leaf still completed — deliver an honest stub so the user
-      // learns the run finished (enqueueReportDelivery rejects empty bodies).
-      const reportBody =
-        outcome.result.trim() !== ''
-          ? outcome.result
-          : `${agentLabel} finished the mentioned run without producing a text result.`
-      const threadId = resolveThreadIdOf(claimed)
-      // complete + surfaced-mark + report co-commit (invariant 5): the result
-      // exists ONLY here, so "completed but no report queued" must be
-      // impossible — one transaction makes the three states move together.
+      // NO HARVEST (the task-branch rule): the colleague's spoken send_message
+      // is the only report path. complete + mark-surfaced co-commit so the
+      // catch-up net can never inject the reply (invariant 5).
       withTransaction(db, (tx) => {
         completeDelegationJob(tx, claimed.id, outcome.result, new Date())
         markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
-        enqueueReportDelivery(tx, {
-          ...(threadId !== null ? { threadId } : {}),
-          userId: claimed.userId,
-          reporterSessionId: outcome.reference,
-          reporterLabel: agentLabel,
-          reportBody,
-          requester: resolveJobReportRequester(tx, claimed),
-        })
       })
       deps.logger.info(
         { jobId: claimed.id, resultPreview: outcome.result.slice(0, 120) },
-        'agent-run: completed — result report enqueued for the originating chat',
+        'agent-run: completed — the colleague speaks for itself (no harvest)',
       )
     } else if (outcome.status === 'timed-out') {
+      await approvalHandler.abandonParked()
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
       deps.logger.warn(
         { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-        'agent-run job timed out (the leaf keeps running in its own session)',
+        'agent-run job timed out (the colleague turn keeps running in its own session)',
       )
     } else if (cancelHandle?.isCancelRequested()) {
       // The interrupted turn throws by design — the user's action, not a failure.
+      await approvalHandler.abandonParked()
       failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
       deps.logger.warn({ jobId: claimed.id }, 'agent-run job stopped by the user')
     } else {
+      await approvalHandler.abandonParked()
       settleFailedDelegationAttempt(db, claimed, outcome.message, {
         logger: deps.logger,
         queueLabel: 'agent-run',
@@ -168,6 +297,7 @@ export async function runAgentRunJob(
     return true
   } catch (err) {
     // An unexpected throw must never leave the job stuck `claimed`.
+    await approvalHandler?.abandonParked()
     failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
     deps.logger.error({ err, jobId: claimed.id }, 'agent-run job run threw unexpectedly')
     return true

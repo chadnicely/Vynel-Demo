@@ -26,3 +26,17 @@ export function findSpawnedSessionById(
   }
   return primary
 }
+
+// The agent-COLLEAGUE sibling (persona-sessions): resolves a scope-'agent'
+// primary by its own id — the report route's caller resolution for an
+// agent-session background turn.
+export function findAgentSessionById(
+  db: Database,
+  input: FindSpawnedSessionByIdInput,
+): PrimarySessionRow | null {
+  const primary = primarySessionsRepository.findPrimarySessionById(db, input.primarySessionId)
+  if (primary === null || primary.userId !== input.userId || primary.scope !== 'agent') {
+    return null
+  }
+  return primary
+}

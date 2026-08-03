@@ -29,3 +29,25 @@ export function findSpawnedSessionBySegmentId(
   }
   return primary
 }
+
+// The ROUTABLE sibling (persona-sessions): `send_message to:"session:<id>"`
+// reaches spawned sessions AND agent colleagues — both are session-shaped
+// targets the queue can resume. Workspace/global/voice segments still return
+// null (those targets have their own addresses).
+export function findRoutableSessionBySegmentId(
+  db: Database,
+  input: FindSpawnedSessionBySegmentIdInput,
+): PrimarySessionRow | null {
+  const primary = primarySessionsRepository.findPrimarySessionByCurrentSdkSessionId(
+    db,
+    input.sessionId,
+  )
+  if (
+    primary === null ||
+    primary.userId !== input.userId ||
+    (primary.scope !== 'spawned' && primary.scope !== 'agent')
+  ) {
+    return null
+  }
+  return primary
+}

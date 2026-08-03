@@ -1,26 +1,27 @@
 // `enqueueAgentRun` — inserts a PENDING `delegation_jobs` row of kind
-// 'agent-run' (chat-mentions): a `@agent` mention in a chat turn becomes ONE
-// deterministic background leaf run of that agent carrying the user's message.
-// Same durable FIFO queue, same claim machinery — the tick branches on
-// `jobKind` and runs the agent leaf (`delegateToLeafSession`) instead of a
-// routed conversation turn, then delivers the leaf's clean result back to the
-// ORIGINATING chat as a report (`requesterWorkspaceId` null = the global root).
+// 'agent-run' (chat-mentions → persona-sessions): a `@agent` mention in a chat
+// turn becomes ONE deterministic background turn on that agent's COLLEAGUE
+// session (`delegateToAgentSession` — the continuing scope-'agent' primary the
+// mention resumes; persona + memory accumulate). Same durable FIFO queue, same
+// claim machinery — the tick branches on `jobKind`. The colleague speaks its
+// own ack/report via `send_message`; nothing is harvested.
 //
 // ROW SHAPE (column reuse, the report-delivery precedent): `agentSlug` is the
 // agent to run — resolved FRESH at claim time (workspace scope preferred, then
 // user scope); `workspaceId` is the GROUNDING (the originating chat's
-// workspace — the slug-resolution scope; null = global); `workspacePath` the
-// leaf's run cwd; `workspaceName` the agent's DISPLAY NAME at enqueue (the
-// report's source label, refreshed at claim when the row still resolves).
-// `targetPrimarySessionId` is never set — a leaf runs fresh, it resumes
-// nothing. NO `permissionMode`/`thinkingEffort`: a leaf always runs under
-// `bypass-with-behavior-gate` with carded tools fail-closed DENIED
-// (`mapAgentToLeafInput` — the non-negotiable leaf safety invariant).
+// workspace — the slug-resolution scope AND the colleague's identity key half;
+// null = global); `workspacePath` the run cwd; `workspaceName` the agent's
+// DISPLAY NAME at enqueue. `targetPrimarySessionId` is the COLLEAGUE primary
+// (stamped at enqueue so the claim's same-target exclusion serializes runs
+// FIFO-per-colleague; a legacy NULL resolves get-or-create at claim time).
+// `permissionMode` threads the originating turn's mode (the persona-delegation
+// precedent); null = the routed default `bypass-with-behavior-gate`.
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
 import { resolveThreadId } from './resolve-thread-id.js'
 import { insertDelegationJob } from '../repositories/index.js'
+import type { DelegationPermissionMode } from '../orchestration-types.js'
 
 export interface EnqueueAgentRunInput {
   /** The chain this hop continues — one task and everything it caused. Omit to
@@ -33,17 +34,24 @@ export interface EnqueueAgentRunInput {
   agentSlug: string
   /** The agent's display name at enqueue — the report label's fallback. */
   agentName: string
-  /** The user's message — the leaf's first (and only) inbound. */
+  /** The user's message — the colleague's inbound this turn. */
   taskText: string
-  /** The GROUNDING: the originating chat's workspace (slug-resolution scope);
-   *  null for the global root. */
+  /** The GROUNDING: the originating chat's workspace (slug-resolution scope +
+   *  the colleague's identity key half); null for the global root. */
   workspaceId: string | null
-  /** The leaf's run cwd — the workspace folder, or the global root's hidden dir. */
+  /** The run cwd — the workspace folder, or the global root's hidden dir. */
   runCwdPath: string
+  /** The colleague primary this run resumes (persona-sessions) — stamped so the
+   *  claim serializes same-colleague runs. Omit only for legacy shapes; the
+   *  tick then resolves get-or-create at claim time. */
+  targetPrimarySessionId?: string
   /** Where the result-report lands: the originating chat's workspace primary.
    *  Omit = the global root chat. */
   requesterWorkspaceId?: string
-  /** The originating turn's model pick for the leaf. Omit = the agent's own. */
+  /** The originating turn's permission mode for the colleague turn. Omit = the
+   *  routed default (`bypass-with-behavior-gate`). */
+  permissionMode?: DelegationPermissionMode
+  /** The originating turn's model pick. Omit = the agent's own. */
   model?: string
 }
 
@@ -72,7 +80,7 @@ export function enqueueAgentRun(
     workspaceId: input.workspaceId,
     workspacePath: input.runCwdPath,
     workspaceName: input.agentName,
-    targetPrimarySessionId: null,
+    targetPrimarySessionId: input.targetPrimarySessionId ?? null,
     taskText: input.taskText,
     partialSessionId,
     threadId: resolveThreadId({
@@ -88,7 +96,7 @@ export function enqueueAgentRun(
     originChannelId: null,
     originExternalSenderId: null,
     originExternalChatContextId: null,
-    permissionMode: null,
+    permissionMode: input.permissionMode ?? null,
     model: input.model ?? null,
     thinkingEffort: null,
     jobKind: 'agent-run',

@@ -21,9 +21,11 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findDelegationJobById, enqueueWorkspaceDelegation } from '@vynel/orchestration'
 import { createSpawnedSession } from '@vynel/session/spawned'
+import { createAgent } from '@vynel/agents'
 import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
 import {
   getOrCreatePrimarySession,
+  getOrCreateContinuingSession,
   linkPrimarySessionToSdkSession,
 } from '@vynel/session/continuity'
 import { buildNewChatSessionRow } from '@vynel/chat'
@@ -166,6 +168,47 @@ async function seedLinkedWorkspacePrimaryFor(
     }),
   )
   linkPrimarySessionToSdkSession(db, { primarySessionId: primary.id, userId, sdkSessionId })
+}
+
+// An agent COLLEAGUE (persona-sessions): the agent row + the scope-'agent'
+// continuing identity + a linked listed segment — the state a mention run
+// leaves behind.
+async function seedLinkedColleague(
+  db: Database,
+  userId: string,
+  input: { workspaceId: string | null; slug: string; name: string },
+) {
+  await createAgent(db, {
+    userId,
+    workspaceId: null,
+    slug: input.slug,
+    name: input.name,
+    description: 'd',
+    prompt: 'p',
+    source: 'user',
+    trustTier: 'community',
+  })
+  const colleague = await getOrCreateContinuingSession(db, {
+    userId,
+    scope: 'agent',
+    workspaceId: input.workspaceId,
+    scopeRef: input.slug,
+  })
+  const sdkSessionId = `colleague-${input.slug}-${randomUUID()}`
+  insertChatSession(
+    db,
+    buildNewChatSessionRow({
+      sessionId: sdkSessionId,
+      userId,
+      workspaceId: input.workspaceId,
+      providerId: 'claude',
+      startedAt: new Date(),
+      title: input.name,
+      scope: 'agent',
+    }),
+  )
+  linkPrimarySessionToSdkSession(db, { primarySessionId: colleague.id, userId, sdkSessionId })
+  return { colleagueId: colleague.id, sdkSessionId }
 }
 
 
@@ -951,6 +994,117 @@ describe('POST /routing/report (session-comms — report_to_requester)', () => {
       expect(res.status).toBe(400)
     })
   })
+
+  it('an AGENT-SESSION caller reports to its grounding workspace primary, labeled by the agent name', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      const { colleagueId, sdkSessionId } = await seedLinkedColleague(db, user.id, {
+        workspaceId: workspace.id,
+        slug: 'researcher',
+        name: 'Nova',
+      })
+      const app = makeHarness(db)
+
+      const res = await postReport(app, 'Found three strong sources.', {
+        kind: 'agent-session',
+        targetPrimarySessionId: colleagueId,
+      })
+      expect(res.status).toBe(200)
+      const { jobId } = (await res.json()) as { jobId: string }
+
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.jobKind).toBe('report-delivery')
+      expect(job?.workspaceId).toBe(workspace.id)
+      expect(job?.workspacePath).toBe(workspace.path)
+      expect(job?.workspaceName).toBe('Nova')
+      expect(job?.parentSessionId).toBe(sdkSessionId)
+    })
+  })
+
+  it('an AGENT-SESSION caller honors the requester-override; a GLOBAL colleague falls to the root', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const grounding = seedManagedWorkspace(db, user.id, 'Grounding')
+      const origin = seedManagedWorkspace(db, user.id, 'Origin')
+      const grounded = await seedLinkedColleague(db, user.id, {
+        workspaceId: grounding.id,
+        slug: 'researcher',
+        name: 'Nova',
+      })
+      const app = makeHarness(db)
+
+      // Override wins over the grounding workspace (the mention's origin chat).
+      const overridden = await app.request('/routing/report', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          [REPORT_CALLER_HEADER]: serializeReportCaller({
+            kind: 'agent-session',
+            targetPrimarySessionId: grounded.colleagueId,
+          }),
+          [REPORT_REQUESTER_HEADER]: origin.id,
+        },
+        body: JSON.stringify({ report: 'On it.' }),
+      })
+      expect(overridden.status).toBe(200)
+      const overriddenJob = findDelegationJobById(
+        db,
+        ((await overridden.json()) as { jobId: string }).jobId,
+      )
+      expect(overriddenJob?.workspaceId).toBe(origin.id)
+
+      // A GLOBAL colleague with no override reports to the global root.
+      const globalColleague = await seedLinkedColleague(db, user.id, {
+        workspaceId: null,
+        slug: 'writer',
+        name: 'Quill',
+      })
+      const global = await postReport(app, 'Draft ready.', {
+        kind: 'agent-session',
+        targetPrimarySessionId: globalColleague.colleagueId,
+      })
+      expect(global.status).toBe(200)
+      const globalJob = findDelegationJobById(
+        db,
+        ((await global.json()) as { jobId: string }).jobId,
+      )
+      expect(globalJob?.workspaceId).toBeNull()
+      expect(globalJob?.targetPrimarySessionId).toBeNull()
+      expect(globalJob?.workspaceName).toBe('Quill')
+    })
+  })
+
+  it('404s an unknown or foreign agent-session caller (no enumeration leak)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const app = makeHarness(db)
+      expect(
+        (
+          await postReport(app, 'r', {
+            kind: 'agent-session',
+            targetPrimarySessionId: randomUUID(),
+          })
+        ).status,
+      ).toBe(404)
+
+      const stranger = seedUser(db)
+      const theirs = await seedLinkedColleague(db, stranger.id, {
+        workspaceId: null,
+        slug: 'researcher',
+        name: 'Nova',
+      })
+      expect(
+        (
+          await postReport(app, 'r', {
+            kind: 'agent-session',
+            targetPrimarySessionId: theirs.colleagueId,
+          })
+        ).status,
+      ).toBe(404)
+      expect(user.id).not.toBe(stranger.id)
+    })
+  })
 })
 
 describe('GET /routing/background-runs (reading back a handed-off task)', () => {
@@ -1086,6 +1240,31 @@ describe('POST /routing/message (send_message — the unified comms tool)', () =
       const job = findDelegationJobById(db, out.jobId)
       expect(job?.jobKind).toBe('report-delivery')
       expect(job?.taskText).toBe('12 docs, 3 stale')
+    })
+  })
+
+  it('routes "session:<id>" to an agent COLLEAGUE segment (persona-sessions)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      await seedLinkedGlobalRoot(db, user.id)
+      const { colleagueId, sdkSessionId } = await seedLinkedColleague(db, user.id, {
+        workspaceId: null,
+        slug: 'researcher',
+        name: 'Nova',
+      })
+      const app = makeHarness(db)
+
+      const res = await postJson(app, '/routing/message', {
+        to: `session:${sdkSessionId}`,
+        body: 'dig into WAL mode',
+      })
+      expect(res.status).toBe(200)
+      const out = (await res.json()) as { jobId: string; deliveredTo: string; kind: string }
+      expect(out).toMatchObject({ deliveredTo: 'Nova', kind: 'task' })
+
+      const job = findDelegationJobById(db, out.jobId)
+      expect(job?.targetPrimarySessionId).toBe(colleagueId)
+      expect(job?.taskText).toBe('dig into WAL mode')
     })
   })
 

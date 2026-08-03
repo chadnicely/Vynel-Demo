@@ -122,8 +122,11 @@ describe('prepareComposerMentionTurn', () => {
       expect(agentJob?.workspacePath).toBe('/tmp/global-root')
       expect(agentJob?.requesterWorkspaceId).toBeNull()
       expect(agentJob?.model).toBe('claude-haiku-4-5')
-      // A leaf never inherits the turn's mode (fixed safety posture).
-      expect(agentJob?.permissionMode).toBeNull()
+      // Persona-sessions: a colleague turn is a routed turn — it inherits the
+      // originating turn's mode (the retired leaf posture pinned null here).
+      expect(agentJob?.permissionMode).toBe('ask')
+      // The colleague identity is stamped at enqueue (claim serializes on it).
+      expect(agentJob?.targetPrimarySessionId).not.toBeNull()
 
       const personaJob = jobs.find((job) => (job.jobKind ?? 'task') === 'task')
       expect(personaJob?.workspaceId).toBe(acme.id)
