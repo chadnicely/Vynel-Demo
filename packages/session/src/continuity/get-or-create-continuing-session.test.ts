@@ -106,4 +106,110 @@ describe('getOrCreateContinuingSession', () => {
       ).rejects.toThrow(ValidationError)
     })
   })
+
+  it('creates an agent COLLEAGUE per (workspace, slug) and resumes it idempotently', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const first = await getOrCreateContinuingSession(db, {
+        userId: user.id,
+        scope: 'agent',
+        workspaceId: workspace.id,
+        scopeRef: 'researcher',
+      })
+      expect(first.scope).toBe('agent')
+      expect(first.scopeRef).toBe('researcher')
+      expect(first.workspaceId).toBe(workspace.id)
+
+      const second = await getOrCreateContinuingSession(db, {
+        userId: user.id,
+        scope: 'agent',
+        workspaceId: workspace.id,
+        scopeRef: 'researcher',
+      })
+      expect(second.id).toBe(first.id)
+    })
+  })
+
+  it('keeps workspace and GLOBAL colleagues of the same agent distinct', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const grounded = await getOrCreateContinuingSession(db, {
+        userId: user.id,
+        scope: 'agent',
+        workspaceId: workspace.id,
+        scopeRef: 'researcher',
+      })
+      const global = await getOrCreateContinuingSession(db, {
+        userId: user.id,
+        scope: 'agent',
+        scopeRef: 'researcher',
+      })
+
+      expect(global.id).not.toBe(grounded.id)
+      expect(global.workspaceId).toBeNull()
+
+      const globalAgain = await getOrCreateContinuingSession(db, {
+        userId: user.id,
+        scope: 'agent',
+        scopeRef: 'researcher',
+      })
+      expect(globalAgain.id).toBe(global.id)
+    })
+  })
+
+  it('keeps colleagues of different agents distinct in one workspace', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const researcher = await getOrCreateContinuingSession(db, {
+        userId: user.id,
+        scope: 'agent',
+        workspaceId: workspace.id,
+        scopeRef: 'researcher',
+      })
+      const writer = await getOrCreateContinuingSession(db, {
+        userId: user.id,
+        scope: 'agent',
+        workspaceId: workspace.id,
+        scopeRef: 'writer',
+      })
+      expect(writer.id).not.toBe(researcher.id)
+    })
+  })
+
+  it('rejects an agent scope without a scopeRef', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      await expect(
+        getOrCreateContinuingSession(db, { userId: user.id, scope: 'agent' }),
+      ).rejects.toThrow(ValidationError)
+    })
+  })
+
+  it("rejects the 'spawned' scope — spawned sessions are created elsewhere", async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      await expect(
+        getOrCreateContinuingSession(db, { userId: user.id, scope: 'spawned' }),
+      ).rejects.toThrow(ValidationError)
+    })
+  })
+
+  it('rejects a non-agent scope that carries a scopeRef', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      await expect(
+        getOrCreateContinuingSession(db, {
+          userId: user.id,
+          scope: 'voice',
+          scopeRef: 'researcher',
+        }),
+      ).rejects.toThrow(ValidationError)
+    })
+  })
 })

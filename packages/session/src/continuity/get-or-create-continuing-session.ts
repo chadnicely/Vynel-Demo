@@ -9,7 +9,9 @@
 //   - 'workspace' : one live per (user, workspace) — `workspaceId` REQUIRED
 //   - 'global'    : one live per user — no workspace
 //   - 'voice'     : one live per user — no workspace
-// (Agents — many-per-user, keyed by a future `scopeRef` — are a later kind, not handled here.)
+//   - 'agent'     : one live COLLEAGUE per (user, workspace|global, agent slug) —
+//                   `scopeRef` REQUIRED (the slug), `workspaceId` optional (NULL =
+//                   the global colleague). Persona-sessions arc.
 //
 // Idempotent + race-safe: a concurrent create that wins the partial-unique race throws
 // on insert; we re-read the winner's row. Workspace OWNERSHIP is the caller's
@@ -24,8 +26,11 @@ import type { PrimarySessionRow, PrimarySessionScope } from '../repositories/ind
 export type GetOrCreateContinuingSessionInput = {
   userId: string
   scope: PrimarySessionScope
-  /** REQUIRED for scope 'workspace'; must be null/omitted for 'global' and 'voice'. */
+  /** REQUIRED for scope 'workspace'; optional for 'agent' (null = the global
+   *  colleague); must be null/omitted for 'global' and 'voice'. */
   workspaceId?: string | null
+  /** REQUIRED for scope 'agent' (the agent slug); must be omitted otherwise. */
+  scopeRef?: string | null
 }
 
 type FindLiveSession = () => PrimarySessionRow | null
@@ -35,7 +40,7 @@ type FindLiveSession = () => PrimarySessionRow | null
 // unique race, re-read the winner's row.
 function getOrInsertContinuingSession(
   db: Database,
-  row: { userId: string; scope: PrimarySessionScope; workspaceId: string | null },
+  row: { userId: string; scope: PrimarySessionScope; workspaceId: string | null; scopeRef: string | null },
   findLive: FindLiveSession,
 ): PrimarySessionRow {
   const existing = findLive()
@@ -48,6 +53,7 @@ function getOrInsertContinuingSession(
       userId: row.userId,
       workspaceId: row.workspaceId,
       scope: row.scope,
+      scopeRef: row.scopeRef,
       currentSdkSessionId: null,
       supersededFromSdkSessionId: null,
       createdAt: now,
@@ -67,13 +73,37 @@ export async function getOrCreateContinuingSession(
 ): Promise<PrimarySessionRow> {
   const { userId, scope } = input
   const workspaceId = input.workspaceId ?? null
+  const scopeRef = input.scopeRef ?? null
+
+  if (scope !== 'agent' && scopeRef !== null) {
+    throw new ValidationError(`A '${scope}' continuing session must not carry a scopeRef.`)
+  }
 
   if (scope === 'workspace') {
     if (workspaceId === null) {
       throw new ValidationError("A 'workspace' continuing session requires a workspaceId.")
     }
-    return getOrInsertContinuingSession(db, { userId, scope, workspaceId }, () =>
+    return getOrInsertContinuingSession(db, { userId, scope, workspaceId, scopeRef: null }, () =>
       primarySessionsRepository.findPrimarySessionForWorkspace(db, { userId, workspaceId }),
+    )
+  }
+
+  // An agent COLLEAGUE — keyed by (grounding, slug); workspaceId null = global.
+  if (scope === 'agent') {
+    if (scopeRef === null) {
+      throw new ValidationError("An 'agent' continuing session requires a scopeRef (the agent slug).")
+    }
+    return getOrInsertContinuingSession(db, { userId, scope, workspaceId, scopeRef }, () =>
+      primarySessionsRepository.findAgentPrimarySession(db, { userId, workspaceId, scopeRef }),
+    )
+  }
+
+  // Spawned sessions are many-per-user by design and are created through
+  // `createSpawnedSession` (seeded priming) — never through this identity
+  // getter. Rejecting explicitly keeps the tail below a true two-scope branch.
+  if (scope === 'spawned') {
+    throw new ValidationError(
+      "A 'spawned' session has no continuing identity here — use createSpawnedSession.",
     )
   }
 
@@ -85,5 +115,5 @@ export async function getOrCreateContinuingSession(
     scope === 'global'
       ? () => primarySessionsRepository.findGlobalPrimarySessionForUser(db, userId)
       : () => primarySessionsRepository.findVoicePrimarySessionForUser(db, userId)
-  return getOrInsertContinuingSession(db, { userId, scope, workspaceId: null }, findLive)
+  return getOrInsertContinuingSession(db, { userId, scope, workspaceId: null, scopeRef: null }, findLive)
 }

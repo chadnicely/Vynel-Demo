@@ -123,6 +123,41 @@ export function findVoicePrimarySessionForUser(db: Database, userId: string): Pr
   return row ?? null
 }
 
+export type FindAgentPrimarySessionInput = {
+  userId: string
+  /** The colleague's grounding — null resolves the GLOBAL colleague. */
+  workspaceId: string | null
+  /** The agent slug (the mention address). */
+  scopeRef: string
+}
+
+// The single live agent COLLEAGUE for a (user, workspace|global, agent slug) —
+// null if none exists yet (persona-sessions arc). The scope-gated partial
+// unique index pair guarantees at most one live row per grounding; the query
+// branches on the grounding the same way the indexes do (NULL-distinct).
+export function findAgentPrimarySession(
+  db: Database,
+  input: FindAgentPrimarySessionInput,
+): PrimarySessionRow | null {
+  const [row] = db
+    .select()
+    .from(primarySessions)
+    .where(
+      and(
+        eq(primarySessions.userId, input.userId),
+        input.workspaceId === null
+          ? isNull(primarySessions.workspaceId)
+          : eq(primarySessions.workspaceId, input.workspaceId),
+        eq(primarySessions.scope, 'agent'),
+        eq(primarySessions.scopeRef, input.scopeRef),
+        isNull(primarySessions.deletedAt),
+      ),
+    )
+    .limit(1)
+    .all()
+  return row ?? null
+}
+
 // All live primaries for a user — the `monitor` tree's top level (every workspace
 // primary today; + the global primary once Slice 3b lands). Tenant-filtered; excludes
 // soft-deleted. Intrinsically bounded (one primary per workspace) so no cursor.

@@ -13,6 +13,7 @@ import {
   findPrimarySessionByCurrentSdkSessionId,
   findGlobalPrimarySessionForUser,
   findVoicePrimarySessionForUser,
+  findAgentPrimarySession,
   insertPrimarySession,
   repointPrimarySession,
   softDeletePrimarySession,
@@ -97,6 +98,28 @@ function makeVoicePrimarySession(
     userId,
     workspaceId: null,
     scope: 'voice',
+    currentSdkSessionId: null,
+    supersededFromSdkSessionId: null,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+    ...overrides,
+  }
+}
+
+function makeAgentPrimarySession(
+  userId: string,
+  workspaceId: string | null,
+  scopeRef: string,
+  overrides: Partial<NewPrimarySessionRow> = {},
+): NewPrimarySessionRow {
+  const now = new Date()
+  return {
+    id: randomUUID(),
+    userId,
+    workspaceId,
+    scope: 'agent',
+    scopeRef,
     currentSdkSessionId: null,
     supersededFromSdkSessionId: null,
     createdAt: now,
@@ -331,6 +354,103 @@ describe('primary-sessions repository', () => {
       expect(
         findPrimarySessionForWorkspace(db, { userId: user.id, workspaceId: workspace.id })?.id,
       ).toBe(workspacePrimary.id)
+    })
+  })
+
+  // ── Agent colleagues (persona-sessions arc) ─────────────────────────
+
+  it('resolves the live agent colleague by (user, grounding, slug)', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      expect(
+        findAgentPrimarySession(db, { userId: user.id, workspaceId: workspace.id, scopeRef: 'researcher' }),
+      ).toBeNull()
+
+      const colleague = insertPrimarySession(
+        db,
+        makeAgentPrimarySession(user.id, workspace.id, 'researcher'),
+      )
+      const found = findAgentPrimarySession(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        scopeRef: 'researcher',
+      })
+      expect(found?.id).toBe(colleague.id)
+      expect(found?.scope).toBe('agent')
+      expect(found?.scopeRef).toBe('researcher')
+    })
+  })
+
+  it('enforces one LIVE workspace colleague per (user, workspace, slug), freed by soft-delete', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const first = insertPrimarySession(db, makeAgentPrimarySession(user.id, workspace.id, 'researcher'))
+
+      // A second live colleague for the same (workspace, slug) violates the
+      // scope-gated partial unique index.
+      expect(() =>
+        insertPrimarySession(db, makeAgentPrimarySession(user.id, workspace.id, 'researcher')),
+      ).toThrow()
+
+      softDeletePrimarySession(db, first.id, user.id)
+      const second = insertPrimarySession(db, makeAgentPrimarySession(user.id, workspace.id, 'researcher'))
+      expect(second.id).not.toBe(first.id)
+    })
+  })
+
+  it('enforces one LIVE GLOBAL colleague per (user, slug) — NULL workspace escapes the pair index', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const first = insertPrimarySession(db, makeAgentPrimarySession(user.id, null, 'researcher'))
+
+      // SQLite treats NULL workspaceId as distinct, so the workspace-pair index
+      // can't catch a duplicate global colleague — the global sibling index does.
+      expect(() =>
+        insertPrimarySession(db, makeAgentPrimarySession(user.id, null, 'researcher')),
+      ).toThrow()
+
+      softDeletePrimarySession(db, first.id, user.id)
+      const second = insertPrimarySession(db, makeAgentPrimarySession(user.id, null, 'researcher'))
+      expect(second.id).not.toBe(first.id)
+    })
+  })
+
+  it('lets the workspace and GLOBAL colleagues of one slug coexist, and different slugs share a workspace', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const grounded = insertPrimarySession(db, makeAgentPrimarySession(user.id, workspace.id, 'researcher'))
+      const global = insertPrimarySession(db, makeAgentPrimarySession(user.id, null, 'researcher'))
+      const writer = insertPrimarySession(db, makeAgentPrimarySession(user.id, workspace.id, 'writer'))
+
+      expect(
+        findAgentPrimarySession(db, { userId: user.id, workspaceId: workspace.id, scopeRef: 'researcher' })?.id,
+      ).toBe(grounded.id)
+      expect(
+        findAgentPrimarySession(db, { userId: user.id, workspaceId: null, scopeRef: 'researcher' })?.id,
+      ).toBe(global.id)
+      expect(
+        findAgentPrimarySession(db, { userId: user.id, workspaceId: workspace.id, scopeRef: 'writer' })?.id,
+      ).toBe(writer.id)
+    })
+  })
+
+  it('isolates agent colleagues by tenant', async () => {
+    await withTestDatabase((db) => {
+      const owner = insertUser(db, makeUser())
+      const stranger = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(owner.id))
+      insertPrimarySession(db, makeAgentPrimarySession(owner.id, workspace.id, 'researcher'))
+
+      expect(
+        findAgentPrimarySession(db, {
+          userId: stranger.id,
+          workspaceId: workspace.id,
+          scopeRef: 'researcher',
+        }),
+      ).toBeNull()
     })
   })
 

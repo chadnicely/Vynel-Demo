@@ -1,0 +1,3 @@
+ALTER TABLE `primary_sessions` ADD `scope_ref` text;--> statement-breakpoint
+CREATE UNIQUE INDEX `uniq_primary_sessions_agent_workspace` ON `primary_sessions` (`user_id`,`workspace_id`,`scope_ref`) WHERE "primary_sessions"."scope" = 'agent' AND "primary_sessions"."deleted_at" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `uniq_primary_sessions_agent_global` ON `primary_sessions` (`user_id`,`scope_ref`) WHERE "primary_sessions"."scope" = 'agent' AND "primary_sessions"."workspace_id" IS NULL AND "primary_sessions"."deleted_at" IS NULL;

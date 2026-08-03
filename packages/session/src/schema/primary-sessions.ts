@@ -46,9 +46,11 @@ import { workspaces } from '@vynel/db/schema/workspaces'
 // Slice ④) is a session a ROOT creates as a tool — MANY per user (and, since
 // Slice ④b, many per creating workspace: a workspace-spawned row carries its
 // workspace's id) by design, so it deliberately has NO liveness unique index
-// (every partial index below is scope-gated away from it). Agents (keyed by a
-// scopeRef) are a later kind — deferred.
-export type PrimarySessionScope = 'global' | 'workspace' | 'voice' | 'spawned'
+// (every partial index below is scope-gated away from it). `'agent'` (the
+// persona-sessions arc) is a COLLEAGUE — one continuing session per
+// (user, workspace|global, agent), keyed by `scopeRef` = the agent slug, so
+// every `@mention` resumes the same session and persona + memory accumulate.
+export type PrimarySessionScope = 'global' | 'workspace' | 'voice' | 'spawned' | 'agent'
 
 export const primarySessions = table(
   'primary_sessions',
@@ -59,6 +61,13 @@ export const primarySessions = table(
     workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
     // NOT NULL DEFAULT 'workspace' — additive; pre-existing rows backfill.
     scope: text().$type<PrimarySessionScope>().notNull().default('workspace'),
+
+    // Scope-qualified identity key — the agent SLUG for an `'agent'` colleague
+    // (a LOOSE ref: the slug is the mention address and matches
+    // `delegation_jobs.agentSlug`; no FK — agents live in another feature).
+    // NULL for every other scope (enforced at the op layer,
+    // `getOrCreateContinuingSession`).
+    scopeRef: text(),
 
     // The live SDK session id this primary currently points at. Null until a
     // session is first linked (the chat-start / swap wiring sets it). A
@@ -105,6 +114,20 @@ export const primarySessions = table(
     uniqueLiveVoicePrimaryPerUser: uniqueIndex('uniq_primary_sessions_voice_user')
       .on(t.userId)
       .where(sql`${t.scope} = 'voice' AND ${t.deletedAt} IS NULL`),
+
+    // One LIVE agent COLLEAGUE per (user, workspace, agent slug) — the
+    // persona-sessions arc. NULL-workspace (global) colleagues escape this index
+    // (SQLite NULL-distinct, same story as the global primary), so the global
+    // sibling below pins them. Same shape works in Postgres Phase 2.
+    uniqueLiveAgentPerWorkspace: uniqueIndex('uniq_primary_sessions_agent_workspace')
+      .on(t.userId, t.workspaceId, t.scopeRef)
+      .where(sql`${t.scope} = 'agent' AND ${t.deletedAt} IS NULL`),
+
+    // One LIVE GLOBAL agent colleague per (user, agent slug) — the NULL-workspace
+    // half of the pair above.
+    uniqueLiveAgentGlobalPerUser: uniqueIndex('uniq_primary_sessions_agent_global')
+      .on(t.userId, t.scopeRef)
+      .where(sql`${t.scope} = 'agent' AND ${t.workspaceId} IS NULL AND ${t.deletedAt} IS NULL`),
   }),
 )
 
