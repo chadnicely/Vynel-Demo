@@ -99,6 +99,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
             ? { visibility: newSessionOptions.visibility }
             : {}),
           ...(newSessionOptions?.title !== undefined ? { title: newSessionOptions.title } : {}),
+          ...(newSessionOptions?.scope !== undefined ? { scope: newSessionOptions.scope } : {}),
         }),
       )
       const inserted =

@@ -33,6 +33,19 @@ export const REPORT_DELIVERY_INSTRUCTIONS =
   'with the outcome for the user. The user has already been notified on any channel they ' +
   'asked from — do not re-send this report to channels.'
 
+/** The COLLEAGUE identity block for an agent session's turn (persona-sessions):
+ *  rides `systemPromptAppend` on EVERY turn — never seeded priming — so the
+ *  persona survives swaps and transcript compaction. The agent's own prompt is
+ *  the persona; this wrapper adds only the continuing-colleague framing. */
+export function composeAgentColleaguePrompt(agentName: string, agentPrompt: string): string {
+  return (
+    `You are "${agentName}" — a persistent colleague with your own continuing session. ` +
+    'This conversation is your memory: it accumulates across every task you are given, ' +
+    'so build on what you already know instead of starting fresh.\n\n' +
+    agentPrompt
+  )
+}
+
 /** The background workspace MCP attachment for a routed turn — structurally the
  *  api composer's output (`composeSessionMcpServers`), declared here so the
  *  session leaf never imports `@vynel/mcp` (invariant #2; the `FireScheduleDeps`

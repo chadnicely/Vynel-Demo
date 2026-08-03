@@ -6,7 +6,7 @@
 // ChatMessage, ChatToolCall) are re-exported from `@vynel/db` for
 // consumer convenience.
 
-import type { ChatSessionVisibility } from './repositories/index.js'
+import type { ChatSessionScope, ChatSessionVisibility } from './repositories/index.js'
 
 export type { StructuralLogger } from '@vynel/logger'
 
@@ -37,4 +37,7 @@ export type NewSessionOptions = {
   title?: string
   /** Skip `generateSessionTitle` on session-completed (the brain keeps its fixed title). */
   skipAutoTitle?: boolean
+  /** Overrides the workspaceId-derived scope (an agent COLLEAGUE's segments pass
+   *  `'agent'` — grounded in a workspace but not the user's workspace chat). */
+  scope?: ChatSessionScope
 }
