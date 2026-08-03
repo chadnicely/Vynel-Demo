@@ -18,12 +18,12 @@ import {
   isNotNull,
   isNull,
   lte,
-  ne,
   notInArray,
   or,
 } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
+  DELIVERY_JOB_KINDS,
   delegationJobs,
   type DelegationJob,
   type NewDelegationJob,
@@ -44,13 +44,14 @@ export type {
 const DEFAULT_LIST_LIMIT = 50
 const MAX_LIST_LIMIT = 100
 
-/** The SYNTHETIC exclusion key every GLOBAL-requester report-delivery job
- *  shares (session-comms): a both-targets-null row has no natural key, and the
- *  global root is ONE conversation — at most one notify turn should run at a
- *  time (the rest stay pending; no budget burned waiting in the root-lock
- *  queue, no failed-delivery report loss). The tick reports it as the claimed
- *  run's targetKey; the claim below excludes global-delivery rows whenever the
- *  key is busy. Workspace ids are UUIDs, so the constant can never collide. */
+/** The SYNTHETIC exclusion key every GLOBAL-requester DELIVERY job (report or
+ *  update — session-comms + persona-sessions) shares: a both-targets-null row
+ *  has no natural key, and the global root is ONE conversation — at most one
+ *  notify turn should run at a time (the rest stay pending; no budget burned
+ *  waiting in the root-lock queue, no failed-delivery report loss). The tick
+ *  reports it as the claimed run's targetKey; the claim below excludes
+ *  global-delivery rows whenever the key is busy. Workspace ids are UUIDs, so
+ *  the constant can never collide. */
 export const GLOBAL_ROOT_DELIVERY_TARGET_KEY = 'global-root-delivery'
 
 export function insertDelegationJob(db: Database, row: NewDelegationJob): DelegationJob {
@@ -169,7 +170,10 @@ export function claimNextPendingDelegationJob(
                     isNotNull(delegationJobs.workspaceId),
                     isNotNull(delegationJobs.targetPrimarySessionId),
                     isNull(delegationJobs.jobKind),
-                    ne(delegationJobs.jobKind, 'report-delivery'),
+                    // Both delivery kinds share the synthetic global key — an
+                    // update notify turn holds the root conversation exactly
+                    // like a report notify turn does (persona-sessions).
+                    notInArray(delegationJobs.jobKind, [...DELIVERY_JOB_KINDS]),
                   ),
                 ]
               : []),
@@ -187,6 +191,70 @@ export function claimNextPendingDelegationJob(
     .returning()
     .all()
   return claimed ?? null
+}
+
+export type FindPendingUpdateDeliveryInput = {
+  userId: string
+  /** The requester target — a workspace primary's id, or null for the global root. */
+  requesterWorkspaceId: string | null
+  threadId: string
+}
+
+// The still-PENDING update-delivery row for one (user, requester target,
+// thread) — the coalesce anchor (persona-sessions): at most one exists by
+// construction (`enqueueUpdateDelivery` replaces instead of inserting while
+// one is pending). Claimed rows never match — they are already being spoken.
+export function findPendingUpdateDelivery(
+  db: Database,
+  input: FindPendingUpdateDeliveryInput,
+): DelegationJob | null {
+  const [row] = db
+    .select()
+    .from(delegationJobs)
+    .where(
+      and(
+        eq(delegationJobs.userId, input.userId),
+        eq(delegationJobs.status, 'pending'),
+        eq(delegationJobs.jobKind, 'update-delivery'),
+        input.requesterWorkspaceId === null
+          ? isNull(delegationJobs.workspaceId)
+          : eq(delegationJobs.workspaceId, input.requesterWorkspaceId),
+        eq(delegationJobs.threadId, input.threadId),
+      ),
+    )
+    .limit(1)
+    .all()
+  return row ?? null
+}
+
+export type ReplacePendingDelegationJobBodyInput = {
+  taskText: string
+  parentSessionId: string
+  workspaceName: string
+}
+
+// Replace a still-pending row's spoken content IN PLACE (the update coalesce):
+// body, reporter provenance, and label move; `createdAt` (the FIFO position)
+// and `partialSessionId` (the delivery hop's trace key) deliberately do NOT.
+// Compare-and-swap on status='pending' — if a worker claimed the row between
+// the caller's find and this update, the WHERE misses and null tells the
+// caller to insert a fresh row instead (the same race shape as the claim).
+export function replacePendingDelegationJobBody(
+  db: Database,
+  id: string,
+  input: ReplacePendingDelegationJobBodyInput,
+): DelegationJob | null {
+  const [updated] = db
+    .update(delegationJobs)
+    .set({
+      taskText: input.taskText,
+      parentSessionId: input.parentSessionId,
+      workspaceName: input.workspaceName,
+    })
+    .where(and(eq(delegationJobs.id, id), eq(delegationJobs.status, 'pending')))
+    .returning()
+    .all()
+  return updated ?? null
 }
 
 export function completeDelegationJob(

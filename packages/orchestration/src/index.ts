@@ -70,6 +70,13 @@ export {
   type EnqueueReportDeliveryInput,
   type ReportDeliveryRequester,
 } from './routing/enqueue-report-delivery.js'
+// Persona-sessions: a child's spoken ACK/progress travels the same notify path
+// as a report, but coalesces while pending and never marks the task reported —
+// the tick's update-delivery branch consumes these rows.
+export {
+  enqueueUpdateDelivery,
+  type EnqueueUpdateDeliveryInput,
+} from './routing/enqueue-update-delivery.js'
 export {
   consumeScheduleRunFailedEvent,
   type ScheduleRunFailedPayload,

@@ -96,9 +96,11 @@ export function getBackgroundRun(
 ): BackgroundRunDetail | null {
   const job = findDelegationJobById(db, input.jobId)
   if (job === null || job.userId !== input.userId) return null
-  // A report-delivery row is the notify mechanism, not handed-off work — it must
-  // not be readable as a run, or the list and the detail read would disagree.
-  if (job.jobKind === 'report-delivery') return null
+  // The detail read admits EXACTLY what the list read admits (task rows —
+  // `listRecentDelegationJobsForUser`'s NULL/'task' filter): delivery rows are
+  // the notify mechanism, and agent-run rows are the mention machinery — a
+  // detail readable but never listed would let the two reads disagree.
+  if (job.jobKind !== null && job.jobKind !== 'task') return null
 
   const { resultPreview: _preview, ...run } = toBackgroundRun(job)
   return {

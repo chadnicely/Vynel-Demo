@@ -68,6 +68,18 @@ per-task. Every message is attributed: from the user, from a session, or from a 
 - Leaf machinery stays in place after A4 (dead on the mention path); removal is a later cleanup.
 - `MAX_CONCURRENT_DELEGATIONS` stays 3; monitor ack compliance before tuning.
 
+## A5 checklist (from the A2 adversarial review — every `jobKind` reader to touch)
+
+- `run-delegation-claim-and-run-tick.ts:171-177` — add the update-delivery branch AND widen the
+  targetKey ternary (a running global update must HOLD `GLOBAL_ROOT_DELIVERY_TARGET_KEY`; the A2
+  claim-side gate is one-sided until this lands).
+- `settle-failed-delegation-attempt.ts:69` — anti-cascade guard becomes `isDeliveryJobKind` (a
+  terminally failed update must DROP, never push a give-up report).
+- `resolve-thread-chain.ts:24,56` + `attach-delegation-task-labels.ts:28` +
+  `attach-delegation-tool-outcomes.ts:75` — update rows must not render as tasks / label chips.
+- Use the A2 one-home helpers (`DELIVERY_JOB_KINDS`, `isDeliveryJobKind`, `isWorkJobKind`) —
+  never re-spell kind literals.
+
 ## Move map
 
 Backend: A1 agent scope/scopeRef → A2 update-delivery kind + coalescing → A3

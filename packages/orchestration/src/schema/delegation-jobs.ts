@@ -25,10 +25,29 @@ export type DelegationJobStatus = 'pending' | 'claimed' | 'completed' | 'failed'
 // What a queue row IS (session-comms, the revert flow): a 'task' row runs the
 // delegated work; a 'report-delivery' row runs a NOTIFY turn on the REQUESTER's
 // conversation with a child's report as the attributed inbound message; an
+// 'update-delivery' row (persona-sessions) is the interim sibling — the child's
+// spoken ack/progress, same notify machinery, but it NEVER marks the task
+// reported and coalesces while pending (one in-flight update per thread); an
 // 'agent-run' row (chat-mentions) runs ONE agent leaf on the user's message and
 // delivers its result deterministically as a report. Stored nullable — NULL
 // means 'task' (every legacy row), so the migration is a pure additive ALTER.
-export type DelegationJobKind = 'task' | 'report-delivery' | 'agent-run'
+export type DelegationJobKind = 'task' | 'report-delivery' | 'update-delivery' | 'agent-run'
+
+// The DELIVERY kinds — rows that run a notify turn on a requester rather than
+// handed-off work. ONE home for the membership so every "is this a delivery /
+// is this work" predicate stays mechanical when a kind is added (the claim
+// gate + queries take the array; TS branches take the predicates).
+export const DELIVERY_JOB_KINDS = ['report-delivery', 'update-delivery'] as const
+
+export function isDeliveryJobKind(kind: DelegationJobKind | null): boolean {
+  return kind !== null && (DELIVERY_JOB_KINDS as readonly string[]).includes(kind)
+}
+
+/** A WORK row — delegated/handed-off work the run views may show. NULL reads
+ *  as 'task' (the additive-migration contract). */
+export function isWorkJobKind(kind: DelegationJobKind | null): boolean {
+  return kind === null || kind === 'task' || kind === 'agent-run'
+}
 
 export const delegationJobs = table(
   'delegation_jobs',
@@ -42,11 +61,11 @@ export const delegationJobs = table(
     // TARGET (the enqueue ops enforce the row invariant): a WORKSPACE target
     // carries the three workspace columns; a SESSION target (session-library
     // Slice ④) carries `targetPrimarySessionId` instead — exactly one set for a
-    // 'task' row. A 'report-delivery' row targets the REQUESTER conversation:
-    // `workspaceId` set = that workspace's primary; BOTH targets null = the
-    // global root (permitted for kind 'report-delivery' ONLY — session-comms).
-    // Nullable FK via `text().references(...)` — `id()` is NOT NULL by dialect
-    // contract (the primary_sessions.workspaceId precedent).
+    // 'task' row. A DELIVERY row (report/update) targets the REQUESTER
+    // conversation: `workspaceId` set = that workspace's primary; BOTH targets
+    // null = the global root (permitted for the delivery kinds ONLY —
+    // session-comms). Nullable FK via `text().references(...)` — `id()` is NOT
+    // NULL by dialect contract (the primary_sessions.workspaceId precedent).
     workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
     // The RUN CWD, not strictly "the workspace's folder": a workspace target
     // stores the workspace path; a SESSION target stores the spawned session's
@@ -97,10 +116,9 @@ export const delegationJobs = table(
     // Null = the provider defaults (today's behavior, byte-for-byte).
     model: text(),
     thinkingEffort: text().$type<ThinkingEffortLevel>(),
-    // What this row IS (session-comms): NULL/'task' = delegated work;
-    // 'report-delivery' = a notify turn delivering `taskText` (the child's
-    // report) to the requester. Nullable so migration 0015 stays a pure
-    // additive ALTER — legacy rows read as tasks byte-for-byte.
+    // What this row IS — see the `DelegationJobKind` union doc above. Nullable
+    // so migration 0015 stays a pure additive ALTER — legacy NULL rows read as
+    // tasks byte-for-byte.
     jobKind: text().$type<DelegationJobKind>(),
     // The CHAIN key: one task and everything it caused, across every hop.
     //
