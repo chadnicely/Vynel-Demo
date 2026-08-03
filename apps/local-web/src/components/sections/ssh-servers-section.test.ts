@@ -87,7 +87,10 @@ describe("SshServersSection", () => {
     wrapper.unmount();
   });
 
-  it("shows a workspace only its own + global servers", async () => {
+  // test: correct expectation for scope visibility — was "workspace = own +
+  // global", now STRICT per Chad's rule (the channels convention): a workspace
+  // lists only its own servers.
+  it("shows a workspace ONLY its own servers — never global or another's", async () => {
     const client = {
       sshServers: {
         list: async () => [
@@ -104,8 +107,9 @@ describe("SshServersSection", () => {
     );
     await flushPromises();
 
-    expect(wrapper.findAll(".row")).toHaveLength(2);
+    expect(wrapper.findAll(".row")).toHaveLength(1);
     expect(wrapper.text()).toContain("Room server");
+    expect(wrapper.text()).not.toContain("My web server");
     expect(wrapper.text()).not.toContain("Other box");
     wrapper.unmount();
   });
@@ -259,7 +263,9 @@ describe("WorkspaceSectionPanel — ssh gating", () => {
   function mountPanel(session: Record<string, unknown>) {
     const client = {
       hub: { getSession: async () => session },
-      sshServers: { list: async () => [makeServer()] },
+      // The panel mounts on workspace w1 — under the strict scope rule only
+      // that workspace's rows render, so the fixture lives there.
+      sshServers: { list: async () => [makeServer({ workspaceId: "w1" })] },
     } as unknown as VynelClient;
     return mount(WorkspaceSectionPanel, {
       props: { section: "ssh-servers" as const, workspaceId: "w1" },

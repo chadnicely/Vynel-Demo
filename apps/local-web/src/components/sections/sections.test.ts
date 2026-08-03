@@ -243,6 +243,41 @@ describe("SchedulesSection", () => {
     expect(wrapper.text()).not.toContain("Room digest");
   });
 
+  // Strict per Chad's 2026-07-23 scope rule (same as channels): the workspace
+  // menu reads the server-filtered workspace route, never the user union.
+  it("a workspace room lists ONLY its own schedules — never global ones", async () => {
+    const listCalls: string[] = [];
+    const client = {
+      schedules: {
+        list: async (workspaceId: string) => {
+          listCalls.push(workspaceId);
+          return [
+            makeSchedule({
+              id: "s2",
+              workspaceId: "w1",
+              displayName: "Room digest",
+            }),
+          ];
+        },
+      },
+      workspaces: {
+        list: async () => [{ id: "w1", name: "letterman", isArchived: false }],
+      },
+    } as unknown as VynelClient;
+
+    const wrapper = mountSection(
+      SchedulesSection,
+      { kind: "workspace", workspaceId: "w1" },
+      client,
+    );
+    await flushPromises();
+
+    expect(listCalls).toEqual(["w1"]);
+    expect(wrapper.findAll(".row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("Room digest");
+    expect(wrapper.text()).not.toContain("Morning digest");
+  });
+
   it("invites scheduling when there is nothing yet", async () => {
     const client = {
       schedulesUser: { list: async () => [] },

@@ -47,31 +47,41 @@ function mountSection(scope: SectionScope, client: VynelClient) {
 }
 
 describe("JournalSection", () => {
-  it("shows a workspace room only its own + global entries, grouped by day with writer chips", async () => {
+  // test: correct expectation for scope visibility — was "workspace = own +
+  // global", now STRICT per Chad's rule (the channels convention): a workspace
+  // room reads the server-filtered workspace route and lists only its own rows.
+  it("a workspace room lists ONLY its own entries, grouped by day with writer chips", async () => {
+    const listCalls: string[] = [];
     const client = {
-      journalUser: {
-        list: async () => [
-          makeEntry({ entryDate: "2026-07-23" }),
-          makeEntry({
-            id: "j2",
-            workspaceId: "w1",
-            content: "Fixed the booking bug.",
-            entryDate: "2026-07-22",
-            source: "user",
-          }),
-          makeEntry({ id: "j3", workspaceId: "OTHER", content: "Elsewhere" }),
-        ],
+      journal: {
+        list: async (workspaceId: string) => {
+          listCalls.push(workspaceId);
+          return [
+            makeEntry({
+              id: "j2",
+              workspaceId: "w1",
+              entryDate: "2026-07-23",
+            }),
+            makeEntry({
+              id: "j3",
+              workspaceId: "w1",
+              content: "Fixed the booking bug.",
+              entryDate: "2026-07-22",
+              source: "user",
+            }),
+          ];
+        },
       },
     } as unknown as VynelClient;
 
     const wrapper = mountSection({ kind: "workspace", workspaceId: "w1" }, client);
     await flushPromises();
 
+    expect(listCalls).toEqual(["w1"]);
     const rows = wrapper.findAll(".row");
     expect(rows).toHaveLength(2);
     expect(wrapper.text()).toContain("Shipped the newsletter draft.");
     expect(wrapper.text()).toContain("Fixed the booking bug.");
-    expect(wrapper.text()).not.toContain("Elsewhere");
     // Two distinct days → two day-group headers.
     expect(wrapper.findAll(".day-label")).toHaveLength(2);
     // The chip says who wrote it — the user or the assistant.
@@ -104,8 +114,8 @@ describe("JournalSection", () => {
   it("appends from the inline composer with today's date default and clears it", async () => {
     const createCalls: unknown[] = [];
     const client = {
+      journal: { list: async () => [] },
       journalUser: {
-        list: async () => [],
         create: async (input: unknown) => {
           createCalls.push(input);
           return makeEntry({ id: "j9", workspaceId: "w1" });

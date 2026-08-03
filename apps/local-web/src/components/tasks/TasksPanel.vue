@@ -2,31 +2,22 @@
 import { computed } from "vue";
 import { EmptyState } from "@vynel/ui";
 import type { TaskResponse, TaskStatus } from "@vynel/contracts/tasks/task-http";
-import { useTasks } from "../../composables/tasks/use-tasks.js";
+import { useTasksInScope } from "../../composables/tasks/use-tasks-in-scope.js";
 import { useUpdateTask } from "../../composables/tasks/use-update-task.js";
 import type { SectionScope } from "../sections/section-scope.js";
 import TaskStatusControl from "./TaskStatusControl.vue";
 
 // The opt-in tasks dock: a compact glance at what's still open, beside
-// whichever chat surface is up. It reads the one shared list itself and
-// narrows to the surface it sits on — same scope rule as TasksSection, so
-// the dock and the menu never disagree.
+// whichever chat surface is up. It reads the same scoped query as
+// TasksSection, so the dock and the menu never disagree.
 const props = defineProps<{
   scope: SectionScope;
 }>();
 
-const tasksQuery = useTasks(true);
+const tasksQuery = useTasksInScope(() => props.scope);
 const updateTask = useUpdateTask();
 
-const tasksInScope = computed(() => {
-  const rows = tasksQuery.data.value ?? [];
-  if (props.scope.kind === "global")
-    return rows.filter((row) => row.workspaceId === null);
-  const workspaceId = props.scope.workspaceId;
-  return rows.filter(
-    (row) => row.workspaceId === null || row.workspaceId === workspaceId,
-  );
-});
+const tasksInScope = computed(() => tasksQuery.data.value ?? []);
 
 const openTasks = computed(() =>
   tasksInScope.value.filter((row) => row.status !== "done"),

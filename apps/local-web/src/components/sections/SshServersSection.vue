@@ -9,9 +9,9 @@ import SectionHeader from "./SectionHeader.vue";
 import type { SectionScope } from "./section-scope.js";
 
 // The servers section, on either surface: the machines Claude can reach over
-// SSH. A workspace drawer shows its own servers plus the global ones; the
-// global menu shows ONLY global servers (the channels filter convention —
-// where you are IS the scope).
+// SSH. Strict per scope (the channels filter convention — where you are IS
+// the scope): each surface lists only its own rows. The one user route has
+// no scope filter, so both branches narrow client-side.
 const props = defineProps<{
   scope: SectionScope;
 }>();
@@ -23,9 +23,7 @@ const servers = computed(() => {
   if (props.scope.kind === "global")
     return rows.filter((row) => row.workspaceId === null);
   const workspaceId = props.scope.workspaceId;
-  return rows.filter(
-    (row) => row.workspaceId === null || row.workspaceId === workspaceId,
-  );
+  return rows.filter((row) => row.workspaceId === workspaceId);
 });
 
 const isAddOpen = ref(false);

@@ -58,31 +58,41 @@ function mountSection(
 }
 
 describe("PlansSection", () => {
-  it("shows a workspace room only its own + global rows, grouped by day with creator chips", async () => {
+  // test: correct expectation for scope visibility — was "workspace = own +
+  // global", now STRICT per Chad's rule (the channels convention): a workspace
+  // room reads the server-filtered workspace route and lists only its own rows.
+  it("a workspace room lists ONLY its own rows, grouped by day with creator chips", async () => {
+    const listCalls: string[] = [];
     const client = {
-      plansUser: {
-        list: async () => [
-          makePlan({ planDate: "2026-07-24" }),
-          makePlan({
-            id: "p2",
-            workspaceId: "w1",
-            title: "Bookkeeping day",
-            planDate: "2026-07-23",
-            source: "assistant",
-          }),
-          makePlan({ id: "p3", workspaceId: "OTHER", title: "Elsewhere" }),
-        ],
+      plans: {
+        list: async (workspaceId: string) => {
+          listCalls.push(workspaceId);
+          return [
+            makePlan({
+              id: "p2",
+              workspaceId: "w1",
+              planDate: "2026-07-24",
+            }),
+            makePlan({
+              id: "p3",
+              workspaceId: "w1",
+              title: "Bookkeeping day",
+              planDate: "2026-07-23",
+              source: "assistant",
+            }),
+          ];
+        },
       },
     } as unknown as VynelClient;
 
     const { wrapper } = mountSection({ kind: "workspace", workspaceId: "w1" }, client);
     await flushPromises();
 
+    expect(listCalls).toEqual(["w1"]);
     const rows = wrapper.findAll(".row");
     expect(rows).toHaveLength(2);
     expect(wrapper.text()).toContain("Ship the spring campaign");
     expect(wrapper.text()).toContain("Bookkeeping day");
-    expect(wrapper.text()).not.toContain("Elsewhere");
     // Two distinct days → two day-group headers.
     expect(wrapper.findAll(".day-label")).toHaveLength(2);
     // The chip says who put it on the list — the user or the assistant.
@@ -111,8 +121,8 @@ describe("PlansSection", () => {
   it("creates from the inline composer with today's date default and clears the title", async () => {
     const createCalls: unknown[] = [];
     const client = {
+      plans: { list: async () => [] },
       plansUser: {
-        list: async () => [],
         create: async (input: unknown) => {
           createCalls.push(input);
           return makePlan({ id: "p9", workspaceId: "w1", title: "New one" });

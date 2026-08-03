@@ -3,6 +3,8 @@ import type { QueryClient } from "@tanstack/vue-query";
 export const planKeys = {
   all: ["plans"] as const,
   list: () => [...planKeys.all, "list"] as const,
+  listInScope: (surfaceKey: string) =>
+    [...planKeys.all, "list", surfaceKey] as const,
 };
 
 // One surface today (the plans section on both scopes); a mutation refreshes

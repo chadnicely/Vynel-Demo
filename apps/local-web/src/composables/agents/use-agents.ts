@@ -25,10 +25,10 @@ export function useAgents(
     }),
     queryFn: () => {
       const surface = toValue(scope);
-      if (surface.kind !== "workspace") {
-        // No workspace to union in — the user shelf IS what resolves globally.
-        return isResolved ? vynel.agents.listResolved() : vynel.agents.list();
-      }
+      // No workspace to union in — the user shelf IS what resolves globally, so
+      // both modes read the one route rather than fetching the same rows twice
+      // (same short-circuit as use-commands / use-installed-skills).
+      if (surface.kind !== "workspace") return vynel.agents.list();
       const query = { workspaceId: surface.workspaceId };
       return isResolved
         ? vynel.agents.listResolved(query)

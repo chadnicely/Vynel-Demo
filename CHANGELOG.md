@@ -7,6 +7,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every menu now shows only its own scope's items.** The strict scope rule that already
+  governed Agents, Skills, Rules, Commands, MCP Servers and Channels now covers the last
+  holdouts: Schedules, Tasks (the menu and the chat-side dock), Plans, Journal, Notebook
+  and Servers. A workspace's menu lists only that workspace's items — global ones no
+  longer leak in — and the Global menu lists only your global items. Claude's own reach is
+  unchanged: a workspace session still reads your global books and resolves your global
+  agents; this is about what each menu *manages*, not what Claude *sees*.
+
 ### Added
 
 - **A live step list under every chat.** Claude now keeps its working steps — the small

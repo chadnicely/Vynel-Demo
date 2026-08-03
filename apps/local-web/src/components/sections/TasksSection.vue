@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { ChevronRight, ListChecks, Plus } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import type { TaskResponse, TaskStatus } from "@vynel/contracts/tasks/task-http";
-import { useTasks } from "../../composables/tasks/use-tasks.js";
+import { useTasksInScope } from "../../composables/tasks/use-tasks-in-scope.js";
 import { useCreateTask } from "../../composables/tasks/use-create-task.js";
 import { useUpdateTask } from "../../composables/tasks/use-update-task.js";
 import { useDeleteTask } from "../../composables/tasks/use-delete-task.js";
@@ -20,20 +20,12 @@ const props = defineProps<{
   scope: SectionScope;
 }>();
 
-const tasksQuery = useTasks(true);
+const tasksQuery = useTasksInScope(() => props.scope);
 const createTask = useCreateTask();
 const updateTask = useUpdateTask();
 const deleteTask = useDeleteTask();
 
-const tasks = computed(() => {
-  const rows = tasksQuery.data.value ?? [];
-  if (props.scope.kind === "global")
-    return rows.filter((row) => row.workspaceId === null);
-  const workspaceId = props.scope.workspaceId;
-  return rows.filter(
-    (row) => row.workspaceId === null || row.workspaceId === workspaceId,
-  );
-});
+const tasks = computed(() => tasksQuery.data.value ?? []);
 
 const openTasks = computed(() =>
   tasks.value.filter((row) => row.status !== "done"),

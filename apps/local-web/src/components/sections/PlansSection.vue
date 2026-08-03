@@ -4,7 +4,7 @@ import { CalendarRange, Plus } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import type { PlanResponse, PlanStatus } from "@vynel/contracts/plans/plan-http";
 import { useUiStore } from "../../stores/ui-store.js";
-import { usePlans } from "../../composables/plans/use-plans.js";
+import { usePlansInScope } from "../../composables/plans/use-plans-in-scope.js";
 import { useCreatePlan } from "../../composables/plans/use-create-plan.js";
 import { useUpdatePlan } from "../../composables/plans/use-update-plan.js";
 import { useDeletePlan } from "../../composables/plans/use-delete-plan.js";
@@ -26,20 +26,12 @@ const props = defineProps<{
   scope: SectionScope;
 }>();
 
-const plansQuery = usePlans(true);
+const plansQuery = usePlansInScope(() => props.scope);
 const createPlan = useCreatePlan();
 const updatePlan = useUpdatePlan();
 const deletePlan = useDeletePlan();
 
-const plans = computed(() => {
-  const rows = plansQuery.data.value ?? [];
-  if (props.scope.kind === "global")
-    return rows.filter((row) => row.workspaceId === null);
-  const workspaceId = props.scope.workspaceId;
-  return rows.filter(
-    (row) => row.workspaceId === null || row.workspaceId === workspaceId,
-  );
-});
+const plans = computed(() => plansQuery.data.value ?? []);
 
 // Day groups preserving the list's newest-day-first order.
 const dayGroups = computed(() => {

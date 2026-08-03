@@ -23,14 +23,13 @@ const documentsQuery = useNotebookDocuments();
 const ownBooks = computed(() => {
   const documents = documentsQuery.data.value ?? [];
   const scope = props.scope;
+  // Strict per scope (the channels convention): the shelf lists only the
+  // surface's own books. Claude still READS global books from a workspace
+  // session — the resolved view is the session's, not the menu's.
   if (scope.kind === "global")
     return documents.filter((document) => document.scope === "global");
-  // A workspace surface shows what Claude sees from that workspace:
-  // global books plus that workspace's own.
   return documents.filter(
-    (document) =>
-      document.scope === "global" ||
-      document.workspaceId === scope.workspaceId,
+    (document) => document.workspaceId === scope.workspaceId,
   );
 });
 

@@ -57,30 +57,36 @@ function mountSection(
 }
 
 describe("TasksSection", () => {
-  it("shows a workspace room only its own + global rows, with creator chips", async () => {
+  // test: correct expectation for scope visibility — was "workspace = own +
+  // global", now STRICT per Chad's rule (the channels convention): a workspace
+  // room reads the server-filtered workspace route and lists only its own rows.
+  it("a workspace room lists ONLY its own rows, with creator chips", async () => {
+    const listCalls: string[] = [];
     const client = {
-      tasksUser: {
-        list: async () => [
-          makeTask(),
-          makeTask({
-            id: "t2",
-            workspaceId: "w1",
-            title: "Draft the brief",
-            source: "assistant",
-          }),
-          makeTask({ id: "t3", workspaceId: "OTHER", title: "Elsewhere" }),
-        ],
+      tasks: {
+        list: async (workspaceId: string) => {
+          listCalls.push(workspaceId);
+          return [
+            makeTask({
+              id: "t2",
+              workspaceId: "w1",
+              title: "Draft the brief",
+              source: "assistant",
+            }),
+            makeTask({ id: "t3", workspaceId: "w1", title: "Book the venue" }),
+          ];
+        },
       },
     } as unknown as VynelClient;
 
     const { wrapper } = mountSection({ kind: "workspace", workspaceId: "w1" }, client);
     await flushPromises();
 
+    expect(listCalls).toEqual(["w1"]);
     const rows = wrapper.findAll(".row");
     expect(rows).toHaveLength(2);
-    expect(wrapper.text()).toContain("Ship the launch email");
     expect(wrapper.text()).toContain("Draft the brief");
-    expect(wrapper.text()).not.toContain("Elsewhere");
+    expect(wrapper.text()).toContain("Book the venue");
     // The chip says who put it on the list — the user or the assistant.
     expect(wrapper.text()).toContain("You");
     expect(wrapper.text()).toContain("Claude");
@@ -107,8 +113,8 @@ describe("TasksSection", () => {
   it("creates from the inline composer and clears it (Enter submits)", async () => {
     const createCalls: unknown[] = [];
     const client = {
+      tasks: { list: async () => [] },
       tasksUser: {
-        list: async () => [],
         create: async (input: unknown) => {
           createCalls.push(input);
           return makeTask({ id: "t9", workspaceId: "w1", title: "New one" });

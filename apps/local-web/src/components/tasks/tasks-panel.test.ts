@@ -84,24 +84,27 @@ describe("TasksPanel", () => {
     expect(wrapper.get(".count-chip").text()).toBe("1 open");
   });
 
-  it("a workspace surface sees its own work plus the global work", async () => {
+  // test: correct expectation for scope visibility — was "workspace = own +
+  // global", now STRICT per Chad's rule (the channels convention): the dock
+  // reads the same scoped query as the tasks menu, workspace rows only.
+  it("a workspace surface sees ONLY its own work, via the workspace route", async () => {
+    const listCalls: string[] = [];
     const client = {
-      tasksUser: {
-        list: async () => [
-          makeTask(),
-          makeTask({ id: "t2", workspaceId: "w1", title: "Room work" }),
-          makeTask({ id: "t3", workspaceId: "OTHER", title: "Elsewhere" }),
-        ],
+      tasks: {
+        list: async (workspaceId: string) => {
+          listCalls.push(workspaceId);
+          return [makeTask({ id: "t2", workspaceId: "w1", title: "Room work" })];
+        },
       },
     } as unknown as VynelClient;
 
     const wrapper = mountPanel(client, { kind: "workspace", workspaceId: "w1" });
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Ship the launch email");
+    expect(listCalls).toEqual(["w1"]);
     expect(wrapper.text()).toContain("Room work");
-    expect(wrapper.text()).not.toContain("Elsewhere");
-    expect(wrapper.get(".count-chip").text()).toBe("2 open");
+    expect(wrapper.text()).not.toContain("Ship the launch email");
+    expect(wrapper.get(".count-chip").text()).toBe("1 open");
   });
 
   it("cycles a task's status from its compact control", async () => {

@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { NotebookPen, Plus } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import type { JournalEntryResponse } from "@vynel/contracts/journal/journal-http";
-import { useJournalEntries } from "../../composables/journal/use-journal-entries.js";
+import { useJournalEntriesInScope } from "../../composables/journal/use-journal-entries-in-scope.js";
 import { useCreateJournalEntry } from "../../composables/journal/use-create-journal-entry.js";
 import { useDeleteJournalEntry } from "../../composables/journal/use-delete-journal-entry.js";
 import JournalEntryViewDialog from "../journal/JournalEntryViewDialog.vue";
@@ -25,19 +25,11 @@ const props = defineProps<{
   scope: SectionScope;
 }>();
 
-const entriesQuery = useJournalEntries(true);
+const entriesQuery = useJournalEntriesInScope(() => props.scope);
 const createEntry = useCreateJournalEntry();
 const deleteEntry = useDeleteJournalEntry();
 
-const entries = computed(() => {
-  const rows = entriesQuery.data.value ?? [];
-  if (props.scope.kind === "global")
-    return rows.filter((row) => row.workspaceId === null);
-  const workspaceId = props.scope.workspaceId;
-  return rows.filter(
-    (row) => row.workspaceId === null || row.workspaceId === workspaceId,
-  );
-});
+const entries = computed(() => entriesQuery.data.value ?? []);
 
 // Day groups preserving the list's newest-day-first order.
 const dayGroups = computed(() => {

@@ -140,7 +140,11 @@ describe("NotebookSection", () => {
     expect(wrapper.text()).not.toContain("Workspace book");
   });
 
-  it("hides another workspace's books on a workspace surface, keeping global ones", async () => {
+  // test: correct expectation for scope visibility — was "workspace = own +
+  // global", now STRICT per Chad's rule (the channels convention): the shelf
+  // lists only the surface's own books; Claude still reads global books from
+  // a workspace session.
+  it("a workspace surface lists ONLY its own books — never global or another workspace's", async () => {
     const client = makeClient({
       listDocuments: async () => ({
         documents: [
@@ -150,6 +154,12 @@ describe("NotebookSection", () => {
             scope: "workspace",
             workspaceId: "w2",
             title: "Other workspace book",
+          }),
+          makeDocument({
+            id: "d3",
+            scope: "workspace",
+            workspaceId: "w1",
+            title: "Own workspace book",
           }),
         ],
       }),
@@ -162,7 +172,9 @@ describe("NotebookSection", () => {
     });
     await flushPromises();
 
-    expect(wrapper.text()).toContain("How we publish the newsletter");
+    expect(wrapper.findAll(".row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("Own workspace book");
+    expect(wrapper.text()).not.toContain("How we publish the newsletter");
     expect(wrapper.text()).not.toContain("Other workspace book");
   });
 
