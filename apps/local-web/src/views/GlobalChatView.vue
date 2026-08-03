@@ -9,6 +9,11 @@ import ProcessingBanner from "../components/chat/ProcessingBanner.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
 import TodoDock from "../components/chat/TodoDock.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
+import GlobalCustomizeSection from "../components/customize/GlobalCustomizeSection.vue";
+import {
+  GLOBAL_SCOPE_KEY,
+  useCustomizeStore,
+} from "../stores/customize-store.js";
 import AccountSection from "../components/sections/AccountSection.vue";
 import AgentsSection from "../components/sections/AgentsSection.vue";
 import ChannelsSection from "../components/sections/ChannelsSection.vue";
@@ -58,6 +63,11 @@ const GLOBAL_SCOPE = { kind: "global" } as const;
 // Claude — the product never brands over it. One constant today; a
 // configurable persona later.
 const ASSISTANT_NAME = "Claude";
+// The Customize section's conversation icon (null = the Claude mark).
+const customizeStore = useCustomizeStore();
+const assistantIconUrl = computed(
+  () => customizeStore.customizationFor(GLOBAL_SCOPE_KEY).personaImage,
+);
 
 /** The global menu items that render a feature section on the canvas.
  *  (Sessions is a ROUTED surface — `/sessions` — not a canvas section.) */
@@ -296,6 +306,12 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       </EmptyState>
     </div>
 
+    <div v-else-if="shell.mainView === 'customize'" class="canvas section-view">
+      <div class="section-column">
+        <GlobalCustomizeSection />
+      </div>
+    </div>
+
     <div
       v-else-if="isGlobalSection(shell.mainView)"
       class="canvas section-view"
@@ -408,6 +424,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
         :assistant-name="ASSISTANT_NAME"
+        :assistant-icon-url="assistantIconUrl"
         @decide-approval="onDecideApproval"
         @open-session="activityMonitor.openTrace"
         @open-report="(report) => (ui.viewingReport = report)"

@@ -27,6 +27,9 @@ const props = defineProps<{
   tabs: ShellTabItem[];
   activeTabId: string;
   workspaces: { id: string; name: string }[];
+  // A workspace's customized accent slot (Customize section) — the default a
+  // tab starts from; a per-tab pick still overrides it.
+  workspaceColorSlots?: Record<string, number | null>;
 }>();
 
 const emit = defineEmits<{
@@ -46,11 +49,15 @@ function workspaceName(workspaceId: string | null): string {
   );
 }
 
-/** The tab's accent: the user's pick wins, else the room's name-derived
- *  color; the Global tab stays neutral (gold is reserved for presence). */
+/** The tab's accent: the user's per-tab pick wins, then the workspace's
+ *  customized color, else the room's name-derived color; the Global tab
+ *  stays neutral (gold is reserved for presence). */
 function tabAccent(tab: ShellTabItem): string {
   if (tab.colorSlot !== null) return `var(--ws-${tab.colorSlot})`;
   if (tab.workspaceId === null) return "var(--ink-3)";
+  const customSlot = props.workspaceColorSlots?.[tab.workspaceId];
+  if (customSlot !== undefined && customSlot !== null)
+    return `var(--ws-${customSlot})`;
   return workspaceAccentVar(workspaceName(tab.workspaceId));
 }
 

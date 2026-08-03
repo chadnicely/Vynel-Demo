@@ -7,6 +7,25 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Added
+
+- **The menu is now grouped — and it's yours to shape.** The sidebar reads in
+  named, collapsible groups (Toolkit · Utils · Context · Connections, with
+  Schedules and Marketplace standing alone) instead of one long list, with
+  tighter spacing so it fits on screen. A new **Customize** entry at the bottom
+  of every menu — each workspace's and the Global one — lets you hide menus you
+  don't use, reorder them, move them between groups, or invent your own groups
+  entirely. Hiding a menu is purely visual: Claude keeps every ability. Each
+  workspace's Customize also renames the workspace and its persona (the
+  @-mention follows) and picks its accent color for the tab strip.
+
+- **Personas have faces now.** Assistant replies wear an identity icon beside
+  the author name — Claude's coral spark by default, or any image you upload
+  from Customize (per workspace, and one for the Global surface). Icons show on
+  settled and live-streaming replies alike; messages from other personas keep
+  the Claude spark. The spark itself got a crisper small-size rendering so it
+  stays sharp at label size.
+
 ### Fixed
 
 - **Every menu now shows only its own scope's items.** The strict scope rule that already

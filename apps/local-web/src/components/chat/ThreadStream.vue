@@ -24,12 +24,14 @@ const props = withDefaults(
     /** Who speaks for plain assistant rows on this surface (settled AND live) —
      *  the global thread passes the assistant's name. */
     assistantName?: string;
+    /** The persona's custom conversation icon; null = the Claude mark. */
+    assistantIconUrl?: string | null;
     /** False on a SESSION view — a pipeline leaf shows agent chips only, no
      *  trace/report chips at all (scoping rule 3). Threads (global/workspace)
      *  keep the default and rely on the received-trace discriminator below. */
     showWatchChips?: boolean;
   }>(),
-  { assistantName: "Assistant", showWatchChips: true },
+  { assistantName: "Assistant", assistantIconUrl: null, showWatchChips: true },
 );
 
 const emit = defineEmits<{
@@ -258,6 +260,7 @@ watch(
             :message="message"
             :class="{ 'is-continuation': !showsHeaderFor(index) }"
             :assistant-name="props.assistantName"
+            :assistant-icon-url="props.assistantIconUrl"
             :show-header="showsHeaderFor(index)"
             :show-watch-chip="showsWatchChipFor(message)"
             :linked-session-live="
@@ -296,6 +299,7 @@ watch(
           <LiveTurn
             :view="props.activeTurn"
             :author-label="props.assistantName"
+            :author-icon-url="props.assistantIconUrl"
             @decide-approval="
               (id, decision) => emit('decideApproval', id, decision)
             "

@@ -11,6 +11,7 @@ import FilesPanel from "../components/workspace/FilesPanel.vue";
 import TasksPanel from "../components/tasks/TasksPanel.vue";
 import FileEditorView from "../components/workspace/FileEditorView.vue";
 import WorkspaceSectionPanel from "../components/workspace/WorkspaceSectionPanel.vue";
+import WorkspaceCustomizeSection from "../components/customize/WorkspaceCustomizeSection.vue";
 import WorkspaceWelcomeHero from "../components/workspace/WorkspaceWelcomeHero.vue";
 import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
@@ -27,6 +28,7 @@ import { useDecideApproval } from "../composables/approvals/use-decide-approval.
 import type { SessionScope } from "../composables/chat/session-scope.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import { useUiStore } from "../stores/ui-store.js";
+import { useCustomizeStore } from "../stores/customize-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
@@ -197,14 +199,26 @@ const occupancy = useContextOccupancy(
 );
 
 // "account"/"application"/"engine" are global-only — the workspace menu never
-// sets them, but the type excludes them here so the shell union stays one shape.
+// sets them, but the type excludes them here so the shell union stays one
+// shape. "customize" is workspace-only and renders its own canvas below.
 const activeSection = computed<WorkspaceSectionId | null>(() =>
   typeof shell.mainView === "string" &&
   shell.mainView !== "chat" &&
   shell.mainView !== "application" &&
   shell.mainView !== "account" &&
-  shell.mainView !== "engine"
+  shell.mainView !== "engine" &&
+  shell.mainView !== "customize"
     ? shell.mainView
+    : null,
+);
+
+const isCustomizeOpen = computed(() => shell.mainView === "customize");
+
+// The Customize section's conversation icon (null = the Claude mark).
+const customizeStore = useCustomizeStore();
+const assistantIconUrl = computed(() =>
+  tab.workspaceId !== null
+    ? customizeStore.customizationFor(tab.workspaceId).personaImage
     : null,
 );
 
@@ -246,6 +260,12 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           :section="activeSection"
           :workspace-id="tab.workspaceId ?? ''"
         />
+      </div>
+    </div>
+
+    <div v-else-if="isCustomizeOpen" class="canvas section-view">
+      <div class="section-column">
+        <WorkspaceCustomizeSection :workspace-id="tab.workspaceId ?? ''" />
       </div>
     </div>
 
@@ -294,6 +314,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
         :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
+        :assistant-icon-url="assistantIconUrl"
         @decide-approval="onDecideApproval"
         @open-session="activityMonitor.openTrace"
         @open-report="(report) => (ui.viewingReport = report)"
@@ -333,7 +354,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
     </section>
 
     <FilesPanel
-      v-if="isFilesPanelOpen && !activeSection"
+      v-if="isFilesPanelOpen && !activeSection && !isCustomizeOpen"
       :workspace-name="activeWorkspace?.name ?? 'Workspace'"
       :workspace-id="tab.workspaceId ?? ''"
       :active-file-path="openFile?.filePath ?? null"

@@ -2,6 +2,7 @@
 import { computed, onScopeDispose, ref, watch } from "vue";
 import {
   ApprovalCard,
+  ClaudeMark,
   ThinkingBlock,
   ToolCallList,
   MarkdownText,
@@ -20,8 +21,11 @@ const props = withDefaults(
     view: ActiveTurnView;
     /** Who is streaming — matches MessageRow's settled label for the surface. */
     authorLabel?: string;
+    /** The persona's custom avatar; null = the Claude mark (MessageRow's
+     *  settled rows render the same glyph). */
+    authorIconUrl?: string | null;
   }>(),
-  { authorLabel: "Assistant" },
+  { authorLabel: "Assistant", authorIconUrl: null },
 );
 
 const emit = defineEmits<{
@@ -63,7 +67,13 @@ const elapsedLabel = computed(() =>
 
 <template>
   <div class="live-turn">
-    <p class="role-label">{{ props.authorLabel }}</p>
+    <p class="role-label">
+      <span class="author-avatar" aria-hidden="true">
+        <img v-if="props.authorIconUrl" :src="props.authorIconUrl" alt="" />
+        <ClaudeMark v-else :size="14" />
+      </span>
+      {{ props.authorLabel }}
+    </p>
 
     <!-- One block per assistant message, in arrival order — the SAME
          thinking → text → tool-calls shape MessageRow gives the settled row,
@@ -153,11 +163,32 @@ const elapsedLabel = computed(() =>
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  /* 7px matches MessageRow's settled label — the author name must not shift
+     when the turn completes. */
+  gap: 7px;
   color: var(--ink-3);
   font: 600 10.5px/1.5 var(--font-ui);
   text-transform: uppercase;
   letter-spacing: 0.07em;
+}
+
+.author-avatar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  overflow: hidden;
+  /* The soft identity tint makes the spark read as a colorful chip, not a
+     stray glyph — same coral family as the mark itself. */
+  background: var(--claude-mark-soft);
+}
+
+.author-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .live-status {

@@ -27,6 +27,10 @@ export type ChatMainView =
   // Machine-level, global-only (like account/application): WHERE the engine
   // runs is a property of this computer, never of a workspace.
   | "engine"
+  // Workspace-only: the Customize canvas (persona, color, menu layout). Not a
+  // catalog section — it edits the catalog's rendering, so it can never be
+  // hidden by it.
+  | "customize"
   | WorkspaceSectionId
   | { kind: "file"; filePath: string };
 

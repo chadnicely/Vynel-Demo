@@ -19,6 +19,7 @@ import {
   ScrollText,
   Server,
   Settings2,
+  SlidersHorizontal,
   SquarePlay,
   SquareSlash,
   Store,
@@ -42,8 +43,15 @@ import PlanViewDialog from "../plans/PlanViewDialog.vue";
 import ReportViewDialog from "../reports/ReportViewDialog.vue";
 import { useAppLinkRouter } from "../../composables/use-app-link-router.js";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
-import { WORKSPACE_SECTIONS } from "../workspace/workspace-sections.js";
+import {
+  MENU_GROUP_LABELS,
+  WORKSPACE_SECTIONS,
+} from "../workspace/workspace-sections.js";
 import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
+import {
+  GLOBAL_SCOPE_KEY,
+  useCustomizeStore,
+} from "../../stores/customize-store.js";
 import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
 import { useActivityStore } from "../../stores/activity-store.js";
@@ -145,37 +153,14 @@ const openTaskCount = computed(
 
 // ── Sidebar menu (contextual to the scope). Icons come from the app so
 // @vynel/ui stays icon-set-free. Home / Chat / Sessions are ORDINARY menu
-// items at the top (Chad killed the segmented pill — "no special menus");
-// they behave exactly as the pill did, in both scopes. ──
+// items at the top; the feature sections render under their catalog groups
+// (workspace-sections.ts owns ids, labels, order, and the group story). ──
 const SURFACE_ITEMS: SidebarItem[] = [
   { id: "home", label: "Home", icon: House },
   { id: "chat", label: "Chat", icon: MessageCircle },
   { id: "sessions", label: "Sessions", icon: History },
 ];
-// Reading order, same story as the workspace list (workspace-sections.ts):
-// Claude's own resources first, then Vynel's features led by Marketplace,
-// then the system rows that aren't features at all.
-const GLOBAL_SECTIONS: SidebarItem[] = [
-  { id: "agents", label: "Agents", icon: Bot },
-  { id: "skills", label: "Skills", icon: Wrench },
-  { id: "rules", label: "Rules", icon: ScrollText },
-  { id: "commands", label: "Commands", icon: SquareSlash },
-  { id: "mcp-servers", label: "MCP Servers", icon: Cable },
-  { id: "marketplace", label: "Marketplace", icon: Store },
-  { id: "channels", label: "Channels", icon: Radio },
-  { id: "schedules", label: "Schedules", icon: CalendarClock },
-  { id: "tasks", label: "Tasks", icon: ListChecks },
-  { id: "plans", label: "Plans", icon: CalendarRange },
-  { id: "journal", label: "Journal", icon: NotebookPen },
-  { id: "knowledge", label: "Knowledge", icon: FolderTree },
-  { id: "memory", label: "Memory", icon: Brain },
-  { id: "notebook", label: "Notebook", icon: BookOpen },
-  { id: "ssh-servers", label: "Servers", icon: Server },
-  { id: "engine", label: "Where Vynel runs", icon: Cpu },
-  { id: "account", label: "Account", icon: UserRound },
-  { id: "application", label: "Application", icon: Settings2 },
-];
-const WORKSPACE_SECTION_ICONS: Record<string, SidebarItem["icon"]> = {
+const SECTION_ICONS: Record<string, SidebarItem["icon"]> = {
   agents: Bot,
   skills: Wrench,
   rules: ScrollText,
@@ -193,21 +178,120 @@ const WORKSPACE_SECTION_ICONS: Record<string, SidebarItem["icon"]> = {
   apps: SquarePlay,
   "ssh-servers": Server,
 };
+// Apps needs a running project — it has no global surface.
+const GLOBAL_HIDDEN_SECTION_IDS = new Set<string>(["apps"]);
+// The system rows that aren't features at all — global menu only, after the
+// catalog, outside every group.
+const GLOBAL_SYSTEM_ITEMS: SidebarItem[] = [
+  { id: "engine", label: "Where Vynel runs", icon: Cpu },
+  { id: "account", label: "Account", icon: UserRound },
+  { id: "application", label: "Application", icon: Settings2 },
+];
 const WORKSPACE_SECTION_IDS = new Set<string>(
   WORKSPACE_SECTIONS.map((s) => s.id),
 );
-const WORKSPACE_SECTION_ITEMS: SidebarItem[] = WORKSPACE_SECTIONS.map(
-  (section) => {
-    const icon = WORKSPACE_SECTION_ICONS[section.id];
-    return icon
-      ? { id: section.id, label: section.label, icon }
-      : { id: section.id, label: section.label };
+const SECTION_LABELS = new Map(
+  WORKSPACE_SECTIONS.map((section) => [section.id, section.label]),
+);
+function catalogItems(scope: "global" | "workspace"): SidebarItem[] {
+  return WORKSPACE_SECTIONS.filter(
+    (section) =>
+      scope === "workspace" || !GLOBAL_HIDDEN_SECTION_IDS.has(section.id),
+  ).map((section) => {
+    const icon = SECTION_ICONS[section.id];
+    return {
+      id: section.id,
+      label: section.label,
+      ...(icon !== undefined ? { icon } : {}),
+      ...(section.group !== null
+        ? {
+            group: {
+              id: section.group,
+              label: MENU_GROUP_LABELS[section.group],
+            },
+          }
+        : {}),
+    };
+  });
+}
+// A surface's menu obeys its customization: the user's order, custom
+// groups, and hidden sections (visual only — the agent keeps every tool).
+// The Customize row itself rides pinned at the end, outside the catalog;
+// the Global menu keeps its system rows just before it.
+const customize = useCustomizeStore();
+const CUSTOMIZE_ITEM: SidebarItem = {
+  id: "customize",
+  label: "Customize",
+  icon: SlidersHorizontal,
+};
+function customizedMenuItems(scopeKey: string): SidebarItem[] {
+  const isGlobal = scopeKey === GLOBAL_SCOPE_KEY;
+  const config = customize.customizationFor(scopeKey);
+  const groupLabels = new Map(
+    config.groups.map((group) => [group.id, group.label]),
+  );
+  const items: SidebarItem[] = [];
+  for (const entry of config.entries) {
+    if (entry.isHidden) continue;
+    if (isGlobal && GLOBAL_HIDDEN_SECTION_IDS.has(entry.sectionId)) continue;
+    const label = SECTION_LABELS.get(entry.sectionId);
+    if (label === undefined) continue;
+    const icon = SECTION_ICONS[entry.sectionId];
+    const groupLabel =
+      entry.groupId !== null ? groupLabels.get(entry.groupId) : undefined;
+    items.push({
+      id: entry.sectionId,
+      label,
+      ...(icon !== undefined ? { icon } : {}),
+      ...(entry.groupId !== null && groupLabel !== undefined
+        ? { group: { id: entry.groupId, label: groupLabel } }
+        : {}),
+    });
+  }
+  if (isGlobal) items.push(...GLOBAL_SYSTEM_ITEMS);
+  items.push(CUSTOMIZE_ITEM);
+  return items;
+}
+// The global menu's DEFAULT full run — the command palette's "Open" group
+// and its default routing case read this (the palette ignores menu
+// customization: hidden sections stay reachable there by design).
+const GLOBAL_MENU_ITEMS: SidebarItem[] = [
+  ...catalogItems("global"),
+  ...GLOBAL_SYSTEM_ITEMS,
+  CUSTOMIZE_ITEM,
+];
+const sectionItems = computed(() => {
+  const workspaceId = ui.activeTab.workspaceId;
+  return [
+    ...SURFACE_ITEMS,
+    ...customizedMenuItems(workspaceId ?? GLOBAL_SCOPE_KEY),
+  ];
+});
+
+// The strip needs every workspace's customized accent, not just the active
+// tab's — each tab colors itself.
+const workspaceColorSlots = computed<Record<string, number | null>>(() => {
+  const slots: Record<string, number | null> = {};
+  for (const [workspaceId, config] of Object.entries(customize.byWorkspace)) {
+    slots[workspaceId] = config.colorSlot;
+  }
+  return slots;
+});
+
+// Hiding the section that's currently on the canvas bounces it to Chat —
+// otherwise the panel would render a view the menu no longer admits to.
+watch(
+  () => {
+    const view = ui.activeTab.shell.mainView;
+    if (typeof view !== "string") return false;
+    return customize
+      .customizationFor(ui.activeTab.workspaceId ?? GLOBAL_SCOPE_KEY)
+      .entries.some((entry) => entry.sectionId === view && entry.isHidden);
+  },
+  (isActiveSectionHidden) => {
+    if (isActiveSectionHidden) ui.activeTab.shell.mainView = "chat";
   },
 );
-const sectionItems = computed(() => [
-  ...SURFACE_ITEMS,
-  ...(inWorkspaceScope.value ? WORKSPACE_SECTION_ITEMS : GLOBAL_SECTIONS),
-]);
 const sectionTitle = computed(() =>
   inWorkspaceScope.value
     ? (activeWorkspaceName.value ?? "Workspace")
@@ -270,7 +354,10 @@ function selectSection(id: string) {
     selectSurface(id);
     return;
   }
-  if (inWorkspaceScope.value && WORKSPACE_SECTION_IDS.has(id)) {
+  if (
+    inWorkspaceScope.value &&
+    (WORKSPACE_SECTION_IDS.has(id) || id === "customize")
+  ) {
     ui.activeTab.shell.mainView = id as typeof ui.activeTab.shell.mainView;
     if (route.name !== "workspace") void router.push({ name: "workspace" });
   } else {
@@ -367,7 +454,7 @@ function runCommand(id: string) {
       selectSection("application");
       break;
     default:
-      if (GLOBAL_SECTIONS.some((s) => s.id === id)) selectSection(id);
+      if (GLOBAL_MENU_ITEMS.some((item) => item.id === id)) selectSection(id);
   }
 }
 
@@ -384,10 +471,10 @@ const paletteCommands = computed<CommandItem[]>(() => [
     hint: "Workspace",
     group: "Go",
   })),
-  ...GLOBAL_SECTIONS.map((s) =>
-    s.icon
-      ? { id: s.id, label: s.label, group: "Open", icon: s.icon }
-      : { id: s.id, label: s.label, group: "Open" },
+  ...GLOBAL_MENU_ITEMS.map((item) =>
+    item.icon
+      ? { id: item.id, label: item.label, group: "Open", icon: item.icon }
+      : { id: item.id, label: item.label, group: "Open" },
   ),
   { id: "toggle-theme", label: "Toggle theme", group: "View", keywords: "dark light" },
   { id: "toggle-sidebar", label: "Toggle navigation", group: "View" },
@@ -454,6 +541,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :tabs="ui.tabs"
       :active-tab-id="ui.activeTabId"
       :workspaces="workspaceOptions"
+      :workspace-color-slots="workspaceColorSlots"
       @select-tab="selectTab"
       @close-tab="closeTab"
       @retarget-tab="retargetTab"
