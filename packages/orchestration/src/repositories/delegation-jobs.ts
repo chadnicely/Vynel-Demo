@@ -506,9 +506,12 @@ export function markDelegationsSurfacedToRoot(
 // Called at service startup, where nothing is running yet, so every `claimed` row is orphaned;
 // leaving them claimed made them linger forever as "in-flight" (visible in the Ch3.5 processing
 // indicator). `surfacedToRootAt` is set so a restart doesn't spam the root with "couldn't
-// complete" — an orphan is a system artifact, not a real task outcome. Returns the count reclaimed.
-export function failOrphanedClaimedDelegations(db: Database, at: Date): number {
-  const reclaimed = db
+// complete" — an orphan is a system artifact, not a real task outcome. Returns the FULL rows
+// (persona-sessions): with acknowledge-first, a child that said "will report when done" and
+// then silently vanished breaks the spoken contract — the startup pass pushes an honest
+// failure delivery for orphaned WORK rows (the caller filters; deliveries stay anti-cascade).
+export function failOrphanedClaimedDelegations(db: Database, at: Date): DelegationJob[] {
+  return db
     .update(delegationJobs)
     .set({
       status: 'failed',
@@ -517,7 +520,6 @@ export function failOrphanedClaimedDelegations(db: Database, at: Date): number {
       surfacedToRootAt: at,
     })
     .where(eq(delegationJobs.status, 'claimed'))
-    .returning({ id: delegationJobs.id })
+    .returning()
     .all()
-  return reclaimed.length
 }

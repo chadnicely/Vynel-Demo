@@ -420,7 +420,11 @@ describe('delegation_jobs repository', () => {
       insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
       const claimed = claimNextPendingDelegationJob(db, new Date())
 
-      expect(failOrphanedClaimedDelegations(db, new Date())).toBe(1) // only the claimed one
+      // Returns the FULL rows now (persona-sessions: the startup pass pushes a
+      // failure delivery per WORK orphan) — still only the claimed one.
+      const orphans = failOrphanedClaimedDelegations(db, new Date())
+      expect(orphans).toHaveLength(1)
+      expect(orphans[0]!.id).toBe(claimed!.id)
 
       const reclaimed = findDelegationJobById(db, claimed!.id)!
       expect(reclaimed.status).toBe('failed')

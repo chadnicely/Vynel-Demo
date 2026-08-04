@@ -24,8 +24,13 @@
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
-import { failOrphanedClaimedDelegations } from '@vynel/orchestration'
-import { runDelegationClaimAndRunTick } from '@vynel/session/delegation'
+import {
+  enqueueReportDelivery,
+  failOrphanedClaimedDelegations,
+  isDeliveryJobKind,
+  resolveThreadIdOf,
+} from '@vynel/orchestration'
+import { runDelegationClaimAndRunTick, resolveJobReportRequester } from '@vynel/session/delegation'
 import type {
   TurnEventBroadcaster,
   DelegationCancelRegistry,
@@ -94,11 +99,39 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
   // startup nothing is running yet, so any `claimed` row is orphaned; leaving them claimed made
   // them linger forever as "in-flight" (visible in the Ch3.5 processing indicator).
   const reclaimed = failOrphanedClaimedDelegations(db, new Date())
-  if (reclaimed > 0) {
+  if (reclaimed.length > 0) {
     logger.warn(
-      { reclaimed },
+      { reclaimed: reclaimed.length },
       'delegation service: reclaimed orphaned "claimed" jobs at startup (marked failed; a prior crash/restart left them mid-run)',
     )
+  }
+  // Persona-sessions restart parity: with acknowledge-first, silent orphan
+  // death breaks the child's spoken "will report when done" — push an honest
+  // failure delivery for each orphaned WORK row (task/agent-run). Delivery
+  // orphans stay silent (anti-cascade: a delivery must never spawn one), and
+  // a push failure never blocks boot.
+  for (const orphan of reclaimed) {
+    if (isDeliveryJobKind(orphan.jobKind)) continue
+    try {
+      const taskPreview =
+        orphan.taskText.length > 160 ? `${orphan.taskText.slice(0, 160)}…` : orphan.taskText
+      enqueueReportDelivery(db, {
+        ...(resolveThreadIdOf(orphan) !== null ? { threadId: resolveThreadIdOf(orphan)! } : {}),
+        userId: orphan.userId,
+        reporterSessionId:
+          orphan.targetPrimarySessionId ?? orphan.workspaceId ?? orphan.parentSessionId,
+        reporterLabel: orphan.workspaceName ?? 'Background task',
+        reportBody:
+          `The background task "${taskPreview}" was interrupted by a restart and did not ` +
+          'finish. Tell the user, and re-send it with send_message if it should run again.',
+        requester: resolveJobReportRequester(db, orphan),
+      })
+    } catch (err) {
+      logger.error(
+        { err, jobId: orphan.id },
+        'delegation service: failed to enqueue the restart-failure delivery for an orphan',
+      )
+    }
   }
 
   // The pool's run count lives here; WHICH targets are held lives in the
