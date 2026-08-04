@@ -25,16 +25,30 @@ boot reaps hoisted · A9 `27d94bf` three superseded tools REMOVED (tests ported 
 /routing/message; send_message gained ambient workspaceId for ④b parity) · A10 `ee9f980`
 deriveMessageOrigin.
 
-REMAINING = the frontend arc in apps/local-web (see plan §Arc B + module-notes B-slice notes):
-B1 chip liveness (delete dead live-sessions-store) → B2 one fold (liveEntriesFromTurnView
-selector over applyChatTurnEvent; delete applyTraceStreamEvent) → B3 live-turn registry
-(refcounted subscribe, auto re-attach) → B4 narration recent-steps ring → B5 PersonaLiveCard
-(keyed partialSessionId??jobId; settle-match via message threadId) → B6 LiveSessionPane w/
-direct send + compaction chain-head fix → B7 BackgroundActivityPanel (seed = GET
-/activity/running) → B8 origin rendering (deriveMessageOrigin) + composer destination.
-Verification per move: targeted typecheck + vitest local-web/ui (never auto-run full
-`pnpm test`). Session rules: reviewer per diff · conventional commits, NO Co-Authored-By ·
-push after commit. Chad smoke list at plan §Verification.
+FRONTEND PLUMBING SHIPPED (B1–B4, reviewed as one block, must-fixes applied): B1 `6efa1d9`
+chip liveness (dead live-sessions-store deleted; ThreadStream liveTraceIds from the in-flight
+poll) · B2 `2802da2` one fold (liveEntriesFromTurnView + pendingApprovalToolNameOf over
+applyChatTurnEvent; applyTraceStreamEvent deleted; watch views render thinking + say turn
+errors) · B4 `6350c38` narration ring (TurnNarration {current, recentSteps≤5}; superseded
+parallel steps settle in place) · B3 `cbcb69b` live-turn registry (stores/live-turn-registry.ts:
+refcounted subscribe → shared fold; session sources RE-ATTACH across turns; use-watched-turn +
+use-activity-monitor are thin adapters; render-time suppression; target-bound snapshot
+providers; WatchedTurnSnapshot's home is the registry).
+
+REMAINING = the view moves (plan §Arc B + module-notes B-slice notes): B5 PersonaLiveCard
+(components/chat/, Tailwind; keyed partialSessionId??jobId; states from job+feed; narration
+ring for partial activity; settle-match via message threadId; ProcessingBanner reduces to the
+origin note; cards NEVER subscribe to the registry) → B6 LiveSessionPane in ActivityMonitorPanel
+(ThreadStream full fold + useSessionDetail + registry sub + AppComposer via useSessionTurn/
+useQueuedSend; live chain-head resolution fixes the SessionThreadView compaction freeze; note:
+B6 direct-send into agent-scope sessions needs POST /sessions/:id/turn widened per module
+notes) → B7 BackgroundActivityPanel shell singleton (rows = activity-store serverTurns ∪
+in-flight delegations ∪ narration; refresh seed = GET /activity/running via
+activity.listRunningTurns) → B8 origin rendering (MessageRow authorPersona +
+deriveMessageOrigin badges; AppComposer destinationLabel). Verification per move: targeted
+typecheck + vitest local-web/ui (never auto-run full `pnpm test`). Session rules: reviewer per
+diff · conventional commits, NO Co-Authored-By · push after commit. Chad smoke list at plan
+§Verification.
 
 ## ✅ FIVE-TASK SESSION (2026-08-02) — ALL FIVE SHIPPED + PUSHED
 
