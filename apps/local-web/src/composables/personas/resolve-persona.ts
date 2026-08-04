@@ -1,0 +1,42 @@
+// `resolvePersona` — ONE reading of "who is this, visually" for the live
+// persona surfaces (persona-sessions B5): display name, the customized persona
+// image when the user set one for that workspace, else a monogram over the
+// workspace accent. `@vynel/ui` stays icon-library-free — this resolver hands
+// components a ready image-or-monogram pair, never an icon name to render.
+
+import { workspaceAccentVar, workspaceMonogram } from "@vynel/ui";
+import { useCustomizeStore } from "../../stores/customize-store.js";
+
+export interface ResolvedPersona {
+  name: string;
+  /** The user's customized persona image for the workspace — null = monogram. */
+  imageUrl: string | null;
+  monogram: string;
+  /** The CSS var reference for the persona's accent color. */
+  accentVar: string;
+}
+
+export function usePersonaResolver() {
+  const customize = useCustomizeStore();
+
+  /** Resolve a live card's persona: the speaking session/agent/workspace name
+   *  plus its visual identity. `workspaceId` keys the customized image; a
+   *  session/agent persona without one falls to its monogram. */
+  function resolvePersona(input: {
+    name: string;
+    workspaceId?: string | null;
+  }): ResolvedPersona {
+    const imageUrl =
+      input.workspaceId != null
+        ? customize.customizationFor(input.workspaceId).personaImage
+        : null;
+    return {
+      name: input.name,
+      imageUrl,
+      monogram: workspaceMonogram(input.name),
+      accentVar: workspaceAccentVar(input.name),
+    };
+  }
+
+  return { resolvePersona };
+}

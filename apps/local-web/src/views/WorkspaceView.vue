@@ -17,6 +17,7 @@ import type { WorkspaceSectionId } from "../components/workspace/workspace-secti
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
+import { useLiveDelegationCards } from "../composables/delegations/use-live-delegation-cards.js";
 import { useStopDelegation } from "../composables/delegations/use-stop-delegation.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
@@ -86,6 +87,9 @@ const liveTraceIds = computed(() => {
   }
   return ids;
 });
+// The inline persona cards (B5): one per in-flight task, fed by the poll +
+// the activity feed + the narration ring — never a per-card SSE.
+const { cards: liveCards } = useLiveDelegationCards({ messages: () => messages.value });
 const inFlightDelegationsHere = computed(() =>
   (inFlightQuery.data.value ?? []).filter(
     (delegation) => delegation.workspaceId === tab.workspaceId,
@@ -327,14 +331,19 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
         :assistant-icon-url="assistantIconUrl"
         :live-trace-ids="liveTraceIds"
+        :live-cards="liveCards"
         @decide-approval="onDecideApproval"
+        @open-card="activityMonitor.openTrace"
+        @stop-card="stopDelegation.mutate"
         @open-session="activityMonitor.openTrace"
         @open-report="(report) => (ui.viewingReport = report)"
         @watch-agent="activityMonitor.openAgentDirect"
       />
 
+      <!-- The delegation chips dissolved into the live persona cards (B5) —
+           the banner keeps only the non-delegation origin note. -->
       <ProcessingBanner
-        :delegations="inFlightDelegationsHere"
+        :delegations="[]"
         :background-turn-label="backgroundTurnLabel"
         @watch="activityMonitor.openTrace"
         @stop="stopDelegation.mutate"

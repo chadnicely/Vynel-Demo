@@ -7,7 +7,9 @@ import type {
 import { MessageRow, ToolCallList } from "@vynel/ui";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
 import type { ActivitySource } from "../../composables/activity/use-activity-monitor.js";
+import type { PersonaLiveCardModel } from "../../composables/delegations/use-live-delegation-cards.js";
 import LiveTurn from "./LiveTurn.vue";
+import PersonaLiveCard from "./PersonaLiveCard.vue";
 
 // Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening —
 // Global → Workspace → Session → Agent): a thread shows chips ONLY for its
@@ -32,12 +34,25 @@ const props = withDefaults(
     /** The trace keys with a LIVE delegation right now (the host computes it
      *  from the in-flight poll) — a matching row's watch chip pulses live. */
     liveTraceIds?: Set<string> | undefined;
+    /** The inline persona cards at the thread's live edge (persona-sessions
+     *  B5) — one per in-flight task, rendered like typing indicators. */
+    liveCards?: PersonaLiveCardModel[] | undefined;
   }>(),
-  { assistantName: "Assistant", assistantIconUrl: null, showWatchChips: true, liveTraceIds: undefined },
+  {
+    assistantName: "Assistant",
+    assistantIconUrl: null,
+    showWatchChips: true,
+    liveTraceIds: undefined,
+    liveCards: undefined,
+  },
 );
 
 const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
+  /** A persona card's Watch — open the delegation's live view. */
+  openCard: [partialSessionId: string];
+  /** A persona card's Stop. */
+  stopCard: [partialSessionId: string];
   /** A message's delegation chip: open that session's live view. */
   openSession: [sessionId: string];
   /** A report box's "View report" chip — the host opens the shared dialog. */
@@ -93,6 +108,14 @@ function showsWatchChipFor(message: ChatMessageResponse): boolean {
     !receivedTraceIds.value.has(message.partialSessionId)
   );
 }
+
+// Thread-bottom real estate is finite: many parallel tasks cap at a few
+// cards + an overflow count (the Background panel is the full roster, B7).
+const VISIBLE_CARD_CAP = 4;
+const visibleCards = computed(() => (props.liveCards ?? []).slice(0, VISIBLE_CARD_CAP));
+const overflowCardCount = computed(
+  () => Math.max(0, (props.liveCards ?? []).length - VISIBLE_CARD_CAP),
+);
 
 const scroller = ref<HTMLElement | null>(null);
 
@@ -306,6 +329,31 @@ watch(
             "
           />
         </template>
+
+        <!-- The live edge's PEOPLE (persona-sessions B5): one card per
+             in-flight task, like typing indicators — they render no message
+             text, so the settled ack/report rows never contest them. -->
+        <TransitionGroup
+          v-if="visibleCards.length > 0"
+          name="narration"
+          tag="div"
+          class="grid gap-2 pt-1"
+        >
+          <PersonaLiveCard
+            v-for="card in visibleCards"
+            :key="card.key"
+            :card="card"
+            @open="card.partialSessionId && emit('openCard', card.partialSessionId)"
+            @stop="card.partialSessionId && emit('stopCard', card.partialSessionId)"
+          />
+          <p
+            v-if="overflowCardCount > 0"
+            key="overflow"
+            class="m-0 mx-auto text-[11px] text-[var(--ink-3)]"
+          >
+            +{{ overflowCardCount }} more running
+          </p>
+        </TransitionGroup>
       </div>
     </div>
 
