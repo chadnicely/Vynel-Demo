@@ -26,6 +26,7 @@ const {
   isStreaming,
   hasEnded,
   errorText,
+  turnError,
   traceQuery,
 } = useActivityMonitor(() => store.activeSource);
 
@@ -151,13 +152,18 @@ const backLabel = computed(() => {
 
 // Each kind keeps its established error surface: a trace fails through its
 // settled read (polling was always its fallback); a session says a stream drop.
-const bodyErrorText = computed(() =>
-  activeKind.value === "trace"
+const bodyErrorText = computed(() => {
+  // B2: a TURN that ended in session-errored is said first — the full fold
+  // carries it now (the old panel fold silently ate it).
+  if (turnError.value !== null) {
+    return `The turn errored (${turnError.value.code}): ${turnError.value.message}`;
+  }
+  return activeKind.value === "trace"
     ? traceQuery.isError.value
       ? formatSdkError(traceQuery.error.value)
       : null
-    : errorText.value,
-);
+    : errorText.value;
+});
 
 function onKeydown(event: KeyboardEvent) {
   // An inner overlay (e.g. the new-workspace dialog) that handled this press

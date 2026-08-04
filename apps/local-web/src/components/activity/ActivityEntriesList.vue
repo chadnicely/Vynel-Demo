@@ -3,6 +3,7 @@ import { computed } from "vue";
 import {
   MarkdownText,
   PresenceDot,
+  ThinkingBlock,
   ToolCallList,
   type AgentActivityLike,
 } from "@vynel/ui";
@@ -175,6 +176,9 @@ const approvalNote = computed(() =>
         @watch-agent="onWatchAgent"
         @open-delegation="(id) => emit('openDelegation', id)"
       />
+      <!-- B2: the full fold carries live thinking — render it like the chat
+           thread (the old panel fold dropped it). -->
+      <ThinkingBlock v-if="entry.thinking" :text="entry.thinking" />
       <MarkdownText :source="displayBody(entry)" />
     </div>
     <p v-if="props.pendingApprovalToolName" class="working-note is-approval">

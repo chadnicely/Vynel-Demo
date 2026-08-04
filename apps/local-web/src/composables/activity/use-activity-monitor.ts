@@ -37,11 +37,17 @@ import {
 } from "../delegations/use-delegation-trace.js";
 import { useSessionDetail } from "../chat/use-session-detail.js";
 import {
-  applyTraceStreamEvent,
-  createLiveTraceState,
   mergeTraceEntries,
   type LiveTraceEntry,
 } from "../delegations/fold-trace-stream.js";
+import {
+  applyChatTurnEvent,
+  createActiveTurnView,
+} from "../chat/active-turn-view.js";
+import {
+  liveEntriesFromTurnView,
+  pendingApprovalToolNameOf,
+} from "./turn-view-entries.js";
 
 export type ActivitySource =
   | { kind: "trace"; id: string }
@@ -67,7 +73,9 @@ export function useActivityMonitor(
     resolved.value?.kind === "session" ? resolved.value.id : null,
   );
 
-  const streamState = ref(createLiveTraceState());
+  // B2: the FULL chat fold — thinking, lifecycle, errors, and usage are no
+  // longer dropped in watch views (the panel projects via the selector).
+  const streamView = ref(createActiveTurnView());
   const isStreaming = ref(false);
   const hasEnded = ref(false);
   const errorText = ref<string | null>(null);
@@ -121,7 +129,7 @@ export function useActivityMonitor(
           hasEnded.value = true;
           break;
         }
-        streamState.value = applyTraceStreamEvent(streamState.value, event);
+        streamView.value = applyChatTurnEvent(streamView.value, event);
       }
       if (!isCurrent()) return;
       // Settle: flip streaming OFF first (the trace poll interval re-evaluates
@@ -129,7 +137,7 @@ export function useActivityMonitor(
       isStreaming.value = false;
       await settledRefetch(target);
       if (!isCurrent()) return;
-      streamState.value = createLiveTraceState();
+      streamView.value = createActiveTurnView();
     } catch (streamError) {
       // An abort is our own detach; a real drop must be SAID — and refetched:
       // the explicit refetch is what re-arms the trace's fast poll (TanStack
@@ -158,7 +166,7 @@ export function useActivityMonitor(
     isStreaming.value = false;
     hasEnded.value = false;
     errorText.value = null;
-    streamState.value = createLiveTraceState();
+    streamView.value = createActiveTurnView();
   }
 
   // Attach policy per kind: a session attaches immediately (idle attach waits
@@ -202,12 +210,18 @@ export function useActivityMonitor(
 
   return {
     entries: computed(() =>
-      mergeTraceEntries(settledEntries.value, streamState.value.entries),
+      mergeTraceEntries(
+        settledEntries.value,
+        liveEntriesFromTurnView(streamView.value),
+      ),
     ),
-    agentActivity: computed(() => streamState.value.agentActivity),
-    pendingApprovalToolName: computed(
-      () => streamState.value.pendingApprovalToolName,
+    agentActivity: computed(() => streamView.value.agentActivity),
+    pendingApprovalToolName: computed(() =>
+      pendingApprovalToolNameOf(streamView.value),
     ),
+    /** The live turn's terminal error (session-errored) — previously eaten by
+     *  the panel's own fold; the panel can now SAY it. */
+    turnError: computed(() => streamView.value.error),
     isStreaming,
     hasEnded,
     errorText,
