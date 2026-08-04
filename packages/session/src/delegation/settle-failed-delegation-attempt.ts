@@ -16,6 +16,7 @@ import type { Logger } from 'pino'
 import {
   enqueueReportDelivery,
   failDelegationJob,
+  isDeliveryJobKind,
   markDelegationsSurfacedToRoot,
   resolveThreadIdOf,
   type DelegationJob,
@@ -50,7 +51,7 @@ export function settleFailedDelegationAttempt(
   db: Database,
   claimed: DelegationJob,
   errorMessage: string,
-  deps: { logger: Logger; queueLabel: 'delegation' | 'agent-run'; retryHint: string },
+  deps: { logger: Logger; queueLabel: string; retryHint: string },
 ): void {
   if (requeueIfRecoverable(db, claimed, errorMessage, deps.logger, deps.queueLabel)) return
 
@@ -65,8 +66,10 @@ export function settleFailedDelegationAttempt(
     `${deps.queueLabel} job failed terminally`,
   )
 
-  // Give-up push for WORK rows only (see the anti-cascade note above).
-  if ((claimed.jobKind ?? 'task') === 'report-delivery') return
+  // Give-up push for WORK rows only (see the anti-cascade note above) — a
+  // failed delivery of EITHER kind must never spawn another delivery, and a
+  // dropped update is deliberately terminal (ephemeral status, persona-sessions).
+  if (isDeliveryJobKind(claimed.jobKind)) return
   try {
     const taskPreview =
       claimed.taskText.length > 160 ? `${claimed.taskText.slice(0, 160)}…` : claimed.taskText

@@ -8,7 +8,7 @@
 // jobs keep their taskText, so settled history enriches the same as live.
 
 import type { Database } from '@vynel/db'
-import { findDelegationJobByPartialSessionId } from '@vynel/orchestration'
+import { findDelegationJobByPartialSessionId, isDeliveryJobKind } from '@vynel/orchestration'
 import { deriveDelegationTaskLabel } from '@vynel/contracts/chat/delegation-task-label'
 
 export function attachDelegationTaskLabels<
@@ -21,11 +21,11 @@ export function attachDelegationTaskLabels<
     if (key === null || key === undefined) return message
     if (!labelByKey.has(key)) {
       const job = findDelegationJobByPartialSessionId(db, key)
-      // A report-delivery job's taskText is the REPORT BODY, not a task — a
-      // chip labeled with a report excerpt would read as nonsense (and the
-      // delivery turn's rows never chip anyway, session-comms). No label.
+      // A DELIVERY job's taskText is the report/update BODY, not a task — a
+      // chip labeled with it would read as nonsense (and the delivery turn's
+      // rows never chip anyway, session-comms). No label.
       const label =
-        job === null || job.jobKind === 'report-delivery'
+        job === null || isDeliveryJobKind(job.jobKind)
           ? null
           : deriveDelegationTaskLabel(job.taskText)
       labelByKey.set(key, label === '' ? null : label)

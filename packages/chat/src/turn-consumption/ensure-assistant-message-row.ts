@@ -25,6 +25,9 @@ export type AssistantRowAttribution = {
   sourceKind?: ChatMessageSourceKind
   sourceLabel?: string
   partialSessionId?: string
+  /** The delegation CHAIN key (persona-sessions) — rides beside the per-hop
+   *  trace key on every row the turn persists. */
+  threadId?: string
 }
 
 export function ensureAssistantMessageRow(
@@ -50,6 +53,7 @@ export function ensureAssistantMessageRow(
     sourceKind: attribution?.sourceKind ?? null,
     sourceLabel: attribution?.sourceLabel ?? null,
     partialSessionId: attribution?.partialSessionId ?? null,
+    threadId: attribution?.threadId ?? null,
     thinkingBody: null,
     inputTokens: null,
     outputTokens: null,

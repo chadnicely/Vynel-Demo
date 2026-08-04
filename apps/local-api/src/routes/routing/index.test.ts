@@ -1268,6 +1268,92 @@ describe('POST /routing/message (send_message — the unified comms tool)', () =
     })
   })
 
+  it('kind "update" enqueues an update-delivery row and NEVER marks the running job reported', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-upd')
+      // The running task this turn is working on (the job header names it).
+      const runningJobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'g-1',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'the task being acked',
+      })
+      const app = makeHarness(db)
+
+      const send = (kind: 'update' | 'report', body: string) =>
+        app.request('/routing/message', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            [REPORT_CALLER_HEADER]: serializeReportCaller({
+              kind: 'workspace-primary',
+              workspaceId: workspace.id,
+            }),
+            [DELEGATION_JOB_HEADER]: runningJobId,
+          },
+          body: JSON.stringify({ to: 'requester', body, kind }),
+        })
+
+      const ackRes = await send('update', 'Received — starting now.')
+      expect(ackRes.status).toBe(200)
+      const ack = (await ackRes.json()) as { jobId: string; kind: string }
+      expect(ack.kind).toBe('update')
+      const ackJob = findDelegationJobById(db, ack.jobId)
+      expect(ackJob?.jobKind).toBe('update-delivery')
+      // The ack did NOT mark the task reported — only the final report does.
+      expect(findDelegationJobById(db, runningJobId)?.reportedAt).toBeNull()
+
+      const reportRes = await send('report', 'Done: 3 files changed.')
+      expect(reportRes.status).toBe(200)
+      const report = (await reportRes.json()) as { jobId: string; kind: string }
+      expect(report.kind).toBe('report')
+      expect(findDelegationJobById(db, report.jobId)?.jobKind).toBe('report-delivery')
+      expect(findDelegationJobById(db, runningJobId)?.reportedAt).not.toBeNull()
+    })
+  })
+
+  it('400s a kind that contradicts the destination — never a silent misroute', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      const app = makeHarness(db)
+
+      expect(
+        (
+          await postJson(app, '/routing/message', {
+            to: 'requester',
+            body: 'x',
+            kind: 'task',
+          })
+        ).status,
+      ).toBe(400)
+      expect(
+        (
+          await postJson(app, '/routing/message', {
+            to: `workspace:${workspace.id}`,
+            body: 'x',
+            kind: 'update',
+          })
+        ).status,
+      ).toBe(400)
+      expect(
+        (
+          await postJson(app, '/routing/message', {
+            to: `workspace:${workspace.id}`,
+            body: 'x',
+            kind: 'report',
+          })
+        ).status,
+      ).toBe(400)
+    })
+  })
+
   it('rejects a destination it cannot route', async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)

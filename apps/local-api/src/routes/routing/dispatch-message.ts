@@ -19,6 +19,7 @@ import {
   enqueueWorkspaceDelegation,
   enqueueSessionDelegation,
   enqueueReportDelivery,
+  enqueueUpdateDelivery,
   markDelegationJobReported,
   type ReportDeliveryRequester,
 } from '@vynel/orchestration'
@@ -165,12 +166,19 @@ export async function dispatchTaskToSession(
   return { jobId, deliveredTo: sessionName }
 }
 
-/** Pass a result UP to whoever requested this turn's work. */
-export async function dispatchReportToRequester(
-  c: RoutingContext,
-  input: { report: string },
-): Promise<MessageDispatchResult> {
-  // WHO is reporting — ambient caller identity stamped by the delegated-turn
+/** The resolved "from + to" of an UPWARD message (report or update): who is
+ *  speaking, and which conversation hears it. ONE home for both dispatchers —
+ *  a resolution rule that drifted between them would mis-address one kind. */
+type ResolvedUpwardSender = {
+  reporterSessionId: string
+  reporterLabel: string
+  requester: ReportDeliveryRequester
+  /** The honest `deliveredTo` when an override rerouted the delivery. */
+  requesterLabel: string | null
+}
+
+async function resolveUpwardSender(c: RoutingContext): Promise<ResolvedUpwardSender> {
+  // WHO is speaking — ambient caller identity stamped by the delegated-turn
   // MCP composer. No header = no requester (interactive chats, schedule fires,
   // the global root): an actionable 400, never a silent drop.
   const caller = parseReportCallerHeader(c.req.header(REPORT_CALLER_HEADER))
@@ -285,14 +293,29 @@ export async function dispatchReportToRequester(
       'The calling conversation has no linked session — cannot attribute the report.',
     )
   }
+  return { reporterSessionId, reporterLabel, requester, requesterLabel }
+}
+
+function upwardDeliveredTo(sender: ResolvedUpwardSender): string {
+  return sender.requester.kind === 'global-root'
+    ? 'Global'
+    : (sender.requesterLabel ?? sender.reporterLabel)
+}
+
+/** Pass a FINAL result UP to whoever requested this turn's work. */
+export async function dispatchReportToRequester(
+  c: RoutingContext,
+  input: { report: string },
+): Promise<MessageDispatchResult> {
+  const sender = await resolveUpwardSender(c)
 
   const { threadId } = readAmbientContext(c)
   const jobId = enqueueReportDelivery(c.var.db, {
     userId: c.var.user.id,
-    reporterSessionId,
-    reporterLabel,
+    reporterSessionId: sender.reporterSessionId,
+    reporterLabel: sender.reporterLabel,
     reportBody: input.report,
-    requester,
+    requester: sender.requester,
     // The report belongs to the SAME chain as the task that produced it —
     // without this it would start a fresh thread and the chain would break at
     // exactly the hop threadId exists to connect.
@@ -307,11 +330,29 @@ export async function dispatchReportToRequester(
     markDelegationJobReported(c.var.db, runningJobId, new Date())
   }
 
-  return {
-    jobId,
-    deliveredTo:
-      requester.kind === 'global-root' ? 'Global' : (requesterLabel ?? reporterLabel),
-  }
+  return { jobId, deliveredTo: upwardDeliveredTo(sender) }
+}
+
+/** Pass an interim ACK/STATUS update UP (persona-sessions) — same resolution as
+ *  a report, but it NEVER marks the running job reported (only the final report
+ *  does) and it coalesces in the queue while pending. */
+export async function dispatchUpdateToRequester(
+  c: RoutingContext,
+  input: { update: string },
+): Promise<MessageDispatchResult> {
+  const sender = await resolveUpwardSender(c)
+
+  const { threadId } = readAmbientContext(c)
+  const jobId = enqueueUpdateDelivery(c.var.db, {
+    userId: c.var.user.id,
+    reporterSessionId: sender.reporterSessionId,
+    reporterLabel: sender.reporterLabel,
+    updateBody: input.update,
+    requester: sender.requester,
+    ...(threadId !== undefined ? { threadId } : {}),
+  })
+
+  return { jobId, deliveredTo: upwardDeliveredTo(sender) }
 }
 
 /** Parse the unified tool's `to` field. The shape is validated by the schema, so

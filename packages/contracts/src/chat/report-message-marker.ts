@@ -10,6 +10,7 @@
 // already carries the identity). One home for both ends so they cannot drift.
 
 const MARKER_PREFIX = '[Report from '
+const UPDATE_MARKER_PREFIX = '[Update from '
 
 export function composeReportMessageMarker(sourceLabel: string): string {
   return (
@@ -18,14 +19,24 @@ export function composeReportMessageMarker(sourceLabel: string): string {
   )
 }
 
-/** Drops the marker line (and its trailing blank) from a report body for
- *  display. Anything not starting with the marker prefix passes through
+/** The interim sibling (persona-sessions): a spoken ack/progress update —
+ *  explicitly NOT the result, so the requester never treats the task as done. */
+export function composeUpdateMessageMarker(sourceLabel: string): string {
+  return (
+    `${UPDATE_MARKER_PREFIX}${sourceLabel} — an interim status on work you delegated, ` +
+    'relayed automatically by Vynel. The task is STILL RUNNING; this is NOT its result ' +
+    'and NOT a message the user typed.]'
+  )
+}
+
+/** Drops the marker line (and its trailing blank) from a report/update body for
+ *  display. Anything not starting with a marker prefix passes through
  *  untouched — including a report whose PROSE mentions "[Report from" later.
  *  The marker is by construction ONE line, so the strip removes the whole
  *  first line — never a substring hunt for `']'`, which a user-chosen
  *  workspace name like "Q3 [phase 2]" would defeat. */
 export function stripReportMessageMarker(body: string): string {
-  if (!body.startsWith(MARKER_PREFIX)) return body
+  if (!body.startsWith(MARKER_PREFIX) && !body.startsWith(UPDATE_MARKER_PREFIX)) return body
   const lineEnd = body.indexOf('\n')
   const firstLine = lineEnd === -1 ? body : body.slice(0, lineEnd)
   if (!firstLine.trimEnd().endsWith(']')) return body

@@ -1,10 +1,11 @@
-// `runReportDeliveryJob` — runs ONE claimed 'report-delivery' job to a terminal
-// state (session-comms, the revert flow). The notify half of the queue: a
-// child's finished report becomes a REAL TURN on the REQUESTER's conversation —
-// the report is the attributed inbound message ("from" the child), the steer is
-// the report-delivery variant (absorb, act if needed, report up / answer the
-// user — never re-run the work), and the parent model processes the real data
-// in its own flow. Called by `runDelegationClaimAndRunTick` after the claim
+// `runReportDeliveryJob` — runs ONE claimed DELIVERY job (kind
+// 'report-delivery' OR 'update-delivery' — persona-sessions) to a terminal
+// state. The notify half of the queue: a child's message becomes a REAL TURN
+// on the REQUESTER's conversation — the attributed inbound ("from" the child)
+// under the KIND's marker + steer: a report is the FINAL result (absorb, act
+// if needed, report up / answer the user — never re-run the work); an update
+// is interim status (absorb quietly, the task is NOT done, never cascade
+// routine status). Called by `runDelegationClaimAndRunTick` after the claim
 // (which already fired `onRunStarted` — pool slot reserved).
 //
 // TWO requester shapes:
@@ -32,16 +33,23 @@ import {
   ApprovalWaitGate,
   completeDelegationJob,
   failDelegationJob,
+  resolveThreadIdOf,
   routeRequest,
   type DelegationJob,
 } from '@vynel/orchestration'
 import type { ChatTurnEvent } from '@vynel/chat'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
-import { composeReportMessageMarker } from '@vynel/contracts/chat/report-message-marker'
+import {
+  composeReportMessageMarker,
+  composeUpdateMessageMarker,
+} from '@vynel/contracts/chat/report-message-marker'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import { requeueIfRecoverable } from './classify-turn-failure.js'
-import { REPORT_DELIVERY_INSTRUCTIONS } from './routed-turn-provider-input.js'
+import {
+  REPORT_DELIVERY_INSTRUCTIONS,
+  UPDATE_DELIVERY_INSTRUCTIONS,
+} from './routed-turn-provider-input.js'
 import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
 import {
   buildRoutedApprovalHandler,
@@ -62,6 +70,11 @@ export type RunGlobalRootReportTurn = (input: {
   sourceLabel: string
   /** The delivery job's own trace key — stamped on the notify turn's rows. */
   partialSessionId?: string
+  /** The delegation CHAIN key — stamped beside the trace key (persona-sessions). */
+  threadId?: string
+  /** The delivery variant's steer — the UPDATE steer for an interim ack/progress
+   *  delivery. Omitted = the report steer (the shipped default). */
+  steerInstructions?: string
 }) => Promise<{ sessionId: string; resultText: string }>
 
 export interface RunReportDeliveryDeps {
@@ -76,7 +89,7 @@ export interface RunReportDeliveryDeps {
     db: Database
     userId: string
     workspaceId: string
-    target: 'workspace-root' | 'spawned-session'
+    target: 'workspace-root' | 'spawned-session' | 'agent-session'
     threadId?: string
     jobId?: string
     targetPrimarySessionId?: string
@@ -92,6 +105,13 @@ export async function runReportDeliveryJob(
   claimed: DelegationJob,
 ): Promise<boolean> {
   const partialSessionId = claimed.partialSessionId ?? undefined
+  const claimedThreadId = resolveThreadIdOf(claimed)
+  // The delivery VARIANT (persona-sessions): an update-delivery row is the
+  // interim sibling — same notify machinery, the update marker + steer, and
+  // the requester must NOT treat the task as finished.
+  const isUpdate = claimed.jobKind === 'update-delivery'
+  const queueLabel = isUpdate ? 'update-delivery' : 'report-delivery'
+  const steerInstructions = isUpdate ? UPDATE_DELIVERY_INSTRUCTIONS : REPORT_DELIVERY_INSTRUCTIONS
   // The CHILD's label, resolved at enqueue by the same one-home helpers the
   // push used ('Session' only on a corrupt row — the enqueue op always writes it).
   const sourceLabel = claimed.workspaceName ?? 'Session'
@@ -100,7 +120,9 @@ export async function runReportDeliveryJob(
   // user is reporting back…" and answered the user instead of relaying up).
   // The marker rides ON the message so the model always sees who sent it; the
   // report card strips it for display.
-  const reportBody = `${composeReportMessageMarker(sourceLabel)}\n\n${claimed.taskText}`
+  const reportBody = `${
+    isUpdate ? composeUpdateMessageMarker(sourceLabel) : composeReportMessageMarker(sourceLabel)
+  }\n\n${claimed.taskText}`
   // Captured once for narrowing: null = the GLOBAL root is the requester.
   const requesterWorkspaceId = claimed.workspaceId
   const isGlobalRequester = requesterWorkspaceId === null
@@ -116,7 +138,7 @@ export async function runReportDeliveryJob(
       requester: isGlobalRequester ? 'global-root' : claimed.workspaceId,
       from: sourceLabel,
     },
-    'report-delivery: claimed — running the notify turn on the requester',
+    `${queueLabel}: claimed — running the notify turn on the requester`,
   )
 
   let approvalHandler: RoutedApprovalHandler | null = null
@@ -163,6 +185,8 @@ export async function runReportDeliveryJob(
               reportBody,
               sourceLabel,
               ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+              ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+              steerInstructions,
             })
             return { reference: turn.sessionId, resultText: turn.resultText }
           },
@@ -224,12 +248,14 @@ export async function runReportDeliveryJob(
               ...(managerName !== undefined ? { managerName } : {}),
               providerId: DEFAULT_PROVIDER_ID,
               ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+              ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
               ...(mcpAttachment !== undefined ? { mcpAttachment } : {}),
               approvalHandler: handler,
               // The notify variant: inbound row attributed FROM the child +
-              // the report-delivery steer.
+              // the kind's steer (report absorbs a RESULT; update absorbs
+              // interim status without treating the task as done).
               inboundAttribution: { sourceKind: 'workspace-manager', sourceLabel },
-              steerInstructions: REPORT_DELIVERY_INSTRUCTIONS,
+              steerInstructions,
               ...(turnEvents !== undefined ? { turnEvents } : {}),
               ...(turnEvents !== undefined && partialSessionId !== undefined
                 ? {
@@ -258,7 +284,7 @@ export async function runReportDeliveryJob(
       failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
       deps.logger.info(
         { jobId: claimed.id },
-        'report-delivery: stopped by the user at terminal time',
+        `${queueLabel}: stopped by the user at terminal time`,
       )
     } else if (outcome.status === 'completed') {
       // Terminal: the notify turn's reply is the row's result. NO further
@@ -266,13 +292,13 @@ export async function runReportDeliveryJob(
       completeDelegationJob(db, claimed.id, outcome.result, new Date())
       deps.logger.info(
         { jobId: claimed.id, replyPreview: outcome.result.slice(0, 120) },
-        'report-delivery: completed — the requester absorbed the report in its own turn',
+        `${queueLabel}: completed — the requester absorbed it in its own turn`,
       )
     } else if (outcome.status === 'timed-out') {
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
       deps.logger.warn(
         { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-        'report-delivery job timed out (the notify turn keeps running in its own session)',
+        `${queueLabel} job timed out (the notify turn keeps running in its own session)`,
       )
     } else {
       await approvalHandler?.abandonParked()
@@ -283,17 +309,17 @@ export async function runReportDeliveryJob(
       // catch-up net and list_background_runs). A stop never retries.
       if (
         cancelHandle?.isCancelRequested() ||
-        !requeueIfRecoverable(db, claimed, reason, deps.logger, 'report-delivery')
+        !requeueIfRecoverable(db, claimed, reason, deps.logger, queueLabel)
       ) {
         failDelegationJob(db, claimed.id, reason, new Date())
-        deps.logger.warn({ jobId: claimed.id, message: reason }, 'report-delivery job failed')
+        deps.logger.warn({ jobId: claimed.id, message: reason }, `${queueLabel} job failed`)
       }
     }
     return true
   } catch (err) {
     await approvalHandler?.abandonParked()
     failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
-    deps.logger.error({ err, jobId: claimed.id }, 'report-delivery job run threw unexpectedly')
+    deps.logger.error({ err, jobId: claimed.id }, `${queueLabel} job run threw unexpectedly`)
     return true
   } finally {
     cancelHandle?.end()

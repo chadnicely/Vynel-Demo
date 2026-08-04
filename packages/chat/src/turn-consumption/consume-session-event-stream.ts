@@ -87,6 +87,9 @@ export type ConsumeSessionEventStreamInput = {
  *  delegation trace key linking them (all optional, all additive). */
 export type TurnMessageAttribution = {
   partialSessionId?: string
+  /** The delegation CHAIN key (persona-sessions) — per-task, carried across
+   *  every hop, where `partialSessionId` is per-hop. */
+  threadId?: string
   /** The user row's origin (a routed task passes 'global-root'; a report-delivery
    *  notify turn passes 'workspace-manager' — the report comes FROM a child). */
   userSourceKind?: AssistantRowAttribution['sourceKind']
@@ -128,6 +131,9 @@ export async function* consumeSessionEventStream(
           ...(messageAttribution.partialSessionId !== undefined
             ? { partialSessionId: messageAttribution.partialSessionId }
             : {}),
+          ...(messageAttribution.threadId !== undefined
+            ? { threadId: messageAttribution.threadId }
+            : {}),
         }
       : undefined
 
@@ -152,6 +158,7 @@ export async function* consumeSessionEventStream(
           sourceKind: messageAttribution?.userSourceKind ?? null,
           sourceLabel: messageAttribution?.userSourceLabel ?? null,
           partialSessionId: messageAttribution?.partialSessionId ?? null,
+          threadId: messageAttribution?.threadId ?? null,
           originChannel: userMessageInput.originChannel ?? null,
           thinkingBody: null,
           inputTokens: null,

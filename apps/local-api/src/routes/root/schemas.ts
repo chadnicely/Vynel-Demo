@@ -78,6 +78,7 @@ export const GlobalRootTranscriptMessageSchema = z.object({
   sourceKind: TranscriptSourceKindSchema.nullable(),
   sourceLabel: z.string().nullable(),
   partialSessionId: z.string().nullable(),
+  threadId: z.string().nullable(),
   originChannel: z.enum(['voice', 'telegram', 'discord', 'zoom']).nullable(),
   attachedImagesMetadata: z
     .array(z.object({ filename: z.string(), mimeType: z.string(), sizeBytes: z.number() }))

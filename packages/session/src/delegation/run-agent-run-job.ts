@@ -224,6 +224,7 @@ export async function runAgentRunJob(
             },
             providerId: DEFAULT_PROVIDER_ID,
             ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+            ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
             ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
             ...(claimed.model !== null
               ? { model: claimed.model }

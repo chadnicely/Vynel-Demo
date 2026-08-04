@@ -69,6 +69,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
     sourceKind: messageAttribution?.userSourceKind ?? null,
     sourceLabel: messageAttribution?.userSourceLabel ?? null,
     partialSessionId: messageAttribution?.partialSessionId ?? null,
+    threadId: messageAttribution?.threadId ?? null,
   }
   const sessionId = event.sessionId
   const now = event.startedAt
@@ -112,6 +113,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
           sourceKind: userRowAttribution.sourceKind,
           sourceLabel: userRowAttribution.sourceLabel,
           partialSessionId: userRowAttribution.partialSessionId,
+          threadId: userRowAttribution.threadId,
           originChannel: userMessageInput.originChannel ?? null,
           thinkingBody: null,
           inputTokens: null,
@@ -156,6 +158,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
         sourceKind: userRowAttribution.sourceKind,
         sourceLabel: userRowAttribution.sourceLabel,
         partialSessionId: userRowAttribution.partialSessionId,
+        threadId: userRowAttribution.threadId,
         originChannel: userMessageInput.originChannel ?? null,
         thinkingBody: null,
         inputTokens: null,

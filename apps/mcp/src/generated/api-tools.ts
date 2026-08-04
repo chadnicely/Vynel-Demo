@@ -2575,10 +2575,11 @@ export const searchMemory: McpToolFactory = (scope, app) =>
 export const sendMessage: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'send_message',
-    "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to a session you created (ids from list_sessions).\n- `\"requester\"` — pass your RESULT back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\n`body` is the task, or the real result — findings, numbers, paths, not just \"done\". Returns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_background_runs / get_background_run. Reporting only works on a background (delegated) turn — if there is no requester, just reply with your findings as text. For a task you may pick `model` (legal ids from list_available_chat_models) and `thinkingEffort`; omit both for the defaults.",
+    "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to a session or agent colleague (ids from list_sessions).\n- `\"requester\"` — speak back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\nFor \"requester\", `kind` picks the voice: `\"update\"` = an interim acknowledgment or progress line (\"Received — starting now\"; the task stays running), `\"report\"` = the FINAL result — findings, numbers, paths, not just \"done\" (default; marks the task finished). Send exactly one final report per task.\n\nReturns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_background_runs / get_background_run. Speaking upward only works on a background (delegated) turn — if there is no requester, just reply with your findings as text. For a task you may pick `model` (legal ids from list_available_chat_models) and `thinkingEffort`; omit both for the defaults.",
     {
     to: z.string(),
     body: z.string(),
+    kind: z.enum(['task', 'report', 'update']).optional(),
     model: z.string().optional(),
     thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   },
@@ -2587,7 +2588,7 @@ export const sendMessage: McpToolFactory = (scope, app) =>
         const pathStr = '/routing/message'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['to', 'body', 'model', 'thinkingEffort']) {
+        for (const k of ['to', 'body', 'kind', 'model', 'thinkingEffort']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)

@@ -36,6 +36,7 @@ export function persistTurnFailureRow(input: {
       sourceKind: attribution?.sourceKind ?? null,
       sourceLabel: attribution?.sourceLabel ?? null,
       partialSessionId: attribution?.partialSessionId ?? null,
+      threadId: attribution?.threadId ?? null,
       thinkingBody: null,
       inputTokens: null,
       outputTokens: null,

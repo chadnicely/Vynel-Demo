@@ -6934,6 +6934,7 @@ export interface operations {
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
                             partialSessionId: string | null;
+                            threadId: string | null;
                             delegationTaskLabel?: string | null;
                             thinkingBody: string | null;
                             inputTokens: number | null;
@@ -13566,6 +13567,7 @@ export interface operations {
                             sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
                             sourceLabel: string | null;
                             partialSessionId: string | null;
+                            threadId: string | null;
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
                             attachedImagesMetadata: {
@@ -13771,6 +13773,7 @@ export interface operations {
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
                             partialSessionId: string | null;
+                            threadId: string | null;
                             delegationTaskLabel?: string | null;
                             thinkingBody: string | null;
                             inputTokens: number | null;
@@ -14320,6 +14323,8 @@ export interface operations {
                 "application/json": {
                     to: string;
                     body: string;
+                    /** @enum {string} */
+                    kind?: "task" | "report" | "update";
                     model?: string;
                     /** @enum {string} */
                     thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
@@ -14339,7 +14344,7 @@ export interface operations {
                         jobId: string;
                         deliveredTo: string;
                         /** @enum {string} */
-                        kind: "task" | "report";
+                        kind: "task" | "report" | "update";
                     };
                 };
             };

@@ -30,6 +30,7 @@ import {
   completeDelegationJob,
   failDelegationJob,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
+  isDeliveryJobKind,
   markDelegationsSurfacedToRoot,
   resolveThreadIdOf,
   routeRequest,
@@ -177,9 +178,7 @@ export async function runDelegationClaimAndRunTick(
       ? (claimed.targetPrimarySessionId ?? claimed.id)
       : (claimed.targetPrimarySessionId ??
         claimed.workspaceId ??
-        (claimedKind === 'report-delivery' || claimedKind === 'update-delivery'
-          ? GLOBAL_ROOT_DELIVERY_TARGET_KEY
-          : claimed.id))
+        (isDeliveryJobKind(claimed.jobKind) ? GLOBAL_ROOT_DELIVERY_TARGET_KEY : claimed.id))
   deps.onRunStarted?.({ jobId: claimed.id, targetKey })
 
   // Persona-sessions: an 'agent-run' row resumes the mentioned agent's
@@ -202,13 +201,12 @@ export async function runDelegationClaimAndRunTick(
     )
   }
 
-  // Session-comms: a 'report-delivery' row runs the NOTIFY branch — a real turn
-  // on the requester's conversation with the child's report as the inbound
-  // message. Its exclusion key came out above for free: the requester
-  // workspace's id (single-writer with task jobs on the same primary), or the
-  // job id for the global root (nothing to exclude — the root-turn lock
-  // serializes those). NULL = 'task' (every legacy row).
-  if (claimedKind === 'report-delivery') {
+  // Session-comms + persona-sessions: a DELIVERY row (report or update) runs
+  // the NOTIFY branch — a real turn on the requester's conversation with the
+  // child's message as the attributed inbound. The runner branches on the kind
+  // internally (marker + steer); the exclusion key came out above for free.
+  // NULL = 'task' (every legacy row).
+  if (isDeliveryJobKind(claimed.jobKind)) {
     return runReportDeliveryJob(
       db,
       {
@@ -419,6 +417,7 @@ export async function runDelegationClaimAndRunTick(
     const sharedRunnerOptions = {
       providerId: DEFAULT_PROVIDER_ID,
       ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+      ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
       // The delegating turn's mode, stamped on the job at enqueue (surface-up step 1).
       // Null (pre-mode job / channel origin) → the runner's bypass default.
       ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),

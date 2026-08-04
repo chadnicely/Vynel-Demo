@@ -39,7 +39,9 @@ export type DelegationJobKind = 'task' | 'report-delivery' | 'update-delivery' |
 // gate + queries take the array; TS branches take the predicates).
 export const DELIVERY_JOB_KINDS = ['report-delivery', 'update-delivery'] as const
 
-export function isDeliveryJobKind(kind: DelegationJobKind | null): boolean {
+export function isDeliveryJobKind(
+  kind: DelegationJobKind | null,
+): kind is (typeof DELIVERY_JOB_KINDS)[number] {
   return kind !== null && (DELIVERY_JOB_KINDS as readonly string[]).includes(kind)
 }
 

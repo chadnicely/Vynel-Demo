@@ -13,7 +13,7 @@
 // returned in the tool's own output.
 
 import type { Database } from '@vynel/db'
-import { findDelegationJobById, type DelegationJob } from '@vynel/orchestration'
+import { findDelegationJobById, isDeliveryJobKind, type DelegationJob } from '@vynel/orchestration'
 import { deriveDelegationTaskLabel } from '@vynel/contracts/chat/delegation-task-label'
 import type { DelegationToolOutcomeResponse } from '@vynel/contracts/chat/chat-http'
 
@@ -72,7 +72,7 @@ export function extractDispatchResult(
 }
 
 function hopTaskLabel(job: DelegationJob): string | null {
-  if (job.jobKind === 'report-delivery') return null
+  if (isDeliveryJobKind(job.jobKind)) return null
   const label = deriveDelegationTaskLabel(job.taskText)
   return label === '' ? null : label
 }

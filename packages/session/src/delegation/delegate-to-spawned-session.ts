@@ -70,6 +70,8 @@ export type DelegateToSpawnedSessionInput = {
   /** The delegation request's correlation key — stamped on every row the turn
    *  persists so the chain is queryable as one trace. */
   partialSessionId?: string
+  /** The delegation CHAIN key — per-task, carried across hops (persona-sessions). */
+  threadId?: string
   /** The permission mode the routed turn runs under — from the job row. Omit for
    *  the pre-mode default (`bypass-with-behavior-gate`). */
   permissionMode?: DelegationPermissionMode
@@ -168,6 +170,7 @@ export async function delegateToSpawnedSession(
       ...(input.partialSessionId !== undefined
         ? { partialSessionId: input.partialSessionId }
         : {}),
+      ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
       userSourceKind: 'global-root',
       assistantSourceKind: 'workspace-manager',
       assistantSourceLabel: composeManagerSourceLabel(input.sessionName),

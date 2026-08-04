@@ -52,6 +52,8 @@ export type GlobalRootTranscriptMessage = {
   /** Brain-tree Chapter 3 — the delegation request's correlation key on a bubbled-up
    *  report row; lets the /global bubble open its condensed trace. Null on ordinary rows. */
   partialSessionId: string | null
+  /** The delegation CHAIN key (persona-sessions) — the settle-match key. */
+  threadId: string | null
   /** The inbound channel a USER row arrived through ("via Voice"); null = composer. */
   originChannel: ChatMessageOriginChannel | null
   /** Attachment references on a USER row (filename/mimeType/sizeBytes) — the
@@ -67,6 +69,7 @@ function toTranscriptMessage(message: ChatMessage): GlobalRootTranscriptMessage 
     sourceKind: message.sourceKind,
     sourceLabel: message.sourceLabel,
     partialSessionId: message.partialSessionId,
+    threadId: message.threadId,
     originChannel: message.originChannel,
     attachedImagesMetadata: message.attachedImagesMetadata,
   }

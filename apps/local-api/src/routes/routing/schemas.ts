@@ -137,8 +137,13 @@ export const MessageDestinationSchema = z
 
 export const SendMessageRequestSchema = z.object({
   to: MessageDestinationSchema,
-  /** The task to hand down, or the result to pass back up. */
+  /** The task to hand down, or the result/status to pass back up. */
   body: z.string().min(1).max(50000),
+  /** UPWARD messages only (persona-sessions): 'report' = the FINAL result
+   *  (marks the running task reported); 'update' = an interim ack/progress
+   *  line (never marks it — the task stays running). Omitted = 'report' for
+   *  "requester", derived 'task' for a workspace/session target. */
+  kind: z.enum(['task', 'report', 'update']).optional(),
   ...DelegationRunPreferenceFields,
 })
 
@@ -148,8 +153,9 @@ export const SendMessageResponseSchema = z.object({
   /** What the message was addressed to, resolved — the workspace/session name,
    *  or the requester's label. Lets the caller confirm where it actually went. */
   deliveredTo: z.string(),
-  /** 'task' when sent down to a workspace/session, 'report' when passed up. */
-  kind: z.enum(['task', 'report']),
+  /** 'task' when sent down to a workspace/session; 'report'/'update' when
+   *  passed up. */
+  kind: z.enum(['task', 'report', 'update']),
 })
 
 // ── Background runs (reading back a handed-off task) ────────────────

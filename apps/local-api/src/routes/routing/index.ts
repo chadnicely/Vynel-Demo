@@ -77,6 +77,7 @@ import {
   dispatchTaskToWorkspace,
   dispatchTaskToSession,
   dispatchReportToRequester,
+  dispatchUpdateToRequester,
   parseMessageDestination,
 } from './dispatch-message.js'
 
@@ -504,9 +505,11 @@ export const routingApp = factory
   // calling forces the model to choose — where choosing wrong is a silent
   // misroute, not an error.
   //
-  // `kind` is DERIVED, never an input: "requester" is a report, a workspace or
-  // session target is a task. One less field to get wrong, and it cannot
-  // disagree with the destination.
+  // `kind` is derived for DOWNWARD sends ("workspace:"/"session:" = a task —
+  // it cannot disagree with the destination). UPWARD sends ("requester") take
+  // an optional kind: 'report' (final, marks the task reported — the default)
+  // or 'update' (interim ack/progress, never marks it — persona-sessions).
+  // A kind that contradicts the destination is a 400, never a silent misroute.
   // ──────────────────────────────────────────────────────────────────
   .post(
     '/message',
@@ -538,31 +541,52 @@ export const routingApp = factory
           '`to` is one of:\n' +
           '- `"workspace:<workspaceId>"` — hand a task down to a workspace (ids from ' +
           'list_routing_workspaces).\n' +
-          '- `"session:<sessionId>"` — hand a task to a session you created (ids from ' +
+          '- `"session:<sessionId>"` — hand a task to a session or agent colleague (ids from ' +
           'list_sessions).\n' +
-          '- `"requester"` — pass your RESULT back up to whoever asked you for this work. You ' +
-          'never name them: who asked is resolved from the turn itself, so it cannot be ' +
-          'mis-addressed.\n\n' +
-          '`body` is the task, or the real result — findings, numbers, paths, not just "done". ' +
+          '- `"requester"` — speak back up to whoever asked you for this work. You never name ' +
+          'them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\n' +
+          'For "requester", `kind` picks the voice: `"update"` = an interim acknowledgment or ' +
+          'progress line ("Received — starting now"; the task stays running), `"report"` = the ' +
+          'FINAL result — findings, numbers, paths, not just "done" (default; marks the task ' +
+          'finished). Send exactly one final report per task.\n\n' +
           'Returns IMMEDIATELY with { status: "enqueued", jobId }; the other session picks the ' +
           'message up in its own conversation shortly. Track a task you sent with ' +
-          'list_background_runs / get_background_run. Reporting only works on a background ' +
-          '(delegated) turn — if there is no requester, just reply with your findings as text. ' +
-          'For a task you may pick `model` (legal ids from list_available_chat_models) and ' +
-          '`thinkingEffort`; omit both for the defaults.',
+          'list_background_runs / get_background_run. Speaking upward only works on a ' +
+          'background (delegated) turn — if there is no requester, just reply with your ' +
+          'findings as text. For a task you may pick `model` (legal ids from ' +
+          'list_available_chat_models) and `thinkingEffort`; omit both for the defaults.',
       },
     }),
     validator('json', SendMessageRequestSchema),
     ...userScoped,
     async (c) => {
-      const { to, body, model, thinkingEffort } = c.req.valid('json')
+      const { to, body, kind, model, thinkingEffort } = c.req.valid('json')
       const destination = parseMessageDestination(to)
       const taskOptions = {
         ...(model !== undefined ? { model } : {}),
         ...(thinkingEffort !== undefined ? { thinkingEffort } : {}),
       }
 
+      // A kind that contradicts the destination is a 400 — never a misroute.
+      if (destination.kind === 'requester' && kind === 'task') {
+        throw new ValidationError('kind "task" cannot address "requester" — tasks go DOWN.')
+      }
+      if (destination.kind !== 'requester' && (kind === 'report' || kind === 'update')) {
+        throw new ValidationError(
+          `kind "${kind}" only addresses "requester" — a workspace/session target is a task.`,
+        )
+      }
+
       if (destination.kind === 'requester') {
+        if (kind === 'update') {
+          const { jobId, deliveredTo } = await dispatchUpdateToRequester(c, { update: body })
+          return c.json({
+            status: 'enqueued' as const,
+            jobId,
+            deliveredTo,
+            kind: 'update' as const,
+          })
+        }
         const { jobId, deliveredTo } = await dispatchReportToRequester(c, { report: body })
         return c.json({ status: 'enqueued' as const, jobId, deliveredTo, kind: 'report' as const })
       }

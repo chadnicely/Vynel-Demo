@@ -9119,6 +9119,12 @@
                               "null"
                             ]
                           },
+                          "threadId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "delegationTaskLabel": {
                             "type": [
                               "string",
@@ -9202,6 +9208,7 @@
                           "sourceLabel",
                           "originChannel",
                           "partialSessionId",
+                          "threadId",
                           "thinkingBody",
                           "inputTokens",
                           "outputTokens",
@@ -26068,6 +26075,12 @@
                               "null"
                             ]
                           },
+                          "threadId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "originChannel": {
                             "type": [
                               "string",
@@ -26114,6 +26127,7 @@
                           "sourceKind",
                           "sourceLabel",
                           "partialSessionId",
+                          "threadId",
                           "originChannel",
                           "attachedImagesMetadata"
                         ]
@@ -26819,6 +26833,12 @@
                               "null"
                             ]
                           },
+                          "threadId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "delegationTaskLabel": {
                             "type": [
                               "string",
@@ -26902,6 +26922,7 @@
                           "sourceLabel",
                           "originChannel",
                           "partialSessionId",
+                          "threadId",
                           "thinkingBody",
                           "inputTokens",
                           "outputTokens",
@@ -28092,7 +28113,8 @@
                       "type": "string",
                       "enum": [
                         "task",
-                        "report"
+                        "report",
+                        "update"
                       ]
                     }
                   },
@@ -28125,7 +28147,7 @@
           "name": "send_message",
           "mutatingApproved": true,
           "workspaceSurface": true,
-          "description": "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to a session you created (ids from list_sessions).\n- `\"requester\"` — pass your RESULT back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\n`body` is the task, or the real result — findings, numbers, paths, not just \"done\". Returns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_background_runs / get_background_run. Reporting only works on a background (delegated) turn — if there is no requester, just reply with your findings as text. For a task you may pick `model` (legal ids from list_available_chat_models) and `thinkingEffort`; omit both for the defaults."
+          "description": "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to a session or agent colleague (ids from list_sessions).\n- `\"requester\"` — speak back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\nFor \"requester\", `kind` picks the voice: `\"update\"` = an interim acknowledgment or progress line (\"Received — starting now\"; the task stays running), `\"report\"` = the FINAL result — findings, numbers, paths, not just \"done\" (default; marks the task finished). Send exactly one final report per task.\n\nReturns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_background_runs / get_background_run. Speaking upward only works on a background (delegated) turn — if there is no requester, just reply with your findings as text. For a task you may pick `model` (legal ids from list_available_chat_models) and `thinkingEffort`; omit both for the defaults."
         },
         "requestBody": {
           "content": {
@@ -28142,6 +28164,14 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 50000
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "task",
+                      "report",
+                      "update"
+                    ]
                   },
                   "model": {
                     "type": "string",

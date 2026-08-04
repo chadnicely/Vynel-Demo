@@ -15,13 +15,15 @@ import {
   type DelegationJobStatus,
 } from '../repositories/index.js'
 import { resolveThreadIdOf } from '../routing/resolve-thread-id.js'
+import { isDeliveryJobKind } from '../schema/delegation-jobs.js'
 
 export interface ThreadChainHop {
   jobId: string
   /** This hop's own trace key — the handle for the per-hop message trace. */
   partialSessionId: string | null
-  /** 'task' = work sent down; 'report-delivery' = a result carried back up. */
-  kind: 'task' | 'report-delivery'
+  /** 'task' = work sent down; 'report-delivery' = a result carried back up;
+   *  'update-delivery' = interim status carried up (persona-sessions). */
+  kind: 'task' | 'report-delivery' | 'update-delivery'
   status: DelegationJobStatus
   /** Where the hop went: the workspace name, or the session/reporter label. */
   target: string
@@ -53,7 +55,7 @@ export function resolveThreadChain(
     hops: listDelegationJobsByThread(db, { userId: input.userId, threadId }).map((job) => ({
       jobId: job.id,
       partialSessionId: job.partialSessionId,
-      kind: job.jobKind === 'report-delivery' ? 'report-delivery' : 'task',
+      kind: isDeliveryJobKind(job.jobKind) ? job.jobKind : 'task',
       status: job.status,
       target: job.workspaceName ?? 'Session',
       createdAt: job.createdAt,

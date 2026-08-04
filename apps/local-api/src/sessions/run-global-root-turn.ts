@@ -84,6 +84,8 @@ export interface RunGlobalRootTurnInput {
     sourceKind: 'workspace-manager'
     sourceLabel: string
     partialSessionId?: string
+    /** The delegation CHAIN key (persona-sessions) — stamped beside the trace key. */
+    threadId?: string
   }
   /** REPORT-DELIVERY notify turn: the report-delivery steer, appended to the
    *  system prompt. Omit → the shipped prompt. */
@@ -281,6 +283,9 @@ export async function runGlobalRootTurn(
                 ...(input.inboundAttribution.partialSessionId !== undefined
                   ? { partialSessionId: input.inboundAttribution.partialSessionId }
                   : {}),
+                ...(input.inboundAttribution.threadId !== undefined
+                  ? { threadId: input.inboundAttribution.threadId }
+                  : {}),
               },
             }
           : {}),
@@ -333,8 +338,11 @@ export function buildGlobalRootReportTurnRunner(
         ...(input.partialSessionId !== undefined
           ? { partialSessionId: input.partialSessionId }
           : {}),
+        ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
       },
-      steerPromptAppend: REPORT_DELIVERY_INSTRUCTIONS,
+      // The tick passes the kind's steer (update vs report); the report steer
+      // stays the default for older callers.
+      steerPromptAppend: input.steerInstructions ?? REPORT_DELIVERY_INSTRUCTIONS,
       activityOrigin: 'delegation',
     })
     return { sessionId: turn.sessionId, resultText: turn.resultText }

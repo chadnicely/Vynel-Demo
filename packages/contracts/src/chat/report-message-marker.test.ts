@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   composeReportMessageMarker,
+  composeUpdateMessageMarker,
   stripReportMessageMarker,
 } from './report-message-marker.js'
 
@@ -26,5 +27,13 @@ describe('report message marker', () => {
     const prose = 'See the earlier [Report from Sarah] message for context.'
     // Starts with ordinary text — untouched.
     expect(stripReportMessageMarker(`Note: ${prose}`)).toBe(`Note: ${prose}`)
+  })
+
+  it('the UPDATE marker (persona-sessions) round-trips through the same strip and says the task is running', () => {
+    const body = 'Received — starting on the schema now.'
+    const marked = `${composeUpdateMessageMarker('Nova')}\n\n${body}`
+    expect(stripReportMessageMarker(marked)).toBe(body)
+    expect(composeUpdateMessageMarker('Nova')).toContain('Nova')
+    expect(composeUpdateMessageMarker('Nova')).toContain('STILL RUNNING')
   })
 })

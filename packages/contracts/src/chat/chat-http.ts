@@ -88,6 +88,9 @@ export interface ChatMessageResponse {
   /** Brain-tree delegation correlation key (Ch3) — present on a bubbled-up report row so
    *  the surface can open its condensed trace; null/absent on ordinary rows. */
   partialSessionId?: string | null
+  /** The delegation CHAIN key (persona-sessions) — per-task, carried across every hop
+   *  where partialSessionId is per-hop. The live card's settle-match key. */
+  threadId?: string | null
   /** The delegated task as a short label ("Set up the login page") — enriched at serve
    *  time from the job the `partialSessionId` names, so the Watch chip can say what the
    *  work IS. Absent on ordinary rows and when the job is gone. */
