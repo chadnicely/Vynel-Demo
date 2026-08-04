@@ -3,28 +3,38 @@
 **Updated 2026-08-04.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ CURRENT: PERSONA-SESSIONS ARC (2026-08-04) — A1–A5 SHIPPED, A6–A10 + B1–B8 REMAIN
+## ⏭ CURRENT: PERSONA-SESSIONS ARC (2026-08-04) — BACKEND A1–A10 ALL SHIPPED; B1–B8 REMAIN
 
-**Plan approved by Chad; arc notes = `docs/module-notes/session-personas.md` (decisions +
-A5 checklist + B-slice notes). Full plan: `C:\Users\KLONE\.claude\plans\quirky-painting-fairy.md`.
-Task board is live (19 tasks).** Decisions: COLLEAGUE model (one continuing agent session per
-user+workspace|global+slug, `primary_sessions.scopeRef`) · MODEL-SPOKEN acks (send_message kind
-update/report; acknowledge-first steers) · live view = per-task persona cards + click-open live
-pane w/ direct send + Background panel + durable `session_turns`.
+**Plan approved by Chad; arc notes = `docs/module-notes/session-personas.md` (decisions + A5/A9
+notes + B-slice notes). Full plan: `C:\Users\KLONE\.claude\plans\quirky-painting-fairy.md`. Task
+board live (19 tasks; #12–#19 = B1–B8 pending).** Decisions: COLLEAGUE model (one continuing
+agent session per user+workspace|global+slug, `primary_sessions.scopeRef`) · MODEL-SPOKEN acks
+(send_message kind update/report; acknowledge-first steers) · live view = per-task persona cards
++ click-open live pane w/ direct send + Background panel + durable `session_turns`.
 
-Shipped (each reviewed + green + pushed): A1 `fda50dc` agent scope/scopeRef + migration 0030 ·
-A2 `b7397b5` update-delivery kind + pending coalesce + kind one-home helpers · A3 `337071c`
-delegateToAgentSession runner (+NewSessionOptions.scope) · A4 `28127f5` mentions resume the
-colleague, HARVEST RETIRED, send_message session:<id> reaches colleagues, agent-session caller
-header · A5 `1cabe1c` send_message update kind end-to-end (steers, kind-aware notify runner,
-chat_messages.threadId migration 0031 stamped everywhere + in DTOs).
+BACKEND SHIPPED (each reviewed + green + pushed): A1 `fda50dc` agent scope/scopeRef (migration
+0030) · A2 `b7397b5` update-delivery kind + coalesce + kind one-home helpers · A3 `337071c`
+delegateToAgentSession (+NewSessionOptions.scope) · A4 `28127f5` mentions resume the colleague,
+HARVEST RETIRED, agent-session caller header, send_message session:<id> reaches colleagues ·
+A5 `1cabe1c` update kind end-to-end + acknowledge-first steers + chat_messages.threadId
+(migration 0031, stamped everywhere, in DTOs) · A6 `4456a30` restart failure parity · A7
+`6117ff3` durable session_turns + feed recorder (migration 0032) + shared
+enqueueJobFailureDelivery · A8 `d20ee74` activity enrichment (jobId/threadId/partial/primary/
+taskLabel/personaName on turn-started) + LAST-STEP snapshot replay + GET /activity/running +
+boot reaps hoisted · A9 `27d94bf` three superseded tools REMOVED (tests ported onto
+/routing/message; send_message gained ambient workspaceId for ④b parity) · A10 `ee9f980`
+deriveMessageOrigin.
 
-Remaining: A6 restart failure parity · A7 session_turns table + feed recorder · A8 producer
-enrichment + running-turns GET · A9 retire the 3 superseded comms tools (LAST) · A10
-deriveMessageOrigin · B1–B8 (frontend: chip liveness → one fold → live-turn registry →
-narration ring → PersonaLiveCard → live pane w/ send → Background panel → origin rendering).
-Verification per move: targeted turbo typecheck + vitest (never auto-run full `pnpm test`).
-Session rules: reviewer per diff · conventional commits, NO Co-Authored-By · push after commit.
+REMAINING = the frontend arc in apps/local-web (see plan §Arc B + module-notes B-slice notes):
+B1 chip liveness (delete dead live-sessions-store) → B2 one fold (liveEntriesFromTurnView
+selector over applyChatTurnEvent; delete applyTraceStreamEvent) → B3 live-turn registry
+(refcounted subscribe, auto re-attach) → B4 narration recent-steps ring → B5 PersonaLiveCard
+(keyed partialSessionId??jobId; settle-match via message threadId) → B6 LiveSessionPane w/
+direct send + compaction chain-head fix → B7 BackgroundActivityPanel (seed = GET
+/activity/running) → B8 origin rendering (deriveMessageOrigin) + composer destination.
+Verification per move: targeted typecheck + vitest local-web/ui (never auto-run full
+`pnpm test`). Session rules: reviewer per diff · conventional commits, NO Co-Authored-By ·
+push after commit. Chad smoke list at plan §Verification.
 
 ## ✅ FIVE-TASK SESSION (2026-08-02) — ALL FIVE SHIPPED + PUSHED
 
