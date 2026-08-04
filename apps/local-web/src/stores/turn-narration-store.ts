@@ -3,10 +3,11 @@ import { defineStore } from "pinia";
 import type { SessionActivityEvent } from "@vynel/contracts/chat/session-activity";
 
 // What each in-flight turn is doing RIGHT NOW — the Home dashboard's narration
-// line ("reading march-statement.pdf"). Folds the feed's transient step events
-// per turnId; the desktop-activity-fold pattern minus the desktop filter. The
-// activity store deliberately drops steps (presence only) — this store is the
-// step consumer for every turn.
+// line ("reading march-statement.pdf") PLUS its recent-steps ring (B4: the
+// inline persona cards show partial activity without opening a per-card SSE).
+// Folds the feed's transient step events per turnId; the desktop-activity-fold
+// pattern minus the desktop filter. The activity store deliberately drops
+// steps (presence only) — this store is the step consumer for every turn.
 
 export interface TurnNarrationStep {
   toolUseId: string;
@@ -17,52 +18,83 @@ export interface TurnNarrationStep {
   isRunning: boolean;
 }
 
-/** Fold one feed event into the per-turn current-step map. Pure — returns the
+export interface TurnNarration {
+  /** The current step — the coalesced one-liner. */
+  current: TurnNarrationStep;
+  /** The last few steps, oldest→newest, CURRENT INCLUDED as the tail — the
+   *  card's partial-activity list (the desktop fold's RECENT_STEP_LIMIT
+   *  pattern). */
+  recentSteps: TurnNarrationStep[];
+}
+
+/** The card shows "the last few things it did" — small on purpose. */
+export const RECENT_STEP_LIMIT = 5;
+
+/** Fold one feed event into the per-turn narration map. Pure — returns the
  *  same reference when nothing changed (unit-testable, cheap re-renders). */
 export function applyTurnNarrationEvent(
-  steps: Record<string, TurnNarrationStep>,
+  narrations: Record<string, TurnNarration>,
   event: SessionActivityEvent,
-): Record<string, TurnNarrationStep> {
+): Record<string, TurnNarration> {
   switch (event.kind) {
-    case "turn-tool-started":
+    case "turn-tool-started": {
+      const step: TurnNarrationStep = {
+        toolUseId: event.toolUseId,
+        toolName: event.toolName,
+        toolInput: "toolInput" in event ? event.toolInput : undefined,
+        isRunning: true,
+      };
+      const previous = narrations[event.turnId];
+      const recentSteps = [...(previous?.recentSteps ?? []), step].slice(
+        -RECENT_STEP_LIMIT,
+      );
+      return { ...narrations, [event.turnId]: { current: step, recentSteps } };
+    }
+    case "turn-tool-settled": {
+      const current = narrations[event.turnId];
+      if (
+        current === undefined ||
+        current.current.toolUseId !== event.toolUseId
+      ) {
+        return narrations;
+      }
+      const settled = { ...current.current, isRunning: false };
       return {
-        ...steps,
+        ...narrations,
         [event.turnId]: {
-          toolUseId: event.toolUseId,
-          toolName: event.toolName,
-          toolInput: "toolInput" in event ? event.toolInput : undefined,
-          isRunning: true,
+          current: settled,
+          // The ring's tail IS the current step — settle it in place.
+          recentSteps: current.recentSteps.map((step) =>
+            step.toolUseId === event.toolUseId ? settled : step,
+          ),
         },
       };
-    case "turn-tool-settled": {
-      const current = steps[event.turnId];
-      if (current === undefined || current.toolUseId !== event.toolUseId) {
-        return steps;
-      }
-      return { ...steps, [event.turnId]: { ...current, isRunning: false } };
     }
     case "turn-ended": {
-      if (!(event.turnId in steps)) return steps;
-      const next = { ...steps };
+      if (!(event.turnId in narrations)) return narrations;
+      const next = { ...narrations };
       delete next[event.turnId];
       return next;
     }
     default:
-      return steps;
+      return narrations;
   }
 }
 
 export const useTurnNarrationStore = defineStore("turn-narration", () => {
-  const stepByTurnId = ref<Record<string, TurnNarrationStep>>({});
+  const narrationByTurnId = ref<Record<string, TurnNarration>>({});
 
   function apply(event: SessionActivityEvent) {
-    stepByTurnId.value = applyTurnNarrationEvent(stepByTurnId.value, event);
+    narrationByTurnId.value = applyTurnNarrationEvent(
+      narrationByTurnId.value,
+      event,
+    );
   }
 
   /** The feed dropped — narration is stale without a live subscription. */
   function reset() {
-    stepByTurnId.value = {};
+    narrationByTurnId.value = {};
   }
 
-  return { stepByTurnId, apply, reset };
+  return { narrationByTurnId, apply, reset };
 });

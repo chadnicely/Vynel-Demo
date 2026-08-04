@@ -74,7 +74,7 @@ const liveNow = computed<LiveTurnRow[]>(() =>
       label,
       originNote: ORIGIN_NOTES[turn.origin],
       startedAt: turn.startedAt,
-      narration: narrationLabelFor(narration.stepByTurnId[turn.turnId]),
+      narration: narrationLabelFor(narration.narrationByTurnId[turn.turnId]?.current),
     };
   }),
 );

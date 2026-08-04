@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   applyTurnNarrationEvent,
-  type TurnNarrationStep,
+  RECENT_STEP_LIMIT,
+  type TurnNarration,
 } from "./turn-narration-store.js";
 
 describe("applyTurnNarrationEvent", () => {
@@ -13,50 +14,79 @@ describe("applyTurnNarrationEvent", () => {
     toolInput: { file_path: "march-statement.pdf" },
   };
 
-  it("tracks the current step per turn and marks its settle", () => {
-    let steps: Record<string, TurnNarrationStep> = {};
-    steps = applyTurnNarrationEvent(steps, started);
-    expect(steps.t1).toMatchObject({ toolName: "Read", isRunning: true });
+  it("tracks the current step per turn and marks its settle — in the ring too", () => {
+    let narrations: Record<string, TurnNarration> = {};
+    narrations = applyTurnNarrationEvent(narrations, started);
+    expect(narrations.t1?.current).toMatchObject({
+      toolName: "Read",
+      isRunning: true,
+    });
+    expect(narrations.t1?.recentSteps).toHaveLength(1);
 
-    steps = applyTurnNarrationEvent(steps, {
+    narrations = applyTurnNarrationEvent(narrations, {
       kind: "turn-tool-settled",
       turnId: "t1",
       toolUseId: "u1",
       status: "completed",
     });
-    // The settled step LINGERS as the narration line (no flicker between steps).
-    expect(steps.t1).toMatchObject({ toolName: "Read", isRunning: false });
+    // The settled step LINGERS as the narration line (no flicker between steps)
+    // and settles IN the ring (its tail is the current step).
+    expect(narrations.t1?.current).toMatchObject({
+      toolName: "Read",
+      isRunning: false,
+    });
+    expect(narrations.t1?.recentSteps[0]).toMatchObject({ isRunning: false });
   });
 
   it("a newer step replaces the lingering one; a stale settle is ignored", () => {
-    let steps: Record<string, TurnNarrationStep> = {};
-    steps = applyTurnNarrationEvent(steps, started);
-    steps = applyTurnNarrationEvent(steps, {
+    let narrations: Record<string, TurnNarration> = {};
+    narrations = applyTurnNarrationEvent(narrations, started);
+    narrations = applyTurnNarrationEvent(narrations, {
       ...started,
       toolUseId: "u2",
       toolName: "Grep",
     });
-    expect(steps.t1?.toolName).toBe("Grep");
-    const before = steps;
-    steps = applyTurnNarrationEvent(steps, {
+    expect(narrations.t1?.current.toolName).toBe("Grep");
+    // The ring keeps BOTH, oldest → newest (B4: the card's partial activity).
+    expect(narrations.t1?.recentSteps.map((step) => step.toolName)).toEqual([
+      "Read",
+      "Grep",
+    ]);
+    const before = narrations;
+    narrations = applyTurnNarrationEvent(narrations, {
       kind: "turn-tool-settled",
       turnId: "t1",
       toolUseId: "u1", // the old step — no longer current
       status: "completed",
     });
-    expect(steps).toBe(before);
+    expect(narrations).toBe(before);
+  });
+
+  it(`the ring caps at ${RECENT_STEP_LIMIT} — oldest steps fall off`, () => {
+    let narrations: Record<string, TurnNarration> = {};
+    for (let i = 0; i < RECENT_STEP_LIMIT + 2; i += 1) {
+      narrations = applyTurnNarrationEvent(narrations, {
+        ...started,
+        toolUseId: `u${i}`,
+        toolName: `Tool${i}`,
+      });
+    }
+    const ring = narrations.t1?.recentSteps ?? [];
+    expect(ring).toHaveLength(RECENT_STEP_LIMIT);
+    expect(ring[0]?.toolName).toBe("Tool2");
+    expect(ring[ring.length - 1]?.toolName).toBe(`Tool${RECENT_STEP_LIMIT + 1}`);
   });
 
   it("turn-ended clears the turn; unrelated events return the same reference", () => {
-    let steps: Record<string, TurnNarrationStep> = {};
-    steps = applyTurnNarrationEvent(steps, started);
-    steps = applyTurnNarrationEvent(steps, {
+    let narrations: Record<string, TurnNarration> = {};
+    narrations = applyTurnNarrationEvent(narrations, started);
+    narrations = applyTurnNarrationEvent(narrations, {
       kind: "turn-ended",
       turnId: "t1",
       sessionId: null,
     });
-    expect(steps.t1).toBeUndefined();
-    const before = steps;
+    expect(narrations.t1).toBeUndefined();
+    const before = narrations;
     expect(
       applyTurnNarrationEvent(before, {
         kind: "turn-ended",
