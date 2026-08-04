@@ -35,20 +35,55 @@ refcounted subscribe → shared fold; session sources RE-ATTACH across turns; us
 use-activity-monitor are thin adapters; render-time suppression; target-bound snapshot
 providers; WatchedTurnSnapshot's home is the registry).
 
-REMAINING = the view moves (plan §Arc B + module-notes B-slice notes): B5 PersonaLiveCard
-(components/chat/, Tailwind; keyed partialSessionId??jobId; states from job+feed; narration
-ring for partial activity; settle-match via message threadId; ProcessingBanner reduces to the
-origin note; cards NEVER subscribe to the registry) → B6 LiveSessionPane in ActivityMonitorPanel
-(ThreadStream full fold + useSessionDetail + registry sub + AppComposer via useSessionTurn/
-useQueuedSend; live chain-head resolution fixes the SessionThreadView compaction freeze; note:
-B6 direct-send into agent-scope sessions needs POST /sessions/:id/turn widened per module
-notes) → B7 BackgroundActivityPanel shell singleton (rows = activity-store serverTurns ∪
-in-flight delegations ∪ narration; refresh seed = GET /activity/running via
-activity.listRunningTurns) → B8 origin rendering (MessageRow authorPersona +
-deriveMessageOrigin badges; AppComposer destinationLabel). Verification per move: targeted
-typecheck + vitest local-web/ui (never auto-run full `pnpm test`). Session rules: reviewer per
-diff · conventional commits, NO Co-Authored-By · push after commit. Chad smoke list at plan
-§Verification.
+B5 SHIPPED `d231c15`: PersonaLiveCard at the thread's live edge (one per in-flight task, keyed
+by trace key; queued/working + acknowledged badge via threadId match; narration + ring; Watch/
+Stop; banner chips dissolved to the origin note; overflow +N; new resolve-persona +
+use-coalesced-text + use-live-delegation-cards composables; 579 local-web tests green).
+
+## NEXT: B6 — LiveSessionPane w/ direct send (DESIGN SETTLED, nothing written yet)
+
+The reuse insight: `components/sessions/SessionThreadView.vue` ALREADY has detail + own-turn +
+composer + queued sends. B6 = give IT two things, then host it in the monitor panel:
+1. **Live chain-head resolution** (kills its KNOWN compaction freeze, comment at its lines
+   40-45): `useSessionsOverview` -> find the entry whose `segments[]` contain `props.sessionId`
+   -> use `entry.sessionId` (the NEWEST segment) as `resolvedHeadId` for detail + turn +
+   background-turn match; show a quiet "conversation continued" note when it !== the prop.
+   Confirmed shapes: overview entry = {sessionId(newest), scope global|workspace|agent|spawned,
+   title, segments:[{sessionId,title}...]} (packages/contracts/src/chat/sessions-overview.ts);
+   monitor node = {kind:'session', sessionId, title} + store.openSession(sessionId, title)
+   (stores/activity-monitor-store.ts:13,72).
+2. **The registry watch overlay**: useWatchedTurn({sessionId: resolvedHeadId, isSuppressed:
+   () => turn.isStreaming.value, refetchDetail: wrapper over detailQuery.refetch returning
+   {messages, toolCallsByMessageId}}) -> ThreadStream :active-turn="turn.view ?? watched.view"
+   (visible-active-turn arbitration precedent). Replaces poll-only liveness.
+3. **New `components/activity/LiveSessionPane.vue`** = THIN wrapper (resolve title/chattable
+   from the overview; render SessionThreadView) hosted by ActivityMonitorPanel when
+   activeKind==='session' (replace ActivityEntriesList for session nodes ONLY - trace + agent
+   nodes unchanged; panel file: components/activity/ActivityMonitorPanel.vue, template branch
+   ~line 186).
+4. **chattable = entry.scope === 'spawned'** - agent colleagues stay view-only with the note
+   "Message this colleague by @mentioning it" - DELIBERATE deferral: widening
+   POST /sessions/:id/turn to agent scope needs MCP-set parity for colleague direct turns
+   (the delegated composer's interactive/routing set + caller headers, NOT the plain
+   background set the route attaches - the deferred-tool flip-flop trap). Recorded as a
+   follow-up in module-notes; the lock key is already the primary id so the design is ready.
+5. Tests: a pure chain-head-resolution helper test + adapt session-thread-view tests (the
+   KNOWN-freeze comment gets deleted with the fix).
+
+THEN B7 BackgroundActivityPanel (shell singleton beside ActivityMonitorPanel in AppShell
+~597; rows = activity-store serverTurns + in-flight delegations + narration ring, grouped by
+session; refresh seed = GET /activity/running via SDK activity.listRunningTurns; opened from
+Home LiveNowBand "See all" + the ThreadStream +N overflow line) -> B8 origin rendering
+(MessageRow gains authorPersona prop {imageUrl,monogram} for inbound persona rows - hosts
+resolve via resolve-persona; origin badges via contracts deriveMessageOrigin; AppComposer
+destinationLabel line on session panes).
+
+Verification per move: targeted `turbo run typecheck --filter @vynel/local-web` + `pnpm exec
+vitest run apps/local-web` FROM REPO ROOT (per-package vitest breaks on the workspace config;
+never auto-run full `pnpm test`). Reviewer per diff (B5's review still owed - batch with
+B6's). Conventional commits, NO Co-Authored-By, push after commit. Chad smoke list at plan
+§Verification. Arc docs: docs/module-notes/session-personas.md. Task board: #17 B6
+in_progress, #18 B7, #19 B8 pending; all else completed.
 
 ## ✅ FIVE-TASK SESSION (2026-08-02) — ALL FIVE SHIPPED + PUSHED
 
