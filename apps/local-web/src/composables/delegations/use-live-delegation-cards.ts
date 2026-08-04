@@ -46,6 +46,10 @@ export interface PersonaLiveCardModel {
 export function useLiveDelegationCards(options: {
   /** The thread's settled rows — the ack detector reads their chain keys. */
   messages: MaybeRefOrGetter<ChatMessageResponse[]>;
+  /** Restrict cards to ONE workspace's delegations (the workspace thread's
+   *  scope — the old banner's `inFlightDelegationsHere` rule). Omit/null =
+   *  the creator's full set (the global thread sees every routed job). */
+  onlyWorkspaceId?: MaybeRefOrGetter<string | null>;
 }) {
   const inFlightQuery = useInFlightDelegations();
   const activity = useActivityStore();
@@ -53,7 +57,12 @@ export function useLiveDelegationCards(options: {
   const { resolvePersona } = usePersonaResolver();
 
   const cards = computed<PersonaLiveCardModel[]>(() => {
-    const delegations = inFlightQuery.data.value ?? [];
+    const scopeWorkspaceId = toValue(options.onlyWorkspaceId) ?? null;
+    const delegations = (inFlightQuery.data.value ?? []).filter(
+      (delegation) =>
+        scopeWorkspaceId === null ||
+        delegation.workspaceId === scopeWorkspaceId,
+    );
     if (delegations.length === 0) return [];
     const turns = Object.values(activity.serverTurns);
     const messages = toValue(options.messages);
@@ -71,12 +80,17 @@ export function useLiveDelegationCards(options: {
           ? undefined
           : narration.narrationByTurnId[turn.turnId];
       const threadId = turn?.threadId ?? null;
+      // "Acknowledged" = the CHILD spoke. A 'global-root' row is the PARENT's
+      // own routed-task stamp (the shared pipeline's attribution) — in the
+      // TARGET workspace's thread it shares the chain key and would flip the
+      // badge the moment the turn starts, before any ack was sent.
       const acked =
         threadId !== null &&
         messages.some(
           (message) =>
             message.role === "user" &&
             message.sourceKind != null &&
+            message.sourceKind !== "global-root" &&
             message.threadId === threadId,
         );
       const personaName =

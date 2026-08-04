@@ -147,10 +147,8 @@ function openWorkspace(workspaceId: string) {
 // A routed task runs in the background and pushes its report into this thread
 // on completion — there is no server push, so poll while any delegation is
 // in flight (and keep the thread live) so the report surfaces within seconds.
-// The banner (ProcessingBanner) shows one Watch chip per in-flight job —
-// workspace- and session-target alike. RECORDED (Slice ④): the workspace view
-// has no banner yet, so a workspace-created session-target job's chip appears
-// here (the global banner) only for now.
+// The in-flight roster renders as the live persona cards (B5) — workspace-
+// and session-target alike; the creator's thread sees every routed job.
 const inFlightQuery = useInFlightDelegations();
 const inFlightDelegations = computed(() => inFlightQuery.data.value ?? []);
 // The trace keys with a LIVE delegation — watch chips on matching rows pulse
@@ -450,12 +448,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
 
       <!-- The delegation chips dissolved into the live persona cards (B5) —
            the banner keeps only the non-delegation origin note. -->
-      <ProcessingBanner
-        :delegations="[]"
-        :background-turn-label="backgroundTurnLabel"
-        @watch="activityMonitor.openTrace"
-        @stop="stopDelegation.mutate"
-      />
+      <ProcessingBanner :background-turn-label="backgroundTurnLabel" />
 
       <footer class="composer-dock">
         <TodoDock :session-id="activeSessionId" />

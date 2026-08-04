@@ -88,8 +88,13 @@ const liveTraceIds = computed(() => {
   return ids;
 });
 // The inline persona cards (B5): one per in-flight task, fed by the poll +
-// the activity feed + the narration ring — never a per-card SSE.
-const { cards: liveCards } = useLiveDelegationCards({ messages: () => messages.value });
+// the activity feed + the narration ring — never a per-card SSE. Scoped to
+// THIS workspace's delegations (the banner's old `inFlightDelegationsHere`
+// rule) — the global thread is where the full roster lives.
+const { cards: liveCards } = useLiveDelegationCards({
+  messages: () => messages.value,
+  onlyWorkspaceId: () => tab.workspaceId,
+});
 const inFlightDelegationsHere = computed(() =>
   (inFlightQuery.data.value ?? []).filter(
     (delegation) => delegation.workspaceId === tab.workspaceId,
@@ -342,12 +347,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
 
       <!-- The delegation chips dissolved into the live persona cards (B5) —
            the banner keeps only the non-delegation origin note. -->
-      <ProcessingBanner
-        :delegations="[]"
-        :background-turn-label="backgroundTurnLabel"
-        @watch="activityMonitor.openTrace"
-        @stop="stopDelegation.mutate"
-      />
+      <ProcessingBanner :background-turn-label="backgroundTurnLabel" />
 
       <footer class="composer-dock">
         <TodoDock :session-id="activeSessionId" />

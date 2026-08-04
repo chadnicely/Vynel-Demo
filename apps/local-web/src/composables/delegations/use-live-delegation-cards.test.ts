@@ -20,6 +20,7 @@ import {
 function makeHarness(options: {
   delegations: unknown[];
   messages?: ChatMessageResponse[];
+  onlyWorkspaceId?: string;
 }) {
   const fakeClient = {
     root: {
@@ -34,7 +35,10 @@ function makeHarness(options: {
     setup() {
       activity = useActivityStore();
       narration = useTurnNarrationStore();
-      const built = useLiveDelegationCards({ messages: () => messages.value });
+      const built = useLiveDelegationCards({
+        messages: () => messages.value,
+        onlyWorkspaceId: () => options.onlyWorkspaceId ?? null,
+      });
       cards = () => built.cards.value;
       return () => h("div");
     },
@@ -145,6 +149,61 @@ describe("useLiveDelegationCards", () => {
       threadId: "thread-1",
     } as never);
     await vi.waitFor(() => expect(harness.cards()[0]!.acked).toBe(true));
+    harness.wrapper.unmount();
+  });
+
+  it("the PARENT's own routed-task row never acks — 'global-root' is not the child speaking", async () => {
+    // In the TARGET workspace's thread the routed task lands as an attributed
+    // 'global-root' user row sharing the chain key — the badge must wait for
+    // the child's OWN message.
+    const taskRow = {
+      id: "task-1",
+      role: "user",
+      sourceKind: "global-root",
+      sourceLabel: null,
+      threadId: "thread-1",
+      body: "Set up the login page",
+    } as never as ChatMessageResponse;
+    const harness = makeHarness({
+      delegations: [baseDelegation],
+      messages: [taskRow],
+    });
+    await vi.waitFor(() => expect(harness.cards()).toHaveLength(1));
+
+    harness.activity().applyServerActivity({
+      kind: "turn-started",
+      turnId: "turn-1",
+      scopeKind: "global",
+      workspaceId: null,
+      sessionId: null,
+      origin: "delegation",
+      startedAt: "2026-08-04T10:00:00.000Z",
+      partialSessionId: "trace-1",
+      threadId: "thread-1",
+    } as never);
+    // The chain key is live and matches — and still no badge.
+    await vi.waitFor(() =>
+      expect(harness.cards()[0]!.startedAt).toBe("2026-08-04T10:00:00.000Z"),
+    );
+    expect(harness.cards()[0]!.acked).toBe(false);
+    harness.wrapper.unmount();
+  });
+
+  it("onlyWorkspaceId scopes the cards to that workspace's delegations", async () => {
+    const harness = makeHarness({
+      delegations: [
+        { ...baseDelegation, workspaceId: "w1", workspaceName: "Acme" },
+        {
+          ...baseDelegation,
+          partialSessionId: "trace-2",
+          workspaceId: "w2",
+          workspaceName: "Legal",
+        },
+      ],
+      onlyWorkspaceId: "w1",
+    });
+    await vi.waitFor(() => expect(harness.cards()).toHaveLength(1));
+    expect(harness.cards()[0]!.persona.name).toBe("Acme");
     harness.wrapper.unmount();
   });
 });

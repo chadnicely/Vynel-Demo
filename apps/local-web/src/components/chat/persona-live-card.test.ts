@@ -59,4 +59,13 @@ describe("PersonaLiveCard", () => {
     expect(wrapper.emitted("open")).toHaveLength(1);
     expect(wrapper.emitted("stop")).toHaveLength(1);
   });
+
+  it("a KEYLESS job still shows as live work, but wears no Watch/Stop (they'd no-op)", () => {
+    const wrapper = mount(PersonaLiveCard, {
+      props: { card: makeCard({ key: "in-flight-0", partialSessionId: null }) },
+    });
+    expect(wrapper.get('[data-testid="persona-card-name"]').text()).toBe("Nova");
+    expect(wrapper.find('[data-testid="persona-card-watch"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="persona-card-stop"]').exists()).toBe(false);
+  });
 });

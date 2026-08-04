@@ -123,6 +123,27 @@
   }
 }
 
+/* The shared narration crossfade — the Vue <Transition name="narration">
+   vocabulary used by LiveSessionCard, PersonaLiveCard, and the thread's live
+   card edge. Lives HERE (unlayered, global) because scoped copies compile with
+   a data-v attribute and silently match nothing outside their own component. */
+.narration-enter-active,
+.narration-leave-active {
+  transition:
+    opacity 0.12s var(--ease-out, ease-out),
+    transform 0.12s var(--ease-out, ease-out);
+}
+
+.narration-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.narration-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

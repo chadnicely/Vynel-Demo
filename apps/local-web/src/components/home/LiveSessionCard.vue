@@ -135,22 +135,8 @@ const elapsedLabel = computed(() =>
   text-overflow: ellipsis;
 }
 
-.narration-enter-active,
-.narration-leave-active {
-  transition:
-    opacity 0.12s var(--ease-out, ease-out),
-    transform 0.12s var(--ease-out, ease-out);
-}
-
-.narration-enter-from {
-  opacity: 0;
-  transform: translateY(4px);
-}
-
-.narration-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
+/* The narration crossfade classes live in styles/app.css — shared with the
+   thread's persona cards (scoped copies would match nothing there). */
 
 @keyframes card-breathe {
   0%,
@@ -165,11 +151,6 @@ const elapsedLabel = computed(() =>
 @media (prefers-reduced-motion: reduce) {
   .live-session-card {
     animation: none;
-  }
-
-  .narration-enter-active,
-  .narration-leave-active {
-    transition: none;
   }
 }
 </style>

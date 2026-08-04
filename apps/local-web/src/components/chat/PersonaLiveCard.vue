@@ -76,25 +76,30 @@ const priorSteps = computed(() => props.card.recentSteps.slice(0, -1).slice(-2))
         class="ml-auto flex-none text-[10.5px] text-[var(--ink-3)] tabular-nums"
         >{{ elapsedLabel }}</span
       >
-      <button
-        type="button"
-        class="flex-none text-[10.5px] font-semibold uppercase tracking-[0.07em] text-[var(--ink-3)] hover:text-[var(--ink-1)]"
-        data-testid="persona-card-watch"
-        @click="emit('open')"
-      >
-        Watch
-      </button>
-      <button
-        type="button"
-        class="flex-none grid place-items-center w-[18px] h-[18px] rounded-full text-[var(--ink-3)] hover:text-[var(--danger)]"
-        :aria-label="`Stop: ${props.card.taskLabel}`"
-        data-testid="persona-card-stop"
-        @click="emit('stop')"
-      >
-        <svg width="9" height="9" viewBox="0 0 16 16" aria-hidden="true">
-          <rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor" />
-        </svg>
-      </button>
+      <!-- A keyless job (no trace yet) still shows as live work, but Watch/
+           Stop would silently no-op without the trace key — hide them (the
+           old banner's keyless-chip rule). -->
+      <template v-if="props.card.partialSessionId !== null">
+        <button
+          type="button"
+          class="flex-none text-[10.5px] font-semibold uppercase tracking-[0.07em] text-[var(--ink-3)] hover:text-[var(--ink-1)]"
+          data-testid="persona-card-watch"
+          @click="emit('open')"
+        >
+          Watch
+        </button>
+        <button
+          type="button"
+          class="flex-none grid place-items-center w-[18px] h-[18px] rounded-full text-[var(--ink-3)] hover:text-[var(--danger)]"
+          :aria-label="`Stop: ${props.card.taskLabel}`"
+          data-testid="persona-card-stop"
+          @click="emit('stop')"
+        >
+          <svg width="9" height="9" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor" />
+          </svg>
+        </button>
+      </template>
     </div>
     <p class="m-0 text-[11px] text-[var(--ink-3)] truncate">
       {{ props.card.taskLabel }}
