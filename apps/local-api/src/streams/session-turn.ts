@@ -204,6 +204,9 @@ export async function streamSpawnedSessionTurn(
         scopeKind: 'global',
         sessionId: resumeSessionId,
         origin: 'web',
+        // The continuing identity (persona-sessions) — the live views key a
+        // direct-send turn to the same session card a delegated run uses.
+        primarySessionId: spawned.id,
       })
       try {
         for await (const event of turnStream) {

@@ -32,13 +32,17 @@ export interface BeginTurnActivityInput {
   /** Known up front only for a resume; a fresh conversation resolves it mid-turn. */
   sessionId?: string
   origin: SessionTurnOrigin
-  /** Correlation for the durable envelope (persona-sessions) — the continuing
-   *  identity, the queue row, the chain, the per-hop trace key. All optional;
-   *  producers stamp what they know. */
+  /** Correlation for the durable envelope + the live frames (persona-sessions)
+   *  — the continuing identity, the queue row, the chain, the per-hop trace
+   *  key. All optional; producers stamp what they know. */
   primarySessionId?: string
   jobId?: string
   threadId?: string
   partialSessionId?: string
+  /** Display enrichment for the live frames (never stored): the delegated
+   *  task's short label + the speaking persona's name. */
+  taskLabel?: string
+  personaName?: string
 }
 
 /** The durable-envelope seam (persona-sessions): every begin/resolve/end also
@@ -77,6 +81,10 @@ export interface SessionTurnActivityHandle {
 export class SessionActivityFeed {
   private readonly broadcaster = new TurnEventBroadcaster<SessionActivityEvent>()
   private readonly activeTurnsByUser = new Map<string, Map<string, SessionTurnActivity>>()
+  // The LAST step per in-flight turn — replayed after `turn-started` on
+  // subscribe so a mid-turn attach narrates immediately (persona-sessions).
+  // Transient like the steps themselves; dropped on end.
+  private readonly lastStepByTurnId = new Map<string, { turnId: string } & SessionTurnStep>()
 
   /** `turnRecorder` mirrors begin/resolve/end into the durable `session_turns`
    *  envelope (persona-sessions). Optional — test harnesses and the feed's own
@@ -94,6 +102,12 @@ export class SessionActivityFeed {
       sessionId: input.sessionId ?? null,
       origin: input.origin,
       startedAt: startedAt.toISOString(),
+      primarySessionId: input.primarySessionId ?? null,
+      jobId: input.jobId ?? null,
+      threadId: input.threadId ?? null,
+      partialSessionId: input.partialSessionId ?? null,
+      taskLabel: input.taskLabel ?? null,
+      personaName: input.personaName ?? null,
     }
     const turns = this.activeTurnsByUser.get(input.userId) ?? new Map<string, SessionTurnActivity>()
     turns.set(turn.turnId, turn)
@@ -128,16 +142,16 @@ export class SessionActivityFeed {
       },
       publishTurnStep: (step: SessionTurnStep) => {
         if (ended) return
-        this.broadcaster.publish(activityChannelKey(input.userId), {
-          turnId: turn.turnId,
-          ...step,
-        })
+        const frame = { turnId: turn.turnId, ...step }
+        this.lastStepByTurnId.set(turn.turnId, frame)
+        this.broadcaster.publish(activityChannelKey(input.userId), frame)
       },
       end: () => {
         if (ended) return
         ended = true
         turns.delete(turn.turnId)
         if (turns.size === 0) this.activeTurnsByUser.delete(input.userId)
+        this.lastStepByTurnId.delete(turn.turnId)
         this.broadcaster.publish(activityChannelKey(input.userId), {
           kind: 'turn-ended',
           turnId: turn.turnId,
@@ -148,11 +162,14 @@ export class SessionActivityFeed {
     }
   }
 
-  /** Attach a listener: the in-flight snapshot replays as `turn-started` frames,
-   *  then live events follow. Returns the unsubscribe. */
+  /** Attach a listener: the in-flight snapshot replays as `turn-started`
+   *  frames — each followed by that turn's LAST step, so a mid-turn attach
+   *  narrates immediately — then live events follow. Returns the unsubscribe. */
   subscribe(userId: string, onEvent: (event: SessionActivityEvent) => void): () => void {
     for (const turn of this.activeTurnsByUser.get(userId)?.values() ?? []) {
       onEvent({ kind: 'turn-started', ...turn })
+      const lastStep = this.lastStepByTurnId.get(turn.turnId)
+      if (lastStep !== undefined) onEvent(lastStep)
     }
     return this.broadcaster.subscribe(activityChannelKey(userId), {
       onEvent,

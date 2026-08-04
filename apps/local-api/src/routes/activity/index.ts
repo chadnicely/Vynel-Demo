@@ -5,6 +5,10 @@
 //                  turn lifecycle (started / updated / ended) plus per-tool
 //                  steps and approval bells (the contracts vocabulary).
 //
+//   GET /running -> the DURABLE in-flight turns (persona-sessions): the
+//                  refresh/restart rebuild seed — what `session_turns` says is
+//                  running right now, before the stream's live frames arrive.
+//
 // This is the UI's ONLY server push for turns it didn't start itself — a
 // Telegram message's background root turn, another tab's turn, a schedule
 // fire. Listeners react by enabling their session-detail poll (rows persist
@@ -13,9 +17,12 @@
 // no x-mcp.
 
 import { streamSSE } from 'hono/streaming'
+import { resolver } from 'hono-openapi/zod'
+import { listRunningSessionTurnsForUser } from '@vynel/session/runtime'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
+import { RunningSessionTurnsResponseSchema } from './schemas.js'
 
 // Keeps proxies from reaping the idle connection between turns; the client's
 // frame parser skips `:` comment lines, so pings never reach the event fold.
@@ -60,5 +67,37 @@ export const activityApp = factory
           stream.onAbort(finish)
         })
       })
+    },
+  )
+  .get(
+    '/running',
+    describeRoute({
+      tags: ['activity'],
+      summary: 'The durable in-flight turns — the refresh/restart rebuild seed.',
+      'x-sdk-name': 'activity.listRunningTurns',
+      responses: {
+        200: {
+          description: 'Every turn session_turns says is running, oldest first.',
+          content: {
+            'application/json': { schema: resolver(RunningSessionTurnsResponseSchema) },
+          },
+        },
+      },
+    }),
+    ...userScoped,
+    (c) => {
+      const turns = listRunningSessionTurnsForUser(c.var.db, c.var.user.id).map((turn) => ({
+        turnId: turn.id,
+        scopeKind: turn.scopeKind,
+        workspaceId: turn.workspaceId,
+        origin: turn.origin,
+        sessionId: turn.sessionId,
+        primarySessionId: turn.primarySessionId,
+        jobId: turn.jobId,
+        threadId: turn.threadId,
+        partialSessionId: turn.partialSessionId,
+        startedAt: turn.startedAt.toISOString(),
+      }))
+      return c.json({ turns })
     },
   )

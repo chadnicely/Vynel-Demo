@@ -28,6 +28,7 @@ import {
   type DelegationJob,
 } from '@vynel/orchestration'
 import type { AgentRow } from '@vynel/db/repositories/agents'
+import { deriveDelegationTaskLabel } from '@vynel/contracts/chat/delegation-task-label'
 import { resolveColleagueAgent } from './resolve-colleague-agent.js'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import { type ChatTurnEvent } from '@vynel/chat'
@@ -90,13 +91,22 @@ export async function runAgentRunJob(
 
   // A colleague run announces on the liveness feed under its GROUNDING (the
   // session-target shape when global). Begun immediately before try
-  // (zombie-turn doctrine).
+  // (zombie-turn doctrine); enrichment is pure/enqueue-time only.
+  const feedThreadId = resolveThreadIdOf(claimed)
   const activityHandle = deps.activityFeed.begin({
     userId: claimed.userId,
     ...(claimed.workspaceId === null
       ? { scopeKind: 'global' as const }
       : { scopeKind: 'workspace' as const, workspaceId: claimed.workspaceId }),
     origin: 'delegation',
+    jobId: claimed.id,
+    ...(feedThreadId !== null ? { threadId: feedThreadId } : {}),
+    ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+    ...(claimed.targetPrimarySessionId !== null
+      ? { primarySessionId: claimed.targetPrimarySessionId }
+      : {}),
+    taskLabel: deriveDelegationTaskLabel(claimed.taskText),
+    ...(claimed.workspaceName !== null ? { personaName: claimed.workspaceName } : {}),
   })
   // Hoisted so the failure paths can abandon any still-parked approval —
   // fail-closed, never a hanging SDK agent (the tick's shape).
@@ -180,13 +190,13 @@ export async function runAgentRunJob(
     // The colleague's MCP attachment — ALWAYS composed (both groundings): a
     // colleague has no bare-priming history, so its toolset is consistent from
     // turn 1, and `send_message` is how it speaks at all.
-    const claimedThreadId = resolveThreadIdOf(claimed)
+
     const mcpAttachment = deps.composeWorkspaceMcpServers?.({
       db,
       userId: claimed.userId,
       workspaceId: colleague.workspaceId,
       target: 'agent-session',
-      ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+      ...(feedThreadId !== null ? { threadId: feedThreadId } : {}),
       jobId: claimed.id,
       targetPrimarySessionId: colleague.id,
       ...(claimed.requesterWorkspaceId !== null
@@ -224,7 +234,7 @@ export async function runAgentRunJob(
             },
             providerId: DEFAULT_PROVIDER_ID,
             ...(partialSessionId !== undefined ? { partialSessionId } : {}),
-            ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+            ...(feedThreadId !== null ? { threadId: feedThreadId } : {}),
             ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
             ...(claimed.model !== null
               ? { model: claimed.model }

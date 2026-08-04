@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { getOrCreateLocalUser } from '@vynel/core/users'
-import { SessionActivityFeed } from '@vynel/session/runtime'
+import { SessionActivityFeed, buildSessionTurnRecorder } from '@vynel/session/runtime'
 import { createApp } from '../../app.js'
 
 const silentLogger = pino({ level: 'silent' })
@@ -100,6 +100,74 @@ describe('GET /activity/stream', () => {
       const res = await app.request('/activity/stream')
       const text = await readUntil(res.body!, (t) => t.includes('turn-started'), 500)
       expect(text).not.toContain('turn-started')
+    })
+  })
+
+  it('turn-started frames carry the persona-sessions enrichment', async () => {
+    await withTestDatabase(async (db) => {
+      const activityFeed = new SessionActivityFeed()
+      const app = createApp({ db, logger: silentLogger, activityFeed })
+      const userId = getOrCreateLocalUser(db, { logger: silentLogger }).id
+
+      activityFeed.begin({
+        userId,
+        scopeKind: 'global',
+        origin: 'delegation',
+        jobId: 'job-1',
+        threadId: 'thread-1',
+        partialSessionId: 'trace-1',
+        primarySessionId: 'primary-1',
+        taskLabel: 'Set up the login page',
+        personaName: 'Nova',
+      })
+
+      const res = await app.request('/activity/stream')
+      const text = await readUntil(res.body!, (t) => t.includes('turn-started'))
+      expect(text).toContain('"jobId":"job-1"')
+      expect(text).toContain('"threadId":"thread-1"')
+      expect(text).toContain('"partialSessionId":"trace-1"')
+      expect(text).toContain('"primarySessionId":"primary-1"')
+      expect(text).toContain('"taskLabel":"Set up the login page"')
+      expect(text).toContain('"personaName":"Nova"')
+    })
+  })
+})
+
+describe('GET /activity/running', () => {
+  it('returns the durable in-flight turns for the local user only, ISO-stamped', async () => {
+    await withTestDatabase(async (db) => {
+      const activityFeed = new SessionActivityFeed({
+        turnRecorder: buildSessionTurnRecorder(db, silentLogger),
+      })
+      const app = createApp({ db, logger: silentLogger, activityFeed })
+      const userId = getOrCreateLocalUser(db, { logger: silentLogger }).id
+
+      const handle = activityFeed.begin({
+        userId,
+        scopeKind: 'global',
+        origin: 'delegation',
+        jobId: 'job-run-1',
+        threadId: 'thread-run-1',
+        partialSessionId: 'trace-run-1',
+      })
+      // Another user's running turn must not appear... but a foreign userId
+      // violates the FK — the tenant filter is already repo-tested; here the
+      // route contract is the subject.
+      const res = await app.request('/activity/running')
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        turns: Array<{ turnId: string; jobId: string | null; startedAt: string }>
+      }
+      expect(body.turns).toHaveLength(1)
+      expect(body.turns[0]!.turnId).toBe(handle.turnId)
+      expect(body.turns[0]!.jobId).toBe('job-run-1')
+      // ISO-8601 round-trips.
+      expect(new Date(body.turns[0]!.startedAt).toISOString()).toBe(body.turns[0]!.startedAt)
+
+      // Ended turns leave the read.
+      handle.end()
+      const after = await app.request('/activity/running')
+      expect(((await after.json()) as { turns: unknown[] }).turns).toEqual([])
     })
   })
 })

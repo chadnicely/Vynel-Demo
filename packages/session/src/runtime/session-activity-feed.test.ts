@@ -101,13 +101,23 @@ describe('SessionActivityFeed', () => {
     })
   })
 
-  it('steps are transient — never part of the snapshot replay', () => {
+  // test: correct expectation — persona-sessions changed the snapshot spec:
+  // steps stay TRANSIENT (never stored), but the LAST step per in-flight turn
+  // now replays right after its `turn-started` so a mid-turn attach narrates
+  // immediately instead of waiting for the next tool call.
+  it('the snapshot replays each in-flight turn plus its LAST step only', () => {
     const feed = new SessionActivityFeed()
     const handle = feed.begin({ userId: 'user-1', scopeKind: 'global', origin: 'web' })
-    handle.publishTurnStep({ kind: 'turn-tool-started', toolUseId: 't', toolName: 'Read' })
+    handle.publishTurnStep({ kind: 'turn-tool-started', toolUseId: 't1', toolName: 'Read' })
+    handle.publishTurnStep({ kind: 'turn-tool-settled', toolUseId: 't1', status: 'completed' })
 
     const { events } = collect(feed, 'user-1')
-    expect(events.map((event) => event.kind)).toEqual(['turn-started'])
+    expect(events.map((event) => event.kind)).toEqual(['turn-started', 'turn-tool-settled'])
+
+    // …and the step memory dies with the turn: after end, nothing replays.
+    handle.end()
+    const after = collect(feed, 'user-1')
+    expect(after.events).toEqual([])
   })
 
   it('publishTurnStep after end() is a no-op', () => {

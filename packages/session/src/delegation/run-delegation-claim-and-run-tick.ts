@@ -41,6 +41,7 @@ import { settleFailedDelegationAttempt } from './settle-failed-delegation-attemp
 import { type ChatTurnEvent } from '@vynel/chat'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'
+import { deriveDelegationTaskLabel } from '@vynel/contracts/chat/delegation-task-label'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import * as primarySessionsRepository from '../repositories/index.js'
 import { resolveColleagueAgent } from './resolve-colleague-agent.js'
@@ -258,17 +259,30 @@ export async function runDelegationClaimAndRunTick(
   // still-parked approval — fail-closed, never a hanging SDK agent.
   let approvalHandler: RoutedApprovalHandler | null = null
 
+  // The chain this turn belongs to — hoisted for the feed enrichment below
+  // AND the MCP composition inside try (one resolve, pure on the row).
+  const claimedThreadId = resolveThreadIdOf(claimed)
   // Announce on the liveness feed so every open UI sees the target go busy
   // (presence dot, thread poll, banner). Immediately before try/finally —
   // anything throwable in between would leak a process-lifetime zombie turn.
   // A SESSION target is global-grounded: scopeKind 'global', no workspaceId
   // (the Sessions panel's working dot keys on the resolved session id).
+  // Enrichment (persona-sessions): everything pure/enqueue-time — labels
+  // resolved from the row, never a DB read that could throw pre-try.
   const activityHandle = deps.activityFeed.begin({
     userId: claimed.userId,
     ...(claimed.targetPrimarySessionId !== null || claimed.workspaceId === null
       ? { scopeKind: 'global' as const }
       : { scopeKind: 'workspace' as const, workspaceId: claimed.workspaceId }),
     origin: 'delegation',
+    jobId: claimed.id,
+    ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+    ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+    ...(claimed.targetPrimarySessionId !== null
+      ? { primarySessionId: claimed.targetPrimarySessionId }
+      : {}),
+    taskLabel: deriveDelegationTaskLabel(claimed.taskText),
+    ...(claimed.workspaceName !== null ? { personaName: claimed.workspaceName } : {}),
   })
   try {
     // The run cwd — one column, one reading ("where this job's turn runs"): the
@@ -381,8 +395,6 @@ export async function runDelegationClaimAndRunTick(
     // session's deferred tools get stripped ("server disconnected").
     const mcpGroundingWorkspaceId =
       claimed.targetPrimarySessionId !== null ? spawnedTargetWorkspaceId : claimed.workspaceId
-    // The chain this turn belongs to — every hop its tools make continues it.
-    const claimedThreadId = resolveThreadIdOf(claimed)
     const mcpAttachment =
       deps.composeWorkspaceMcpServers !== undefined &&
       (mcpGroundingWorkspaceId !== null || claimed.targetPrimarySessionId !== null)

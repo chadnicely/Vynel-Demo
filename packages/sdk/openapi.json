@@ -28214,6 +28214,115 @@
         "x-sdk-name": "activity.stream"
       }
     },
+    "/activity/running": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Every turn session_turns says is running, oldest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "turns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "turnId": {
+                            "type": "string"
+                          },
+                          "scopeKind": {
+                            "type": "string",
+                            "enum": [
+                              "global",
+                              "workspace"
+                            ]
+                          },
+                          "workspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "origin": {
+                            "type": "string",
+                            "enum": [
+                              "web",
+                              "voice",
+                              "telegram",
+                              "discord",
+                              "zoom",
+                              "schedule",
+                              "delegation"
+                            ]
+                          },
+                          "sessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "primarySessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "jobId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "threadId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "partialSessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "turnId",
+                          "scopeKind",
+                          "workspaceId",
+                          "origin",
+                          "sessionId",
+                          "primarySessionId",
+                          "jobId",
+                          "threadId",
+                          "partialSessionId",
+                          "startedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "turns"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getActivityRunning",
+        "tags": [
+          "activity"
+        ],
+        "parameters": [],
+        "summary": "The durable in-flight turns — the refresh/restart rebuild seed.",
+        "x-sdk-name": "activity.listRunningTurns"
+      }
+    },
     "/voice/speak": {
       "post": {
         "responses": {

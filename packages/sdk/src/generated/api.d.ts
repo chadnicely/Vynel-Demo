@@ -3120,6 +3120,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/activity/running": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The durable in-flight turns — the refresh/restart rebuild seed. */
+        get: operations["getActivityRunning"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/voice/speak": {
         parameters: {
             query?: never;
@@ -14379,6 +14396,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getActivityRunning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every turn session_turns says is running, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        turns: {
+                            turnId: string;
+                            /** @enum {string} */
+                            scopeKind: "global" | "workspace";
+                            workspaceId: string | null;
+                            /** @enum {string} */
+                            origin: "web" | "voice" | "telegram" | "discord" | "zoom" | "schedule" | "delegation";
+                            sessionId: string | null;
+                            primarySessionId: string | null;
+                            jobId: string | null;
+                            threadId: string | null;
+                            partialSessionId: string | null;
+                            startedAt: string;
+                        }[];
+                    };
+                };
             };
         };
     };

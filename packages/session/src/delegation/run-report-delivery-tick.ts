@@ -75,6 +75,8 @@ export type RunGlobalRootReportTurn = (input: {
   /** The delivery variant's steer — the UPDATE steer for an interim ack/progress
    *  delivery. Omitted = the report steer (the shipped default). */
   steerInstructions?: string
+  /** The delivery queue row — the notify turn's liveness enrichment. */
+  jobId?: string
 }) => Promise<{ sessionId: string; resultText: string }>
 
 export interface RunReportDeliveryDeps {
@@ -154,6 +156,12 @@ export async function runReportDeliveryJob(
           scopeKind: 'workspace',
           workspaceId: requesterWorkspaceId,
           origin: 'delegation',
+          jobId: claimed.id,
+          ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+          ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+          // The notify turn SPEAKS AS the child whose message it delivers; a
+          // delivery body is not a task, so no taskLabel (the labels rule).
+          personaName: sourceLabel,
         })
   try {
     const waitGate = new ApprovalWaitGate()
@@ -187,6 +195,7 @@ export async function runReportDeliveryJob(
               ...(partialSessionId !== undefined ? { partialSessionId } : {}),
               ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
               steerInstructions,
+              jobId: claimed.id,
             })
             return { reference: turn.sessionId, resultText: turn.resultText }
           },
