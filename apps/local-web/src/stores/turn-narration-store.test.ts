@@ -38,7 +38,7 @@ describe("applyTurnNarrationEvent", () => {
     expect(narrations.t1?.recentSteps[0]).toMatchObject({ isRunning: false });
   });
 
-  it("a newer step replaces the lingering one; a stale settle is ignored", () => {
+  it("a newer step replaces the lingering one; a SUPERSEDED settle still settles its ring entry", () => {
     let narrations: Record<string, TurnNarration> = {};
     narrations = applyTurnNarrationEvent(narrations, started);
     narrations = applyTurnNarrationEvent(narrations, {
@@ -52,14 +52,29 @@ describe("applyTurnNarrationEvent", () => {
       "Read",
       "Grep",
     ]);
-    const before = narrations;
     narrations = applyTurnNarrationEvent(narrations, {
       kind: "turn-tool-settled",
       turnId: "t1",
-      toolUseId: "u1", // the old step — no longer current
+      toolUseId: "u1", // the old step — no longer current (parallel tool calls)
       status: "completed",
     });
-    expect(narrations).toBe(before);
+    // The narration LINE keeps the newer step; the ring entry settles — a card
+    // must never show a finished step as running.
+    expect(narrations.t1?.current.toolName).toBe("Grep");
+    expect(narrations.t1?.recentSteps.map((step) => [step.toolName, step.isRunning])).toEqual([
+      ["Read", false],
+      ["Grep", true],
+    ]);
+    // A settle for a step nowhere in sight IS a no-op.
+    const before = narrations;
+    expect(
+      applyTurnNarrationEvent(before, {
+        kind: "turn-tool-settled",
+        turnId: "t1",
+        toolUseId: "u-unknown",
+        status: "completed",
+      }),
+    ).toBe(before);
   });
 
   it(`the ring caps at ${RECENT_STEP_LIMIT} — oldest steps fall off`, () => {

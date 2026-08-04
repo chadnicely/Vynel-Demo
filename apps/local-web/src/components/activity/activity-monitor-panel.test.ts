@@ -182,12 +182,17 @@ describe("ActivityMonitorPanel — session nodes", () => {
     persisted = [{ id: "m1", body: "Working on it" }];
     handle.push("turn-stream-ended", {});
     handle.close();
+    // test: correct expectation (B3) — the watch is STANDING now: "caught up"
+    // was the one-attach epilogue; after settle the panel keeps watching (the
+    // stream re-attaches for the session's next turn) and the activity stays
+    // on screen as the SETTLED transcript row the refetch swapped in.
     await vi.waitFor(() =>
-      expect(harness.wrapper.text()).toContain("you're all caught up"),
+      expect(harness.wrapper.text()).not.toContain("Still working…"),
     );
-    // The activity stays on screen after the turn ends — now as the SETTLED
-    // transcript row (the monitor's settle refetch replaced the overlay).
-    expect(harness.wrapper.text()).toContain("Working on it");
+    await vi.waitFor(() =>
+      expect(harness.wrapper.text()).toContain("Working on it"),
+    );
+    await vi.waitFor(() => expect(harness.GET.mock.calls.length).toBeGreaterThan(1));
     harness.wrapper.unmount();
   });
 

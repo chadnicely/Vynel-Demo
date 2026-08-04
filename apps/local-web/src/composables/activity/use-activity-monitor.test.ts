@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { defineComponent, h, ref, type Ref } from "vue";
 import { mount } from "@vue/test-utils";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
+import { createPinia } from "pinia";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import {
   useActivityMonitor,
@@ -86,6 +87,7 @@ function makeHarness(options: {
   const wrapper = mount(Host, {
     global: {
       plugins: [
+        createPinia(),
         [
           VueQueryPlugin,
           {
@@ -223,13 +225,16 @@ describe("useActivityMonitor (session kind)", () => {
     handle.push("turn-stream-ended", {});
     handle.close();
 
-    await vi.waitFor(() => expect(harness.monitor().hasEnded.value).toBe(true));
-    await vi.waitFor(() => expect(harness.monitor().isStreaming.value).toBe(false));
+    // test: correct expectation (B3) — the watch is STANDING now: hasEnded is
+    // a transient pulse (settle → clear → re-subscribe for the next turn), so
+    // the meaningful signals are the settle refetch, the swapped rows, and the
+    // stream re-attaching (a second GET).
     await vi.waitFor(() =>
       expect(harness.getSession.mock.calls.length).toBeGreaterThan(
         fetchesBeforeEnd,
       ),
     );
+    await vi.waitFor(() => expect(harness.GET.mock.calls.length).toBeGreaterThan(1));
     // The row survived the swap — now as a settled entry.
     await vi.waitFor(() =>
       expect(harness.monitor().entries.value.map((entry) => entry.id)).toEqual([

@@ -168,7 +168,7 @@ const ownActiveTurn = computed(() =>
 // The standing subscription to the displayed session's live channel — a turn
 // this view does NOT own (a tab switch detached the origin stream, a schedule
 // fire, a channel turn) streams here in realtime instead of crawling on the
-// history poll. The own overlay always wins; the watcher discards its echo.
+// history poll. The own overlay always wins; the watcher renders nothing for it (render-time suppression, B3).
 const watchedTurn = useWatchedTurn({
   sessionId: () => activeSessionId.value,
   isSuppressed: () => ownActiveTurn.value !== null,

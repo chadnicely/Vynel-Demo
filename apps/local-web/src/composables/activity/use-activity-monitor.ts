@@ -10,9 +10,8 @@
 //     route. Attaches only while the job is pending/claimed.
 //   - 'session' — any owned session, keyed by its SDK session id. Settled = the
 //     full transcript (`root.getSession` — owner-gated, scope-agnostic); stream
-//     = the session channel. Attaches immediately (an idle attach waits for the
-//     next turn); v1 keeps one-attach-one-turn — no auto re-attach after
-//     `turn-stream-ended` (reopening attaches fresh).
+//     = the session channel via the SHARED live-turn registry (B3): the watch
+//     RE-ATTACHES across turns now — the v1 one-attach-one-turn limit is gone.
 //
 // Merge model (shared): settled rows are authoritative by id; overlay rows
 // append. While a stream is attached the settled query keeps a slow KEEP-ALIVE
@@ -24,17 +23,20 @@
 import {
   computed,
   onScopeDispose,
-  ref,
+  shallowRef,
   toValue,
   watch,
   type MaybeRefOrGetter,
 } from "vue";
 import { useVynel } from "../use-vynel.js";
-import { readChatTurnEvents } from "../chat/chat-turn-stream.js";
 import {
   useDelegationTrace,
   TRACE_KEEP_ALIVE_MS,
 } from "../delegations/use-delegation-trace.js";
+import {
+  useLiveTurnRegistry,
+  type LiveTurnSubscription,
+} from "../../stores/live-turn-registry.js";
 import { useSessionDetail } from "../chat/use-session-detail.js";
 import {
   mergeTraceEntries,
@@ -74,11 +76,18 @@ export function useActivityMonitor(
   );
 
   // B2: the FULL chat fold — thinking, lifecycle, errors, and usage are no
-  // longer dropped in watch views (the panel projects via the selector).
-  const streamView = ref(createActiveTurnView());
-  const isStreaming = ref(false);
-  const hasEnded = ref(false);
-  const errorText = ref<string | null>(null);
+  // longer dropped in watch views. B3: the fold lives in the SHARED registry
+  // (one SSE per source, refcounted); this composable manages only which
+  // source is subscribed and projects the shared view.
+  const registry = useLiveTurnRegistry();
+  // shallowRef — a deep ref would unwrap the subscription's nested refs.
+  const subscription = shallowRef<LiveTurnSubscription | null>(null);
+  const streamView = computed(
+    () => subscription.value?.view.value ?? createActiveTurnView(),
+  );
+  const isStreaming = computed(() => subscription.value?.isAttached.value ?? false);
+  const hasEnded = computed(() => subscription.value?.hasEnded.value ?? false);
+  const errorText = computed(() => subscription.value?.errorText.value ?? null);
 
   // The settled halves — only the matching kind's query is ever enabled (the
   // other's id computed stays null). The monitor reads EVERY session through
@@ -88,109 +97,110 @@ export function useActivityMonitor(
     isStreaming.value ? TRACE_KEEP_ALIVE_MS : false,
   );
 
-  function settledRefetch(target: ActivitySource): Promise<unknown> {
-    return target.kind === "trace"
-      ? traceQuery.refetch()
-      : transcriptQuery.refetch();
+  // The registry's seed/settle snapshot provider, BOUND to its target at
+  // subscribe time (a closure reading `resolved` would fetch the WRONG target
+  // after a re-target while the entry outlives this subscription). While the
+  // monitor still shows the target, its own query is the single fetcher
+  // (refresh + return); after a re-target the entry's rows come from a direct
+  // owner-gated read instead.
+  function makeFetchSnapshot(target: ActivitySource) {
+    return async () => {
+      const current = resolved.value;
+      const stillMine =
+        current !== null && current.kind === target.kind && current.id === target.id;
+      if (target.kind === "trace") {
+        if (stillMine) await traceQuery.refetch();
+        return undefined; // trace sources never seed — live-only overlay
+      }
+      if (stillMine) {
+        const result = await transcriptQuery.refetch();
+        const detail = result.data;
+        return detail === undefined
+          ? undefined
+          : {
+              messages: detail.messages,
+              toolCallsByMessageId: detail.toolCallsByMessageId,
+            };
+      }
+      try {
+        const detail = await vynel.root.getSession(target.id);
+        return {
+          messages: detail.messages,
+          toolCallsByMessageId: detail.toolCallsByMessageId,
+        };
+      } catch {
+        // A failed seed aborts THIS seed only — the loop retries on the next event.
+        return undefined;
+      }
+    };
   }
 
-  let abortController: AbortController | null = null;
-  // "<kind>:<id>" while attached (or after a natural end/drop for that target —
-  // deliberately NOT cleared then, so the same target never auto re-attaches;
-  // the trace poll carries a dropped job, and a session reopens fresh).
-  let attachedFor: string | null = null;
-
-  async function attach(target: ActivitySource): Promise<void> {
-    attachedFor = sourceKey(target);
-    const controller = new AbortController();
-    abortController = controller;
-    isStreaming.value = true;
-    hasEnded.value = false;
-    errorText.value = null;
-    const isCurrent = (): boolean => abortController === controller;
-    try {
-      const { data, response } =
-        target.kind === "trace"
-          ? await vynel.GET("/root/trace/{partialSessionId}/stream", {
-              params: { path: { partialSessionId: target.id } },
-              parseAs: "stream",
-              signal: controller.signal,
-            })
-          : await vynel.GET("/sessions/{sessionId}/stream", {
-              params: { path: { sessionId: target.id } },
-              parseAs: "stream",
-              signal: controller.signal,
-            });
-      if (!response.ok || !data)
-        throw new Error(`activity stream ${response.status}`);
-      for await (const event of readChatTurnEvents(data)) {
-        if (!isCurrent()) return; // superseded mid-stream — drop the late tail
-        if (event.kind === "turn-stream-ended") {
-          hasEnded.value = true;
-          break;
-        }
-        streamView.value = applyChatTurnEvent(streamView.value, event);
-      }
-      if (!isCurrent()) return;
-      // Settle: flip streaming OFF first (the trace poll interval re-evaluates
-      // on the refetch's completion), then swap the overlay for persisted rows.
-      isStreaming.value = false;
-      await settledRefetch(target);
-      if (!isCurrent()) return;
-      streamView.value = createActiveTurnView();
-    } catch (streamError) {
-      // An abort is our own detach; a real drop must be SAID — and refetched:
-      // the explicit refetch is what re-arms the trace's fast poll (TanStack
-      // re-evaluates refetchInterval only on query updates) and freshens the
-      // session transcript.
-      if (isCurrent() && !isAbortError(streamError)) {
-        errorText.value =
-          streamError instanceof Error
-            ? streamError.message
-            : "The live view dropped — close and watch again.";
-        isStreaming.value = false;
-        void settledRefetch(target);
-      }
-    } finally {
-      if (isCurrent()) {
-        isStreaming.value = false;
-        abortController = null;
-      }
-    }
+  let subscribedFor: string | null = null;
+  function releaseSubscription(): void {
+    subscription.value?.release();
+    subscription.value = null;
+    subscribedFor = null;
   }
 
-  function detach(): void {
-    abortController?.abort();
-    abortController = null;
-    attachedFor = null;
-    isStreaming.value = false;
-    hasEnded.value = false;
-    errorText.value = null;
-    streamView.value = createActiveTurnView();
-  }
-
-  // Attach policy per kind: a session attaches immediately (idle attach waits
-  // for the next turn); a trace attaches only while its job is live. A
-  // re-target always detaches the predecessor first.
+  // Attach policy per kind (unchanged): a session subscribes immediately (an
+  // idle attach waits for the next turn — and now re-attaches across turns); a
+  // trace subscribes only while its job is live, and releases when the status
+  // poll settles it (the registry's trace streams are one-attach-per-run).
   watch(
     [resolved, () => traceQuery.data.value?.status],
     ([current, status]) => {
       if (current === null || current === undefined) {
-        detach();
+        releaseSubscription();
         return;
       }
       const key = sourceKey(current);
-      if (attachedFor !== null && attachedFor !== key) detach();
+      // The predecessor releases UNCONDITIONALLY on a re-target — a stale
+      // subscription surviving into a not-yet-live trace would bleed the old
+      // source's fold into the new target's entries.
+      if (subscribedFor !== null && subscribedFor !== key) releaseSubscription();
       if (current.kind === "session") {
-        if (attachedFor !== key) void attach(current);
+        if (subscribedFor === key) return;
+        subscription.value = registry.subscribe(current, {
+          fetchSnapshot: makeFetchSnapshot(current),
+        });
+        subscribedFor = key;
         return;
       }
       const isLive = status === "pending" || status === "claimed";
-      if (isLive && attachedFor !== key) void attach(current);
+      if (isLive) {
+        if (subscribedFor === key) return;
+        subscription.value = registry.subscribe(current, {
+          fetchSnapshot: makeFetchSnapshot(current),
+        });
+        subscribedFor = key;
+      } else if (subscribedFor === key) {
+        // The job settled — refresh the settled trace, drop the live overlay.
+        releaseSubscription();
+        void traceQuery.refetch();
+      }
     },
     { immediate: true },
   );
-  onScopeDispose(detach);
+  onScopeDispose(releaseSubscription);
+
+  // Trace lifecycle glue the registry deliberately doesn't own: a trace's
+  // settled read is THIS composable's query, so its end/drop must re-arm the
+  // poll here (TanStack re-evaluates refetchInterval only on query updates —
+  // without the explicit refetch a dropped trace would stop advancing). On a
+  // SETTLED trace the subscription is released after the refetch — the settled
+  // rows are the story now, and a trace stream is one-attach-per-run.
+  watch(
+    [hasEnded, errorText],
+    async ([ended, error]) => {
+      if (resolved.value?.kind !== "trace") return;
+      if (!ended && error === null) return;
+      // Captured BEFORE the await: a re-target during the refetch swaps the
+      // subscription, and a late release must never kill the successor.
+      const mine = subscription.value;
+      await traceQuery.refetch();
+      if (ended && subscription.value === mine) releaseSubscription();
+    },
+  );
 
   const settledEntries = computed<LiveTraceEntry[]>(() => {
     const current = resolved.value;

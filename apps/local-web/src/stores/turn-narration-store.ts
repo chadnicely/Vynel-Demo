@@ -52,21 +52,28 @@ export function applyTurnNarrationEvent(
     }
     case "turn-tool-settled": {
       const current = narrations[event.turnId];
-      if (
-        current === undefined ||
-        current.current.toolUseId !== event.toolUseId
-      ) {
-        return narrations;
-      }
-      const settled = { ...current.current, isRunning: false };
+      if (current === undefined) return narrations;
+      const isCurrentStep = current.current.toolUseId === event.toolUseId;
+      const hasRingMatch = current.recentSteps.some(
+        (step) => step.toolUseId === event.toolUseId && step.isRunning,
+      );
+      // A settle for a SUPERSEDED step (parallel tool calls) still settles its
+      // ring entry — a card must never show a finished step as running; only
+      // the narration LINE keeps the newer step's linger semantics.
+      if (!isCurrentStep && !hasRingMatch) return narrations;
+      const settleInRing = (steps: TurnNarrationStep[]) =>
+        steps.map((step) =>
+          step.toolUseId === event.toolUseId
+            ? { ...step, isRunning: false }
+            : step,
+        );
       return {
         ...narrations,
         [event.turnId]: {
-          current: settled,
-          // The ring's tail IS the current step — settle it in place.
-          recentSteps: current.recentSteps.map((step) =>
-            step.toolUseId === event.toolUseId ? settled : step,
-          ),
+          current: isCurrentStep
+            ? { ...current.current, isRunning: false }
+            : current.current,
+          recentSteps: settleInRing(current.recentSteps),
         },
       };
     }

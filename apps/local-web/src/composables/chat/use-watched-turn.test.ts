@@ -217,7 +217,7 @@ describe("useWatchedTurn", () => {
     harness.wrapper.unmount();
   });
 
-  it("discards the echo of a turn the own overlay renders", async () => {
+  it("renders NOTHING for a turn the own overlay renders (render-time suppression)", async () => {
     const harness = makeHarness({ suppressed: () => true });
     harness.sessionId.value = "sdk-1";
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
@@ -227,8 +227,10 @@ describe("useWatchedTurn", () => {
       textDelta: "own turn echo",
     });
     await new Promise((resolve) => setTimeout(resolve, 120));
+    // test: correct expectation (B3) — suppression moved to RENDER time: the
+    // SHARED registry fold may still seed (another surface could be watching
+    // the same session), but this consumer renders nothing while suppressed.
     expect(harness.watched().view.value).toBeNull();
-    expect(harness.refetchDetail).not.toHaveBeenCalled();
     harness.wrapper.unmount();
   });
 

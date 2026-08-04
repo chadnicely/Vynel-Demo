@@ -28,7 +28,8 @@ const props = defineProps<{
   isWorking: boolean;
   /** Session kind: the observe stream is attached. */
   isStreaming: boolean;
-  /** Session kind: the watched turn ended (one-attach-one-turn). */
+  /** Session kind: a turn just settled (transient — the standing watch
+   *  re-attaches for the next turn, B3). */
   hasEnded: boolean;
   /** Trace kind, SESSION-target jobs only: the spawned session the task ran
    *  in — its report entries offer the pipeline drill into that session's
@@ -103,9 +104,10 @@ const emptyNote = computed(() => {
       ? "The workspace is working — its activity appears here as it's recorded."
       : "No activity recorded for this task.";
   }
-  return props.hasEnded
-    ? "The reply finished — you're all caught up."
-    : "Watching live — the moment something runs here, it shows up.";
+  // hasEnded is a transient pulse now (the standing watch) — the empty-state
+  // note stays the watching line either way; a settled turn's rows are the
+  // real story and they render above this note.
+  return "Watching live — the moment something runs here, it shows up.";
 });
 
 const stillWorking = computed(() =>
@@ -189,12 +191,7 @@ const approvalNote = computed(() =>
     <p v-else-if="stillWorking" class="working-note">
       <PresenceDot state="live" /> Still working…
     </p>
-    <p
-      v-else-if="props.kind === 'session' && props.hasEnded"
-      class="state-note"
-    >
-      The reply finished — you're all caught up.
-    </p>
+
   </div>
 </template>
 
