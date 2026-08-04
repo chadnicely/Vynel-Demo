@@ -9,6 +9,7 @@ import { deriveAgentFocus } from "./agent-focus.js";
 import ActivityEntriesList from "./ActivityEntriesList.vue";
 import ActivityPanelHeader from "./ActivityPanelHeader.vue";
 import AgentFocusView from "./AgentFocusView.vue";
+import LiveSessionPane from "./LiveSessionPane.vue";
 
 // The ONE activity overlay (sessions-surface Slice ②) — the old delegation
 // viewer and session watch panels merged over the single monitor seam, with
@@ -33,6 +34,13 @@ const {
 const activeKind = computed(() => store.activeSource?.kind ?? null);
 const agentNode = computed(() =>
   store.current?.kind === "agent" ? store.current : null,
+);
+// A SESSION node renders the real conversation (LiveSessionPane, B6) instead
+// of the entries list — full transcript, live overlay, and the direct-send
+// composer where the scope allows it. The monitor keeps running for the
+// header (its registry subscription is shared with the pane's — one stream).
+const sessionPaneNode = computed(() =>
+  store.current?.kind === "session" ? store.current : null,
 );
 
 // The workspace reply and the surfaced global report carry the SAME body — the
@@ -202,8 +210,14 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
             @close="store.close()"
           />
 
-          <div class="viewer-body">
+          <div class="viewer-body" :class="{ 'is-thread': sessionPaneNode !== null }">
             <AgentFocusView v-if="agentFocus !== null" :focus="agentFocus" />
+            <LiveSessionPane
+              v-else-if="sessionPaneNode !== null"
+              :key="sessionPaneNode.sessionId"
+              :session-id="sessionPaneNode.sessionId"
+              :title="sessionPaneNode.title"
+            />
             <ActivityEntriesList
               v-else-if="activeKind !== null"
               :kind="activeKind"
@@ -265,6 +279,13 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
   overflow-y: auto;
   background: var(--bg-shell);
   padding: 16px 18px;
+}
+
+/* The live session pane scrolls INSIDE its own thread and docks its composer
+   at the bottom — the body wrapper gets out of the way. */
+.viewer-body.is-thread {
+  overflow: hidden;
+  padding: 0;
 }
 
 .viewer-enter-active,

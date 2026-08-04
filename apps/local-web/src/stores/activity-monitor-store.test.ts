@@ -16,15 +16,37 @@ describe("activity-monitor store — the node stack", () => {
     expect(store.current).toEqual({ kind: "trace", partialSessionId: "partial-1" });
     expect(store.activeSource).toEqual({ kind: "trace", id: "partial-1" });
 
-    // A drilled stack collapses on the next open — never accumulates.
-    store.focusAgent("tu_1");
-    store.openTrace("partial-2");
-    expect(store.stack).toHaveLength(1);
-    expect(store.activeSource).toEqual({ kind: "trace", id: "partial-2" });
-
     store.close();
     expect(store.isOpen).toBe(false);
     expect(store.current).toBeNull();
+  });
+
+  // test: correct expectation (B6) — a chip fired while the panel is OPEN can
+  // only come from inside it (the scrim blocks everything behind), so
+  // openTrace / openAgentDirect now STACK instead of resetting: Back returns
+  // to where the click happened.
+  it("openTrace / openAgentDirect while the panel is open push — Back returns", () => {
+    const store = useActivityMonitorStore();
+    store.openSession("sdk-1", "Research helper");
+
+    store.openTrace("partial-inner");
+    expect(store.stack).toHaveLength(2);
+    expect(store.activeSource).toEqual({ kind: "trace", id: "partial-inner" });
+    expect(store.backAvailable).toBe(true);
+
+    store.openAgentDirect({ kind: "session", id: "sdk-1" }, "tu_agent_1");
+    expect(store.stack).toHaveLength(3);
+    expect(store.current).toEqual({
+      kind: "agent",
+      source: { kind: "session", id: "sdk-1" },
+      toolUseId: "tu_agent_1",
+    });
+
+    store.back();
+    expect(store.activeSource).toEqual({ kind: "trace", id: "partial-inner" });
+    store.back();
+    expect(store.activeSource).toEqual({ kind: "session", id: "sdk-1" });
+    expect(store.backAvailable).toBe(false);
   });
 
   it("openSession derives a session active source and carries the label", () => {

@@ -58,9 +58,14 @@ export const useActivityMonitorStore = defineStore("activity-monitor", () => {
     stack.value = [];
   }
 
-  /** A report chip / in-flight banner chip — watch a delegation's trace. */
+  /** A report chip / in-flight banner chip — watch a delegation's trace.
+   *  While the panel is OPEN the click can only come from inside it (the
+   *  scrim blocks everything behind) — a trace chip on the live session
+   *  pane's thread (B6) — so the trace stacks on top and Back returns. */
   function openTrace(partialSessionId: string) {
-    open({ kind: "trace", partialSessionId });
+    const node = { kind: "trace", partialSessionId } as const;
+    if (isOpen.value) push(node);
+    else open(node);
   }
 
   /** Watch any owned session in the panel, labeled by its identity. KEPT
@@ -73,13 +78,18 @@ export const useActivityMonitorStore = defineStore("activity-monitor", () => {
     open({ kind: "session", sessionId, title });
   }
 
-  /** A thread card's Watch chip — straight onto one agent, no panel context to
-   *  return to: Close only, no Back. The source is whatever channel carries the
-   *  agent's activity: a delegation-traced row's trace, or — for a DIRECT
-   *  turn's agent — the session the turn ran on (its persisted subagent fields
-   *  live in that transcript). */
+  /** A thread card's Watch chip — straight onto one agent. From a thread
+   *  BEHIND the closed panel there's no context to return to (Close only, no
+   *  Back); fired while the panel is open it can only be the live session
+   *  pane's own thread (B6 — the scrim blocks everything else), so the agent
+   *  stacks on top and Back returns to the conversation. The source is
+   *  whatever channel carries the agent's activity: a delegation-traced row's
+   *  trace, or — for a DIRECT turn's agent — the session the turn ran on (its
+   *  persisted subagent fields live in that transcript). */
   function openAgentDirect(source: ActivitySource, toolUseId: string) {
-    open({ kind: "agent", source, toolUseId });
+    const node = { kind: "agent", source, toolUseId } as const;
+    if (isOpen.value) push(node);
+    else open(node);
   }
 
   /** Drill into an agent FROM the open panel — Back returns to it. The agent

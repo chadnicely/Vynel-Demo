@@ -103,6 +103,38 @@ per-task. Every message is attributed: from the user, from a session, or from a 
 - B6 direct-send into a colleague must acquire the same `SessionTargetLocks` key (the key is
   already the primary id; `POST /sessions/:id/turn` 404s agent scope until then).
 
+## B6 notes (shipped shape + accepted residuals)
+
+- Chain-following is an explicit `followChain` prop on `SessionThreadView`: head opens + the
+  monitor pane follow the chain live (`resolve-chain-head.ts` over the overview, quiet
+  "conversation continued" note); a deliberately-opened EARLIER part passes false and stays put.
+- The direct-send rule's wording lives in ONE home (`session-open-affordance.ts`) shared by
+  SessionsView and `LiveSessionPane`. Colleague direct-send stays deferred (the MCP-set parity
+  item above) — the pane points at @mention instead.
+- Monitor-store stacking rule: `openTrace`/`openAgentDirect` PUSH while the panel is open (the
+  scrim guarantees the click came from inside it) — Back walks the whole pipeline; panel-closed
+  behavior unchanged.
+- The pane refetches its own detail when the watched overlay settles: the registry's settle
+  snapshot only warms the provider-owning subscription (the monitor's, inside the panel); the
+  feed's turn-end invalidation covers the same gap app-wide.
+- ACCEPTED residuals: the panel header's live dot keys on the node's OPENED id — after a
+  mid-watch chain swap the body follows the head while the dot may idle (rare, self-heals on
+  reopen; post-swap the monitor and pane briefly hold two streams — bounded at 2, dying on
+  close). SessionsView's `is-active` row highlight likewise stays on the opened id after a
+  swap. No panel-level composer mount test (AppComposer's five eager roster queries make the
+  harness heavy; the pane unit test pins the affordance props and Chad's smoke covers the send).
+  A superseded view-only part holds an idle registry watch (one code path; entries die at
+  refCount 0 — released on unmount, so boundedness is one per mounted thread, not an LRU).
+- B5 review fixes (applied with B6): workspace threads scope their persona cards to THEIR
+  delegations (`onlyWorkspaceId` — the old banner's `inFlightDelegationsHere` rule; the global
+  thread keeps the full creator roster). The acked detector excludes `'global-root'`-attributed
+  rows — that stamp is the PARENT's routed task, not the child speaking (in the target
+  workspace's thread it shares the chain key and flipped the badge at turn start). The
+  `.narration-*` transition classes hoisted to `styles/app.css` (scoped copies matched nothing
+  outside LiveSessionCard — the crossfade silently never ran). ProcessingBanner reduced to the
+  origin-note strip (dead chip machinery deleted; keyless-job visibility intent moved to the
+  cards — a keyless card hides Watch/Stop, which would no-op without a trace key).
+
 ## Move map
 
 Backend: A1 agent scope/scopeRef → A2 update-delivery kind + coalescing → A3

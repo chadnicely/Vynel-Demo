@@ -59,5 +59,11 @@ export function useWatchedTurn(options: {
   const view = computed<ActiveTurnView | null>(() =>
     options.isSuppressed() ? null : (subscription.value?.view.value ?? null),
   );
-  return { view };
+  // The shared channel's failure, said (B6) — the registry keeps retrying
+  // session sources, so a host showing this gets an honest "live dropped"
+  // line instead of a silently stale thread.
+  const errorText = computed(
+    () => subscription.value?.errorText.value ?? null,
+  );
+  return { view, errorText };
 }

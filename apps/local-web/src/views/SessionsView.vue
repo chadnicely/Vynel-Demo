@@ -8,6 +8,7 @@ import type {
   SessionsOverviewSegment,
 } from "@vynel/contracts/chat/sessions-overview";
 import { useSessionsOverview } from "../composables/sessions/use-sessions-overview.js";
+import { sessionOpenAffordance } from "../composables/sessions/session-open-affordance.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
@@ -80,6 +81,9 @@ interface OpenThread {
   title: string;
   chattable: boolean;
   viewOnlyNote: string | null;
+  /** Head opens follow the chain onto a fresh segment live (B6); a
+   *  deliberately-opened earlier part stays put. */
+  followChain: boolean;
 }
 
 const openThread = ref<OpenThread | null>(null);
@@ -101,16 +105,13 @@ function openEntry(entry: SessionsOverviewEntry) {
     void router.push({ name: "workspace" });
     return;
   }
+  // The direct-send rule + view-only wording live in ONE home shared with the
+  // monitor's live pane (session-open-affordance.ts).
   openThread.value = {
     sessionId: entry.sessionId,
     title: entry.title,
-    // Spawned sessions chat directly at their head; an agent-scope transcript
-    // has no turn surface — read-only.
-    chattable: entry.scope === "spawned",
-    viewOnlyNote:
-      entry.scope === "spawned"
-        ? null
-        : "This session ran on its own — there's nothing to send it here.",
+    ...sessionOpenAffordance(entry.scope),
+    followChain: true,
   };
 }
 
@@ -131,6 +132,8 @@ function openSegment(
       entry.scope === "workspace"
         ? "This part of the conversation was continued — chat carries on in this workspace's Chat."
         : "This part of the conversation was continued — chat carries on at the newest part.",
+    // The user asked for THIS part — never re-resolve it to the head.
+    followChain: false,
   };
 }
 </script>
@@ -175,6 +178,7 @@ function openSegment(
         :title="openThread.title"
         :chattable="openThread.chattable"
         :view-only-note="openThread.viewOnlyNote"
+        :follow-chain="openThread.followChain"
       />
       <div v-else class="pane-empty">
         <EmptyState

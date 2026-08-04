@@ -78,6 +78,9 @@ function makeHarness(
     transcriptMessages?: () => TranscriptMessage[];
     transcriptToolCalls?: () => Record<string, unknown[]>;
     onStreamRequest?: () => ReadableStream<Uint8Array>;
+    /** The overview the B6 session pane resolves scope/title against —
+     *  defaults empty (view-only pane, no composer machinery in the mount). */
+    overviewEntries?: () => Array<Record<string, unknown>>;
   } = {},
 ) {
   const streamSignals: AbortSignal[] = [];
@@ -92,10 +95,11 @@ function makeHarness(
     spawnedTargetSession: options.traceSpawnedTarget ?? null,
     entries: options.traceEntries?.() ?? [],
   }));
-  const getSession = vi.fn(async () => ({
-    session: { id: "s1" },
+  const getSession = vi.fn(async (sessionId: string) => ({
+    session: { id: sessionId, workspaceId: null },
     messages: (options.transcriptMessages?.() ?? []).map((message) => ({
       id: message.id,
+      sessionId,
       role: message.role ?? "assistant",
       sourceKind: null,
       sourceLabel: message.sourceLabel ?? null,
@@ -103,8 +107,13 @@ function makeHarness(
     })),
     toolCallsByMessageId: options.transcriptToolCalls?.() ?? {},
   }));
+  const overview = vi.fn(async () => options.overviewEntries?.() ?? []);
   const stopDelegation = vi.fn(async () => ({}));
-  const client = { GET, root: { getTrace, getSession, stopDelegation } } as never;
+  const client = {
+    GET,
+    root: { getTrace, getSession, stopDelegation },
+    sessions: { overview },
+  } as never;
   const pinia = createPinia();
   const wrapper = mount(ActivityMonitorPanel, {
     global: {
@@ -153,7 +162,10 @@ describe("ActivityMonitorPanel — session nodes", () => {
     expect(harness.wrapper.get(".viewer-title").text()).toContain(
       "Assistant · Ongoing conversation",
     );
-    expect(harness.wrapper.text()).toContain("Watching live");
+    // test: correct expectation (B6) — the entries list's "Watching live"
+    // empty-state left with the list; the header's context line carries the
+    // watching promise for the session pane.
+    expect(harness.wrapper.text()).toContain("Watching this conversation live");
     harness.wrapper.unmount();
   });
 
@@ -174,21 +186,20 @@ describe("ActivityMonitorPanel — session nodes", () => {
       messageId: "m1",
       textDelta: "Working on it",
     });
+    // test: correct expectation (B6) — a session node's body is the REAL
+    // thread now (LiveSessionPane): the streamed text renders through the
+    // live-turn overlay; the entries list's "Still working…" line died with
+    // the list for session nodes.
     await vi.waitFor(() =>
       expect(harness.wrapper.text()).toContain("Working on it"),
     );
-    expect(harness.wrapper.text()).toContain("Still working…");
 
     persisted = [{ id: "m1", body: "Working on it" }];
     handle.push("turn-stream-ended", {});
     handle.close();
-    // test: correct expectation (B3) — the watch is STANDING now: "caught up"
-    // was the one-attach epilogue; after settle the panel keeps watching (the
-    // stream re-attaches for the session's next turn) and the activity stays
-    // on screen as the SETTLED transcript row the refetch swapped in.
-    await vi.waitFor(() =>
-      expect(harness.wrapper.text()).not.toContain("Still working…"),
-    );
+    // The watch is STANDING (B3): after settle the pane swaps the overlay for
+    // the settled transcript row (its own settle refetch) and the stream
+    // re-attaches for the session's next turn.
     await vi.waitFor(() =>
       expect(harness.wrapper.text()).toContain("Working on it"),
     );
@@ -214,8 +225,13 @@ describe("ActivityMonitorPanel — session nodes", () => {
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
 
     handle.fail("network died");
+    // test: correct expectation (B6) — the session pane says the drop with
+    // its own quiet note (the registry keeps retrying); the entries list's
+    // error surface left with the list.
     await vi.waitFor(() =>
-      expect(harness.wrapper.find(".state-note.is-error").exists()).toBe(true),
+      expect(
+        harness.wrapper.find('[data-testid="live-drop-note"]').exists(),
+      ).toBe(true),
     );
     harness.wrapper.unmount();
   });
