@@ -73,7 +73,7 @@ export function buildGlobalRootMcpServer(
 // `buildWorkspaceInteractiveMcpServer` — the `vynel` server for a WORKSPACE-ROOT
 // turn that may ROUTE work onward (session-library Slice ④b, widened
 // 2026-07-21): the full workspace registry PLUS the session-routing tools
-// (create_session / list_sessions / send_task_to_session), so a workspace root
+// (create_session / list_sessions / send_message), so a workspace root
 // can spawn and drive sessions in its own ground. Composed by the interactive
 // chat stream AND delegated workspace-root runs. A SEPARATE builder — not a
 // widening of `generatedMcpTools` — because that array also feeds schedule

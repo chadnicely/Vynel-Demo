@@ -47,8 +47,8 @@ export const CreateSpawnedSessionRequestSchema = z.object({
 
 export const CreateSpawnedSessionResponseSchema = z.object({
   status: z.literal('created'),
-  /** The session id — the handle `list_sessions` shows and
-   *  `send_task_to_session` accepts. */
+  /** The session id — the handle `list_sessions` shows and `send_message`'s
+   *  `"session:<sessionId>"` destination accepts. */
   sessionId: z.string(),
   name: z.string(),
 })

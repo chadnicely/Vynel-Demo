@@ -484,7 +484,7 @@ export const createPlan: McpToolFactory = (scope, app) =>
 export const createSession: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_session',
-    "Create a NEW session: a normal continuing conversation with its own context, primed with the purpose you give it. Use it to hand off big or parallel work and keep your own context free — prefer send_task_to_workspace when the task belongs to a specific workspace's ongoing context, and a new session for standalone or cross-cutting work. Check list_sessions first: reuse an existing suitable session instead of creating duplicates. Returns { sessionId, name } — pass sessionId to send_task_to_session. The session appears in the user’s Sessions panel immediately.",
+    "Create a NEW session: a normal continuing conversation with its own context, primed with the purpose you give it. Use it to hand off big or parallel work and keep your own context free — prefer send_message to \"workspace:<id>\" when the task belongs to a specific workspace's ongoing context, and a new session for standalone or cross-cutting work. Check list_sessions first: reuse an existing suitable session instead of creating duplicates. Returns { sessionId, name } — address it with send_message to \"session:<sessionId>\". The session appears in the user’s Sessions panel immediately.",
     {
     name: z.string(),
     purpose: z.string(),
@@ -1302,7 +1302,7 @@ export const listAvailableSkills: McpToolFactory = (scope, app) =>
 export const listBackgroundRuns: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_background_runs',
-    "List the tasks you handed off with send_task_to_workspace or send_task_to_session, newest first — each with its jobId, status (queued / running / completed / failed), where it went, and a preview of what it reported back. Use this to check on work you started earlier instead of assuming it finished, and to find the jobId of a run you want the full result for. Read-only.",
+    "List the tasks you handed off with send_message, newest first — each with its jobId, status (queued / running / completed / failed), where it went, and a preview of what it reported back. Use this to check on work you started earlier instead of assuming it finished, and to find the jobId of a run you want the full result for. Read-only.",
     {},
     async (args: Record<string, unknown>) => {
       try {
@@ -2199,7 +2199,7 @@ export const listSchedules: McpToolFactory = (scope, app) =>
 export const listSessions: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_sessions',
-    "List every session — yours (scope 'spawned' = sessions you created), the user's workspaces, and the assistant thread — with per-session context usage: contextTokens used of contextWindow. Check these numbers BEFORE choosing where to send work: a session near its window is a poor target; create a new one instead. Each entry’s sessionId is the handle send_task_to_session accepts. Read-only.",
+    "List every session — yours (scope 'spawned' = sessions you created), the user's workspaces, and the assistant thread — with per-session context usage: contextTokens used of contextWindow. Check these numbers BEFORE choosing where to send work: a session near its window is a poor target; create a new one instead. Each entry’s sessionId is what send_message’s \"session:<sessionId>\" destination accepts. Read-only.",
     {},
     async (args: Record<string, unknown>) => {
       try {
@@ -2413,42 +2413,6 @@ export const replyToChannel: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
-export const reportToRequester: McpToolFactory = (scope, app) =>
-  (tool as unknown as McpToolFn)(
-    'report_to_requester',
-    "SUPERSEDED by send_message — prefer that one; this still works but will be removed. Report your REAL result up to the conversation that requested this work (your requester). Use it when you finish delegated work, or when a report arrives from a session you delegated to and its outcome should travel further up the chain. Pass the actual findings — data, numbers, file paths — not just \"done\". The requester is resolved automatically from who you are; you cannot choose the destination. Returns IMMEDIATELY with { status: 'enqueued' } — your requester absorbs the report in its own conversation a little later. Only works on background (delegated) turns; if it says there is no requester, simply reply with your findings as text instead.",
-    {
-    report: z.string(),
-  },
-    async (args: Record<string, unknown>) => {
-      try {
-        const pathStr = '/routing/report'
-        const queryStr = ''
-        const bodyObj: Record<string, unknown> = {}
-        for (const k of ['report']) {
-          if (args[k] !== undefined) bodyObj[k] = args[k]
-        }
-        const requestBody = JSON.stringify(bodyObj)
-        const url = pathStr + (queryStr ? '?' + queryStr : '')
-        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
-        const bodyText = await response.text()
-        if (!response.ok) {
-          return {
-            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
-            isError: true,
-          }
-        }
-        return { content: [{ type: 'text', text: bodyText }] }
-      } catch (err) {
-        return {
-          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
-          isError: true,
-        }
-      }
-    },
-    { annotations: { readOnlyHint: false, destructiveHint: true } },
-  )
-
 export const searchChatMessages: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'search_chat_messages',
@@ -2580,6 +2544,7 @@ export const sendMessage: McpToolFactory = (scope, app) =>
     to: z.string(),
     body: z.string(),
     kind: z.enum(['task', 'report', 'update']).optional(),
+    workspaceId: z.string().optional(),
     model: z.string().optional(),
     thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   },
@@ -2588,90 +2553,11 @@ export const sendMessage: McpToolFactory = (scope, app) =>
         const pathStr = '/routing/message'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['to', 'body', 'kind', 'model', 'thinkingEffort']) {
-          if (args[k] !== undefined) bodyObj[k] = args[k]
-        }
-        const requestBody = JSON.stringify(bodyObj)
-        const url = pathStr + (queryStr ? '?' + queryStr : '')
-        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
-        const bodyText = await response.text()
-        if (!response.ok) {
-          return {
-            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
-            isError: true,
-          }
-        }
-        return { content: [{ type: 'text', text: bodyText }] }
-      } catch (err) {
-        return {
-          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
-          isError: true,
-        }
-      }
-    },
-    { annotations: { readOnlyHint: false, destructiveHint: true } },
-  )
-
-export const sendTaskToSession: McpToolFactory = (scope, app) =>
-  (tool as unknown as McpToolFn)(
-    'send_task_to_session',
-    "SUPERSEDED by send_message — prefer that one; this still works but will be removed. Hand a task to a session you created with create_session (its continuing conversation, with its primed purpose and everything it has done since). Use list_sessions first to pick the sessionId and to CHECK ITS CONTEXT NUMBERS — send to a session with room, or create a new one. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the session runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. Tasks sent to the SAME session run one at a time, in order; different sessions run in parallel. If the task needs an irreversible action, that action PAUSES for the user to approve; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults. Legal model ids come from list_available_chat_models.",
-    {
-    targetSessionId: z.string(),
-    task: z.string(),
-    workspaceId: z.string().optional(),
-    model: z.string().optional(),
-    thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
-  },
-    async (args: Record<string, unknown>) => {
-      try {
-        const pathStr = '/routing/delegate-session'
-        const queryStr = ''
-        const bodyObj: Record<string, unknown> = {}
-        for (const k of ['targetSessionId', 'task', 'workspaceId', 'model', 'thinkingEffort']) {
+        for (const k of ['to', 'body', 'kind', 'workspaceId', 'model', 'thinkingEffort']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
           bodyObj['workspaceId'] = scope.workspaceId
-        }
-        const requestBody = JSON.stringify(bodyObj)
-        const url = pathStr + (queryStr ? '?' + queryStr : '')
-        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
-        const bodyText = await response.text()
-        if (!response.ok) {
-          return {
-            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
-            isError: true,
-          }
-        }
-        return { content: [{ type: 'text', text: bodyText }] }
-      } catch (err) {
-        return {
-          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
-          isError: true,
-        }
-      }
-    },
-    { annotations: { readOnlyHint: false, destructiveHint: true } },
-  )
-
-export const sendTaskToWorkspace: McpToolFactory = (scope, app) =>
-  (tool as unknown as McpToolFn)(
-    'send_task_to_workspace',
-    "SUPERSEDED by send_message — prefer that one; this still works but will be removed. Hand a task to a target workspace's own brain (its continuing conversation, with all its context). Use list_routing_workspaces first to pick targetWorkspaceId. This returns IMMEDIATELY with { status: 'enqueued', jobId } — the workspace runs the task in the BACKGROUND and its report arrives a little later as a NEW message in this conversation. Do NOT wait for a result here, and do NOT call this again for the same task — just tell the user you have handed it off. If the task needs an irreversible action (write or edit a file, delete, run a shell command), that action PAUSES for the user to approve — the approval card appears in the app and, for a channel request, in that channel; the task continues once they decide. You may pick the model and thinkingEffort for the task: choose a cheaper model / lower effort for routine tasks, a stronger model / higher effort for hard ones; omit both for the defaults. Legal model ids come from list_available_chat_models.",
-    {
-    targetWorkspaceId: z.string(),
-    task: z.string(),
-    model: z.string().optional(),
-    thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
-  },
-    async (args: Record<string, unknown>) => {
-      try {
-        const pathStr = '/routing/delegate'
-        const queryStr = ''
-        const bodyObj: Record<string, unknown> = {}
-        for (const k of ['targetWorkspaceId', 'task', 'model', 'thinkingEffort']) {
-          if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
         const url = pathStr + (queryStr ? '?' + queryStr : '')
@@ -3335,7 +3221,6 @@ export const generatedMcpTools: McpToolFactory[] = [
   listTasks,
   listWorkspaces,
   removeKnowledgeSource,
-  reportToRequester,
   searchChatMessages,
   searchKnowledge,
   searchMemory,
@@ -3368,8 +3253,6 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   registerWorkspace,
   replyToChannel,
   sendMessage,
-  sendTaskToSession,
-  sendTaskToWorkspace,
   sendToChannel,
   setTodos,
   speak,
@@ -3385,7 +3268,6 @@ export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
   getBackgroundRun,
   listBackgroundRuns,
   listSessions,
-  sendTaskToSession,
 ]
 
 // The ask-approval tier — DELETE-method routes + x-mcp.askApproval opt-ins.

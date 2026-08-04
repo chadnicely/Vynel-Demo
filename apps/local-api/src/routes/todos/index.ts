@@ -20,7 +20,7 @@
 // takes its workspace scope from the row — so neither the session nor its
 // scope can be model-supplied. A turn with no watching session (a schedule
 // fire, a delegation tick) carries no header and the tool 400s honestly, the
-// way `report_to_requester` does when a turn has no requester.
+// way `send_message` to "requester" does when a turn has no requester.
 //
 // Locked Hono protocol: describeRoute → validator → `...userScoped` → handler
 // on `factory.createApp()`; handlers THROW typed VynelError subclasses (the

@@ -93,7 +93,7 @@ describe('buildDelegatedTurnMcpComposer', () => {
     const compose = await buildDelegatedTurnMcpComposer(appRequest)
 
     const workspaceRoot = compose({ ...target, target: 'workspace-root' })
-    await dispatcherOf(workspaceRoot.mcpServers['vynel-interactive'])('/routing/report', {
+    await dispatcherOf(workspaceRoot.mcpServers['vynel-interactive'])('/routing/message', {
       method: 'POST',
     })
     expect(parseReportCallerHeader(callerHeaders[0] ?? undefined)).toEqual({
@@ -102,7 +102,7 @@ describe('buildDelegatedTurnMcpComposer', () => {
     })
 
     const spawned = compose({ ...target, target: 'spawned-session', targetPrimarySessionId: 'sp-1' })
-    await dispatcherOf(spawned.mcpServers['vynel-interactive'])('/routing/report', { method: 'POST' })
+    await dispatcherOf(spawned.mcpServers['vynel-interactive'])('/routing/message', { method: 'POST' })
     expect(parseReportCallerHeader(callerHeaders[1] ?? undefined)).toEqual({
       kind: 'spawned-session',
       targetPrimarySessionId: 'sp-1',
@@ -113,7 +113,7 @@ describe('buildDelegatedTurnMcpComposer', () => {
     const { appRequest, callerHeaders } = makeSpyAppRequest()
     const compose = await buildDelegatedTurnMcpComposer(appRequest)
     const spawned = compose({ ...target, target: 'spawned-session' })
-    await dispatcherOf(spawned.mcpServers['vynel-interactive'])('/routing/report', { method: 'POST' })
+    await dispatcherOf(spawned.mcpServers['vynel-interactive'])('/routing/message', { method: 'POST' })
     expect(callerHeaders[0]).toBeNull()
   })
 })
@@ -124,7 +124,7 @@ describe('buildWorkspaceBackgroundMcpComposer', () => {
     const compose = await buildWorkspaceBackgroundMcpComposer(appRequest)
     const composed = compose(target)
     expect(Object.keys(composed.mcpServers)).toEqual(['vynel-plain', 'vynel-notebook'])
-    await dispatcherOf(composed.mcpServers['vynel-plain'])('/routing/report', { method: 'POST' })
+    await dispatcherOf(composed.mcpServers['vynel-plain'])('/routing/message', { method: 'POST' })
     expect(callerHeaders[0]).toBeNull()
   })
 })

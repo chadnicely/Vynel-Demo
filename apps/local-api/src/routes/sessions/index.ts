@@ -68,7 +68,7 @@ export const sessionsApp = factory
           'workspaces, and the assistant thread — with per-session context usage: contextTokens ' +
           'used of contextWindow. Check these numbers BEFORE choosing where to send work: a ' +
           'session near its window is a poor target; create a new one instead. Each entry’s ' +
-          'sessionId is the handle send_task_to_session accepts. Read-only.',
+          'sessionId is what send_message’s "session:<sessionId>" destination accepts. Read-only.',
       },
     }),
     ...userScoped,
@@ -107,11 +107,12 @@ export const sessionsApp = factory
         description:
           'Create a NEW session: a normal continuing conversation with its own context, primed ' +
           'with the purpose you give it. Use it to hand off big or parallel work and keep your ' +
-          'own context free — prefer send_task_to_workspace when the task belongs to a specific ' +
-          "workspace's ongoing context, and a new session for standalone or cross-cutting work. " +
-          'Check list_sessions first: reuse an existing suitable session instead of creating ' +
-          'duplicates. Returns { sessionId, name } — pass sessionId to send_task_to_session. ' +
-          'The session appears in the user’s Sessions panel immediately.',
+          'own context free — prefer send_message to "workspace:<id>" when the task belongs to ' +
+          "a specific workspace's ongoing context, and a new session for standalone or " +
+          'cross-cutting work. Check list_sessions first: reuse an existing suitable session ' +
+          'instead of creating duplicates. Returns { sessionId, name } — address it with ' +
+          'send_message to "session:<sessionId>". The session appears in the user’s Sessions ' +
+          'panel immediately.',
       },
     }),
     validator('json', CreateSpawnedSessionRequestSchema),
@@ -219,7 +220,7 @@ export const sessionsApp = factory
         404: { description: 'Unknown session, not owned, or not a spawned session.' },
       },
       // No x-mcp — this is the UI's chat surface, not a tool (the model's door
-      // into a session is send_task_to_session).
+      // into a session is send_message to "session:<id>").
     }),
     validator('param', SessionIdParamSchema),
     validator('json', StartSessionTurnRequestSchema),

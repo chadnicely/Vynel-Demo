@@ -82,6 +82,17 @@ per-task. Every message is attributed: from the user, from a session, or from a 
 - The tick has NO update-delivery run branch yet (targetKey + claim gate landed early with A4) —
   a claimed update row would fall into the task path. The run branch MUST land WITH the producer.
 
+## A9 retirement notes (2026-08-04)
+
+- The three superseded tools are REMOVED (routes + schemas + parity rosters); their dispatch
+  cores live on in `dispatch-message.ts`. Their route tests were PORTED onto
+  `POST /routing/message` (same behavioral coverage, mapped bodies).
+- `send_message` gained the optional ambient `workspaceId` field (Slice ④b parity): the old
+  delegate-session tool's generator-injected creator workspace would otherwise have been LOST —
+  a workspace-only user's session sends would 400 without an active global root. Session sends
+  only; workspace-target sends still parent on the global root (the standing unified-tool shape —
+  a follow-up could resolve the creator from the caller header instead).
+
 ## B-slice notes (from the A4 review)
 
 - GLOBAL colleagues (workspaceId null) are invisible in the Sessions panel — `SessionsView.vue`

@@ -57,7 +57,7 @@ export async function buildWorkspaceBackgroundMcpComposer(
 // The DELEGATED-turn composer (2026-07-21, Chad's re-decision of the ④b pin):
 // a delegated WORKSPACE-ROOT turn is the user's own request arriving through
 // the global root, so it carries the SAME session-routing trio the interactive
-// chat has (create_session / list_sessions / send_task_to_session) — the
+// chat has (create_session / list_sessions / send_message) — the
 // global → workspace → session chain works, and the workspace primary's
 // toolset stops flip-flopping per turn origin (the deferred-tool "dropped
 // again" narrative).

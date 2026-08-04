@@ -171,7 +171,7 @@ export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
 
 // The workspace-root's FULL variant (session-library Slice ④b, widened
 // 2026-07-21): everything `vynelWorkspaceDescriptor` carries PLUS the
-// session-routing tools (create_session / list_sessions / send_task_to_session —
+// session-routing tools (create_session / list_sessions / send_message —
 // the `generatedWorkspaceInteractiveMcpTools` set). Composed by the interactive
 // stream (`streams/chat-turn.ts`, the /context report that mirrors it) AND by
 // DELEGATED workspace-root runs (`buildDelegatedTurnMcpComposer` — a delegated
