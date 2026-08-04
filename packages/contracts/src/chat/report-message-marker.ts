@@ -29,6 +29,12 @@ export function composeUpdateMessageMarker(sourceLabel: string): string {
   )
 }
 
+/** True when the body carries the INTERIM-update marker (vs the final report) —
+ *  the UI's one reading for the Report/Update badge split. */
+export function isUpdateMessageBody(body: string): boolean {
+  return body.startsWith(UPDATE_MARKER_PREFIX)
+}
+
 /** Drops the marker line (and its trailing blank) from a report/update body for
  *  display. Anything not starting with a marker prefix passes through
  *  untouched — including a report whose PROSE mentions "[Report from" later.

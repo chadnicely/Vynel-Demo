@@ -161,6 +161,24 @@ per-task. Every message is attributed: from the user, from a session, or from a 
   (no 5s seed-ghost of an ended turn). NOTE for B8: ActivityMonitorPanel is ~350 lines — extract
   a per-node-kind header derivation when touching it next.
 
+## B8 notes (shipped shape — the arc's LAST move)
+
+- Persona-attributed rows (manager replies, colleague reports/updates — both the assistant-role
+  and user-role inbound shapes) wear their PERSONA in the author line: `MessageRow` gained the
+  optional `authorPersona` prop (image or accent-tinted monogram; the blanket ClaudeMark stays
+  the fallback); ThreadStream resolves it per row from `sourceLabel` (workspaceId null — the
+  customized image stays with the cards; monogram + accent carry here).
+- `deriveMessageOrigin` (A10) is now the badge's one reading — a session-relayed row is never
+  "via Telegram"; system rows sit outside the vocabulary. Inbound deliveries split
+  **Update vs Report** (badge, View door, and the dialog title) via the new contracts reader
+  `isUpdateMessageBody`; the openReport payload carries `kind` end-to-end.
+- `AppComposer` gained `destinationLabel` — session panes render a quiet "→ <persona>" line.
+- REVIEW CATCH (fixed, retroactively repairs B5/B7): `ResolvedPersona.accentVar` was a full
+  `var(--ws-N)` reference while every consumer wraps it in `var()` again — invalid CSS, every
+  persona tint silently transparent. The convention is now the BARE property name (`--ws-N`),
+  documented on the type and the MessageRow prop, pinned by a resolver→row contract test
+  (happy-dom drops color-mix values, so the assertion rides the prop, not the style attribute).
+
 ## Move map
 
 Backend: A1 agent scope/scopeRef → A2 update-delivery kind + coalescing → A3

@@ -177,12 +177,15 @@ describe("MessageRow", () => {
     );
     expect(wrapper.text()).not.toContain("Full detail follows below.");
     // The door carries the FULL (marker-stripped) body to the review dialog.
+    // test: correct expectation (B8) — the payload gained `kind`, so the
+    // dialog can title an interim update honestly.
     await wrapper.find(".report-open-chip").trigger("click");
     expect(wrapper.emitted("openReport")).toEqual([
       [
         {
           sourceLabel: "Noah · vynel",
           body: "**Done.** The three files are indexed.\n\nFull detail follows below.",
+          kind: "report",
         },
       ],
     ]);
@@ -284,5 +287,118 @@ describe("MessageRow author avatar", () => {
       },
     });
     expect(user.find(".author-avatar").exists()).toBe(false);
+  });
+
+  // Persona-sessions B8: a persona-attributed row wears ITS persona — the
+  // host-resolved image or monogram — instead of the blanket Claude mark.
+  it("a persona row wears the host-resolved monogram (or image); without the prop the mark stays", () => {
+    const reportMessage = makeMessage({
+      role: "user",
+      sourceKind: "agent",
+      sourceLabel: "Nova",
+      body: "[Report from Nova — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\nDone.",
+    });
+
+    const monogram = mount(MessageRow, {
+      props: {
+        message: reportMessage,
+        authorPersona: { imageUrl: null, monogram: "N", accentVar: "--ws-1" },
+      },
+    });
+    expect(monogram.get(".monogram-text").text()).toBe("N");
+    expect(monogram.find(".author-avatar svg").exists()).toBe(false);
+
+    const withImage = mount(MessageRow, {
+      props: {
+        message: reportMessage,
+        authorPersona: {
+          imageUrl: "data:image/png;base64,BBBB",
+          monogram: "N",
+          accentVar: "--ws-1",
+        },
+      },
+    });
+    expect(withImage.get(".author-avatar img").attributes("src")).toBe(
+      "data:image/png;base64,BBBB",
+    );
+
+    const withoutProp = mount(MessageRow, { props: { message: reportMessage } });
+    expect(withoutProp.find(".author-avatar svg").exists()).toBe(true);
+  });
+
+  it("an assistant PERSONA reply wears the persona too — never the surface assistant's image", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          sourceKind: "workspace-manager",
+          sourceLabel: "Noah · vynel",
+        }),
+        assistantIconUrl: "data:image/png;base64,AAAA",
+        authorPersona: { imageUrl: null, monogram: "NV", accentVar: "--ws-2" },
+      },
+    });
+    expect(wrapper.get(".monogram-text").text()).toBe("NV");
+    expect(wrapper.find(".author-avatar img").exists()).toBe(false);
+  });
+});
+
+// Persona-sessions B8: an interim UPDATE must never read as the finished
+// result — its own badge and door label.
+describe("MessageRow update vs report", () => {
+  const updateBody =
+    "[Update from Nova — an interim status on work you delegated, relayed automatically by Vynel. The task is STILL RUNNING; this is NOT its result and NOT a message the user typed.]\n\nReceived — will report when done.";
+
+  it("an inbound UPDATE wears the Update badge and the View update door", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "Nova",
+          body: updateBody,
+        }),
+      },
+    });
+    expect(wrapper.text()).toContain("Update");
+    expect(wrapper.text()).not.toContain("Report");
+    expect(wrapper.get(".report-open-chip").text()).toContain("View update");
+    // The marker never renders — the teaser is the spoken text.
+    expect(wrapper.get(".report-teaser").text()).toContain(
+      "Received — will report when done.",
+    );
+  });
+
+  it("the View door carries the KIND — the dialog title must never call an update a report", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "Nova",
+          body: updateBody,
+        }),
+      },
+    });
+    await wrapper.get(".report-open-chip").trigger("click");
+    const [payload] = wrapper.emitted("openReport")![0] as [
+      { sourceLabel: string; kind: string },
+    ];
+    expect(payload.kind).toBe("update");
+    expect(payload.sourceLabel).toBe("Nova");
+  });
+
+  it("a final report keeps the Report badge", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "workspace-manager",
+          sourceLabel: "Noah · vynel",
+          body: "[Report from Noah · vynel — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\nDone — shipped.",
+        }),
+      },
+    });
+    expect(wrapper.text()).toContain("Report");
+    expect(wrapper.get(".report-open-chip").text()).toContain("View report");
   });
 });

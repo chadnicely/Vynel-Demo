@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   composeReportMessageMarker,
   composeUpdateMessageMarker,
+  isUpdateMessageBody,
   stripReportMessageMarker,
 } from './report-message-marker.js'
 
@@ -35,5 +36,11 @@ describe('report message marker', () => {
     expect(stripReportMessageMarker(marked)).toBe(body)
     expect(composeUpdateMessageMarker('Nova')).toContain('Nova')
     expect(composeUpdateMessageMarker('Nova')).toContain('STILL RUNNING')
+  })
+
+  it('isUpdateMessageBody tells the interim update from the final report (the badge split)', () => {
+    expect(isUpdateMessageBody(`${composeUpdateMessageMarker('Nova')}\n\nReceived.`)).toBe(true)
+    expect(isUpdateMessageBody(`${composeReportMessageMarker('Nova')}\n\nDone.`)).toBe(false)
+    expect(isUpdateMessageBody('A plain message.')).toBe(false)
   })
 })

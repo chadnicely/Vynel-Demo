@@ -390,6 +390,35 @@ describe("ThreadStream", () => {
     expect(rows.map((row) => row.findAll(".row-header").length)).toEqual([1, 1]);
   });
 
+  it("a persona report row wears its resolved monogram, not the Claude mark (B8)", () => {
+    const messages: ChatMessageResponse[] = [
+      {
+        ...makeMessage(2),
+        id: "r1",
+        role: "user",
+        sourceKind: "agent",
+        sourceLabel: "Nova",
+        body: "[Report from Nova — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\nDone.",
+      },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: { messages, toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+
+    const row = wrapper.get(".message-row");
+    expect(row.find(".monogram-text").exists()).toBe(true);
+    expect(row.find(".author-avatar svg").exists()).toBe(false);
+    // The resolver→row CONTRACT: the accent travels as the bare property
+    // NAME (the row wraps it in `var()` itself — a full reference here once
+    // double-wrapped into invalid CSS and silently untinted every persona
+    // chip). Asserted on the prop: happy-dom drops color-mix() style values,
+    // so the rendered attribute can't carry the check.
+    expect(wrapper.getComponent(MessageRow).props("authorPersona")).toMatchObject(
+      { accentVar: expect.stringMatching(/^--ws-\d+$/) },
+    );
+  });
+
   it("the live-card overflow line opens the Background roster (B7)", async () => {
     const cards = Array.from({ length: 5 }, (_, index) => ({
       key: `trace-${index}`,

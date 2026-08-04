@@ -4,7 +4,7 @@
 // workspace accent. `@vynel/ui` stays icon-library-free — this resolver hands
 // components a ready image-or-monogram pair, never an icon name to render.
 
-import { workspaceAccentVar, workspaceMonogram } from "@vynel/ui";
+import { workspaceColorSlot, workspaceMonogram } from "@vynel/ui";
 import { useCustomizeStore } from "../../stores/customize-store.js";
 
 export interface ResolvedPersona {
@@ -12,7 +12,9 @@ export interface ResolvedPersona {
   /** The user's customized persona image for the workspace — null = monogram. */
   imageUrl: string | null;
   monogram: string;
-  /** The CSS var reference for the persona's accent color. */
+  /** The accent's custom-property NAME (e.g. `--ws-3`) — consumers
+   *  interpolate it inside `var()` themselves. Never a full `var(...)`
+   *  reference: the double wrap is invalid CSS and silently untints. */
   accentVar: string;
 }
 
@@ -34,7 +36,7 @@ export function usePersonaResolver() {
       name: input.name,
       imageUrl,
       monogram: workspaceMonogram(input.name),
-      accentVar: workspaceAccentVar(input.name),
+      accentVar: `--ws-${workspaceColorSlot(input.name)}`,
     };
   }
 

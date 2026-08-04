@@ -24,7 +24,8 @@ function onOpenChange(open: boolean) {
     <template #title>
       <span class="flex items-center gap-2">
         <Inbox :size="18" class="shrink-0 text-ink-3" />
-        Report from {{ ui.viewingReport?.sourceLabel ?? "a session" }}
+        {{ ui.viewingReport?.kind === "update" ? "Update from" : "Report from" }}
+        {{ ui.viewingReport?.sourceLabel ?? "a session" }}
       </span>
     </template>
 

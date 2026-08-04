@@ -40,6 +40,7 @@ export { default as WorkspaceColorSwatches } from "./components/WorkspaceColorSw
 export {
   WORKSPACE_ACCENT_SLOTS,
   workspaceAccentVar,
+  workspaceColorSlot,
   workspaceNameFromLabel,
 } from "./lib/workspace-color.js";
 export {

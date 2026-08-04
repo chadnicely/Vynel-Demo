@@ -338,6 +338,10 @@ describe("SessionsView", () => {
     expect(wrapper.text()).toContain("Earlier findings.");
     expect(wrapper.find("textarea").exists()).toBe(true);
     expect(wrapper.find(".view-only-note").exists()).toBe(false);
+    // The composer says who it speaks to (B8) — the session's persona.
+    expect(
+      wrapper.get('[data-testid="composer-destination"]').text(),
+    ).toContain("Research: pricing");
     // Text-only surface: the attach affordance is gone entirely.
     expect(wrapper.find('[aria-label="Attach files"]').exists()).toBe(false);
     // Two-pane: the list stays put and marks the open row.

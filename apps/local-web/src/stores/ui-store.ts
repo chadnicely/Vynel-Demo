@@ -315,7 +315,13 @@ export const useUiStore = defineStore("ui", () => {
   // pattern) — a thread's compact report box carries the full body here on
   // "View report"; null = closed. The content rides in directly (it is already
   // in the thread's DTO — no id, no fetch).
-  const viewingReport = ref<{ sourceLabel: string; body: string } | null>(null);
+  const viewingReport = ref<{
+    sourceLabel: string;
+    body: string;
+    /** Keeps the dialog title honest — an interim update never presents as
+     *  the finished result (persona-sessions B8). */
+    kind: "report" | "update";
+  } | null>(null);
 
   // Composer selections, shared by every chat surface — both the model
   // allowlist and the mode vocabulary are the real contract/session ones.

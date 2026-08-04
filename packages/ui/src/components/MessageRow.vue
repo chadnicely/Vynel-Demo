@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
-import { stripReportMessageMarker } from "@vynel/contracts/chat/report-message-marker";
+import {
+  isUpdateMessageBody,
+  stripReportMessageMarker,
+} from "@vynel/contracts/chat/report-message-marker";
+import { deriveMessageOrigin } from "@vynel/contracts/chat/message-origin";
 import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
 import PresenceDot from "./PresenceDot.vue";
@@ -39,6 +43,16 @@ const props = withDefaults(
      *  host groups consecutive same-author rows under ONE author line, so a
      *  reloaded thread reads like the live overlay (one "Claude:", N blocks). */
     showHeader?: boolean;
+    /** The PERSONA-attributed author's visual identity (persona-sessions B8):
+     *  the host resolves the row's sourceLabel to an image or monogram, and a
+     *  report/update/persona row wears IT instead of the blanket Claude mark.
+     *  Null keeps the pre-B8 fallbacks. `accentVar` is the custom-property
+     *  NAME (`--ws-3`) — this template wraps it in `var()` itself. */
+    authorPersona?: {
+      imageUrl: string | null;
+      monogram: string;
+      accentVar: string;
+    } | null;
   }>(),
   {
     linkedSessionLive: undefined,
@@ -46,15 +60,20 @@ const props = withDefaults(
     assistantName: "Assistant",
     assistantIconUrl: null,
     showHeader: true,
+    authorPersona: null,
   },
 );
 
 const emit = defineEmits<{
   /** The delegation chip: open the linked session's live view. */
   openSession: [sessionId: string];
-  /** The report box's "View report" chip: open the full report (the shared
-   *  review dialog — the plan-card pattern). Content rides along; no fetch. */
-  openReport: [report: { sourceLabel: string; body: string }];
+  /** The report box's "View report/update" chip: open the full text (the
+   *  shared review dialog — the plan-card pattern). Content rides along; no
+   *  fetch. `kind` keeps the dialog's title honest — an interim update must
+   *  never present as the finished result. */
+  openReport: [
+    report: { sourceLabel: string; body: string; kind: "report" | "update" },
+  ];
 }>();
 
 // An inbound REPORT — a workspace's or agent's finished result arriving as
@@ -94,23 +113,45 @@ const roleLabel = computed(() => {
 
 const isAssistant = computed(() => props.message.role === "assistant");
 
-// The glyph beside assistant-authored lines: the surface's custom persona
-// image only when the row speaks AS that persona; every other assistant
-// author (reports, global-root) wears the Claude mark — it's all Claude
-// underneath. User lines get no glyph.
-const authorAvatar = computed<{ imageUrl: string | null } | null>(() => {
+// A row spoken BY a named persona (a workspace manager or an agent colleague)
+// — either shape: the assistant-role reply or the user-role inbound delivery.
+const isPersonaAuthor = computed(
+  () =>
+    (props.message.sourceKind === "workspace-manager" ||
+      props.message.sourceKind === "agent") &&
+    !!props.message.sourceLabel &&
+    (props.message.role === "assistant" || isInboundReport.value),
+);
+
+// The glyph beside authored lines: a persona row wears ITS persona (the
+// host-resolved image or monogram — B8), the surface's own assistant its
+// custom image, and everything else the Claude mark — it's all Claude
+// underneath. Plain user lines get no glyph.
+type AuthorGlyph =
+  | { kind: "image"; imageUrl: string }
+  | { kind: "monogram"; monogram: string; accentVar: string }
+  | { kind: "claude" }
+  | null;
+
+const authorGlyph = computed<AuthorGlyph>(() => {
   if (props.message.role === "user" && !isInboundReport.value) return null;
+  if (isPersonaAuthor.value && props.authorPersona) {
+    return props.authorPersona.imageUrl
+      ? { kind: "image", imageUrl: props.authorPersona.imageUrl }
+      : {
+          kind: "monogram",
+          monogram: props.authorPersona.monogram,
+          accentVar: props.authorPersona.accentVar,
+        };
+  }
   const speaksAsSurfaceAssistant =
     props.message.role === "assistant" &&
     props.message.sourceKind !== "global-root" &&
-    !(
-      (props.message.sourceKind === "workspace-manager" ||
-        props.message.sourceKind === "agent") &&
-      props.message.sourceLabel
-    );
-  return {
-    imageUrl: speaksAsSurfaceAssistant ? (props.assistantIconUrl ?? null) : null,
-  };
+    !isPersonaAuthor.value;
+  if (speaksAsSurfaceAssistant && props.assistantIconUrl) {
+    return { kind: "image", imageUrl: props.assistantIconUrl };
+  }
+  return { kind: "claude" };
 });
 
 // When this message happened — quiet meta beside the author, so a reopened
@@ -156,11 +197,32 @@ const ORIGIN_LABELS: Record<
   zoom: "Zoom",
 };
 
-const originBadge = computed(() => {
-  const origin = props.message.originChannel;
-  if (props.message.role !== "user" || !origin) return null;
-  return { kind: origin, label: ORIGIN_LABELS[origin] };
+// The ONE reading of "who spoke this, from where" (contracts A10) — a
+// session-relayed row is never "via Telegram" even if a channel marker rode
+// along; only a genuinely user-typed channel message wears the badge. System
+// rows sit outside the origin vocabulary (never badged).
+const messageOrigin = computed(() => {
+  const role = props.message.role;
+  if (role !== "user" && role !== "assistant") return null;
+  return deriveMessageOrigin({
+    role,
+    sourceKind: props.message.sourceKind ?? null,
+    sourceLabel: props.message.sourceLabel ?? null,
+    originChannel: props.message.originChannel ?? null,
+  });
 });
+
+const originBadge = computed(() => {
+  if (messageOrigin.value?.origin !== "channel") return null;
+  const kind = props.message.originChannel!;
+  return { kind, label: ORIGIN_LABELS[kind] };
+});
+
+// An interim UPDATE (the child's spoken ack/progress) wears its own badge —
+// it must never read as the finished result.
+const isInboundUpdate = computed(
+  () => isInboundReport.value && isUpdateMessageBody(props.message.body),
+);
 
 const linkedSessionId = computed(() => props.message.partialSessionId ?? null);
 
@@ -209,8 +271,26 @@ const accentVar = computed(() => {
   >
     <div v-if="props.showHeader" class="row-header">
     <p class="role-label">
-      <span v-if="authorAvatar" class="author-avatar" aria-hidden="true">
-        <img v-if="authorAvatar.imageUrl" :src="authorAvatar.imageUrl" alt="" />
+      <span
+        v-if="authorGlyph"
+        class="author-avatar"
+        :style="
+          authorGlyph.kind === 'monogram'
+            ? {
+                background: `color-mix(in srgb, var(${authorGlyph.accentVar}) 30%, transparent)`,
+              }
+            : undefined
+        "
+        aria-hidden="true"
+      >
+        <img
+          v-if="authorGlyph.kind === 'image'"
+          :src="authorGlyph.imageUrl"
+          alt=""
+        />
+        <span v-else-if="authorGlyph.kind === 'monogram'" class="monogram-text">{{
+          authorGlyph.monogram
+        }}</span>
         <ClaudeMark v-else :size="14" />
       </span>
       {{ roleLabel }}
@@ -257,8 +337,11 @@ const accentVar = computed(() => {
         </svg>
         via {{ originBadge.label }}
       </span>
-      <!-- Quiet provenance mark: this row is a delivered result, not typed input. -->
-      <span v-if="isInboundReport" class="origin-badge">Report</span>
+      <!-- Quiet provenance mark: this row was DELIVERED, not typed — an
+           interim update says so (never mistakable for the finished result). -->
+      <span v-if="isInboundReport" class="origin-badge">{{
+        isInboundUpdate ? "Update" : "Report"
+      }}</span>
     </p>
     <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
     </div>
@@ -281,10 +364,11 @@ const accentVar = computed(() => {
           emit('openReport', {
             sourceLabel: props.message.sourceLabel!,
             body: displayBody,
+            kind: isInboundUpdate ? 'update' : 'report',
           })
         "
       >
-        <span>View report</span>
+        <span>{{ isInboundUpdate ? "View update" : "View report" }}</span>
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path
             d="M6 4l4 4-4 4"
@@ -404,6 +488,14 @@ const accentVar = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* A persona monogram chip — the inline accent tint replaces the Claude coral
+   (inline style wins over the class default). */
+.monogram-text {
+  color: var(--ink-1);
+  font: 600 9px/1 var(--font-ui);
+  letter-spacing: 0.02em;
 }
 
 .time-label {

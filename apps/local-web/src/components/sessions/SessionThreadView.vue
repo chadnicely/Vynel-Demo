@@ -219,6 +219,7 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
         :placeholder="`Message ${props.title}…`"
         :allow-attachments="false"
         :scope="composerScope"
+        :destination-label="props.title"
         @send="queuedSend.submit"
         @interrupt="turn.interrupt"
       />

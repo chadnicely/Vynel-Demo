@@ -10,6 +10,7 @@ import type { ActivitySource } from "../../composables/activity/use-activity-mon
 import type { PersonaLiveCardModel } from "../../composables/delegations/use-live-delegation-cards.js";
 import LiveTurn from "./LiveTurn.vue";
 import PersonaLiveCard from "./PersonaLiveCard.vue";
+import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
 
 // Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening —
 // Global → Workspace → Session → Agent): a thread shows chips ONLY for its
@@ -55,8 +56,10 @@ const emit = defineEmits<{
   stopCard: [partialSessionId: string];
   /** A message's delegation chip: open that session's live view. */
   openSession: [sessionId: string];
-  /** A report box's "View report" chip — the host opens the shared dialog. */
-  openReport: [report: { sourceLabel: string; body: string }];
+  /** A report/update box's "View" chip — the host opens the shared dialog. */
+  openReport: [
+    report: { sourceLabel: string; body: string; kind: "report" | "update" },
+  ];
   /** The live-card overflow line ("+N more running") — the full roster. */
   openBackground: [];
   /** An Agent card's Watch chip: open the focused agent view over the source
@@ -73,6 +76,21 @@ function agentWatchSourceFor(message: ChatMessageResponse): ActivitySource {
   return message.partialSessionId != null
     ? { kind: "trace", id: message.partialSessionId }
     : { kind: "session", id: message.sessionId };
+}
+
+// A persona-attributed row (a manager's reply, a colleague's report/update)
+// wears ITS OWN face in the author line (B8) — resolved from the label the
+// same way the live cards resolve theirs. No workspaceId at row level, so the
+// customized image stays with the cards; the monogram + accent carry here.
+const { resolvePersona } = usePersonaResolver();
+function authorPersonaFor(message: ChatMessageResponse) {
+  const isPersonaRow =
+    (message.sourceKind === "workspace-manager" ||
+      message.sourceKind === "agent") &&
+    message.sourceLabel != null;
+  return isPersonaRow
+    ? resolvePersona({ name: message.sourceLabel!, workspaceId: null })
+    : null;
 }
 
 // The received-vs-sent discriminator (empirical, from how rows land): a
@@ -287,6 +305,7 @@ watch(
             :class="{ 'is-continuation': !showsHeaderFor(index) }"
             :assistant-name="props.assistantName"
             :assistant-icon-url="props.assistantIconUrl"
+            :author-persona="authorPersonaFor(message)"
             :show-header="showsHeaderFor(index)"
             :show-watch-chip="showsWatchChipFor(message)"
             :linked-session-live="
