@@ -26,7 +26,12 @@ export {
 export { type RunGlobalRootReportTurn } from './run-report-delivery-tick.js'
 export { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
 export { resolveColleagueAgent } from './resolve-colleague-agent.js'
-export { resolveJobReportRequester } from './settle-failed-delegation-attempt.js'
+export {
+  resolveJobReportRequester,
+  enqueueJobFailureDelivery,
+  previewTaskText,
+  jobRetryHint,
+} from './enqueue-job-failure-delivery.js'
 export {
   delegateToLeafSession,
   type DelegateToLeafSessionInput,

@@ -14,35 +14,13 @@
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import {
-  enqueueReportDelivery,
   failDelegationJob,
   isDeliveryJobKind,
   markDelegationsSurfacedToRoot,
-  resolveThreadIdOf,
   type DelegationJob,
-  type ReportDeliveryRequester,
 } from '@vynel/orchestration'
-import { findWorkspaceById } from '@vynel/workspaces'
 import { extractEmbeddedErrorCode, requeueIfRecoverable } from './classify-turn-failure.js'
-
-/** The requester a job's reports address: its recorded originating-chat
- *  workspace when it still exists, else the global root. */
-export function resolveJobReportRequester(
-  db: Database,
-  claimed: DelegationJob,
-): ReportDeliveryRequester {
-  if (claimed.requesterWorkspaceId !== null) {
-    const workspace = findWorkspaceById(db, claimed.requesterWorkspaceId)
-    if (workspace !== null && workspace.userId === claimed.userId) {
-      return {
-        kind: 'workspace-primary',
-        workspaceId: workspace.id,
-        workspacePath: workspace.path,
-      }
-    }
-  }
-  return { kind: 'global-root' }
-}
+import { enqueueJobFailureDelivery, previewTaskText } from './enqueue-job-failure-delivery.js'
 
 /** A failed (non-stopped) attempt: requeue if recoverable, else fail the row
  *  terminally and push a failure report to the requester. `retryHint` finishes
@@ -71,21 +49,13 @@ export function settleFailedDelegationAttempt(
   // dropped update is deliberately terminal (ephemeral status, persona-sessions).
   if (isDeliveryJobKind(claimed.jobKind)) return
   try {
-    const taskPreview =
-      claimed.taskText.length > 160 ? `${claimed.taskText.slice(0, 160)}…` : claimed.taskText
-    const threadId = resolveThreadIdOf(claimed)
-    enqueueReportDelivery(db, {
-      ...(threadId !== null ? { threadId } : {}),
-      userId: claimed.userId,
-      reporterSessionId:
-        claimed.targetPrimarySessionId ?? claimed.workspaceId ?? claimed.parentSessionId,
-      reporterLabel: claimed.workspaceName ?? 'Background task',
-      reportBody:
-        `The background task "${taskPreview}" failed` +
+    enqueueJobFailureDelivery(
+      db,
+      claimed,
+      `The background task "${previewTaskText(claimed.taskText)}" failed` +
         `${attemptCount > 1 ? ` after ${attemptCount} attempts` : ''}: ${errorMessage}. ` +
         `Tell the user it failed, and ${deps.retryHint}`,
-      requester: resolveJobReportRequester(db, claimed),
-    })
+    )
     // Surfaced via the push — keep the pull net from repeating it next turn.
     markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
   } catch (err) {

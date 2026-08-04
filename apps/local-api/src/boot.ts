@@ -49,7 +49,11 @@ import {
   DelegationCancelRegistry,
   SessionTargetLocks,
 } from '@vynel/session/delegation'
-import { SessionActivityFeed } from '@vynel/session/runtime'
+import {
+  SessionActivityFeed,
+  buildSessionTurnRecorder,
+  reapOrphanedSessionTurns,
+} from '@vynel/session/runtime'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import {
   createDesktopNotificationListener,
@@ -125,8 +129,12 @@ export async function boot(): Promise<void> {
   const turnEvents = new TurnEventBroadcaster()
   // ONE turn-liveness registry per process — every turn producer (web/voice
   // streams, channel turns, schedule fires) announces here; /activity/stream
-  // subscribes. Shared with the channels service below.
-  const activityFeed = new SessionActivityFeed()
+  // subscribes. Shared with the channels service below. The recorder mirrors
+  // every turn into the durable `session_turns` envelope (persona-sessions),
+  // so a refresh/restart rebuilds the live picture.
+  const activityFeed = new SessionActivityFeed({
+    turnRecorder: buildSessionTurnRecorder(db, logger),
+  })
   // ONE delegation stop bridge per process — the delegation tick registers each
   // claimed run; the /root delegation-stop route cancels through it.
   const delegationCancels = new DelegationCancelRegistry()
@@ -285,6 +293,17 @@ export async function boot(): Promise<void> {
     }
   } catch (err) {
     logger.error({ err }, 'boot tool-call reap failed')
+  }
+  // Boot recovery for the durable turn envelope (persona-sessions), same
+  // reasoning: the previous process died with these turns running — close them
+  // 'orphaned' so the rebuild read never reports a ghost.
+  try {
+    const reapedTurnCount = reapOrphanedSessionTurns(db, new Date())
+    if (reapedTurnCount > 0) {
+      logger.info({ reapedTurnCount }, 'boot session-turn reap closed orphaned running rows')
+    }
+  } catch (err) {
+    logger.error({ err }, 'boot session-turn reap failed')
   }
   // The outbox relay — dispatches published cross-domain events to their
   // registered consumers (schedules→channel delivery, the ask nudge).

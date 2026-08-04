@@ -10,10 +10,10 @@ import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 
-const { tickMock, reclaimMock, enqueueReportDeliveryMock } = vi.hoisted(() => ({
+const { tickMock, reclaimMock, failureDeliveryMock } = vi.hoisted(() => ({
   tickMock: vi.fn(),
   reclaimMock: vi.fn(),
-  enqueueReportDeliveryMock: vi.fn(),
+  failureDeliveryMock: vi.fn(),
 }))
 
 // Spread the real barrel so a future VALUE import from it inside this test's
@@ -21,14 +21,13 @@ const { tickMock, reclaimMock, enqueueReportDeliveryMock } = vi.hoisted(() => ({
 vi.mock('@vynel/session/delegation', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   runDelegationClaimAndRunTick: tickMock,
-  // The startup restart-parity push resolves the requester against the fake db
-  // — pin it to the global root so the unit stays DB-free.
-  resolveJobReportRequester: vi.fn(() => ({ kind: 'global-root' as const })),
+  // The startup restart-parity push writes through the shared composer — pin it
+  // so the unit stays DB-free (the composer's own behavior is repo-tested).
+  enqueueJobFailureDelivery: failureDeliveryMock,
 }))
 vi.mock('@vynel/orchestration', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   failOrphanedClaimedDelegations: reclaimMock,
-  enqueueReportDelivery: enqueueReportDeliveryMock,
 }))
 
 import { SessionTargetLocks } from '@vynel/session/delegation'
@@ -224,7 +223,7 @@ describe('startDelegationService', () => {
   it('reclaims orphaned "claimed" jobs at startup, warns, and pushes failure deliveries for WORK rows only', () => {
     // Two orphaned WORK rows + one delivery orphan (anti-cascade: no push).
     const orphan = (overrides: Record<string, unknown>) => ({
-      id: 'j-' + String(Math.abs(JSON.stringify(overrides).length)),
+      id: 'j-default',
       userId: 'u-1',
       parentSessionId: 'sdk-parent',
       workspaceId: null,
@@ -234,12 +233,13 @@ describe('startDelegationService', () => {
       partialSessionId: 'p-1',
       threadId: 't-1',
       jobKind: null,
+      agentSlug: null,
       requesterWorkspaceId: null,
       ...overrides,
     })
     reclaimMock.mockReturnValue([
       orphan({ id: 'j-task', jobKind: null }),
-      orphan({ id: 'j-agent', jobKind: 'agent-run' }),
+      orphan({ id: 'j-agent', jobKind: 'agent-run', agentSlug: 'researcher' }),
       orphan({ id: 'j-delivery', jobKind: 'report-delivery' }),
     ])
     const options = fakeOptions()
@@ -251,14 +251,18 @@ describe('startDelegationService', () => {
       expect.stringContaining('reclaimed'),
     )
     // The restart-parity push: one delivery per WORK orphan, none for the
-    // delivery orphan (anti-cascade), each telling the requester it died.
-    expect(enqueueReportDeliveryMock).toHaveBeenCalledTimes(2)
-    expect(enqueueReportDeliveryMock).toHaveBeenCalledWith(
+    // delivery orphan (anti-cascade), each telling the requester it died —
+    // with the kind-aware retry hint (a colleague is re-mentioned).
+    expect(failureDeliveryMock).toHaveBeenCalledTimes(2)
+    expect(failureDeliveryMock).toHaveBeenCalledWith(
       options.db,
-      expect.objectContaining({
-        reportBody: expect.stringContaining('interrupted by a restart'),
-        threadId: 't-1',
-      }),
+      expect.objectContaining({ id: 'j-task' }),
+      expect.stringContaining('interrupted by a restart'),
+    )
+    expect(failureDeliveryMock).toHaveBeenCalledWith(
+      options.db,
+      expect.objectContaining({ id: 'j-agent' }),
+      expect.stringContaining('mention the agent again'),
     )
     service.stop()
   })

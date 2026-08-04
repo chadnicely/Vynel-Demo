@@ -24,13 +24,13 @@
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
+import { failOrphanedClaimedDelegations, isDeliveryJobKind } from '@vynel/orchestration'
 import {
-  enqueueReportDelivery,
-  failOrphanedClaimedDelegations,
-  isDeliveryJobKind,
-  resolveThreadIdOf,
-} from '@vynel/orchestration'
-import { runDelegationClaimAndRunTick, resolveJobReportRequester } from '@vynel/session/delegation'
+  runDelegationClaimAndRunTick,
+  enqueueJobFailureDelivery,
+  previewTaskText,
+  jobRetryHint,
+} from '@vynel/session/delegation'
 import type {
   TurnEventBroadcaster,
   DelegationCancelRegistry,
@@ -113,19 +113,12 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
   for (const orphan of reclaimed) {
     if (isDeliveryJobKind(orphan.jobKind)) continue
     try {
-      const taskPreview =
-        orphan.taskText.length > 160 ? `${orphan.taskText.slice(0, 160)}…` : orphan.taskText
-      enqueueReportDelivery(db, {
-        ...(resolveThreadIdOf(orphan) !== null ? { threadId: resolveThreadIdOf(orphan)! } : {}),
-        userId: orphan.userId,
-        reporterSessionId:
-          orphan.targetPrimarySessionId ?? orphan.workspaceId ?? orphan.parentSessionId,
-        reporterLabel: orphan.workspaceName ?? 'Background task',
-        reportBody:
-          `The background task "${taskPreview}" was interrupted by a restart and did not ` +
-          'finish. Tell the user, and re-send it with send_message if it should run again.',
-        requester: resolveJobReportRequester(db, orphan),
-      })
+      enqueueJobFailureDelivery(
+        db,
+        orphan,
+        `The background task "${previewTaskText(orphan.taskText)}" was interrupted by a ` +
+          `restart and did not finish. Tell the user, and ${jobRetryHint(orphan)}`,
+      )
     } catch (err) {
       logger.error(
         { err, jobId: orphan.id },
