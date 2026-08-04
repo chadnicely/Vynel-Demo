@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
+import { MessageRow } from "@vynel/ui";
 import type {
   ChatMessageResponse,
   ChatToolCallResponse,
@@ -88,6 +89,31 @@ describe("ThreadStream", () => {
   // arrives only as the pushed report row (assistant + 'workspace-manager',
   // no task row on the sender) — recordPushedReportMessage vs the routed
   // turn's messageAttribution.
+
+  it("a chip pulses LIVE only while its trace key is in liveTraceIds (B1 — the in-flight poll)", () => {
+    const sent: ChatMessageResponse = {
+      ...makeMessage(1),
+      partialSessionId: "partial-live",
+      sourceKind: "workspace-manager",
+      sourceLabel: "Noah · vynel",
+    };
+    const live = mount(ThreadStream, {
+      props: {
+        messages: [sent],
+        toolCallsByMessageId: {},
+        activeTurn: null,
+        liveTraceIds: new Set(["partial-live"]),
+      },
+      global: { plugins: [createPinia()] },
+    });
+    expect(live.getComponent(MessageRow).props("linkedSessionLive")).toBe(true);
+
+    const idle = mount(ThreadStream, {
+      props: { messages: [sent], toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+    expect(idle.getComponent(MessageRow).props("linkedSessionLive")).toBe(false);
+  });
 
   it("chips a SENT-DOWN report row (no task row for its trace) and emits its trace key", async () => {
     const report: ChatMessageResponse = {

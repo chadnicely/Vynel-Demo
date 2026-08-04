@@ -75,6 +75,17 @@ const activeSessionId = computed<string | null>(() => {
 // targeting this workspace — closes the recorded Slice-④ gap where the chips
 // appeared only on the global banner.
 const inFlightQuery = useInFlightDelegations();
+// The trace keys with a LIVE delegation — watch chips on matching rows pulse
+// (B1: replaces the dead live-sessions store). UNFILTERED deliberately: a chip
+// hangs off a row this thread SENT, matched by its own trace key — the
+// workspace filter below serves the banner (work TARGETING this workspace).
+const liveTraceIds = computed(() => {
+  const ids = new Set<string>();
+  for (const delegation of inFlightQuery.data.value ?? []) {
+    if (delegation.partialSessionId != null) ids.add(delegation.partialSessionId);
+  }
+  return ids;
+});
 const inFlightDelegationsHere = computed(() =>
   (inFlightQuery.data.value ?? []).filter(
     (delegation) => delegation.workspaceId === tab.workspaceId,
@@ -315,6 +326,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :active-turn="activeTurn"
         :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
         :assistant-icon-url="assistantIconUrl"
+        :live-trace-ids="liveTraceIds"
         @decide-approval="onDecideApproval"
         @open-session="activityMonitor.openTrace"
         @open-report="(report) => (ui.viewingReport = report)"

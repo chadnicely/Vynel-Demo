@@ -152,6 +152,15 @@ function openWorkspace(workspaceId: string) {
 // here (the global banner) only for now.
 const inFlightQuery = useInFlightDelegations();
 const inFlightDelegations = computed(() => inFlightQuery.data.value ?? []);
+// The trace keys with a LIVE delegation — watch chips on matching rows pulse
+// (B1: replaces the dead live-sessions store, which never received events).
+const liveTraceIds = computed(() => {
+  const ids = new Set<string>();
+  for (const delegation of inFlightDelegations.value) {
+    if (delegation.partialSessionId != null) ids.add(delegation.partialSessionId);
+  }
+  return ids;
+});
 const isProcessing = computed(() => inFlightDelegations.value.length > 0);
 const stopDelegation = useStopDelegation();
 
@@ -425,6 +434,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :active-turn="activeTurn"
         :assistant-name="ASSISTANT_NAME"
         :assistant-icon-url="assistantIconUrl"
+        :live-trace-ids="liveTraceIds"
         @decide-approval="onDecideApproval"
         @open-session="activityMonitor.openTrace"
         @open-report="(report) => (ui.viewingReport = report)"

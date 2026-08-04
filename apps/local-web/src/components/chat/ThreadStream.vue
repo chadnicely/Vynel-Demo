@@ -7,7 +7,6 @@ import type {
 import { MessageRow, ToolCallList } from "@vynel/ui";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
 import type { ActivitySource } from "../../composables/activity/use-activity-monitor.js";
-import { useLiveSessionsStore } from "../../stores/live-sessions-store.js";
 import LiveTurn from "./LiveTurn.vue";
 
 // Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening —
@@ -30,8 +29,11 @@ const props = withDefaults(
      *  trace/report chips at all (scoping rule 3). Threads (global/workspace)
      *  keep the default and rely on the received-trace discriminator below. */
     showWatchChips?: boolean;
+    /** The trace keys with a LIVE delegation right now (the host computes it
+     *  from the in-flight poll) — a matching row's watch chip pulses live. */
+    liveTraceIds?: Set<string> | undefined;
   }>(),
-  { assistantName: "Assistant", assistantIconUrl: null, showWatchChips: true },
+  { assistantName: "Assistant", assistantIconUrl: null, showWatchChips: true, liveTraceIds: undefined },
 );
 
 const emit = defineEmits<{
@@ -92,7 +94,6 @@ function showsWatchChipFor(message: ChatMessageResponse): boolean {
   );
 }
 
-const liveSessions = useLiveSessionsStore();
 const scroller = ref<HTMLElement | null>(null);
 
 // ── Discord-model scrolling ─────────────────────────────────────────────────
@@ -265,7 +266,7 @@ watch(
             :show-watch-chip="showsWatchChipFor(message)"
             :linked-session-live="
               message.partialSessionId != null &&
-              liveSessions.liveFor(message.partialSessionId) !== null
+              (props.liveTraceIds?.has(message.partialSessionId) ?? false)
             "
             @open-session="(id) => emit('openSession', id)"
             @open-report="(report) => emit('openReport', report)"
