@@ -429,6 +429,9 @@ function runCommand(id: string) {
     case "toggle-tasks":
       ui.isTasksPanelOpen = !ui.isTasksPanelOpen;
       break;
+    case "background-activity":
+      activityMonitor.openBackground();
+      break;
     case "go-home":
       void router.push({ name: "home" });
       break;

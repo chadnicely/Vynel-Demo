@@ -443,6 +443,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         @stop-card="stopDelegation.mutate"
         @open-session="activityMonitor.openTrace"
         @open-report="(report) => (ui.viewingReport = report)"
+        @open-background="activityMonitor.openBackground"
         @watch-agent="activityMonitor.openAgentDirect"
       />
 

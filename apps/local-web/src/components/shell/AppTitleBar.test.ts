@@ -39,4 +39,10 @@ describe("AppTitleBar", () => {
     const wrapper = mountTitleBar({ title: "Marketing" });
     expect(wrapper.text()).toContain("Marketing");
   });
+
+  it("the presence pair is a button opening the Background overview (B7)", async () => {
+    const wrapper = mountTitleBar();
+    await wrapper.get('[data-testid="titlebar-presence"]').trigger("click");
+    expect(wrapper.emitted("command")).toEqual([["background-activity"]]);
+  });
 });

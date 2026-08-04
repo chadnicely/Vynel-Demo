@@ -57,6 +57,8 @@ const emit = defineEmits<{
   openSession: [sessionId: string];
   /** A report box's "View report" chip — the host opens the shared dialog. */
   openReport: [report: { sourceLabel: string; body: string }];
+  /** The live-card overflow line ("+N more running") — the full roster. */
+  openBackground: [];
   /** An Agent card's Watch chip: open the focused agent view over the source
    *  that carries the agent's activity (trace for delegation-traced rows, the
    *  row's own session for a direct turn's agent). */
@@ -346,13 +348,16 @@ watch(
             @open="card.partialSessionId && emit('openCard', card.partialSessionId)"
             @stop="card.partialSessionId && emit('stopCard', card.partialSessionId)"
           />
-          <p
+          <button
             v-if="overflowCardCount > 0"
             key="overflow"
-            class="m-0 mx-auto text-[11px] text-[var(--ink-3)]"
+            type="button"
+            class="m-0 mx-auto text-[11px] text-[var(--ink-3)] hover:text-[var(--ink-1)]"
+            data-testid="live-cards-overflow"
+            @click="emit('openBackground')"
           >
             +{{ overflowCardCount }} more running
-          </p>
+          </button>
         </TransitionGroup>
       </div>
     </div>

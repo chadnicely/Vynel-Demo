@@ -149,13 +149,24 @@ function onMenuCommand(id: string) {
       </DropdownMenu>
     </nav>
 
-    <!-- Center: window title + presence (the drag region) -->
+    <!-- Center: window title + presence (the drag region). The presence pair
+         is a BUTTON (no-drag island): it opens the Background overview —
+         the dot says something is running; the click shows what. -->
     <div
       class="flex flex-1 items-center justify-center gap-2 px-4"
       data-tauri-drag-region
     >
-      <PresenceDot :state="props.presenceState" :label="props.presenceLabel" />
-      <span class="truncate text-xs text-ink-2">{{ props.title }}</span>
+      <button
+        type="button"
+        aria-label="Show background activity"
+        title="Show background activity"
+        class="flex items-center gap-2 rounded-sm px-2 py-0.5 transition hover:bg-row-hover [-webkit-app-region:no-drag]"
+        data-testid="titlebar-presence"
+        @click="emit('command', 'background-activity')"
+      >
+        <PresenceDot :state="props.presenceState" :label="props.presenceLabel" />
+        <span class="truncate text-xs text-ink-2">{{ props.title }}</span>
+      </button>
     </div>
 
     <!-- The tasks dock toggle (Chad's right-side icon) — badge counts open work. -->

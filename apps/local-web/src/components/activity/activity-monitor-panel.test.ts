@@ -81,6 +81,10 @@ function makeHarness(
     /** The overview the B6 session pane resolves scope/title against —
      *  defaults empty (view-only pane, no composer machinery in the mount). */
     overviewEntries?: () => Array<Record<string, unknown>>;
+    /** The B7 roster's poll — in-flight delegations. */
+    inFlightDelegations?: () => Array<Record<string, unknown>>;
+    /** The B7 roster's durable seed — GET /activity/running. */
+    runningTurns?: () => Array<Record<string, unknown>>;
   } = {},
 ) {
   const streamSignals: AbortSignal[] = [];
@@ -108,11 +112,20 @@ function makeHarness(
     toolCallsByMessageId: options.transcriptToolCalls?.() ?? {},
   }));
   const overview = vi.fn(async () => options.overviewEntries?.() ?? []);
+  const listDelegations = vi.fn(async () => ({
+    delegations: options.inFlightDelegations?.() ?? [],
+  }));
+  const listRunningTurns = vi.fn(async () => ({
+    turns: options.runningTurns?.() ?? [],
+  }));
+  const listWorkspaces = vi.fn(async () => []);
   const stopDelegation = vi.fn(async () => ({}));
   const client = {
     GET,
-    root: { getTrace, getSession, stopDelegation },
+    root: { getTrace, getSession, stopDelegation, listDelegations },
     sessions: { overview },
+    activity: { listRunningTurns },
+    workspaces: { list: listWorkspaces },
   } as never;
   const pinia = createPinia();
   const wrapper = mount(ActivityMonitorPanel, {
@@ -143,6 +156,146 @@ function makeHarness(
     store: useActivityMonitorStore(pinia),
   };
 }
+
+// The B7 Background overview — the panel's base roster node: everything
+// running/queued grouped by persona; drills PUSH so Back returns here.
+describe("ActivityMonitorPanel — the Background overview", () => {
+  it("says so when nothing runs", async () => {
+    const harness = makeHarness();
+    harness.store.openBackground();
+    await vi.waitFor(() =>
+      expect(harness.wrapper.get(".viewer-title").text()).toContain(
+        "Background activity",
+      ),
+    );
+    expect(harness.wrapper.text()).toContain("Nothing running");
+    harness.wrapper.unmount();
+  });
+
+  it("groups a working task under its persona; Watch drills to the trace and Back returns to the overview", async () => {
+    const harness = makeHarness({
+      traceStatus: "claimed",
+      traceEntries: () => [
+        {
+          id: "t-user",
+          role: "user",
+          sourceKind: "global-root",
+          sourceLabel: null,
+          body: "Research WAL mode",
+          toolCalls: [],
+        },
+      ],
+      inFlightDelegations: () => [
+        {
+          partialSessionId: "trace-1",
+          workspaceId: null,
+          workspaceName: "Nova",
+          targetPrimarySessionId: "primary-1",
+          sessionName: "Nova",
+          taskLabel: "Research WAL mode",
+          status: "claimed",
+        },
+      ],
+    });
+    harness.store.openBackground();
+
+    await vi.waitFor(() =>
+      expect(
+        harness.wrapper.find('[data-testid="background-group"]').exists(),
+      ).toBe(true),
+    );
+    const group = harness.wrapper.get('[data-testid="background-group"]');
+    expect(group.text()).toContain("Nova");
+    expect(group.text()).toContain("Research WAL mode");
+    expect(group.text()).toContain("Working");
+
+    await harness.wrapper
+      .get('[data-testid="background-task-watch"]')
+      .trigger("click");
+    await flushPromises();
+    // The trace node stacked on top — its own view, Back names the roster.
+    await vi.waitFor(() =>
+      expect(harness.wrapper.get(".status-pill").text()).toBe("Working…"),
+    );
+    expect(harness.getTrace).toHaveBeenCalledWith("trace-1");
+
+    await harness.wrapper
+      .get('[aria-label="Back to the overview"]')
+      .trigger("click");
+    await flushPromises();
+    expect(harness.wrapper.get(".viewer-title").text()).toContain(
+      "Background activity",
+    );
+    expect(
+      harness.wrapper.find('[data-testid="background-group"]').exists(),
+    ).toBe(true);
+    harness.wrapper.unmount();
+  });
+
+  it("a fresh window rebuilds from the durable seed — a running turn shows before any stream frame", async () => {
+    const harness = makeHarness({
+      runningTurns: () => [
+        {
+          turnId: "turn-durable",
+          scopeKind: "global",
+          workspaceId: null,
+          origin: "schedule",
+          sessionId: "sdk-1",
+          primarySessionId: null,
+          jobId: null,
+          threadId: null,
+          partialSessionId: null,
+          startedAt: "2026-08-04T10:00:00.000Z",
+        },
+      ],
+    });
+    harness.store.openBackground();
+    await vi.waitFor(() =>
+      expect(
+        harness.wrapper.find('[data-testid="background-group"]').exists(),
+      ).toBe(true),
+    );
+    const group = harness.wrapper.get('[data-testid="background-group"]');
+    // No delegation, no feed frame — identity falls to the assistant, the
+    // origin note says where it fired from.
+    expect(group.text()).toContain("Assistant");
+    expect(group.text()).toContain("from a schedule");
+    expect(group.text()).toContain("Working");
+    harness.wrapper.unmount();
+  });
+
+  it("Stop on a task row stops that delegation without leaving the roster", async () => {
+    const harness = makeHarness({
+      inFlightDelegations: () => [
+        {
+          partialSessionId: "trace-1",
+          workspaceId: null,
+          workspaceName: "Nova",
+          targetPrimarySessionId: "primary-1",
+          sessionName: "Nova",
+          taskLabel: "Research WAL mode",
+          status: "pending",
+        },
+      ],
+    });
+    harness.store.openBackground();
+    await vi.waitFor(() =>
+      expect(
+        harness.wrapper.find('[data-testid="background-task-stop"]').exists(),
+      ).toBe(true),
+    );
+    await harness.wrapper
+      .get('[data-testid="background-task-stop"]')
+      .trigger("click");
+    await vi.waitFor(() =>
+      expect(harness.stopDelegation).toHaveBeenCalledWith("trace-1"),
+    );
+    expect(harness.wrapper.get(".viewer-title").text()).toContain(
+      "Background activity",
+    );
+    harness.wrapper.unmount();
+  });
+});
 
 describe("ActivityMonitorPanel — session nodes", () => {
   it("stays hidden until a session is watched, then attaches to ITS stream", async () => {

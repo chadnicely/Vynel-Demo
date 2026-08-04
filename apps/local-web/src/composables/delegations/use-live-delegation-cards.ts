@@ -13,6 +13,12 @@
 import { computed, type MaybeRefOrGetter, toValue } from "vue";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
 import { useInFlightDelegations } from "./use-in-flight-delegations.js";
+import {
+  delegationPersonaName,
+  delegationRowKey,
+  delegationTaskState,
+  findTurnForDelegation,
+} from "./delegation-turn-pairing.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { useTurnNarrationStore } from "../../stores/turn-narration-store.js";
 import { narrationLabelFor } from "../../components/home/narration-label.js";
@@ -68,13 +74,7 @@ export function useLiveDelegationCards(options: {
     const messages = toValue(options.messages);
 
     return delegations.map((delegation, index) => {
-      const turn =
-        delegation.partialSessionId === null
-          ? undefined
-          : turns.find(
-              (candidate) =>
-                candidate.partialSessionId === delegation.partialSessionId,
-            );
+      const turn = findTurnForDelegation(turns, delegation);
       const turnNarration =
         turn === undefined
           ? undefined
@@ -94,16 +94,16 @@ export function useLiveDelegationCards(options: {
             message.threadId === threadId,
         );
       const personaName =
-        delegation.sessionName ?? turn?.personaName ?? delegation.workspaceName;
+        delegationPersonaName(delegation, turn) ?? delegation.workspaceName;
       return {
-        key: delegation.partialSessionId ?? `in-flight-${index}`,
+        key: delegationRowKey(delegation, index),
         partialSessionId: delegation.partialSessionId,
         persona: resolvePersona({
           name: personaName,
           workspaceId: delegation.workspaceId,
         }),
         taskLabel: delegation.taskLabel,
-        state: delegation.status === "pending" ? "queued" : "working",
+        state: delegationTaskState(delegation.status),
         acked,
         narration: narrationLabelFor(turnNarration?.current),
         recentSteps: (turnNarration?.recentSteps ?? []).flatMap((step) => {

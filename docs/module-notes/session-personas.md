@@ -135,6 +135,32 @@ per-task. Every message is attributed: from the user, from a session, or from a 
   origin-note strip (dead chip machinery deleted; keyless-job visibility intent moved to the
   cards — a keyless card hides Watch/Stop, which would no-op without a trace key).
 
+## B7 notes (shipped shape)
+
+- DEVIATION from the plan's outline (recorded): the Background overview is NOT a second shell
+  singleton — it's a monitor-store NODE (`{kind:'background'}`, `openBackground()`), the panel's
+  BASE roster. One overlay system (scrim/Esc/header inherited); row clicks PUSH trace/session
+  nodes so Back returns to the roster. `activeSource` is null for it — the roster owns no
+  channel.
+- Data spine (`use-background-activity.ts`): pure `buildBackgroundActivity` merges the in-flight
+  delegations poll (reused app-wide query) + the feed's server turns + the durable
+  `GET /activity/running` seed (roster-gated, 5s; stream wins on overlap), groups by working
+  identity (`targetPrimarySessionId` → colleague/spawned; `ws:<id>` → workspace persona;
+  unclaimed turns stand alone, persona = personaName ?? manager ?? "Assistant"), working groups
+  first. Narration/persona attach in the composable; elapsed ticks in the view.
+- Openers: the title-bar presence pair is now a BUTTON (`command('background-activity')`), Home's
+  live band gained "See all", and the thread's "+N more running" overflow line opens the roster.
+- ORIGIN_NOTES extracted to `components/home/origin-notes.ts` (one home; HomeView + roster).
+- Review fixes applied: delegation↔turn pairing extracted to ONE home
+  (`delegations/delegation-turn-pairing.ts` — match key + persona-chain head + state + row key;
+  the B5 cards and the roster both import it; each surface keeps its own persona TAIL — cards
+  fall to workspaceName, the roster prefers the manager). `useInFlightDelegations` gained an
+  `enabled` gate — the always-mounted panel gates its observer on the roster (the chat views'
+  observers stay ungated), so the 4s poll is no longer app-permanent. Group sort ties return 0
+  (insertion order holds). The feed's turn-ended settle also invalidates `["activity","running"]`
+  (no 5s seed-ghost of an ended turn). NOTE for B8: ActivityMonitorPanel is ~350 lines — extract
+  a per-node-kind header derivation when touching it next.
+
 ## Move map
 
 Backend: A1 agent scope/scopeRef → A2 update-delivery kind + coalescing → A3

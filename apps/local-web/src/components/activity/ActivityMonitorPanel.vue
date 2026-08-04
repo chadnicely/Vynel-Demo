@@ -6,9 +6,12 @@ import { collapseTraceEcho } from "../../composables/delegations/collapse-trace-
 import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import { deriveAgentFocus } from "./agent-focus.js";
+import { useActivityStore } from "../../stores/activity-store.js";
+import { useBackgroundActivity } from "../../composables/activity/use-background-activity.js";
 import ActivityEntriesList from "./ActivityEntriesList.vue";
 import ActivityPanelHeader from "./ActivityPanelHeader.vue";
 import AgentFocusView from "./AgentFocusView.vue";
+import BackgroundActivityView from "./BackgroundActivityView.vue";
 import LiveSessionPane from "./LiveSessionPane.vue";
 
 // The ONE activity overlay (sessions-surface Slice ②) — the old delegation
@@ -42,6 +45,13 @@ const agentNode = computed(() =>
 const sessionPaneNode = computed(() =>
   store.current?.kind === "session" ? store.current : null,
 );
+
+// The Background overview (B7) — the panel's BASE roster node: no channel of
+// its own (activeSource is null), rows from the shared data spine, and every
+// drill PUSHES so Back returns here. Its queries poll only while it shows.
+const isBackgroundOpen = computed(() => store.current?.kind === "background");
+const activity = useActivityStore();
+const background = useBackgroundActivity(() => isBackgroundOpen.value);
 
 // The workspace reply and the surfaced global report carry the SAME body — the
 // backend trace is deliberately faithful (both copies returned); display
@@ -128,6 +138,7 @@ const traceTitle = computed(
 const headerTitle = computed(() => {
   if (agentFocus.value !== null) return `Agent ${agentFocus.value.name}`;
   const node = store.current;
+  if (node?.kind === "background") return "Background activity";
   if (node?.kind === "session") return node.title;
   if (node?.kind === "trace") return traceTitle.value;
   return "";
@@ -136,6 +147,7 @@ const headerTitle = computed(() => {
 const headerLive = computed(() => {
   if (agentFocus.value !== null)
     return agentFocus.value.call?.status === "started";
+  if (isBackgroundOpen.value) return activity.isTurnRunning;
   return activeKind.value === "trace" ? isWorking.value : isStreaming.value;
 });
 
@@ -145,16 +157,20 @@ const headerContext = computed(() => {
       agentFocus.value.task ??
       "Watching this agent live — everything it does shows up here."
     );
+  if (isBackgroundOpen.value)
+    return "Everything running right now — open a person to see their conversation.";
   return activeKind.value === "trace"
     ? "Watching this task live — everything the workspace does shows up here."
     : "Watching this conversation live — replies and tool use show up here as they happen.";
 });
 
 // Back names where it GOES — the node UNDER the top of the stack (the pipeline
-// drill can leave a trace beneath a session beneath an agent).
+// drill can leave a trace beneath a session beneath an agent, all over the
+// background roster).
 const backLabel = computed(() => {
   const below = store.stack.at(-2);
   if (below === undefined) return "Back";
+  if (below.kind === "background") return "Back to the overview";
   return below.kind === "trace" ? "Back to the task" : "Back to the conversation";
 });
 
@@ -191,7 +207,13 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
         <div class="scrim" @click="store.close()" />
         <aside
           class="session-viewer"
-          :aria-label="activeKind === 'trace' ? 'Delegation activity' : 'Session activity'"
+          :aria-label="
+            isBackgroundOpen
+              ? 'Background activity'
+              : activeKind === 'trace'
+                ? 'Delegation activity'
+                : 'Session activity'
+          "
         >
           <ActivityPanelHeader
             :title="headerTitle"
@@ -217,6 +239,18 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
               :key="sessionPaneNode.sessionId"
               :session-id="sessionPaneNode.sessionId"
               :title="sessionPaneNode.title"
+            />
+            <BackgroundActivityView
+              v-else-if="isBackgroundOpen"
+              :groups="background.groups.value"
+              @open-session="
+                (sessionId, title) =>
+                  store.push({ kind: 'session', sessionId, title })
+              "
+              @open-trace="
+                (partialSessionId) => store.push({ kind: 'trace', partialSessionId })
+              "
+              @stop="(partialSessionId) => stopDelegation.mutate(partialSessionId)"
             />
             <ActivityEntriesList
               v-else-if="activeKind !== null"

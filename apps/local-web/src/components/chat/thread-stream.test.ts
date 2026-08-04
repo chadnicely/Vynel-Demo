@@ -389,4 +389,39 @@ describe("ThreadStream", () => {
     const rows = wrapper.findAll(".message-row");
     expect(rows.map((row) => row.findAll(".row-header").length)).toEqual([1, 1]);
   });
+
+  it("the live-card overflow line opens the Background roster (B7)", async () => {
+    const cards = Array.from({ length: 5 }, (_, index) => ({
+      key: `trace-${index}`,
+      partialSessionId: `trace-${index}`,
+      persona: {
+        name: `Persona ${index}`,
+        imageUrl: null,
+        monogram: "P",
+        accentVar: "--ws-1",
+      },
+      taskLabel: `task ${index}`,
+      state: "working" as const,
+      acked: false,
+      narration: null,
+      recentSteps: [],
+      startedAt: null,
+    }));
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [],
+        toolCallsByMessageId: {},
+        activeTurn: null,
+        liveCards: cards,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    // Four visible + the overflow BUTTON naming the rest.
+    expect(wrapper.findAll('[data-testid="persona-live-card"]')).toHaveLength(4);
+    const overflow = wrapper.get('[data-testid="live-cards-overflow"]');
+    expect(overflow.text()).toContain("+1 more running");
+    await overflow.trigger("click");
+    expect(wrapper.emitted("openBackground")).toHaveLength(1);
+  });
 });

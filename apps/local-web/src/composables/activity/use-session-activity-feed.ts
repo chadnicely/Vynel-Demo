@@ -43,6 +43,10 @@ export function useSessionActivityFeed() {
       void queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
       // Overview + usage statistics both settle when a turn lands.
       void queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
+      // The Background roster's durable seed would otherwise ghost the ended
+      // turn until its next poll tick (free while the roster is closed —
+      // disabled queries just mark stale).
+      void queryClient.invalidateQueries({ queryKey: ["activity", "running"] });
     }
   }
 

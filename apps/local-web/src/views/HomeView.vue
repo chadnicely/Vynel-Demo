@@ -14,19 +14,21 @@ import LiveNowBand, {
 import TasksCard from "../components/home/TasksCard.vue";
 import UsageStatsCard from "../components/home/UsageStatsCard.vue";
 import { narrationLabelFor } from "../components/home/narration-label.js";
+import { ORIGIN_NOTES } from "../components/home/origin-notes.js";
 import { useDashboardOverview } from "../composables/dashboard/use-dashboard-overview.js";
 import { usePendingApprovals } from "../composables/approvals/use-pending-approvals.js";
 import { useActivityStore } from "../stores/activity-store.js";
+import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
 import { useTurnNarrationStore } from "../stores/turn-narration-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { formatRelativeTime } from "../utils/format-relative-time.js";
 import { greetingForHour } from "../utils/greeting.js";
-import type { SessionTurnOrigin } from "@vynel/contracts/chat/session-activity";
 
 // The dashboard: everything the assistant is doing and holding, one glance.
 const router = useRouter();
 const ui = useUiStore();
 const activity = useActivityStore();
+const activityMonitor = useActivityMonitorStore();
 const narration = useTurnNarrationStore();
 
 // Poll while work runs so task completions + fresh sessions land live (the
@@ -45,16 +47,6 @@ const greeting = greetingForHour(new Date().getHours());
 // "Right now": one card per in-flight turn the feed reports, labeled by its
 // workspace persona ("Noah · Invoices") or the global thread, narrated by the
 // current tool step in plain words.
-const ORIGIN_NOTES: Record<SessionTurnOrigin, string | null> = {
-  web: null,
-  voice: "via Voice",
-  telegram: "via Telegram",
-  discord: "via Discord",
-  zoom: "via Zoom",
-  schedule: "from a schedule",
-  delegation: "working on a task",
-};
-
 const liveNow = computed<LiveTurnRow[]>(() =>
   Object.values(activity.serverTurns).map((turn) => {
     const workspace =
@@ -157,6 +149,7 @@ function scheduleTiming(nextFireAt: string | null): string {
         v-if="liveNow.length > 0"
         :turns="liveNow"
         @open="openSession"
+        @see-all="activityMonitor.openBackground()"
       />
     </Transition>
 

@@ -15,12 +15,26 @@ export interface LiveTurnRow {
 
 defineProps<{ turns: LiveTurnRow[] }>();
 
-const emit = defineEmits<{ open: [workspaceId: string | null] }>();
+const emit = defineEmits<{
+  open: [workspaceId: string | null];
+  /** The full roster — the Background overview (B7). */
+  seeAll: [];
+}>();
 </script>
 
 <template>
   <section class="live-now-band" aria-label="Right now">
-    <p class="band-title">Right now</p>
+    <p class="band-title">
+      Right now
+      <button
+        type="button"
+        class="see-all"
+        data-testid="live-band-see-all"
+        @click="emit('seeAll')"
+      >
+        See all
+      </button>
+    </p>
     <TransitionGroup name="live-card" tag="div" class="card-rail">
       <LiveSessionCard
         v-for="turn in turns"
@@ -44,10 +58,24 @@ const emit = defineEmits<{ open: [workspaceId: string | null] }>();
 
 .band-title {
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: var(--ink-2);
   font: 600 11px/1.5 var(--font-ui);
   text-transform: uppercase;
   letter-spacing: 0.07em;
+}
+
+.see-all {
+  color: var(--ink-3);
+  font: 600 10.5px/1.5 var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.see-all:hover {
+  color: var(--ink-1);
 }
 
 .card-rail {

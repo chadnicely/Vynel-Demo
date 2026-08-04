@@ -145,6 +145,22 @@ describe("activity-monitor store — the node stack", () => {
     expect(store.activeSource).toEqual({ kind: "session", id: "sdk-1" });
   });
 
+  // The B7 Background roster: the panel's base node — no channel of its own,
+  // and drills stack on top so Back returns to the overview.
+  it("openBackground opens the roster with a NULL active source; drills stack on top", () => {
+    const store = useActivityMonitorStore();
+    store.openBackground();
+    expect(store.isOpen).toBe(true);
+    expect(store.current).toEqual({ kind: "background" });
+    expect(store.activeSource).toBeNull();
+
+    store.push({ kind: "session", sessionId: "sdk-1", title: "Nova" });
+    expect(store.activeSource).toEqual({ kind: "session", id: "sdk-1" });
+    store.back();
+    expect(store.current).toEqual({ kind: "background" });
+    expect(store.activeSource).toBeNull();
+  });
+
   it("back at depth one is a no-op; focusAgent with nothing open is a no-op", () => {
     const store = useActivityMonitorStore();
     store.focusAgent("tu_ghost");

@@ -9,12 +9,17 @@ import type { ActivitySource } from "../composables/activity/use-activity-monito
 // fields, so it needs no channel of its own — which is what makes a direct-open
 // agent (a thread card's Watch chip, no surrounding panel) watchable at all.
 export type ActivityNode =
+  | { kind: "background" }
   | { kind: "trace"; partialSessionId: string }
   | { kind: "session"; sessionId: string; title: string }
   | { kind: "agent"; source: ActivitySource; toolUseId: string };
 
-function sourceOf(node: ActivityNode): ActivitySource {
+/** The background roster has no channel of its own (its rows come from the
+ *  feed + polls the app already holds) — null keeps the monitor idle. */
+function sourceOf(node: ActivityNode): ActivitySource | null {
   switch (node.kind) {
+    case "background":
+      return null;
     case "trace":
       return { kind: "trace", id: node.partialSessionId };
     case "session":
@@ -68,6 +73,13 @@ export const useActivityMonitorStore = defineStore("activity-monitor", () => {
     else open(node);
   }
 
+  /** The Claude-desktop-style Background overview (persona-sessions B7) —
+   *  everything running right now, as the panel's BASE node: row clicks PUSH
+   *  trace/session nodes on top, so Back returns to the roster. */
+  function openBackground() {
+    open({ kind: "background" });
+  }
+
   /** Watch any owned session in the panel, labeled by its identity. KEPT
    *  (Slice ④ decision) as the session-kind door the node stack builds on —
    *  thread chips hold a TRACE key (partialSessionId is a correlation key,
@@ -111,6 +123,7 @@ export const useActivityMonitorStore = defineStore("activity-monitor", () => {
     push,
     back,
     close,
+    openBackground,
     openTrace,
     openSession,
     openAgentDirect,
