@@ -9,6 +9,40 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Your agents are colleagues now.** Every configured agent has ONE continuing
+  session per workspace (and one global) — @mention it and the same colleague
+  resumes with its persona and memory intact, replying into your chat like a
+  person: it acknowledges the task in its own words ("Received — will report
+  when done"), sends interim updates while it works, and delivers exactly one
+  final report. Updates and reports wear honest badges (an update never reads
+  as the finished result), and every relayed message is attributed to who spoke
+  it — persona rows even wear their own face (image or accent monogram) in the
+  author line.
+- **In-flight work shows up as people in the thread.** Each running task
+  renders as a live persona card at the thread's edge — avatar, current step,
+  elapsed time, an "acknowledged" mark when the child has spoken, plus Watch
+  and Stop. Click Watch (or any session chip) and the panel opens the REAL
+  conversation — full transcript, live streaming overlay, and a composer to
+  send into the running session directly (queued sends fire in order). A
+  mid-conversation continuation ("compaction") no longer freezes an open
+  session view — it follows onto the fresh segment with a quiet note.
+- **A Background overview, like Claude desktop's.** The title-bar presence
+  dot is now a button (also Home's "See all" and the thread's "+N more
+  running" line) opening a roster of everything running or queued right now,
+  grouped by persona, with narration, elapsed, origin ("via Telegram", "from
+  a schedule"), Watch and Stop per task — and Back always returns to the
+  overview. Liveness is durable: a refresh or restart rebuilds the roster
+  from the database, and tasks interrupted by a restart now say so instead
+  of dying silently.
+
+### Changed
+
+- Reports and task hand-offs now travel ONLY through the model's own
+  `send_message` (the last automatic result-harvest path is gone), each task
+  chain carries a durable thread id end-to-end, and the three legacy comms
+  tools (`send_task_to_workspace`, `send_task_to_session`,
+  `report_to_requester`) are retired in favor of the one `send_message`.
+
 - **The menu is now grouped — and it's yours to shape.** The sidebar reads in
   named, collapsible groups (Toolkit · Utils · Context · Connections, with
   Schedules and Marketplace standing alone) instead of one long list, with

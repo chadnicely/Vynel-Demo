@@ -3,7 +3,31 @@
 **Updated 2026-08-04.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ⏭ CURRENT: PERSONA-SESSIONS ARC (2026-08-04) — BACKEND A1–A10 ALL SHIPPED; B1–B8 REMAIN
+## ✅ PERSONA-SESSIONS ARC (2026-08-04) — ALL 19 MOVES SHIPPED + PUSHED; MORNING SMOKE PENDING
+
+**THE ARC IS CODE-COMPLETE.** Every move reviewed (code-reviewer per diff, all must/should-fixes
+applied), targeted-green (typecheck + vitest per package; full local-web 604, +ui/contracts = 874
+across the three), committed + pushed. **Chad's morning session = the smoke list — see
+`.claude/reports/2026-08-04-persona-sessions-arc.md` (the morning report: what shipped, what to
+smoke together, known-accepted residuals, deferred follow-ups).** Full gate (`pnpm test`) NOT run
+(Chad's CPU rule) — run it before/with the smoke.
+
+Frontend view moves shipped tonight (after the B1–B4 plumbing): B5 `d231c15` PersonaLiveCard ·
+B6 `f90c6c1` LiveSessionPane w/ direct send + chain-head follow (kills the accepted freeze;
+`followChain` prop; `session-open-affordance` one-home; monitor-store push-when-open) · B5-review
+fixes `a0d56d9` (workspace-scoped cards via `onlyWorkspaceId`; acked ignores 'global-root' rows;
+`.narration-*` CSS hoisted to app.css — scoped copies never applied; ProcessingBanner reduced to
+the origin note; keyless cards hide Watch/Stop) · B7 `4f677f4` Background overview (a monitor-
+store NODE `{kind:'background'}` — NOT a second overlay; roster groups by persona; durable seed
+GET /activity/running roster-gated; delegation↔turn pairing extracted to
+`delegation-turn-pairing.ts` shared with B5; `useInFlightDelegations` gained an enabled gate;
+title-bar presence button + Home "See all" + thread "+N more" open it) · B8 `a7f16d0` origin
+rendering (MessageRow `authorPersona` face; badge via `deriveMessageOrigin`; Update-vs-Report
+split via `isUpdateMessageBody` incl. dialog title; AppComposer `destinationLabel`; ⚠ REVIEW
+CATCH: `ResolvedPersona.accentVar` is now the BARE property name `--ws-N` — the old full-var()
+double-wrapped into invalid CSS, silently untinting every B5/B7 persona chip).
+
+## OLD RECORD (superseded by the block above): backend arc detail
 
 **Plan approved by Chad; arc notes = `docs/module-notes/session-personas.md` (decisions + A5/A9
 notes + B-slice notes). Full plan: `C:\Users\KLONE\.claude\plans\quirky-painting-fairy.md`. Task
@@ -40,7 +64,7 @@ by trace key; queued/working + acknowledged badge via threadId match; narration 
 Stop; banner chips dissolved to the origin note; overflow +N; new resolve-persona +
 use-coalesced-text + use-live-delegation-cards composables; 579 local-web tests green).
 
-## NEXT: B6 — LiveSessionPane w/ direct send (DESIGN SETTLED, nothing written yet)
+## OLD RECORD (superseded — B6 SHIPPED `f90c6c1` as designed below)
 
 The reuse insight: `components/sessions/SessionThreadView.vue` ALREADY has detail + own-turn +
 composer + queued sends. B6 = give IT two things, then host it in the monitor panel:
