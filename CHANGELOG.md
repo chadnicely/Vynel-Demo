@@ -62,6 +62,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **The wake overlay no longer loads a dead port after a port change.** Tauri bakes `devUrl` and
+  `frontendDist` into the desktop binary at *compile* time, so the port renumber left the last-built
+  shell still pointing at the old `8999`/`8998` — and because the voice daemon prefers that binary
+  whenever it exists, every wake opened an unreachable page that no amount of restarting `pnpm
+  dev:full` could heal. Added `pnpm dev:desktop` to rebuild the shell, and documented which of the
+  three compiled copies (dev overlay, installer, server-install payload) each port change has to
+  reach.
+
 - **Every menu now shows only its own scope's items.** The strict scope rule that already
   governed Agents, Skills, Rules, Commands, MCP Servers and Channels now covers the last
   holdouts: Schedules, Tasks (the menu and the chat-side dock), Plans, Journal, Notebook
