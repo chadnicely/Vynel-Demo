@@ -141,6 +141,8 @@ export const InFlightDelegationSchema = z.object({
   // The task as a short label — the indicator names the actual work.
   taskLabel: z.string(),
   status: z.enum(['pending', 'claimed']),
+  // 'agent-run' = a colleague mention (the rail's agent badge, redesign Q4).
+  jobKind: z.enum(['task', 'agent-run']),
 })
 
 export const ListInFlightDelegationsResponseSchema = z.object({

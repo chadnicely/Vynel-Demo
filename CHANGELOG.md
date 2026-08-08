@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The working rail — everyone active, at the right edge.** One small icon
+  per entity that's working right now: workspaces, sessions, agent colleagues
+  (with a corner badge), and even Claude's own background replies. A gold
+  breathing ring means working, an amber dot means something waits on you, and
+  each icon disappears the moment its work completes. Click any icon to open
+  that entity's real conversation. Idle means an empty edge — nothing to
+  dismiss.
 - **Click a pointer, land in the real conversation.** Task pointers now open a
   right-side panel showing the target's actual conversation — one unified
   flow, scrolled straight to the row where that task started (a brief gold

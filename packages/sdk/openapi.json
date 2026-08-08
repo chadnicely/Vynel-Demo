@@ -27203,6 +27203,13 @@
                               "pending",
                               "claimed"
                             ]
+                          },
+                          "jobKind": {
+                            "type": "string",
+                            "enum": [
+                              "task",
+                              "agent-run"
+                            ]
                           }
                         },
                         "required": [
@@ -27213,7 +27220,8 @@
                           "sessionName",
                           "targetSessionId",
                           "taskLabel",
-                          "status"
+                          "status",
+                          "jobKind"
                         ]
                       }
                     }

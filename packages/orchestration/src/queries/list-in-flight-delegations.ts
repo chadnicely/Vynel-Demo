@@ -29,6 +29,10 @@ export interface InFlightDelegation {
    *  ("vynel · Set up the login page"), never a canned "Working…". */
   taskLabel: string
   status: 'pending' | 'claimed'
+  /** Work kind — 'agent-run' rows are colleague mentions (the rail wears the
+   *  agent badge on them, redesign Q4); legacy NULL reads as 'task'. Delivery
+   *  kinds never reach this list (B7's work-kind gate). */
+  jobKind: 'task' | 'agent-run'
 }
 
 export function listInFlightDelegations(
@@ -45,5 +49,6 @@ export function listInFlightDelegations(
     targetPrimarySessionId: job.targetPrimarySessionId,
     taskLabel: deriveDelegationTaskLabel(job.taskText),
     status: job.status as 'pending' | 'claimed',
+    jobKind: job.jobKind === 'agent-run' ? 'agent-run' : 'task',
   }))
 }

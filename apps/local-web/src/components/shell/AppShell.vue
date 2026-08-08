@@ -39,6 +39,7 @@ import AskNotifier from "../asks/AskNotifier.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import ActivityMonitorPanel from "../activity/ActivityMonitorPanel.vue";
 import ConversationSidebar from "../sidebar/ConversationSidebar.vue";
+import WorkingRail from "../rail/WorkingRail.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 import PlanViewDialog from "../plans/PlanViewDialog.vue";
 import ReportViewDialog from "../reports/ReportViewDialog.vue";
@@ -599,6 +600,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
     />
 
     <ActivityMonitorPanel />
+    <WorkingRail />
     <ConversationSidebar />
     <ApprovalNotifier />
     <AskNotifier />

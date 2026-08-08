@@ -13830,6 +13830,8 @@ export interface operations {
                             taskLabel: string;
                             /** @enum {string} */
                             status: "pending" | "claimed";
+                            /** @enum {string} */
+                            jobKind: "task" | "agent-run";
                         }[];
                     };
                 };
