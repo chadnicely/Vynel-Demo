@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { nextTick } from "vue";
 import { mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { MessageRow } from "@vynel/ui";
@@ -138,6 +139,30 @@ describe("ThreadStream", () => {
     await pointers[0]!.trigger("click");
     // The FULL pointer rides the emit — the host routes by its target.
     expect(wrapper.emitted("openPointer")).toEqual([[pointer]]);
+  });
+
+  it("a scroll-to anchor reveals + lands on the trace row and flashes it (the pointer's landing)", async () => {
+    const scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+    // 150 rows with the anchor DEEP in the hidden-older window — the landing
+    // must reveal the full history, then land (the reveal-then-land loop).
+    const messages = Array.from({ length: 150 }, (_, i) => makeMessage(i));
+    messages[5] = { ...makeMessage(5), partialSessionId: "trace-9" };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: {},
+        activeTurn: null,
+        scrollToTraceId: "trace-9",
+      },
+      global: { plugins: [createPinia()] },
+    });
+    for (let i = 0; i < 4; i += 1) await nextTick();
+
+    const row = wrapper.find('[data-trace-id="trace-9"]');
+    expect(row.exists()).toBe(true);
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+    expect(row.classes()).toContain("pointer-anchor-flash");
   });
 
   it("a RECEIVED trace never grows a pointer — the target side has the anchor row, not a tracker", () => {

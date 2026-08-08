@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useAppSidebarStore } from "../../stores/app-sidebar-store.js";
+import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useSessionsOverview } from "../../composables/sessions/use-sessions-overview.js";
 import LiveSessionPane from "../activity/LiveSessionPane.vue";
 
@@ -12,7 +12,7 @@ import LiveSessionPane from "../activity/LiveSessionPane.vue";
 // directly since G5); workspace nodes resolve the workspace's primary chain
 // from the overview and host it the same way (the workspace's own tab stays
 // the composer surface until the sidebar's continue-mode send lands — 2c-2).
-const sidebar = useAppSidebarStore();
+const sidebar = useConversationSidebarStore();
 const { activeNode, stack } = storeToRefs(sidebar);
 
 const overviewQuery = useSessionsOverview(() => activeNode.value?.kind === "workspace");
@@ -35,7 +35,7 @@ const headerTitle = computed(() => {
 
 <template>
   <Transition name="sidebar-slide">
-    <aside v-if="activeNode" class="app-sidebar" data-testid="app-sidebar">
+    <aside v-if="activeNode" class="conversation-sidebar" data-testid="conversation-sidebar">
       <header class="sidebar-header">
         <button
           v-if="stack.length > 1"
@@ -78,7 +78,7 @@ const headerTitle = computed(() => {
 </template>
 
 <style scoped>
-.app-sidebar {
+.conversation-sidebar {
   position: fixed;
   top: 0;
   right: 0;

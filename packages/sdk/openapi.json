@@ -27188,6 +27188,12 @@
                               "null"
                             ]
                           },
+                          "targetSessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "taskLabel": {
                             "type": "string"
                           },
@@ -27205,6 +27211,7 @@
                           "workspaceName",
                           "targetPrimarySessionId",
                           "sessionName",
+                          "targetSessionId",
                           "taskLabel",
                           "status"
                         ]

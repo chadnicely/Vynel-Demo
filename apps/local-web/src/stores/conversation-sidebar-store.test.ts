@@ -1,12 +1,12 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { useAppSidebarStore } from "./app-sidebar-store.js";
+import { useConversationSidebarStore } from "./conversation-sidebar-store.js";
 
-describe("useAppSidebarStore", () => {
+describe("useConversationSidebarStore", () => {
   beforeEach(() => setActivePinia(createPinia()));
 
   it("opening from a thread REPLACES the stack; push drills; Back walks; close clears", () => {
-    const sidebar = useAppSidebarStore();
+    const sidebar = useConversationSidebarStore();
     expect(sidebar.isOpen).toBe(false);
 
     sidebar.openSession({ sessionId: "s1", title: "July run", anchorTraceId: "t1" });
@@ -36,7 +36,7 @@ describe("useAppSidebarStore", () => {
   });
 
   it("push on an EMPTY stack still opens — never a stranded push", () => {
-    const sidebar = useAppSidebarStore();
+    const sidebar = useConversationSidebarStore();
     sidebar.openSession({ sessionId: "s1", title: "T" }, { push: true });
     expect(sidebar.stack).toHaveLength(1);
   });

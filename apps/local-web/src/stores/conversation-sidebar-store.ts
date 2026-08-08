@@ -18,12 +18,15 @@ export type SidebarNode =
     }
   | { kind: "workspace"; workspaceId: string; anchorTraceId: string | null };
 
-export const useAppSidebarStore = defineStore("app-sidebar", () => {
+export const useConversationSidebarStore = defineStore("conversation-sidebar", () => {
   const stack = ref<SidebarNode[]>([]);
 
   const isOpen = computed(() => stack.value.length > 0);
   const activeNode = computed(() => stack.value[stack.value.length - 1] ?? null);
 
+  // `push` drills deeper from INSIDE the sidebar (redesign D4) — no production
+  // caller yet: in-sidebar pointer rows arrive when the sidebar's threads gain
+  // pointersByTraceId (recorded deferral; the semantics are pinned by test).
   function open(node: SidebarNode, options: { push?: boolean } = {}) {
     stack.value = options.push === true && stack.value.length > 0 ? [...stack.value, node] : [node];
   }

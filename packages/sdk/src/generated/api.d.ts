@@ -13826,6 +13826,7 @@ export interface operations {
                             workspaceName: string;
                             targetPrimarySessionId: string | null;
                             sessionName: string | null;
+                            targetSessionId: string | null;
                             taskLabel: string;
                             /** @enum {string} */
                             status: "pending" | "claimed";

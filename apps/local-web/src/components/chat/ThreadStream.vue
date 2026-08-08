@@ -296,8 +296,12 @@ function onScroll() {
 
 // The stream mounts with its history already loaded (the host v-ifs it behind
 // the fetch), so the growth watchers below never see that first fill — open at
-// the latest message explicitly.
+// the latest message explicitly. NOT when a pointer anchor owns the open
+// position: the landing watch resolves on the SAME flush and this bottom
+// scroll would attach after it and win the race, silently yanking the view
+// off the anchor (the reviewer-caught mount-scroll race).
 onMounted(async () => {
+  if (props.scrollToTraceId != null) return;
   await nextTick();
   scrollToBottom();
 });
