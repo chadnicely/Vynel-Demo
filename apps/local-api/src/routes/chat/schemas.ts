@@ -171,6 +171,18 @@ export const ChatMessageSchema = z.object({
   // content contract): the delegated task's short label for the Watch chip.
   // Optional — ordinary rows and unenriched routes omit it.
   delegationTaskLabel: z.string().nullable().optional(),
+  // Serve-time enrichment on a DELIVERED colleague row: the producing run's
+  // stats for the info-icon hover card. Optional — ordinary rows omit it.
+  runStats: z
+    .object({
+      model: z.string().nullable(),
+      toolCallCount: z.number(),
+      inputTokens: z.number().nullable(),
+      outputTokens: z.number().nullable(),
+      durationMs: z.number().nullable(),
+    })
+    .nullable()
+    .optional(),
   thinkingBody: z.string().nullable(),
   inputTokens: z.number().nullable(),
   outputTokens: z.number().nullable(),

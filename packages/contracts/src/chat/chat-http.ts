@@ -71,6 +71,18 @@ export interface ChatSessionResponse {
 }
 
 /** Serialized row shape inside `GET /sessions/{id}` (within the `messages` array). */
+/** The run that PRODUCED a delivered colleague message — resolved at serve
+ *  time from the chain's work hop + its message trace. */
+export interface DeliveredRunStatsResponse {
+  /** The model the run used (the job's override, else the session's); null unknown. */
+  model: string | null
+  toolCallCount: number
+  inputTokens: number | null
+  outputTokens: number | null
+  /** Claim → report/completion; null while the producing run is still going. */
+  durationMs: number | null
+}
+
 export interface ChatMessageResponse {
   id: string
   sessionId: string
@@ -95,6 +107,10 @@ export interface ChatMessageResponse {
    *  time from the job the `partialSessionId` names, so the Watch chip can say what the
    *  work IS. Absent on ordinary rows and when the job is gone. */
   delegationTaskLabel?: string | null
+  /** Serve-time enrichment on a DELIVERED colleague row (report/update/message):
+   *  the PRODUCING run's stats — the info-icon hover card beside the author
+   *  line. Absent on ordinary rows and unenriched routes. */
+  runStats?: DeliveredRunStatsResponse | null
   body: string
   thinkingBody: string | null
   inputTokens: number | null

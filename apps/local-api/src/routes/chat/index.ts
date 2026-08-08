@@ -46,6 +46,7 @@ import {
 import { findPrimaryConversation } from '@vynel/session/continuity'
 import {
   attachDelegationTaskLabels,
+  attachDeliveredRunStats,
   attachDelegationToolOutcomes,
 } from '@vynel/session/delegation'
 import type { AiAgentProviderId } from '@vynel/providers'
@@ -228,7 +229,10 @@ export const chatApp = factory
       // tool call gains its delegation outcome (the settled-history door).
       return c.json({
         ...detail,
-        messages: attachDelegationTaskLabels(c.var.db, detail.messages),
+        messages: attachDeliveredRunStats(
+          c.var.db,
+          attachDelegationTaskLabels(c.var.db, detail.messages),
+        ),
         toolCallsByMessageId: attachDelegationToolOutcomes(
           c.var.db,
           detail.toolCallsByMessageId,

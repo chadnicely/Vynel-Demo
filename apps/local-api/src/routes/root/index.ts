@@ -35,6 +35,7 @@ import { resolveDelegationTrace } from '@vynel/session/delegation'
 import {
   traceChannelKey,
   attachDelegationTaskLabels,
+  attachDeliveredRunStats,
   attachDelegationToolOutcomes,
   attachSpawnedSessionNames,
 } from '@vynel/session/delegation'
@@ -241,7 +242,10 @@ export const rootApp = factory
       // calls gain their delegation outcome (the settled-history door).
       return c.json({
         ...detail,
-        messages: attachDelegationTaskLabels(c.var.db, detail.messages),
+        messages: attachDeliveredRunStats(
+          c.var.db,
+          attachDelegationTaskLabels(c.var.db, detail.messages),
+        ),
         toolCallsByMessageId: attachDelegationToolOutcomes(
           c.var.db,
           detail.toolCallsByMessageId,

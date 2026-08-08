@@ -6902,6 +6902,13 @@ export interface operations {
                             partialSessionId: string | null;
                             threadId: string | null;
                             delegationTaskLabel?: string | null;
+                            runStats?: {
+                                model: string | null;
+                                toolCallCount: number;
+                                inputTokens: number | null;
+                                outputTokens: number | null;
+                                durationMs: number | null;
+                            } | null;
                             thinkingBody: string | null;
                             inputTokens: number | null;
                             outputTokens: number | null;
@@ -13747,6 +13754,13 @@ export interface operations {
                             partialSessionId: string | null;
                             threadId: string | null;
                             delegationTaskLabel?: string | null;
+                            runStats?: {
+                                model: string | null;
+                                toolCallCount: number;
+                                inputTokens: number | null;
+                                outputTokens: number | null;
+                                durationMs: number | null;
+                            } | null;
                             thinkingBody: string | null;
                             inputTokens: number | null;
                             outputTokens: number | null;

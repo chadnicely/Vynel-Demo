@@ -9131,6 +9131,48 @@
                               "null"
                             ]
                           },
+                          "runStats": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "model": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "toolCallCount": {
+                                "type": "number"
+                              },
+                              "inputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "outputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "toolCallCount",
+                              "inputTokens",
+                              "outputTokens",
+                              "durationMs"
+                            ]
+                          },
                           "thinkingBody": {
                             "type": [
                               "string",
@@ -26885,6 +26927,48 @@
                             "type": [
                               "string",
                               "null"
+                            ]
+                          },
+                          "runStats": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "model": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "toolCallCount": {
+                                "type": "number"
+                              },
+                              "inputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "outputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "toolCallCount",
+                              "inputTokens",
+                              "outputTokens",
+                              "durationMs"
                             ]
                           },
                           "thinkingBody": {
