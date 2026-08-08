@@ -48,7 +48,10 @@ the voice daemon opens on wake is the already-compiled
 `apps/desktop/src-tauri/target/debug/vynel-desktop.exe` (`apps/voice/src/overlay/jarvis-window.ts`
 prefers it whenever the file exists). Tauri bakes `devUrl` and `frontendDist` into that binary **at
 compile time**, so a `tauri.conf.json` change leaves the old URLs live in the exe and no amount of
-restarting `dev:full` heals it — the overlay just loads a dead port.
+restarting `dev:full` heals it — the overlay just loads a dead port. A shell exe that *crashes* at
+launch is caught: the daemon watches the spawn and falls back to a Chrome/Edge app-window on
+`/jarvis`, logging a rebuild pointer — but a stale exe that still runs (wrong baked port) renders
+its dead page, so rebuild after any port/config change.
 
 A port change therefore has to reach **every compiled or packaged copy**, not just the sources the
 parity check guards:

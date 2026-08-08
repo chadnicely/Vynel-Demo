@@ -20,7 +20,14 @@ fn main() {
     // still ensured in release — the overlay's UI is served by it.
     let jarvis_only = std::env::args().any(|arg| arg == "--jarvis-only");
 
-    tauri::Builder::default()
+    let context = tauri::generate_context!();
+    // The updater's config lives only in tauri.release.conf.json (the
+    // build-desktop.ts overlay); registering the plugin against a config
+    // without that block panics at init — so builds on the base config (the
+    // dev/voice overlay exe, `tauri dev`) simply run without an updater.
+    let updater_configured = context.config().plugins.0.contains_key("updater");
+
+    let mut builder = tauri::Builder::default()
         // FIRST plugin, deliberately: a second launch of any flavor routes
         // into this process instead of spawning a rival that could steal or
         // strand the daemon (the old --jarvis-only ownership hole). A full
@@ -48,8 +55,11 @@ fn main() {
                     }),
                 ])
                 .build(),
-        )
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        );
+    if updater_configured {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+    builder
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             browser::browser_open,
@@ -71,8 +81,10 @@ fn main() {
                 // Not on a --jarvis-only cold launch: a modal update dialog
                 // (and, on accept, the app killing itself to install) is
                 // hostile mid-voice-interaction. The common main-window
-                // launch path carries the update check.
-                if !jarvis_only {
+                // launch path carries the update check — but only when the
+                // plugin was registered above (handle.updater() panics on
+                // unmanaged state, not a graceful Err).
+                if !jarvis_only && updater_configured {
                     updater::check_for_updates_in_background(handle);
                 }
             }
@@ -91,7 +103,7 @@ fn main() {
                 }
             }
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("failed to build the vynel desktop shell")
         .run(|_handle, event| {
             if let tauri::RunEvent::Exit = event {
