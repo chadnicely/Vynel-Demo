@@ -30,15 +30,17 @@ function mountSidebar() {
   return wrapper;
 }
 
-const originalInnerWidth = window.innerWidth;
 afterEach(() => {
   localStorage.clear();
-  window.innerWidth = originalInnerWidth;
   document.body.style.userSelect = "";
 });
 
 describe("ConversationSidebar resize", () => {
-  it("opens at the stored width; an out-of-range value falls back to the default", () => {
+  // test: correct expectation — out-of-range stored widths CLAMP (was:
+  // fall back to the default). One home now: `usePanelResize` carries
+  // ResizablePanel's pinned semantics — an old stored layout degrades to
+  // the nearest legal width instead of resetting.
+  it("opens at the stored width; an out-of-range value clamps", () => {
     localStorage.setItem("vynel.sidebar-width", "700");
     const stored = mountSidebar();
     expect(
@@ -46,16 +48,15 @@ describe("ConversationSidebar resize", () => {
     ).toContain("width: 700px");
 
     localStorage.setItem("vynel.sidebar-width", "9999");
-    const fallback = mountSidebar();
+    const clamped = mountSidebar();
     expect(
-      fallback.get("[data-testid=conversation-sidebar]").attributes("style"),
-    ).toContain("width: 440px");
+      clamped.get("[data-testid=conversation-sidebar]").attributes("style"),
+    ).toContain("width: 920px");
   });
 
   it("dragging the handle resizes within the clamp and persists on release", async () => {
     const wrapper = mountSidebar();
     const handle = wrapper.get(".resize-handle");
-    window.innerWidth = 1600;
 
     await handle.trigger("pointerdown", { pointerId: 1, clientX: 1160 });
     handle.element.dispatchEvent(
@@ -79,6 +80,16 @@ describe("ConversationSidebar resize", () => {
       new PointerEvent("pointerup", { pointerId: 1 }),
     );
     expect(localStorage.getItem("vynel.sidebar-width")).toBe("320");
+  });
+
+  it("arrow keys resize the panel from the keyboard (right panel: ArrowLeft grows)", async () => {
+    const wrapper = mountSidebar();
+    const handle = wrapper.get(".resize-handle");
+    await handle.trigger("keydown", { key: "ArrowLeft" });
+    expect(
+      wrapper.get("[data-testid=conversation-sidebar]").attributes("style"),
+    ).toContain("width: 448px");
+    expect(localStorage.getItem("vynel.sidebar-width")).toBe("448");
   });
 
   it("suspends text selection during the drag and restores it even on unmount mid-drag", async () => {

@@ -567,10 +567,12 @@ scroll". Two changes:
   on unmount-mid-drag (reviewer catch), width clamped 320–920 + a `92vw` CSS backstop,
   persisted to `vynel.sidebar-width`.
 
-**Queued next (reviewer):** ONE home for panel-resize — `@vynel/ui`'s `ResizablePanel`
-(AppShell's panes) duplicates this drag logic with window listeners and no selection
-suspension, while the sidebar handle lacks ResizablePanel's keyboard/aria affordances.
-Extract a shared `usePanelResize` composable carrying the best of both (capture +
-userSelect + pointercancel; separator role + arrow keys + dblclick reset).
+**DONE same-day — one home:** `usePanelResize` (`@vynel/ui`) now carries the resize
+mechanics for BOTH `ResizablePanel` (AppShell's panes) and the sidebar handle, with the
+best of each: pointer capture + userSelect suspension + pointercancel + scope-dispose
+restore (from the sidebar) and separator role + arrow-key resize + dblclick reset +
+aria-value (from ResizablePanel — the sidebar handle adopted them). Unified semantics:
+an out-of-range stored width CLAMPS (ResizablePanel's pinned behavior; the sidebar test
+recast with a note). Verified live on both surfaces.
 
 *(Case 4+ land here as received.)*

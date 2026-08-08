@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed } from "vue";
 import { storeToRefs } from "pinia";
+import { usePanelResize } from "@vynel/ui";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import LiveSessionPane from "../activity/LiveSessionPane.vue";
@@ -17,60 +18,23 @@ const sidebar = useConversationSidebarStore();
 const { activeNode, stack } = storeToRefs(sidebar);
 
 // Resizable width (Chad, 2026-08-09): drag the left edge; the chosen width
-// persists across reloads. The CSS min/max clamp keeps any stored or dragged
-// value inside the window, and the thread reflows to fit (no side-scroll).
-const WIDTH_STORAGE_KEY = "vynel.sidebar-width";
-const DEFAULT_WIDTH = 440;
+// persists across reloads. Mechanics live in `usePanelResize` (the one home
+// shared with ResizablePanel); the CSS min/max clamp additionally keeps any
+// width inside the window, and the thread reflows to fit (no side-scroll).
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 920;
-
-function readStoredWidth(): number {
-  const stored = Number(localStorage.getItem(WIDTH_STORAGE_KEY));
-  return Number.isFinite(stored) && stored >= MIN_WIDTH && stored <= MAX_WIDTH
-    ? stored
-    : DEFAULT_WIDTH;
-}
-const panelWidth = ref(readStoredWidth());
-
-// Pointer capture keeps the drag on the handle even when the cursor leaves
-// it — no document-level listeners to leak. Text selection is suspended for
-// the drag: the browser otherwise starts selecting across the page under
-// the moving cursor.
-let settleActiveDrag: (() => void) | null = null;
-
-function startResize(event: PointerEvent) {
-  // One gesture at a time — a second pointer (touch during a mouse drag)
-  // would nest userSelect snapshots and could restore to "none".
-  if (settleActiveDrag !== null) return;
-  event.preventDefault();
-  const handle = event.currentTarget as HTMLElement;
-  // Optional-chained: happy-dom's elements don't implement pointer capture.
-  handle.setPointerCapture?.(event.pointerId);
-  const restoreUserSelect = document.body.style.userSelect;
-  document.body.style.userSelect = "none";
-  const onMove = (move: PointerEvent) => {
-    panelWidth.value = Math.min(
-      MAX_WIDTH,
-      Math.max(MIN_WIDTH, Math.round(window.innerWidth - move.clientX)),
-    );
-  };
-  const settle = () => {
-    handle.removeEventListener("pointermove", onMove);
-    handle.removeEventListener("pointerup", settle);
-    handle.removeEventListener("pointercancel", settle);
-    document.body.style.userSelect = restoreUserSelect;
-    localStorage.setItem(WIDTH_STORAGE_KEY, String(panelWidth.value));
-    settleActiveDrag = null;
-  };
-  settleActiveDrag = settle;
-  handle.addEventListener("pointermove", onMove);
-  handle.addEventListener("pointerup", settle);
-  handle.addEventListener("pointercancel", settle);
-}
-
-// Closing the panel mid-drag (✕, Esc, a programmatic close) unmounts the
-// handle with its listeners — the body's userSelect must not stay "none".
-onBeforeUnmount(() => settleActiveDrag?.());
+const {
+  width: panelWidth,
+  startResize,
+  onKeydown: onResizeKeydown,
+  reset: resetWidth,
+} = usePanelResize({
+  side: "right",
+  storageKey: "vynel.sidebar-width",
+  defaultWidth: 440,
+  minWidth: MIN_WIDTH,
+  maxWidth: MAX_WIDTH,
+});
 
 const workspacesQuery = useWorkspaceList();
 const headerTitle = computed(() => {
@@ -96,8 +60,16 @@ const headerTitle = computed(() => {
     >
       <div
         class="resize-handle"
-        aria-hidden="true"
+        role="separator"
+        tabindex="0"
+        aria-orientation="vertical"
+        aria-label="Resize conversation panel"
+        :aria-valuenow="Math.round(panelWidth)"
+        :aria-valuemin="MIN_WIDTH"
+        :aria-valuemax="MAX_WIDTH"
         @pointerdown="startResize"
+        @keydown="onResizeKeydown"
+        @dblclick="resetWidth"
       />
       <header class="sidebar-header">
         <button
@@ -169,8 +141,10 @@ const headerTitle = computed(() => {
   z-index: 1;
 }
 .resize-handle:hover,
-.resize-handle:active {
+.resize-handle:active,
+.resize-handle:focus-visible {
   background: var(--row-hover);
+  outline: none;
 }
 .sidebar-header {
   display: flex;
