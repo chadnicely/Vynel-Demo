@@ -595,6 +595,14 @@ const accentVar = computed(() => {
 
 .row-header.is-collapsible .header-meta {
   margin-left: auto;
+  /* ONE vertical line for every chevron (Chad's ruler): a plain row's meta
+     insets by the user bubble's padding + border, so bubbled and bare rows
+     land their toggles at the same x. */
+  margin-right: 15px;
+}
+
+.role-user:not(.is-report) .row-header.is-collapsible .header-meta {
+  margin-right: 0;
 }
 
 /* The folded strip's one-line preview — quiet, ellipsized, never wrapping. */
