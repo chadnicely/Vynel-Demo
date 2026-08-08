@@ -574,6 +574,12 @@ const accentVar = computed(() => {
    the meta inline after the name — nothing moves for them. */
 .row-header.is-collapsible {
   cursor: pointer;
+  /* The nowrap preview must never dictate the row's width: as a grid item
+     the header's automatic minimum is its content's min-content, which a
+     long one-line preview inflates past the column (the horizontal-scrollbar
+     bug) — zero the minimum and clip. */
+  min-width: 0;
+  overflow: hidden;
 }
 
 .row-header .role-label {
