@@ -263,17 +263,17 @@ flip ever. Hub-less builds stay GitHub-only.
 Order: G1 → G2 ship together in one release ideally (one migration moment for users); G3, G4
 independent after.
 
-## Decisions (Chad, 2026-08-09)
+## Decisions (Kafi, 2026-08-09 — working the arc on Chad's account)
 
 1. **Data home** — MOVE to `%APPDATA%\Vynel` (one-shot migration on first boot; identifier stays
    `app.vynel.desktop` internally).
 2. **Installer level** — **one-click custom NSIS template now** (Discord-class, no wizard); we
    own the template fork across Tauri upgrades.
-3. **Signing** — DEFERRED until after the demo/test phase (Chad, 2026-08-09). Test builds ship
+3. **Signing** — DEFERRED until after the demo/test phase (Kafi, 2026-08-09). Test builds ship
    unsigned; testers click through SmartScreen ("More info → Run anyway") — accepted. The
    minisign updater signing stays always-on. Provider locked: **Azure Artifact Signing** —
-   Chad's boss is US-based and handles the identity verification post-demo.
-   **Activation runbook (boss, ~$9.99/mo):** (1) Azure account with pay-as-you-go billing whose
+   Chad (the boss, US-based) handles the identity verification post-demo.
+   **Activation runbook (Chad, ~$9.99/mo):** (1) Azure account with pay-as-you-go billing whose
    name matches a government ID → apply for Artifact Signing Basic → ID verification (takes
    days); (2) create the signing account + a Public Trust certificate profile (pick a region,
    e.g. EastUS → endpoint `https://eus.codesigning.azure.net`); (3) app registration with the
