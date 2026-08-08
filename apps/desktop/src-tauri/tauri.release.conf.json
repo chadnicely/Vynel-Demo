@@ -1,18 +1,26 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
+  "mainBinaryName": "Vynel",
   "bundle": {
     "active": true,
     "targets": ["nsis"],
     "icon": ["icons/icon.ico"],
-    "externalBin": ["binaries/node"],
+    "publisher": "Vynel",
+    "copyright": "© 2026 Vynel",
     "resources": {
-      "payload/backend": "resources/backend",
-      "payload/web": "resources/web"
+      "payload/backend": "resources/engine",
+      "payload/vynel-engine.exe": "resources/engine/vynel-engine.exe",
+      "payload/web": "resources/ui"
     },
     "createUpdaterArtifacts": true,
     "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "template": "nsis/installer.nsi",
+        "installerIcon": "icons/icon.ico"
       }
     }
   },

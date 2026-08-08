@@ -1,7 +1,8 @@
 // The local-api daemon sidecar (release builds only). Two launch modes,
 // resolved once by launch_plan.rs: BUNDLED (installed app — the pinned
-// node.exe runs the compiled dist/server.mjs beside the exe, state in
-// app_data) and REPO (dev checkout — `node --import tsx`, unchanged D1 flow).
+// vynel-engine.exe (renamed node) runs the compiled dist/server.mjs from
+// resources\engine, state in app_data) and REPO (dev checkout —
+// `node --import tsx`, unchanged D1 flow).
 // The port probe doubles as the health check — the daemon binds
 // 127.0.0.1:18892 as the LAST step of a successful boot (migrations + services
 // first, see local-api boot.ts).
@@ -193,16 +194,17 @@ fn spawn_daemon(plan: &LaunchPlan) -> std::io::Result<Child> {
     };
     #[cfg(windows)]
     {
-        // CREATE_NO_WINDOW: the shell is a GUI app; a spawned node.exe would
-        // otherwise flash a console window on the user's desktop.
+        // CREATE_NO_WINDOW: the shell is a GUI app; the spawned engine process
+        // would otherwise flash a console window on the user's desktop.
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x0800_0000);
     }
     command.spawn()
 }
 
-/// The installed app's daemon: the pinned exe-adjacent node.exe runs the
-/// compiled bundle with every runtime path pinned ABSOLUTE into app_data
+/// The installed app's daemon: the pinned vynel-engine.exe (in
+/// resources\engine, beside the bundle it runs) executes the compiled
+/// bundle with every runtime path pinned ABSOLUTE into app_data
 /// (env.ts passes absolute values through untouched). release.env carries the
 /// baked hub endpoint; the user's config.env may override it; real env set
 /// here always wins over both (node --env-file never overrides existing env).
@@ -231,24 +233,24 @@ fn bundled_daemon_command(bundled: &BundledLaunch, entry: &str) -> std::io::Resu
         .append(true)
         .open(&daemon_log_path)?;
 
-    let mut command = Command::new(bundled.install_dir.join("node.exe"));
+    let mut command = Command::new(bundled.engine_dir.join("vynel-engine.exe"));
     command
         .stdout(daemon_log.try_clone()?)
         .stderr(daemon_log);
     command
         .arg(format!(
             "--env-file-if-exists={}",
-            bundled.backend_dir.join("config").join("release.env").display()
+            bundled.engine_dir.join("config").join("release.env").display()
         ))
         .arg(format!(
             "--env-file-if-exists={}",
             bundled.app_data_dir.join("config.env").display()
         ))
         .arg(entry)
-        .current_dir(&bundled.backend_dir)
+        .current_dir(&bundled.engine_dir)
         .env("PORT", "18892")
         .env("DB_PATH", data_dir.join("vynel.db"))
-        .env("VYNEL_ASSETS_DIR", bundled.backend_dir.join("assets"))
+        .env("VYNEL_ASSETS_DIR", bundled.engine_dir.join("assets"))
         .env("VYNEL_WEB_UI_DIST", &bundled.web_dir)
         .env(
             "VYNEL_EMBEDDINGS_CACHE_DIR",

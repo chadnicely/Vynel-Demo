@@ -1,17 +1,16 @@
 // Where the daemon comes from — resolved ONCE before supervision starts.
 //
-// Bundled (installed app): the payload sits beside the exe —
-//   <install>\node.exe                    pinned runtime (tauri externalBin)
-//   <install>\resources\backend\dist\...  compiled server bundle + node_modules
-//   <install>\resources\web\              built local-web dist
-// with all mutable state under Tauri's app_data_dir (survives upgrades):
+// Bundled (installed app): the payload sits beside the exe (gold layout, G1) —
+//   <install>\resources\engine\vynel-engine.exe   pinned runtime (renamed node)
+//   <install>\resources\engine\dist\...           compiled server bundle + node_modules
+//   <install>\resources\ui\                       built local-web dist
+// with all mutable state under the app data home (survives upgrades):
 //   <app_data>\data\vynel.db · models\ · config.env (user overrides)
 //
 // Repo (dev, D1): walk up from the exe (or VYNEL_DESKTOP_REPO_ROOT) to a
 // checkout and run the tsx entry — unchanged from the pre-installer flow.
 
 use std::path::{Path, PathBuf};
-use tauri::Manager;
 
 pub enum LaunchPlan {
     Bundled(BundledLaunch),
@@ -30,13 +29,12 @@ pub struct RemoteLaunch {
 }
 
 pub struct BundledLaunch {
-    /// The install dir (exe-adjacent) — holds node.exe.
-    pub install_dir: PathBuf,
-    /// resources\backend — the daemon's cwd; dist\server.mjs inside it.
-    pub backend_dir: PathBuf,
-    /// resources\web — served by the gateway (sidecar mode).
+    /// resources\engine — the daemon's cwd; vynel-engine.exe and
+    /// dist\server.mjs inside it.
+    pub engine_dir: PathBuf,
+    /// resources\ui — served by the gateway (sidecar mode).
     pub web_dir: PathBuf,
-    /// Tauri app_data_dir — DB, models, user config.env live here.
+    /// The app data home — DB, models, user config.env live here.
     pub app_data_dir: PathBuf,
     /// The installed version (tauri.conf.json), stamped into the daemon env.
     pub app_version: String,
@@ -45,17 +43,19 @@ pub struct BundledLaunch {
 pub fn resolve_launch_plan(handle: &tauri::AppHandle) -> Option<LaunchPlan> {
     let exe = std::env::current_exe().ok()?;
     let install_dir = exe.parent()?.to_path_buf();
-    let backend_dir = install_dir.join("resources").join("backend");
+    let engine_dir = install_dir.join("resources").join("engine");
 
-    if backend_dir.join("dist").join("server.mjs").exists() {
-        let Ok(app_data_dir) = handle.path().app_data_dir() else {
-            log::error!("bundled payload found but no app_data_dir — cannot launch the daemon");
-            return None;
+    if engine_dir.join("dist").join("server.mjs").exists() {
+        let app_data_dir = match crate::data_home::resolve_data_home(handle) {
+            Ok(dir) => dir,
+            Err(error) => {
+                log::error!("bundled payload found but no data home ({error}) — cannot launch the daemon");
+                return None;
+            }
         };
         let bundled = BundledLaunch {
-            web_dir: install_dir.join("resources").join("web"),
-            install_dir,
-            backend_dir,
+            web_dir: install_dir.join("resources").join("ui"),
+            engine_dir,
             app_data_dir,
             app_version: handle.package_info().version.to_string(),
         };
