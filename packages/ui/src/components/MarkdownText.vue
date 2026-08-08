@@ -230,6 +230,12 @@ const rendered = computed(() => {
   border-collapse: collapse;
   margin: 0 0 10px;
   font-size: 12.5px;
+  /* A wide table scrolls inside its own box — the thread column clips
+     horizontal overflow, so without this a narrow panel would cut off the
+     right columns with no way to reach them. */
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .markdown-text :deep(th) {

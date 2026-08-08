@@ -579,6 +579,10 @@ watch(
 .thread-scroller {
   height: 100%;
   overflow-y: auto;
+  /* The thread never side-scrolls — text reflows to the host's width (the
+     sidebar is narrow and resizable); wide content scrolls inside its own
+     card, never the whole column. */
+  overflow-x: hidden;
 }
 
 .thread-column {
@@ -587,6 +591,12 @@ watch(
   padding: 24px 24px 16px;
   display: grid;
   gap: 20px;
+}
+
+/* Grid items default min-width:auto — one nowrap preview or long token would
+   floor the column track past the container and side-scroll every row. */
+.thread-column > * {
+  min-width: 0;
 }
 
 .older-note {

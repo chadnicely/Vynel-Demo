@@ -550,4 +550,27 @@ Checked, not issues: "CLAUDE · FROM GLOBAL" mention anchors rendering as user-s
 bubbles is the designed Case-3 treatment (parity with Global's YOU bubbles); workspace
 rows carry no run-stats door because they ARE the run (stats ride the delivered copy).
 
+## Sidebar resize + thread reflow (Chad, 2026-08-09; SHIPPED)
+
+Chad: the conversation sidebar "can be resize and the text should get fit without any
+scroll". Two changes:
+
+- **The thread never side-scrolls.** `.thread-scroller` clips horizontal overflow and
+  `.thread-column > *` gets `min-width: 0` — grid items' `min-width:auto` floor let one
+  nowrap preview push the column track to 870px inside a 439px panel (measured live).
+  Every host reflows now (320–920px verified). Wide markdown TABLES scroll inside their
+  own box (`MarkdownText :deep(table)`) — the clip would otherwise cut their right
+  columns off unreachably (reviewer catch).
+- **The sidebar is drag-resizable.** Left-edge handle (z-index above the thread pane —
+  its `position:relative` painted over the handle's inner pixels, the live-debug catch),
+  pointer-capture drag, body text-selection suspended for the gesture and restored even
+  on unmount-mid-drag (reviewer catch), width clamped 320–920 + a `92vw` CSS backstop,
+  persisted to `vynel.sidebar-width`.
+
+**Queued next (reviewer):** ONE home for panel-resize — `@vynel/ui`'s `ResizablePanel`
+(AppShell's panes) duplicates this drag logic with window listeners and no selection
+suspension, while the sidebar handle lacks ResizablePanel's keyboard/aria affordances.
+Extract a shared `usePanelResize` composable carrying the best of both (capture +
+userSelect + pointercancel; separator role + arrow keys + dblclick reset).
+
 *(Case 4+ land here as received.)*
