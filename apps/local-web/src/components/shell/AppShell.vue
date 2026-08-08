@@ -35,6 +35,7 @@ import BrowserPanel from "../browser/BrowserPanel.vue";
 import type { SidebarItem } from "./AppSidebar.vue";
 import AppStatusBar from "./AppStatusBar.vue";
 import ApprovalNotifier from "./ApprovalNotifier.vue";
+import UpdatePill from "./UpdatePill.vue";
 import AskNotifier from "../asks/AskNotifier.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import ConversationSidebar from "../sidebar/ConversationSidebar.vue";
@@ -599,6 +600,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
     <ApprovalNotifier />
     <AskNotifier />
     <VoiceOverlay />
+    <UpdatePill />
     <!-- The SHARED plan review dialog — chat vynel://plan links, list View
          actions, and task plan chips all open this one instance. -->
     <PlanViewDialog />
