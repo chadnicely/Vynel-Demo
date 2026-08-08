@@ -93,7 +93,8 @@ in the spec) · MCP+SDK+port parity OK. Spec: "Post-smoke tweak 2" in
 absorb-net; steer-decay watch on report-vs-direct choice). CHAD SMOKES NEXT: @mention → box only;
 "ask James for X and have him send it to me" → James replies direct_to_user → box + silent Claude.
 
-## ✅ VOICE WAKE OVERLAY FIXED (2026-08-08) — root cause found + hardened; Chad voice-smoke pending
+## ✅ VOICE WAKE OVERLAY FIXED (2026-08-08) — SMOKED BY CHAD + COMMITTED (`a03ca17` overlay fix ·
+`4adce33` notification listener · `0047c74` sherpa guide; all pushed, tree clean)
 
 The 2026-08-08 01:44 `dev:desktop` rebuild (`30a18bc`) produced an exe that **panicked at
 launch**: `tauri_plugin_updater` requires its config block, which only `tauri.release.conf.json`
