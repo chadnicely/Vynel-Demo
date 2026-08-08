@@ -251,6 +251,10 @@ describe('makeNamespaced — shape', () => {
       // added `dashboardWorkspace` (GET /workspaces/:id/dashboard/usage, the
       // per-workspace dashboard twin).
       'dashboardWorkspace',
+      // test: correct expectation — the desktop-control security slice
+      // (2026-08-04) added `desktopAccess` (GET/DELETE /desktop/access, the
+      // per-app grant list + revoke doors).
+      'desktopAccess',
       'files',
       'hub',
       // test: correct expectation — the plans + journal modules (2026-07-23)
