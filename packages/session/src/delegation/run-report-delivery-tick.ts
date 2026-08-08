@@ -33,11 +33,13 @@ import {
   ApprovalWaitGate,
   completeDelegationJob,
   failDelegationJob,
+  listDelegationJobsByThread,
   resolveThreadIdOf,
   routeRequest,
   type DelegationJob,
 } from '@vynel/orchestration'
-import type { ChatTurnEvent } from '@vynel/chat'
+import { recordDirectReplyMessage, type ChatTurnEvent } from '@vynel/chat'
+import { findPrimaryConversation } from '../continuity/index.js'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import {
@@ -128,6 +130,55 @@ export async function runReportDeliveryJob(
   // Captured once for narrowing: null = the GLOBAL root is the requester.
   const requesterWorkspaceId = claimed.workspaceId
   const isGlobalRequester = requesterWorkspaceId === null
+
+  // DIRECT-REPLY mode (live-tracking redesign): a delivery whose chain's WORK
+  // job is an agent-run is a colleague answering the user's @MENTION — the
+  // reply is a message TO THE USER, so it persists straight onto the root's
+  // transcript (the report/update box IS the answer: no notify turn, no
+  // re-narration, no root-lock wait). The root absorbs it silently on its
+  // next turn via the catch-up net (the agent-run row stays unsurfaced until
+  // then, presented "already shown — do not restate"). The momentary feed
+  // announce below carries no narration — it exists so every open window's
+  // turn-ended invalidation lands the new row live.
+  if (isGlobalRequester && claimedThreadId !== null) {
+    const chain = listDelegationJobsByThread(db, {
+      userId: claimed.userId,
+      threadId: claimedThreadId,
+    })
+    if (chain.some((job) => job.jobKind === 'agent-run')) {
+      const root = findPrimaryConversation(db, { userId: claimed.userId })
+      const persisted =
+        root?.currentSdkSessionId != null &&
+        recordDirectReplyMessage(db, {
+          globalRootSessionId: root.currentSdkSessionId,
+          body: reportBody,
+          sourceLabel,
+          threadId: claimedThreadId,
+          ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+        })
+      if (persisted) {
+        deps.activityFeed
+          .begin({
+            userId: claimed.userId,
+            scopeKind: 'global',
+            origin: 'delegation',
+            jobId: claimed.id,
+            threadId: claimedThreadId,
+            ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+            personaName: sourceLabel,
+          })
+          .end()
+        completeDelegationJob(db, claimed.id, 'delivered directly', new Date())
+        deps.logger.info(
+          { jobId: claimed.id, from: sourceLabel },
+          `${queueLabel}: delivered DIRECTLY to the user (mention reply — no notify turn)`,
+        )
+        return true
+      }
+      // No root session row to land on — fall through to the notify machinery,
+      // which handles the no-session shapes honestly.
+    }
+  }
 
   const cancelHandle =
     deps.cancelRegistry !== undefined && partialSessionId !== undefined

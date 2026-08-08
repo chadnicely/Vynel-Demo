@@ -35,6 +35,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   colleague's conversation as you speaking ("You · from Global"), and a relayed
   task's opening row names Claude honestly instead of masquerading as you.
 
+### Changed
+
+- **@mention replies come straight to you.** When you @mention a colleague,
+  its answer now lands in your thread as the colleague speaking — instantly,
+  with no Claude narration repeating what you can already read. Claude still
+  absorbs the reply quietly for context (ask a follow-up and it knows), and
+  a colleague that finishes without ever replying is called out honestly.
+  Reports for tasks Claude itself commissioned keep their spoken relay.
+
 ### Removed
 
 - **The old tracking chrome retired.** Persona cards at the thread's edge,

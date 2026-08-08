@@ -142,4 +142,62 @@ describe('collectDelegationReportsForRoot', () => {
       expect(reports.contextBlock).toBeNull()
     })
   })
+  it('agent-run rows: reported reads ABSORB-silently; unreported reads honest no-reply (direct-reply tweak)', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const now = new Date()
+      insertDelegationJob(db, {
+        id: 'ar-reported',
+        userId: user.id,
+        parentSessionId: 'g-sess',
+        workspaceId: null,
+        workspacePath: '/tmp/vynel/global-root',
+        workspaceName: 'James',
+        taskText: '@james overview please',
+        partialSessionId: randomUUID(),
+        status: 'completed',
+        claimedAt: now,
+        completedAt: now,
+        resultText: 'Overview of the module.',
+        errorMessage: null,
+        surfacedToRootAt: null,
+        createdAt: now,
+        jobKind: 'agent-run',
+        reportedAt: now,
+      })
+      insertDelegationJob(db, {
+        id: 'ar-silent',
+        userId: user.id,
+        parentSessionId: 'g-sess',
+        workspaceId: null,
+        workspacePath: '/tmp/vynel/global-root',
+        workspaceName: 'Nova',
+        taskText: '@nova check things',
+        partialSessionId: randomUUID(),
+        status: 'completed',
+        claimedAt: now,
+        completedAt: now,
+        resultText: 'finished quietly',
+        errorMessage: null,
+        surfacedToRootAt: null,
+        createdAt: now,
+        jobKind: 'agent-run',
+        reportedAt: null,
+      })
+
+      const { contextBlock, jobIds } = collectDelegationReportsForRoot(db, {
+        userId: user.id,
+      })
+      // The net now carries agent-run rows (the widened work-kind gate) …
+      expect(jobIds.sort()).toEqual(['ar-reported', 'ar-silent'])
+      // … a REPORTED colleague reads absorb-silently (the reply is already on
+      // the transcript — the root must never restate it) …
+      expect(contextBlock).toContain('James')
+      expect(contextBlock).toContain('already replied DIRECTLY')
+      expect(contextBlock).toContain('do NOT restate')
+      expect(contextBlock).toContain('Overview of the module.')
+      // … and a SILENT one reads honestly.
+      expect(contextBlock).toContain('finished without sending a reply: finished quietly')
+    })
+  })
 })

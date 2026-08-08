@@ -9,8 +9,9 @@
 // NO HARVEST — the leaf-era deterministic result→report conversion is RETIRED:
 // a colleague has `send_message` and a real conversation, so its ack/updates/
 // report are its OWN spoken words (the task-branch rule, now universal). The
-// completed branch co-commits complete + mark-surfaced only; a silent
-// completion settles the chip and answers status pulls, nothing more.
+// completed branch completes UNSURFACED (the direct-reply tweak): the spoken
+// reply lands directly on the user's transcript with no notify turn, and the
+// catch-up net is how the root learns of it on its next turn.
 //
 // Approvals: record-and-park (`buildRoutedApprovalHandler`) replaces the
 // leaf's fail-closed denial — a colleague turn is a routed turn like any
@@ -288,12 +289,13 @@ export async function runAgentRunJob(
       )
     } else if (outcome.status === 'completed') {
       // NO HARVEST (the task-branch rule): the colleague's spoken send_message
-      // is the only report path. complete + mark-surfaced co-commit so the
-      // catch-up net can never inject the reply (invariant 5).
-      withTransaction(db, (tx) => {
-        completeDelegationJob(tx, claimed.id, outcome.result, new Date())
-        markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
-      })
+      // is the only report path. The row completes UNSURFACED (the direct-
+      // reply tweak revises invariant 5 for mention runs): the colleague's
+      // reply lands directly on the user's transcript with NO notify turn, so
+      // the catch-up net is how the root LEARNS of it — the next root turn
+      // absorbs it (presented "already shown — do not restate") and marks it
+      // surfaced exactly-once there.
+      completeDelegationJob(db, claimed.id, outcome.result, new Date())
       deps.logger.info(
         { jobId: claimed.id, resultPreview: outcome.result.slice(0, 120) },
         'agent-run: completed — the colleague speaks for itself (no harvest)',

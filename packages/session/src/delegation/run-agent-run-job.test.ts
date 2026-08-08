@@ -116,7 +116,10 @@ describe('agent-run jobs (persona-sessions)', () => {
       const job = findDelegationJobById(db, jobId)
       expect(job?.status).toBe('completed')
       expect(job?.resultText).toBe('Reviewed the diff: 3 issues found.')
-      expect(job?.surfacedToRootAt).not.toBeNull()
+      // test: correct expectation — the direct-reply tweak: mention runs complete
+      // UNSURFACED so the catch-up net is how the root learns of the reply it
+      // never narrated (absorbed on the next root turn, marked surfaced there).
+      expect(job?.surfacedToRootAt).toBeNull()
 
       // The colleague turn ran fresh with the EVERY-TURN persona + steer.
       expect(turnInputs[0]!.resumeSessionId).toBeUndefined()
@@ -276,7 +279,8 @@ describe('agent-run jobs (persona-sessions)', () => {
       })
       const job = findDelegationJobById(db, jobId)
       expect(job?.status).toBe('completed')
-      expect(job?.surfacedToRootAt).not.toBeNull()
+      // test: correct expectation — direct-reply tweak: unsurfaced until absorbed.
+      expect(job?.surfacedToRootAt).toBeNull()
       expect(claimNextPendingDelegationJob(db, new Date())).toBeNull()
     })
   })

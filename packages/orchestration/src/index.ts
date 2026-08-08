@@ -118,6 +118,7 @@ export {
   failOrphanedClaimedDelegations,
   requeueOrphanedClaimedReportDeliveries,
   findDelegationJobById,
+  listDelegationJobsByThread,
   type DelegationJob,
 } from './repositories/index.js'
 

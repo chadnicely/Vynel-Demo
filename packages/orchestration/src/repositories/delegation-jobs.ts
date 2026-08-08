@@ -389,7 +389,14 @@ export function listUnsurfacedTerminalDelegationsForUser(
         eq(delegationJobs.userId, userId),
         isNull(delegationJobs.surfacedToRootAt),
         inArray(delegationJobs.status, ['completed', 'failed']),
-        or(isNull(delegationJobs.jobKind), eq(delegationJobs.jobKind, 'task')),
+        // WORK kinds (NULL-safe): tasks AND agent-runs — a mention run
+        // completes unsurfaced (the direct-reply tweak) so the net is how the
+        // root learns of the reply it never narrated; delivery kinds stay the
+        // notify MECHANISM, never awareness rows.
+        or(
+          isNull(delegationJobs.jobKind),
+          notInArray(delegationJobs.jobKind, [...DELIVERY_JOB_KINDS]),
+        ),
       ),
     )
     .orderBy(asc(delegationJobs.createdAt), asc(delegationJobs.id))

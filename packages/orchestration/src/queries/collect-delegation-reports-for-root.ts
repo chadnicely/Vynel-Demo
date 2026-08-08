@@ -29,6 +29,24 @@ export function collectDelegationReportsForRoot(
   if (jobs.length === 0) return { contextBlock: null, jobIds: [] }
 
   const lines = jobs.map((job) => {
+    // An agent-run is a colleague the USER @mentioned (the direct-reply
+    // tweak): its reply already landed on the transcript with no narration —
+    // this line is how the root LEARNS it, never a prompt to restate it. The
+    // `workspaceName` column carries the AGENT's name on these rows.
+    if (job.jobKind === 'agent-run') {
+      const colleague = job.workspaceName ?? 'A colleague'
+      if (job.reportedAt !== null) {
+        return (
+          `— ${colleague} (a colleague the user @mentioned) already replied DIRECTLY to the ` +
+          `user; the reply is displayed in this conversation. Absorb it silently as context — ` +
+          `do NOT restate or summarize it unless asked: ${job.resultText ?? '(reply delivered)'}`
+        )
+      }
+      // The colleague finished without ever speaking — the root must say so.
+      return `— ${colleague} (@mention) finished without sending a reply: ${
+        job.resultText ?? job.errorMessage ?? 'no result'
+      }`
+    }
     // Session-target jobs (Slice ④) have no workspace name — a generic label
     // keeps the block honest (the report text itself names the work).
     const sourceName = job.workspaceName ?? 'A session you created'
@@ -41,9 +59,10 @@ export function collectDelegationReportsForRoot(
   })
 
   const contextBlock =
-    'Background reports from workspaces you delegated to have arrived. This is system-supplied ' +
+    'Background reports from work you delegated have arrived. This is system-supplied ' +
     "context, NOT the user's message — use it to inform your reply and tell the user the " +
-    'outcome (do not say a finished task is "still working"):\n' +
+    'outcome (do not say a finished task is "still working"; items marked to absorb ' +
+    'silently are already visible to the user — never restate those):\n' +
     lines.join('\n')
 
   return { contextBlock, jobIds: jobs.map((job) => job.id) }

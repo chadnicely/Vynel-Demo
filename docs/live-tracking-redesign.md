@@ -287,4 +287,26 @@ arc — it is rebuilt later.)
   dot), watch chips; then
   docs + CHANGELOG + full `pnpm test` gate + Chad's smoke list.
 
+---
+
+## Post-smoke tweak 1 — direct mention replies (Chad, 2026-08-08; SHIPPED)
+
+**Instruction:** an @mention's reply is a DIRECT response to the user — show it directly
+(the kind already renders the box); the global session must KNOW it but never REPEAT it.
+
+**Shipped shape:** a global-requester delivery whose chain's work job is an `agent-run`
+skips the notify turn entirely — `recordDirectReplyMessage` persists the reply straight
+onto the root's transcript (inbound `agent` row, marker + chain keys; a momentary feed
+announce lands it live in every open window), the delivery completes turn-free (faster:
+no root-lock wait), and the mention run stays UNSURFACED so the widened catch-up net
+(work kinds) injects it into the NEXT root turn marked "already replied DIRECTLY — absorb
+silently, do NOT restate"; a colleague that finished without speaking injects honestly.
+Claude-commissioned task reports keep the narrated relay (deliberate contrast).
+
+**Recorded follow-ups:** ① workspace-origin mentions still narrate via the workspace
+notify turn — the direct persist needs a workspace-side recorder twin; ② the old
+`recordPushedReportMessage` remains caller-free — delete on next touch.
+
+---
+
 *(Case 4+ land here as received.)*
