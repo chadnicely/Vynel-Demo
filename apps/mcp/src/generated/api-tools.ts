@@ -2539,11 +2539,12 @@ export const searchMemory: McpToolFactory = (scope, app) =>
 export const sendMessage: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'send_message',
-    "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to a session or agent colleague (ids from list_sessions).\n- `\"requester\"` — speak back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\nFor \"requester\", `kind` picks the voice: `\"update\"` = an interim acknowledgment or progress line (\"Received — starting now\"; the task stays running), `\"report\"` = the FINAL result — findings, numbers, paths, not just \"done\" (default; marks the task finished). Send exactly one final report per task.\n\nReturns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_background_runs / get_background_run. Speaking upward only works on a background (delegated) turn — if there is no requester, just reply with your findings as text. For a task you may pick `model` (legal ids from list_available_chat_models) and `thinkingEffort`; omit both for the defaults.",
+    "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to a session or agent colleague (ids from list_sessions).\n- `\"requester\"` — speak back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\nFor \"requester\", `kind` picks the voice: `\"update\"` = an interim acknowledgment or progress line (\"Received — starting now\"; the task stays running), `\"report\"` = the FINAL result addressed to whoever sent you the work — findings, numbers, paths, not just \"done\" (default; marks the task finished), `\"direct_to_user\"` = the FINAL result addressed to the USER themselves: it appears in their conversation as YOUR message, verbatim and never summarized, under a short `title` you must provide (the headline on the message box). Prefer \"direct_to_user\" whenever the user should read the answer itself — an overview, findings, a document, anything they asked to see — and \"report\" when the requester will act on it. Send exactly one final report/direct_to_user per task.\n\nReturns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_background_runs / get_background_run. Speaking upward only works on a background (delegated) turn — if there is no requester, just reply with your findings as text. For a task you may pick `model` (legal ids from list_available_chat_models) and `thinkingEffort`; omit both for the defaults.",
     {
     to: z.string(),
     body: z.string(),
-    kind: z.enum(['task', 'report', 'update']).optional(),
+    kind: z.enum(['task', 'report', 'update', 'direct_to_user']).optional(),
+    title: z.string().optional(),
     workspaceId: z.string().optional(),
     model: z.string().optional(),
     thinkingEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
@@ -2553,7 +2554,7 @@ export const sendMessage: McpToolFactory = (scope, app) =>
         const pathStr = '/routing/message'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['to', 'body', 'kind', 'workspaceId', 'model', 'thinkingEffort']) {
+        for (const k of ['to', 'body', 'kind', 'title', 'workspaceId', 'model', 'thinkingEffort']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {

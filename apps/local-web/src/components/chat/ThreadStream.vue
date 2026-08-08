@@ -47,9 +47,13 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
-  /** A report/update box's "View" chip — the host opens the shared dialog. */
+  /** A report/update/direct box's "View" chip — the host opens the shared dialog. */
   openReport: [
-    report: { sourceLabel: string; body: string; kind: "report" | "update" },
+    report: {
+      sourceLabel: string;
+      body: string;
+      kind: "report" | "update" | "direct";
+    },
   ];
   /** A thread pointer's click — navigate to where the task started (the
    *  `partialSessionId` anchor; the redesign's tracking mechanic). The host

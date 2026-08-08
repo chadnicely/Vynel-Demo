@@ -1107,6 +1107,84 @@ describe('POST /routing/message → requester report (ported from /routing/repor
   })
 })
 
+describe('POST /routing/message → kind direct_to_user (direct messages to the user)', () => {
+  it('enqueues a direct-delivery row — the title leads the body, the kind is echoed', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-dm1')
+      const app = makeHarness(db)
+
+      const res = await postJson(
+        app,
+        '/routing/message',
+        {
+          to: 'requester',
+          body: 'Full overview text.',
+          kind: 'direct_to_user',
+          title: 'Overview of the agency app',
+        },
+        {
+          [REPORT_CALLER_HEADER]: serializeReportCaller({
+            kind: 'workspace-primary',
+            workspaceId: workspace.id,
+          }),
+        },
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { status: string; jobId: string; kind: string }
+      expect(body.status).toBe('enqueued')
+      expect(body.kind).toBe('direct_to_user')
+
+      const job = findDelegationJobById(db, body.jobId)
+      expect(job?.jobKind).toBe('direct-delivery')
+      expect(job?.taskText).toBe('Overview of the agency app\n\nFull overview text.')
+      expect(job?.workspaceName).toBe('Mark · Acme')
+      expect(job?.parentSessionId).toBe('ws-primary-dm1')
+    })
+  })
+
+  it('400s a direct_to_user without a title, a title on any other kind, and a downward direct', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-dm2')
+      const app = makeHarness(db)
+      const callerHeader = {
+        [REPORT_CALLER_HEADER]: serializeReportCaller({
+          kind: 'workspace-primary',
+          workspaceId: workspace.id,
+        }),
+      }
+
+      const noTitle = await postJson(
+        app,
+        '/routing/message',
+        { to: 'requester', body: 'x', kind: 'direct_to_user' },
+        callerHeader,
+      )
+      expect(noTitle.status).toBe(400)
+      expect(((await noTitle.json()) as { message: string }).message).toContain('title')
+
+      const titleOnReport = await postJson(
+        app,
+        '/routing/message',
+        { to: 'requester', body: 'x', kind: 'report', title: 'T' },
+        callerHeader,
+      )
+      expect(titleOnReport.status).toBe(400)
+
+      const directDown = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 'x',
+        kind: 'direct_to_user',
+        title: 'T',
+      })
+      expect(directDown.status).toBe(400)
+    })
+  })
+})
+
 describe('GET /routing/background-runs (reading back a handed-off task)', () => {
   it('lists a delegated task as a run the agent can read, keyed by the jobId it was given', async () => {
     await withTestDatabase(async (db) => {

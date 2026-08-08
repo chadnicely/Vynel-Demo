@@ -95,9 +95,14 @@ export const SendMessageRequestSchema = z.object({
   body: z.string().min(1).max(50000),
   /** UPWARD messages only (persona-sessions): 'report' = the FINAL result
    *  (marks the running task reported); 'update' = an interim ack/progress
-   *  line (never marks it — the task stays running). Omitted = 'report' for
-   *  "requester", derived 'task' for a workspace/session target. */
-  kind: z.enum(['task', 'report', 'update']).optional(),
+   *  line (never marks it — the task stays running); 'direct_to_user' = the
+   *  FINAL answer addressed to the USER — shown verbatim as your message,
+   *  never narrated (requires `title`; marks the task reported). Omitted =
+   *  'report' for "requester", derived 'task' for a workspace/session target. */
+  kind: z.enum(['task', 'report', 'update', 'direct_to_user']).optional(),
+  /** REQUIRED with kind 'direct_to_user' (rejected otherwise): the short
+   *  headline the user's message box shows — the full text opens from it. */
+  title: z.string().min(1).max(200).optional(),
   /** The CALLING workspace for a "session:" send (Slice ④b, ownership-checked)
    *  — the job then parents on that workspace's primary conversation, so the
    *  report returns to the creator. The workspace surface stamps this
@@ -113,9 +118,9 @@ export const SendMessageResponseSchema = z.object({
   /** What the message was addressed to, resolved — the workspace/session name,
    *  or the requester's label. Lets the caller confirm where it actually went. */
   deliveredTo: z.string(),
-  /** 'task' when sent down to a workspace/session; 'report'/'update' when
-   *  passed up. */
-  kind: z.enum(['task', 'report', 'update']),
+  /** 'task' when sent down to a workspace/session; 'report'/'update'/
+   *  'direct_to_user' when passed up. */
+  kind: z.enum(['task', 'report', 'update', 'direct_to_user']),
 })
 
 // ── Background runs (reading back a handed-off task) ────────────────

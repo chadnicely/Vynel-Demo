@@ -31,6 +31,7 @@ import {
   failDelegationJob,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   isDeliveryJobKind,
+  listDelegationJobsByThread,
   markDelegationsSurfacedToRoot,
   resolveThreadIdOf,
   routeRequest,
@@ -606,11 +607,15 @@ export async function runDelegationClaimAndRunTick(
       // silent child therefore delivers nothing; the chip settles and
       // get_background_run answers status pulls. FAILED rows keep the
       // catch-up: a failure note is status, not capture, and the root must
-      // learn the task died.
+      // learn the task died. ONE exception (kind `direct_to_user`): a final
+      // answer that went straight to the user runs NO notify turn, so the row
+      // stays UNSURFACED — the net is how the root learns it (presented
+      // "already shown — absorb silently", never an echo).
+      const wentDirect = finalReportWentDirect(db, claimed)
       try {
         withTransaction(db, (tx) => {
           completeDelegationJob(tx, claimed.id, outcome.result, new Date())
-          markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
+          if (!wentDirect) markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
         })
       } catch (completionErr) {
         deps.logger.warn(
@@ -623,7 +628,7 @@ export async function runDelegationClaimAndRunTick(
         // the mark itself is what keeps throwing, that one terminal window
         // accepts the echo (awareness over policy, logged loud).
         try {
-          markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
+          if (!wentDirect) markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
         } catch (markErr) {
           deps.logger.warn(
             { err: markErr, jobId: claimed.id },
@@ -674,12 +679,17 @@ export async function runDelegationClaimAndRunTick(
       // complete" through the pull net (B2's timeout half) — the requester has
       // the result; the timeout is bookkeeping. Deliberately NOT routed through
       // settle: 'timed-out' matches the recoverable patterns, and a requeue
-      // would re-run a turn that is still running.
+      // would re-run a turn that is still running. Direct-kind exception: a
+      // `direct_to_user` answer's absorb happens THROUGH the net (the reported
+      // branch of the collector) — marking it surfaced would hide a displayed
+      // reply from the root.
       if (hasDeliveredFinalReport(db, claimed)) {
-        markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
+        if (!finalReportWentDirect(db, claimed)) {
+          markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
+        }
         deps.logger.warn(
           { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-          'delegation job timed out AFTER its report was sent — pull-net injection suppressed',
+          'delegation job timed out AFTER its report was sent — the requester already has the result',
         )
       } else {
         deps.logger.warn(
@@ -718,5 +728,18 @@ export async function runDelegationClaimAndRunTick(
     cancelHandle?.end()
     activityHandle.end()
   }
+}
+
+/** True when this WORK row's final report was sent kind `direct_to_user`: the
+ *  row is reported AND its chain carries a 'direct-delivery' hop. Such a row
+ *  must stay UNSURFACED at terminal time — the catch-up net is how the root
+ *  learns of a reply that ran no notify turn (presented absorb-silently). */
+function finalReportWentDirect(db: Database, claimed: DelegationJob): boolean {
+  if (!hasDeliveredFinalReport(db, claimed)) return false
+  const threadId = resolveThreadIdOf(claimed)
+  if (threadId === null) return false
+  return listDelegationJobsByThread(db, { userId: claimed.userId, threadId }).some(
+    (job) => job.jobKind === 'direct-delivery',
+  )
 }
 

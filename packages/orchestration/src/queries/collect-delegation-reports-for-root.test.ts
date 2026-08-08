@@ -10,6 +10,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   insertDelegationJob,
+  markDelegationJobReported,
   markDelegationsSurfacedToRoot,
   type DelegationJobStatus,
 } from '../repositories/index.js'
@@ -111,6 +112,25 @@ describe('collectDelegationReportsForRoot', () => {
       const reports = collectDelegationReportsForRoot(db, { userId: user.id })
       expect(reports.contextBlock).toBeNull()
       expect(reports.jobIds).toEqual([])
+    })
+  })
+
+  it('a REPORTED task reaching the net presents absorb-silently (its answer went direct_to_user) — never a restatable result', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const jobId = seedJob(db, user.id, workspace.id, 'Acme', 'completed', {
+        resultText: 'Overview delivered.',
+      })
+      markDelegationJobReported(db, jobId, new Date())
+
+      const reports = collectDelegationReportsForRoot(db, { userId: user.id })
+      expect(reports.jobIds).toEqual([jobId])
+      expect(reports.contextBlock).toContain('DIRECTLY to the user')
+      expect(reports.contextBlock).toContain('Absorb it silently')
+      expect(reports.contextBlock).toContain('Overview delivered.')
+      // Never the plain restatable form.
+      expect(reports.contextBlock).not.toContain('Acme: Overview delivered.')
     })
   })
 

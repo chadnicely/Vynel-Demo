@@ -333,6 +333,37 @@ export async function dispatchReportToRequester(
   return { jobId, deliveredTo: upwardDeliveredTo(sender) }
 }
 
+/** Pass a FINAL answer straight to the USER (kind `direct_to_user`): it lands
+ *  on the requester's transcript as the SENDER's own message — verbatim, never
+ *  narrated; the requester absorbs it silently via the catch-up net. The title
+ *  leads the body, so the compact message box's teaser line IS the title and
+ *  the popup shows the full text under it — no separate storage. Marks the
+ *  running row reported exactly like a report: it IS the final result. */
+export async function dispatchDirectToUser(
+  c: RoutingContext,
+  input: { message: string; title: string },
+): Promise<MessageDispatchResult> {
+  const sender = await resolveUpwardSender(c)
+
+  const { threadId } = readAmbientContext(c)
+  const jobId = enqueueReportDelivery(c.var.db, {
+    userId: c.var.user.id,
+    reporterSessionId: sender.reporterSessionId,
+    reporterLabel: sender.reporterLabel,
+    reportBody: `${input.title.trim()}\n\n${input.message}`,
+    requester: sender.requester,
+    deliverDirectly: true,
+    ...(threadId !== undefined ? { threadId } : {}),
+  })
+
+  const runningJobId = parseDelegationJobHeader(c.req.header(DELEGATION_JOB_HEADER))
+  if (runningJobId !== undefined) {
+    markDelegationJobReported(c.var.db, runningJobId, new Date())
+  }
+
+  return { jobId, deliveredTo: upwardDeliveredTo(sender) }
+}
+
 /** Pass an interim ACK/STATUS update UP (persona-sessions) — same resolution as
  *  a report, but it NEVER marks the running job reported (only the final report
  *  does) and it coalesces in the queue while pending. */

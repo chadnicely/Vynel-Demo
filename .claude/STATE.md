@@ -75,19 +75,23 @@ narrated relay (deliberate contrast). Spec: "Post-smoke tweak 1" section in
 `docs/live-tracking-redesign.md` (+ its 2 recorded follow-ups: workspace-origin mentions still
 narrate — needs a workspace-side recorder twin; prune caller-free `recordPushedReportMessage`).
 
-**⏳ OPEN FORK — AWAITING CHAD'S VERDICT (pick this up first): extend direct mode to
-Claude-DISPATCHED colleague replies?** Chad's smoke screenshot: he asked Claude → Claude's turn
-`send_message`'d James (a session-target `task` job, NOT agent-run) → James's report box landed
-AND Claude re-narrated it near-verbatim — the same echo via the other door (per-design today:
-direct fires only for composer @mentions; api runs `node --watch` so this was NOT stale code).
-PROPOSED, my lean = extend: widen the tick's chain condition from `jobKind === 'agent-run'` to
-"any work job targeting a session" (`targetPrimarySessionId != null` — colleague or spawned), so
-EVERY session-kind child speaking to the global root lands as its box, never echoed; the
-absorb-silently net covers Claude's awareness; workspace-TARGET reports (the manager himself
-speaking) keep narration — no box duplication there. Also needs: a task-kind absorb line in
-`collect-delegation-reports-for-root.ts` + test pins (direct test in
-`run-report-delivery-tick.update.test.ts`, collector expectations). Chad had NOT answered when
-the session hit the context limit — ask "extend?" and execute on his yes.
+**POST-SMOKE TWEAK 2 SHIPPED — kind `direct_to_user` (Chad's verdict on the fork: extend via an
+explicit kind, sender-declared).** `send_message` gained `kind: 'direct_to_user'` + required
+`title` (400s pin the contradictions); dispatcher → `enqueueReportDelivery({deliverDirectly})` →
+jobKind `'direct-delivery'` (3rd member of DELIVERY_JOB_KINDS — all predicates one-homed), body
+stored `title\n\nbody` so the box teaser IS the title (no new columns). Tick direct branch fires
+on direct kind OR mention chain (floor kept); global → `recordDirectReplyMessage` under the new
+`[Message from …]` marker (badge **Message**, door "View message", dialog "Message from") — NO
+notify turn; workspace requester falls back to the notify machinery under the new
+DIRECT_DELIVERY_INSTRUCTIONS steer (absorb, don't narrate — honest interim). Invariant-5 direct
+exception: a REPORTED task whose answer went direct completes UNSURFACED (co-commit skips the
+mark; timed-out-after-reported also; agent-run timeout no longer suppresses) and the collector
+presents reported tasks reaching the net as absorb-silently. VERIFIED: typecheck 72/72 forced ·
+283 tests green (contracts/orchestration/session-delegation/routing/MessageRow, new pins listed
+in the spec) · MCP+SDK+port parity OK. Spec: "Post-smoke tweak 2" in
+`docs/live-tracking-redesign.md` (follow-ups there: workspace-side true-direct recorder twin +
+absorb-net; steer-decay watch on report-vs-direct choice). CHAD SMOKES NEXT: @mention → box only;
+"ask James for X and have him send it to me" → James replies direct_to_user → box + silent Claude.
 
 ## ✅ VOICE WAKE OVERLAY FIXED (2026-08-08) — root cause found + hardened; Chad voice-smoke pending
 

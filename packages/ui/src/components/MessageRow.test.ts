@@ -338,6 +338,31 @@ describe("MessageRow update vs report", () => {
     );
   });
 
+  it("an inbound DIRECT message (kind direct_to_user) wears the Message badge, its title as teaser, and the View message door", async () => {
+    const directBody =
+      "[Message from James · Claw Launcher — addressed DIRECTLY to the user and shown to them in this conversation, relayed automatically by Vynel. Not a message the user typed; do not restate it.]\n\nOverview of the agency app\n\nNuxt 4 + Vue 3; seven Pinia stores.";
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "James · Claw Launcher",
+          body: directBody,
+        }),
+      },
+    });
+    expect(wrapper.find(".origin-badge").text()).toBe("Message");
+    expect(wrapper.get(".report-open-chip").text()).toContain("View message");
+    // The teaser IS the sender's title line (the marker never renders).
+    expect(wrapper.get(".report-teaser").text()).toContain(
+      "Overview of the agency app",
+    );
+    // The door carries kind 'direct' so the dialog titles it "Message from".
+    await wrapper.find(".report-open-chip").trigger("click");
+    const [payload] = wrapper.emitted("openReport")![0]! as [{ kind: string }];
+    expect(payload.kind).toBe("direct");
+  });
+
   it("the View door carries the KIND — the dialog title must never call an update a report", async () => {
     const wrapper = mount(MessageRow, {
       props: {

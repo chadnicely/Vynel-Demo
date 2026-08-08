@@ -309,4 +309,49 @@ notify turn — the direct persist needs a workspace-side recorder twin; ② the
 
 ---
 
+## Post-smoke tweak 2 — kind `direct_to_user` (Chad, 2026-08-08; SHIPPED)
+
+**Instruction:** extend the direct path the easy way — keep kind `report` (fine, Claude
+reads it), add kind `direct_to_user`: whatever is messaged with a title shows as a normal
+message; Claude acknowledges but stays silent.
+
+**Shipped shape (sender-declared intent, no more chain inference as the only door):**
+
+- **The tool:** `send_message` gained `kind: "direct_to_user"` + a required short `title`
+  (400 without it; 400 for a title on any other kind or a downward direct). The tool text
+  steers: direct_to_user when the USER should read the answer itself; report when the
+  requester acts on it. One final report/direct per task — direct marks the running job
+  reported exactly like a report.
+- **The queue:** the dispatcher enqueues jobKind `'direct-delivery'` (third member of
+  `DELIVERY_JOB_KINDS` — every claim/requeue/settle/in-flight predicate picked it up via
+  the one-homes). The stored body is `title\n\nbody`, so the compact box's teaser IS the
+  title and the popup shows the full text — no new columns, no migration.
+- **The delivery:** the tick's direct branch now fires on `direct-delivery` kind OR a
+  mention chain (the shipped floor stays: a mentioned colleague delivers direct whatever
+  kind it spoke). Global requester → `recordDirectReplyMessage` onto the root transcript
+  under the new `[Message from …]` marker; no notify turn. WORKSPACE requester → falls
+  back to the notify machinery under a new DIRECT steer (absorb, don't narrate) — honest
+  interim until a workspace absorb-net exists.
+- **Claude knows, silently:** invariant 5 gained the direct exception — a task whose
+  final answer went direct completes UNSURFACED (the co-commit skips the mark; same for
+  the timed-out-after-reported branch, and the agent-run timeout no longer suppresses),
+  and the collector presents any REPORTED task reaching the net as "already sent its
+  result DIRECTLY to the user … absorb silently, do NOT restate".
+- **The UI:** the box badge reads **Message** (vs Report/Update) off the marker; the door
+  says "View message"; the dialog titles "Message from X". Teaser = the sender's title.
+
+**Verified:** typecheck 72/72 packages (forced); 283 tests green across contracts /
+orchestration / session-delegation / routing routes / MessageRow (new pins: marker
+round-trip, enqueue kind flip, tick direct e2e global + workspace-fallback steer,
+claim-tick UNSURFACED completion either claim order, collector absorb line, route 400s,
+Message badge + door kind); MCP/SDK/port parity all OK.
+
+**Recorded follow-ups:** ① the workspace-requester direct fallback still runs a (quiet)
+notify turn — a true workspace-side direct persist needs the recorder twin + a workspace
+absorb-net; ② steer decay watch: colleagues choosing report-vs-direct rides the tool
+description — if smokes show reports where directs belong, move the nudge into the
+delegated-turn task steer.
+
+---
+
 *(Case 4+ land here as received.)*

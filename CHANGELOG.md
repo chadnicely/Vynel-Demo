@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Colleagues can message you directly.** Sessions, workspaces, and agents got
+  a new way to answer: send the result straight to you instead of reporting to
+  whoever assigned the task. A direct answer lands in your conversation as the
+  sender's own message — a titled box with the full text one click away, badged
+  "Message" — and Claude never repeats it over the sender's shoulder: it quietly
+  absorbs the content so follow-up questions still work. Regular reports are
+  unchanged, so working chatter stays with Claude and finished answers reach
+  you verbatim.
+
 - **The working rail — everyone active, at the right edge.** One small icon
   per entity that's working right now: workspaces, sessions, agent colleagues
   (with a corner badge), and even Claude's own background replies. A gold

@@ -43,12 +43,14 @@ import { findPrimaryConversation } from '../continuity/index.js'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import {
+  composeDirectMessageMarker,
   composeReportMessageMarker,
   composeUpdateMessageMarker,
 } from '@vynel/contracts/chat/report-message-marker'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import { requeueIfRecoverable } from './classify-turn-failure.js'
 import {
+  DIRECT_DELIVERY_INSTRUCTIONS,
   REPORT_DELIVERY_INSTRUCTIONS,
   UPDATE_DELIVERY_INSTRUCTIONS,
 } from './routed-turn-provider-input.js'
@@ -112,10 +114,18 @@ export async function runReportDeliveryJob(
   const claimedThreadId = resolveThreadIdOf(claimed)
   // The delivery VARIANT (persona-sessions): an update-delivery row is the
   // interim sibling — same notify machinery, the update marker + steer, and
-  // the requester must NOT treat the task as finished.
+  // the requester must NOT treat the task as finished. A direct-delivery row
+  // (kind `direct_to_user`) is a final answer addressed to the USER — it
+  // skips the notify turn entirely below; its marker + steer matter on the
+  // fallback path only.
   const isUpdate = claimed.jobKind === 'update-delivery'
-  const queueLabel = isUpdate ? 'update-delivery' : 'report-delivery'
-  const steerInstructions = isUpdate ? UPDATE_DELIVERY_INSTRUCTIONS : REPORT_DELIVERY_INSTRUCTIONS
+  const isDirect = claimed.jobKind === 'direct-delivery'
+  const queueLabel = claimed.jobKind ?? 'report-delivery'
+  const steerInstructions = isUpdate
+    ? UPDATE_DELIVERY_INSTRUCTIONS
+    : isDirect
+      ? DIRECT_DELIVERY_INSTRUCTIONS
+      : REPORT_DELIVERY_INSTRUCTIONS
   // The CHILD's label, resolved at enqueue by the same one-home helpers the
   // push used ('Session' only on a corrupt row — the enqueue op always writes it).
   const sourceLabel = claimed.workspaceName ?? 'Session'
@@ -123,61 +133,68 @@ export async function runReportDeliveryJob(
   // not hold attribution (the 2026-07-27 smoke: the workspace reasoned "the
   // user is reporting back…" and answered the user instead of relaying up).
   // The marker rides ON the message so the model always sees who sent it; the
-  // report card strips it for display.
+  // report card strips it for display (and reads its badge off it).
   const reportBody = `${
-    isUpdate ? composeUpdateMessageMarker(sourceLabel) : composeReportMessageMarker(sourceLabel)
+    isUpdate
+      ? composeUpdateMessageMarker(sourceLabel)
+      : isDirect
+        ? composeDirectMessageMarker(sourceLabel)
+        : composeReportMessageMarker(sourceLabel)
   }\n\n${claimed.taskText}`
   // Captured once for narrowing: null = the GLOBAL root is the requester.
   const requesterWorkspaceId = claimed.workspaceId
   const isGlobalRequester = requesterWorkspaceId === null
 
-  // DIRECT-REPLY mode (live-tracking redesign): a delivery whose chain's WORK
-  // job is an agent-run is a colleague answering the user's @MENTION — the
-  // reply is a message TO THE USER, so it persists straight onto the root's
-  // transcript (the report/update box IS the answer: no notify turn, no
-  // re-narration, no root-lock wait). The root absorbs it silently on its
-  // next turn via the catch-up net (the agent-run row stays unsurfaced until
-  // then, presented "already shown — do not restate"). The momentary feed
-  // announce below carries no narration — it exists so every open window's
-  // turn-ended invalidation lands the new row live.
-  if (isGlobalRequester && claimedThreadId !== null) {
-    const chain = listDelegationJobsByThread(db, {
+  // DIRECT-REPLY mode (live-tracking redesign): the message IS for the user,
+  // so it persists straight onto the root's transcript (the box is the
+  // answer: no notify turn, no re-narration, no root-lock wait). Two doors:
+  // a 'direct-delivery' row — the sender chose kind `direct_to_user` — and
+  // any delivery whose chain's WORK job is an agent-run (a colleague
+  // answering the user's @MENTION delivers direct whatever kind it spoke).
+  // The root absorbs it silently on its next turn via the catch-up net (the
+  // chain's work row stays unsurfaced until then, presented "already shown —
+  // do not restate"). The momentary feed announce below carries no narration —
+  // it exists so every open window's turn-ended invalidation lands the new
+  // row live.
+  const isMentionChainReply = (): boolean =>
+    claimedThreadId !== null &&
+    listDelegationJobsByThread(db, {
       userId: claimed.userId,
       threadId: claimedThreadId,
-    })
-    if (chain.some((job) => job.jobKind === 'agent-run')) {
-      const root = findPrimaryConversation(db, { userId: claimed.userId })
-      const persisted =
-        root?.currentSdkSessionId != null &&
-        recordDirectReplyMessage(db, {
-          globalRootSessionId: root.currentSdkSessionId,
-          body: reportBody,
-          sourceLabel,
-          threadId: claimedThreadId,
+    }).some((job) => job.jobKind === 'agent-run')
+  if (isGlobalRequester && (isDirect || isMentionChainReply())) {
+    const root = findPrimaryConversation(db, { userId: claimed.userId })
+    const persisted =
+      root?.currentSdkSessionId != null &&
+      recordDirectReplyMessage(db, {
+        globalRootSessionId: root.currentSdkSessionId,
+        body: reportBody,
+        sourceLabel,
+        ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+        ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+      })
+    if (persisted) {
+      deps.activityFeed
+        .begin({
+          userId: claimed.userId,
+          scopeKind: 'global',
+          origin: 'delegation',
+          jobId: claimed.id,
+          ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
           ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+          personaName: sourceLabel,
         })
-      if (persisted) {
-        deps.activityFeed
-          .begin({
-            userId: claimed.userId,
-            scopeKind: 'global',
-            origin: 'delegation',
-            jobId: claimed.id,
-            threadId: claimedThreadId,
-            ...(partialSessionId !== undefined ? { partialSessionId } : {}),
-            personaName: sourceLabel,
-          })
-          .end()
-        completeDelegationJob(db, claimed.id, 'delivered directly', new Date())
-        deps.logger.info(
-          { jobId: claimed.id, from: sourceLabel },
-          `${queueLabel}: delivered DIRECTLY to the user (mention reply — no notify turn)`,
-        )
-        return true
-      }
-      // No root session row to land on — fall through to the notify machinery,
-      // which handles the no-session shapes honestly.
+        .end()
+      completeDelegationJob(db, claimed.id, 'delivered directly', new Date())
+      deps.logger.info(
+        { jobId: claimed.id, from: sourceLabel, kind: queueLabel },
+        `${queueLabel}: delivered DIRECTLY to the user (no notify turn)`,
+      )
+      return true
     }
+    // No root session row to land on — fall through to the notify machinery,
+    // which handles the no-session shapes honestly (the direct steer keeps
+    // the fallback turn from narrating).
   }
 
   const cancelHandle =

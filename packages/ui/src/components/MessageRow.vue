@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
 import {
+  isDirectMessageBody,
   isUpdateMessageBody,
   stripReportMessageMarker,
 } from "@vynel/contracts/chat/report-message-marker";
@@ -56,7 +57,11 @@ const emit = defineEmits<{
    *  fetch. `kind` keeps the dialog's title honest — an interim update must
    *  never present as the finished result. */
   openReport: [
-    report: { sourceLabel: string; body: string; kind: "report" | "update" },
+    report: {
+      sourceLabel: string;
+      body: string;
+      kind: "report" | "update" | "direct";
+    },
   ];
 }>();
 
@@ -219,6 +224,12 @@ const isInboundUpdate = computed(
   () => isInboundReport.value && isUpdateMessageBody(props.message.body),
 );
 
+// A DIRECT message (kind `direct_to_user`) — the sender speaking TO the user,
+// not reporting to its requester; the badge says so.
+const isInboundDirect = computed(
+  () => isInboundReport.value && isDirectMessageBody(props.message.body),
+);
+
 // A report bubbled up from a workspace/agent wears that workspace's stable
 // accent (left bar + chip tint) so it reads as belonging to it — on every
 // surface, the workspace's own room included (chip parity above). This covers
@@ -315,7 +326,7 @@ const accentVar = computed(() => {
       <!-- Quiet provenance mark: this row was DELIVERED, not typed — an
            interim update says so (never mistakable for the finished result). -->
       <span v-if="isInboundReport" class="origin-badge">{{
-        isInboundUpdate ? "Update" : "Report"
+        isInboundUpdate ? "Update" : isInboundDirect ? "Message" : "Report"
       }}</span>
     </p>
     <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
@@ -339,11 +350,17 @@ const accentVar = computed(() => {
           emit('openReport', {
             sourceLabel: props.message.sourceLabel!,
             body: displayBody,
-            kind: isInboundUpdate ? 'update' : 'report',
+            kind: isInboundUpdate ? 'update' : isInboundDirect ? 'direct' : 'report',
           })
         "
       >
-        <span>{{ isInboundUpdate ? "View update" : "View report" }}</span>
+        <span>{{
+          isInboundUpdate
+            ? "View update"
+            : isInboundDirect
+              ? "View message"
+              : "View report"
+        }}</span>
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path
             d="M6 4l4 4-4 4"

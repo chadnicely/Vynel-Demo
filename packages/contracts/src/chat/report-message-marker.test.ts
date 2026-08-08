@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  composeDirectMessageMarker,
   composeReportMessageMarker,
   composeUpdateMessageMarker,
+  isDirectMessageBody,
   isUpdateMessageBody,
   stripReportMessageMarker,
 } from './report-message-marker.js'
@@ -42,5 +44,16 @@ describe('report message marker', () => {
     expect(isUpdateMessageBody(`${composeUpdateMessageMarker('Nova')}\n\nReceived.`)).toBe(true)
     expect(isUpdateMessageBody(`${composeReportMessageMarker('Nova')}\n\nDone.`)).toBe(false)
     expect(isUpdateMessageBody('A plain message.')).toBe(false)
+  })
+
+  it('the DIRECT marker (kind direct_to_user) round-trips and discriminates from both siblings', () => {
+    const body = 'Overview of the agency app\n\nNuxt 4 + Vue 3; seven Pinia stores.'
+    const marked = `${composeDirectMessageMarker('James · Claw Launcher')}\n\n${body}`
+    expect(marked.startsWith('[Message from James · Claw Launcher')).toBe(true)
+    expect(stripReportMessageMarker(marked)).toBe(body)
+    expect(isDirectMessageBody(marked)).toBe(true)
+    expect(isUpdateMessageBody(marked)).toBe(false)
+    expect(isDirectMessageBody(`${composeReportMessageMarker('Nova')}\n\nDone.`)).toBe(false)
+    expect(isDirectMessageBody('A plain message.')).toBe(false)
   })
 })

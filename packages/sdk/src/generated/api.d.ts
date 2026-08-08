@@ -14150,7 +14150,8 @@ export interface operations {
                     to: string;
                     body: string;
                     /** @enum {string} */
-                    kind?: "task" | "report" | "update";
+                    kind?: "task" | "report" | "update" | "direct_to_user";
+                    title?: string;
                     workspaceId?: string;
                     model?: string;
                     /** @enum {string} */
@@ -14171,7 +14172,7 @@ export interface operations {
                         jobId: string;
                         deliveredTo: string;
                         /** @enum {string} */
-                        kind: "task" | "report" | "update";
+                        kind: "task" | "report" | "update" | "direct_to_user";
                     };
                 };
             };

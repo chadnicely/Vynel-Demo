@@ -71,6 +71,7 @@ import {
   dispatchTaskToSession,
   dispatchReportToRequester,
   dispatchUpdateToRequester,
+  dispatchDirectToUser,
   parseMessageDestination,
 } from './dispatch-message.js'
 
@@ -336,8 +337,10 @@ export const routingApp = factory
   //
   // `kind` is derived for DOWNWARD sends ("workspace:"/"session:" = a task —
   // it cannot disagree with the destination). UPWARD sends ("requester") take
-  // an optional kind: 'report' (final, marks the task reported — the default)
-  // or 'update' (interim ack/progress, never marks it — persona-sessions).
+  // an optional kind: 'report' (final, marks the task reported — the default),
+  // 'update' (interim ack/progress, never marks it — persona-sessions), or
+  // 'direct_to_user' (final, addressed to the USER — lands verbatim as the
+  // sender's message, never narrated; requires `title`).
   // A kind that contradicts the destination is a 400, never a silent misroute.
   // ──────────────────────────────────────────────────────────────────
   .post(
@@ -376,8 +379,14 @@ export const routingApp = factory
           'them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\n' +
           'For "requester", `kind` picks the voice: `"update"` = an interim acknowledgment or ' +
           'progress line ("Received — starting now"; the task stays running), `"report"` = the ' +
-          'FINAL result — findings, numbers, paths, not just "done" (default; marks the task ' +
-          'finished). Send exactly one final report per task.\n\n' +
+          'FINAL result addressed to whoever sent you the work — findings, numbers, paths, not ' +
+          'just "done" (default; marks the task finished), `"direct_to_user"` = the FINAL ' +
+          'result addressed to the USER themselves: it appears in their conversation as YOUR ' +
+          'message, verbatim and never summarized, under a short `title` you must provide (the ' +
+          'headline on the message box). Prefer "direct_to_user" whenever the user should read ' +
+          'the answer itself — an overview, findings, a document, anything they asked to see — ' +
+          'and "report" when the requester will act on it. Send exactly one final ' +
+          'report/direct_to_user per task.\n\n' +
           'Returns IMMEDIATELY with { status: "enqueued", jobId }; the other session picks the ' +
           'message up in its own conversation shortly. Track a task you sent with ' +
           'list_background_runs / get_background_run. Speaking upward only works on a ' +
@@ -389,7 +398,7 @@ export const routingApp = factory
     validator('json', SendMessageRequestSchema),
     ...userScoped,
     async (c) => {
-      const { to, body, kind, workspaceId, model, thinkingEffort } = c.req.valid('json')
+      const { to, body, kind, title, workspaceId, model, thinkingEffort } = c.req.valid('json')
       const destination = parseMessageDestination(to)
       const taskOptions = {
         ...(model !== undefined ? { model } : {}),
@@ -400,10 +409,22 @@ export const routingApp = factory
       if (destination.kind === 'requester' && kind === 'task') {
         throw new ValidationError('kind "task" cannot address "requester" — tasks go DOWN.')
       }
-      if (destination.kind !== 'requester' && (kind === 'report' || kind === 'update')) {
+      if (
+        destination.kind !== 'requester' &&
+        (kind === 'report' || kind === 'update' || kind === 'direct_to_user')
+      ) {
         throw new ValidationError(
           `kind "${kind}" only addresses "requester" — a workspace/session target is a task.`,
         )
+      }
+      // `title` is the direct message's box headline — meaningless anywhere else.
+      if (kind === 'direct_to_user' && (title === undefined || title.trim() === '')) {
+        throw new ValidationError(
+          'kind "direct_to_user" needs a `title` — the short headline the user\'s message box shows.',
+        )
+      }
+      if (kind !== 'direct_to_user' && title !== undefined) {
+        throw new ValidationError('`title` only accompanies kind "direct_to_user".')
       }
 
       if (destination.kind === 'requester') {
@@ -414,6 +435,18 @@ export const routingApp = factory
             jobId,
             deliveredTo,
             kind: 'update' as const,
+          })
+        }
+        if (kind === 'direct_to_user') {
+          const { jobId, deliveredTo } = await dispatchDirectToUser(c, {
+            message: body,
+            title: title!,
+          })
+          return c.json({
+            status: 'enqueued' as const,
+            jobId,
+            deliveredTo,
+            kind: 'direct_to_user' as const,
           })
         }
         const { jobId, deliveredTo } = await dispatchReportToRequester(c, { report: body })

@@ -55,6 +55,18 @@ export const UPDATE_DELIVERY_INSTRUCTIONS =
   'it, and do NOT pass routine status upward — only escalate if something above you is ' +
   'genuinely blocked on this information.'
 
+// The DIRECT-DELIVERY steer (kind `direct_to_user`) — the notify FALLBACK only:
+// the normal direct path persists the message with no turn at all; this steer
+// runs when a workspace primary is the requester (no workspace absorb-net yet)
+// or the root has no landed session row.
+export const DIRECT_DELIVERY_INSTRUCTIONS =
+  'This message is a FINAL answer a session, workspace, or agent addressed DIRECTLY TO THE ' +
+  'USER (kind direct_to_user) — it is now displayed in this conversation as that sender ' +
+  'speaking, and that task is complete. The user did NOT type it (its first line marks who ' +
+  'it is from). The user has already read or will read it exactly as sent: do NOT restate, ' +
+  'summarize, or narrate it — absorb it silently as context and reply with almost nothing ' +
+  'unless it genuinely demands action from you.'
+
 /** The COLLEAGUE identity block for an agent session's turn (persona-sessions):
  *  rides `systemPromptAppend` on EVERY turn — never seeded priming — so the
  *  persona survives swaps and transcript compaction. The agent's own prompt is

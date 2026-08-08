@@ -22,8 +22,9 @@ export interface ThreadChainHop {
   /** This hop's own trace key — the handle for the per-hop message trace. */
   partialSessionId: string | null
   /** 'task' = work sent down; 'report-delivery' = a result carried back up;
-   *  'update-delivery' = interim status carried up (persona-sessions). */
-  kind: 'task' | 'report-delivery' | 'update-delivery'
+   *  'update-delivery' = interim status carried up (persona-sessions);
+   *  'direct-delivery' = a final answer carried straight to the user. */
+  kind: 'task' | 'report-delivery' | 'update-delivery' | 'direct-delivery'
   status: DelegationJobStatus
   /** Where the hop went: the workspace name, or the session/reporter label. */
   target: string

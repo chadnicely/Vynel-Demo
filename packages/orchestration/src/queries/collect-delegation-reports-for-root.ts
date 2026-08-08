@@ -50,6 +50,17 @@ export function collectDelegationReportsForRoot(
     // Session-target jobs (Slice ④) have no workspace name — a generic label
     // keeps the block honest (the report text itself names the work).
     const sourceName = job.workspaceName ?? 'A session you created'
+    // A REPORTED task row reaching the net means its final answer went
+    // `direct_to_user` (every other reported task is surfaced at completion /
+    // timeout) — the answer is already on the transcript, whatever the row's
+    // own terminal status.
+    if (job.reportedAt !== null) {
+      return (
+        `— ${sourceName} already sent its result DIRECTLY to the user; it is displayed in ` +
+        `this conversation. Absorb it silently as context — do NOT restate or summarize it ` +
+        `unless asked: ${job.resultText ?? '(answer delivered)'}`
+      )
+    }
     if (job.status === 'completed' && job.resultText) {
       return `— ${sourceName}: ${job.resultText}`
     }

@@ -23,7 +23,6 @@ import {
   ApprovalWaitGate,
   completeDelegationJob,
   failDelegationJob,
-  markDelegationsSurfacedToRoot,
   resolveThreadIdOf,
   routeRequest,
   type DelegationJob,
@@ -303,15 +302,16 @@ export async function runAgentRunJob(
     } else if (outcome.status === 'timed-out') {
       await approvalHandler.abandonParked()
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
-      // Same as the delegation tick's timed-out branch: a colleague that
-      // already SPOKE its report must not resurface as a failure through the
-      // pull net (B2's timeout half); not routed through settle — a requeue
-      // would re-run a turn that is still running.
+      // A colleague that already SPOKE must not resurface as a failure through
+      // the pull net (B2's timeout half); not routed through settle — a requeue
+      // would re-run a turn that is still running. Unlike the task tick, the
+      // row stays UNSURFACED: a mention reply always delivers DIRECTLY, and the
+      // net's reported branch is how the root absorbs it — marking it here
+      // would hide a displayed reply.
       if (hasDeliveredFinalReport(db, claimed)) {
-        markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
         deps.logger.warn(
           { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-          'agent-run job timed out AFTER its report was sent — pull-net injection suppressed',
+          'agent-run job timed out AFTER its reply was sent — the user already has it',
         )
       } else {
         deps.logger.warn(
