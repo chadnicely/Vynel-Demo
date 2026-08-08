@@ -16,6 +16,7 @@ import { withTransaction, type Database } from '@vynel/db'
 import type { ChatMessage } from '../repositories/index.js'
 import type { AiAgentProviderId, NormalizedSessionEvent } from '@vynel/providers'
 import { CHAT_SESSION_CREATED } from '../chat-events.js'
+import { SWAP_SEGMENT_TITLE } from '../records/record-swap-segment-session.js'
 import { buildNewChatSessionRow } from './build-new-chat-session-row.js'
 import type { ChatTurnEvent } from '../chat-turn-event.js'
 import type { NewSessionOptions } from '../chat-types.js'
@@ -38,6 +39,11 @@ export type HandleSessionStartedInput = {
   workspaceId: string | null
   providerId: AiAgentProviderId
   isNewSession: boolean
+  /** The session this turn RESUMED (when known). A `session-started` reporting
+   *  a DIFFERENT id on a resumed turn is a mid-turn compaction swap — the
+   *  created row chain-links to this predecessor and wears the swap-segment
+   *  presentation (session-review B4). */
+  resumeSessionId?: string
   /** Presentation overrides for the new-session row (the brain passes hidden +
    *  'Global brain'). Omitted by the workspace path → defaults. */
   newSessionOptions?: NewSessionOptions
@@ -82,14 +88,29 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
   // preserves isNewSession's decision in every case that works today, only ADDS
   // creation in the previously-failing swap case.
   if (isNewSession || chatRepository.findChatSessionById(db, sessionId) === null) {
+    // The row-missing case on a RESUMED turn is a mid-turn compaction swap: the
+    // created row must CHAIN to its predecessor (`continuedFromSessionId`) and
+    // wear the swap-segment presentation, or the segment is orphaned — the
+    // overview can't fold it, chain-follow can't engage, and the global
+    // transcript loses every pre-swap row on reload (session-review B4).
+    // Explicit newSessionOptions still win; the predecessor supplies the scope
+    // a caller didn't pass (a spawned session's continuation must never default
+    // to 'global', nor a workspace primary's land listed as "New session").
+    const swappedFromSessionId =
+      !isNewSession && input.resumeSessionId !== undefined && input.resumeSessionId !== sessionId
+        ? input.resumeSessionId
+        : null
+    const predecessor =
+      swappedFromSessionId !== null
+        ? chatRepository.findChatSessionById(db, swappedFromSessionId)
+        : null
     userMessage = withTransaction(db, (tx) => {
       // initialMessageCount: 1 — the user message is co-committed below. When
       // the consumer persisted it early (resumed turn whose SDK id swapped
       // mid-start), the message already lives on the ORIGINAL session — the
       // thread the user actually sent it from — so this row starts at 0.
-      chatRepository.insertChatSession(
-        tx,
-        buildNewChatSessionRow({
+      chatRepository.insertChatSession(tx, {
+        ...buildNewChatSessionRow({
           sessionId,
           userId,
           workspaceId,
@@ -98,11 +119,26 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
           initialMessageCount: alreadyPersistedUserMessage !== undefined ? 0 : 1,
           ...(newSessionOptions?.visibility !== undefined
             ? { visibility: newSessionOptions.visibility }
-            : {}),
-          ...(newSessionOptions?.title !== undefined ? { title: newSessionOptions.title } : {}),
-          ...(newSessionOptions?.scope !== undefined ? { scope: newSessionOptions.scope } : {}),
+            : swappedFromSessionId !== null
+              ? { visibility: 'hidden' as const }
+              : {}),
+          ...(newSessionOptions?.title !== undefined
+            ? { title: newSessionOptions.title }
+            : swappedFromSessionId !== null
+              ? { title: SWAP_SEGMENT_TITLE }
+              : {}),
+          ...(newSessionOptions?.scope !== undefined
+            ? { scope: newSessionOptions.scope }
+            : predecessor !== null
+              ? { scope: predecessor.scope }
+              : {}),
         }),
-      )
+        // The chain link stays OFF the shared builder (the swap-segment
+        // recorder's rule) — only a continuation row carries a predecessor.
+        ...(swappedFromSessionId !== null
+          ? { continuedFromSessionId: swappedFromSessionId }
+          : {}),
+      })
       const inserted =
         alreadyPersistedUserMessage ??
         chatRepository.insertChatMessage(tx, {

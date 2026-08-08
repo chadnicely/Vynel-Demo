@@ -48,7 +48,9 @@ export type RecordSwapSegmentSessionInput = {
 // so it carries an honest default title instead of the first-turn placeholder.
 // It is resumed (not new) on its next turn, so the title is never auto-derived
 // — titling refinement is deferred (build brief Slice 1 is invisible-by-design).
-const SWAP_SEGMENT_TITLE = 'Continued conversation'
+// Exported: the mid-turn swap branch of `handleSessionStarted` wears the same
+// presentation (one home for the convention — session-review B4).
+export const SWAP_SEGMENT_TITLE = 'Continued conversation'
 
 export function recordSwapSegmentSession(
   db: Database,

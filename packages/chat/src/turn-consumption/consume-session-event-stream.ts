@@ -207,6 +207,12 @@ export async function* consumeSessionEventStream(
             workspaceId,
             providerId,
             isNewSession,
+            // The resumed id lets the handler recognize a mid-turn compaction
+            // swap (a session-started reporting a DIFFERENT id) and chain the
+            // created row to its predecessor (session-review B4).
+            ...(input.resumeSessionId !== undefined
+              ? { resumeSessionId: input.resumeSessionId }
+              : {}),
             ...(userMessage !== null ? { alreadyPersistedUserMessage: userMessage } : {}),
             ...(newSessionOptions !== undefined ? { newSessionOptions } : {}),
             ...(messageAttribution !== undefined ? { messageAttribution } : {}),
