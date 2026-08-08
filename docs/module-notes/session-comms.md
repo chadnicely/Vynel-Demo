@@ -145,6 +145,13 @@ automatic completion delivery). The global root never sees it (routing array unt
   the root-lock queue, no timed-out-delivery report loss); workspace tasks claim
   alongside, pinned.
 
+- **FIXED (2026-08-08, session-review B7)** — delivery jobs no longer appear in
+  `listInFlightDelegationsForUser`: the "acceptable v1" tolerance ended when the
+  review found the harm (ghost "task" cards labeled with the message body, whose
+  Stop killed the delivery). The read now gates on work kinds via the
+  `DELIVERY_JOB_KINDS` one-home; delivery-turn liveness still reaches the UI
+  through the activity feed.
+
 **Open items (recorded, not built).**
 - A failed notify turn loses the root-catch-up net for that report (the task was
   already stamped surfaced); the full report stays on the task job row + trace, and
@@ -153,5 +160,6 @@ automatic completion delivery). The global root never sees it (routing array unt
 - The workspace notify turn records a reporter→requester `recordDelegation` edge
   (faithful runner reuse) — monitor-tree semantics for that edge are a later-arc call.
 - `recordPushedReportMessage` now has zero production callers — delete on next touch.
-- In-flight chips: delivery jobs appear in `listInFlightDelegationsForUser` (real
-  activity; label = the child's name) — acceptable v1, watch for confusing banner copy.
+- `POST /delegations/:partialSessionId/stop` is kind-agnostic — the ghost-card Stop
+  path is closed at the roster, but a direct API call could still stop a delivery
+  row; add a kind guard if it ever bites.

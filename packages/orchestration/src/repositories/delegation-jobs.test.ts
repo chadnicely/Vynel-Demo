@@ -22,6 +22,7 @@ import {
   listPendingDelegationJobsForUser,
   listUnsurfacedTerminalDelegationsForUser,
   failOrphanedClaimedDelegations,
+  listInFlightDelegationsForUser,
   requeueOrphanedClaimedReportDeliveries,
   type NewDelegationJob,
 } from './delegation-jobs.js'
@@ -475,6 +476,35 @@ describe('delegation_jobs repository', () => {
       expect(findDelegationJobById(db, update.id)!.status).toBe('failed')
       expect(findDelegationJobById(db, task.id)!.status).toBe('failed')
       expect(findDelegationJobById(db, pendingReport.id)!.status).toBe('pending')
+    })
+  })
+
+  it('listInFlightDelegationsForUser lists WORK rows only — delivery hops never surface (B7)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const task = insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
+      const agentRun = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { jobKind: 'agent-run' }),
+      )
+      // The lifecycle transport — a pending ack/report hop and a claimed one.
+      // Pre-fix these surfaced as ghost "task" cards labeled with the message
+      // body, and their Stop killed the delivery itself.
+      insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { jobKind: 'report-delivery' }),
+      )
+      insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, {
+          jobKind: 'update-delivery',
+          status: 'claimed',
+        }),
+      )
+
+      const inFlight = listInFlightDelegationsForUser(db, user.id)
+      expect(inFlight.map((j) => j.id).sort()).toEqual([task.id, agentRun.id].sort())
     })
   })
 

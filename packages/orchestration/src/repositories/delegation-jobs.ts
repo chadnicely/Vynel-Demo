@@ -410,7 +410,19 @@ export function listInFlightDelegationsForUser(
     .select()
     .from(delegationJobs)
     .where(
-      and(eq(delegationJobs.userId, userId), inArray(delegationJobs.status, ['pending', 'claimed'])),
+      and(
+        eq(delegationJobs.userId, userId),
+        inArray(delegationJobs.status, ['pending', 'claimed']),
+        // WORK rows only (session-review B7): a delivery hop is the notify
+        // MECHANISM, not work anyone handed off — surfacing it here grew ghost
+        // "task" cards labeled with the message body, whose Stop killed the
+        // delivery itself. One home: the DELIVERY_JOB_KINDS membership
+        // (NULL-safe — legacy NULL jobKind means 'task').
+        or(
+          isNull(delegationJobs.jobKind),
+          notInArray(delegationJobs.jobKind, [...DELIVERY_JOB_KINDS]),
+        ),
+      ),
     )
     .orderBy(asc(delegationJobs.createdAt), asc(delegationJobs.id))
     .limit(cappedLimit)

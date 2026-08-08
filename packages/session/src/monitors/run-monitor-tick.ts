@@ -25,7 +25,10 @@
 
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
-import { listOutboxEventsByTypesInWindow } from '@vynel/db/repositories/_shared'
+import {
+  listOutboxEventsByTypesInWindow,
+  OUTBOX_WINDOW_READ_MAX_LIMIT,
+} from '@vynel/db/repositories/_shared'
 import {
   findFirstMatch,
   listArmedMonitors,
@@ -59,6 +62,10 @@ export interface MonitorTickResult {
   firedCount: number
 }
 
+// One page of the windowed outbox scan = the shared read's own hard cap (one
+// home — a drifted local copy would break short-page exhaustion detection).
+const OUTBOX_SCAN_PAGE_SIZE = OUTBOX_WINDOW_READ_MAX_LIMIT
+
 /** Compose the wake message. It must stand alone: the woken turn has no idea
  *  why it started, so the monitor's own words and the event that matched are
  *  the entire context it gets. */
@@ -89,22 +96,38 @@ export async function runMonitorTick(
   let firedCount = 0
 
   for (const monitor of armed) {
-    const events = listOutboxEventsByTypesInWindow(db, {
-      types: monitor.eventTypes,
-      after: monitor.lastCheckedAt,
-      through: now,
-    })
-    const match = findFirstMatch(
-      monitor,
-      events.map(
-        (row): WatchableEvent => ({
-          id: row.id,
-          type: row.type,
-          payload: row.payload,
-          createdAt: row.createdAt,
-        }),
-      ),
-    )
+    // Scan the WHOLE window by paging the capped outbox read (session-review
+    // B5): the old single read + advance-to-now silently skipped every event
+    // past the cap — a matching event in the tail was lost forever, the exact
+    // silence this feature exists to end. Keyset cursor ((createdAt, id)) so
+    // boundary ties never drop a row between pages.
+    let match: WatchableEvent | null = null
+    let after = monitor.lastCheckedAt
+    let afterId: string | undefined
+    for (;;) {
+      const events = listOutboxEventsByTypesInWindow(db, {
+        types: monitor.eventTypes,
+        after,
+        through: now,
+        ...(afterId !== undefined ? { afterId } : {}),
+        limit: OUTBOX_SCAN_PAGE_SIZE,
+      })
+      match = findFirstMatch(
+        monitor,
+        events.map(
+          (row): WatchableEvent => ({
+            id: row.id,
+            type: row.type,
+            payload: row.payload,
+            createdAt: row.createdAt,
+          }),
+        ),
+      )
+      if (match !== null || events.length < OUTBOX_SCAN_PAGE_SIZE) break
+      const last = events[events.length - 1]!
+      after = last.createdAt
+      afterId = last.id
+    }
 
     if (match === null) {
       advanceMonitorWatermark(db, { monitorId: monitor.id, checkedThrough: now, now })
