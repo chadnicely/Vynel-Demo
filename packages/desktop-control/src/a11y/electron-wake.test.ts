@@ -129,6 +129,7 @@ function fakeElectronApp(dumps: string[]): {
   let closes = 0
   let dumpIndex = 0
   const instance = {
+    name: 'Discord',
     subscribe: () =>
       Promise.resolve({
         closed: false,
@@ -202,5 +203,46 @@ describe('resolveAppWithFallback (Electron path, fakes only)', () => {
     await expect(resolveAppWithFallback(App, 'ghost', 'read', hooks)).rejects.toThrow(
       /no matching app is open/,
     )
+  })
+
+  it('a denial from onResolvedIdentity aborts the wake with NOTHING acquired', async () => {
+    // The access-enforcement seam: identity is known after byPid, and a denied
+    // app must never be flag-touched, subscribed, or foregrounded.
+    const { App, subscriptionCloses } = fakeElectronApp(['window "Discord"\n  document "x"'])
+    const { hooks, releases } = resolveHooks()
+    const identities: string[] = []
+    await expect(
+      resolveAppWithFallback(App, 'discord', 'read', hooks, (appName) => {
+        identities.push(appName)
+        throw new Error('DENIED:no grant')
+      }),
+    ).rejects.toThrow('DENIED:no grant')
+    expect(identities).toEqual(['Discord'])
+    // Nothing was acquired, so there is nothing to release (vs. the leak-guard
+    // test above, where a LATER failure must release both).
+    expect(releases).toHaveLength(0)
+    expect(subscriptionCloses()).toBe(0)
+  })
+
+  it('a fast-path denial propagates AS the denial — never retried down the pid path', async () => {
+    // If the denial were caught as "not found", the pid fallback would run and
+    // a findPid miss would mask the denial with "no matching app is open".
+    const App = {
+      find: () => Promise.resolve({ name: 'Discord' }),
+      byPid: () => Promise.reject(new Error('byPid must not be reached')),
+    } as unknown as Xa11yModule['App']
+    let pidLookups = 0
+    const { hooks } = resolveHooks({
+      findPid: () => {
+        pidLookups += 1
+        return Promise.resolve(null)
+      },
+    })
+    await expect(
+      resolveAppWithFallback(App, 'discord', 'read', hooks, () => {
+        throw new Error('DENIED:no grant')
+      }),
+    ).rejects.toThrow('DENIED:no grant')
+    expect(pidLookups).toBe(0)
   })
 })

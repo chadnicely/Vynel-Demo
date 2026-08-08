@@ -1,10 +1,13 @@
 // @vynel/desktop-control — public surface.
 //
 // Exposes the desktop the AI agent operates, as an in-process MCP server it
-// calls mid-turn. Phase 1 = OBSERVATION (all read-only): desktop notifications,
-// listing open apps, and reading an app's accessibility tree (`src/a11y/`, via
-// xa11y). Desktop ACTIONS (act / click / type) arrive in a later increment,
-// each gated through the approval card. See README.md.
+// calls mid-turn: desktop notifications, listing open apps, reading an app's
+// accessibility tree / pixels (`src/a11y/`), and — behind the default-off env
+// flag — element and coordinate actions (`src/input/`). Every app-directed
+// operation is gated by the PER-APP ACCESS GRANTS (`src/access/` +
+// `desktop_app_grants`): the user consents per app, per tier (read / click /
+// full) via the `request_desktop_access` approval card, and enforcement fails
+// closed against the resolved target app. See README.md.
 
 export { createDesktopNotificationListener } from './notifications/listener.js'
 export type {
@@ -45,6 +48,30 @@ export type {
 export { buildDesktopMcpServer } from './mcp/build-desktop-mcp-server.js'
 export type { BuildDesktopMcpServerInput } from './mcp/build-desktop-mcp-server.js'
 export { desktopFeatureDescriptor } from './mcp/desktop-mcp-feature-descriptor.js'
+
+export {
+  DESKTOP_ACCESS_TIERS,
+  isDesktopAccessTier,
+  tierAllows,
+  normalizeDesktopAppKey,
+} from './access/desktop-access-tiers.js'
+export type { DesktopAccessTier, DesktopAccessAuthorizer } from './access/desktop-access-tiers.js'
+export { assertDesktopAccess, makeDesktopAccessAuthorizer } from './access/assert-desktop-access.js'
+export { grantDesktopAccess, revokeDesktopAccess } from './access/grant-desktop-access.js'
+export type {
+  GrantDesktopAccessInput,
+  GrantDesktopAccessOutcome,
+} from './access/grant-desktop-access.js'
+export { listDesktopAppGrants, findDesktopAppGrant } from './repositories/desktop-app-grants.js'
+export type { DesktopAppGrantRow } from './repositories/desktop-app-grants.js'
+export {
+  DESKTOP_ACCESS_GRANTED,
+  DESKTOP_ACCESS_REVOKED,
+} from './desktop-control-events.js'
+export type {
+  DesktopAccessGrantedPayload,
+  DesktopAccessRevokedPayload,
+} from './desktop-control-events.js'
 
 export { resolveDesktopOs } from './platform.js'
 export type { DesktopOs } from './platform.js'

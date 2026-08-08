@@ -6,6 +6,8 @@
 import { loadXa11y, dumpApp, withTimeout } from './xa11y-loader.js'
 import { resolveAppWithFallback } from './electron-wake.js'
 import { isAppNameMatch } from './app-name-match.js'
+import { isPasswordControl, passwordControlRefusal } from './password-control-guard.js'
+import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 // Re-exported so the public surface (index.ts) and the MCP tools keep one
 // import point for the a11y operations.
@@ -61,13 +63,19 @@ export type AppSnapshot = {
 export async function snapshotApp(
   query: string,
   options: SnapshotAppOptions = {},
+  authorize?: DesktopAccessAuthorizer,
 ): Promise<AppSnapshot> {
   const trimmedQuery = query.trim()
   if (trimmedQuery.length === 0) {
     throw new Error('snapshotApp: an app name (or part of it) is required — name the app to look at.')
   }
   const { App } = loadXa11y()
-  const resolved = await resolveAppWithFallback(App, trimmedQuery, 'read')
+  // Enforcement rides the resolution seam: it fires on the RESOLVED identity
+  // (never the fuzzy query) and BEFORE the Electron wake actuates anything —
+  // a denied app must not be foregrounded or woken.
+  const resolved = await resolveAppWithFallback(App, trimmedQuery, 'read', undefined, (appName) =>
+    authorize?.(appName, 'read'),
+  )
   // Electron renderer trees are deep — use the deeper default only on that path;
   // keep enumerated apps (incl. Chromium browsers) shallow. Explicit maxDepth wins.
   const defaultDepth = resolved.viaElectronWake ? ELECTRON_SNAPSHOT_MAX_DEPTH : DEFAULT_SNAPSHOT_MAX_DEPTH
@@ -111,11 +119,17 @@ const MAX_AMBIGUITY_CANDIDATES = 15
  * the matches are returned with their `stable_id`s so the caller can re-target
  * one precisely. Throws on no-match / invalid selector / missing value.
  */
+/** The tier a given element action needs: pressing is `click`; entering text is `full`. */
+export function requiredTierForAction(action: DesktopAction): 'click' | 'full' {
+  return action === 'press' ? 'click' : 'full'
+}
+
 export async function actOnApp(
   appName: string,
   selector: string,
   action: DesktopAction,
   value?: string,
+  authorize?: DesktopAccessAuthorizer,
 ): Promise<ActOnAppResult> {
   // Fail CLOSED on a blank target: `isAppNameMatch(name, '')` matches everything,
   // so an empty/whitespace app would act on an arbitrary window. Guard the
@@ -131,7 +145,10 @@ export async function actOnApp(
     throw new Error(`The "${action}" action requires a non-empty value.`)
   }
   const { App } = loadXa11y()
-  const resolved = await resolveAppWithFallback(App, trimmedApp, 'act on')
+  // Enforcement rides the resolution seam — see snapshotApp.
+  const resolved = await resolveAppWithFallback(App, trimmedApp, 'act on', undefined, (appName) =>
+    authorize?.(appName, requiredTierForAction(action)),
+  )
   try {
     const locator = resolved.app.locator(selector)
     let matchCount: number
@@ -154,6 +171,25 @@ export async function actOnApp(
         .slice(0, MAX_AMBIGUITY_CANDIDATES)
         .map((element) => ({ stableId: element.stableId, role: element.role, name: element.name }))
       return { kind: 'ambiguous', selector, matchCount, candidates }
+    }
+
+    // The credentials hard wall: NEVER type into a password control. Checked on
+    // the single-match element BEFORE any typing action fires; detection has no
+    // override. (Pressing a password field — e.g. to focus it FOR the user — is
+    // deliberately allowed; entering the value is not.)
+    if (actionRequiresValue(action)) {
+      const [element] = await withTimeout(locator.elements(), ACT_TIMEOUT_MS, 'inspect')
+      if (element === undefined) {
+        // Fail CLOSED: the wall can't inspect what it can't read (a UI-change
+        // race between count() and elements()) — typing blind is not an option.
+        throw new Error(
+          `The matched element in "${appName}" changed before it could be inspected — no text was ` +
+            'entered. Re-snapshot the app and retry.',
+        )
+      }
+      if (isPasswordControl(element)) {
+        throw new Error(passwordControlRefusal(appName))
+      }
     }
 
     switch (action) {

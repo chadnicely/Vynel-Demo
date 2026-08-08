@@ -12,8 +12,16 @@
 
 import { loadNutInput } from './nut-input-loader.js'
 import { parseKeyCombo } from './key-combo.js'
-import { findAppWindowBounds } from '../a11y/screenshot-adapter.js'
 import { withTimeout } from '../a11y/xa11y-loader.js'
+import {
+  authorizeFocusedTarget,
+  authorizeMouseTarget,
+  DEFAULT_INPUT_PROBES,
+  type DesktopInputProbes,
+} from './input-authorization.js'
+import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
+
+export type { DesktopInputProbes, ResolvedTargetFrame, FrameBounds } from './input-authorization.js'
 
 export const DESKTOP_INPUT_ACTIONS = ['click', 'type', 'press', 'scroll', 'drag'] as const
 export type DesktopInputAction = (typeof DESKTOP_INPUT_ACTIONS)[number]
@@ -46,10 +54,16 @@ const INPUT_TIMEOUT_MS = 15000
 const DEFAULT_SCROLL_AMOUNT = 3
 
 // A screen-coordinate translation frame: absolute when no app, window-origin
-// offset when an app was named. Pure + exported for tests.
+// offset when an app was named. `scale` is the screenshot downscale factor
+// (`computeCaptureScale` from the same window bounds — capture-time and
+// click-time agree unless the window was resized in between): the model's
+// coordinates live in the SCALED image, so they divide back up before the
+// origin offset applies. Pure + exported for tests.
 export interface CoordinateFrame {
   offsetX: number
   offsetY: number
+  /** Screenshot downscale factor for window-relative coords (default 1). */
+  scale?: number
 }
 
 export function translatePoint(
@@ -57,7 +71,11 @@ export function translatePoint(
   x: number,
   y: number,
 ): { x: number; y: number } {
-  return { x: Math.round(x + frame.offsetX), y: Math.round(y + frame.offsetY) }
+  const scale = frame.scale ?? 1
+  return {
+    x: Math.round(x / scale + frame.offsetX),
+    y: Math.round(y / scale + frame.offsetY),
+  }
 }
 
 function requireNumber(value: number | undefined, name: string, action: string): number {
@@ -76,30 +94,6 @@ function mapButton(button: MouseButton | undefined, buttons: { LEFT: number; MID
     default:
       return buttons.LEFT
   }
-}
-
-// Resolve the coordinate frame — the one place that reaches node-screenshots for
-// the window origin. Fails closed with an actionable error when the named app
-// isn't open (so a click never lands at a stale/absolute position by surprise).
-//
-// DPI PRECONDITION: the window origin here is in node-screenshots' PHYSICAL
-// pixels, and nut.js `setPosition` expects the OS coordinate space. These
-// coincide only at 100% display scaling; on a scaled display (125%/150%) the
-// captured image, the reported window size, and the cursor can diverge and a
-// window-relative click lands off-target. Verified coherent at 100%; a scale
-// factor is the fix if a scaled display shows drift (see `translatePoint`).
-function resolveFrame(app: string | undefined): CoordinateFrame {
-  if (app === undefined || app.trim().length === 0) {
-    return { offsetX: 0, offsetY: 0 }
-  }
-  const bounds = findAppWindowBounds(app)
-  if (bounds === null) {
-    throw new Error(
-      `Could not resolve the "${app}" window to translate coordinates. Call list_open_apps, or omit ` +
-        '"app" to use absolute screen coordinates.',
-    )
-  }
-  return { offsetX: bounds.x, offsetY: bounds.y }
 }
 
 // The validated, native-free shape of one action — required fields already
@@ -158,17 +152,26 @@ export function planDesktopAction(params: ActOnDesktopParams): ActionPlan {
  * native load), then loads the input engine + resolves the coordinate frame,
  * then executes — every op bounded by `withTimeout`.
  */
-export async function actOnDesktop(params: ActOnDesktopParams): Promise<ActOnDesktopResult> {
+export async function actOnDesktop(
+  params: ActOnDesktopParams,
+  authorize?: DesktopAccessAuthorizer,
+  probes: DesktopInputProbes = DEFAULT_INPUT_PROBES,
+): Promise<ActOnDesktopResult> {
   const plan = planDesktopAction(params)
-  const { mouse, keyboard, Point, Button, Key } = loadNutInput()
   const where = params.app !== undefined ? ` in "${params.app}"` : ''
-  // The coordinate frame is resolved ONLY inside the coordinate cases below —
-  // type/press don't use it, and resolving throws when `app` can't be found, so
-  // a keystroke into the focused window must never fail on a stale `app`.
+  // Ordering per case: resolve the target → AUTHORIZE → only then load the
+  // input engine and act. A denied or unidentifiable target must never load
+  // nut.js, let alone move the mouse. The coordinate frame is resolved ONLY
+  // inside the coordinate cases — type/press don't use it, and resolving
+  // throws when `app` can't be found, so a keystroke into the focused window
+  // must never fail on a stale `app`.
 
   switch (plan.action) {
     case 'click': {
-      const point = translatePoint(resolveFrame(params.app), plan.x, plan.y)
+      const resolved = probes.resolveTargetFrame(params.app)
+      const point = translatePoint(resolved.frame, plan.x, plan.y)
+      authorizeMouseTarget(authorize, probes, resolved, point, 'click')
+      const { mouse, Point, Button } = loadNutInput()
       const button = mapButton(params.button, Button)
       await withTimeout(mouse.setPosition(new Point(point.x, point.y)), INPUT_TIMEOUT_MS, 'move')
       await withTimeout(
@@ -180,10 +183,14 @@ export async function actOnDesktop(params: ActOnDesktopParams): Promise<ActOnDes
       return { action: 'click', detail: `${kind} at (${point.x}, ${point.y})${where}` }
     }
     case 'type': {
+      authorizeFocusedTarget(authorize, probes, 'type')
+      const { keyboard } = loadNutInput()
       await withTimeout(keyboard.type(plan.text), INPUT_TIMEOUT_MS, 'type')
       return { action: 'type', detail: `typed "${plan.text}"${where}` }
     }
     case 'press': {
+      authorizeFocusedTarget(authorize, probes, 'press')
+      const { keyboard, Key } = loadNutInput()
       const keyValues = parseKeyCombo(plan.keys, Key)
       await withTimeout(keyboard.pressKey(...keyValues), INPUT_TIMEOUT_MS, 'press')
       // Release in reverse so a chord unwinds cleanly (modifier released last).
@@ -191,7 +198,10 @@ export async function actOnDesktop(params: ActOnDesktopParams): Promise<ActOnDes
       return { action: 'press', detail: `pressed ${plan.keys}` }
     }
     case 'scroll': {
-      const point = translatePoint(resolveFrame(params.app), plan.x, plan.y)
+      const resolved = probes.resolveTargetFrame(params.app)
+      const point = translatePoint(resolved.frame, plan.x, plan.y)
+      authorizeMouseTarget(authorize, probes, resolved, point, 'click')
+      const { mouse, Point } = loadNutInput()
       const amount = params.amount ?? DEFAULT_SCROLL_AMOUNT
       const direction = params.direction ?? 'down'
       await withTimeout(mouse.setPosition(new Point(point.x, point.y)), INPUT_TIMEOUT_MS, 'move')
@@ -207,9 +217,14 @@ export async function actOnDesktop(params: ActOnDesktopParams): Promise<ActOnDes
       return { action: 'scroll', detail: `scrolled ${direction} at (${point.x}, ${point.y})${where}` }
     }
     case 'drag': {
-      const frame = resolveFrame(params.app)
-      const from = translatePoint(frame, plan.x, plan.y)
-      const to = translatePoint(frame, plan.toX, plan.toY)
+      const resolved = probes.resolveTargetFrame(params.app)
+      const from = translatePoint(resolved.frame, plan.x, plan.y)
+      const to = translatePoint(resolved.frame, plan.toX, plan.toY)
+      // A drag has TWO ends — authorize both (an absolute drag can drop onto a
+      // different app than it grabbed from).
+      authorizeMouseTarget(authorize, probes, resolved, from, 'click')
+      authorizeMouseTarget(authorize, probes, resolved, to, 'click')
+      const { mouse, Point } = loadNutInput()
       await withTimeout(
         mouse.drag([new Point(from.x, from.y), new Point(to.x, to.y)]),
         INPUT_TIMEOUT_MS,

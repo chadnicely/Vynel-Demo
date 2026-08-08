@@ -218,6 +218,13 @@
       "when": 1785797399764,
       "tag": "0030_primary_sessions_agent_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1785801350433,
+      "tag": "0031_loud_shiver_man",
+      "breakpoints": true
     }
   ]
 }

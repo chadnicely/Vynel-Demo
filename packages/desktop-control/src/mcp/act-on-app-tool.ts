@@ -2,6 +2,7 @@ import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
 import { actOnApp, DESKTOP_ACTIONS, type ActOnAppResult, type DesktopAction } from '../a11y/xa11y-adapter.js'
+import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 const TOOL_DESCRIPTION =
   "Act on an element in a desktop app — click, type, or set a value. This CHANGES things on the user's " +
@@ -44,7 +45,7 @@ export function buildActResponse(
 }
 
 /** Construct the `act_on_app` SDK MCP tool (mutating — destructiveHint). */
-export function makeActOnAppTool(): unknown {
+export function makeActOnAppTool(authorize?: DesktopAccessAuthorizer): unknown {
   return (tool as unknown as McpToolFn)(
     'act_on_app',
     TOOL_DESCRIPTION,
@@ -72,7 +73,7 @@ export function makeActOnAppTool(): unknown {
         const app = typeof args['app'] === 'string' ? args['app'] : ''
         const selector = typeof args['selector'] === 'string' ? args['selector'] : ''
         const value = typeof args['value'] === 'string' ? args['value'] : undefined
-        return buildActResponse(app, await actOnApp(app, selector, action, value))
+        return buildActResponse(app, await actOnApp(app, selector, action, value, authorize))
       } catch (err) {
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],

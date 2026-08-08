@@ -6,6 +6,7 @@ import {
   DESKTOP_INPUT_ACTIONS,
   type ActOnDesktopParams,
 } from '../input/desktop-input.js'
+import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 const TOOL_DESCRIPTION =
   "Control the desktop by COORDINATES — click, type, press keys, scroll, or drag at a pixel, the way a " +
@@ -32,7 +33,7 @@ function stringArg(args: Record<string, unknown>, key: string): string | undefin
 }
 
 /** Construct the `act_on_desktop` SDK MCP tool (mutating — destructiveHint). */
-export function makeActOnDesktopTool(): unknown {
+export function makeActOnDesktopTool(authorize?: DesktopAccessAuthorizer): unknown {
   return (tool as unknown as McpToolFn)(
     'act_on_desktop',
     TOOL_DESCRIPTION,
@@ -99,7 +100,7 @@ export function makeActOnDesktopTool(): unknown {
         ...(direction !== undefined ? { direction } : {}),
       }
       try {
-        const result = await actOnDesktop(params)
+        const result = await actOnDesktop(params, authorize)
         return { content: [{ type: 'text', text: `Done: ${result.detail}.` }] }
       } catch (err) {
         return {

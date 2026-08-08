@@ -2,6 +2,7 @@ import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
 import { snapshotApp, type AppSnapshot } from '../a11y/xa11y-adapter.js'
+import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 const TOOL_DESCRIPTION =
   "Read a desktop app's on-screen UI as an indented accessibility tree (roles, names, values) — your " +
@@ -48,7 +49,7 @@ export function buildSnapshotAppResponse(
 }
 
 /** Construct the read-only `snapshot_app` SDK MCP tool. */
-export function makeSnapshotAppTool(): unknown {
+export function makeSnapshotAppTool(authorize?: DesktopAccessAuthorizer): unknown {
   return (tool as unknown as McpToolFn)(
     'snapshot_app',
     TOOL_DESCRIPTION,
@@ -68,7 +69,7 @@ export function makeSnapshotAppTool(): unknown {
       try {
         const app = typeof args['app'] === 'string' ? args['app'] : ''
         const maxDepth = typeof args['maxDepth'] === 'number' ? args['maxDepth'] : undefined
-        const snapshot = await snapshotApp(app, maxDepth !== undefined ? { maxDepth } : {})
+        const snapshot = await snapshotApp(app, maxDepth !== undefined ? { maxDepth } : {}, authorize)
         return buildSnapshotAppResponse(app, snapshot)
       } catch (err) {
         return {

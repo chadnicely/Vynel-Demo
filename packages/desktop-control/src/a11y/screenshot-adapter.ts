@@ -18,25 +18,38 @@
 
 import { createRequire } from 'node:module'
 import { selectWindowedPid, type WindowedProcess } from './windowed-process.js'
+import { downscalePngToFit } from './screenshot-scale.js'
+import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 // The subset of node-screenshots' `Window` we call — methods, matching the
 // binding's real 0.2.x shape (verified against its index.d.ts).
+type NativeImage = {
+  readonly width: number
+  readonly height: number
+  cropSync(x: number, y: number, width: number, height: number): NativeImage
+  toPng(): Promise<Buffer>
+}
+
 type NativeWindow = {
   id(): number
   appName(): string
   title(): string
   isMinimized(): boolean
+  isFocused(): boolean
   x(): number
   y(): number
+  z(): number
   width(): number
   height(): number
-  captureImageSync(): { toPng(): Promise<Buffer> }
+  captureImageSync(): NativeImage
 }
 type NodeScreenshotsModule = { Window: { all(): NativeWindow[] } }
 
 let cachedModule: NodeScreenshotsModule | undefined
 
-function loadNodeScreenshots(): NodeScreenshotsModule {
+/** The ONE node-screenshots require point — shared with `window-identity.ts`
+ *  (the enforcement lookups) so the binding stays single-loaded. */
+export function loadNodeScreenshots(): NodeScreenshotsModule {
   if (cachedModule !== undefined) {
     return cachedModule
   }
@@ -93,8 +106,10 @@ export function selectWindowId(windows: WindowInfo[], query: string): number | n
 }
 
 /** A window's on-screen rectangle (physical pixels) — the frame the coordinate
- *  input path translates window-relative clicks against. */
+ *  input path translates window-relative clicks against. Carries the window's
+ *  app name so the input path can enforce access against the RESOLVED app. */
 export interface WindowBounds {
+  appName: string
   x: number
   y: number
   width: number
@@ -121,6 +136,7 @@ export function findAppWindowBounds(query: string): WindowBounds | null {
   const winner = windows.find((entry) => entry.info.id === winnerId)
   if (winner === undefined) return null
   return {
+    appName: winner.info.appName,
     x: Number(winner.native.x()),
     y: Number(winner.native.y()),
     width: Number(winner.native.width()),
@@ -132,8 +148,42 @@ export type AppScreenshot = {
   pngBase64: string
   appName: string
   windowTitle: string
+  /** Pixel size of the RETURNED image (post-zoom, post-downscale) — the
+   *  coordinate frame the model sees. */
   width: number
   height: number
+  /** The window's full size in physical pixels — the act coordinate frame. */
+  windowWidth: number
+  windowHeight: number
+  /** Downscale factor applied to a full-window capture (1 = none). The input
+   *  path recomputes the same factor from the window bounds when translating. */
+  scale: number
+  /** The zoomed region (window-relative, physical pixels), when one was asked for. */
+  region: ZoomRegion | null
+}
+
+/** A window-relative rectangle to zoom into (physical pixels, top-left origin). */
+export type ZoomRegion = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+// Clamp a requested zoom region to the image, degrading to null (full capture)
+// when nothing sensible remains. Pure + exported for tests.
+export function clampZoomRegion(
+  region: ZoomRegion,
+  imageWidth: number,
+  imageHeight: number,
+): ZoomRegion | null {
+  const x = Math.max(0, Math.floor(region.x))
+  const y = Math.max(0, Math.floor(region.y))
+  if (x >= imageWidth || y >= imageHeight) return null
+  const width = Math.min(Math.floor(region.width), imageWidth - x)
+  const height = Math.min(Math.floor(region.height), imageHeight - y)
+  if (width <= 0 || height <= 0) return null
+  return { x, y, width, height }
 }
 
 /**
@@ -142,7 +192,11 @@ export type AppScreenshot = {
  * open, window minimized (BitBlt-class capture has no pixels to read), capture
  * engine unavailable.
  */
-export async function screenshotApp(query: string): Promise<AppScreenshot> {
+export async function screenshotApp(
+  query: string,
+  authorize?: DesktopAccessAuthorizer,
+  options: { region?: ZoomRegion } = {},
+): Promise<AppScreenshot> {
   const trimmedQuery = query.trim()
   if (trimmedQuery.length === 0) {
     throw new Error(
@@ -170,6 +224,9 @@ export async function screenshotApp(query: string): Promise<AppScreenshot> {
     )
     const minimizedWinner = minimized.find((entry) => entry.info.id === minimizedId)
     if (minimizedWinner !== undefined) {
+      // Authorize BEFORE the minimized hint — even "that window exists and is
+      // minimized" is information about an ungranted app.
+      authorize?.(minimizedWinner.info.appName, 'read')
       throw new Error(
         `The "${minimizedWinner.info.appName}" window is minimized — a minimized window has no ` +
           'pixels to capture. Ask the user to restore it, then retry.',
@@ -180,12 +237,32 @@ export async function screenshotApp(query: string): Promise<AppScreenshot> {
     )
   }
 
-  const png = await winner.native.captureImageSync().toPng()
+  // Enforce against the RESOLVED window's app (never the fuzzy query),
+  // before a single pixel is read.
+  authorize?.(winner.info.appName, 'read')
+
+  const captured = winner.native.captureImageSync()
+  const zoom = options.region !== undefined
+    ? clampZoomRegion(options.region, captured.width, captured.height)
+    : null
+  // A zoomed region ships at FULL resolution (detail is the point of zooming);
+  // only the full-window capture is downscaled toward WXGA for coordinate
+  // accuracy (`screenshot-scale.ts`).
+  const image = zoom !== null ? captured.cropSync(zoom.x, zoom.y, zoom.width, zoom.height) : captured
+  const png = await image.toPng()
+  const fitted =
+    zoom !== null
+      ? { png, width: image.width, height: image.height, scale: 1 }
+      : await downscalePngToFit(png, image.width, image.height)
   return {
-    pngBase64: png.toString('base64'),
+    pngBase64: fitted.png.toString('base64'),
     appName: winner.info.appName,
     windowTitle: winner.info.title,
-    width: winner.info.width,
-    height: winner.info.height,
+    width: fitted.width,
+    height: fitted.height,
+    windowWidth: winner.info.width,
+    windowHeight: winner.info.height,
+    scale: fitted.scale,
+    region: zoom,
   }
 }

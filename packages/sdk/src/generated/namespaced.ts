@@ -495,6 +495,20 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  desktopAccess: {
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/desktop/access")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  revoke: async (appName: NonNullable<paths["/desktop/access/{appName}"]["delete"]['parameters']>['path']["appName"]) => {
+    const { error, response } = await client["DELETE"]("/desktop/access/{appName}", {
+      params: { path: { appName: appName } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  },
   files: {
   createDirectory: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/files/directory"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/files/directory"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/files/directory", {

@@ -15,12 +15,17 @@
     "@anthropic-ai/claude-agent-sdk": "^0.3.213",
     "@crowecawcaw/xa11y": "^0.9.1",
     "@nut-tree-fork/nut-js": "^4.2.6",
+    "@vynel/db": "workspace:*",
+    "@vynel/errors": "workspace:*",
     "@vynel/logger": "workspace:*",
     "@vynel/mcp-contract": "workspace:*",
+    "drizzle-orm": "^0.45.0",
     "node-screenshots": "^0.2.8",
+    "sharp": "^0.34.5",
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@vynel/testing": "workspace:*",
     "typescript": "^5.6.0"
   }
 }

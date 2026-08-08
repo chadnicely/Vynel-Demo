@@ -47,6 +47,7 @@ import { journalUserApp } from './routes/journal/user-scoped.js'
 import { asksApp } from './routes/asks/index.js'
 import { sshServersApp } from './routes/ssh-servers/index.js'
 import { serverInstallApp } from './routes/server-install/index.js'
+import { desktopAccessApp } from './routes/desktop-access/index.js'
 import { PendingAskRegistry } from '@vynel/asks'
 import { workspaceAppsApp } from './routes/workspace-apps/index.js'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
@@ -308,6 +309,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // surface is the `vynel-ssh` descriptor). Gated pro above.
   app.route('/ssh-servers', sshServersApp)
   app.route('/server-install', serverInstallApp)
+  // `/desktop/access` — the user's window into the per-app desktop grants
+  // (list + revoke). Creation happens ONLY via the carded MCP tool.
+  app.route('/desktop/access', desktopAccessApp)
   // `/marketplace` is the GLOBAL marketplace — user+both items, user-scope
   // installs (Chad's rule). The workspace surface stays mounted above.
   app.route('/marketplace', marketplaceUserApp)

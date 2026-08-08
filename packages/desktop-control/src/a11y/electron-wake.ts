@@ -133,19 +133,42 @@ export const defaultResolveAppHooks: ResolveAppHooks = {
   now: () => Date.now(),
 }
 
-/** Resolve a named app to an xa11y App, transparently waking Electron apps. */
+/** Resolve a named app to an xa11y App, transparently waking Electron apps.
+ *
+ * `onResolvedIdentity` is the access-enforcement seam: it fires with the
+ *  resolved app's NAME as soon as identity is known and BEFORE any actuation
+ *  (the wake path sets a global OS flag and verifiably foregrounds the window
+ *  — none of that may happen to an app the user hasn't granted). A throw from
+ *  it aborts the resolution with nothing acquired. */
 export async function resolveAppWithFallback(
   App: Xa11yModule['App'],
   query: string,
   intent: 'read' | 'act on',
   hooks: ResolveAppHooks = defaultResolveAppHooks,
+  onResolvedIdentity?: (appName: string) => void,
 ): Promise<ResolvedApp> {
+  // The try wraps ONLY the lookup — a denial thrown by `onResolvedIdentity`
+  // must never be mistaken for "not found" and retried down the pid path.
+  let found: Awaited<ReturnType<Xa11yModule['App']['find']>> | null = null
+  let findError: unknown = null
   try {
-    const app = await App.find((candidate) => isAppNameMatch(candidate.name, query), {
+    found = await App.find((candidate) => isAppNameMatch(candidate.name, query), {
       timeout: APP_FIND_TIMEOUT_MS,
     })
-    return { app, dispose: NO_OP, viaElectronWake: false, wakeIncomplete: false, focusSucceeded: null }
-  } catch (findError) {
+  } catch (lookupError) {
+    findError = lookupError
+  }
+  if (found !== null) {
+    onResolvedIdentity?.(found.name)
+    return {
+      app: found,
+      dispose: NO_OP,
+      viaElectronWake: false,
+      wakeIncomplete: false,
+      focusSucceeded: null,
+    }
+  }
+  {
     const pid = await hooks.findPid(query)
     if (pid === null) {
       throw new Error(
@@ -154,6 +177,9 @@ export async function resolveAppWithFallback(
       )
     }
     const initial = await App.byPid(pid, { timeout: APP_LOOKUP_TIMEOUT_MS })
+    // Enforce BEFORE the flag/subscription/foreground steps — the wake
+    // actuates the desktop, and a denied app must never be woken.
+    onResolvedIdentity?.(initial.name)
     // Screen-reader flag BEFORE the subscription — Chromium reads it when the
     // subscription's presence triggers accessibility activation.
     const releaseFlag = await hooks.acquireScreenReaderFlag()

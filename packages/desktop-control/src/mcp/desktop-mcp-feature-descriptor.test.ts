@@ -14,10 +14,13 @@ const baseContext: SessionToolContext = {
 describe('desktopFeatureDescriptor', () => {
   it('declares both act tools in the ask-approval tier (element + coordinate acting)', () => {
     expect(desktopFeatureDescriptor.serverName).toBe('desktop')
-    // test: correct expectation — the act tools moved from the every-mode
-    // mutating set to the ask-approval tier (Chad 2026-07-26: "ask mode gates
-    // through approval; auto and bypass, no approval").
-    expect(desktopFeatureDescriptor.mutatingToolNames).toEqual([])
+    // The consent tool cards in EVERY mode (mutating tier): a grant coming
+    // into being without the user seeing a card would hollow out the per-app
+    // access model. The act tools stay ask-tier (Chad 2026-07-26: "ask mode
+    // gates through approval; auto and bypass, no approval").
+    expect(desktopFeatureDescriptor.mutatingToolNames).toEqual([
+      'mcp__desktop__request_desktop_access',
+    ])
     expect(desktopFeatureDescriptor.askModeApprovalToolNames).toEqual([
       'mcp__desktop__act_on_app',
       'mcp__desktop__act_on_desktop',
