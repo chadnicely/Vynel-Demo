@@ -35,7 +35,10 @@ import { type ChatTurnEvent } from '@vynel/chat'
 import { getOrCreateContinuingSession } from '../continuity/index.js'
 import * as primarySessionsRepository from '../repositories/index.js'
 import { delegateToAgentSession } from './delegate-to-agent-session.js'
-import { settleFailedDelegationAttempt } from './settle-failed-delegation-attempt.js'
+import {
+  hasDeliveredFinalReport,
+  settleFailedDelegationAttempt,
+} from './settle-failed-delegation-attempt.js'
 import {
   buildRoutedApprovalHandler,
   type RoutedApprovalHandler,
@@ -288,10 +291,22 @@ export async function runAgentRunJob(
     } else if (outcome.status === 'timed-out') {
       await approvalHandler.abandonParked()
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
-      deps.logger.warn(
-        { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-        'agent-run job timed out (the colleague turn keeps running in its own session)',
-      )
+      // Same as the delegation tick's timed-out branch: a colleague that
+      // already SPOKE its report must not resurface as a failure through the
+      // pull net (B2's timeout half); not routed through settle — a requeue
+      // would re-run a turn that is still running.
+      if (hasDeliveredFinalReport(db, claimed)) {
+        markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
+        deps.logger.warn(
+          { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
+          'agent-run job timed out AFTER its report was sent — pull-net injection suppressed',
+        )
+      } else {
+        deps.logger.warn(
+          { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
+          'agent-run job timed out (the colleague turn keeps running in its own session)',
+        )
+      }
     } else if (cancelHandle?.isCancelRequested()) {
       // The interrupted turn throws by design — the user's action, not a failure.
       await approvalHandler.abandonParked()

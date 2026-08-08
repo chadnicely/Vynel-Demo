@@ -10,9 +10,10 @@ import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 
-const { tickMock, reclaimMock, failureDeliveryMock } = vi.hoisted(() => ({
+const { tickMock, reclaimMock, requeueDeliveriesMock, failureDeliveryMock } = vi.hoisted(() => ({
   tickMock: vi.fn(),
   reclaimMock: vi.fn(),
+  requeueDeliveriesMock: vi.fn(),
   failureDeliveryMock: vi.fn(),
 }))
 
@@ -28,6 +29,7 @@ vi.mock('@vynel/session/delegation', async (importOriginal) => ({
 vi.mock('@vynel/orchestration', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   failOrphanedClaimedDelegations: reclaimMock,
+  requeueOrphanedClaimedReportDeliveries: requeueDeliveriesMock,
 }))
 
 import { SessionTargetLocks } from '@vynel/session/delegation'
@@ -73,6 +75,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers()
   reclaimMock.mockReturnValue([])
+  requeueDeliveriesMock.mockReturnValue([])
   tickMock.mockResolvedValue(false)
 })
 
@@ -81,6 +84,26 @@ afterEach(() => {
 })
 
 describe('startDelegationService', () => {
+  it('startup REQUEUES orphaned claimed report deliveries before failing the rest (B1)', () => {
+    requeueDeliveriesMock.mockReturnValue([{ id: 'd1', jobKind: 'report-delivery' }])
+    const options = fakeOptions()
+    const service = startDelegationService(options)
+
+    expect(requeueDeliveriesMock).toHaveBeenCalledTimes(1)
+    expect(reclaimMock).toHaveBeenCalledTimes(1)
+    // The requeue pass runs FIRST (predicates disjoint; log clarity).
+    expect(requeueDeliveriesMock.mock.invocationCallOrder[0]!).toBeLessThan(
+      reclaimMock.mock.invocationCallOrder[0]!,
+    )
+    expect(options.logger.warn).toHaveBeenCalledWith(
+      { requeued: 1 },
+      expect.stringContaining('requeued orphaned "claimed" report deliveries'),
+    )
+    // A requeued delivery gets NO failure push — it will simply run again.
+    expect(failureDeliveryMock).not.toHaveBeenCalled()
+    service.stop()
+  })
+
   it('runs the claim-and-run tick on the ~1s poll with db + provider + logger', async () => {
     const options = fakeOptions()
     const service = startDelegationService(options)

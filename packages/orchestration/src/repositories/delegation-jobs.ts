@@ -18,6 +18,7 @@ import {
   isNotNull,
   isNull,
   lte,
+  ne,
   notInArray,
   or,
 } from 'drizzle-orm'
@@ -510,6 +511,9 @@ export function markDelegationsSurfacedToRoot(
 // (persona-sessions): with acknowledge-first, a child that said "will report when done" and
 // then silently vanished breaks the spoken contract — the startup pass pushes an honest
 // failure delivery for orphaned WORK rows (the caller filters; deliveries stay anti-cascade).
+// `report-delivery` rows are EXCLUDED — they requeue instead
+// (`requeueOrphanedClaimedReportDeliveries` below): the report body is the only
+// copy of a child's result, so an orphaned delivery is retried, never destroyed.
 export function failOrphanedClaimedDelegations(db: Database, at: Date): DelegationJob[] {
   return db
     .update(delegationJobs)
@@ -519,7 +523,40 @@ export function failOrphanedClaimedDelegations(db: Database, at: Date): Delegati
       completedAt: at,
       surfacedToRootAt: at,
     })
-    .where(eq(delegationJobs.status, 'claimed'))
+    .where(
+      and(
+        eq(delegationJobs.status, 'claimed'),
+        // NULL-safe kind gate (legacy NULL jobKind = task): everything but the
+        // report deliveries, which the requeue pass below owns.
+        or(isNull(delegationJobs.jobKind), ne(delegationJobs.jobKind, 'report-delivery')),
+      ),
+    )
+    .returning()
+    .all()
+}
+
+// The report-delivery half of the boot reap: a claimed delivery orphaned by a
+// crash goes back to `pending` (claimedAt cleared, immediately due) instead of
+// dying — the report body is the ONLY copy of the child's result, and at boot
+// nothing is running, so re-delivery is safe at-least-once (a turn that died
+// AFTER persisting its inbound row re-delivers a duplicate marker message; the
+// recorded delivery-retry trade). The attempt counter is deliberately NOT
+// bumped: orphaning is the process's failure, not the delivery's, and a
+// bounded counter here would eventually destroy a report on a crash-looping
+// machine — the one outcome this function exists to prevent. `update-delivery`
+// rows stay on the terminal-drop path above (ephemeral status, never requeued).
+export function requeueOrphanedClaimedReportDeliveries(db: Database, at: Date): DelegationJob[] {
+  return db
+    .update(delegationJobs)
+    .set({
+      status: 'pending',
+      claimedAt: null,
+      errorMessage: 'requeued — the server restarted while this report was being delivered',
+      nextAttemptAt: at,
+    })
+    .where(
+      and(eq(delegationJobs.status, 'claimed'), eq(delegationJobs.jobKind, 'report-delivery')),
+    )
     .returning()
     .all()
 }

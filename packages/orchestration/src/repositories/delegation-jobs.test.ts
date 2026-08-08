@@ -22,6 +22,7 @@ import {
   listPendingDelegationJobsForUser,
   listUnsurfacedTerminalDelegationsForUser,
   failOrphanedClaimedDelegations,
+  requeueOrphanedClaimedReportDeliveries,
   type NewDelegationJob,
 } from './delegation-jobs.js'
 
@@ -432,6 +433,48 @@ describe('delegation_jobs repository', () => {
       expect(reclaimed.surfacedToRootAt).not.toBeNull() // marked surfaced → no restart spam to the root
       // The completed job is left alone.
       expect(findDelegationJobById(db, completed.id)!.status).toBe('completed')
+    })
+  })
+
+  it('the boot reap splits by kind: claimed report-deliveries REQUEUE, everything else fails (B1)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const report = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { status: 'claimed', jobKind: 'report-delivery' }),
+      )
+      const update = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { status: 'claimed', jobKind: 'update-delivery' }),
+      )
+      const task = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { status: 'claimed' }),
+      )
+      // A PENDING report-delivery — not orphaned, both passes must leave it.
+      const pendingReport = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { jobKind: 'report-delivery' }),
+      )
+
+      const requeued = requeueOrphanedClaimedReportDeliveries(db, new Date())
+      expect(requeued.map((j) => j.id)).toEqual([report.id])
+      const revived = findDelegationJobById(db, report.id)!
+      // The report body is the ONLY copy of the result — revived, never destroyed.
+      expect(revived.status).toBe('pending')
+      expect(revived.claimedAt).toBeNull()
+      expect(revived.surfacedToRootAt).toBeNull()
+      // Orphaning is the process's failure, not the delivery's — no attempt burned.
+      expect(revived.attemptCount).toBe(report.attemptCount)
+
+      const failed = failOrphanedClaimedDelegations(db, new Date())
+      expect(failed.map((j) => j.id).sort()).toEqual([task.id, update.id].sort())
+      // The fail pass never touches the requeued delivery or the pending one.
+      expect(findDelegationJobById(db, report.id)!.status).toBe('pending')
+      expect(findDelegationJobById(db, update.id)!.status).toBe('failed')
+      expect(findDelegationJobById(db, task.id)!.status).toBe('failed')
+      expect(findDelegationJobById(db, pendingReport.id)!.status).toBe('pending')
     })
   })
 

@@ -37,7 +37,10 @@ import {
   type DelegateForRouting,
   type DelegationJob,
 } from '@vynel/orchestration'
-import { settleFailedDelegationAttempt } from './settle-failed-delegation-attempt.js'
+import {
+  hasDeliveredFinalReport,
+  settleFailedDelegationAttempt,
+} from './settle-failed-delegation-attempt.js'
 import { type ChatTurnEvent } from '@vynel/chat'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'
@@ -655,10 +658,23 @@ export async function runDelegationClaimAndRunTick(
       )
     } else if (outcome.status === 'timed-out') {
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
-      deps.logger.warn(
-        { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-        'delegation job timed out (the workspace turn keeps running in its own session)',
-      )
+      // A turn that already SPOKE its report must not resurface as "couldn't
+      // complete" through the pull net (B2's timeout half) — the requester has
+      // the result; the timeout is bookkeeping. Deliberately NOT routed through
+      // settle: 'timed-out' matches the recoverable patterns, and a requeue
+      // would re-run a turn that is still running.
+      if (hasDeliveredFinalReport(db, claimed)) {
+        markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
+        deps.logger.warn(
+          { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
+          'delegation job timed out AFTER its report was sent — pull-net injection suppressed',
+        )
+      } else {
+        deps.logger.warn(
+          { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
+          'delegation job timed out (the workspace turn keeps running in its own session)',
+        )
+      }
     } else {
       // The turn threw mid-run — deny anything still parked so the SDK agent isn't
       // left hanging on an unanswerable Promise (best-effort; reaper-backed).
