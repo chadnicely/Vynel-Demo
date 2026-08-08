@@ -6,22 +6,21 @@
 // chat message reads — so no core domain takes a new cross-domain dependency (the
 // api already orchestrates reads like this).
 //
-// The swap chain is empty until the root first swaps (its current session is then
-// the whole thread); once it has swapped, the chain already ends with the current
-// session — so the union below covers both.
+// The segment chain is derived from the ROWS themselves (`continuedFromSessionId`,
+// walked back from the current session) — every swap writer stamps the link, so
+// the chain needs no outbox event and has no event-window cap (session-review B4:
+// the previous event-derived read silently truncated once the first swap aged out
+// of the window, and mid-turn provider swaps never emitted an event at all —
+// reload then showed only post-swap rows).
 //
 // Returns a LEAN, attributed DTO (not the raw chat_messages row): the transcript UI
 // needs only id + role + body + the brain-tree source identity + the user row's
 // attachment references. Keeping the row shape out of the API boundary avoids
 // leaking the full schema (tokens, timestamps) over the wire.
 
+import { findPrimaryConversation } from '../continuity/index.js'
 import {
-  findPrimaryConversation,
-  SESSION_SWAPPED_EVENT_TYPE,
-  type SessionSwappedEventPayload,
-} from '../continuity/index.js'
-import { listRecentOutboxEventsByTypes } from '@vynel/db/repositories/_shared'
-import {
+  findChatSessionById,
   listRecentChatMessagesForSession,
   listChatToolCallsForSession,
 } from '@vynel/chat/repositories'
@@ -52,6 +51,8 @@ export type GlobalRootTranscriptMessage = {
   /** Brain-tree Chapter 3 — the delegation request's correlation key on a bubbled-up
    *  report row; lets the /global bubble open its condensed trace. Null on ordinary rows. */
   partialSessionId: string | null
+  /** The delegation CHAIN key (persona-sessions) — the settle-match key. */
+  threadId: string | null
   /** The inbound channel a USER row arrived through ("via Voice"); null = composer. */
   originChannel: ChatMessageOriginChannel | null
   /** Attachment references on a USER row (filename/mimeType/sizeBytes) — the
@@ -67,37 +68,48 @@ function toTranscriptMessage(message: ChatMessage): GlobalRootTranscriptMessage 
     sourceKind: message.sourceKind,
     sourceLabel: message.sourceLabel,
     partialSessionId: message.partialSessionId,
+    threadId: message.threadId,
     originChannel: message.originChannel,
     attachedImagesMetadata: message.attachedImagesMetadata,
   }
 }
 
-// Derives the primary's ordered SDK-session segment chain from its `session.swapped`
-// events, so the transcript can stitch the FULL cross-reload history WITHOUT a
-// primary-session column on `chat_sessions` (D15 + no-chat-rewrite preserved).
-// Chain order: the first swap's `fromSdkSessionId` is the original segment; each
-// subsequent `toSdkSessionId` (oldest→newest) is the next. Empty if the primary
-// never swapped (its current session is the whole thread). Faithful port of the
-// source monitor's `reconstructRootThread` (payload key renamed root→primary);
-// moves to the monitor package when that module is pulled.
+// Defensive cap on the backward segment walk — matches the transcript's own
+// message cap in spirit (a chain past this depth predates any readable window).
+const MAX_SEGMENT_WALK = 200
+
+// Derives the primary's ordered SDK-session segment chain by walking each
+// segment row's `continuedFromSessionId` back from the CURRENT session. Every
+// swap writer stamps the link — the boundary bridge via
+// `recordSwapSegmentSession`, a mid-turn provider swap via
+// `handleSessionStarted`'s missing-row branch (session-review B4) — so the rows
+// carry the chain themselves: no outbox dependency, no event-window truncation,
+// and mid-turn swaps (which never emitted an event) are covered. Cycle-safe: a
+// corrupt self/loop link stops the walk (first visit wins). Oldest → newest,
+// current segment always included. Legacy rows written before the link column
+// stop the walk early — same visible truncation the event window had, healing
+// forward as new segments stamp their predecessor.
 function reconstructPrimaryThread(
   db: Database,
-  input: { primarySessionId: string; userId: string },
+  input: { currentSdkSessionId: string; userId: string },
 ): string[] {
-  const swaps = listRecentOutboxEventsByTypes(db, {
-    types: [SESSION_SWAPPED_EVENT_TYPE],
-    limit: 200,
-  })
-    .map((row) => row.payload as unknown as SessionSwappedEventPayload)
-    .filter((p) => p.primarySessionId === input.primarySessionId && p.userId === input.userId)
-    // listRecent returns newest-first; order the chain oldest→newest.
-    .sort((a, b) => a.swappedAt.localeCompare(b.swappedAt))
-
-  if (swaps.length === 0) return []
-
-  const chain: string[] = [swaps[0]!.fromSdkSessionId]
-  for (const swap of swaps) chain.push(swap.toSdkSessionId)
-  return chain
+  // The head comes from the user's own tenant-checked primary — it enters the
+  // chain unconditionally. Every FOLLOWED link must prove ownership BEFORE its
+  // id enters the chain: a corrupt or foreign link ends the walk, and a foreign
+  // segment can never leak into the message read below.
+  const chain: string[] = [input.currentSdkSessionId]
+  const visited = new Set<string>([input.currentSdkSessionId])
+  let row = findChatSessionById(db, input.currentSdkSessionId)
+  while (chain.length < MAX_SEGMENT_WALK) {
+    const next = row !== null && row.userId === input.userId ? row.continuedFromSessionId : null
+    if (next === null || visited.has(next)) break
+    const nextRow = findChatSessionById(db, next)
+    if (nextRow === null || nextRow.userId !== input.userId) break
+    visited.add(next)
+    chain.push(next)
+    row = nextRow
+  }
+  return chain.reverse()
 }
 
 export type GlobalRootTranscript = {
@@ -118,13 +130,9 @@ export function resolveGlobalRootTranscript(
   const root = findPrimaryConversation(db, { userId })
   if (!root) return { messages: [], toolCallsByMessageId: {} }
 
-  const segments = reconstructPrimaryThread(db, { primarySessionId: root.id, userId })
-  const sessionIds =
-    segments.length > 0
-      ? segments
-      : root.currentSdkSessionId
-        ? [root.currentSdkSessionId]
-        : []
+  const sessionIds = root.currentSdkSessionId
+    ? reconstructPrimaryThread(db, { currentSdkSessionId: root.currentSdkSessionId, userId })
+    : []
 
   // Walk segments newest-first, pulling each segment's latest messages until the
   // cap is filled — bounds the DB read AND the response. unshift keeps the result

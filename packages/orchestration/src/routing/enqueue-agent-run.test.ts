@@ -70,7 +70,8 @@ describe('enqueueAgentRun', () => {
       expect(job?.parentSessionId).toBe('origin-sdk-1')
       expect(job?.partialSessionId).not.toBeNull()
       expect(job?.threadId).not.toBeNull()
-      // A leaf never carries a mode/effort — its safety posture is fixed.
+      // Omitted picks stay null (the routed default applies at claim time);
+      // persona-sessions: an explicit permissionMode/target DOES thread now.
       expect(job?.permissionMode).toBeNull()
       expect(job?.thinkingEffort).toBeNull()
     })

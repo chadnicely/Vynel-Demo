@@ -50,8 +50,16 @@ const props = withDefaults(
      *  see their workspace's agents ∪ user scope + workspace skills/commands).
      *  Defaults to the global surface. */
     scope?: SectionScope | undefined;
+    /** Who this composer speaks TO, when it isn't the surface's own assistant
+     *  (a session pane's persona — B8). Renders a quiet "→ Name" line; null
+     *  hides it. */
+    destinationLabel?: string | null | undefined;
   }>(),
-  { allowAttachments: true, scope: () => ({ kind: "global" }) as SectionScope },
+  {
+    allowAttachments: true,
+    scope: () => ({ kind: "global" }) as SectionScope,
+    destinationLabel: null,
+  },
 );
 
 const emit = defineEmits<{
@@ -168,6 +176,13 @@ async function onSend(text: string, files: File[]) {
 </script>
 
 <template>
+  <p
+    v-if="props.destinationLabel"
+    class="m-0 mb-1 px-1 text-[10.5px] text-[var(--ink-3)] truncate"
+    data-testid="composer-destination"
+  >
+    → {{ props.destinationLabel }}
+  </p>
   <ChatComposer
     v-model:draft="draft"
     :placeholder="props.placeholder"

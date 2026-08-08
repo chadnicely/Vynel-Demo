@@ -26,3 +26,36 @@ export function findSpawnedSessionById(
   }
   return primary
 }
+
+// The ROUTABLE by-id sibling (redesign G5 — colleague direct-send): the
+// direct-send stream's post-lock head re-read resolves spawned sessions AND
+// agent colleagues by primary id — both are session-shaped targets a user
+// turn may resume.
+export function findRoutableSessionById(
+  db: Database,
+  input: FindSpawnedSessionByIdInput,
+): PrimarySessionRow | null {
+  const primary = primarySessionsRepository.findPrimarySessionById(db, input.primarySessionId)
+  if (
+    primary === null ||
+    primary.userId !== input.userId ||
+    (primary.scope !== 'spawned' && primary.scope !== 'agent')
+  ) {
+    return null
+  }
+  return primary
+}
+
+// The agent-COLLEAGUE sibling (persona-sessions): resolves a scope-'agent'
+// primary by its own id — the report route's caller resolution for an
+// agent-session background turn.
+export function findAgentSessionById(
+  db: Database,
+  input: FindSpawnedSessionByIdInput,
+): PrimarySessionRow | null {
+  const primary = primarySessionsRepository.findPrimarySessionById(db, input.primarySessionId)
+  if (primary === null || primary.userId !== input.userId || primary.scope !== 'agent') {
+    return null
+  }
+  return primary
+}

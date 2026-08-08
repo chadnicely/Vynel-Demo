@@ -30,21 +30,30 @@ import {
   completeDelegationJob,
   failDelegationJob,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
+  isDeliveryJobKind,
+  isWorkJobKind,
+  listDelegationJobsByThread,
   markDelegationsSurfacedToRoot,
   resolveThreadIdOf,
   routeRequest,
   type DelegateForRouting,
   type DelegationJob,
 } from '@vynel/orchestration'
-import { settleFailedDelegationAttempt } from './settle-failed-delegation-attempt.js'
+import {
+  hasDeliveredFinalReport,
+  settleFailedDelegationAttempt,
+} from './settle-failed-delegation-attempt.js'
 import { type ChatTurnEvent } from '@vynel/chat'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findChannelById, enqueueChannelReply } from '@vynel/channels'
+import { deriveDelegationTaskLabel } from '@vynel/contracts/chat/delegation-task-label'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import * as primarySessionsRepository from '../repositories/index.js'
+import { resolveColleagueAgent } from './resolve-colleague-agent.js'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
 import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
+import { delegateToAgentSession } from './delegate-to-agent-session.js'
 import { runAgentRunJob } from './run-agent-run-job.js'
 import { runReportDeliveryJob, type RunGlobalRootReportTurn } from './run-report-delivery-tick.js'
 import { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
@@ -103,7 +112,7 @@ export interface RunDelegationTickDeps {
     db: Database
     userId: string
     workspaceId: string | null
-    target: 'workspace-root' | 'spawned-session'
+    target: 'workspace-root' | 'spawned-session' | 'agent-session'
     threadId?: string
     jobId?: string
     /** The spawned primary a 'spawned-session' target resumes — the api edge
@@ -158,27 +167,28 @@ export async function runDelegationClaimAndRunTick(
       : {}),
   })
   if (claimed === null) return false
-  // The pool's exclusion key: the spawned primary id for a session target, the
-  // workspace id for a workspace target, the SHARED synthetic key for a
-  // global-requester report-delivery row (session-comms: the global root is
-  // one conversation — at most one notify turn runs; the claim skips the rest
-  // while the key is busy, so they wait as PENDING instead of burning budget
-  // in the root-lock queue). An AGENT-RUN row (chat-mentions) keys on its OWN
-  // id: the leaf runs FRESH — it resumes no conversation, so it must never
-  // reserve (or wait on) its grounding workspace's single-writer slot. The job
-  // id is otherwise a defensive fallback for a targetless TASK row (the
-  // enqueue ops preclude it) — it excludes nothing real.
+  // The pool's exclusion key: the session-target primary id (a spawned session
+  // OR an agent colleague — persona-sessions: two mentions of one colleague run
+  // FIFO on its primary id), the workspace id for a workspace target, the
+  // SHARED synthetic key for a global-requester DELIVERY row (session-comms:
+  // the global root is one conversation — at most one notify turn runs; the
+  // claim skips the rest while the key is busy, so they wait as PENDING instead
+  // of burning budget in the root-lock queue). An agent-run row's grounding
+  // `workspaceId` is NOT a conversation it resumes, so it never reserves that
+  // slot (the claim's agent-run exemption); a legacy agent-run row without a
+  // stamped colleague keys on its own id. The job id is otherwise a defensive
+  // fallback for a targetless TASK row (the enqueue ops preclude it).
   const claimedKind = claimed.jobKind ?? 'task'
   const targetKey =
     claimedKind === 'agent-run'
-      ? claimed.id
+      ? (claimed.targetPrimarySessionId ?? claimed.id)
       : (claimed.targetPrimarySessionId ??
         claimed.workspaceId ??
-        (claimedKind === 'report-delivery' ? GLOBAL_ROOT_DELIVERY_TARGET_KEY : claimed.id))
+        (isDeliveryJobKind(claimed.jobKind) ? GLOBAL_ROOT_DELIVERY_TARGET_KEY : claimed.id))
   deps.onRunStarted?.({ jobId: claimed.id, targetKey })
 
-  // Chat-mentions: an 'agent-run' row runs the mentioned agent as a FRESH leaf
-  // and delivers its clean result to the originating chat deterministically.
+  // Persona-sessions: an 'agent-run' row resumes the mentioned agent's
+  // COLLEAGUE session; its spoken send_message is the only report path.
   if (claimedKind === 'agent-run') {
     return runAgentRunJob(
       db,
@@ -186,20 +196,23 @@ export async function runDelegationClaimAndRunTick(
         provider: deps.provider,
         logger: deps.logger,
         activityFeed: deps.activityFeed,
+        ...(deps.turnEvents !== undefined ? { turnEvents: deps.turnEvents } : {}),
         ...(deps.cancelRegistry !== undefined ? { cancelRegistry: deps.cancelRegistry } : {}),
         budgetMs: deps.budgetMs ?? DELEGATION_RUN_BUDGET_MS,
+        ...(deps.composeWorkspaceMcpServers !== undefined
+          ? { composeWorkspaceMcpServers: deps.composeWorkspaceMcpServers }
+          : {}),
       },
       claimed,
     )
   }
 
-  // Session-comms: a 'report-delivery' row runs the NOTIFY branch — a real turn
-  // on the requester's conversation with the child's report as the inbound
-  // message. Its exclusion key came out above for free: the requester
-  // workspace's id (single-writer with task jobs on the same primary), or the
-  // job id for the global root (nothing to exclude — the root-turn lock
-  // serializes those). NULL = 'task' (every legacy row).
-  if (claimedKind === 'report-delivery') {
+  // Session-comms + persona-sessions: a DELIVERY row (report or update) runs
+  // the NOTIFY branch — a real turn on the requester's conversation with the
+  // child's message as the attributed inbound. The runner branches on the kind
+  // internally (marker + steer); the exclusion key came out above for free.
+  // NULL = 'task' (every legacy row).
+  if (isDeliveryJobKind(claimed.jobKind)) {
     return runReportDeliveryJob(
       db,
       {
@@ -251,17 +264,30 @@ export async function runDelegationClaimAndRunTick(
   // still-parked approval — fail-closed, never a hanging SDK agent.
   let approvalHandler: RoutedApprovalHandler | null = null
 
+  // The chain this turn belongs to — hoisted for the feed enrichment below
+  // AND the MCP composition inside try (one resolve, pure on the row).
+  const claimedThreadId = resolveThreadIdOf(claimed)
   // Announce on the liveness feed so every open UI sees the target go busy
   // (presence dot, thread poll, banner). Immediately before try/finally —
   // anything throwable in between would leak a process-lifetime zombie turn.
   // A SESSION target is global-grounded: scopeKind 'global', no workspaceId
   // (the Sessions panel's working dot keys on the resolved session id).
+  // Enrichment (persona-sessions): everything pure/enqueue-time — labels
+  // resolved from the row, never a DB read that could throw pre-try.
   const activityHandle = deps.activityFeed.begin({
     userId: claimed.userId,
     ...(claimed.targetPrimarySessionId !== null || claimed.workspaceId === null
       ? { scopeKind: 'global' as const }
       : { scopeKind: 'workspace' as const, workspaceId: claimed.workspaceId }),
     origin: 'delegation',
+    jobId: claimed.id,
+    ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+    ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+    ...(claimed.targetPrimarySessionId !== null
+      ? { primarySessionId: claimed.targetPrimarySessionId }
+      : {}),
+    taskLabel: deriveDelegationTaskLabel(claimed.taskText),
+    ...(claimed.workspaceName !== null ? { personaName: claimed.workspaceName } : {}),
   })
   try {
     // The run cwd — one column, one reading ("where this job's turn runs"): the
@@ -284,14 +310,65 @@ export async function runDelegationClaimAndRunTick(
     // global-spawned target and every workspace-target job) — picks the MCP
     // attachment's grounding workspace below.
     let spawnedTargetWorkspaceId: string | null = null
+    // Persona-sessions: a session target may be an agent COLLEAGUE — resolved
+    // here so the delegate + MCP target branch on it below.
+    let colleagueAgent: {
+      slug: string
+      name: string
+      prompt: string
+      allowedTools: string[]
+      disallowedTools: string[]
+      model: string | null
+    } | null = null
     if (claimed.targetPrimarySessionId !== null) {
       const targetPrimary = primarySessionsRepository.findPrimarySessionById(
         db,
         claimed.targetPrimarySessionId,
       )
       spawnedTargetWorkspaceId = targetPrimary?.workspaceId ?? null
-      targetName = resolveSpawnedSessionDisplayName(db, targetPrimary)
-      managerName = undefined
+      if (targetPrimary?.scope === 'agent') {
+        // A colleague target: resolve its agent fresh (workspace-then-user,
+        // the one home). A gone agent or a missing scopeRef is a FAILED
+        // ATTEMPT, not bookkeeping — it settles through the give-up push so
+        // the requester hears about it (the agent-run resolution-phase rule).
+        const slug = targetPrimary.scopeRef
+        const agent =
+          slug !== null
+            ? await resolveColleagueAgent(db, {
+                userId: claimed.userId,
+                workspaceId: targetPrimary.workspaceId,
+                slug,
+              })
+            : null
+        if (slug === null || agent === null) {
+          settleFailedDelegationAttempt(
+            db,
+            claimed,
+            slug === null
+              ? 'agent-scope target has no scopeRef (corrupt colleague row)'
+              : `no agent "${slug}" resolves for the targeted colleague any more`,
+            {
+              logger: deps.logger,
+              queueLabel: 'delegation',
+              retryHint: 're-send the task with send_message if it should be retried.',
+            },
+          )
+          return true
+        }
+        colleagueAgent = {
+          slug,
+          name: agent.name,
+          prompt: agent.prompt,
+          allowedTools: agent.allowedTools ?? [],
+          disallowedTools: agent.disallowedTools ?? [],
+          model: agent.model,
+        }
+        targetName = agent.name
+        managerName = undefined
+      } else {
+        targetName = resolveSpawnedSessionDisplayName(db, targetPrimary)
+        managerName = undefined
+      }
     } else {
       const workspace =
         claimed.workspaceId !== null ? findWorkspaceById(db, claimed.workspaceId) : null
@@ -323,8 +400,6 @@ export async function runDelegationClaimAndRunTick(
     // session's deferred tools get stripped ("server disconnected").
     const mcpGroundingWorkspaceId =
       claimed.targetPrimarySessionId !== null ? spawnedTargetWorkspaceId : claimed.workspaceId
-    // The chain this turn belongs to — every hop its tools make continues it.
-    const claimedThreadId = resolveThreadIdOf(claimed)
     const mcpAttachment =
       deps.composeWorkspaceMcpServers !== undefined &&
       (mcpGroundingWorkspaceId !== null || claimed.targetPrimarySessionId !== null)
@@ -334,7 +409,12 @@ export async function runDelegationClaimAndRunTick(
             ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
             jobId: claimed.id,
             workspaceId: mcpGroundingWorkspaceId,
-            target: claimed.targetPrimarySessionId !== null ? 'spawned-session' : 'workspace-root',
+            target:
+              claimed.targetPrimarySessionId !== null
+                ? colleagueAgent !== null
+                  ? 'agent-session'
+                  : 'spawned-session'
+                : 'workspace-root',
             // The caller identity for `report_to_requester` (session-comms): a
             // spawned target's tool calls must resolve as the SESSION, not its
             // grounding workspace.
@@ -354,6 +434,7 @@ export async function runDelegationClaimAndRunTick(
     const sharedRunnerOptions = {
       providerId: DEFAULT_PROVIDER_ID,
       ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+      ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
       // The delegating turn's mode, stamped on the job at enqueue (surface-up step 1).
       // Null (pre-mode job / channel origin) → the runner's bypass default.
       ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
@@ -386,29 +467,65 @@ export async function runDelegationClaimAndRunTick(
       logger: deps.logger,
     }
 
-    // Branch on the target (Slice ④): a session job resumes the spawned
-    // primary's continuing conversation; a workspace job is byte-for-byte the
-    // pre-slice path. Captured for closure narrowing.
+    // Branch on the target (Slice ④ + persona-sessions): an agent-scope
+    // session job resumes the COLLEAGUE's continuing conversation; a spawned
+    // session job resumes the spawned primary's; a workspace job is
+    // byte-for-byte the pre-slice path. Captured for closure narrowing.
     const spawnedTargetId = claimed.targetPrimarySessionId
+    const agentTarget = colleagueAgent
+    // The task anchor row's honest origin (redesign Phase-2b): a mention-routed
+    // job carries its requester workspace; everything else was asked at the
+    // global root. Renders as "Claude · from <label>".
+    const originScopeLabel =
+      claimed.requesterWorkspaceId !== null
+        ? (findWorkspaceById(db, claimed.requesterWorkspaceId)?.name ?? 'Workspace')
+        : 'Global'
     const delegate: DelegateForRouting =
-      spawnedTargetId !== null
+      spawnedTargetId !== null && agentTarget !== null
         ? (delegationInput) =>
-            delegateToSpawnedSession(db, deps.provider, {
+            delegateToAgentSession(db, deps.provider, {
               parentSessionId: delegationInput.parentSessionId,
               userId: delegationInput.userId,
               targetPrimarySessionId: spawnedTargetId,
               runCwdPath,
-              sessionName: targetName,
+              agentSlug: agentTarget.slug,
+              agentName: agentTarget.name,
+              agentPrompt: agentTarget.prompt,
+              agentAllowedTools: agentTarget.allowedTools,
+              agentDisallowedTools: agentTarget.disallowedTools,
               taskText: delegationInput.taskText,
+              // The sender reads as Claude relaying the ask, labeled with its
+              // honest origin scope (redesign Phase-2b).
+              userAttribution: {
+                userSourceKind: 'global-root',
+                userSourceLabel: originScopeLabel,
+              },
               ...sharedRunnerOptions,
+              // The agent's own model backs the job's pick (job pick wins).
+              ...(claimed.model === null && agentTarget.model !== null
+                ? { model: agentTarget.model }
+                : {}),
             })
-        : (delegationInput) =>
-            delegateToWorkspaceRoot(db, deps.provider, {
-              ...delegationInput,
-              workspaceName: targetName,
-              ...(managerName !== undefined ? { managerName } : {}),
-              ...sharedRunnerOptions,
-            })
+        : spawnedTargetId !== null
+          ? (delegationInput) =>
+              delegateToSpawnedSession(db, deps.provider, {
+                parentSessionId: delegationInput.parentSessionId,
+                userId: delegationInput.userId,
+                targetPrimarySessionId: spawnedTargetId,
+                runCwdPath,
+                sessionName: targetName,
+                taskText: delegationInput.taskText,
+                userSourceLabel: originScopeLabel,
+                ...sharedRunnerOptions,
+              })
+          : (delegationInput) =>
+              delegateToWorkspaceRoot(db, deps.provider, {
+                ...delegationInput,
+                workspaceName: targetName,
+                ...(managerName !== undefined ? { managerName } : {}),
+                userSourceLabel: originScopeLabel,
+                ...sharedRunnerOptions,
+              })
 
     const outcome = await routeRequest(
       {
@@ -491,11 +608,15 @@ export async function runDelegationClaimAndRunTick(
       // silent child therefore delivers nothing; the chip settles and
       // get_background_run answers status pulls. FAILED rows keep the
       // catch-up: a failure note is status, not capture, and the root must
-      // learn the task died.
+      // learn the task died. ONE exception (kind `direct_to_user`): a final
+      // answer that went straight to the user runs NO notify turn, so the row
+      // stays UNSURFACED — the net is how the root learns it (presented
+      // "already shown — absorb silently", never an echo).
+      const wentDirect = finalReportWentDirect(db, claimed)
       try {
         withTransaction(db, (tx) => {
           completeDelegationJob(tx, claimed.id, outcome.result, new Date())
-          markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
+          if (!wentDirect) markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
         })
       } catch (completionErr) {
         deps.logger.warn(
@@ -508,7 +629,7 @@ export async function runDelegationClaimAndRunTick(
         // the mark itself is what keeps throwing, that one terminal window
         // accepts the echo (awareness over policy, logged loud).
         try {
-          markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
+          if (!wentDirect) markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
         } catch (markErr) {
           deps.logger.warn(
             { err: markErr, jobId: claimed.id },
@@ -555,10 +676,28 @@ export async function runDelegationClaimAndRunTick(
       )
     } else if (outcome.status === 'timed-out') {
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
-      deps.logger.warn(
-        { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-        'delegation job timed out (the workspace turn keeps running in its own session)',
-      )
+      // A turn that already SPOKE its report must not resurface as "couldn't
+      // complete" through the pull net (B2's timeout half) — the requester has
+      // the result; the timeout is bookkeeping. Deliberately NOT routed through
+      // settle: 'timed-out' matches the recoverable patterns, and a requeue
+      // would re-run a turn that is still running. Direct-kind exception: a
+      // `direct_to_user` answer's absorb happens THROUGH the net (the reported
+      // branch of the collector) — marking it surfaced would hide a displayed
+      // reply from the root.
+      if (hasDeliveredFinalReport(db, claimed)) {
+        if (!finalReportWentDirect(db, claimed)) {
+          markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
+        }
+        deps.logger.warn(
+          { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
+          'delegation job timed out AFTER its report was sent — the requester already has the result',
+        )
+      } else {
+        deps.logger.warn(
+          { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
+          'delegation job timed out (the workspace turn keeps running in its own session)',
+        )
+      }
     } else {
       // The turn threw mid-run — deny anything still parked so the SDK agent isn't
       // left hanging on an unanswerable Promise (best-effort; reaper-backed).
@@ -590,5 +729,37 @@ export async function runDelegationClaimAndRunTick(
     cancelHandle?.end()
     activityHandle.end()
   }
+}
+
+/** True when THIS work row's final report was sent kind `direct_to_user`: the
+ *  row is reported AND a 'direct-delivery' hop exists in ITS OWN delivery
+ *  window — after this hop, before the chain's NEXT work hop. A continued
+ *  chain holds one work hop per task (the run-stats pairing rule), so a
+ *  chain-wide scan would falsely absorb a LATER normally-narrated report just
+ *  because an earlier task on the thread went direct (the Gate-3 catch). Such
+ *  a row stays UNSURFACED at terminal time — the catch-up net is how the root
+ *  learns of a reply that ran no notify turn (presented absorb-silently). */
+function finalReportWentDirect(db: Database, claimed: DelegationJob): boolean {
+  if (!hasDeliveredFinalReport(db, claimed)) return false
+  const threadId = resolveThreadIdOf(claimed)
+  if (threadId === null) return false
+  const chain = listDelegationJobsByThread(db, {
+    userId: claimed.userId,
+    threadId,
+    unbounded: true,
+  })
+  const startsAt = claimed.createdAt.getTime()
+  const nextWorkAt = chain.find(
+    (job) =>
+      job.id !== claimed.id &&
+      isWorkJobKind(job.jobKind) &&
+      job.createdAt.getTime() > startsAt,
+  )?.createdAt
+  return chain.some(
+    (job) =>
+      job.jobKind === 'direct-delivery' &&
+      job.createdAt.getTime() >= startsAt &&
+      (nextWorkAt === undefined || job.createdAt.getTime() < nextWorkAt.getTime()),
+  )
 }
 

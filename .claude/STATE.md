@@ -1,7 +1,255 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-02.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-09.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ✅ 2026-08-09 SIDEBAR + PARITY ARC — SHIPPED through `e4cf295`, Chad approved ("Great job")
+
+Four moves, each gate-3-reviewed + live-verified (full spec sections in
+`docs/live-tracking-redesign.md`; all pushed, tree clean):
+
+1. **Workspace-chat parity** (`ebada1d`): accent bar retired everywhere; assistant
+   persona rows split to persona + workspace chip; fold previews fall back through the
+   turn then its first tool call; persona monogram from the label's persona part
+   ("JA", was "J·") + customized persona image resolved via the host map.
+2. **Sidebar resize + reflow** (`479a134`): conversation sidebar drags 320–920px
+   (persisted `vynel.sidebar-width`); the thread NEVER side-scrolls
+   (`.thread-column > * {min-width:0}` + scroller `overflow-x:hidden`); markdown
+   tables scroll in their own box; userSelect restored even on unmount-mid-drag.
+3. **One home for panel resize** (`f788e38`): `usePanelResize` composable
+   (@vynel/ui) now drives ResizablePanel (AppShell panes) AND the sidebar handle —
+   capture+selection-suspension from the sidebar, aria/keyboard/dblclick-reset from
+   ResizablePanel; out-of-range stored widths clamp everywhere.
+4. **Forward-only pointer hops** (`e4cf295`): a pointer clicked INSIDE the sidebar
+   REPLACES the docked node (both sidebar hosts wire the one-home opener); the
+   store's push/back stack + Back button DELETED (Chad settled replace-only).
+
+Open flags: re-clicking the SAME pointer after scrolling away won't re-scroll (once-
+per-anchor guard, pre-existing — surface to Chad only if it bothers him live). Full
+`pnpm test` gate not run (CPU rule — Chad's call).
+
+## 🔎 SESSION VERIFY + LIVE-TRACKING REDESIGN ARC (2026-08-08) — SHIPPED + PUSHED; one fork OPEN (read the ⏳ below)
+
+Full whole-package review of the session backbone + persona-sessions arc (4 adversarial reviewers
++ 3 wh documenters; every must-fix re-verified in code). Mechanically green: typecheck 47/47,
+1,881 targeted tests (full gate NOT run — CPU rule). **Punch-list + per-view live-tracking report:
+`.claude/reports/2026-08-08-session-package-review.md`**; combined wh doc for Chad's read-through
+(ID'd decision list B#/SF#/G#/AR#): **`docs/live-tracking-wh.md`**. Top items: claimed report-delivery
+destroyed by boot reap (report lost) · failure path ignores `reportedAt` (duplicate report) ·
+workspace chat turn takes no target lock (chain fork) · mid-turn SDK swap orphans the segment
+(global root history unreachable on reload) · delegated turns publish NO narration steps + delivery
+jobs ghost into the in-flight roster + settle-frame snapshot replay (= the "realtime tracking feels
+dead" trio) · monitor watermark cap skips events · pane dot gold while idle. Recommended fix order
+in the report. NOTHING committed, no fixes applied yet. **SAME DAY: Chad REDESIGNED live
+tracking — pointer + rail + sidebar model (tracking = pointer click → scroll to the
+`partialSessionId` row; no cards/panel/roster; Home untouched — rebuilt later). Spec + settled
+Q7 verdicts: `docs/live-tracking-redesign.md`; worked example (scenes + Q1–Q9):
+`docs/live-tracking-example.md`. Arc plan APPROVED ("Go"); Chad's standing instruction: work
+AUTONOMOUSLY — commit each green+reviewed move, interrupt ONLY for browser passes. **PHASE 0
+(backbone) SHIPPED — 4 commits, each reviewed clean + test-pinned:** `80c2931` B3 workspace lock
+on the continue chat path (+ turn-queued sentinel) · `d177c1a` B1+B2 report deliveries requeue at
+boot / reported jobs never re-run (`hasDeliveredFinalReport` one-home, also guards both timed-out
+branches) · `b330aab` B4 mid-turn swap segments chain via `continuedFromSessionId` + the global
+transcript walks ROWS not events · `7b05504` B5 monitor outbox paging (keyset `afterId`, one-home
+`OUTBOX_WINDOW_READ_MAX_LIMIT`) + B7-query in-flight lists WORK kinds only. **PHASE 1 SHIPPED `1373b50`** — PointerRow + buildThreadPointers one-home + ThreadStream
+matches the dispatch tool call's served `delegation` key (reviewer catch: sender rows are
+unstamped in production); mention inbound = `'user'` + origin label ("You · from Global");
+task rows "Claude · from <label>" / scope-silent "Claude". Three deferred attribution items
+recorded in the spec's Phase-1 note (mention-row stamp · delegate-path origin labels ·
+acked-detector 'user' exclusion) — DO THEM WITH PHASE 2. **PHASE 2a SHIPPED `a02bb05`** (G5 colleague direct-send: turn route resolves agent scope via
+findRoutableSessionBySegmentId/ById, composes the DELEGATED 'agent-session' set + caller
+identity, workspace-grounded feed announce; affordance one-home flipped chattable — pane +
+SessionsView follow). **PHASE 2b SHIPPED `365c026`** (mention rows stamp the FIRST
+dispatch's trace key via stampNewestUserMessageTraceKey — mention hand-offs grow pointers;
+task anchor rows carry honest origin labels: tick resolves requesterWorkspaceId → name, else
+'Global' → renders "Claude · from <label>"; deferral ③ acked-'user'-exclusion MOOTED — cards
+die in Phase 4). **PHASES 2c + 3 SHIPPED** — `d5ec27b` ConversationSidebar (session+workspace nodes, anchor
+landing via data-trace-id + gold flash, LiveSessionPane reuse) · `1b9846d` review fixes (SDK
+parity regen, mount-scroll race [onMounted skips bottom when anchored], useOpenPointerTarget
+one-home, conversation-sidebar naming) · `5900afe` WorkspaceSidebarThread (REAL composer via
+continue-route, B3 queued sentinel surfaced as isQueuedBehindTask) · `dc27e81` WorkingRail
+(buildRailEntities pure+tested; jobKind on the in-flight DTO for the colleague badge; brain
+rails non-web turns; click → sidebar). Chad's browser pass: **"Ahh you build gold. What I asked absolutely"** — PASSED; his small
+tweaks queued post-completion. **PHASE 4 SHIPPED `be11de0` — THE ARC IS CODE-COMPLETE (13
+commits `80c2931..be11de0`).** Deleted: PersonaLiveCard + cards composable
++ pairing home, watch chips (MessageRow machinery incl.), ActivityMonitorPanel + trace/agent/
+background nodes + monitor store, use-background-activity, LiveNowBand/LiveSessionCard,
+narration store + labels + origin-notes, ProcessingBanner, title-bar button (→ PASSIVE dot,
+Q7d), Home band (count-only status line; Home rebuilds later). Final sweep: 700/700 local-web+ui
+(+2093 across all suites this arc), typecheck uncached-clean, 4/4 parity. GATE RUN + PUSHED
+(Chad's explicit "Do test and push"): full `pnpm test` GREEN — 3,852 tests — then pushed; origin
+carries everything through `be81697`. Deferred-recorded (spec): D4 in-sidebar pointer drill ·
+ephemeral-agent rail read + sidebar view · sidebar footer actions (Open session/Pause) ·
+per-session attention dots · Stop-from-UI returns with the sidebar footer · server
+delegationTaskLabel row-attach now UI-unused (prune later). B6/B8/B9 mooted-by-redesign
+(recorded in the punch-list report).**
+
+**POST-SMOKE TWEAK 1 SHIPPED + PUSHED `be81697` — direct mention replies.** An @mentioned
+colleague's report/update now lands DIRECTLY on the global transcript as his own box — NO notify
+turn (also faster: skips the root turn lock). NO new kinds/columns — pure composition of existing
+ones: the delivery tick (`packages/session/src/delegation/run-report-delivery-tick.ts`) direct
+branch fires when isGlobalRequester AND the chain (`listDelegationJobsByThread`) contains an
+`agent-run` work job → `recordDirectReplyMessage` (@vynel/chat, new: role 'user', sourceKind
+'agent', chain-keyed, lastMessageAt bump; FK-gated, falls back to notify if the root row is
+missing) + a momentary activityFeed begin/end blip live-lands it in open windows → job completes
+'delivered directly'. Claude still KNOWS: agent-run completion no longer stamps
+`surfacedToRootAt`; the catch-up net (widened past delivery kinds) injects it on the NEXT root
+turn marked "already replied DIRECTLY to the user — absorb silently, do NOT restate"; a colleague
+finishing WITHOUT ever replying is called out honestly. Claude-COMMISSIONED tasks keep the
+narrated relay (deliberate contrast). Spec: "Post-smoke tweak 1" section in
+`docs/live-tracking-redesign.md` (+ its 2 recorded follow-ups: workspace-origin mentions still
+narrate — needs a workspace-side recorder twin; prune caller-free `recordPushedReportMessage`).
+
+**POST-SMOKE TWEAK 2 SHIPPED — kind `direct_to_user` (Chad's verdict on the fork: extend via an
+explicit kind, sender-declared).** `send_message` gained `kind: 'direct_to_user'` + required
+`title` (400s pin the contradictions); dispatcher → `enqueueReportDelivery({deliverDirectly})` →
+jobKind `'direct-delivery'` (3rd member of DELIVERY_JOB_KINDS — all predicates one-homed), body
+stored `title\n\nbody` so the box teaser IS the title (no new columns). Tick direct branch fires
+on direct kind OR mention chain (floor kept); global → `recordDirectReplyMessage` under the new
+`[Message from …]` marker (badge **Message**, door "View message", dialog "Message from") — NO
+notify turn; workspace requester falls back to the notify machinery under the new
+DIRECT_DELIVERY_INSTRUCTIONS steer (absorb, don't narrate — honest interim). Invariant-5 direct
+exception: a REPORTED task whose answer went direct completes UNSURFACED (co-commit skips the
+mark; timed-out-after-reported also; agent-run timeout no longer suppresses) and the collector
+presents reported tasks reaching the net as absorb-silently. VERIFIED: typecheck 72/72 forced ·
+283 tests green (contracts/orchestration/session-delegation/routing/MessageRow, new pins listed
+in the spec) · MCP+SDK+port parity OK. Spec: "Post-smoke tweak 2" in
+`docs/live-tracking-redesign.md` (follow-ups there: workspace-side true-direct recorder twin +
+absorb-net; steer-decay watch on report-vs-direct choice). CHAD SMOKES NEXT: @mention → box only;
+"ask James for X and have him send it to me" → James replies direct_to_user → box + silent Claude.
+
+## ✅ VOICE WAKE OVERLAY FIXED (2026-08-08) — SMOKED BY CHAD + COMMITTED (`a03ca17` overlay fix ·
+`4adce33` notification listener · `0047c74` sherpa guide; all pushed, tree clean)
+
+The 2026-08-08 01:44 `dev:desktop` rebuild (`30a18bc`) produced an exe that **panicked at
+launch**: `tauri_plugin_updater` requires its config block, which only `tauri.release.conf.json`
+carries — every wake spawned an exe that died <1 s, silently ("not working at all"; before that,
+the pre-rebuild exe showed the dead-port 8999 page). Fixed: ① `main.rs` registers the updater
+only when `context.config().plugins` carries an `updater` entry (dev shell / `tauri dev` / plain
+`tauri build` all clean) ② `jarvis-window.ts` no longer trusts `existsSync` — a spawner seam
+watches the child; exit ≤3 s → warn + Chrome `--app` fallback, so a broken exe can't silence a
+wake (5 new tests; 19 overlay tests green; voice-daemon typecheck green). Verified live: rebuilt
+exe stays resident, WebView2 loads `/jarvis` off Vite (::1), SSE reaches the daemon. UNCOMMITTED —
+Chad smokes "hey claude" (dev:full stack was still up; daemon auto-restarted with the fix via
+--watch), then commit. **Binding arc proposed (needs Chad's okay):** `dev:full` runs `dev:desktop`
+first (~6 s incremental) · release shell supervises the voice daemon as a second sidecar
+(port-probe 18893 attach-or-spawn, models packaging decision, voice on/off setting) · focus()-path
+wake-ack watchdog (a connected-but-dead overlay client swallows wakes forever) · pin Vite +
+devUrl to `127.0.0.1` (Vite currently binds `::1` only).
+
+Same session: **desktop-notifications poll spam root-caused** — Chad's machine had the per-user
+`WpnUserService_a2c0a` stopped (Automatic but dead) → every `GetNotificationsAsync` threw
+0x80040154 "Class not registered", and `notification-listener.ps1` logged the outer
+AggregateException ("One or more errors occurred") once a second. Machine healed live
+(`Start-Service`, no elevation needed); helper now logs `GetBaseException()` + HResult once per
+distinct error, backs off 1s→60s while failing, recovers live (verified standalone: real toasts
+on stdout, clean stderr).
+
+## ✅ PERSONA-SESSIONS ARC (2026-08-04) — ALL 19 MOVES SHIPPED + PUSHED; MORNING SMOKE PENDING
+
+**THE ARC IS CODE-COMPLETE.** Every move reviewed (code-reviewer per diff, all must/should-fixes
+applied), targeted-green (typecheck + vitest per package; full local-web 604, +ui/contracts = 874
+across the three), committed + pushed. **Chad's morning session = the smoke list — see
+`.claude/reports/2026-08-04-persona-sessions-arc.md` (the morning report: what shipped, what to
+smoke together, known-accepted residuals, deferred follow-ups).** Full gate (`pnpm test`) NOT run
+(Chad's CPU rule) — run it before/with the smoke.
+
+Frontend view moves shipped tonight (after the B1–B4 plumbing): B5 `d231c15` PersonaLiveCard ·
+B6 `f90c6c1` LiveSessionPane w/ direct send + chain-head follow (kills the accepted freeze;
+`followChain` prop; `session-open-affordance` one-home; monitor-store push-when-open) · B5-review
+fixes `a0d56d9` (workspace-scoped cards via `onlyWorkspaceId`; acked ignores 'global-root' rows;
+`.narration-*` CSS hoisted to app.css — scoped copies never applied; ProcessingBanner reduced to
+the origin note; keyless cards hide Watch/Stop) · B7 `4f677f4` Background overview (a monitor-
+store NODE `{kind:'background'}` — NOT a second overlay; roster groups by persona; durable seed
+GET /activity/running roster-gated; delegation↔turn pairing extracted to
+`delegation-turn-pairing.ts` shared with B5; `useInFlightDelegations` gained an enabled gate;
+title-bar presence button + Home "See all" + thread "+N more" open it) · B8 `a7f16d0` origin
+rendering (MessageRow `authorPersona` face; badge via `deriveMessageOrigin`; Update-vs-Report
+split via `isUpdateMessageBody` incl. dialog title; AppComposer `destinationLabel`; ⚠ REVIEW
+CATCH: `ResolvedPersona.accentVar` is now the BARE property name `--ws-N` — the old full-var()
+double-wrapped into invalid CSS, silently untinting every B5/B7 persona chip).
+
+## OLD RECORD (superseded by the block above): backend arc detail
+
+**Plan approved by Chad; arc notes = `docs/module-notes/session-personas.md` (decisions + A5/A9
+notes + B-slice notes). Full plan: `C:\Users\KLONE\.claude\plans\quirky-painting-fairy.md`. Task
+board live (19 tasks; #12–#19 = B1–B8 pending).** Decisions: COLLEAGUE model (one continuing
+agent session per user+workspace|global+slug, `primary_sessions.scopeRef`) · MODEL-SPOKEN acks
+(send_message kind update/report; acknowledge-first steers) · live view = per-task persona cards
++ click-open live pane w/ direct send + Background panel + durable `session_turns`.
+
+BACKEND SHIPPED (each reviewed + green + pushed): A1 `fda50dc` agent scope/scopeRef (migration
+0030) · A2 `b7397b5` update-delivery kind + coalesce + kind one-home helpers · A3 `337071c`
+delegateToAgentSession (+NewSessionOptions.scope) · A4 `28127f5` mentions resume the colleague,
+HARVEST RETIRED, agent-session caller header, send_message session:<id> reaches colleagues ·
+A5 `1cabe1c` update kind end-to-end + acknowledge-first steers + chat_messages.threadId
+(migration 0031, stamped everywhere, in DTOs) · A6 `4456a30` restart failure parity · A7
+`6117ff3` durable session_turns + feed recorder (migration 0032) + shared
+enqueueJobFailureDelivery · A8 `d20ee74` activity enrichment (jobId/threadId/partial/primary/
+taskLabel/personaName on turn-started) + LAST-STEP snapshot replay + GET /activity/running +
+boot reaps hoisted · A9 `27d94bf` three superseded tools REMOVED (tests ported onto
+/routing/message; send_message gained ambient workspaceId for ④b parity) · A10 `ee9f980`
+deriveMessageOrigin.
+
+FRONTEND PLUMBING SHIPPED (B1–B4, reviewed as one block, must-fixes applied): B1 `6efa1d9`
+chip liveness (dead live-sessions-store deleted; ThreadStream liveTraceIds from the in-flight
+poll) · B2 `2802da2` one fold (liveEntriesFromTurnView + pendingApprovalToolNameOf over
+applyChatTurnEvent; applyTraceStreamEvent deleted; watch views render thinking + say turn
+errors) · B4 `6350c38` narration ring (TurnNarration {current, recentSteps≤5}; superseded
+parallel steps settle in place) · B3 `cbcb69b` live-turn registry (stores/live-turn-registry.ts:
+refcounted subscribe → shared fold; session sources RE-ATTACH across turns; use-watched-turn +
+use-activity-monitor are thin adapters; render-time suppression; target-bound snapshot
+providers; WatchedTurnSnapshot's home is the registry).
+
+B5 SHIPPED `d231c15`: PersonaLiveCard at the thread's live edge (one per in-flight task, keyed
+by trace key; queued/working + acknowledged badge via threadId match; narration + ring; Watch/
+Stop; banner chips dissolved to the origin note; overflow +N; new resolve-persona +
+use-coalesced-text + use-live-delegation-cards composables; 579 local-web tests green).
+
+## OLD RECORD (superseded — B6 SHIPPED `f90c6c1` as designed below)
+
+The reuse insight: `components/sessions/SessionThreadView.vue` ALREADY has detail + own-turn +
+composer + queued sends. B6 = give IT two things, then host it in the monitor panel:
+1. **Live chain-head resolution** (kills its KNOWN compaction freeze, comment at its lines
+   40-45): `useSessionsOverview` -> find the entry whose `segments[]` contain `props.sessionId`
+   -> use `entry.sessionId` (the NEWEST segment) as `resolvedHeadId` for detail + turn +
+   background-turn match; show a quiet "conversation continued" note when it !== the prop.
+   Confirmed shapes: overview entry = {sessionId(newest), scope global|workspace|agent|spawned,
+   title, segments:[{sessionId,title}...]} (packages/contracts/src/chat/sessions-overview.ts);
+   monitor node = {kind:'session', sessionId, title} + store.openSession(sessionId, title)
+   (stores/activity-monitor-store.ts:13,72).
+2. **The registry watch overlay**: useWatchedTurn({sessionId: resolvedHeadId, isSuppressed:
+   () => turn.isStreaming.value, refetchDetail: wrapper over detailQuery.refetch returning
+   {messages, toolCallsByMessageId}}) -> ThreadStream :active-turn="turn.view ?? watched.view"
+   (visible-active-turn arbitration precedent). Replaces poll-only liveness.
+3. **New `components/activity/LiveSessionPane.vue`** = THIN wrapper (resolve title/chattable
+   from the overview; render SessionThreadView) hosted by ActivityMonitorPanel when
+   activeKind==='session' (replace ActivityEntriesList for session nodes ONLY - trace + agent
+   nodes unchanged; panel file: components/activity/ActivityMonitorPanel.vue, template branch
+   ~line 186).
+4. **chattable = entry.scope === 'spawned'** - agent colleagues stay view-only with the note
+   "Message this colleague by @mentioning it" - DELIBERATE deferral: widening
+   POST /sessions/:id/turn to agent scope needs MCP-set parity for colleague direct turns
+   (the delegated composer's interactive/routing set + caller headers, NOT the plain
+   background set the route attaches - the deferred-tool flip-flop trap). Recorded as a
+   follow-up in module-notes; the lock key is already the primary id so the design is ready.
+5. Tests: a pure chain-head-resolution helper test + adapt session-thread-view tests (the
+   KNOWN-freeze comment gets deleted with the fix).
+
+THEN B7 BackgroundActivityPanel (shell singleton beside ActivityMonitorPanel in AppShell
+~597; rows = activity-store serverTurns + in-flight delegations + narration ring, grouped by
+session; refresh seed = GET /activity/running via SDK activity.listRunningTurns; opened from
+Home LiveNowBand "See all" + the ThreadStream +N overflow line) -> B8 origin rendering
+(MessageRow gains authorPersona prop {imageUrl,monogram} for inbound persona rows - hosts
+resolve via resolve-persona; origin badges via contracts deriveMessageOrigin; AppComposer
+destinationLabel line on session panes).
+
+Verification per move: targeted `turbo run typecheck --filter @vynel/local-web` + `pnpm exec
+vitest run apps/local-web` FROM REPO ROOT (per-package vitest breaks on the workspace config;
+never auto-run full `pnpm test`). Reviewer per diff (B5's review still owed - batch with
+B6's). Conventional commits, NO Co-Authored-By, push after commit. Chad smoke list at plan
+§Verification. Arc docs: docs/module-notes/session-personas.md. Task board: #17 B6
+in_progress, #18 B7, #19 B8 pending; all else completed.
 
 ## ✅ FIVE-TASK SESSION (2026-08-02) — ALL FIVE SHIPPED + PUSHED
 

@@ -5,7 +5,6 @@ import { Settings2 } from "lucide-vue-next";
 import { EmptyState, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
-import ProcessingBanner from "../components/chat/ProcessingBanner.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
 import TodoDock from "../components/chat/TodoDock.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
@@ -45,13 +44,13 @@ import { useContextOccupancy } from "../composables/chat/use-context-occupancy.j
 import { useQueuedSend } from "../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
-import { useStopDelegation } from "../composables/delegations/use-stop-delegation.js";
+import { buildThreadPointers } from "../components/chat/thread-pointers.js";
+import { useOpenPointerTarget } from "../components/chat/open-pointer-target.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../composables/users/use-current-user.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
-import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
 import { firstNameOf } from "../utils/greeting.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 
@@ -101,7 +100,6 @@ function isGlobalSection(view: unknown): view is GlobalSectionId {
 const ui = useUiStore();
 // The global chat only ever renders on the pinned Global tab — bind its shell.
 const shell = ui.globalTab.shell;
-const activityMonitor = useActivityMonitorStore();
 
 // Tier gating: a locked section renders the upgrade card in place of its
 // component — the menu item stays visible, so the lock is discoverable.
@@ -127,6 +125,15 @@ const globalChannels = computed(() =>
 // The workspaces the assistant runs — shown on the hero's command deck, each
 // wearing its accent color with its manager persona.
 const workspacesQuery = useWorkspaceList();
+// Name -> id for the delivered-row workspace chips (ThreadStream).
+const workspacesByName = computed(() =>
+  Object.fromEntries(
+    (workspacesQuery.data.value ?? []).map((workspace) => [
+      workspace.name,
+      workspace.id,
+    ]),
+  ),
+);
 const activeWorkspaces = computed(() =>
   (workspacesQuery.data.value ?? []).filter(
     (workspace) => !workspace.isArchived,
@@ -148,14 +155,16 @@ function openWorkspace(workspaceId: string) {
 // A routed task runs in the background and pushes its report into this thread
 // on completion — there is no server push, so poll while any delegation is
 // in flight (and keep the thread live) so the report surfaces within seconds.
-// The banner (ProcessingBanner) shows one Watch chip per in-flight job —
-// workspace- and session-target alike. RECORDED (Slice ④): the workspace view
-// has no banner yet, so a workspace-created session-target job's chip appears
-// here (the global banner) only for now.
+// The in-flight roster renders as the live persona cards (B5) — workspace-
+// and session-target alike; the creator's thread sees every routed job.
 const inFlightQuery = useInFlightDelegations();
 const inFlightDelegations = computed(() => inFlightQuery.data.value ?? []);
+// The thread pointers (live-tracking redesign, Case 1) — the tracker is a
+// pointer under the hand-off row; in-flight-only by construction; the rail
+// carries the roster. A click routes through the one-home opener.
+const threadPointers = computed(() => buildThreadPointers(inFlightDelegations.value));
+const openPointerTarget = useOpenPointerTarget();
 const isProcessing = computed(() => inFlightDelegations.value.length > 0);
-const stopDelegation = useStopDelegation();
 
 const chatTurn = useChatTurn({
   scope: () => GLOBAL_SCOPE,
@@ -187,31 +196,20 @@ const watchedTurn = useWatchedTurn({
   },
 });
 
-const backgroundTurnLabel = computed(() => {
-  if (
-    !activity.hasGlobalServerTurn ||
-    chatTurn.isStreaming.value ||
-    watchedTurn.view.value !== null
-  )
-    return null;
-  switch (activity.globalServerTurnOrigin) {
-    case "telegram":
-      return "Replying on Telegram…";
-    case "discord":
-      return "Replying on Discord…";
-    case "zoom":
-      return "Replying on Zoom…";
-    case "voice":
-      return "Answering by voice…";
-    default:
-      return "Working…";
-  }
-});
+// A background GLOBAL turn the thread isn't rendering (a channel reply, a
+// delivery) — the RAIL shows who's working now; this signal only keeps the
+// transcript polling so its rows land near-live.
+const hasUnrenderedGlobalTurn = computed(
+  () =>
+    activity.hasGlobalServerTurn &&
+    !chatTurn.isStreaming.value &&
+    watchedTurn.view.value === null,
+);
 
 const detailQuery = useSessionDetail(
   () => GLOBAL_SCOPE,
   () => activeSessionId.value,
-  () => (isProcessing.value || backgroundTurnLabel.value !== null ? 4000 : false),
+  () => (isProcessing.value || hasUnrenderedGlobalTurn.value ? 4000 : false),
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const toolCallsByMessageId = computed(
@@ -428,17 +426,10 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :active-turn="activeTurn"
         :assistant-name="ASSISTANT_NAME"
         :assistant-icon-url="assistantIconUrl"
+        :pointers-by-trace-id="threadPointers"
+        :workspaces-by-name="workspacesByName"
         @decide-approval="onDecideApproval"
-        @open-session="activityMonitor.openTrace"
-        @open-report="(report) => (ui.viewingReport = report)"
-        @watch-agent="activityMonitor.openAgentDirect"
-      />
-
-      <ProcessingBanner
-        :delegations="inFlightDelegations"
-        :background-turn-label="backgroundTurnLabel"
-        @watch="activityMonitor.openTrace"
-        @stop="stopDelegation.mutate"
+        @open-pointer="openPointerTarget"
       />
 
       <footer class="composer-dock">

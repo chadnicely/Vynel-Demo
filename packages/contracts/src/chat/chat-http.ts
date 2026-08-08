@@ -70,6 +70,18 @@ export interface ChatSessionResponse {
   updatedAt: string
 }
 
+/** The run that PRODUCED a delivered colleague message — resolved at serve
+ *  time from the chain's work hop + its message trace. */
+export interface DeliveredRunStatsResponse {
+  /** The model the run used (the job's override, else the session's); null unknown. */
+  model: string | null
+  toolCallCount: number
+  inputTokens: number | null
+  outputTokens: number | null
+  /** Claim → report/completion; null while the producing run is still going. */
+  durationMs: number | null
+}
+
 /** Serialized row shape inside `GET /sessions/{id}` (within the `messages` array). */
 export interface ChatMessageResponse {
   id: string
@@ -88,10 +100,17 @@ export interface ChatMessageResponse {
   /** Brain-tree delegation correlation key (Ch3) — present on a bubbled-up report row so
    *  the surface can open its condensed trace; null/absent on ordinary rows. */
   partialSessionId?: string | null
+  /** The delegation CHAIN key (persona-sessions) — per-task, carried across every hop
+   *  where partialSessionId is per-hop. The live card's settle-match key. */
+  threadId?: string | null
   /** The delegated task as a short label ("Set up the login page") — enriched at serve
    *  time from the job the `partialSessionId` names, so the Watch chip can say what the
    *  work IS. Absent on ordinary rows and when the job is gone. */
   delegationTaskLabel?: string | null
+  /** Serve-time enrichment on a DELIVERED colleague row (report/update/message):
+   *  the PRODUCING run's stats — the info-icon hover card beside the author
+   *  line. Absent on ordinary rows and unenriched routes. */
+  runStats?: DeliveredRunStatsResponse | null
   body: string
   thinkingBody: string | null
   inputTokens: number | null
@@ -140,6 +159,12 @@ export interface DelegationToolOutcomeResponse {
   reportedAt: string | null
   /** ISO-8601 — when the job settled; null while in flight. */
   completedAt: string | null
+  /** The target workspace (workspace-target tasks) — the settled pointer's
+   *  sidebar destination once the in-flight poll no longer carries the job. */
+  workspaceId: string | null
+  /** The target's CURRENT segment id (session-target tasks), resolved at
+   *  serve time — the settled pointer opens the conversation by it. */
+  targetSessionId: string | null
 }
 
 /** Serialized row shape inside `GET /sessions/{id}` (within `toolCallsByMessageId` values). */

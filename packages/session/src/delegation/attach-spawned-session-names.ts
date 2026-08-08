@@ -14,17 +14,23 @@ export function attachSpawnedSessionNames<
 >(
   db: Database,
   delegations: TDelegation[],
-): (TDelegation & { sessionName: string | null })[] {
-  // Several queued jobs can target the same session — resolve each name once.
-  const nameByPrimaryId = new Map<string, string>()
+): (TDelegation & { sessionName: string | null; targetSessionId: string | null })[] {
+  // Several queued jobs can target the same session — resolve each once. The
+  // CURRENT segment id rides along (redesign 2c): a pointer click opens the
+  // target's real conversation by it, no client-side primary→segment mapping.
+  const resolvedByPrimaryId = new Map<string, { name: string; segmentId: string | null }>()
   return delegations.map((delegation) => {
     const targetId = delegation.targetPrimarySessionId
-    if (targetId === null) return { ...delegation, sessionName: null }
-    let name = nameByPrimaryId.get(targetId)
-    if (name === undefined) {
-      name = resolveSpawnedSessionDisplayName(db, findPrimarySessionById(db, targetId))
-      nameByPrimaryId.set(targetId, name)
+    if (targetId === null) return { ...delegation, sessionName: null, targetSessionId: null }
+    let resolved = resolvedByPrimaryId.get(targetId)
+    if (resolved === undefined) {
+      const primary = findPrimarySessionById(db, targetId)
+      resolved = {
+        name: resolveSpawnedSessionDisplayName(db, primary),
+        segmentId: primary?.currentSdkSessionId ?? null,
+      }
+      resolvedByPrimaryId.set(targetId, resolved)
     }
-    return { ...delegation, sessionName: name }
+    return { ...delegation, sessionName: resolved.name, targetSessionId: resolved.segmentId }
   })
 }

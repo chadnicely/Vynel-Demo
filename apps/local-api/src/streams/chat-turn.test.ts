@@ -50,10 +50,16 @@ vi.mock('@vynel/providers', async () => {
 })
 
 import { findChatSessionById, listChatMessagesForSession } from '@vynel/chat/repositories'
-import { findPrimaryConversation } from '@vynel/session/continuity'
+import {
+  findPrimaryConversation,
+  linkPrimarySessionToSdkSession,
+} from '@vynel/session/continuity'
+import { SessionTargetLocks } from '@vynel/session/delegation'
 import { createApp } from '../app.js'
 
 const silentLogger = pino({ level: 'silent' })
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 beforeEach(() => {
   nextSdkSessionId = `sdk-${randomUUID()}`
@@ -194,6 +200,117 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       })
       expect(res.status).toBe(400)
       expect(startChatSessionInputs).toHaveLength(0)
+    })
+  })
+
+  it('continueRoot QUEUES behind the held workspace key and resumes the FRESH head after release', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      const locks = new SessionTargetLocks()
+      const app = createApp({ db, logger: silentLogger, sessionTargetLocks: locks })
+
+      // Seed the primary through a normal continue turn.
+      await (
+        await postTurn(app, workspace.id, { userMessageText: 'seed', continueRoot: true })
+      ).text()
+      const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })!
+      const seededHead = primary.currentSdkSessionId!
+
+      // A "delegated run" holds the pool's exclusion key for this workspace.
+      const releaseDelegatedRun = await locks.acquire(workspace.id)
+
+      const resPromise = postTurn(app, workspace.id, {
+        userMessageText: 'queued turn',
+        continueRoot: true,
+      })
+      await sleep(50)
+      // Parked: no provider call for the queued turn yet (B3 — two writers
+      // used to interleave on the primary's SDK session right here).
+      expect(startChatSessionInputs.some((i) => i.userMessageText === 'queued turn')).toBe(false)
+
+      // While parked, the held run compaction-swaps the primary onto a fresh
+      // segment — the queued turn must resume THAT head, not a pre-wait read.
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        sdkSessionId: 'sdk-swapped-head',
+      })
+      nextSdkSessionId = 'sdk-swapped-head'
+
+      releaseDelegatedRun()
+      const frames = await (await resPromise).text()
+      expect(frames).toContain('event: turn-queued')
+      expect(frames.indexOf('event: turn-queued')).toBeLessThan(
+        frames.indexOf('event: user-message-persisted'),
+      )
+      expect(frames).toContain('event: turn-stream-ended')
+
+      const queuedInput = startChatSessionInputs.find((i) => i.userMessageText === 'queued turn')
+      expect(queuedInput).toBeDefined()
+      expect(queuedInput!.resumeSessionId).toBe('sdk-swapped-head')
+      expect(queuedInput!.resumeSessionId).not.toBe(seededHead)
+
+      // The lock released with the stream — the key is immediately reusable.
+      expect(locks.isBusy(workspace.id)).toBe(false)
+    })
+  })
+
+  it('a held workspace key never parks NON-continue turns (no lock, prior behavior)', async () => {
+    await withTestDatabase(async (db) => {
+      const { workspace } = seedWorld(db)
+      const locks = new SessionTargetLocks()
+      const app = createApp({ db, logger: silentLogger, sessionTargetLocks: locks })
+
+      const releaseDelegatedRun = await locks.acquire(workspace.id)
+      const frames = await (
+        await postTurn(app, workspace.id, { userMessageText: 'plain' })
+      ).text()
+      expect(frames).not.toContain('event: turn-queued')
+      expect(frames).toContain('event: turn-stream-ended')
+      expect(startChatSessionInputs).toHaveLength(1)
+      releaseDelegatedRun()
+    })
+  })
+
+  it('a client DISCONNECT while parked never leaks the workspace key', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      const locks = new SessionTargetLocks()
+      const app = createApp({ db, logger: silentLogger, sessionTargetLocks: locks })
+
+      await (
+        await postTurn(app, workspace.id, { userMessageText: 'seed', continueRoot: true })
+      ).text()
+      const releaseDelegatedRun = await locks.acquire(workspace.id)
+
+      const res = await postTurn(app, workspace.id, {
+        userMessageText: 'abandoned turn',
+        continueRoot: true,
+      })
+      expect(res.status).toBe(200)
+      await sleep(50)
+      expect(startChatSessionInputs.some((i) => i.userMessageText === 'abandoned turn')).toBe(
+        false,
+      )
+
+      // The client walks away WHILE PARKED (cancelling the body is how a dead
+      // socket reaches hono's stream on the node path — the session-turn pin).
+      await res.body!.cancel()
+      releaseDelegatedRun()
+      // The abandoned waiter still runs to completion detached; wait it out.
+      for (let i = 0; i < 40 && locks.isBusy(workspace.id); i += 1) {
+        await sleep(25)
+      }
+
+      // THE pin: the finally released the key even with nobody reading — a
+      // leak here would park every future continue-turn AND the delegation
+      // pool on this workspace forever.
+      expect(locks.isBusy(workspace.id)).toBe(false)
+      expect(startChatSessionInputs.some((i) => i.userMessageText === 'abandoned turn')).toBe(
+        true,
+      )
+      const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })
+      expect(primary).not.toBeNull()
     })
   })
 })

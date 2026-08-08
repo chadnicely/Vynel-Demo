@@ -7,15 +7,11 @@
 // BOTH segments, chronologically.
 
 import { describe, expect, it } from 'vitest'
-import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
-import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import {
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
-  SESSION_SWAPPED_EVENT_TYPE,
-  type SessionSwappedEventPayload,
 } from '../continuity/index.js'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import {
@@ -41,10 +37,15 @@ function makeUser(id: string) {
   }
 }
 
-function seedBrainSegment(db: Database, userId: string, sessionId: string, startedAt: Date) {
-  insertChatSession(
-    db,
-    buildNewChatSessionRow({
+function seedBrainSegment(
+  db: Database,
+  userId: string,
+  sessionId: string,
+  startedAt: Date,
+  options: { continuedFrom?: string } = {},
+) {
+  insertChatSession(db, {
+    ...buildNewChatSessionRow({
       sessionId,
       userId,
       workspaceId: null,
@@ -53,7 +54,12 @@ function seedBrainSegment(db: Database, userId: string, sessionId: string, start
       title: 'Global brain',
       visibility: 'hidden',
     }),
-  )
+    // The chain link stays off the shared builder — only a continuation
+    // segment carries a predecessor (the swap writers' rule).
+    ...(options.continuedFrom !== undefined
+      ? { continuedFromSessionId: options.continuedFrom }
+      : {}),
+  })
 }
 
 function makeMessage(
@@ -133,29 +139,17 @@ describe('resolveGlobalRootTranscript', () => {
       const primary = await getOrCreatePrimarySession(db, { userId: user.id })
       const earlier = new Date('2026-06-01T00:00:00Z')
       const later = new Date('2026-06-02T00:00:00Z')
-      // Two brain segments: the original (g-old) swapped into the current (g-new).
+      // Two brain segments: the original (g-old) swapped into the current
+      // (g-new). The segment ROW carries the chain (`continuedFromSessionId` —
+      // both swap writers stamp it); no outbox event exists, exactly the
+      // mid-turn provider-swap shape that used to lose all pre-swap history
+      // on reload (session-review B4).
       seedBrainSegment(db, user.id, 'g-old', earlier)
-      seedBrainSegment(db, user.id, 'g-new', later)
+      seedBrainSegment(db, user.id, 'g-new', later, { continuedFrom: 'g-old' })
       linkPrimarySessionToSdkSession(db, {
         primarySessionId: primary.id,
         userId: user.id,
         sdkSessionId: 'g-new',
-      })
-      const payload: SessionSwappedEventPayload = {
-        primarySessionId: primary.id,
-        userId: user.id,
-        scope: 'global',
-        workspaceId: null,
-        fromSdkSessionId: 'g-old',
-        toSdkSessionId: 'g-new',
-        swappedAt: later.toISOString(),
-      }
-      insertOutboxEvent(db, {
-        id: randomUUID(),
-        type: SESSION_SWAPPED_EVENT_TYPE,
-        payload,
-        createdAt: later,
-        processedAt: null,
       })
       insertChatMessage(
         db,
@@ -168,6 +162,52 @@ describe('resolveGlobalRootTranscript', () => {
 
       const transcript = resolveGlobalRootTranscript(db, user.id)
       expect(transcript.messages.map((message) => message.id)).toEqual(['m-old', 'm-new'])
+    })
+  })
+
+  it('a cyclic chain link terminates the walk instead of hanging', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser('user-4'))
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id })
+      const at = new Date('2026-06-01T00:00:00Z')
+      // Corrupt two-cycle: a ↔ b. The walk must stop at the first revisit.
+      seedBrainSegment(db, user.id, 'g-a', at, { continuedFrom: 'g-b' })
+      seedBrainSegment(db, user.id, 'g-b', at, { continuedFrom: 'g-a' })
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        sdkSessionId: 'g-a',
+      })
+      insertChatMessage(db, makeMessage('g-a', { id: 'm-a', body: 'a', startedAt: at }))
+
+      const transcript = resolveGlobalRootTranscript(db, user.id)
+      expect(transcript.messages.map((message) => message.id)).toEqual(['m-a'])
+    })
+  })
+
+  it("a link into another user's segment ends the walk BEFORE reading it", async () => {
+    await withTestDatabase(async (db) => {
+      const owner = insertUser(db, makeUser('user-5'))
+      const other = insertUser(db, makeUser('user-6'))
+      const primary = await getOrCreatePrimarySession(db, { userId: owner.id })
+      const at = new Date('2026-06-01T00:00:00Z')
+      // The foreign segment (with a message that must never surface).
+      seedBrainSegment(db, other.id, 'g-foreign', at)
+      insertChatMessage(
+        db,
+        makeMessage('g-foreign', { id: 'm-foreign', body: 'private', startedAt: at }),
+      )
+      // The owner's current segment carries a corrupt link into it.
+      seedBrainSegment(db, owner.id, 'g-mine', at, { continuedFrom: 'g-foreign' })
+      insertChatMessage(db, makeMessage('g-mine', { id: 'm-mine', body: 'mine', startedAt: at }))
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: owner.id,
+        sdkSessionId: 'g-mine',
+      })
+
+      const transcript = resolveGlobalRootTranscript(db, owner.id)
+      expect(transcript.messages.map((message) => message.id)).toEqual(['m-mine'])
     })
   })
 })

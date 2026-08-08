@@ -36,7 +36,7 @@ The daemon imports **types + Sherpa classes** from voice-engine and **`detectWak
 | `apps/voice/src/brain/run-brain-turn.ts` | the brain client — POST utterance to `local-api /root/turn`, stream SSE → `VoiceBrainEvent`s; pins the Haiku triage model + `voice: true` |
 | `apps/voice/src/brain/sse-frames.ts` | minimal SSE frame parser (`event`/`data`, chunk-boundary tolerant) — pure |
 | `apps/voice/src/overlay/overlay-channel.ts` | the loopback Hono server (port 18893) for browser Jarvis views — SSE `/events`, `/session/end`, `/speak`, `/synthesize` |
-| `apps/voice/src/overlay/jarvis-window.ts` | launch/focus the floating Jarvis window — Tauri overlay exe preferred, Chrome/Edge `--app` fallback |
+| `apps/voice/src/overlay/jarvis-window.ts` | launch/focus the floating Jarvis window — Tauri overlay exe preferred, Chrome/Edge `--app` fallback; an exe that exits within 3 s of launch (crash, stale build) triggers the browser fallback so the wake is still answered |
 | `apps/voice/src/**/*.test.ts` | colocated Vitest tests: `audio-format`, `wav-encode`, `run-brain-turn`, `sse-frames`, `voice-session-driver`, `jarvis-window`, `overlay-channel` |
 
 No `schema/`, `repositories/`, migrations, or `McpFeatureDescriptor` — this app persists nothing and exposes no owned tables.

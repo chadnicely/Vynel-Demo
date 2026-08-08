@@ -4,10 +4,12 @@
 // passive; per-user install, no elevation) → the plugin exits the app on
 // Windows and the new version starts fresh.
 //
-// Debug builds and release builds without baked updater endpoints (a plain
-// `tauri build` outside build-desktop.ts) fail the check harmlessly — logged,
-// never surfaced. Update integrity comes from the minisign signature pinned
-// in tauri.release.conf.json, not from this code.
+// Builds without the updater config block (a plain `tauri build` outside
+// build-desktop.ts, every dev shell) never register the plugin and never call
+// this — main.rs gates both on the config carrying `plugins.updater`, because
+// handle.updater() on an unregistered plugin panics rather than Err-ing.
+// Update integrity comes from the minisign signature pinned in
+// tauri.release.conf.json, not from this code.
 
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::UpdaterExt;

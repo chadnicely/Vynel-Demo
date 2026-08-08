@@ -63,7 +63,11 @@ import {
   insertChatSession,
 } from '@vynel/chat/repositories'
 import { createSpawnedSession, findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
-import { getOrCreatePrimarySession, linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
+import {
+  getOrCreateContinuingSession,
+  getOrCreatePrimarySession,
+  linkPrimarySessionToSdkSession,
+} from '@vynel/session/continuity'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { SessionTargetLocks } from '@vynel/session/delegation'
 import { withVynelUserDataDir } from '../sessions/global-root-workspace.js'
@@ -319,6 +323,55 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         expect(secondFrames).not.toContain('event: turn-queued')
         expect(secondFrames).toContain('event: turn-stream-ended')
         expect(locks.isBusy(spawned.primarySessionId)).toBe(false)
+      })
+    })
+  })
+
+  it('a user turn into an agent COLLEAGUE runs with the delegated agent-session toolset (G5)', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-agent-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const colleague = await getOrCreateContinuingSession(db, {
+          userId: user.id,
+          scope: 'agent',
+          workspaceId: null,
+          scopeRef: 'reviewer',
+        })
+        insertChatSession(
+          db,
+          buildNewChatSessionRow({
+            sessionId: 'colleague-seg-1',
+            userId: user.id,
+            workspaceId: null,
+            providerId: 'claude',
+            startedAt: new Date(),
+            title: 'Code Reviewer',
+            scope: 'agent',
+          }),
+        )
+        linkPrimarySessionToSdkSession(db, {
+          primarySessionId: colleague.id,
+          userId: user.id,
+          sdkSessionId: 'colleague-seg-1',
+        })
+        const app = createApp({ db, logger: silentLogger })
+
+        // Pre-G5 this 404'd (the finder gated scope 'spawned' only) — the
+        // recorded deferral, now shipped (redesign D7).
+        const res = await postTurn(app, 'colleague-seg-1', { userMessageText: 'hey reviewer' })
+        expect(res.status).toBe(200)
+        const frames = await res.text()
+        expect(frames).toContain('event: turn-stream-ended')
+
+        expect(startChatSessionInputs).toHaveLength(1)
+        const input = startChatSessionInputs[0]!
+        expect(input.resumeSessionId).toBe('colleague-seg-1')
+        // The DELEGATED agent-session set (G5's MCP parity) — never the bare
+        // global-grounded shape: the vynel routing tools ride the turn, so the
+        // colleague speaks (send_message) exactly as its mention runs do.
+        expect(input.allowedMcpToolPatterns ?? []).toContain('mcp__vynel__*')
+        expect(Object.keys(input.mcpServers ?? {}).length).toBeGreaterThan(0)
       })
     })
   })

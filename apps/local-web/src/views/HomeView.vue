@@ -8,26 +8,19 @@ import {
   MessagesSquare,
 } from "lucide-vue-next";
 import { EmptyState, PresenceDot } from "@vynel/ui";
-import LiveNowBand, {
-  type LiveTurnRow,
-} from "../components/home/LiveNowBand.vue";
 import TasksCard from "../components/home/TasksCard.vue";
 import UsageStatsCard from "../components/home/UsageStatsCard.vue";
-import { narrationLabelFor } from "../components/home/narration-label.js";
 import { useDashboardOverview } from "../composables/dashboard/use-dashboard-overview.js";
 import { usePendingApprovals } from "../composables/approvals/use-pending-approvals.js";
 import { useActivityStore } from "../stores/activity-store.js";
-import { useTurnNarrationStore } from "../stores/turn-narration-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { formatRelativeTime } from "../utils/format-relative-time.js";
 import { greetingForHour } from "../utils/greeting.js";
-import type { SessionTurnOrigin } from "@vynel/contracts/chat/session-activity";
 
 // The dashboard: everything the assistant is doing and holding, one glance.
 const router = useRouter();
 const ui = useUiStore();
 const activity = useActivityStore();
-const narration = useTurnNarrationStore();
 
 // Poll while work runs so task completions + fresh sessions land live (the
 // SessionsView cadence pattern); quiet otherwise.
@@ -42,47 +35,15 @@ const pendingCount = computed(
 
 const greeting = greetingForHour(new Date().getHours());
 
-// "Right now": one card per in-flight turn the feed reports, labeled by its
-// workspace persona ("Noah · Invoices") or the global thread, narrated by the
-// current tool step in plain words.
-const ORIGIN_NOTES: Record<SessionTurnOrigin, string | null> = {
-  web: null,
-  voice: "via Voice",
-  telegram: "via Telegram",
-  discord: "via Discord",
-  zoom: "via Zoom",
-  schedule: "from a schedule",
-  delegation: "working on a task",
-};
-
-const liveNow = computed<LiveTurnRow[]>(() =>
-  Object.values(activity.serverTurns).map((turn) => {
-    const workspace =
-      turn.workspaceId === null
-        ? null
-        : (overview.value?.workspaces.find(
-            (row) => row.id === turn.workspaceId,
-          ) ?? null);
-    const label = workspace
-      ? workspace.managerName
-        ? `${workspace.managerName} · ${workspace.name}`
-        : workspace.name
-      : "Assistant thread";
-    return {
-      turnId: turn.turnId,
-      workspaceId: turn.workspaceId,
-      label,
-      originNote: ORIGIN_NOTES[turn.origin],
-      startedAt: turn.startedAt,
-      narration: narrationLabelFor(narration.stepByTurnId[turn.turnId]),
-    };
-  }),
-);
+// Liveness on Home is a COUNT only — the working rail (always visible, right
+// edge) carries who's working; the "Right now" band retired with the redesign
+// (Home rebuilds later, Chad's call).
+const workingCount = computed(() => Object.values(activity.serverTurns).length);
 
 const statusLine = computed(() => {
-  if (liveNow.value.length === 1) return "One session working right now.";
-  if (liveNow.value.length > 1)
-    return `${liveNow.value.length} sessions working right now.`;
+  if (workingCount.value === 1) return "One session working right now.";
+  if (workingCount.value > 1)
+    return `${workingCount.value} sessions working right now.`;
   if (activity.isTurnRunning) return "Your assistant is working right now.";
   if (pendingCount.value > 0)
     return `${pendingCount.value} approval${pendingCount.value === 1 ? "" : "s"} waiting for you.`;
@@ -151,14 +112,6 @@ function scheduleTiming(nextFireAt: string | null): string {
         {{ statusLine }}
       </p>
     </header>
-
-    <Transition name="live-band">
-      <LiveNowBand
-        v-if="liveNow.length > 0"
-        :turns="liveNow"
-        @open="openSession"
-      />
-    </Transition>
 
     <div class="card-grid">
       <section class="card span-2">

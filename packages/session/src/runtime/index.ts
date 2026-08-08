@@ -69,7 +69,18 @@ export {
   activityChannelKey,
   type BeginTurnActivityInput,
   type SessionTurnActivityHandle,
+  type SessionTurnRecorder,
 } from './session-activity-feed.js'
+// The DB-backed durable-envelope recorder + its reads (persona-sessions): the
+// api wires the recorder into the feed at boot and reaps orphans beside the
+// tool-call reap; the running-turns read is the refresh/restart rebuild seed.
+export { buildSessionTurnRecorder } from './session-turn-recorder.js'
+export {
+  reapOrphanedSessionTurns,
+  listRunningSessionTurnsForUser,
+  purgeEndedSessionTurnsBefore,
+  type SessionTurnRow,
+} from '../repositories/index.js'
 
 // The session-keyed live turn channel (Watch everywhere, Slice ③) — runners
 // tee their events through the wrapper; the SSE observe route subscribes by

@@ -84,6 +84,8 @@ export interface RunGlobalRootTurnInput {
     sourceKind: 'workspace-manager'
     sourceLabel: string
     partialSessionId?: string
+    /** The delegation CHAIN key (persona-sessions) — stamped beside the trace key. */
+    threadId?: string
   }
   /** REPORT-DELIVERY notify turn: the report-delivery steer, appended to the
    *  system prompt. Omit → the shipped prompt. */
@@ -92,6 +94,8 @@ export interface RunGlobalRootTurnInput {
    *  'web' (the shipped behavior); the report-delivery runner passes
    *  'delegation' so the feed reports what is actually running. */
   activityOrigin?: 'delegation'
+  /** The delivery queue row driving this notify turn — liveness enrichment. */
+  jobId?: string
   model?: string
   /** Surface-up: called for each `approval-requested` the brain's own turn emits (the
    *  core already RECORDED it — web notifier). The channel path pushes the card back
@@ -241,12 +245,24 @@ export async function runGlobalRootTurn(
   // Announce on the session-activity feed — this background turn is invisible
   // to the app otherwise (the whole reason a Telegram reply never surfaced
   // without a reload). Ended in the finally even when the turn throws.
+  // Delivery-turn enrichment (persona-sessions): the notify turn speaks AS the
+  // child whose message it carries; jobId/keys let the live views settle-match.
   const activity = deps.activityFeed.begin({
     userId: input.userId,
     scopeKind: 'global',
     // The channels service sets originChannel; the report-delivery runner sets
     // activityOrigin 'delegation'; 'web' is the defensive fallback.
     origin: input.activityOrigin ?? input.originChannel ?? 'web',
+    ...(input.jobId !== undefined ? { jobId: input.jobId } : {}),
+    ...(input.inboundAttribution?.partialSessionId !== undefined
+      ? { partialSessionId: input.inboundAttribution.partialSessionId }
+      : {}),
+    ...(input.inboundAttribution?.threadId !== undefined
+      ? { threadId: input.inboundAttribution.threadId }
+      : {}),
+    ...(input.inboundAttribution !== undefined
+      ? { personaName: input.inboundAttribution.sourceLabel }
+      : {}),
   })
   const sink = new GlobalRootDrainSink(input.onApprovalRequested, activity)
   try {
@@ -280,6 +296,9 @@ export async function runGlobalRootTurn(
                 userSourceLabel: input.inboundAttribution.sourceLabel,
                 ...(input.inboundAttribution.partialSessionId !== undefined
                   ? { partialSessionId: input.inboundAttribution.partialSessionId }
+                  : {}),
+                ...(input.inboundAttribution.threadId !== undefined
+                  ? { threadId: input.inboundAttribution.threadId }
                   : {}),
               },
             }
@@ -333,9 +352,13 @@ export function buildGlobalRootReportTurnRunner(
         ...(input.partialSessionId !== undefined
           ? { partialSessionId: input.partialSessionId }
           : {}),
+        ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
       },
-      steerPromptAppend: REPORT_DELIVERY_INSTRUCTIONS,
+      // The tick passes the kind's steer (update vs report); the report steer
+      // stays the default for older callers.
+      steerPromptAppend: input.steerInstructions ?? REPORT_DELIVERY_INSTRUCTIONS,
       activityOrigin: 'delegation',
+      ...(input.jobId !== undefined ? { jobId: input.jobId } : {}),
     })
     return { sessionId: turn.sessionId, resultText: turn.resultText }
   }

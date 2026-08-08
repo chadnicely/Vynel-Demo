@@ -128,6 +128,29 @@ describe('enqueueReportDelivery', () => {
     })
   })
 
+  it('deliverDirectly flips the row to kind direct-delivery (the direct_to_user door); default stays report-delivery', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const directId = enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: 's-1',
+        reporterLabel: 'James',
+        reportBody: 'Title\n\nBody',
+        requester: { kind: 'global-root' },
+        deliverDirectly: true,
+      })
+      const plainId = enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: 's-1',
+        reporterLabel: 'James',
+        reportBody: 'r',
+        requester: { kind: 'global-root' },
+      })
+      expect(findDelegationJobById(db, directId)?.jobKind).toBe('direct-delivery')
+      expect(findDelegationJobById(db, plainId)?.jobKind).toBe('report-delivery')
+    })
+  })
+
   it('the TASK enqueue ops keep writing a NULL jobKind (legacy NULL = task — the additive-migration pin)', async () => {
     await withTestDatabase((db) => {
       const user = insertUser(db, makeUser())

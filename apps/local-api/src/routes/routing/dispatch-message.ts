@@ -19,13 +19,21 @@ import {
   enqueueWorkspaceDelegation,
   enqueueSessionDelegation,
   enqueueReportDelivery,
+  enqueueUpdateDelivery,
   markDelegationJobReported,
   type ReportDeliveryRequester,
 } from '@vynel/orchestration'
 import { getWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findPrimaryConversation } from '@vynel/session/continuity'
-import { findSpawnedSessionById, findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
-import { resolveSpawnedSessionDisplayName } from '@vynel/session/delegation'
+import {
+  findSpawnedSessionById,
+  findAgentSessionById,
+  findRoutableSessionBySegmentId,
+} from '@vynel/session/spawned'
+import {
+  resolveSpawnedSessionDisplayName,
+  resolveColleagueAgent,
+} from '@vynel/session/delegation'
 import { composeManagerSourceLabel } from '@vynel/chat'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { ValidationError, NotFoundError } from '@vynel/errors'
@@ -137,31 +145,40 @@ export async function dispatchTaskToSession(
   }
 
   // Resolved from the tool-facing handle (the current segment id). Unknown /
-  // not-owned / not-spawned all 404 identically.
-  const spawned = findSpawnedSessionBySegmentId(c.var.db, {
+  // not-owned / not-routable all 404 identically. Spawned sessions AND agent
+  // colleagues both resolve (persona-sessions) — the tick picks the runner by
+  // the primary's scope.
+  const target = findRoutableSessionBySegmentId(c.var.db, {
     userId: c.var.user.id,
     sessionId: input.targetSessionId,
   })
-  if (spawned === null) throw new NotFoundError('session', input.targetSessionId)
+  if (target === null) throw new NotFoundError('session', input.targetSessionId)
   const sessionName = findChatSessionById(c.var.db, input.targetSessionId)?.title ?? 'Session'
 
   const jobId = enqueueSessionDelegation(c.var.db, {
     userId: c.var.user.id,
     parentSessionId: creator.currentSdkSessionId,
-    targetPrimarySessionId: spawned.id,
-    runCwdPath: resolveSpawnedSessionRunCwd(c.var.db, spawned),
+    targetPrimarySessionId: target.id,
+    runCwdPath: resolveSpawnedSessionRunCwd(c.var.db, target),
     taskText: input.task,
     ...taskEnqueueExtras(c, input),
   })
   return { jobId, deliveredTo: sessionName }
 }
 
-/** Pass a result UP to whoever requested this turn's work. */
-export async function dispatchReportToRequester(
-  c: RoutingContext,
-  input: { report: string },
-): Promise<MessageDispatchResult> {
-  // WHO is reporting — ambient caller identity stamped by the delegated-turn
+/** The resolved "from + to" of an UPWARD message (report or update): who is
+ *  speaking, and which conversation hears it. ONE home for both dispatchers —
+ *  a resolution rule that drifted between them would mis-address one kind. */
+type ResolvedUpwardSender = {
+  reporterSessionId: string
+  reporterLabel: string
+  requester: ReportDeliveryRequester
+  /** The honest `deliveredTo` when an override rerouted the delivery. */
+  requesterLabel: string | null
+}
+
+async function resolveUpwardSender(c: RoutingContext): Promise<ResolvedUpwardSender> {
+  // WHO is speaking — ambient caller identity stamped by the delegated-turn
   // MCP composer. No header = no requester (interactive chats, schedule fires,
   // the global root): an actionable 400, never a silent drop.
   const caller = parseReportCallerHeader(c.req.header(REPORT_CALLER_HEADER))
@@ -201,6 +218,45 @@ export async function dispatchReportToRequester(
             workspacePath: groundingWorkspace.path,
           }
         : { kind: 'global-root' }
+  } else if (caller.kind === 'agent-session') {
+    // An agent COLLEAGUE (persona-sessions) reports to the chat that asked: the
+    // requester-override workspace when the mention came from another chat
+    // (stamped from the job row), else its grounding workspace's primary, else
+    // the global root. The persona's own name is the label.
+    const colleague = findAgentSessionById(c.var.db, {
+      userId: c.var.user.id,
+      primarySessionId: caller.targetPrimarySessionId,
+    })
+    if (colleague === null) throw new NotFoundError('session', caller.targetPrimarySessionId)
+    reporterSessionId = colleague.currentSdkSessionId
+    const agent =
+      colleague.scopeRef !== null
+        ? await resolveColleagueAgent(c.var.db, {
+            userId: c.var.user.id,
+            workspaceId: colleague.workspaceId,
+            slug: colleague.scopeRef,
+          })
+        : null
+    reporterLabel = agent?.name ?? colleague.scopeRef ?? 'Agent'
+    const requesterOverrideId = parseReportRequesterHeader(c.req.header(REPORT_REQUESTER_HEADER))
+    const overrideWorkspace =
+      requesterOverrideId !== undefined
+        ? await getWorkspaceById(c.var.db, requesterOverrideId, c.var.user.id).catch(() => null)
+        : null
+    const groundingWorkspace =
+      overrideWorkspace === null && colleague.workspaceId !== null
+        ? await getWorkspaceById(c.var.db, colleague.workspaceId, c.var.user.id).catch(() => null)
+        : null
+    const requesterWorkspace = overrideWorkspace ?? groundingWorkspace
+    requester =
+      requesterWorkspace !== null
+        ? {
+            kind: 'workspace-primary',
+            workspaceId: requesterWorkspace.id,
+            workspacePath: requesterWorkspace.path,
+          }
+        : { kind: 'global-root' }
+    if (requesterWorkspace !== null) requesterLabel = requesterWorkspace.name
   } else {
     // A workspace primary reports to the global root (the tree's top) — UNLESS
     // the turn carries the requester-override header (chat-mentions): a
@@ -237,14 +293,29 @@ export async function dispatchReportToRequester(
       'The calling conversation has no linked session — cannot attribute the report.',
     )
   }
+  return { reporterSessionId, reporterLabel, requester, requesterLabel }
+}
+
+function upwardDeliveredTo(sender: ResolvedUpwardSender): string {
+  return sender.requester.kind === 'global-root'
+    ? 'Global'
+    : (sender.requesterLabel ?? sender.reporterLabel)
+}
+
+/** Pass a FINAL result UP to whoever requested this turn's work. */
+export async function dispatchReportToRequester(
+  c: RoutingContext,
+  input: { report: string },
+): Promise<MessageDispatchResult> {
+  const sender = await resolveUpwardSender(c)
 
   const { threadId } = readAmbientContext(c)
   const jobId = enqueueReportDelivery(c.var.db, {
     userId: c.var.user.id,
-    reporterSessionId,
-    reporterLabel,
+    reporterSessionId: sender.reporterSessionId,
+    reporterLabel: sender.reporterLabel,
     reportBody: input.report,
-    requester,
+    requester: sender.requester,
     // The report belongs to the SAME chain as the task that produced it —
     // without this it would start a fresh thread and the chain would break at
     // exactly the hop threadId exists to connect.
@@ -259,11 +330,60 @@ export async function dispatchReportToRequester(
     markDelegationJobReported(c.var.db, runningJobId, new Date())
   }
 
-  return {
-    jobId,
-    deliveredTo:
-      requester.kind === 'global-root' ? 'Global' : (requesterLabel ?? reporterLabel),
+  return { jobId, deliveredTo: upwardDeliveredTo(sender) }
+}
+
+/** Pass a FINAL answer straight to the USER (kind `direct_to_user`): it lands
+ *  on the requester's transcript as the SENDER's own message — verbatim, never
+ *  narrated; the requester absorbs it silently via the catch-up net. The title
+ *  leads the body, so the compact message box's teaser line IS the title and
+ *  the popup shows the full text under it — no separate storage. Marks the
+ *  running row reported exactly like a report: it IS the final result. */
+export async function dispatchDirectToUser(
+  c: RoutingContext,
+  input: { message: string; title: string },
+): Promise<MessageDispatchResult> {
+  const sender = await resolveUpwardSender(c)
+
+  const { threadId } = readAmbientContext(c)
+  const jobId = enqueueReportDelivery(c.var.db, {
+    userId: c.var.user.id,
+    reporterSessionId: sender.reporterSessionId,
+    reporterLabel: sender.reporterLabel,
+    reportBody: `${input.title.trim()}\n\n${input.message}`,
+    requester: sender.requester,
+    deliverDirectly: true,
+    ...(threadId !== undefined ? { threadId } : {}),
+  })
+
+  const runningJobId = parseDelegationJobHeader(c.req.header(DELEGATION_JOB_HEADER))
+  if (runningJobId !== undefined) {
+    markDelegationJobReported(c.var.db, runningJobId, new Date())
   }
+
+  return { jobId, deliveredTo: upwardDeliveredTo(sender) }
+}
+
+/** Pass an interim ACK/STATUS update UP (persona-sessions) — same resolution as
+ *  a report, but it NEVER marks the running job reported (only the final report
+ *  does) and it coalesces in the queue while pending. */
+export async function dispatchUpdateToRequester(
+  c: RoutingContext,
+  input: { update: string },
+): Promise<MessageDispatchResult> {
+  const sender = await resolveUpwardSender(c)
+
+  const { threadId } = readAmbientContext(c)
+  const jobId = enqueueUpdateDelivery(c.var.db, {
+    userId: c.var.user.id,
+    reporterSessionId: sender.reporterSessionId,
+    reporterLabel: sender.reporterLabel,
+    updateBody: input.update,
+    requester: sender.requester,
+    ...(threadId !== undefined ? { threadId } : {}),
+  })
+
+  return { jobId, deliveredTo: upwardDeliveredTo(sender) }
 }
 
 /** Parse the unified tool's `to` field. The shape is validated by the schema, so

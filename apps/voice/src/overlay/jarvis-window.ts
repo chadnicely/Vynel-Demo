@@ -9,10 +9,20 @@ import type { Logger } from 'pino'
 // existing one to the front otherwise. All best-effort native shell calls: if
 // they fail the wake stays pending on the overlay channel and the handoff
 // watchdog returns the daemon to sleep.
+//
+// The overlay exe is a compiled artifact that can be silently broken (a stale
+// build panicking at boot, a config drift) — existsSync alone proved a wake
+// could die without a trace. An exe that exits within APP_EARLY_EXIT_MS never
+// showed a window, so open() falls back to the browser and the pending wake
+// still gets answered.
 
 // AppActivate matches by window title — keep in sync with JarvisView.vue.
 const WINDOW_TITLE = 'Vynel Jarvis'
 const WINDOW_SIZE = '420,560'
+// An exe gone this fast either crashed at boot or single-instance-routed into
+// a resident shell that is NOT connected to the daemon (a healthy resident
+// would have made this wake a focus(), not an open()). Both mean no window.
+const APP_EARLY_EXIT_MS = 3000
 
 export interface JarvisWindowCommand {
   readonly command: string
@@ -39,8 +49,27 @@ export function buildJarvisLaunchCommand(
   return { command: binary, args: appArgs }
 }
 
+/** The one detached child the seam exposes — enough to observe a launch dying. */
+export interface SpawnedCommand {
+  onError(listener: (error: Error) => void): void
+  onExit(listener: (code: number | null) => void): void
+}
+
+/** Injected so the open()/fallback flow is unit-testable without real spawns. */
+export type CommandSpawner = (command: string, args: readonly string[]) => SpawnedCommand
+
+const spawnDetached: CommandSpawner = (command, args) => {
+  const child = spawn(command, [...args], { detached: true, stdio: 'ignore' })
+  child.unref()
+  return {
+    onError: (listener) => child.on('error', listener),
+    onExit: (listener) => child.on('exit', (code) => listener(code)),
+  }
+}
+
 export interface JarvisWindow {
-  /** Open a new Jarvis window (fire-and-forget). */
+  /** Open a new Jarvis window (returns immediately; a dying launch is watched
+   *  and falls back to the browser). */
   open(): void
   /** Bring an already-open window to the front (Windows only; no-op elsewhere). */
   focus(): void
@@ -54,29 +83,47 @@ export function createJarvisWindow(
     readonly appPath?: string
   },
   logger: Logger,
+  spawnCommand: CommandSpawner = spawnDetached,
 ): JarvisWindow {
   const run = (invocation: JarvisWindowCommand, action: string): void => {
-    const child = spawn(invocation.command, [...invocation.args], {
-      detached: true,
-      stdio: 'ignore',
-    })
-    child.on('error', (error) => {
+    spawnCommand(invocation.command, invocation.args).onError((error) => {
       logger.warn({ action, error: error.message }, 'jarvis window shell call failed')
     })
-    child.unref()
+  }
+
+  const openBrowserWindow = (): void => {
+    logger.info({ url: config.url, browser: config.browser }, 'opening jarvis browser window')
+    run(buildJarvisLaunchCommand(config.browser, config.url, process.platform), 'open')
   }
 
   return {
     open(): void {
-      if (config.appPath !== undefined && existsSync(config.appPath)) {
-        logger.info({ app: config.appPath }, 'opening jarvis overlay app')
-        // A wake opens ONLY the overlay — --jarvis-only tells the shell to
-        // skip its main app window (apps/desktop src/main.rs).
-        run({ command: config.appPath, args: ['--jarvis-only'] }, 'open')
+      if (config.appPath === undefined || !existsSync(config.appPath)) {
+        openBrowserWindow()
         return
       }
-      logger.info({ url: config.url, browser: config.browser }, 'opening jarvis browser window')
-      run(buildJarvisLaunchCommand(config.browser, config.url, process.platform), 'open')
+      logger.info({ app: config.appPath }, 'opening jarvis overlay app')
+      // A wake opens ONLY the overlay — --jarvis-only tells the shell to
+      // skip its main app window (apps/desktop src/main.rs).
+      const child = spawnCommand(config.appPath, ['--jarvis-only'])
+      const startedAt = Date.now()
+      // error + exit can both fire for one failed launch — fall back once.
+      let fellBack = false
+      const fallBack = (reason: string): void => {
+        if (fellBack) return
+        fellBack = true
+        logger.warn(
+          { app: config.appPath, reason },
+          'jarvis overlay app never came up — opening the browser window instead; rebuild the overlay with `pnpm dev:desktop`',
+        )
+        openBrowserWindow()
+      }
+      child.onError((error) => fallBack(error.message))
+      child.onExit((code) => {
+        // code 0 usually means single-instance routed into a resident shell
+        // (which open() implies is NOT connected); non-zero means a crash.
+        if (Date.now() - startedAt <= APP_EARLY_EXIT_MS) fallBack(`exited immediately (code ${code})`)
+      })
     },
     focus(): void {
       if (process.platform !== 'win32') return

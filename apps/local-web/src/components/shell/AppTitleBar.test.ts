@@ -39,4 +39,15 @@ describe("AppTitleBar", () => {
     const wrapper = mountTitleBar({ title: "Marketing" });
     expect(wrapper.text()).toContain("Marketing");
   });
+
+  // test: correct expectation — the presence pair is PASSIVE now (redesign
+  // Q7d): the working rail carries the detail; the pair renders no button and
+  // clicking it commands nothing.
+  it("the presence pair is passive — no command behind it (redesign Q7d)", async () => {
+    const wrapper = mountTitleBar();
+    const presence = wrapper.get('[data-testid="titlebar-presence"]');
+    expect(presence.element.tagName).not.toBe("BUTTON");
+    await presence.trigger("click");
+    expect(wrapper.emitted("command")).toBeUndefined();
+  });
 });

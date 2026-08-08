@@ -4,11 +4,22 @@ import type {
   ChatMessageResponse,
   ChatToolCallResponse,
 } from "@vynel/contracts/chat/chat-http";
-import { MessageRow, ToolCallList } from "@vynel/ui";
+import { stripReportMessageMarker } from "@vynel/contracts/chat/report-message-marker";
+import {
+  MessageRow,
+  ToolCallList,
+  presentToolCall,
+  splitSourceLabel,
+  workspaceColorSlot,
+  workspaceMonogram,
+} from "@vynel/ui";
+import { useCustomizeStore } from "../../stores/customize-store.js";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
-import type { ActivitySource } from "../../composables/activity/use-activity-monitor.js";
-import { useLiveSessionsStore } from "../../stores/live-sessions-store.js";
 import LiveTurn from "./LiveTurn.vue";
+import PointerRow from "./PointerRow.vue";
+import { buildToolCallPointer } from "./thread-pointers.js";
+import type { ThreadPointerModel } from "./thread-pointers.js";
+import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
 
 // Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening —
 // Global → Workspace → Session → Agent): a thread shows chips ONLY for its
@@ -26,34 +37,83 @@ const props = withDefaults(
     assistantName?: string;
     /** The persona's custom conversation icon; null = the Claude mark. */
     assistantIconUrl?: string | null;
-    /** False on a SESSION view — a pipeline leaf shows agent chips only, no
-     *  trace/report chips at all (scoping rule 3). Threads (global/workspace)
-     *  keep the default and rely on the received-trace discriminator below. */
-    showWatchChips?: boolean;
+    /** The thread pointers by trace key (live-tracking redesign, Case 1): a
+     *  compact "task → target" line renders under the FIRST visible row
+     *  carrying an in-flight trace key this thread SENT — the pointer is the
+     *  whole tracker, and it vanishes when the task settles. */
+    pointersByTraceId?: Map<string, ThreadPointerModel> | undefined;
+    /** The pointer's landing (redesign Case 1): scroll to the row carrying
+     *  this trace key on open, flash it, and stay there — the user asked for
+     *  where the task started, not the live edge. */
+    scrollToTraceId?: string | undefined;
+    /** Workspace name → id (the host's list) — unlocks the delivered-row
+     *  workspace chip's customized icon + accent. Omitted = name-derived look. */
+    workspacesByName?: Record<string, string> | undefined;
   }>(),
-  { assistantName: "Assistant", assistantIconUrl: null, showWatchChips: true },
+  {
+    assistantName: "Assistant",
+    assistantIconUrl: null,
+    pointersByTraceId: undefined,
+    scrollToTraceId: undefined,
+    workspacesByName: undefined,
+  },
 );
 
 const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
-  /** A message's delegation chip: open that session's live view. */
-  openSession: [sessionId: string];
-  /** A report box's "View report" chip — the host opens the shared dialog. */
-  openReport: [report: { sourceLabel: string; body: string }];
-  /** An Agent card's Watch chip: open the focused agent view over the source
-   *  that carries the agent's activity (trace for delegation-traced rows, the
-   *  row's own session for a direct turn's agent). */
-  watchAgent: [source: ActivitySource, toolUseId: string];
+  /** A thread pointer's click — navigate to where the task started (the
+   *  `partialSessionId` anchor; the redesign's tracking mechanic). The host
+   *  routes by the pointer's target (session segment / workspace). */
+  openPointer: [pointer: ThreadPointerModel];
 }>();
 
-/** The activity source an Agent card's Watch chip opens over: a
- *  delegation-traced row streams on its trace channel; a DIRECT turn's agent
- *  has no trace — its activity lives on the session the turn ran on (live map
- *  while running, persisted subagent fields after settle). */
-function agentWatchSourceFor(message: ChatMessageResponse): ActivitySource {
-  return message.partialSessionId != null
-    ? { kind: "trace", id: message.partialSessionId }
-    : { kind: "session", id: message.sessionId };
+// A persona-attributed row (a manager's reply, a colleague's report/update)
+// wears ITS OWN face in the author line (B8) — resolved from the label the
+// same way the live cards resolve theirs, with the host's name→id map keying
+// the workspace's customized persona image.
+const { resolvePersona } = usePersonaResolver();
+
+// The workspace chip beside a persona row's author (Chad, 2026-08-09): the
+// label's LAST " · " segment (the persona-first rule) resolves to an
+// icon/monogram + accent; hover shows the profile card. The host's name→id
+// map unlocks the customized image + color. EVERY persona-stamped row wears
+// it — the delivered colleague row in Global and the persona's own reply in
+// its workspace read as the same participant (2026-08-09 parity pass).
+const customize = useCustomizeStore();
+function workspaceBadgeFor(message: ChatMessageResponse) {
+  if (
+    (message.sourceKind !== "agent" &&
+      message.sourceKind !== "workspace-manager") ||
+    message.sourceLabel == null
+  ) {
+    return null;
+  }
+  const { workspace } = splitSourceLabel(message.sourceLabel);
+  if (workspace === null) return null;
+  const workspaceId = props.workspacesByName?.[workspace] ?? null;
+  const custom =
+    workspaceId !== null ? customize.customizationFor(workspaceId) : null;
+  return {
+    name: workspace,
+    imageUrl: custom?.workspaceImage ?? null,
+    monogram: workspaceMonogram(workspace),
+    accentVar: `--ws-${custom?.colorSlot ?? workspaceColorSlot(workspace)}`,
+  };
+}
+
+function authorPersonaFor(message: ChatMessageResponse) {
+  const isPersonaRow =
+    (message.sourceKind === "workspace-manager" ||
+      message.sourceKind === "agent") &&
+    message.sourceLabel != null;
+  if (!isPersonaRow) return null;
+  // The label's workspace segment keys the host map — a resolved id unlocks
+  // the workspace's customized persona image, the same face the live cards
+  // and the surface's own assistant rows wear.
+  const { workspace } = splitSourceLabel(message.sourceLabel!);
+  const workspaceId =
+    workspace !== null ? (props.workspacesByName?.[workspace] ?? null) : null;
+  return resolvePersona({ name: message.sourceLabel!, workspaceId });
 }
 
 // The received-vs-sent discriminator (empirical, from how rows land): a
@@ -61,8 +121,9 @@ function agentWatchSourceFor(message: ChatMessageResponse): ActivitySource {
 // HERE as `role:'user'` + a non-null sourceKind carrying the trace key — a
 // routed task lands as 'global-root' (the shared pipeline's
 // messageAttribution — delegate-to-workspace-root / delegate-to-spawned-
-// session), and a report-delivery NOTIFY turn lands as 'workspace-manager'
-// + the child's label (session-comms). The replies share that key. Work this
+// session), a report-delivery NOTIFY turn lands as 'workspace-manager'
+// + the child's label (session-comms), and a MENTION lands as 'user' + the
+// origin scope's label (redesign Case 3). The replies share that key. Work this
 // thread SENT DOWN never leaves an attributed USER row here (its rows are
 // assistant-role). So: a trace key with ANY attributed user row in this
 // thread was RECEIVED → its rows show no watch chip (a delivery turn must
@@ -84,15 +145,52 @@ const receivedTraceIds = computed(() => {
   return ids;
 });
 
-function showsWatchChipFor(message: ChatMessageResponse): boolean {
-  if (!props.showWatchChips) return false;
-  return (
-    message.partialSessionId == null ||
-    !receivedTraceIds.value.has(message.partialSessionId)
-  );
-}
+// The pointer renders once per trace key, under the FIRST visible
+// row that CARRIES it — and only on the SENDING side (the received-trace
+// discriminator above): in the target's own thread the task row is the
+// anchor, not a pointer. Sender-side, the work key lives on the dispatch
+// TOOL CALL's served delegation (send_message / send_task_* — message rows
+// themselves are unstamped on interactive turns), so matching goes through
+// toolCallsByMessageId first; the row-key path stays for target-side gating
+// and the future mention-row stamp.
+const pointersByMessageId = computed(() => {
+  const byMessage = new Map<string, ThreadPointerModel[]>();
+  const placed = new Set<string>();
+  for (const message of visibleMessages.value) {
+    const candidates: ThreadPointerModel[] = [];
+    for (const call of props.toolCallsByMessageId[message.id] ?? []) {
+      if (call.delegation == null) continue;
+      // The live poll overlays first (fresher status, persona-enriched target
+      // labels); the served payload is the PERSISTENT base — a settled task
+      // keeps its pointer in its terminal state (Chad, 2026-08-09, revising
+      // D6's in-flight-only).
+      const key = call.delegation.partialSessionId;
+      const live = key != null ? props.pointersByTraceId?.get(key) : undefined;
+      const pointer = live ?? buildToolCallPointer(call.delegation);
+      if (pointer != null) candidates.push(pointer);
+    }
+    // Row-key match (mention-stamped rows): live-only — a settled mention
+    // leaves the colleague's reply box, which is its own record.
+    if (message.partialSessionId != null) {
+      const rowLive = props.pointersByTraceId?.get(message.partialSessionId);
+      if (rowLive !== undefined) candidates.push(rowLive);
+    }
+    for (const pointer of candidates) {
+      if (
+        placed.has(pointer.partialSessionId) ||
+        receivedTraceIds.value.has(pointer.partialSessionId)
+      ) {
+        continue;
+      }
+      const rowPointers = byMessage.get(message.id) ?? [];
+      rowPointers.push(pointer);
+      byMessage.set(message.id, rowPointers);
+      placed.add(pointer.partialSessionId);
+    }
+  }
+  return byMessage;
+});
 
-const liveSessions = useLiveSessionsStore();
 const scroller = ref<HTMLElement | null>(null);
 
 // ── Discord-model scrolling ─────────────────────────────────────────────────
@@ -140,10 +238,11 @@ const visibleMessages = computed(() =>
 // would also hide the later turn's timestamp.
 const CONTINUATION_MAX_GAP_MS = 10 * 60 * 1000;
 
-function showsHeaderFor(index: number): boolean {
-  const message = visibleMessages.value[index];
-  const previous = visibleMessages.value[index - 1];
-  if (!message || !previous) return true;
+function startsNewTurn(
+  message: ChatMessageResponse,
+  previous: ChatMessageResponse | undefined,
+): boolean {
+  if (!previous) return true;
   const gapMs =
     new Date(message.createdAt).getTime() -
     new Date(previous.createdAt).getTime();
@@ -155,9 +254,108 @@ function showsHeaderFor(index: number): boolean {
     gapMs < CONTINUATION_MAX_GAP_MS
   );
 }
+
+function showsHeaderFor(index: number): boolean {
+  const message = visibleMessages.value[index];
+  if (!message) return true;
+  return startsNewTurn(message, visibleMessages.value[index - 1]);
+}
 const hiddenOlderCount = computed(() =>
   Math.max(0, settledMessages.value.length - visibleCount.value),
 );
+
+// TURN folding (Chad, 2026-08-09): every turn folds to its header strip —
+// author, first-line preview, time, chevron. Only the LATEST turn is open by
+// default; a manual toggle overrides its turn from then on (so an arriving
+// turn folds the previous one unless the user pinned it open). A turn = a
+// header row + its continuations (the showsHeaderFor grouping), keyed by its
+// first row's id.
+// Keys derive from the FULL settled history, not the window — revealing an
+// older page must never re-key a turn cut at the window boundary (that would
+// orphan a manual fold override, the Gate-3 catch).
+const turnKeyByMessageId = computed(() => {
+  const keys = new Map<string, string>();
+  let current: string | null = null;
+  settledMessages.value.forEach((message, index) => {
+    if (
+      current === null ||
+      startsNewTurn(message, settledMessages.value[index - 1])
+    ) {
+      current = message.id;
+    }
+    keys.set(message.id, current);
+  });
+  return keys;
+});
+const latestTurnKey = computed(() => {
+  const last = settledMessages.value.at(-1);
+  return last === undefined
+    ? null
+    : (turnKeyByMessageId.value.get(last.id) ?? null);
+});
+const collapseOverrides = ref(new Map<string, boolean>());
+
+function turnKeyAt(index: number): string {
+  const message = visibleMessages.value[index];
+  if (message === undefined) return "";
+  return turnKeyByMessageId.value.get(message.id) ?? message.id;
+}
+
+function isTurnExpanded(turnKey: string): boolean {
+  return (
+    collapseOverrides.value.get(turnKey) ?? turnKey === latestTurnKey.value
+  );
+}
+
+function toggleTurn(turnKey: string) {
+  const next = new Map(collapseOverrides.value);
+  next.set(turnKey, !isTurnExpanded(turnKey));
+  collapseOverrides.value = next;
+}
+
+function expandTurnOf(messageId: string) {
+  const key = turnKeyByMessageId.value.get(messageId);
+  if (key === undefined || isTurnExpanded(key)) return;
+  const next = new Map(collapseOverrides.value);
+  next.set(key, true);
+  collapseOverrides.value = next;
+}
+
+// The folded strip's preview when the turn's HEADER row has no text (a turn
+// opening with tool calls): the first non-empty body among the turn's rows,
+// else the turn's first tool call as a one-line summary ("Read CLAUDE.md") —
+// an empty strip tells the user nothing about what's behind the chevron.
+const turnPreviewFallbacks = computed(() => {
+  const bodyLines = new Map<string, string>();
+  const toolLines = new Map<string, string>();
+  for (const message of settledMessages.value) {
+    const turnKey = turnKeyByMessageId.value.get(message.id) ?? message.id;
+    if (!bodyLines.has(turnKey)) {
+      // Marker-stripped, matching the row's own displayBody — the model-facing
+      // "[Report from …]" line must never surface as a strip preview.
+      const firstLine = stripReportMessageMarker(message.body)
+        .split("\n")
+        .find((line) => line.trim() !== "");
+      if (firstLine !== undefined) bodyLines.set(turnKey, firstLine);
+    }
+    if (!toolLines.has(turnKey)) {
+      const firstCall = props.toolCallsByMessageId[message.id]?.[0];
+      if (firstCall !== undefined) {
+        const { verb, argument } = presentToolCall(firstCall);
+        toolLines.set(
+          turnKey,
+          argument === null ? verb : `${verb} ${argument}`,
+        );
+      }
+    }
+  }
+  return { bodyLines, toolLines };
+});
+
+function turnPreviewFallbackFor(turnKey: string): string | null {
+  const { bodyLines, toolLines } = turnPreviewFallbacks.value;
+  return bodyLines.get(turnKey) ?? toolLines.get(turnKey) ?? null;
+}
 
 function scrollToBottom(behavior: ScrollBehavior = "auto") {
   const element = scroller.value;
@@ -201,8 +399,12 @@ function onScroll() {
 
 // The stream mounts with its history already loaded (the host v-ifs it behind
 // the fetch), so the growth watchers below never see that first fill — open at
-// the latest message explicitly.
+// the latest message explicitly. NOT when a pointer anchor owns the open
+// position: the landing watch resolves on the SAME flush and this bottom
+// scroll would attach after it and win the race, silently yanking the view
+// off the anchor (the reviewer-caught mount-scroll race).
 onMounted(async () => {
+  if (props.scrollToTraceId != null) return;
   await nextTick();
   scrollToBottom();
 });
@@ -243,6 +445,36 @@ watch(
     scrollToBottom();
   },
 );
+
+// The pointer's landing (redesign Case 1): reveal + scroll to the row carrying
+// the anchor trace key and flash it — once per anchor; the scroll handler
+// unpins from the bottom naturally. An older-than-window anchor reveals the
+// full history first, then the re-fired watch lands on it.
+let landedTraceId: string | null = null;
+watch(
+  () => [props.scrollToTraceId, visibleMessages.value.length] as const,
+  async ([traceId]) => {
+    if (traceId == null || landedTraceId === traceId) return;
+    // A folded turn hides its rows — unfold the anchor's turn first so the
+    // landing has a row to land on.
+    const anchorRow = visibleMessages.value.find(
+      (message) => message.partialSessionId === traceId,
+    );
+    if (anchorRow !== undefined) expandTurnOf(anchorRow.id);
+    await nextTick();
+    const row = scroller.value?.querySelector(`[data-trace-id="${traceId}"]`);
+    if (!(row instanceof HTMLElement)) {
+      if (hiddenOlderCount.value > 0)
+        visibleCount.value = props.messages.length;
+      return;
+    }
+    landedTraceId = traceId;
+    row.scrollIntoView({ block: "center" });
+    row.classList.add("pointer-anchor-flash");
+    window.setTimeout(() => row.classList.remove("pointer-anchor-flash"), 1600);
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -256,39 +488,40 @@ watch(
         </p>
 
         <template v-for="(message, index) in visibleMessages" :key="message.id">
+          <!-- A folded turn renders only its header row (the strip); its
+               continuations wait behind the chevron. Pointers render
+               regardless — a tracker never hides with its turn. -->
           <MessageRow
+            v-if="showsHeaderFor(index) || isTurnExpanded(turnKeyAt(index))"
             :message="message"
+            :data-trace-id="message.partialSessionId ?? undefined"
             :class="{ 'is-continuation': !showsHeaderFor(index) }"
             :assistant-name="props.assistantName"
             :assistant-icon-url="props.assistantIconUrl"
+            :author-persona="authorPersonaFor(message)"
+            :workspace-badge="workspaceBadgeFor(message)"
             :show-header="showsHeaderFor(index)"
-            :show-watch-chip="showsWatchChipFor(message)"
-            :linked-session-live="
-              message.partialSessionId != null &&
-              liveSessions.liveFor(message.partialSessionId) !== null
-            "
-            @open-session="(id) => emit('openSession', id)"
-            @open-report="(report) => emit('openReport', report)"
+            :collapsible="showsHeaderFor(index)"
+            :collapsed="!isTurnExpanded(turnKeyAt(index))"
+            :preview-fallback="turnPreviewFallbackFor(turnKeyAt(index))"
+            @toggle-collapse="toggleTurn(turnKeyAt(index))"
           >
             <template
               v-if="props.toolCallsByMessageId[message.id]?.length"
               #tool-calls
             >
-              <!-- Every Agent card gets a Watch chip: traced rows open over
-                   the delegation's trace channel, direct rows over the
-                   session itself (agentWatchSourceFor). -->
               <ToolCallList
                 class="tool-list"
                 :tool-calls="props.toolCallsByMessageId[message.id] ?? []"
-                watchable-agents
-                @watch-agent="
-                  (toolCall) =>
-                    emit('watchAgent', agentWatchSourceFor(message), toolCall.toolUseId)
-                "
-                @open-delegation="(id) => emit('openSession', id)"
               />
             </template>
           </MessageRow>
+          <PointerRow
+            v-for="pointer in pointersByMessageId.get(message.id) ?? []"
+            :key="pointer.partialSessionId"
+            :pointer="pointer"
+            @open="emit('openPointer', pointer)"
+          />
         </template>
 
         <template v-if="props.activeTurn">
@@ -315,7 +548,13 @@ watch(
         class="jump-to-latest"
         @click="scrollToBottom('smooth')"
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
           <path
             d="M3 6l5 5 5-5"
             stroke="currentColor"
@@ -340,6 +579,10 @@ watch(
 .thread-scroller {
   height: 100%;
   overflow-y: auto;
+  /* The thread never side-scrolls — text reflows to the host's width (the
+     sidebar is narrow and resizable); wide content scrolls inside its own
+     card, never the whole column. */
+  overflow-x: hidden;
 }
 
 .thread-column {
@@ -348,6 +591,12 @@ watch(
   padding: 24px 24px 16px;
   display: grid;
   gap: 20px;
+}
+
+/* Grid items default min-width:auto — one nowrap preview or long token would
+   floor the column track past the container and side-scroll every row. */
+.thread-column > * {
+  min-width: 0;
 }
 
 .older-note {
@@ -416,6 +665,19 @@ watch(
   .jump-pill-enter-active,
   .jump-pill-leave-active {
     transition: none;
+  }
+}
+/* The pointer's landing flash — a brief gold wash on the anchor row (gold =
+   presence: the row the live task started from). */
+:deep(.pointer-anchor-flash) {
+  animation: pointer-anchor-flash 1.6s ease-out;
+}
+@keyframes pointer-anchor-flash {
+  0% {
+    background: var(--gold-soft);
+  }
+  100% {
+    background: transparent;
   }
 }
 </style>

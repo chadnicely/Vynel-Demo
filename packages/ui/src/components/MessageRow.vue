@@ -1,32 +1,26 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
-import { stripReportMessageMarker } from "@vynel/contracts/chat/report-message-marker";
+import {
+  isDirectMessageBody,
+  isUpdateMessageBody,
+  stripReportMessageMarker,
+} from "@vynel/contracts/chat/report-message-marker";
+import { deriveMessageOrigin } from "@vynel/contracts/chat/message-origin";
 import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
-import PresenceDot from "./PresenceDot.vue";
 import AttachmentChips from "./AttachmentChips.vue";
 import ClaudeMark from "./ClaudeMark.vue";
-import {
-  workspaceAccentVar,
-  workspaceNameFromLabel,
-} from "../lib/workspace-color.js";
+import Tooltip from "./Tooltip.vue";
 import { formatMessageTimestamp } from "../lib/format-timestamp.js";
+import { splitSourceLabel } from "../lib/source-label.js";
 
-// Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening): a
-// thread shows chips only for its DIRECT children's work — never for the
-// delegation that targeted itself (that's its parent's watch). The row can't
-// know which side of that line it sits on, so the host (ThreadStream, which
-// sees the whole thread) passes `showWatchChip`. This is NOT the old Slice-④
-// per-surface suppression: the accent + author identity always render.
+// Watch chips retired with the live-tracking redesign: tracking is a POINTER
+// under the hand-off row (ThreadStream renders it); a settled row carries
+// only its author identity, accent, and content.
 const props = withDefaults(
   defineProps<{
     message: ChatMessageResponse;
-    /** True while the linked session is streaming — the chip pulses gold. */
-    linkedSessionLive?: boolean | undefined;
-    /** False when the row belongs to a delegation that targeted THIS thread
-     *  (the parent's watch — pipeline scoping above). Default: chip renders. */
-    showWatchChip?: boolean;
     /** The surface's own assistant author — ordinary rows carry no sourceKind,
      *  so the host names who speaks here (the global thread passes "Claude",
      *  a workspace room its manager persona). */
@@ -39,22 +33,53 @@ const props = withDefaults(
      *  host groups consecutive same-author rows under ONE author line, so a
      *  reloaded thread reads like the live overlay (one "Claude:", N blocks). */
     showHeader?: boolean;
+    /** The PERSONA-attributed author's visual identity (persona-sessions B8):
+     *  the host resolves the row's sourceLabel to an image or monogram, and a
+     *  report/update/persona row wears IT instead of the blanket Claude mark.
+     *  Null keeps the pre-B8 fallbacks. `accentVar` is the custom-property
+     *  NAME (`--ws-3`) — this template wraps it in `var()` itself. */
+    authorPersona?: {
+      imageUrl: string | null;
+      monogram: string;
+      accentVar: string;
+    } | null;
+    /** The row's WORKSPACE identity chip (delivered colleague rows): the host
+     *  resolves the label's workspace segment to an icon/monogram + accent —
+     *  the chip's hover shows a small profile card, and the author line drops
+     *  the workspace text (the chip carries it). Null hides the chip. */
+    workspaceBadge?: {
+      name: string;
+      imageUrl: string | null;
+      monogram: string;
+      accentVar: string;
+    } | null;
+    /** TURN folding (Chad, 2026-08-09): true on a turn's header row — the
+     *  header grows the time+chevron toggle at its right edge. */
+    collapsible?: boolean;
+    /** Folded: only the header strip renders — author, first-line preview,
+     *  time, chevron. The body, attachments, and tool calls stay hidden. */
+    collapsed?: boolean;
+    /** The strip's preview when THIS row's body is empty (a turn that opens
+     *  with tool calls): the host, which sees the whole turn, hands the first
+     *  meaningful line — a later row's text or a tool summary. */
+    previewFallback?: string | null;
   }>(),
   {
-    linkedSessionLive: undefined,
-    showWatchChip: true,
     assistantName: "Assistant",
     assistantIconUrl: null,
     showHeader: true,
+    authorPersona: null,
+    workspaceBadge: null,
+    collapsible: false,
+    collapsed: false,
+    previewFallback: null,
   },
 );
 
 const emit = defineEmits<{
-  /** The delegation chip: open the linked session's live view. */
-  openSession: [sessionId: string];
-  /** The report box's "View report" chip: open the full report (the shared
-   *  review dialog — the plan-card pattern). Content rides along; no fetch. */
-  openReport: [report: { sourceLabel: string; body: string }];
+  /** The turn header's fold toggle (thread-wide turn collapsing — the host
+   *  owns which turns are open; this row only reports the click). */
+  toggleCollapse: [];
 }>();
 
 // An inbound REPORT — a workspace's or agent's finished result arriving as
@@ -77,8 +102,25 @@ const isInboundReport = computed(() => {
 // ("Noah · vynel") — never "Assistant · X".
 const roleLabel = computed(() => {
   if (props.message.role === "user") {
-    if (props.message.sourceKind === "global-root") return "From Claude";
-    if (isInboundReport.value) return props.message.sourceLabel!;
+    // A routed task's anchor row: Claude relayed the ask (redesign Q1). The
+    // origin scope renders only when the stamp CARRIES one — an unlabeled
+    // legacy stamp stays scope-silent rather than claiming "from Global" for
+    // a workspace-origin dispatch.
+    if (props.message.sourceKind === "global-root")
+      return props.message.sourceLabel
+        ? `Claude · from ${props.message.sourceLabel}`
+        : "Claude";
+    if (isInboundReport.value) {
+      // With a workspace chip beside the name, the label shows the PERSONA
+      // part only — the workspace moved into the chip + its hover card.
+      return props.workspaceBadge !== null
+        ? splitSourceLabel(props.message.sourceLabel!).persona
+        : props.message.sourceLabel!;
+    }
+    // A mention lands as the USER speaking directly into this conversation,
+    // labeled with where it came from (redesign Case 3).
+    if (props.message.sourceKind === "user" && props.message.sourceLabel)
+      return `You · from ${props.message.sourceLabel}`;
     return "You";
   }
   if (props.message.sourceKind === "global-root") return "Claude";
@@ -87,30 +129,57 @@ const roleLabel = computed(() => {
       props.message.sourceKind === "agent") &&
     props.message.sourceLabel
   ) {
-    return props.message.sourceLabel;
+    // Same rule as the inbound branch: with a workspace chip beside the
+    // name, the label keeps only the persona part — a persona speaking in
+    // its own room reads exactly like its delivered rows elsewhere.
+    return props.workspaceBadge !== null
+      ? splitSourceLabel(props.message.sourceLabel).persona
+      : props.message.sourceLabel;
   }
   return props.assistantName;
 });
 
 const isAssistant = computed(() => props.message.role === "assistant");
 
-// The glyph beside assistant-authored lines: the surface's custom persona
-// image only when the row speaks AS that persona; every other assistant
-// author (reports, global-root) wears the Claude mark — it's all Claude
-// underneath. User lines get no glyph.
-const authorAvatar = computed<{ imageUrl: string | null } | null>(() => {
+// A row spoken BY a named persona (a workspace manager or an agent colleague)
+// — either shape: the assistant-role reply or the user-role inbound delivery.
+const isPersonaAuthor = computed(
+  () =>
+    (props.message.sourceKind === "workspace-manager" ||
+      props.message.sourceKind === "agent") &&
+    !!props.message.sourceLabel &&
+    (props.message.role === "assistant" || isInboundReport.value),
+);
+
+// The glyph beside authored lines: a persona row wears ITS persona (the
+// host-resolved image or monogram — B8), the surface's own assistant its
+// custom image, and everything else the Claude mark — it's all Claude
+// underneath. Plain user lines get no glyph.
+type AuthorGlyph =
+  | { kind: "image"; imageUrl: string }
+  | { kind: "monogram"; monogram: string; accentVar: string }
+  | { kind: "claude" }
+  | null;
+
+const authorGlyph = computed<AuthorGlyph>(() => {
   if (props.message.role === "user" && !isInboundReport.value) return null;
+  if (isPersonaAuthor.value && props.authorPersona) {
+    return props.authorPersona.imageUrl
+      ? { kind: "image", imageUrl: props.authorPersona.imageUrl }
+      : {
+          kind: "monogram",
+          monogram: props.authorPersona.monogram,
+          accentVar: props.authorPersona.accentVar,
+        };
+  }
   const speaksAsSurfaceAssistant =
     props.message.role === "assistant" &&
     props.message.sourceKind !== "global-root" &&
-    !(
-      (props.message.sourceKind === "workspace-manager" ||
-        props.message.sourceKind === "agent") &&
-      props.message.sourceLabel
-    );
-  return {
-    imageUrl: speaksAsSurfaceAssistant ? (props.assistantIconUrl ?? null) : null,
-  };
+    !isPersonaAuthor.value;
+  if (speaksAsSurfaceAssistant && props.assistantIconUrl) {
+    return { kind: "image", imageUrl: props.assistantIconUrl };
+  }
+  return { kind: "claude" };
 });
 
 // When this message happened — quiet meta beside the author, so a reopened
@@ -128,20 +197,6 @@ const displayBody = computed(() =>
     : props.message.body,
 );
 
-// The report box is COMPACT (pipeline model, Chad 2026-07-27): a teaser line,
-// not the full body — the thread stays a conversation; the full report opens
-// in the shared review dialog via the chip below.
-const REPORT_TEASER_LIMIT = 180;
-const reportTeaser = computed(() => {
-  if (!isInboundReport.value) return null;
-  const firstLine =
-    displayBody.value.split("\n").find((line) => line.trim() !== "") ?? "";
-  const plain = firstLine.replace(/[#*_`>]/g, "").trim();
-  return plain.length > REPORT_TEASER_LIMIT
-    ? `${plain.slice(0, REPORT_TEASER_LIMIT)}…`
-    : plain;
-});
-
 // A user message that arrived through a channel wears a small "via X" badge —
 // origin is HOW it reached the brain (voice daemon, Telegram), distinct from
 // who wrote it. The app composer is the default surface: no badge. Keyed on
@@ -156,185 +211,455 @@ const ORIGIN_LABELS: Record<
   zoom: "Zoom",
 };
 
+// The ONE reading of "who spoke this, from where" (contracts A10) — a
+// session-relayed row is never "via Telegram" even if a channel marker rode
+// along; only a genuinely user-typed channel message wears the badge. System
+// rows sit outside the origin vocabulary (never badged).
+const messageOrigin = computed(() => {
+  const role = props.message.role;
+  if (role !== "user" && role !== "assistant") return null;
+  return deriveMessageOrigin({
+    role,
+    sourceKind: props.message.sourceKind ?? null,
+    sourceLabel: props.message.sourceLabel ?? null,
+    originChannel: props.message.originChannel ?? null,
+  });
+});
+
 const originBadge = computed(() => {
-  const origin = props.message.originChannel;
-  if (props.message.role !== "user" || !origin) return null;
-  return { kind: origin, label: ORIGIN_LABELS[origin] };
+  if (messageOrigin.value?.origin !== "channel") return null;
+  const kind = props.message.originChannel!;
+  return { kind, label: ORIGIN_LABELS[kind] };
 });
 
-const linkedSessionId = computed(() => props.message.partialSessionId ?? null);
+// An interim UPDATE (the child's spoken ack/progress) wears its own badge —
+// it must never read as the finished result.
+const isInboundUpdate = computed(
+  () => isInboundReport.value && isUpdateMessageBody(props.message.body),
+);
 
-// The chip names the actual work when the serve-time enrichment carried the
-// delegated task ("vynel · Set up the login page"); the persona-first
-// sourceLabel keeps only its workspace segment — the persona already speaks
-// in the row's author line. Fallbacks keep the old labels for rows without
-// a task (job pruned, pre-enrichment history).
-const watchChipLabel = computed(() => {
-  const task = props.message.delegationTaskLabel;
-  if (task) {
-    const workspace = props.message.sourceLabel
-      ? workspaceNameFromLabel(props.message.sourceLabel)
-      : null;
-    return workspace ? `${workspace} · ${task}` : task;
-  }
-  return props.message.sourceLabel
-    ? `Watch ${props.message.sourceLabel}`
-    : "Watch this session";
+// A DIRECT message (kind `direct_to_user`) — the sender speaking TO the user,
+// not reporting to its requester; the badge says so.
+const isInboundDirect = computed(
+  () => isInboundReport.value && isDirectMessageBody(props.message.body),
+);
+
+// EVERY delivered message renders as a tool-card-style collapsible (Chad,
+// 2026-08-09, his mock — reports first, then "same to message and update"):
+// a kind ICON + the lead line as the TITLE, chevron at the line's end, the
+// body expanding in place below. The header badges retire — the icon carries
+// the kind. A body whose remainder is small renders whole as the title line
+// (no pointless chevron on a two-line update).
+const FOLD_REMAINDER_MIN = 120;
+const inboundCardParts = computed(() => {
+  if (!isInboundReport.value) return null;
+  const body = displayBody.value;
+  const splitAt = body.indexOf("\n\n");
+  if (splitAt === -1) return { title: body, remainder: null };
+  const remainder = body.slice(splitAt + 2);
+  if (remainder.trim().length < FOLD_REMAINDER_MIN)
+    return { title: body, remainder: null };
+  return { title: body.slice(0, splitAt), remainder };
 });
 
-// A report bubbled up from a workspace/agent wears that workspace's stable
-// accent (left bar + chip tint) so it reads as belonging to it — on every
-// surface, the workspace's own room included (chip parity above). This covers
-// BOTH shapes a report takes: an assistant-role row (a persona speaking) and
-// the user-role inbound of a notify turn (session-comms delivery). The global
-// brain and the user stay neutral regardless.
-const accentVar = computed(() => {
-  const { role, sourceKind, sourceLabel } = props.message;
-  const isWorkspaceReport =
-    (role === "assistant" || isInboundReport.value) &&
-    (sourceKind === "workspace-manager" || sourceKind === "agent") &&
-    !!sourceLabel;
-  return isWorkspaceReport ? workspaceAccentVar(sourceLabel!) : null;
+// The title line reads as plain text — markdown control chars stripped, the
+// same cleanup the old teaser used.
+const inboundCardTitle = computed(() =>
+  inboundCardParts.value === null
+    ? null
+    : inboundCardParts.value.title.replace(/[#*_`>]/g, "").trim(),
+);
+
+const inboundKindWord = computed(() =>
+  isInboundUpdate.value
+    ? "update"
+    : isInboundDirect.value
+      ? "message"
+      : "report",
+);
+
+const isExpanded = ref(false);
+
+// The run-stats hover card (Chad, 2026-08-09): the info icon beside the
+// workspace chip reveals the PRODUCING run's stats — served on delivered rows.
+function formatTokenCount(count: number): string {
+  return count >= 1000
+    ? `${(count / 1000).toFixed(1).replace(/\.0$/, "")}k`
+    : String(count);
+}
+
+function formatRunDuration(ms: number): string {
+  if (ms < 1000) return "<1s";
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
+}
+
+const runTokensLabel = computed(() => {
+  const stats = props.message.runStats;
+  if (stats == null) return null;
+  if (stats.inputTokens === null && stats.outputTokens === null) return "—";
+  return `${formatTokenCount(stats.inputTokens ?? 0)} in · ${formatTokenCount(
+    stats.outputTokens ?? 0,
+  )} out`;
+});
+
+const runDurationLabel = computed(() =>
+  props.message.runStats?.durationMs != null
+    ? formatRunDuration(props.message.runStats.durationMs)
+    : "still running",
+);
+
+// The folded strip's one-line preview — the first non-empty line of the
+// display body (marker already stripped), the card-title cleanup applied.
+// A body-less header row (a turn opening with tool calls) shows the host's
+// fallback — the turn's first meaningful line — instead of an empty strip.
+const collapsedPreview = computed(() => {
+  if (!props.collapsed) return null;
+  const firstLine =
+    displayBody.value.split("\n").find((line) => line.trim() !== "") ??
+    props.previewFallback ??
+    "";
+  return firstLine.replace(/[#*_`>]/g, "").trim();
 });
 </script>
 
 <template>
   <div
     class="message-row"
-    :class="[
-      `role-${props.message.role}`,
-      { 'has-accent': accentVar, 'is-report': isInboundReport },
-    ]"
-    :style="accentVar ? { '--accent': accentVar } : undefined"
+    :class="[`role-${props.message.role}`, { 'is-report': isInboundReport }]"
   >
-    <div v-if="props.showHeader" class="row-header">
-    <p class="role-label">
-      <span v-if="authorAvatar" class="author-avatar" aria-hidden="true">
-        <img v-if="authorAvatar.imageUrl" :src="authorAvatar.imageUrl" alt="" />
-        <ClaudeMark v-else :size="14" />
-      </span>
-      {{ roleLabel }}
-      <span v-if="originBadge" class="origin-badge">
-        <!-- Inline glyphs keep @vynel/ui icon-library-free -->
-        <svg
-          v-if="originBadge.kind === 'voice'"
-          width="10"
-          height="10"
-          viewBox="0 0 16 16"
-          fill="none"
+    <div
+      v-if="props.showHeader"
+      class="row-header"
+      :class="{ 'is-collapsible': props.collapsible }"
+      @click="props.collapsible ? emit('toggleCollapse') : undefined"
+    >
+      <p class="role-label">
+        <span
+          v-if="authorGlyph"
+          class="author-avatar"
+          :style="
+            authorGlyph.kind === 'monogram'
+              ? {
+                  background: `color-mix(in srgb, var(${authorGlyph.accentVar}) 30%, transparent)`,
+                }
+              : undefined
+          "
           aria-hidden="true"
         >
-          <rect
-            x="5.75"
-            y="1.5"
-            width="4.5"
-            height="8"
-            rx="2.25"
-            stroke="currentColor"
-            stroke-width="1.4"
+          <img
+            v-if="authorGlyph.kind === 'image'"
+            :src="authorGlyph.imageUrl"
+            alt=""
           />
-          <path
-            d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14"
-            stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linecap="round"
-          />
-        </svg>
-        <svg
-          v-else
-          width="10"
-          height="10"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
+          <span
+            v-else-if="authorGlyph.kind === 'monogram'"
+            class="monogram-text"
+            >{{ authorGlyph.monogram }}</span
+          >
+          <ClaudeMark v-else :size="14" />
+        </span>
+        {{ roleLabel }}
+        <!-- The WORKSPACE chip (Chad, 2026-08-09): the label's workspace text
+           became an icon; hover shows the profile card. -->
+        <Tooltip v-if="props.workspaceBadge" side="bottom" :delay-ms="150">
+          <template #content>
+            <span class="hover-card">
+              <span
+                class="hover-card-chip"
+                :style="{
+                  background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
+                }"
+              >
+                <img
+                  v-if="props.workspaceBadge.imageUrl"
+                  :src="props.workspaceBadge.imageUrl"
+                  alt=""
+                />
+                <span v-else>{{ props.workspaceBadge.monogram }}</span>
+              </span>
+              <span class="hover-card-title">{{
+                props.workspaceBadge.name
+              }}</span>
+              <span class="hover-card-caption">Workspace</span>
+            </span>
+          </template>
+          <span
+            class="workspace-badge"
+            :style="{
+              background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
+            }"
+            :aria-label="`workspace ${props.workspaceBadge.name}`"
+          >
+            <img
+              v-if="props.workspaceBadge.imageUrl"
+              :src="props.workspaceBadge.imageUrl"
+              alt=""
+            />
+            <span v-else class="badge-monogram">{{
+              props.workspaceBadge.monogram
+            }}</span>
+          </span>
+        </Tooltip>
+        <!-- The run-stats door: hover reveals the producing run's metadata. -->
+        <Tooltip v-if="props.message.runStats" side="bottom" :delay-ms="150">
+          <template #content>
+            <span class="hover-card stats-card">
+              <span class="stats-row">
+                <span class="stats-key">Model</span>
+                <span>{{ props.message.runStats.model ?? "default" }}</span>
+              </span>
+              <span class="stats-row">
+                <span class="stats-key">Tool calls</span>
+                <span>{{ props.message.runStats.toolCallCount }}</span>
+              </span>
+              <span class="stats-row">
+                <span class="stats-key">Tokens</span>
+                <span>{{ runTokensLabel }}</span>
+              </span>
+              <span class="stats-row">
+                <span class="stats-key">Took</span>
+                <span>{{ runDurationLabel }}</span>
+              </span>
+            </span>
+          </template>
+          <span class="run-info" aria-label="run details">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <circle
+                cx="8"
+                cy="8"
+                r="6.25"
+                stroke="currentColor"
+                stroke-width="1.3"
+              />
+              <path
+                d="M8 7.4v3.1M8 5.3v.2"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+              />
+            </svg>
+          </span>
+        </Tooltip>
+        <span v-if="originBadge" class="origin-badge">
+          <!-- Inline glyphs keep @vynel/ui icon-library-free -->
+          <svg
+            v-if="originBadge.kind === 'voice'"
+            width="10"
+            height="10"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <rect
+              x="5.75"
+              y="1.5"
+              width="4.5"
+              height="8"
+              rx="2.25"
+              stroke="currentColor"
+              stroke-width="1.4"
+            />
+            <path
+              d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14"
+              stroke="currentColor"
+              stroke-width="1.4"
+              stroke-linecap="round"
+            />
+          </svg>
+          <svg
+            v-else
+            width="10"
+            height="10"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M14.5 1.5L1.5 6.8l4 1.7 1.7 4 2.1-3 3.2 2.3 2-10.3z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+          </svg>
+          via {{ originBadge.label }}
+        </span>
+      </p>
+      <span v-if="collapsedPreview" class="turn-preview">{{
+        collapsedPreview
+      }}</span>
+      <span class="header-meta">
+        <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
+        <button
+          v-if="props.collapsible"
+          type="button"
+          class="collapse-toggle"
+          :aria-expanded="!props.collapsed"
+          aria-label="fold or unfold this message"
+          @click.stop="emit('toggleCollapse')"
         >
-          <path
-            d="M14.5 1.5L1.5 6.8l4 1.7 1.7 4 2.1-3 3.2 2.3 2-10.3z"
-            stroke="currentColor"
-            stroke-width="1.3"
-            stroke-linejoin="round"
-          />
-        </svg>
-        via {{ originBadge.label }}
+          <svg
+            class="collapse-chevron"
+            :class="{ 'is-open': !props.collapsed }"
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
       </span>
-      <!-- Quiet provenance mark: this row is a delivered result, not typed input. -->
-      <span v-if="isInboundReport" class="origin-badge">Report</span>
-    </p>
-    <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
     </div>
 
-    <ThinkingBlock
-      v-if="props.message.thinkingBody"
-      :text="props.message.thinkingBody"
-      class="thinking"
-    />
+    <!-- Folded: only the header strip above renders — everything below waits
+         behind the chevron. -->
+    <template v-if="!props.collapsed">
+      <ThinkingBlock
+        v-if="props.message.thinkingBody"
+        :text="props.message.thinkingBody"
+        class="thinking"
+      />
 
-    <MarkdownText v-if="isAssistant" :source="displayBody" />
-    <!-- A report renders as a COMPACT incoming box: teaser + the door to the
-         full report (the shared review dialog) — never the full body inline. -->
-    <template v-else-if="isInboundReport">
-      <p v-if="reportTeaser" class="report-teaser">{{ reportTeaser }}</p>
-      <button
-        type="button"
-        class="report-open-chip"
-        @click="
-          emit('openReport', {
-            sourceLabel: props.message.sourceLabel!,
-            body: displayBody,
-          })
-        "
-      >
-        <span>View report</span>
-        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path
-            d="M6 4l4 4-4 4"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-    </template>
-    <p v-else-if="props.message.body" class="plain-body">
-      {{ props.message.body }}
-    </p>
-
-    <AttachmentChips
-      v-if="props.message.attachedImagesMetadata?.length"
-      :attachments="props.message.attachedImagesMetadata"
-    />
-
-    <button
-      v-if="linkedSessionId && props.showWatchChip"
-      type="button"
-      class="session-link"
-      @click="emit('openSession', linkedSessionId)"
-    >
-      <PresenceDot :state="props.linkedSessionLive ? 'live' : 'idle'" />
-      <span class="session-link-label">{{ watchChipLabel }}</span>
-      <svg
-        width="11"
-        height="11"
-        viewBox="0 0 16 16"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M6 4l4 4-4 4"
-          stroke="currentColor"
-          stroke-width="1.6"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+      <!-- A delivered colleague message renders as a REGULAR participant
+         message (Chad, 2026-08-09 — the compact teaser + View door retired):
+         full markdown body, author line + quiet badge as its identity. A
+         LONG one collapses to its lead paragraph behind an in-place
+         expander — never a popup. -->
+      <MarkdownText v-if="isAssistant" :source="displayBody" />
+      <!-- The delivered-message card (all kinds): kind icon + title line,
+         chevron at the line's end, body expands in place. -->
+      <template v-else-if="isInboundReport && inboundCardParts !== null">
+        <button
+          type="button"
+          class="inbound-card"
+          :class="{ 'is-expandable': inboundCardParts.remainder !== null }"
+          :data-kind="inboundKindWord"
+          :aria-expanded="isExpanded"
+          :disabled="inboundCardParts.remainder === null"
+          @click="isExpanded = !isExpanded"
+        >
+          <!-- UPDATE: a small clock — interim, still running. -->
+          <svg
+            v-if="isInboundUpdate"
+            class="inbound-card-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <circle
+              cx="8"
+              cy="8"
+              r="6.25"
+              stroke="currentColor"
+              stroke-width="1.3"
+            />
+            <path
+              d="M8 4.75V8l2.25 1.5"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <!-- MESSAGE: a speech bubble — the sender talking to the user. -->
+          <svg
+            v-else-if="isInboundDirect"
+            class="inbound-card-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M2.5 4.25c0-.97.78-1.75 1.75-1.75h7.5c.97 0 1.75.78 1.75 1.75v4.5c0 .97-.78 1.75-1.75 1.75H8.5L5 13.25V10.5h-.75c-.97 0-1.75-.78-1.75-1.75z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <!-- REPORT: a document — the finished result. -->
+          <svg
+            v-else
+            class="inbound-card-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 1.5h5.5L13 5v9.5H4z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+            <path d="M9.5 1.5V5H13" stroke="currentColor" stroke-width="1.3" />
+            <path
+              d="M6 8.5h4M6 11h4"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span class="inbound-card-title">{{ inboundCardTitle }}</span>
+          <svg
+            v-if="inboundCardParts.remainder !== null"
+            class="expand-chevron"
+            :class="{ 'is-open': isExpanded }"
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+        <MarkdownText
+          v-if="isExpanded && inboundCardParts.remainder !== null"
+          class="inbound-card-body"
+          :source="inboundCardParts.remainder"
         />
-      </svg>
-    </button>
+      </template>
+      <p v-else-if="props.message.body" class="plain-body">
+        {{ props.message.body }}
+      </p>
 
-    <p v-if="props.message.errorMessage" class="error-note">
-      {{ props.message.errorMessage }}
-    </p>
+      <AttachmentChips
+        v-if="props.message.attachedImagesMetadata?.length"
+        :attachments="props.message.attachedImagesMetadata"
+      />
 
-    <slot name="tool-calls" />
+      <p v-if="props.message.errorMessage" class="error-note">
+        {{ props.message.errorMessage }}
+      </p>
+
+      <slot name="tool-calls" />
+    </template>
   </div>
 </template>
 
@@ -342,25 +667,6 @@ const accentVar = computed(() => {
 .message-row {
   display: grid;
   gap: 6px;
-}
-
-/* The workspace accent bar — a rounded rule down the left edge, marking a
-   report as belonging to its workspace. Color comes from `--accent`
-   (workspace-color.ts), never gold. */
-.message-row.has-accent {
-  position: relative;
-  padding-left: 14px;
-}
-
-.message-row.has-accent::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 2px;
-  bottom: 2px;
-  width: 3px;
-  border-radius: 99px;
-  background: var(--accent);
 }
 
 .role-label {
@@ -387,6 +693,82 @@ const accentVar = computed(() => {
   gap: 8px;
 }
 
+/* TURN folding: a collapsible header is the whole toggle; its time + chevron
+   cluster rides the RIGHT edge (Chad's mock). Non-collapsible headers keep
+   the meta inline after the name — nothing moves for them. */
+.row-header.is-collapsible {
+  cursor: pointer;
+  /* The nowrap preview must never dictate the row's width: as a grid item
+     the header's automatic minimum is its content's min-content, which a
+     long one-line preview inflates past the column (the horizontal-scrollbar
+     bug) — zero the minimum and clip. */
+  min-width: 0;
+  overflow: hidden;
+}
+
+.row-header .role-label {
+  flex: none;
+}
+
+.header-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+
+.row-header.is-collapsible .header-meta {
+  margin-left: auto;
+  /* ONE vertical line for every chevron (Chad's ruler): a plain row's meta
+     insets by the user bubble's padding + border, so bubbled and bare rows
+     land their toggles at the same x. */
+  margin-right: 15px;
+}
+
+.role-user:not(.is-report) .row-header.is-collapsible .header-meta {
+  margin-right: 0;
+}
+
+/* The folded strip's one-line preview — quiet, ellipsized, never wrapping. */
+.turn-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font: 400 13px/1.5 var(--font-ui);
+}
+
+.collapse-toggle {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 2px;
+  display: inline-flex;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+
+.collapse-toggle:hover {
+  color: var(--ink-1);
+}
+
+.collapse-toggle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.collapse-chevron {
+  transition: transform 140ms ease;
+}
+
+.collapse-chevron.is-open {
+  transform: rotate(180deg);
+}
+
 .author-avatar {
   display: grid;
   place-items: center;
@@ -406,11 +788,107 @@ const accentVar = computed(() => {
   object-fit: cover;
 }
 
+/* A persona monogram chip — the inline accent tint replaces the Claude coral
+   (inline style wins over the class default). */
+.monogram-text {
+  color: var(--ink-1);
+  font: 600 9px/1 var(--font-ui);
+  letter-spacing: 0.02em;
+}
+
 .time-label {
   color: var(--ink-3);
   font: 400 10px/1.5 var(--font-ui);
   letter-spacing: 0.02em;
   opacity: 0.85;
+}
+
+/* The workspace identity chip beside the author name — the label's workspace
+   text as an icon (accent-tinted monogram, or the customized image). */
+.workspace-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.workspace-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.badge-monogram {
+  color: var(--ink-1);
+  font: 600 8px/1 var(--font-ui);
+  letter-spacing: 0.02em;
+}
+
+.run-info {
+  display: inline-flex;
+  color: var(--ink-3);
+}
+
+.run-info:hover {
+  color: var(--ink-1);
+}
+
+/* Hover-card content (teleported, but it keeps this component's scope). */
+.hover-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+}
+
+.hover-card-chip {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  overflow: hidden;
+  color: var(--ink-1);
+  font: 600 11px/1 var(--font-ui);
+}
+
+.hover-card-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hover-card-title {
+  color: var(--ink-1);
+  font: 600 12px/1.4 var(--font-ui);
+}
+
+.hover-card-caption {
+  color: var(--ink-3);
+  font: 500 9.5px/1.2 var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stats-card {
+  align-items: stretch;
+  min-width: 150px;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink-1);
+  font: 400 11.5px/1.6 var(--font-ui);
+}
+
+.stats-key {
+  color: var(--ink-3);
 }
 
 /* "via Voice" — a quiet provenance mark beside the author line. */
@@ -441,104 +919,84 @@ const accentVar = computed(() => {
   padding: 10px 14px;
 }
 
-/* An inbound report sheds the "your message" bubble — the user did not write
-   it. The accent bar (always present: a report always names its workspace)
-   and the persona author line carry its identity instead. */
+/* An inbound colleague message sheds the "your message" bubble — the user did
+   not write it. Otherwise it renders as a regular participant message: the
+   persona author line + quiet badge carry its identity, no special chrome. */
 .role-user.is-report {
   background: none;
   border: none;
   border-radius: 0;
-  padding: 0 0 0 14px;
+  padding: 0;
 }
 
 .role-user.is-report .role-label {
   color: var(--ink-3);
 }
 
-/* The compact incoming-report box: one teaser line, ellipsized. */
-.report-teaser {
+/* The delivered-message card — the tool-card treatment: kind icon + the lead
+   line as title, the chevron flowing INLINE right after the last word (the
+   whole line is the toggle), the body unfolding below. Inline display keeps
+   the chevron at the text's end even when the title wraps. */
+.inbound-card {
+  appearance: none;
+  border: 0;
   margin: 0;
+  padding: 0;
+  max-width: 100%;
+  display: inline;
+  text-align: left;
+  background: transparent;
+  color: var(--ink-1);
+  font: 400 13.5px/1.65 var(--font-ui);
+  overflow-wrap: break-word;
+}
+
+.inbound-card.is-expandable {
+  cursor: pointer;
+}
+
+.inbound-card.is-expandable:hover .inbound-card-title {
   color: var(--ink-2);
-  font: 400 13px/1.6 var(--font-ui);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 640px;
 }
 
-/* The door to the full report — the workspace accent frames it (a report
-   always carries its workspace's accent). */
-.report-open-chip {
-  appearance: none;
-  border: 1px solid color-mix(in srgb, var(--accent, var(--gold)) 38%, transparent);
-  margin: 0;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 99px;
-  background: color-mix(in srgb, var(--accent, var(--gold)) 12%, transparent);
-  color: var(--ink-1);
-  font: 600 11.5px/1.5 var(--font-ui);
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
+.inbound-card:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
 }
 
-.report-open-chip:hover {
-  border-color: var(--accent, var(--gold));
-}
-
-.report-open-chip:focus-visible {
-  outline: 2px solid var(--accent, var(--gold));
-  outline-offset: 1px;
-}
-
-.report-open-chip svg {
+.inbound-card-icon {
   color: var(--ink-3);
-  flex: none;
+  vertical-align: -2px;
+  margin-right: 6px;
 }
 
-/* The chip carries the workspace accent (its frame), while its PresenceDot
-   still glows gold when the linked session is live — presence stays gold,
-   identity is the accent. Falls back to gold only where no workspace is known. */
-.session-link {
-  appearance: none;
-  border: 1px solid color-mix(in srgb, var(--accent, var(--gold)) 38%, transparent);
-  margin: 0;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 12px;
-  border-radius: 99px;
-  background: color-mix(in srgb, var(--accent, var(--gold)) 12%, transparent);
-  color: var(--ink-1);
-  font: 600 11.5px/1.5 var(--font-ui);
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.session-link:hover {
-  border-color: var(--accent, var(--gold));
-}
-
-.session-link:focus-visible {
-  outline: 2px solid var(--accent, var(--gold));
-  outline-offset: 1px;
-}
-
-.session-link svg {
+.inbound-card .expand-chevron {
   color: var(--ink-3);
-  flex: none;
+  vertical-align: -2px;
+  margin-left: 5px;
 }
 
-/* Task labels can run long — the chip stays one line and ellipsizes. */
-.session-link-label {
-  max-width: 420px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* The unfolded body breathes and sits under the TITLE text, not the icon —
+   the tool-group inset idiom: a quiet hairline down the icon column. */
+.inbound-card-body {
+  margin: 8px 0 2px 5px;
+  padding-left: 14px;
+  border-left: 1px solid var(--hair);
+}
+
+.expand-chevron {
+  transition: transform 140ms ease;
+}
+
+.expand-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expand-chevron {
+    transition: none;
+  }
 }
 
 .error-note {

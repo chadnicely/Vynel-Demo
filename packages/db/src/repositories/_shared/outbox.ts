@@ -6,7 +6,7 @@
 // Phase 1 SYNC return values per the better-sqlite3 transaction contract
 // in `.claude/memory/decisions/phase-1-sync-transactions.md`.
 
-import { and, asc, desc, eq, gt, inArray, isNull, lt, lte } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or } from 'drizzle-orm'
 import type { Database } from '../../client.js'
 import {
   outboxEvents,
@@ -15,6 +15,12 @@ import {
 } from '../../schema/_shared/outbox-events.js'
 
 export type { OutboxEventRow, NewOutboxEvent } from '../../schema/_shared/outbox-events.js'
+
+/** Hard cap on one windowed read — exported so pagers (the monitor tick) can
+ *  request exactly one full page and detect exhaustion by a short page; a
+ *  local copy of this number would silently break that detection if either
+ *  side drifted. */
+export const OUTBOX_WINDOW_READ_MAX_LIMIT = 500
 
 export function insertOutboxEvent(db: Database, newEvent: NewOutboxEvent): OutboxEventRow {
   const [inserted] = db.insert(outboxEvents).values(newEvent).returning().all()
@@ -98,17 +104,28 @@ export function listRecentOutboxEventsByTypes(
 // match rather than the earliest.
 export function listOutboxEventsByTypesInWindow(
   db: Database,
-  input: { types: string[]; after: Date; through: Date; limit?: number },
+  input: { types: string[]; after: Date; through: Date; afterId?: string; limit?: number },
 ): OutboxEventRow[] {
   if (input.types.length === 0) return []
-  const limit = Math.min(input.limit ?? 200, 500)
+  const limit = Math.min(input.limit ?? 200, OUTBOX_WINDOW_READ_MAX_LIMIT)
+  // Keyset cursor (session-review B5): the read is capped, so a caller scanning
+  // a whole window MUST be able to page without losing rows — `afterId` splits
+  // rows that TIE on the boundary `createdAt` ((createdAt, id) mirrors the
+  // ORDER BY, so pages never skip or repeat).
+  const afterCursor =
+    input.afterId !== undefined
+      ? or(
+          gt(outboxEvents.createdAt, input.after),
+          and(eq(outboxEvents.createdAt, input.after), gt(outboxEvents.id, input.afterId)),
+        )
+      : gt(outboxEvents.createdAt, input.after)
   return db
     .select()
     .from(outboxEvents)
     .where(
       and(
         inArray(outboxEvents.type, input.types),
-        gt(outboxEvents.createdAt, input.after),
+        afterCursor,
         lte(outboxEvents.createdAt, input.through),
       ),
     )

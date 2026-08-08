@@ -1,10 +1,11 @@
-// `runReportDeliveryJob` — runs ONE claimed 'report-delivery' job to a terminal
-// state (session-comms, the revert flow). The notify half of the queue: a
-// child's finished report becomes a REAL TURN on the REQUESTER's conversation —
-// the report is the attributed inbound message ("from" the child), the steer is
-// the report-delivery variant (absorb, act if needed, report up / answer the
-// user — never re-run the work), and the parent model processes the real data
-// in its own flow. Called by `runDelegationClaimAndRunTick` after the claim
+// `runReportDeliveryJob` — runs ONE claimed DELIVERY job (kind
+// 'report-delivery' OR 'update-delivery' — persona-sessions) to a terminal
+// state. The notify half of the queue: a child's message becomes a REAL TURN
+// on the REQUESTER's conversation — the attributed inbound ("from" the child)
+// under the KIND's marker + steer: a report is the FINAL result (absorb, act
+// if needed, report up / answer the user — never re-run the work); an update
+// is interim status (absorb quietly, the task is NOT done, never cascade
+// routine status). Called by `runDelegationClaimAndRunTick` after the claim
 // (which already fired `onRunStarted` — pool slot reserved).
 //
 // TWO requester shapes:
@@ -26,22 +27,33 @@
 // `report_to_requester` tool INSIDE the notify turn (upward-only + the tree
 // topology bound the chain; it terminates at the global root).
 
-import type { Database } from '@vynel/db'
+import { withTransaction, type Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import {
   ApprovalWaitGate,
   completeDelegationJob,
   failDelegationJob,
+  listDelegationJobsByThread,
+  resolveThreadIdOf,
   routeRequest,
   type DelegationJob,
 } from '@vynel/orchestration'
-import type { ChatTurnEvent } from '@vynel/chat'
+import { recordDirectReplyMessage, type ChatTurnEvent } from '@vynel/chat'
+import { findPrimaryConversation } from '../continuity/index.js'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
-import { composeReportMessageMarker } from '@vynel/contracts/chat/report-message-marker'
+import {
+  composeDirectMessageMarker,
+  composeReportMessageMarker,
+  composeUpdateMessageMarker,
+} from '@vynel/contracts/chat/report-message-marker'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import { requeueIfRecoverable } from './classify-turn-failure.js'
-import { REPORT_DELIVERY_INSTRUCTIONS } from './routed-turn-provider-input.js'
+import {
+  DIRECT_DELIVERY_INSTRUCTIONS,
+  REPORT_DELIVERY_INSTRUCTIONS,
+  UPDATE_DELIVERY_INSTRUCTIONS,
+} from './routed-turn-provider-input.js'
 import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
 import {
   buildRoutedApprovalHandler,
@@ -62,6 +74,13 @@ export type RunGlobalRootReportTurn = (input: {
   sourceLabel: string
   /** The delivery job's own trace key — stamped on the notify turn's rows. */
   partialSessionId?: string
+  /** The delegation CHAIN key — stamped beside the trace key (persona-sessions). */
+  threadId?: string
+  /** The delivery variant's steer — the UPDATE steer for an interim ack/progress
+   *  delivery. Omitted = the report steer (the shipped default). */
+  steerInstructions?: string
+  /** The delivery queue row — the notify turn's liveness enrichment. */
+  jobId?: string
 }) => Promise<{ sessionId: string; resultText: string }>
 
 export interface RunReportDeliveryDeps {
@@ -76,7 +95,7 @@ export interface RunReportDeliveryDeps {
     db: Database
     userId: string
     workspaceId: string
-    target: 'workspace-root' | 'spawned-session'
+    target: 'workspace-root' | 'spawned-session' | 'agent-session'
     threadId?: string
     jobId?: string
     targetPrimarySessionId?: string
@@ -92,6 +111,31 @@ export async function runReportDeliveryJob(
   claimed: DelegationJob,
 ): Promise<boolean> {
   const partialSessionId = claimed.partialSessionId ?? undefined
+  const claimedThreadId = resolveThreadIdOf(claimed)
+  // The delivery VARIANT (persona-sessions): an update-delivery row is the
+  // interim sibling — same notify machinery, the update marker + steer, and
+  // the requester must NOT treat the task as finished. A direct-delivery row
+  // (kind `direct_to_user`) is a final answer addressed to the USER — it
+  // skips the notify turn entirely below; its marker + steer matter on the
+  // fallback path only.
+  const isUpdate = claimed.jobKind === 'update-delivery'
+  const isDirect = claimed.jobKind === 'direct-delivery'
+  // A mention chain's reply is direct-natured whatever kind it spoke (the
+  // floor) — computed up here so the notify FALLBACK also runs under the
+  // direct steer, never narrating a reply the user was addressed with.
+  const isMentionChainReply =
+    claimedThreadId !== null &&
+    listDelegationJobsByThread(db, {
+      userId: claimed.userId,
+      threadId: claimedThreadId,
+      unbounded: true,
+    }).some((job) => job.jobKind === 'agent-run')
+  const queueLabel = claimed.jobKind ?? 'report-delivery'
+  const steerInstructions = isUpdate
+    ? UPDATE_DELIVERY_INSTRUCTIONS
+    : isDirect || isMentionChainReply
+      ? DIRECT_DELIVERY_INSTRUCTIONS
+      : REPORT_DELIVERY_INSTRUCTIONS
   // The CHILD's label, resolved at enqueue by the same one-home helpers the
   // push used ('Session' only on a corrupt row — the enqueue op always writes it).
   const sourceLabel = claimed.workspaceName ?? 'Session'
@@ -99,11 +143,69 @@ export async function runReportDeliveryJob(
   // not hold attribution (the 2026-07-27 smoke: the workspace reasoned "the
   // user is reporting back…" and answered the user instead of relaying up).
   // The marker rides ON the message so the model always sees who sent it; the
-  // report card strips it for display.
-  const reportBody = `${composeReportMessageMarker(sourceLabel)}\n\n${claimed.taskText}`
+  // report card strips it for display (and reads its badge off it).
+  const reportBody = `${
+    isUpdate
+      ? composeUpdateMessageMarker(sourceLabel)
+      : isDirect
+        ? composeDirectMessageMarker(sourceLabel)
+        : composeReportMessageMarker(sourceLabel)
+  }\n\n${claimed.taskText}`
   // Captured once for narrowing: null = the GLOBAL root is the requester.
   const requesterWorkspaceId = claimed.workspaceId
   const isGlobalRequester = requesterWorkspaceId === null
+
+  // DIRECT-REPLY mode (live-tracking redesign): the message IS for the user,
+  // so it persists straight onto the root's transcript (the box is the
+  // answer: no notify turn, no re-narration, no root-lock wait). Two doors:
+  // a 'direct-delivery' row — the sender chose kind `direct_to_user` — and
+  // any delivery whose chain's WORK job is an agent-run (a colleague
+  // answering the user's @MENTION delivers direct whatever kind it spoke).
+  // The root absorbs it silently on its next turn via the catch-up net (the
+  // chain's work row stays unsurfaced until then, presented "already shown —
+  // do not restate"). The momentary feed announce below carries no narration —
+  // it exists so every open window's turn-ended invalidation lands the new
+  // row live.
+  if (isGlobalRequester && (isDirect || isMentionChainReply)) {
+    const root = findPrimaryConversation(db, { userId: claimed.userId })
+    let persisted = false
+    if (root?.currentSdkSessionId != null) {
+      // Persist + complete CO-COMMIT: both are plain DB writes, and a crash
+      // between them would requeue the delivery and land the row twice
+      // (the Gate-3 catch — the notify path tolerates at-least-once because
+      // a provider turn sits in the middle; here nothing does).
+      withTransaction(db, (tx) => {
+        persisted = recordDirectReplyMessage(tx, {
+          globalRootSessionId: root.currentSdkSessionId!,
+          body: reportBody,
+          sourceLabel,
+          ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+          ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+        })
+        if (persisted) completeDelegationJob(tx, claimed.id, 'delivered directly', new Date())
+      })
+    }
+    if (persisted) {
+      deps.activityFeed
+        .begin({
+          userId: claimed.userId,
+          scopeKind: 'global',
+          origin: 'delegation',
+          jobId: claimed.id,
+          ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+          ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+          personaName: sourceLabel,
+        })
+        .end()
+      deps.logger.info(
+        { jobId: claimed.id, from: sourceLabel, kind: queueLabel },
+        `${queueLabel}: delivered DIRECTLY to the user (no notify turn)`,
+      )
+      return true
+    }
+    // No root session row to land on — fall through to the notify machinery,
+    // which handles the no-session shapes honestly.
+  }
 
   const cancelHandle =
     deps.cancelRegistry !== undefined && partialSessionId !== undefined
@@ -116,7 +218,7 @@ export async function runReportDeliveryJob(
       requester: isGlobalRequester ? 'global-root' : claimed.workspaceId,
       from: sourceLabel,
     },
-    'report-delivery: claimed — running the notify turn on the requester',
+    `${queueLabel}: claimed — running the notify turn on the requester`,
   )
 
   let approvalHandler: RoutedApprovalHandler | null = null
@@ -132,6 +234,12 @@ export async function runReportDeliveryJob(
           scopeKind: 'workspace',
           workspaceId: requesterWorkspaceId,
           origin: 'delegation',
+          jobId: claimed.id,
+          ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+          ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+          // The notify turn SPEAKS AS the child whose message it delivers; a
+          // delivery body is not a task, so no taskLabel (the labels rule).
+          personaName: sourceLabel,
         })
   try {
     const waitGate = new ApprovalWaitGate()
@@ -163,6 +271,9 @@ export async function runReportDeliveryJob(
               reportBody,
               sourceLabel,
               ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+              ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+              steerInstructions,
+              jobId: claimed.id,
             })
             return { reference: turn.sessionId, resultText: turn.resultText }
           },
@@ -224,12 +335,14 @@ export async function runReportDeliveryJob(
               ...(managerName !== undefined ? { managerName } : {}),
               providerId: DEFAULT_PROVIDER_ID,
               ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+              ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
               ...(mcpAttachment !== undefined ? { mcpAttachment } : {}),
               approvalHandler: handler,
               // The notify variant: inbound row attributed FROM the child +
-              // the report-delivery steer.
+              // the kind's steer (report absorbs a RESULT; update absorbs
+              // interim status without treating the task as done).
               inboundAttribution: { sourceKind: 'workspace-manager', sourceLabel },
-              steerInstructions: REPORT_DELIVERY_INSTRUCTIONS,
+              steerInstructions,
               ...(turnEvents !== undefined ? { turnEvents } : {}),
               ...(turnEvents !== undefined && partialSessionId !== undefined
                 ? {
@@ -258,7 +371,7 @@ export async function runReportDeliveryJob(
       failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
       deps.logger.info(
         { jobId: claimed.id },
-        'report-delivery: stopped by the user at terminal time',
+        `${queueLabel}: stopped by the user at terminal time`,
       )
     } else if (outcome.status === 'completed') {
       // Terminal: the notify turn's reply is the row's result. NO further
@@ -266,13 +379,13 @@ export async function runReportDeliveryJob(
       completeDelegationJob(db, claimed.id, outcome.result, new Date())
       deps.logger.info(
         { jobId: claimed.id, replyPreview: outcome.result.slice(0, 120) },
-        'report-delivery: completed — the requester absorbed the report in its own turn',
+        `${queueLabel}: completed — the requester absorbed it in its own turn`,
       )
     } else if (outcome.status === 'timed-out') {
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
       deps.logger.warn(
         { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-        'report-delivery job timed out (the notify turn keeps running in its own session)',
+        `${queueLabel} job timed out (the notify turn keeps running in its own session)`,
       )
     } else {
       await approvalHandler?.abandonParked()
@@ -283,17 +396,17 @@ export async function runReportDeliveryJob(
       // catch-up net and list_background_runs). A stop never retries.
       if (
         cancelHandle?.isCancelRequested() ||
-        !requeueIfRecoverable(db, claimed, reason, deps.logger, 'report-delivery')
+        !requeueIfRecoverable(db, claimed, reason, deps.logger, queueLabel)
       ) {
         failDelegationJob(db, claimed.id, reason, new Date())
-        deps.logger.warn({ jobId: claimed.id, message: reason }, 'report-delivery job failed')
+        deps.logger.warn({ jobId: claimed.id, message: reason }, `${queueLabel} job failed`)
       }
     }
     return true
   } catch (err) {
     await approvalHandler?.abandonParked()
     failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
-    deps.logger.error({ err, jobId: claimed.id }, 'report-delivery job run threw unexpectedly')
+    deps.logger.error({ err, jobId: claimed.id }, `${queueLabel} job run threw unexpectedly`)
     return true
   } finally {
     cancelHandle?.end()

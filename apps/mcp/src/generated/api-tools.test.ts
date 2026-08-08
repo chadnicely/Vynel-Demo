@@ -58,13 +58,6 @@ import {
 //     add_app / update_app / start_app / stop_app (mutatingApproved — NO
 //     approval cards by design, Chad; the safety story is visibility +
 //     the supervisor's cwd containment). DELETE stays user-only.
-//   - session-comms (2026-07-21): report_to_requester — the UPWARD report tool.
-//     Lives under /routing/ but carries `rootSurface: false`, so it lands HERE
-//     (the plain workspace array) instead of the routing array: delegated
-//     workspace-root turns and workspace-grounded spawned-session turns get it;
-//     the GLOBAL ROOT (which has no requester) never does. Interactive chats
-//     and schedule fires see it too (same array) but carry no caller-identity
-//     header, so the route answers 400 with an actionable note.
 //   - the plans module (2026-07-23): list_plans + list_my_plans (reads) +
 //     create_plan / update_plan / complete_plan (mutatingApproved — the
 //     date-wise layer above tasks; tasks link via their loose planId).
@@ -78,13 +71,14 @@ import {
 //     because the two surfaces are mutually exclusive and a turn that can arm
 //     a watch must be able to stop it. There is no watchable-events tool: the
 //     catalog is inlined into both create descriptions (see watchable-events.ts).
-//   - send_message (2026-07-26): the ONE session-to-session comms tool,
-//     superseding send_task_to_workspace / send_task_to_session /
-//     report_to_requester (all three kept one release as aliases). It is the
-//     first route to carry `x-mcp.workspaceSurface`, which keeps a ROOT tool in
-//     the plain workspace array too — so it has ONE name on EVERY surface
+//   - send_message (2026-07-26; the three aliases it superseded —
+//     send_task_to_workspace / send_task_to_session / report_to_requester —
+//     were REMOVED 2026-08-04, persona-sessions A9): the ONE session-to-session
+//     comms tool. It carries `x-mcp.workspaceSurface`, which keeps a ROOT tool
+//     in the plain workspace array too — so it has ONE name on EVERY surface
 //     (routing + workspace + interactive), which is why it appears in all three
-//     expected lists below rather than exactly one.
+//     expected lists below rather than exactly one. Upward sends from turns
+//     with no caller-identity header answer 400 with an actionable note.
 //   - task 4b exposure (2026-07-26, Chad: "expose all the useful tools"): the
 //     agents module end-to-end (list/get/curated reads + create / install /
 //     update / set-enabled mutations + delete_agent, which rides the
@@ -149,7 +143,6 @@ const EXPECTED_TOOL_NAMES = [
   'list_workspaces',
   'install_marketplace_item',
   'remove_knowledge_source',
-  'report_to_requester',
   'search_chat_messages',
   'search_knowledge',
   'search_memory',
@@ -178,8 +171,8 @@ const EXPECTED_TOOL_NAMES = [
 // user sets up a workspace from the global conversation — rootSurface, mutating
 // → cards) joined 2026-07-05; `speak` (rootSurface — any global session's voice
 // output) joined 2026-07-08; the session-library tools `create_session` /
-// `list_sessions` (rootSurface) + `send_task_to_session` (/routing/) joined
-// 2026-07-21 (Slice ④).
+// `list_sessions` (rootSurface) joined 2026-07-21 (Slice ④); the superseded
+// task/report aliases were removed 2026-08-04 (persona-sessions A9).
 const EXPECTED_ROUTING_TOOL_NAMES = [
   'create_global_monitor',
   'create_session',
@@ -193,8 +186,6 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   // The channel pipeline (2026-07-27): the model replies to the conversation
   // that drove the turn — addressed by the server-stamped ambient origin.
   'reply_to_channel',
-  'send_task_to_session',
-  'send_task_to_workspace',
   'send_message',
   'send_to_channel',
   // The working-steps dock (2026-08-02): `rootSurface` + `workspaceSurface` —
@@ -210,14 +201,15 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
 // `vynelWorkspaceInteractiveDescriptor` composes. They are deliberately NOT in
 // `generatedMcpTools`: that array feeds schedule fires and spawned-session
 // targets, which must never see them (the exclusion test below pins this).
+// send_message reaches interactive turns via the PLAIN array instead —
+// workspaceSurface, not workspaceInteractiveSurface.
 const EXPECTED_WORKSPACE_INTERACTIVE_TOOL_NAMES = [
   'create_session',
   // The agent that can hand work off must be the agent that can read it back —
-  // a workspace root delegates via send_task_to_session, so it needs these too.
+  // a workspace root delegates via send_message, so it needs these too.
   'get_background_run',
   'list_background_runs',
   'list_sessions',
-  'send_task_to_session',
 ] as const
 
 const snakeToCamel = (s: string): string => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
@@ -248,10 +240,21 @@ describe('generatedRoutingMcpTools', () => {
     )
   })
 
-  it('root-surface exclusion holds: report_to_requester never reaches the global root (rootSurface: false — it has no requester)', () => {
-    expect(generatedRoutingMcpTools.map((f) => f.name)).not.toContain('reportToRequester')
-    // …and it DOES ride the plain workspace array (background turns).
-    expect(generatedMcpTools.map((f) => f.name)).toContain('reportToRequester')
+  it('the retired aliases are gone from EVERY array — send_message is the one comms tool', () => {
+    const retired = ['reportToRequester', 'sendTaskToWorkspace', 'sendTaskToSession']
+    const arrays = [
+      generatedMcpTools.map((f) => f.name),
+      generatedRoutingMcpTools.map((f) => f.name),
+      generatedWorkspaceInteractiveMcpTools.map((f) => f.name),
+    ]
+    for (const arrayNames of arrays) {
+      for (const name of retired) expect(arrayNames).not.toContain(name)
+    }
+    // send_message rides the plain + routing arrays (workspaceSurface keeps ONE
+    // name on every surface; interactive turns compose the plain array too).
+    expect(arrays[0]).toContain('sendMessage')
+    expect(arrays[1]).toContain('sendMessage')
+    expect(arrays[2]).not.toContain('sendMessage')
   })
 })
 

@@ -221,10 +221,14 @@ describe('runGlobalRootTurn', () => {
     })
 
     // The feed reports what is actually running — a delegation-driven turn.
+    // test: correct expectation — persona-sessions enriches the delivery
+    // turn's begin with the trace key + the speaking child's name.
     expect(activity.begin).toHaveBeenCalledWith({
       userId: 'u1',
       scopeKind: 'global',
       origin: 'delegation',
+      partialSessionId: 'delivery-trace-1',
+      personaName: 'Acme research',
     })
     const coreInput = coreMock.mock.calls[0]?.[1] as {
       messageAttribution?: Record<string, unknown>
@@ -284,10 +288,13 @@ describe('runGlobalRootTurn', () => {
       partialSessionId: 'delivery-trace-2',
     })
     expect(coreInput.steerPromptAppend).toBe(REPORT_DELIVERY_INSTRUCTIONS)
+    // test: correct expectation — the runner threads the enrichment too.
     expect(activity.begin).toHaveBeenCalledWith({
       userId: 'u1',
       scopeKind: 'global',
       origin: 'delegation',
+      partialSessionId: 'delivery-trace-2',
+      personaName: 'Mark · Acme',
     })
   })
 

@@ -1,24 +1,29 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { PresenceDot, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../chat/ThreadStream.vue";
+import { useOpenPointerTarget } from "../chat/open-pointer-target.js";
 import AppComposer from "../chat/AppComposer.vue";
 import QueuedMessageChips from "../chat/QueuedMessageChips.vue";
 import TodoDock from "../chat/TodoDock.vue";
 import { useSessionDetail } from "../../composables/chat/use-session-detail.js";
+import { useSessionsOverview } from "../../composables/sessions/use-sessions-overview.js";
+import { resolveChainHead } from "../../composables/sessions/resolve-chain-head.js";
 import { useSessionTurn } from "../../composables/sessions/use-session-turn.js";
+import { useWatchedTurn } from "../../composables/chat/use-watched-turn.js";
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
 import { useActivityStore } from "../../stores/activity-store.js";
-import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 
-// A session opened from the Sessions list renders as a NORMAL CHAT — the same
-// ThreadStream/MessageRow path the continue-session chats use (Chad: "no
-// special menus, it's simple"). Settled rows come from the session detail
-// (`root.getSession` — owner-gated, any scope); a composer-driven turn streams
-// through the shared live-turn view. A composer appears only when the session
-// is directly chattable (a spawned chain head — locked decisions 1–3);
+// A session opened from the Sessions list or the monitor's live pane renders
+// as a NORMAL CHAT — the same ThreadStream/MessageRow path the
+// continue-session chats use (Chad: "no special menus, it's simple"). Settled
+// rows come from the session detail (`root.getSession` — owner-gated, any
+// scope); a composer-driven turn streams through the shared live-turn view,
+// and turns the session runs on its OWN (a delegated task draining) stream in
+// through the registry watch. A composer appears only when the session is
+// directly chattable (a spawned chain head — locked decisions 1–3);
 // superseded chain parts render view-only with the head hint.
 const props = defineProps<{
   sessionId: string;
@@ -27,36 +32,98 @@ const props = defineProps<{
   chattable: boolean;
   /** View-only hint (a superseded part, a read-only scope). Null = none. */
   viewOnlyNote: string | null;
+  /** Follow the chain onto a fresh head live (a mid-turn compaction swap
+   *  moves the conversation to a new segment — B6 kills the old accepted
+   *  freeze). False for a deliberately-opened EARLIER part: that view stays
+   *  put on its segment. */
+  followChain: boolean;
+  /** Scroll to the row carrying this trace key on open (the pointer's landing
+   *  — redesign Case 1: "click will scroll to where the partial id is").
+   *  Absent = open at the latest message like any chat. */
+  anchorTraceId?: string | undefined;
 }>();
 
 const activity = useActivityStore();
-const activityMonitor = useActivityMonitorStore();
-const turn = useSessionTurn(() => props.sessionId);
+
+// A pointer in this session's own thread (it delegated work of its own):
+// the one-home opener swaps the sidebar to the target — from the docked pane
+// that REPLACES the node in place (forward-only, no back stack), from the
+// Sessions canvas it opens the sidebar like any thread.
+const openPointerTarget = useOpenPointerTarget();
+
+// Chain-head resolution (B6): the overview names every chain's newest segment;
+// while a turn runs anywhere the list refetches, so a mid-turn swap re-points
+// this view at the fresh head — detail, turn target, and the live watch all
+// key on the RESOLVED id. The quiet note below says when that happened.
+const overviewQuery = useSessionsOverview(
+  () => props.followChain,
+  () => (activity.isTurnRunning ? 5000 : false),
+);
+const resolvedHead = computed(() =>
+  props.followChain
+    ? resolveChainHead(overviewQuery.data.value ?? [], props.sessionId)
+    : null,
+);
+const activeSessionId = computed(
+  () => resolvedHead.value?.headId ?? props.sessionId,
+);
+const continuedNote = computed(() =>
+  resolvedHead.value?.isSuperseded
+    ? "This conversation continued onto a fresh session — showing the newest part."
+    : null,
+);
+
+const turn = useSessionTurn(() => activeSessionId.value);
 
 // A turn running in this session OUTSIDE this composer (a delegated task, a
 // queued job draining) — reported by the activity feed with the session's sdk
-// id. While one runs, poll the thread so its rows appear live (the views'
-// liveness rule; rows persist per chunk server-side).
-// KNOWN + ACCEPTED (reviewer note): both this match and the host's pane key
-// are the OPENED segment id — a mid-turn compaction swap moves the chain onto
-// a fresh segment this pane doesn't track, so the poll stops and the thread
-// freezes until the session is reopened from the list (which always resolves
-// the current head). Rare, self-healing on reopen; re-keying live would need
-// the overview refetch loop wired through the pane.
+// id. The registry watch below streams it live; this poll is the fallback
+// that keeps rows landing if that channel drops (rows persist per chunk
+// server-side).
 const hasBackgroundTurnHere = computed(() =>
   Object.values(activity.serverTurns).some(
-    (serverTurn) => serverTurn.sessionId === props.sessionId,
+    (serverTurn) => serverTurn.sessionId === activeSessionId.value,
   ),
 );
 
 const detailQuery = useSessionDetail(
   { kind: "global" },
-  () => props.sessionId,
+  () => activeSessionId.value,
   () => (hasBackgroundTurnHere.value && !turn.isStreaming.value ? 4000 : false),
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
+);
+
+// The standing subscription to this session's live channel (B6): a turn the
+// composer does not own — a delegated task, a routed message draining —
+// streams here in realtime instead of crawling on the fallback poll. The own
+// overlay always wins (render-time suppression, B3).
+const watchedTurn = useWatchedTurn({
+  sessionId: () => activeSessionId.value,
+  isSuppressed: () => turn.view.value !== null,
+  // refetch() resolves (never throws) — surface the failure so the watcher's
+  // seed retries instead of silently seeding from stale cache.
+  refetchDetail: async () => {
+    const result = await detailQuery.refetch();
+    if (result.error) throw result.error;
+    return result.data ?? undefined;
+  },
+});
+const activeTurn = computed(() => turn.view.value ?? watchedTurn.view.value);
+
+// A watched turn's settle must land its rows HERE too: the registry's settle
+// snapshot only warms the subscription that owns the provider slot (the
+// monitor's, when this thread renders inside the panel) — refetch as the
+// overlay clears so the thread never blinks back to a stale transcript. The
+// feed's turn-end invalidation covers the same gap app-wide; this keeps the
+// pane honest on its own channel.
+watch(
+  () => watchedTurn.view.value,
+  (next, previous) => {
+    if (previous !== null && next === null) void detailQuery.refetch();
+  },
 );
 
 // The mention rosters follow the session's GROUNDING (a workspace-grounded
@@ -102,7 +169,10 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
 <template>
   <div class="session-thread">
     <div class="thread-body">
-      <ThreadSkeleton v-if="detailQuery.isPending.value" class="thread-skeleton-pad" />
+      <ThreadSkeleton
+        v-if="detailQuery.isPending.value"
+        class="thread-skeleton-pad"
+      />
       <!-- A failed transcript read must be SAID — an empty thread over a live
            composer would read as a blank conversation. -->
       <p v-else-if="detailQuery.isError.value" class="state-note is-error">
@@ -116,21 +186,32 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
         class="thread-slot"
         :messages="messages"
         :tool-calls-by-message-id="toolCallsByMessageId"
-        :active-turn="turn.view.value"
+        :active-turn="activeTurn"
         :assistant-name="props.title"
-        :show-watch-chips="false"
+        :scroll-to-trace-id="props.anchorTraceId"
         @decide-approval="onDecideApproval"
-        @open-session="activityMonitor.openTrace"
-        @watch-agent="activityMonitor.openAgentDirect"
+        @open-pointer="openPointerTarget"
       />
     </div>
+
+    <p v-if="continuedNote" class="view-only-note">
+      {{ continuedNote }}
+    </p>
+
+    <p
+      v-if="watchedTurn.errorText.value"
+      class="view-only-note is-drop"
+      data-testid="live-drop-note"
+    >
+      Live updates dropped — reconnecting; new replies land in the transcript.
+    </p>
 
     <p v-if="props.viewOnlyNote" class="view-only-note">
       {{ props.viewOnlyNote }}
     </p>
 
     <footer v-if="props.chattable" class="composer-dock">
-      <TodoDock :session-id="props.sessionId" />
+      <TodoDock :session-id="activeSessionId" />
       <QueuedMessageChips
         :queued="queuedSend.queued.value"
         @remove="queuedSend.removeQueued"
@@ -147,6 +228,7 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
         :placeholder="`Message ${props.title}…`"
         :allow-attachments="false"
         :scope="composerScope"
+        :destination-label="props.title"
         @send="queuedSend.submit"
         @interrupt="turn.interrupt"
       />
@@ -196,6 +278,10 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
   text-align: center;
   color: var(--ink-3);
   font: 400 12px/1.6 var(--font-ui);
+}
+
+.view-only-note.is-drop {
+  color: var(--danger);
 }
 
 .composer-dock {

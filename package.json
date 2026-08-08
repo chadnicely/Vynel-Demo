@@ -11,6 +11,7 @@
     "dev": "pnpm db:up && turbo run dev --filter=@vynel/cloud-api --filter=@vynel/local-api --filter=@vynel/local-web",
     "dev:local": "turbo run dev --filter=@vynel/local-api --filter=@vynel/local-web",
     "dev:voice": "pnpm --filter @vynel/voice-daemon dev",
+    "dev:desktop": "pnpm --filter @vynel/desktop build:shell",
     "dev:full": "pnpm db:up && turbo run dev --filter=@vynel/cloud-api --filter=@vynel/cloud-admin-web --filter=@vynel/local-api --filter=@vynel/local-web --filter=@vynel/voice-daemon",
     "dev:all": "turbo run dev",
     "db:up": "pnpm --filter @vynel/cloud-api db:up",

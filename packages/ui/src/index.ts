@@ -30,9 +30,13 @@ export type {
   AgentActivityToolCallLike,
 } from "./components/AgentActivityPane.vue";
 export { deriveSettledAgentActivity } from "./tool-cards/subagent-activity.js";
-export { displayToolName } from "./tool-cards/tool-presenters.js";
+export {
+  displayToolName,
+  presentToolCall,
+} from "./tool-cards/tool-presenters.js";
 export { describeDesktopStep } from "./tool-cards/desktop-step-presenter.js";
 export { useOpenModalCount } from "./components/modal-registry.js";
+export { usePanelResize } from "./components/use-panel-resize.js";
 export { default as Tooltip } from "./components/Tooltip.vue";
 export { default as VoiceOrb } from "./components/VoiceOrb.vue";
 export { default as WorkspaceColorPicker } from "./components/WorkspaceColorPicker.vue";
@@ -40,8 +44,10 @@ export { default as WorkspaceColorSwatches } from "./components/WorkspaceColorSw
 export {
   WORKSPACE_ACCENT_SLOTS,
   workspaceAccentVar,
+  workspaceColorSlot,
   workspaceNameFromLabel,
 } from "./lib/workspace-color.js";
+export { splitSourceLabel } from "./lib/source-label.js";
 export {
   formatMessageTimestamp,
   formatElapsed,

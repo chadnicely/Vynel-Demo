@@ -10,9 +10,11 @@ import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 
-const { tickMock, reclaimMock } = vi.hoisted(() => ({
+const { tickMock, reclaimMock, requeueDeliveriesMock, failureDeliveryMock } = vi.hoisted(() => ({
   tickMock: vi.fn(),
   reclaimMock: vi.fn(),
+  requeueDeliveriesMock: vi.fn(),
+  failureDeliveryMock: vi.fn(),
 }))
 
 // Spread the real barrel so a future VALUE import from it inside this test's
@@ -20,9 +22,14 @@ const { tickMock, reclaimMock } = vi.hoisted(() => ({
 vi.mock('@vynel/session/delegation', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   runDelegationClaimAndRunTick: tickMock,
+  // The startup restart-parity push writes through the shared composer — pin it
+  // so the unit stays DB-free (the composer's own behavior is repo-tested).
+  enqueueJobFailureDelivery: failureDeliveryMock,
 }))
-vi.mock('@vynel/orchestration', () => ({
+vi.mock('@vynel/orchestration', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   failOrphanedClaimedDelegations: reclaimMock,
+  requeueOrphanedClaimedReportDeliveries: requeueDeliveriesMock,
 }))
 
 import { SessionTargetLocks } from '@vynel/session/delegation'
@@ -67,7 +74,8 @@ function tickDepsOfCall(callIndex: number): TickDeps {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers()
-  reclaimMock.mockReturnValue(0)
+  reclaimMock.mockReturnValue([])
+  requeueDeliveriesMock.mockReturnValue([])
   tickMock.mockResolvedValue(false)
 })
 
@@ -76,6 +84,26 @@ afterEach(() => {
 })
 
 describe('startDelegationService', () => {
+  it('startup REQUEUES orphaned claimed report deliveries before failing the rest (B1)', () => {
+    requeueDeliveriesMock.mockReturnValue([{ id: 'd1', jobKind: 'report-delivery' }])
+    const options = fakeOptions()
+    const service = startDelegationService(options)
+
+    expect(requeueDeliveriesMock).toHaveBeenCalledTimes(1)
+    expect(reclaimMock).toHaveBeenCalledTimes(1)
+    // The requeue pass runs FIRST (predicates disjoint; log clarity).
+    expect(requeueDeliveriesMock.mock.invocationCallOrder[0]!).toBeLessThan(
+      reclaimMock.mock.invocationCallOrder[0]!,
+    )
+    expect(options.logger.warn).toHaveBeenCalledWith(
+      { requeued: 1 },
+      expect.stringContaining('requeued orphaned "claimed" report deliveries'),
+    )
+    // A requeued delivery gets NO failure push — it will simply run again.
+    expect(failureDeliveryMock).not.toHaveBeenCalled()
+    service.stop()
+  })
+
   it('runs the claim-and-run tick on the ~1s poll with db + provider + logger', async () => {
     const options = fakeOptions()
     const service = startDelegationService(options)
@@ -215,8 +243,28 @@ describe('startDelegationService', () => {
     service.stop()
   })
 
-  it('reclaims orphaned "claimed" jobs at startup (marks them failed) + warns', () => {
-    reclaimMock.mockReturnValue(3)
+  it('reclaims orphaned "claimed" jobs at startup, warns, and pushes failure deliveries for WORK rows only', () => {
+    // Two orphaned WORK rows + one delivery orphan (anti-cascade: no push).
+    const orphan = (overrides: Record<string, unknown>) => ({
+      id: 'j-default',
+      userId: 'u-1',
+      parentSessionId: 'sdk-parent',
+      workspaceId: null,
+      workspaceName: 'Nova',
+      targetPrimarySessionId: null,
+      taskText: 'do the thing',
+      partialSessionId: 'p-1',
+      threadId: 't-1',
+      jobKind: null,
+      agentSlug: null,
+      requesterWorkspaceId: null,
+      ...overrides,
+    })
+    reclaimMock.mockReturnValue([
+      orphan({ id: 'j-task', jobKind: null }),
+      orphan({ id: 'j-agent', jobKind: 'agent-run', agentSlug: 'researcher' }),
+      orphan({ id: 'j-delivery', jobKind: 'report-delivery' }),
+    ])
     const options = fakeOptions()
     const service = startDelegationService(options)
 
@@ -225,11 +273,25 @@ describe('startDelegationService', () => {
       expect.objectContaining({ reclaimed: 3 }),
       expect.stringContaining('reclaimed'),
     )
+    // The restart-parity push: one delivery per WORK orphan, none for the
+    // delivery orphan (anti-cascade), each telling the requester it died —
+    // with the kind-aware retry hint (a colleague is re-mentioned).
+    expect(failureDeliveryMock).toHaveBeenCalledTimes(2)
+    expect(failureDeliveryMock).toHaveBeenCalledWith(
+      options.db,
+      expect.objectContaining({ id: 'j-task' }),
+      expect.stringContaining('interrupted by a restart'),
+    )
+    expect(failureDeliveryMock).toHaveBeenCalledWith(
+      options.db,
+      expect.objectContaining({ id: 'j-agent' }),
+      expect.stringContaining('mention the agent again'),
+    )
     service.stop()
   })
 
   it('does not warn when there are no orphaned jobs to reclaim', () => {
-    reclaimMock.mockReturnValue(0)
+    reclaimMock.mockReturnValue([])
     const options = fakeOptions()
     const service = startDelegationService(options)
 

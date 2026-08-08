@@ -14,75 +14,77 @@
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import {
-  enqueueReportDelivery,
   failDelegationJob,
+  findDelegationJobById,
+  isDeliveryJobKind,
   markDelegationsSurfacedToRoot,
-  resolveThreadIdOf,
   type DelegationJob,
-  type ReportDeliveryRequester,
 } from '@vynel/orchestration'
-import { findWorkspaceById } from '@vynel/workspaces'
 import { extractEmbeddedErrorCode, requeueIfRecoverable } from './classify-turn-failure.js'
+import { enqueueJobFailureDelivery, previewTaskText } from './enqueue-job-failure-delivery.js'
 
-/** The requester a job's reports address: its recorded originating-chat
- *  workspace when it still exists, else the global root. */
-export function resolveJobReportRequester(
-  db: Database,
-  claimed: DelegationJob,
-): ReportDeliveryRequester {
-  if (claimed.requesterWorkspaceId !== null) {
-    const workspace = findWorkspaceById(db, claimed.requesterWorkspaceId)
-    if (workspace !== null && workspace.userId === claimed.userId) {
-      return {
-        kind: 'workspace-primary',
-        workspaceId: workspace.id,
-        workspacePath: workspace.path,
-      }
-    }
-  }
-  return { kind: 'global-root' }
+/** Fresh-read whether this WORK job's turn already SPOKE its final report —
+ *  the claim-time snapshot predates the mid-run `reportedAt` stamp
+ *  (dispatch-message writes it while the turn runs), so callers must never
+ *  trust the row they were handed. Delivery rows always answer false: they
+ *  keep their standing requeue-then-drop flow regardless of any
+ *  cascade-relay stamp. One home — the settle gate below and the runners'
+ *  timed-out branches share it (session-review B2). */
+export function hasDeliveredFinalReport(db: Database, claimed: DelegationJob): boolean {
+  if (isDeliveryJobKind(claimed.jobKind)) return false
+  return (findDelegationJobById(db, claimed.id)?.reportedAt ?? claimed.reportedAt) !== null
 }
 
 /** A failed (non-stopped) attempt: requeue if recoverable, else fail the row
  *  terminally and push a failure report to the requester. `retryHint` finishes
- *  the sentence "…it failed: <error>. Tell the user it failed, and <hint>". */
+ *  the sentence "…it failed: <error>. Tell the user it failed, and <hint>".
+ *  A turn that already SPOKE its final report settles terminally with neither
+ *  — the requester has the result. */
 export function settleFailedDelegationAttempt(
   db: Database,
   claimed: DelegationJob,
   errorMessage: string,
-  deps: { logger: Logger; queueLabel: 'delegation' | 'agent-run'; retryHint: string },
+  deps: { logger: Logger; queueLabel: string; retryHint: string },
 ): void {
+  const errorCode = extractEmbeddedErrorCode(errorMessage)
+  const errorCodeOption = errorCode !== null ? { errorCode } : {}
+
+  // A WORK turn that already delivered its final report must neither RE-RUN
+  // (a requeue repeats the whole task and double-wakes the requester with a
+  // second report) nor push a give-up ("it failed" — contradicting the result
+  // they received). Terminal record + surfaced stamp: the requester HAS the
+  // report, so the root's pull net must never re-inject this row as a failure.
+  if (hasDeliveredFinalReport(db, claimed)) {
+    failDelegationJob(db, claimed.id, errorMessage, new Date(), errorCodeOption)
+    markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
+    deps.logger.warn(
+      { jobId: claimed.id, message: errorMessage },
+      `${deps.queueLabel} turn failed AFTER its report was sent — recorded terminally (no requeue, no give-up push)`,
+    )
+    return
+  }
+
   if (requeueIfRecoverable(db, claimed, errorMessage, deps.logger, deps.queueLabel)) return
 
   const attemptCount = (claimed.attemptCount ?? 0) + 1
-  failDelegationJob(db, claimed.id, errorMessage, new Date(), {
-    ...(extractEmbeddedErrorCode(errorMessage) !== null
-      ? { errorCode: extractEmbeddedErrorCode(errorMessage)! }
-      : {}),
-  })
+  failDelegationJob(db, claimed.id, errorMessage, new Date(), errorCodeOption)
   deps.logger.warn(
     { jobId: claimed.id, attemptCount, message: errorMessage },
     `${deps.queueLabel} job failed terminally`,
   )
 
-  // Give-up push for WORK rows only (see the anti-cascade note above).
-  if ((claimed.jobKind ?? 'task') === 'report-delivery') return
+  // Give-up push for WORK rows only (see the anti-cascade note above) — a
+  // failed delivery of EITHER kind must never spawn another delivery, and a
+  // dropped update is deliberately terminal (ephemeral status, persona-sessions).
+  if (isDeliveryJobKind(claimed.jobKind)) return
   try {
-    const taskPreview =
-      claimed.taskText.length > 160 ? `${claimed.taskText.slice(0, 160)}…` : claimed.taskText
-    const threadId = resolveThreadIdOf(claimed)
-    enqueueReportDelivery(db, {
-      ...(threadId !== null ? { threadId } : {}),
-      userId: claimed.userId,
-      reporterSessionId:
-        claimed.targetPrimarySessionId ?? claimed.workspaceId ?? claimed.parentSessionId,
-      reporterLabel: claimed.workspaceName ?? 'Background task',
-      reportBody:
-        `The background task "${taskPreview}" failed` +
+    enqueueJobFailureDelivery(
+      db,
+      claimed,
+      `The background task "${previewTaskText(claimed.taskText)}" failed` +
         `${attemptCount > 1 ? ` after ${attemptCount} attempts` : ''}: ${errorMessage}. ` +
         `Tell the user it failed, and ${deps.retryHint}`,
-      requester: resolveJobReportRequester(db, claimed),
-    })
+    )
     // Surfaced via the push — keep the pull net from repeating it next turn.
     markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
   } catch (err) {

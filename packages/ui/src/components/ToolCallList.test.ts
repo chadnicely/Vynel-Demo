@@ -22,12 +22,11 @@ function makeToolCall(
   };
 }
 
-// The delegation chip is the PERSISTENT door to a dispatch call's delegation
-// (Chad's 2026-07-27 smoke: once the job settled, no affordance survived to
-// open its trace). It renders from the serve-time `delegation` enrichment,
-// live or settled, and opens the trace via openDelegation.
-describe("ToolCallList — the delegation chip", () => {
-  it("renders the settled outcome and emits openDelegation with the trace key", async () => {
+// The delegation chip was RETIRED (Chad, 2026-08-09): it duplicated the thread
+// pointer under the message, which is the one tracker — live and settled. The
+// dispatch card renders nothing extra even when the enrichment rides along.
+describe("ToolCallList — no delegation chip (the pointer is the tracker)", () => {
+  it("renders no chip even on a fully enriched dispatch call", () => {
     const wrapper = mount(ToolCallList, {
       props: {
         toolCalls: [
@@ -40,90 +39,15 @@ describe("ToolCallList — the delegation chip", () => {
               taskLabel: "Summarize the pricing docs",
               reportedAt: "2026-07-27T10:05:00.000Z",
               completedAt: "2026-07-27T10:05:01.000Z",
+              workspaceId: "w1",
+              targetSessionId: null,
             },
           }),
         ],
       },
     });
 
-    const chip = wrapper.find(".delegation-chip");
-    expect(chip.text()).toContain("Acme · Summarize the pricing docs");
-    expect(chip.text()).toContain("done · report delivered");
-    await chip.trigger("click");
-    expect(wrapper.emitted("openDelegation")).toEqual([["trace-1"]]);
-  });
-
-  it("reads as working while the job is in flight", () => {
-    const wrapper = mount(ToolCallList, {
-      props: {
-        toolCalls: [
-          makeToolCall({
-            delegation: {
-              jobId: "j1",
-              partialSessionId: "trace-1",
-              status: "claimed",
-              deliveredTo: "Acme",
-              taskLabel: null,
-              reportedAt: null,
-              completedAt: null,
-            },
-          }),
-        ],
-      },
-    });
-
-    expect(wrapper.find(".delegation-chip").text()).toContain("Acme — working…");
-  });
-
-  // PIPELINE SCOPING (Chad, locked 2026-07-27): ONE chip — the direct hop.
-  // Deeper hops surface inside the opened watch panel, never here.
-  it("renders exactly one chip regardless of how far the chain grew", () => {
-    const wrapper = mount(ToolCallList, {
-      props: {
-        toolCalls: [
-          makeToolCall({
-            delegation: {
-              jobId: "j1",
-              partialSessionId: "trace-ws",
-              status: "completed",
-              deliveredTo: "letterman",
-              taskLabel: "Get the architecture",
-              reportedAt: "2026-07-27T10:03:00.000Z",
-              completedAt: "2026-07-27T10:05:01.000Z",
-            },
-          }),
-        ],
-      },
-    });
-
-    const chips = wrapper.findAll(".delegation-chip");
-    expect(chips).toHaveLength(1);
-    expect(chips[0]!.text()).toContain("letterman · Get the architecture");
-  });
-
-  it("renders no chip without the enrichment or without a trace key", () => {
-    const unenriched = mount(ToolCallList, {
-      props: { toolCalls: [makeToolCall()] },
-    });
-    expect(unenriched.find(".delegation-chip").exists()).toBe(false);
-
-    const keyless = mount(ToolCallList, {
-      props: {
-        toolCalls: [
-          makeToolCall({
-            delegation: {
-              jobId: "j1",
-              partialSessionId: null,
-              status: "completed",
-              deliveredTo: "Acme",
-              taskLabel: null,
-              reportedAt: null,
-              completedAt: null,
-            },
-          }),
-        ],
-      },
-    });
-    expect(keyless.find(".delegation-chip").exists()).toBe(false);
+    expect(wrapper.find(".delegation-chip").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("Summarize the pricing docs");
   });
 });

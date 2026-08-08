@@ -22,6 +22,8 @@ import {
   listPendingDelegationJobsForUser,
   listUnsurfacedTerminalDelegationsForUser,
   failOrphanedClaimedDelegations,
+  listInFlightDelegationsForUser,
+  requeueOrphanedClaimedReportDeliveries,
   type NewDelegationJob,
 } from './delegation-jobs.js'
 
@@ -420,7 +422,11 @@ describe('delegation_jobs repository', () => {
       insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
       const claimed = claimNextPendingDelegationJob(db, new Date())
 
-      expect(failOrphanedClaimedDelegations(db, new Date())).toBe(1) // only the claimed one
+      // Returns the FULL rows now (persona-sessions: the startup pass pushes a
+      // failure delivery per WORK orphan) — still only the claimed one.
+      const orphans = failOrphanedClaimedDelegations(db, new Date())
+      expect(orphans).toHaveLength(1)
+      expect(orphans[0]!.id).toBe(claimed!.id)
 
       const reclaimed = findDelegationJobById(db, claimed!.id)!
       expect(reclaimed.status).toBe('failed')
@@ -428,6 +434,77 @@ describe('delegation_jobs repository', () => {
       expect(reclaimed.surfacedToRootAt).not.toBeNull() // marked surfaced → no restart spam to the root
       // The completed job is left alone.
       expect(findDelegationJobById(db, completed.id)!.status).toBe('completed')
+    })
+  })
+
+  it('the boot reap splits by kind: claimed report-deliveries REQUEUE, everything else fails (B1)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const report = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { status: 'claimed', jobKind: 'report-delivery' }),
+      )
+      const update = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { status: 'claimed', jobKind: 'update-delivery' }),
+      )
+      const task = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { status: 'claimed' }),
+      )
+      // A PENDING report-delivery — not orphaned, both passes must leave it.
+      const pendingReport = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { jobKind: 'report-delivery' }),
+      )
+
+      const requeued = requeueOrphanedClaimedReportDeliveries(db, new Date())
+      expect(requeued.map((j) => j.id)).toEqual([report.id])
+      const revived = findDelegationJobById(db, report.id)!
+      // The report body is the ONLY copy of the result — revived, never destroyed.
+      expect(revived.status).toBe('pending')
+      expect(revived.claimedAt).toBeNull()
+      expect(revived.surfacedToRootAt).toBeNull()
+      // Orphaning is the process's failure, not the delivery's — no attempt burned.
+      expect(revived.attemptCount).toBe(report.attemptCount)
+
+      const failed = failOrphanedClaimedDelegations(db, new Date())
+      expect(failed.map((j) => j.id).sort()).toEqual([task.id, update.id].sort())
+      // The fail pass never touches the requeued delivery or the pending one.
+      expect(findDelegationJobById(db, report.id)!.status).toBe('pending')
+      expect(findDelegationJobById(db, update.id)!.status).toBe('failed')
+      expect(findDelegationJobById(db, task.id)!.status).toBe('failed')
+      expect(findDelegationJobById(db, pendingReport.id)!.status).toBe('pending')
+    })
+  })
+
+  it('listInFlightDelegationsForUser lists WORK rows only — delivery hops never surface (B7)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const task = insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
+      const agentRun = insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { jobKind: 'agent-run' }),
+      )
+      // The lifecycle transport — a pending ack/report hop and a claimed one.
+      // Pre-fix these surfaced as ghost "task" cards labeled with the message
+      // body, and their Stop killed the delivery itself.
+      insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { jobKind: 'report-delivery' }),
+      )
+      insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, {
+          jobKind: 'update-delivery',
+          status: 'claimed',
+        }),
+      )
+
+      const inFlight = listInFlightDelegationsForUser(db, user.id)
+      expect(inFlight.map((j) => j.id).sort()).toEqual([task.id, agentRun.id].sort())
     })
   })
 

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a44b3416-c781-4ae8-87c0-6fe7de53ca60",
+  "id": "604d767f-67ab-46e8-ab00-7807d18957a5",
   "prevId": "05e2c259-33aa-43bf-8efd-9eaaed07e09f",
   "tables": {
     "users": {
@@ -594,6 +594,13 @@
         },
         "partial_session_id": {
           "name": "partial_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "thread_id": {
+          "name": "thread_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -5668,88 +5675,6 @@
           "tableTo": "workspaces",
           "columnsFrom": [
             "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "desktop_app_grants": {
-      "name": "desktop_app_grants",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "app_name": {
-          "name": "app_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tier": {
-          "name": "tier",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "idx_desktop_app_grants_user": {
-          "name": "idx_desktop_app_grants_user",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
-        "uniq_desktop_app_grants_user_app": {
-          "name": "uniq_desktop_app_grants_user_app",
-          "columns": [
-            "user_id",
-            "app_name"
-          ],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "desktop_app_grants_user_id_users_id_fk": {
-          "name": "desktop_app_grants_user_id_users_id_fk",
-          "tableFrom": "desktop_app_grants",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
           ],
           "columnsTo": [
             "id"

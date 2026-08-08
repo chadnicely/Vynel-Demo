@@ -4,7 +4,6 @@ import { FolderTree, Sparkles } from "lucide-vue-next";
 import { EmptyState, IconButton, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
-import ProcessingBanner from "../components/chat/ProcessingBanner.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
 import TodoDock from "../components/chat/TodoDock.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
@@ -17,7 +16,8 @@ import type { WorkspaceSectionId } from "../components/workspace/workspace-secti
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
-import { useStopDelegation } from "../composables/delegations/use-stop-delegation.js";
+import { buildThreadPointers } from "../components/chat/thread-pointers.js";
+import { useOpenPointerTarget } from "../components/chat/open-pointer-target.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import { useWatchedTurn } from "../composables/chat/use-watched-turn.js";
@@ -30,7 +30,6 @@ import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.j
 import { useUiStore } from "../stores/ui-store.js";
 import { useCustomizeStore } from "../stores/customize-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
-import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 
 // The workspace room — same continuous-first chat as global, scoped to one
@@ -42,9 +41,17 @@ import { formatSdkError } from "../utils/format-sdk-error.js";
 const ui = useUiStore();
 const tab = ui.activeTab;
 const shell = tab.shell;
-const activityMonitor = useActivityMonitorStore();
 
 const workspacesQuery = useWorkspaceList();
+// Name -> id for the delivered-row workspace chips (ThreadStream).
+const workspacesByName = computed(() =>
+  Object.fromEntries(
+    (workspacesQuery.data.value ?? []).map((workspace) => [
+      workspace.name,
+      workspace.id,
+    ]),
+  ),
+);
 const workspaces = computed(() => workspacesQuery.data.value ?? []);
 
 const activeWorkspace = computed(
@@ -71,19 +78,21 @@ const activeSessionId = computed<string | null>(() => {
 // A routed task streams its rows into THIS workspace's transcript in the
 // background (the shared pipeline) — poll the open thread while one is in
 // flight here so the task/reply/tool-calls appear live, not on refresh.
-// The banner (ProcessingBanner) shows one Watch chip per in-flight job
-// targeting this workspace — closes the recorded Slice-④ gap where the chips
-// appeared only on the global banner.
 const inFlightQuery = useInFlightDelegations();
-const inFlightDelegationsHere = computed(() =>
-  (inFlightQuery.data.value ?? []).filter(
+// The thread pointers (live-tracking redesign, Case 1) — UNFILTERED: a
+// pointer hangs off a row this thread SENT, matched by its trace key
+// (ThreadStream's received-side gate keeps target threads clean); the rail
+// carries the roster.
+const threadPointers = computed(() =>
+  buildThreadPointers(inFlightQuery.data.value ?? []),
+);
+// A pointer click routes through the one-home opener.
+const openPointerTarget = useOpenPointerTarget();
+const hasInFlightDelegationHere = computed(() =>
+  (inFlightQuery.data.value ?? []).some(
     (delegation) => delegation.workspaceId === tab.workspaceId,
   ),
 );
-const hasInFlightDelegationHere = computed(
-  () => inFlightDelegationsHere.value.length > 0,
-);
-const stopDelegation = useStopDelegation();
 
 const chatTurn = useChatTurn({
   scope: () => scope.value,
@@ -103,15 +112,6 @@ const hasBackgroundTurnHere = computed(
     tab.workspaceId !== null &&
     activity.hasServerTurnInWorkspace(tab.workspaceId),
 );
-// The in-thread note for a background turn the thread is NOT rendering — a
-// turn on a DIFFERENT session in this workspace. A turn on the displayed
-// session streams through the watcher's overlay below, which says it better.
-const backgroundTurnLabel = computed(() =>
-  hasBackgroundTurnHere.value && watchedTurn.view.value === null
-    ? `${activeWorkspace.value?.managerName ?? "The assistant"} is working…`
-    : null,
-);
-
 const detailQuery = useSessionDetail(
   () => scope.value,
   () => activeSessionId.value,
@@ -157,7 +157,7 @@ const ownActiveTurn = computed(() =>
 // The standing subscription to the displayed session's live channel — a turn
 // this view does NOT own (a tab switch detached the origin stream, a schedule
 // fire, a channel turn) streams here in realtime instead of crawling on the
-// history poll. The own overlay always wins; the watcher discards its echo.
+// history poll. The own overlay always wins; the watcher renders nothing for it (render-time suppression, B3).
 const watchedTurn = useWatchedTurn({
   sessionId: () => activeSessionId.value,
   isSuppressed: () => ownActiveTurn.value !== null,
@@ -317,17 +317,10 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :active-turn="activeTurn"
         :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
         :assistant-icon-url="assistantIconUrl"
+        :pointers-by-trace-id="threadPointers"
+        :workspaces-by-name="workspacesByName"
         @decide-approval="onDecideApproval"
-        @open-session="activityMonitor.openTrace"
-        @open-report="(report) => (ui.viewingReport = report)"
-        @watch-agent="activityMonitor.openAgentDirect"
-      />
-
-      <ProcessingBanner
-        :delegations="inFlightDelegationsHere"
-        :background-turn-label="backgroundTurnLabel"
-        @watch="activityMonitor.openTrace"
-        @stop="stopDelegation.mutate"
+        @open-pointer="openPointerTarget"
       />
 
       <footer class="composer-dock">

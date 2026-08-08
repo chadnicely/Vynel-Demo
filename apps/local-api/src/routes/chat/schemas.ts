@@ -165,10 +165,24 @@ export const ChatMessageSchema = z.object({
   // The inbound channel a USER row arrived through; null = the app composer.
   originChannel: z.enum(['voice', 'telegram', 'discord', 'zoom']).nullable(),
   partialSessionId: z.string().nullable(),
+  // The delegation CHAIN key (persona-sessions) — the live card's settle-match.
+  threadId: z.string().nullable(),
   // Serve-time enrichment (both session-detail reads — root AND workspace, one
   // content contract): the delegated task's short label for the Watch chip.
   // Optional — ordinary rows and unenriched routes omit it.
   delegationTaskLabel: z.string().nullable().optional(),
+  // Serve-time enrichment on a DELIVERED colleague row: the producing run's
+  // stats for the info-icon hover card. Optional — ordinary rows omit it.
+  runStats: z
+    .object({
+      model: z.string().nullable(),
+      toolCallCount: z.number(),
+      inputTokens: z.number().nullable(),
+      outputTokens: z.number().nullable(),
+      durationMs: z.number().nullable(),
+    })
+    .nullable()
+    .optional(),
   thinkingBody: z.string().nullable(),
   inputTokens: z.number().nullable(),
   outputTokens: z.number().nullable(),
@@ -203,6 +217,11 @@ export const DelegationToolOutcomeSchema = z.object({
   taskLabel: z.string().nullable(),
   reportedAt: z.string().nullable(),
   completedAt: z.string().nullable(),
+  /** The settled pointer's click destinations (pointers persist, 2026-08-09) —
+   *  the in-flight poll stops carrying a settled job, so the payload says
+   *  where the pointer opens. */
+  workspaceId: z.string().nullable(),
+  targetSessionId: z.string().nullable(),
 })
 
 export const ChatToolCallSchema = z.object({

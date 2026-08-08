@@ -21,6 +21,7 @@ export const REPORT_CALLER_HEADER = 'x-vynel-report-caller'
 export type ReportCaller =
   | { kind: 'workspace-primary'; workspaceId: string }
   | { kind: 'spawned-session'; targetPrimarySessionId: string }
+  | { kind: 'agent-session'; targetPrimarySessionId: string }
 
 export function serializeReportCaller(caller: ReportCaller): string {
   return JSON.stringify(caller)
@@ -41,6 +42,9 @@ export function parseReportCallerHeader(headerValue: string | undefined): Report
     }
     if (parsed.kind === 'spawned-session' && typeof parsed.targetPrimarySessionId === 'string') {
       return { kind: 'spawned-session', targetPrimarySessionId: parsed.targetPrimarySessionId }
+    }
+    if (parsed.kind === 'agent-session' && typeof parsed.targetPrimarySessionId === 'string') {
+      return { kind: 'agent-session', targetPrimarySessionId: parsed.targetPrimarySessionId }
     }
     return undefined
   } catch {

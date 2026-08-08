@@ -18,6 +18,7 @@ import {
   isNotNull,
   isNull,
   lte,
+  ne,
   notInArray,
   or,
 } from 'drizzle-orm'
@@ -388,7 +389,14 @@ export function listUnsurfacedTerminalDelegationsForUser(
         eq(delegationJobs.userId, userId),
         isNull(delegationJobs.surfacedToRootAt),
         inArray(delegationJobs.status, ['completed', 'failed']),
-        or(isNull(delegationJobs.jobKind), eq(delegationJobs.jobKind, 'task')),
+        // WORK kinds (NULL-safe): tasks AND agent-runs — a mention run
+        // completes unsurfaced (the direct-reply tweak) so the net is how the
+        // root learns of the reply it never narrated; delivery kinds stay the
+        // notify MECHANISM, never awareness rows.
+        or(
+          isNull(delegationJobs.jobKind),
+          notInArray(delegationJobs.jobKind, [...DELIVERY_JOB_KINDS]),
+        ),
       ),
     )
     .orderBy(asc(delegationJobs.createdAt), asc(delegationJobs.id))
@@ -409,7 +417,19 @@ export function listInFlightDelegationsForUser(
     .select()
     .from(delegationJobs)
     .where(
-      and(eq(delegationJobs.userId, userId), inArray(delegationJobs.status, ['pending', 'claimed'])),
+      and(
+        eq(delegationJobs.userId, userId),
+        inArray(delegationJobs.status, ['pending', 'claimed']),
+        // WORK rows only (session-review B7): a delivery hop is the notify
+        // MECHANISM, not work anyone handed off — surfacing it here grew ghost
+        // "task" cards labeled with the message body, whose Stop killed the
+        // delivery itself. One home: the DELIVERY_JOB_KINDS membership
+        // (NULL-safe — legacy NULL jobKind means 'task').
+        or(
+          isNull(delegationJobs.jobKind),
+          notInArray(delegationJobs.jobKind, [...DELIVERY_JOB_KINDS]),
+        ),
+      ),
     )
     .orderBy(asc(delegationJobs.createdAt), asc(delegationJobs.id))
     .limit(cappedLimit)
@@ -454,9 +474,21 @@ export function listRecentDelegationJobsForUser(
 // backfill entirely.
 export function listDelegationJobsByThread(
   db: Database,
-  input: { userId: string; threadId: string; limit?: number },
+  input: {
+    userId: string
+    threadId: string
+    limit?: number
+    /** CORRECTNESS scans (direct-exception windows, run-stats hop pairing,
+     *  the tick's mention/direct checks) read the WHOLE chain — a capped
+     *  window silently picks the wrong hop on a long chain. List surfaces
+     *  keep the cap. */
+    unbounded?: boolean
+  },
 ): DelegationJob[] {
-  const cappedLimit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
+  const cappedLimit =
+    input.unbounded === true
+      ? Number.MAX_SAFE_INTEGER
+      : Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
   return db
     .select()
     .from(delegationJobs)
@@ -506,9 +538,15 @@ export function markDelegationsSurfacedToRoot(
 // Called at service startup, where nothing is running yet, so every `claimed` row is orphaned;
 // leaving them claimed made them linger forever as "in-flight" (visible in the Ch3.5 processing
 // indicator). `surfacedToRootAt` is set so a restart doesn't spam the root with "couldn't
-// complete" — an orphan is a system artifact, not a real task outcome. Returns the count reclaimed.
-export function failOrphanedClaimedDelegations(db: Database, at: Date): number {
-  const reclaimed = db
+// complete" — an orphan is a system artifact, not a real task outcome. Returns the FULL rows
+// (persona-sessions): with acknowledge-first, a child that said "will report when done" and
+// then silently vanished breaks the spoken contract — the startup pass pushes an honest
+// failure delivery for orphaned WORK rows (the caller filters; deliveries stay anti-cascade).
+// `report-delivery` rows are EXCLUDED — they requeue instead
+// (`requeueOrphanedClaimedReportDeliveries` below): the report body is the only
+// copy of a child's result, so an orphaned delivery is retried, never destroyed.
+export function failOrphanedClaimedDelegations(db: Database, at: Date): DelegationJob[] {
+  return db
     .update(delegationJobs)
     .set({
       status: 'failed',
@@ -516,8 +554,40 @@ export function failOrphanedClaimedDelegations(db: Database, at: Date): number {
       completedAt: at,
       surfacedToRootAt: at,
     })
-    .where(eq(delegationJobs.status, 'claimed'))
-    .returning({ id: delegationJobs.id })
+    .where(
+      and(
+        eq(delegationJobs.status, 'claimed'),
+        // NULL-safe kind gate (legacy NULL jobKind = task): everything but the
+        // report deliveries, which the requeue pass below owns.
+        or(isNull(delegationJobs.jobKind), ne(delegationJobs.jobKind, 'report-delivery')),
+      ),
+    )
+    .returning()
     .all()
-  return reclaimed.length
+}
+
+// The report-delivery half of the boot reap: a claimed delivery orphaned by a
+// crash goes back to `pending` (claimedAt cleared, immediately due) instead of
+// dying — the report body is the ONLY copy of the child's result, and at boot
+// nothing is running, so re-delivery is safe at-least-once (a turn that died
+// AFTER persisting its inbound row re-delivers a duplicate marker message; the
+// recorded delivery-retry trade). The attempt counter is deliberately NOT
+// bumped: orphaning is the process's failure, not the delivery's, and a
+// bounded counter here would eventually destroy a report on a crash-looping
+// machine — the one outcome this function exists to prevent. `update-delivery`
+// rows stay on the terminal-drop path above (ephemeral status, never requeued).
+export function requeueOrphanedClaimedReportDeliveries(db: Database, at: Date): DelegationJob[] {
+  return db
+    .update(delegationJobs)
+    .set({
+      status: 'pending',
+      claimedAt: null,
+      errorMessage: 'requeued — the server restarted while this report was being delivered',
+      nextAttemptAt: at,
+    })
+    .where(
+      and(eq(delegationJobs.status, 'claimed'), eq(delegationJobs.jobKind, 'report-delivery')),
+    )
+    .returning()
+    .all()
 }

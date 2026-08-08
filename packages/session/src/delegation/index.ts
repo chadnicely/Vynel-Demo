@@ -25,6 +25,13 @@ export {
 // reading the /routing/report route shares with the tick's attribution.
 export { type RunGlobalRootReportTurn } from './run-report-delivery-tick.js'
 export { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
+export { resolveColleagueAgent } from './resolve-colleague-agent.js'
+export {
+  resolveJobReportRequester,
+  enqueueJobFailureDelivery,
+  previewTaskText,
+  jobRetryHint,
+} from './enqueue-job-failure-delivery.js'
 export {
   delegateToLeafSession,
   type DelegateToLeafSessionInput,
@@ -58,6 +65,7 @@ export {
   type TurnEventSubscriber,
 } from './turn-event-broadcaster.js'
 export { attachDelegationTaskLabels } from './attach-delegation-task-labels.js'
+export { attachDeliveredRunStats } from './attach-delivered-run-stats.js'
 export { attachDelegationToolOutcomes } from './attach-delegation-tool-outcomes.js'
 export { attachSpawnedSessionNames } from './attach-spawned-session-names.js'
 export {

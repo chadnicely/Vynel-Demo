@@ -2984,57 +2984,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/routing/delegate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Enqueue a task for a workspace; it runs in the background and reports back. */
-        post: operations["postRoutingDelegate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/routing/delegate-session": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Enqueue a task for a spawned session; it runs in the background and reports back. */
-        post: operations["postRoutingDelegate-session"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/routing/report": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Report a result up to the conversation that requested this work. */
-        post: operations["postRoutingReport"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/routing/channels": {
         parameters: {
             query?: never;
@@ -3146,6 +3095,23 @@ export interface paths {
         };
         /** Subscribe to the session-activity feed (SSE turn liveness, snapshot + live). */
         get: operations["getActivityStream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity/running": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The durable in-flight turns — the refresh/restart rebuild seed. */
+        get: operations["getActivityRunning"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6968,7 +6934,15 @@ export interface operations {
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
                             partialSessionId: string | null;
+                            threadId: string | null;
                             delegationTaskLabel?: string | null;
+                            runStats?: {
+                                model: string | null;
+                                toolCallCount: number;
+                                inputTokens: number | null;
+                                outputTokens: number | null;
+                                durationMs: number | null;
+                            } | null;
                             thinkingBody: string | null;
                             inputTokens: number | null;
                             outputTokens: number | null;
@@ -7015,6 +6989,8 @@ export interface operations {
                                     taskLabel: string | null;
                                     reportedAt: string | null;
                                     completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
                                 } | null;
                                 startedAt: string;
                                 completedAt: string | null;
@@ -13654,6 +13630,7 @@ export interface operations {
                             sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
                             sourceLabel: string | null;
                             partialSessionId: string | null;
+                            threadId: string | null;
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
                             attachedImagesMetadata: {
@@ -13694,6 +13671,8 @@ export interface operations {
                                     taskLabel: string | null;
                                     reportedAt: string | null;
                                     completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
                                 } | null;
                                 startedAt: string;
                                 completedAt: string | null;
@@ -13771,6 +13750,8 @@ export interface operations {
                                     taskLabel: string | null;
                                     reportedAt: string | null;
                                     completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
                                 } | null;
                                 startedAt: string;
                                 completedAt: string | null;
@@ -13859,7 +13840,15 @@ export interface operations {
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
                             partialSessionId: string | null;
+                            threadId: string | null;
                             delegationTaskLabel?: string | null;
+                            runStats?: {
+                                model: string | null;
+                                toolCallCount: number;
+                                inputTokens: number | null;
+                                outputTokens: number | null;
+                                durationMs: number | null;
+                            } | null;
                             thinkingBody: string | null;
                             inputTokens: number | null;
                             outputTokens: number | null;
@@ -13906,6 +13895,8 @@ export interface operations {
                                     taskLabel: string | null;
                                     reportedAt: string | null;
                                     completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
                                 } | null;
                                 startedAt: string;
                                 completedAt: string | null;
@@ -13945,9 +13936,12 @@ export interface operations {
                             workspaceName: string;
                             targetPrimarySessionId: string | null;
                             sessionName: string | null;
+                            targetSessionId: string | null;
                             taskLabel: string;
                             /** @enum {string} */
                             status: "pending" | "claimed";
+                            /** @enum {string} */
+                            jobKind: "task" | "agent-run";
                         }[];
                     };
                 };
@@ -14064,149 +14058,6 @@ export interface operations {
                         name: string;
                     }[];
                 };
-            };
-        };
-    };
-    postRoutingDelegate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    targetWorkspaceId: string;
-                    task: string;
-                    model?: string;
-                    /** @enum {string} */
-                    thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-                };
-            };
-        };
-        responses: {
-            /** @description A queued acknowledgement: { status: 'enqueued', jobId, workspaceName }. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        status: "enqueued";
-                        jobId: string;
-                        workspaceName: string;
-                    };
-                };
-            };
-            /** @description Routing is only available during an active global-root turn. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Target workspace not found or not owned. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    "postRoutingDelegate-session": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    targetSessionId: string;
-                    task: string;
-                    workspaceId?: string;
-                    model?: string;
-                    /** @enum {string} */
-                    thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-                };
-            };
-        };
-        responses: {
-            /** @description A queued acknowledgement: { status: 'enqueued', jobId, sessionName }. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        status: "enqueued";
-                        jobId: string;
-                        sessionName: string;
-                    };
-                };
-            };
-            /** @description Routing is only available during an active creator conversation. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Target session (or the given workspace) not found, not owned, or not a spawned session. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    postRoutingReport: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    report: string;
-                };
-            };
-        };
-        responses: {
-            /** @description A queued acknowledgement: { status: 'enqueued', jobId }. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        status: "enqueued";
-                        jobId: string;
-                    };
-                };
-            };
-            /** @description This turn has no requester (interactive chats, schedule fires, the global root). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The calling session could not be resolved. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -14408,6 +14259,10 @@ export interface operations {
                 "application/json": {
                     to: string;
                     body: string;
+                    /** @enum {string} */
+                    kind?: "task" | "report" | "update" | "direct_to_user";
+                    title?: string;
+                    workspaceId?: string;
                     model?: string;
                     /** @enum {string} */
                     thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
@@ -14427,7 +14282,7 @@ export interface operations {
                         jobId: string;
                         deliveredTo: string;
                         /** @enum {string} */
-                        kind: "task" | "report";
+                        kind: "task" | "report" | "update" | "direct_to_user";
                     };
                 };
             };
@@ -14462,6 +14317,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getActivityRunning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every turn session_turns says is running, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        turns: {
+                            turnId: string;
+                            /** @enum {string} */
+                            scopeKind: "global" | "workspace";
+                            workspaceId: string | null;
+                            /** @enum {string} */
+                            origin: "web" | "voice" | "telegram" | "discord" | "zoom" | "schedule" | "delegation";
+                            sessionId: string | null;
+                            primarySessionId: string | null;
+                            jobId: string | null;
+                            threadId: string | null;
+                            partialSessionId: string | null;
+                            startedAt: string;
+                        }[];
+                    };
+                };
             };
         };
     };

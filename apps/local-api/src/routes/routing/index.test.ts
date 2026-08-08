@@ -21,9 +21,11 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findDelegationJobById, enqueueWorkspaceDelegation } from '@vynel/orchestration'
 import { createSpawnedSession } from '@vynel/session/spawned'
+import { createAgent } from '@vynel/agents'
 import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
 import {
   getOrCreatePrimarySession,
+  getOrCreateContinuingSession,
   linkPrimarySessionToSdkSession,
 } from '@vynel/session/continuity'
 import { buildNewChatSessionRow } from '@vynel/chat'
@@ -168,6 +170,47 @@ async function seedLinkedWorkspacePrimaryFor(
   linkPrimarySessionToSdkSession(db, { primarySessionId: primary.id, userId, sdkSessionId })
 }
 
+// An agent COLLEAGUE (persona-sessions): the agent row + the scope-'agent'
+// continuing identity + a linked listed segment — the state a mention run
+// leaves behind.
+async function seedLinkedColleague(
+  db: Database,
+  userId: string,
+  input: { workspaceId: string | null; slug: string; name: string },
+) {
+  await createAgent(db, {
+    userId,
+    workspaceId: null,
+    slug: input.slug,
+    name: input.name,
+    description: 'd',
+    prompt: 'p',
+    source: 'user',
+    trustTier: 'community',
+  })
+  const colleague = await getOrCreateContinuingSession(db, {
+    userId,
+    scope: 'agent',
+    workspaceId: input.workspaceId,
+    scopeRef: input.slug,
+  })
+  const sdkSessionId = `colleague-${input.slug}-${randomUUID()}`
+  insertChatSession(
+    db,
+    buildNewChatSessionRow({
+      sessionId: sdkSessionId,
+      userId,
+      workspaceId: input.workspaceId,
+      providerId: 'claude',
+      startedAt: new Date(),
+      title: input.name,
+      scope: 'agent',
+    }),
+  )
+  linkPrimarySessionToSdkSession(db, { primarySessionId: colleague.id, userId, sdkSessionId })
+  return { colleagueId: colleague.id, sdkSessionId }
+}
+
 
 describe('GET /routing/workspaces', () => {
   it('lists the user workspaces as { id, name } routing targets', async () => {
@@ -183,7 +226,7 @@ describe('GET /routing/workspaces', () => {
   })
 })
 
-describe('POST /routing/delegate', () => {
+describe('POST /routing/message → workspace task (ported from /routing/delegate)', () => {
   it('enqueues the task on the durable queue and returns immediately', async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)
@@ -191,14 +234,14 @@ describe('POST /routing/delegate', () => {
       const parentSessionId = await seedLinkedGlobalRoot(db, user.id)
       const app = makeHarness(db)
 
-      const res = await postJson(app, '/routing/delegate', {
-        targetWorkspaceId: workspace.id,
-        task: 'summarize the docs',
+      const res = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 'summarize the docs',
       })
       expect(res.status).toBe(200)
-      const body = (await res.json()) as { status: string; jobId: string; workspaceName: string }
+      const body = (await res.json()) as { status: string; jobId: string; deliveredTo: string }
       expect(body.status).toBe('enqueued')
-      expect(body.workspaceName).toBe('Acme')
+      expect(body.deliveredTo).toBe('Acme')
 
       // The durable job carries the task + the enqueue-time parent; no channel origin.
       const job = findDelegationJobById(db, body.jobId)
@@ -219,8 +262,8 @@ describe('POST /routing/delegate', () => {
       const origin = { channelId: 'chan-1', externalSenderId: 'tg-42', externalChatContextId: 'chat-7' }
       const res = await postJson(
         app,
-        '/routing/delegate',
-        { targetWorkspaceId: workspace.id, task: 'summarize' },
+        '/routing/message',
+        { to: `workspace:${workspace.id}`, body: 'summarize' },
         { [DELEGATION_ORIGIN_HEADER]: serializeDelegationOrigin(origin) },
       )
       expect(res.status).toBe(200)
@@ -242,8 +285,8 @@ describe('POST /routing/delegate', () => {
 
       const res = await postJson(
         app,
-        '/routing/delegate',
-        { targetWorkspaceId: workspace.id, task: 'summarize' },
+        '/routing/message',
+        { to: `workspace:${workspace.id}`, body: 'summarize' },
         { [DELEGATION_MODE_HEADER]: 'ask' },
       )
       expect(res.status).toBe(200)
@@ -261,8 +304,8 @@ describe('POST /routing/delegate', () => {
 
       const res = await postJson(
         app,
-        '/routing/delegate',
-        { targetWorkspaceId: workspace.id, task: 'summarize' },
+        '/routing/message',
+        { to: `workspace:${workspace.id}`, body: 'summarize' },
         { [DELEGATION_MODE_HEADER]: 'yolo' },
       )
       expect(res.status).toBe(200)
@@ -278,9 +321,9 @@ describe('POST /routing/delegate', () => {
       await seedLinkedGlobalRoot(db, user.id)
       const app = makeHarness(db)
 
-      const res = await postJson(app, '/routing/delegate', {
-        targetWorkspaceId: workspace.id,
-        task: 'routine tidy-up',
+      const res = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 'routine tidy-up',
         model: 'claude-haiku-4-5',
         thinkingEffort: 'low',
       })
@@ -292,24 +335,24 @@ describe('POST /routing/delegate', () => {
 
       // Only the curated allowlist passes (the composer precedent) — and an
       // invalid effort level is equally rejected at the boundary.
-      const badModel = await postJson(app, '/routing/delegate', {
-        targetWorkspaceId: workspace.id,
-        task: 't',
+      const badModel = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 't',
         model: 'gpt-5',
       })
       expect(badModel.status).toBe(400)
-      const badEffort = await postJson(app, '/routing/delegate', {
-        targetWorkspaceId: workspace.id,
-        task: 't',
+      const badEffort = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 't',
         thinkingEffort: 'ultra',
       })
       expect(badEffort.status).toBe(400)
 
       // The session route composes the SAME shared preference fields — pin it
       // (validation runs before target resolution, so no spawned seed needed).
-      const badSessionModel = await postJson(app, '/routing/delegate-session', {
-        targetSessionId: 'any',
-        task: 't',
+      const badSessionModel = await postJson(app, '/routing/message', {
+        to: `session:${'any'}`,
+        body: 't',
         model: 'gpt-5',
       })
       expect(badSessionModel.status).toBe(400)
@@ -322,9 +365,9 @@ describe('POST /routing/delegate', () => {
       const workspace = seedWorkspace(db, user.id)
       const app = makeHarness(db)
 
-      const res = await postJson(app, '/routing/delegate', {
-        targetWorkspaceId: workspace.id,
-        task: 'summarize',
+      const res = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 'summarize',
       })
       expect(res.status).toBe(400)
     })
@@ -336,9 +379,9 @@ describe('POST /routing/delegate', () => {
       await seedLinkedGlobalRoot(db, user.id)
       const app = makeHarness(db)
 
-      const res = await postJson(app, '/routing/delegate', {
-        targetWorkspaceId: randomUUID(),
-        task: 'summarize',
+      const res = await postJson(app, '/routing/message', {
+        to: `workspace:${randomUUID()}`,
+        body: 'summarize',
       })
       expect(res.status).toBe(404)
     })
@@ -467,7 +510,7 @@ describe('POST /routing/reply-to-channel (the channel pipeline, 2026-07-27)', ()
   })
 })
 
-describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', () => {
+describe('POST /routing/message → session task (ported from /routing/delegate-session, Slice ④)', () => {
   // The spawn-time priming turn, faked (session-started + completed).
   function makePrimingProvider(sessionId: string): AiAgentProvider {
     return {
@@ -539,14 +582,14 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
         const spawned = await seedSpawnedSession(db, user.id)
         const app = makeHarness(db)
 
-        const res = await postJson(app, '/routing/delegate-session', {
-          targetSessionId: spawned.sessionId,
-          task: 'compare pricing',
+        const res = await postJson(app, '/routing/message', {
+          to: `session:${spawned.sessionId}`,
+          body: 'compare pricing',
         })
         expect(res.status).toBe(200)
-        const body = (await res.json()) as { status: string; jobId: string; sessionName: string }
+        const body = (await res.json()) as { status: string; jobId: string; deliveredTo: string }
         expect(body.status).toBe('enqueued')
-        expect(body.sessionName).toBe('Research: pricing')
+        expect(body.deliveredTo).toBe('Research: pricing')
 
         const job = findDelegationJobById(db, body.jobId)
         expect(job?.status).toBe('pending')
@@ -568,9 +611,9 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
         const spawned = await seedSpawnedSession(db, user.id)
         const app = makeHarness(db)
 
-        const res = await postJson(app, '/routing/delegate-session', {
-          targetSessionId: spawned.sessionId,
-          task: 'hard analysis',
+        const res = await postJson(app, '/routing/message', {
+          to: `session:${spawned.sessionId}`,
+          body: 'hard analysis',
           model: 'claude-sonnet-4-6',
           thinkingEffort: 'max',
         })
@@ -595,9 +638,9 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
         const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-ws', workspace)
         const app = makeHarness(db)
 
-        const res = await postJson(app, '/routing/delegate-session', {
-          targetSessionId: spawned.sessionId,
-          task: 'dig into the backlog',
+        const res = await postJson(app, '/routing/message', {
+          to: `session:${spawned.sessionId}`,
+          body: 'dig into the backlog',
           workspaceId: workspace.id,
         })
         expect(res.status).toBe(200)
@@ -614,9 +657,9 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
         // A GLOBAL-spawned target keeps ITS ground (the hidden global dir)
         // even when a workspace sends the task — cwd follows the target.
         const globalSpawned = await seedSpawnedSession(db, user.id, 'sdk-sp-global')
-        const res2 = await postJson(app, '/routing/delegate-session', {
-          targetSessionId: globalSpawned.sessionId,
-          task: 't',
+        const res2 = await postJson(app, '/routing/message', {
+          to: `session:${globalSpawned.sessionId}`,
+          body: 't',
           workspaceId: workspace.id,
         })
         expect(res2.status).toBe(200)
@@ -638,9 +681,9 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
         const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-np', workspace)
         const app = makeHarness(db)
 
-        const res = await postJson(app, '/routing/delegate-session', {
-          targetSessionId: spawned.sessionId,
-          task: 't',
+        const res = await postJson(app, '/routing/message', {
+          to: `session:${spawned.sessionId}`,
+          body: 't',
           workspaceId: workspace.id,
         })
         expect(res.status).toBe(400)
@@ -659,17 +702,17 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
         const foreignWs = seedWorkspace(db, stranger.id, 'Theirs')
         const app = makeHarness(db)
 
-        const unknown = await postJson(app, '/routing/delegate-session', {
-          targetSessionId: spawned.sessionId,
-          task: 't',
+        const unknown = await postJson(app, '/routing/message', {
+          to: `session:${spawned.sessionId}`,
+          body: 't',
           workspaceId: randomUUID(),
         })
         expect(unknown.status).toBe(404)
 
         // Not-owned answers exactly like unknown (no enumeration leak).
-        const crossUser = await postJson(app, '/routing/delegate-session', {
-          targetSessionId: spawned.sessionId,
-          task: 't',
+        const crossUser = await postJson(app, '/routing/message', {
+          to: `session:${spawned.sessionId}`,
+          body: 't',
           workspaceId: foreignWs.id,
         })
         expect(crossUser.status).toBe(404)
@@ -686,26 +729,26 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
         const app = makeHarness(db)
 
         // No linked global root yet → 400 (the delegate-route gate).
-        const noRoot = await postJson(app, '/routing/delegate-session', {
-          targetSessionId: spawned.sessionId,
-          task: 't',
+        const noRoot = await postJson(app, '/routing/message', {
+          to: `session:${spawned.sessionId}`,
+          body: 't',
         })
         expect(noRoot.status).toBe(400)
 
         await seedLinkedGlobalRoot(db, user.id)
         // Unknown handle → 404.
-        const unknown = await postJson(app, '/routing/delegate-session', {
-          targetSessionId: 'sdk-no-such',
-          task: 't',
+        const unknown = await postJson(app, '/routing/message', {
+          to: `session:${'sdk-no-such'}`,
+          body: 't',
         })
         expect(unknown.status).toBe(404)
 
         // Another user's spawned session → the same 404 (no enumeration leak).
         const stranger = seedUser(db)
         const theirs = await seedSpawnedSession(db, stranger.id, 'sdk-sp-theirs')
-        const crossUser = await postJson(app, '/routing/delegate-session', {
-          targetSessionId: theirs.sessionId,
-          task: 't',
+        const crossUser = await postJson(app, '/routing/message', {
+          to: `session:${theirs.sessionId}`,
+          body: 't',
         })
         expect(crossUser.status).toBe(404)
       })
@@ -713,7 +756,7 @@ describe('POST /routing/delegate-session (Slice ④ — send_task_to_session)', 
   })
 })
 
-describe('POST /routing/report (session-comms — report_to_requester)', () => {
+describe('POST /routing/message → requester report (ported from /routing/report, session-comms)', () => {
   // The spawn-time priming turn, faked (session-started + completed) — a local
   // copy of the delegate-session describe's helper (describe-scoped there).
   function makePrimingProvider(sessionId: string): AiAgentProvider {
@@ -740,8 +783,8 @@ describe('POST /routing/report (session-comms — report_to_requester)', () => {
   function postReport(app: ReturnType<typeof makeHarness>, report: string, caller?: ReportCaller) {
     return postJson(
       app,
-      '/routing/report',
-      { report },
+      '/routing/message',
+      { to: 'requester', body: report },
       caller !== undefined ? { [REPORT_CALLER_HEADER]: serializeReportCaller(caller) } : {},
     )
   }
@@ -792,8 +835,8 @@ describe('POST /routing/report (session-comms — report_to_requester)', () => {
 
       const res = await postJson(
         app,
-        '/routing/report',
-        { report: 'Launch is on track.' },
+        '/routing/message',
+        { to: 'requester', body: 'Launch is on track.'  },
         {
           [REPORT_CALLER_HEADER]: serializeReportCaller({
             kind: 'workspace-primary',
@@ -826,8 +869,8 @@ describe('POST /routing/report (session-comms — report_to_requester)', () => {
       for (const overrideId of [foreign.id, target.id]) {
         const res = await postJson(
           app,
-          '/routing/report',
-          { report: 'r' },
+          '/routing/message',
+          { to: 'requester', body: 'r'  },
           {
             [REPORT_CALLER_HEADER]: serializeReportCaller({
               kind: 'workspace-primary',
@@ -951,6 +994,195 @@ describe('POST /routing/report (session-comms — report_to_requester)', () => {
       expect(res.status).toBe(400)
     })
   })
+
+  it('an AGENT-SESSION caller reports to its grounding workspace primary, labeled by the agent name', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      const { colleagueId, sdkSessionId } = await seedLinkedColleague(db, user.id, {
+        workspaceId: workspace.id,
+        slug: 'researcher',
+        name: 'Nova',
+      })
+      const app = makeHarness(db)
+
+      const res = await postReport(app, 'Found three strong sources.', {
+        kind: 'agent-session',
+        targetPrimarySessionId: colleagueId,
+      })
+      expect(res.status).toBe(200)
+      const { jobId } = (await res.json()) as { jobId: string }
+
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.jobKind).toBe('report-delivery')
+      expect(job?.workspaceId).toBe(workspace.id)
+      expect(job?.workspacePath).toBe(workspace.path)
+      expect(job?.workspaceName).toBe('Nova')
+      expect(job?.parentSessionId).toBe(sdkSessionId)
+    })
+  })
+
+  it('an AGENT-SESSION caller honors the requester-override; a GLOBAL colleague falls to the root', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const grounding = seedManagedWorkspace(db, user.id, 'Grounding')
+      const origin = seedManagedWorkspace(db, user.id, 'Origin')
+      const grounded = await seedLinkedColleague(db, user.id, {
+        workspaceId: grounding.id,
+        slug: 'researcher',
+        name: 'Nova',
+      })
+      const app = makeHarness(db)
+
+      // Override wins over the grounding workspace (the mention's origin chat).
+      const overridden = await app.request('/routing/message', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          [REPORT_CALLER_HEADER]: serializeReportCaller({
+            kind: 'agent-session',
+            targetPrimarySessionId: grounded.colleagueId,
+          }),
+          [REPORT_REQUESTER_HEADER]: origin.id,
+        },
+        body: JSON.stringify({ to: 'requester', body: 'On it.'  }),
+      })
+      expect(overridden.status).toBe(200)
+      const overriddenJob = findDelegationJobById(
+        db,
+        ((await overridden.json()) as { jobId: string }).jobId,
+      )
+      expect(overriddenJob?.workspaceId).toBe(origin.id)
+
+      // A GLOBAL colleague with no override reports to the global root.
+      const globalColleague = await seedLinkedColleague(db, user.id, {
+        workspaceId: null,
+        slug: 'writer',
+        name: 'Quill',
+      })
+      const global = await postReport(app, 'Draft ready.', {
+        kind: 'agent-session',
+        targetPrimarySessionId: globalColleague.colleagueId,
+      })
+      expect(global.status).toBe(200)
+      const globalJob = findDelegationJobById(
+        db,
+        ((await global.json()) as { jobId: string }).jobId,
+      )
+      expect(globalJob?.workspaceId).toBeNull()
+      expect(globalJob?.targetPrimarySessionId).toBeNull()
+      expect(globalJob?.workspaceName).toBe('Quill')
+    })
+  })
+
+  it('404s an unknown or foreign agent-session caller (no enumeration leak)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const app = makeHarness(db)
+      expect(
+        (
+          await postReport(app, 'r', {
+            kind: 'agent-session',
+            targetPrimarySessionId: randomUUID(),
+          })
+        ).status,
+      ).toBe(404)
+
+      const stranger = seedUser(db)
+      const theirs = await seedLinkedColleague(db, stranger.id, {
+        workspaceId: null,
+        slug: 'researcher',
+        name: 'Nova',
+      })
+      expect(
+        (
+          await postReport(app, 'r', {
+            kind: 'agent-session',
+            targetPrimarySessionId: theirs.colleagueId,
+          })
+        ).status,
+      ).toBe(404)
+      expect(user.id).not.toBe(stranger.id)
+    })
+  })
+})
+
+describe('POST /routing/message → kind direct_to_user (direct messages to the user)', () => {
+  it('enqueues a direct-delivery row — the title leads the body, the kind is echoed', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-dm1')
+      const app = makeHarness(db)
+
+      const res = await postJson(
+        app,
+        '/routing/message',
+        {
+          to: 'requester',
+          body: 'Full overview text.',
+          kind: 'direct_to_user',
+          title: 'Overview of the agency app',
+        },
+        {
+          [REPORT_CALLER_HEADER]: serializeReportCaller({
+            kind: 'workspace-primary',
+            workspaceId: workspace.id,
+          }),
+        },
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { status: string; jobId: string; kind: string }
+      expect(body.status).toBe('enqueued')
+      expect(body.kind).toBe('direct_to_user')
+
+      const job = findDelegationJobById(db, body.jobId)
+      expect(job?.jobKind).toBe('direct-delivery')
+      expect(job?.taskText).toBe('Overview of the agency app\n\nFull overview text.')
+      expect(job?.workspaceName).toBe('Mark · Acme')
+      expect(job?.parentSessionId).toBe('ws-primary-dm1')
+    })
+  })
+
+  it('400s a direct_to_user without a title, a title on any other kind, and a downward direct', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-dm2')
+      const app = makeHarness(db)
+      const callerHeader = {
+        [REPORT_CALLER_HEADER]: serializeReportCaller({
+          kind: 'workspace-primary',
+          workspaceId: workspace.id,
+        }),
+      }
+
+      const noTitle = await postJson(
+        app,
+        '/routing/message',
+        { to: 'requester', body: 'x', kind: 'direct_to_user' },
+        callerHeader,
+      )
+      expect(noTitle.status).toBe(400)
+      expect(((await noTitle.json()) as { message: string }).message).toContain('title')
+
+      const titleOnReport = await postJson(
+        app,
+        '/routing/message',
+        { to: 'requester', body: 'x', kind: 'report', title: 'T' },
+        callerHeader,
+      )
+      expect(titleOnReport.status).toBe(400)
+
+      const directDown = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 'x',
+        kind: 'direct_to_user',
+        title: 'T',
+      })
+      expect(directDown.status).toBe(400)
+    })
+  })
 })
 
 describe('GET /routing/background-runs (reading back a handed-off task)', () => {
@@ -963,9 +1195,9 @@ describe('GET /routing/background-runs (reading back a handed-off task)', () => 
 
       // Hand work off exactly as the agent does — the jobId in this response is
       // the handle that used to lead nowhere.
-      const delegated = await postJson(app, '/routing/delegate', {
-        targetWorkspaceId: workspace.id,
-        task: 'summarize the docs',
+      const delegated = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 'summarize the docs',
       })
       const { jobId } = (await delegated.json()) as { jobId: string }
 
@@ -984,9 +1216,9 @@ describe('GET /routing/background-runs (reading back a handed-off task)', () => 
       await seedLinkedGlobalRoot(db, user.id)
       const app = makeHarness(db)
 
-      const delegated = await postJson(app, '/routing/delegate', {
-        targetWorkspaceId: workspace.id,
-        task: 'summarize the docs',
+      const delegated = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 'summarize the docs',
       })
       const { jobId } = (await delegated.json()) as { jobId: string }
 
@@ -1086,6 +1318,117 @@ describe('POST /routing/message (send_message — the unified comms tool)', () =
       const job = findDelegationJobById(db, out.jobId)
       expect(job?.jobKind).toBe('report-delivery')
       expect(job?.taskText).toBe('12 docs, 3 stale')
+    })
+  })
+
+  it('routes "session:<id>" to an agent COLLEAGUE segment (persona-sessions)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      await seedLinkedGlobalRoot(db, user.id)
+      const { colleagueId, sdkSessionId } = await seedLinkedColleague(db, user.id, {
+        workspaceId: null,
+        slug: 'researcher',
+        name: 'Nova',
+      })
+      const app = makeHarness(db)
+
+      const res = await postJson(app, '/routing/message', {
+        to: `session:${sdkSessionId}`,
+        body: 'dig into WAL mode',
+      })
+      expect(res.status).toBe(200)
+      const out = (await res.json()) as { jobId: string; deliveredTo: string; kind: string }
+      expect(out).toMatchObject({ deliveredTo: 'Nova', kind: 'task' })
+
+      const job = findDelegationJobById(db, out.jobId)
+      expect(job?.targetPrimarySessionId).toBe(colleagueId)
+      expect(job?.taskText).toBe('dig into WAL mode')
+    })
+  })
+
+  it('kind "update" enqueues an update-delivery row and NEVER marks the running job reported', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-upd')
+      // The running task this turn is working on (the job header names it).
+      const runningJobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'g-1',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'the task being acked',
+      })
+      const app = makeHarness(db)
+
+      const send = (kind: 'update' | 'report', body: string) =>
+        app.request('/routing/message', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            [REPORT_CALLER_HEADER]: serializeReportCaller({
+              kind: 'workspace-primary',
+              workspaceId: workspace.id,
+            }),
+            [DELEGATION_JOB_HEADER]: runningJobId,
+          },
+          body: JSON.stringify({ to: 'requester', body, kind }),
+        })
+
+      const ackRes = await send('update', 'Received — starting now.')
+      expect(ackRes.status).toBe(200)
+      const ack = (await ackRes.json()) as { jobId: string; kind: string }
+      expect(ack.kind).toBe('update')
+      const ackJob = findDelegationJobById(db, ack.jobId)
+      expect(ackJob?.jobKind).toBe('update-delivery')
+      // The ack did NOT mark the task reported — only the final report does.
+      expect(findDelegationJobById(db, runningJobId)?.reportedAt).toBeNull()
+
+      const reportRes = await send('report', 'Done: 3 files changed.')
+      expect(reportRes.status).toBe(200)
+      const report = (await reportRes.json()) as { jobId: string; kind: string }
+      expect(report.kind).toBe('report')
+      expect(findDelegationJobById(db, report.jobId)?.jobKind).toBe('report-delivery')
+      expect(findDelegationJobById(db, runningJobId)?.reportedAt).not.toBeNull()
+    })
+  })
+
+  it('400s a kind that contradicts the destination — never a silent misroute', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      await seedLinkedGlobalRoot(db, user.id)
+      const app = makeHarness(db)
+
+      expect(
+        (
+          await postJson(app, '/routing/message', {
+            to: 'requester',
+            body: 'x',
+            kind: 'task',
+          })
+        ).status,
+      ).toBe(400)
+      expect(
+        (
+          await postJson(app, '/routing/message', {
+            to: `workspace:${workspace.id}`,
+            body: 'x',
+            kind: 'update',
+          })
+        ).status,
+      ).toBe(400)
+      expect(
+        (
+          await postJson(app, '/routing/message', {
+            to: `workspace:${workspace.id}`,
+            body: 'x',
+            kind: 'report',
+          })
+        ).status,
+      ).toBe(400)
     })
   })
 

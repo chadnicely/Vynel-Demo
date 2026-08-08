@@ -63,6 +63,7 @@ export type { RecordSpawnedSessionSegmentInput } from './records/record-spawned-
 export { recordLeafSession } from './records/record-leaf-session.js'
 export type { RecordLeafSessionInput } from './records/record-leaf-session.js'
 export { recordPushedReportMessage } from './records/record-pushed-report-message.js'
+export { recordDirectReplyMessage } from './records/record-direct-reply-message.js'
 export type { RecordPushedReportMessageInput } from './records/record-pushed-report-message.js'
 export { composeManagerSourceLabel } from './records/compose-manager-source-label.js'
 

@@ -11,8 +11,8 @@ import { z } from 'zod'
 import { ChatModelIdSchema } from '@vynel/contracts/chat/chat-models'
 import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
 
-// The root's model/effort picks for the delegated turn (shared by both delegate
-// routes). The generated MCP tool schema here IS the UI (the cf15137 review
+// The sender's model/effort picks for a delegated turn (send_message task
+// sends). The generated MCP tool schema here IS the UI (the cf15137 review
 // catch — the delegating agent must be able to learn legal values). Since the
 // roster went dynamic, the model field is shape-validated; the TOOL
 // descriptions point the agent at `list_available_chat_models` (the generator
@@ -24,14 +24,6 @@ const DelegationRunPreferenceFields = {
   /** Reasoning effort for the delegated turn. Omit for the adaptive default. */
   thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
 }
-
-export const RouteToWorkspaceRequestSchema = z.object({
-  /** The workspace to route the task to (from list_routing_workspaces). */
-  targetWorkspaceId: z.string().min(1),
-  /** The task to route down — becomes a turn on the workspace root's brain. */
-  task: z.string().min(1).max(50000),
-  ...DelegationRunPreferenceFields,
-})
 
 export const SendToChannelRequestSchema = z.object({
   /** The channel to send to (from list_routing_channels). */
@@ -57,44 +49,6 @@ export const RoutingWorkspaceTargetSchema = z.object({
 })
 
 export const ListRoutingWorkspacesResponseSchema = z.array(RoutingWorkspaceTargetSchema)
-
-export const RouteToWorkspaceResponseSchema = z.object({
-  status: z.literal('enqueued'),
-  jobId: z.string(),
-  workspaceName: z.string(),
-})
-
-export const SendTaskToSessionRequestSchema = z.object({
-  /** The target session — the id list_sessions shows / create_session returned. */
-  targetSessionId: z.string().min(1),
-  /** The task to send — becomes a turn on the spawned session's conversation. */
-  task: z.string().min(1).max(50000),
-  /** Slice ④b: the CALLING workspace (ownership-checked) — the job's parent is
-   *  then that workspace's primary conversation, so the report returns to the
-   *  creator. Absent = a global-root call (the shipped v1 behavior). The
-   *  workspace surface stamps this ambiently from the turn's scope. */
-  workspaceId: z.string().min(1).optional(),
-  ...DelegationRunPreferenceFields,
-})
-
-export const SendTaskToSessionResponseSchema = z.object({
-  status: z.literal('enqueued'),
-  jobId: z.string(),
-  sessionName: z.string(),
-})
-
-// session-comms: the upward report. DELIBERATELY only the report body — the
-// requester is resolved server-side from the calling turn's identity header
-// (fork 2: no ids in the tool input = no mis-addressing, no cycles).
-export const ReportToRequesterRequestSchema = z.object({
-  /** The real result to pass up — findings, numbers, paths; not just "done". */
-  report: z.string().min(1).max(50000),
-})
-
-export const ReportToRequesterResponseSchema = z.object({
-  status: z.literal('enqueued'),
-  jobId: z.string(),
-})
 
 // Local enum (the root-schemas precedent of redeclaring small unions) — the
 // channels route file keeps its ChannelKindSchema private.
@@ -137,8 +91,24 @@ export const MessageDestinationSchema = z
 
 export const SendMessageRequestSchema = z.object({
   to: MessageDestinationSchema,
-  /** The task to hand down, or the result to pass back up. */
+  /** The task to hand down, or the result/status to pass back up. */
   body: z.string().min(1).max(50000),
+  /** UPWARD messages only (persona-sessions): 'report' = the FINAL result
+   *  (marks the running task reported); 'update' = an interim ack/progress
+   *  line (never marks it — the task stays running); 'direct_to_user' = the
+   *  FINAL answer addressed to the USER — shown verbatim as your message,
+   *  never narrated (requires `title`; marks the task reported). Omitted =
+   *  'report' for "requester", derived 'task' for a workspace/session target. */
+  kind: z.enum(['task', 'report', 'update', 'direct_to_user']).optional(),
+  /** REQUIRED with kind 'direct_to_user' (rejected otherwise): the short
+   *  headline the user's message box shows — the full text opens from it. */
+  title: z.string().min(1).max(200).optional(),
+  /** The CALLING workspace for a "session:" send (Slice ④b, ownership-checked)
+   *  — the job then parents on that workspace's primary conversation, so the
+   *  report returns to the creator. The workspace surface stamps this
+   *  ambiently from the turn's scope (the generator's workspaceId fallback);
+   *  absent = a global-root call. */
+  workspaceId: z.string().min(1).optional(),
   ...DelegationRunPreferenceFields,
 })
 
@@ -148,8 +118,9 @@ export const SendMessageResponseSchema = z.object({
   /** What the message was addressed to, resolved — the workspace/session name,
    *  or the requester's label. Lets the caller confirm where it actually went. */
   deliveredTo: z.string(),
-  /** 'task' when sent down to a workspace/session, 'report' when passed up. */
-  kind: z.enum(['task', 'report']),
+  /** 'task' when sent down to a workspace/session; 'report'/'update'/
+   *  'direct_to_user' when passed up. */
+  kind: z.enum(['task', 'report', 'update', 'direct_to_user']),
 })
 
 // ── Background runs (reading back a handed-off task) ────────────────

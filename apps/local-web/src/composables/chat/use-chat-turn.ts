@@ -22,6 +22,11 @@ import {
   isWorkMutatingToolName,
 } from "./work-view-invalidation.js";
 
+// A continue-mode workspace turn parked behind a running delegated task leads
+// with the `turn-queued` transport sentinel (B3 — the session-turn precedent);
+// it is not a ChatTurnEvent kind, so the decoded stream widens at the boundary.
+type ChatTurnStreamEvent = ChatTurnEvent | { kind: "turn-queued" };
+
 // Drives one live turn against the real SSE stream. Each ChatTurnEvent folds
 // into the active-turn view (transport-blind — the same pure fold the parser
 // tests cover); once the server-persisted turn ends, history reconciles by
@@ -38,6 +43,9 @@ export function useChatTurn(options: {
   const activity = useActivityStore();
 
   const view = shallowRef<ActiveTurnView | null>(null);
+  /** Parked behind a delegated run on this workspace (the B3 queued sentinel)
+   *  — the composer says "queued" instead of looking frozen. */
+  const isQueuedBehindTask = shallowRef(false);
   /** The session the in-flight turn renders into — known up front for a resume/
    *  continue, or learned from `session-created` for a fresh conversation. */
   const activeSessionId = shallowRef<string | null>(null);
@@ -98,6 +106,7 @@ export function useChatTurn(options: {
     activeSessionId.value = input.sessionId;
     startedContinuous.value = input.isContinuous;
     errorText.value = null;
+    isQueuedBehindTask.value = false;
     activity.turnStarted();
     abortController = new AbortController();
 
@@ -122,7 +131,17 @@ export function useChatTurn(options: {
               : {}
           : {}),
       });
-      for await (const event of stream) ingest(event);
+      for await (const event of stream as AsyncIterable<ChatTurnStreamEvent>) {
+        // Parked behind a delegated run on this workspace — a transport
+        // sentinel, never folded; the flag lets the composer say "queued"
+        // instead of looking frozen (the sidebar's workspace thread shows it).
+        if (event.kind === "turn-queued") {
+          isQueuedBehindTask.value = true;
+          continue;
+        }
+        isQueuedBehindTask.value = false;
+        ingest(event);
+      }
       // The stream closed with NO terminal frame at all — a server crash
       // mid-turn used to end here looking exactly like success, pinning
       // "working" forever. A stream the server ENDED deliberately
@@ -192,6 +211,7 @@ export function useChatTurn(options: {
         isRecoverable: true,
       });
     }
+    isQueuedBehindTask.value = false;
     ingest({ kind: "turn-stream-ended" });
   }
 
@@ -217,6 +237,7 @@ export function useChatTurn(options: {
     activeSessionId,
     startedContinuous,
     isStreaming,
+    isQueuedBehindTask,
     errorText,
     startTurn,
     interrupt,

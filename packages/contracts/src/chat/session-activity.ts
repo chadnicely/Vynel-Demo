@@ -7,9 +7,11 @@
 // advance under the turn (assistant text appends per chunk), so a listener that
 // polls the session detail while a turn is active renders near-live text;
 // token-level mirroring stays the trace-observe stream's job. Steps are
-// TRANSIENT — the subscribe-time snapshot replays `turn-started` only (a
-// mid-turn attach narrates from now on), and approval bells carry no state:
-// the approvals API stays the owner; a bell just says "refetch now".
+// TRANSIENT — never stored — but the subscribe-time snapshot replays each
+// in-flight turn's `turn-started` AND its LAST step (persona-sessions: a
+// mid-turn attach should not narrate blank until the next tool call); approval
+// bells carry no state: the approvals API stays the owner; a bell just says
+// "refetch now".
 
 /** Where a turn came from — drives the "Claude is replying via …" indicator.
  *  `'delegation'` = a background workspace turn running a task the assistant
@@ -25,7 +27,9 @@ export type SessionTurnOrigin =
   | 'delegation'
 
 /** One in-flight turn as the feed reports it. `sessionId` is null until the
- *  runtime resolves it (a fresh conversation learns its id mid-turn). */
+ *  runtime resolves it (a fresh conversation learns its id mid-turn). The
+ *  persona-sessions fields are OPTIONAL enrichment — producers stamp what they
+ *  know (delegated runs carry all of them; interactive turns few or none). */
 export interface SessionTurnActivity {
   turnId: string
   scopeKind: 'global' | 'workspace'
@@ -33,13 +37,27 @@ export interface SessionTurnActivity {
   sessionId: string | null
   origin: SessionTurnOrigin
   startedAt: string
+  /** The continuing identity the turn runs on (a spawned/agent session id). */
+  primarySessionId?: string | null
+  /** The delegation queue row driving this turn. */
+  jobId?: string | null
+  /** The task chain this turn belongs to (the live card's key). */
+  threadId?: string | null
+  /** The per-hop trace key (the Watch drill's handle). */
+  partialSessionId?: string | null
+  /** The delegated task as a short label ("Set up the login page"). */
+  taskLabel?: string | null
+  /** Who is speaking this turn — the persona/agent/session display name. */
+  personaName?: string | null
 }
 
 /** A settled tool call's terminal status (mirrors the chat stream's vocabulary). */
 export type SessionTurnStepStatus = 'completed' | 'failed' | 'denied' | 'cancelled'
 
 /** One narration step inside a turn — published by the turn producer, stamped
- *  with the `turnId` by the feed. Transient: never part of the snapshot replay. */
+ *  with the `turnId` by the feed. Transient (never stored) — the snapshot
+ *  replays only each in-flight turn's LAST step, right after its
+ *  `turn-started` frame. */
 export type SessionTurnStep =
   | {
       kind: 'turn-tool-started'

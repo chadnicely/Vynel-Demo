@@ -66,6 +66,12 @@ export const chatMessages = table(
     // heavy sessions. Minted at enqueue; stamped by the delegation taggers. Additive
     // + nullable: every non-delegation message leaves it null.
     partialSessionId: text(),
+    // The CHAIN key (persona-sessions): one task and everything it caused,
+    // across every hop. `partialSessionId` is per-HOP by design (each delivery
+    // mints a fresh one), so the UI cannot match an ack/report row back to the
+    // task card without this. Mirrors `delegation_jobs.threadId`; stamped by
+    // the same attribution the taggers thread. Additive + nullable.
+    threadId: text(),
     thinkingBody: text(), // optional thinking content; D7
     // On an assistant row: the turn's context-window occupancy (uncached input +
     // cache read + cache creation), set from the usage report. NOT the same as

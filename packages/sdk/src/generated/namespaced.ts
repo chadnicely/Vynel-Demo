@@ -21,6 +21,11 @@ import type { paths } from './api.js'
 export function makeNamespaced(client: Client<paths>) {
   return {
   activity: {
+  listRunningTurns: async () => {
+    const { data, error, response } = await client["GET"]("/activity/running")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   stream: async () => {
     const { data, error, response } = await client["GET"]("/activity/stream")
     if (error || data === undefined) throw new SdkError(response, error ?? data)
@@ -1213,20 +1218,6 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   routing: {
-  delegate: async (input: NonNullable<paths["/routing/delegate"]["post"]['requestBody']>['content']['application/json']) => {
-    const { data, error, response } = await client["POST"]("/routing/delegate", {
-      body: input,
-    })
-    if (error || data === undefined) throw new SdkError(response, error ?? data)
-    return data
-  },
-  delegateSession: async (input: NonNullable<paths["/routing/delegate-session"]["post"]['requestBody']>['content']['application/json']) => {
-    const { data, error, response } = await client["POST"]("/routing/delegate-session", {
-      body: input,
-    })
-    if (error || data === undefined) throw new SdkError(response, error ?? data)
-    return data
-  },
   getBackgroundRun: async (jobId: NonNullable<paths["/routing/background-runs/{jobId}"]["get"]['parameters']>['path']["jobId"]) => {
     const { data, error, response } = await client["GET"]("/routing/background-runs/{jobId}", {
       params: { path: { jobId: jobId } },
@@ -1251,13 +1242,6 @@ export function makeNamespaced(client: Client<paths>) {
   },
   replyToChannel: async (input: NonNullable<paths["/routing/reply-to-channel"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/routing/reply-to-channel", {
-      body: input,
-    })
-    if (error || data === undefined) throw new SdkError(response, error ?? data)
-    return data
-  },
-  report: async (input: NonNullable<paths["/routing/report"]["post"]['requestBody']>['content']['application/json']) => {
-    const { data, error, response } = await client["POST"]("/routing/report", {
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

@@ -29,17 +29,28 @@ export type DelegationJobStatus = 'pending' | 'claimed' | 'completed' | 'failed'
 // spoken ack/progress, same notify machinery, but it NEVER marks the task
 // reported and coalesces while pending (one in-flight update per thread); an
 // 'agent-run' row (chat-mentions) runs ONE agent leaf on the user's message and
-// delivers its result deterministically as a report. Stored nullable — NULL
-// means 'task' (every legacy row), so the migration is a pure additive ALTER.
-export type DelegationJobKind = 'task' | 'report-delivery' | 'update-delivery' | 'agent-run'
+// delivers its result deterministically as a report; a 'direct-delivery' row
+// (kind `direct_to_user`) carries a final answer addressed to the USER — it
+// persists straight onto the requester's transcript with NO notify turn, and
+// the requester absorbs it silently via the catch-up net. Stored nullable —
+// NULL means 'task' (every legacy row), so the migration is a pure additive
+// ALTER.
+export type DelegationJobKind =
+  | 'task'
+  | 'report-delivery'
+  | 'update-delivery'
+  | 'direct-delivery'
+  | 'agent-run'
 
-// The DELIVERY kinds — rows that run a notify turn on a requester rather than
-// handed-off work. ONE home for the membership so every "is this a delivery /
-// is this work" predicate stays mechanical when a kind is added (the claim
-// gate + queries take the array; TS branches take the predicates).
-export const DELIVERY_JOB_KINDS = ['report-delivery', 'update-delivery'] as const
+// The DELIVERY kinds — rows that carry a child's message to a requester rather
+// than handed-off work. ONE home for the membership so every "is this a
+// delivery / is this work" predicate stays mechanical when a kind is added
+// (the claim gate + queries take the array; TS branches take the predicates).
+export const DELIVERY_JOB_KINDS = ['report-delivery', 'update-delivery', 'direct-delivery'] as const
 
-export function isDeliveryJobKind(kind: DelegationJobKind | null): boolean {
+export function isDeliveryJobKind(
+  kind: DelegationJobKind | null,
+): kind is (typeof DELIVERY_JOB_KINDS)[number] {
   return kind !== null && (DELIVERY_JOB_KINDS as readonly string[]).includes(kind)
 }
 

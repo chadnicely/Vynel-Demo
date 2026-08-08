@@ -27,6 +27,7 @@ import {
   enqueueReportDelivery,
   findDelegationJobById,
   findDelegationJobByPartialSessionId,
+  markDelegationJobReported,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
 } from '@vynel/orchestration'
 import { createSpawnedSession } from '../spawned/index.js'
@@ -429,6 +430,103 @@ describe('runDelegationClaimAndRunTick', () => {
     })
   })
 
+  it('a task whose final answer went kind direct_to_user completes UNSURFACED — the absorb net is the awareness path', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+
+      const jobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'give the user an overview',
+      })
+      // Mid-turn the manager sends kind direct_to_user: the dispatcher
+      // enqueues the direct row on the SAME chain + marks the running job
+      // reported — staged here exactly as dispatch-message does it.
+      const taskJob = findDelegationJobById(db, jobId)!
+      enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: 'ws-root-direct',
+        reporterLabel: 'Mark · Acme',
+        reportBody: 'Overview of the app\n\nIt has three parts.',
+        requester: { kind: 'global-root' },
+        deliverDirectly: true,
+        threadId: taskJob.threadId!,
+      })
+      markDelegationJobReported(db, jobId, new Date())
+
+      // Drain the queue: claim order between the two rows tie-breaks on a
+      // random uuid — the invariant must hold either way.
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: 'ws-root-direct',
+        resultText: 'done',
+      })
+      while (
+        await runDelegationClaimAndRunTick(db, {
+          provider,
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+        })
+      ) {
+        // drain until the queue is dry
+      }
+
+      // The WORK row: completed + reported, and NOT surfaced — reaching the
+      // net in this state is what triggers the collector's absorb-silently
+      // line (the invariant-5 direct exception).
+      const settled = findDelegationJobById(db, jobId)
+      expect(settled?.status).toBe('completed')
+      expect(settled?.reportedAt).not.toBeNull()
+      expect(settled?.surfacedToRootAt).toBeNull()
+
+      // The direct row persisted the message onto the ROOT transcript as the
+      // sender speaking (Message marker, title leading) — no notify turn ran.
+      const direct = listChatMessagesForSession(db, globalSessionId).find((row) =>
+        row.body.includes('It has three parts.'),
+      )
+      expect(direct?.sourceKind).toBe('agent')
+      expect(direct?.sourceLabel).toBe('Mark · Acme')
+      expect(direct?.body.startsWith('[Message from Mark · Acme')).toBe(true)
+
+      // The Gate-3 catch: a LATER task on the SAME chain whose report goes the
+      // NORMAL narrated route must still surface at completion — the earlier
+      // direct hop belongs to task 1's delivery window, never task 2's.
+      const secondJobId = enqueueWorkspaceDelegation(
+        db,
+        {
+          userId: user.id,
+          parentSessionId: globalSessionId,
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
+          workspaceName: workspace.name,
+          taskText: 'a follow-up task',
+          threadId: taskJob.threadId!,
+        },
+        { now: () => new Date(Date.now() + 60_000) },
+      )
+      markDelegationJobReported(db, secondJobId, new Date())
+      while (
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({
+            seededSessionId: 'ws-root-direct-2',
+            resultText: 'done 2',
+          }),
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+        })
+      ) {
+        // drain
+      }
+      const second = findDelegationJobById(db, secondJobId)
+      expect(second?.status).toBe('completed')
+      expect(second?.surfacedToRootAt).not.toBeNull()
+    })
+  })
+
   it('claims a pending job, runs it, completes it SURFACED — and enqueues NO delivery (reports travel only via send_message)', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
@@ -471,8 +569,10 @@ describe('runDelegationClaimAndRunTick', () => {
         'Acme has 3 docs; all current.',
       ])
       const trace = resolveDelegationTrace(db, { userId: user.id, partialSessionId: traceKey! })
+      // test: correct expectation — Phase-2b: the task anchor row carries its
+      // honest origin-scope label ('Global' for a root-asked job; was null).
       expect(trace.entries.map((e) => [e.sourceKind, e.sourceLabel, e.body])).toEqual([
-        ['global-root', null, 'summarize the docs'],
+        ['global-root', 'Global', 'summarize the docs'],
         ['workspace-manager', 'Mark · Acme', 'Acme has 3 docs; all current.'],
       ])
 
@@ -480,7 +580,7 @@ describe('runDelegationClaimAndRunTick', () => {
       expect(
         listChatMessagesForSession(db, 'ws-root-new').map((m) => [m.role, m.sourceKind, m.sourceLabel]),
       ).toEqual([
-        ['user', 'global-root', null],
+        ['user', 'global-root', 'Global'],
         ['assistant', 'workspace-manager', 'Mark · Acme'],
       ])
 

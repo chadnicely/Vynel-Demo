@@ -22,10 +22,13 @@ import { NotFoundError } from '@vynel/errors'
 import { startChatTurn } from '@vynel/session/runtime'
 import { toPermissionMode, DEFAULT_SESSION_MODE } from '@vynel/session'
 import { linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
-import { findSpawnedSessionBySegmentId, findSpawnedSessionById } from '@vynel/session/spawned'
+import { findRoutableSessionBySegmentId, findRoutableSessionById } from '@vynel/session/spawned'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AppEnv } from '../factory.js'
-import { buildWorkspaceBackgroundMcpComposer } from '../sessions/build-workspace-background-mcp.js'
+import {
+  buildDelegatedTurnMcpComposer,
+  buildWorkspaceBackgroundMcpComposer,
+} from '../sessions/build-workspace-background-mcp.js'
 import {
   composeSessionMcpServers,
   mergeComposedSessionMcpServers,
@@ -46,12 +49,14 @@ export async function streamSpawnedSessionTurn(
   const db = c.var.db
   const userId = c.var.user.id
 
-  // Resolve the spawned primary from the tool/UI handle — the CURRENT segment
+  // Resolve the ROUTABLE primary from the tool/UI handle — the CURRENT segment
   // id `list_sessions`/`create_session` hand out and the Sessions overview
-  // lists as the entry's sessionId. Unknown, foreign, and non-spawned all 404
-  // identically (no enumeration leak). By construction the handle IS the
-  // linked head, so an unlinked primary can never resolve here.
-  const spawned = findSpawnedSessionBySegmentId(db, { userId, sessionId })
+  // lists as the entry's sessionId. Spawned sessions AND agent colleagues both
+  // resolve (redesign G5/D7 — messaging a colleague from its conversation is
+  // the same direct-message semantics as a mention); unknown, foreign, and
+  // other scopes all 404 identically (no enumeration leak). By construction
+  // the handle IS the linked head, so an unlinked primary can never resolve.
+  const spawned = findRoutableSessionBySegmentId(db, { userId, sessionId })
   if (spawned === null) {
     throw new NotFoundError('session', sessionId)
   }
@@ -66,14 +71,29 @@ export async function streamSpawnedSessionTurn(
   // dock the user has open on this thread is keyed by that same segment id.
   const turnSession = createTurnSessionCarrier(sessionId)
   const turnSessionAppRequest = turnSession.wrapAppRequest(c.var.appRequest)
+  // The toolset per scope: a SPAWNED session keeps its standing shape (the
+  // plain background set when workspace-grounded, nothing when global). An
+  // agent COLLEAGUE composes the DELEGATED 'agent-session' set instead (G5's
+  // recorded MCP-set parity): the same interactive/routing toolset + the
+  // agent-session caller identity its mention runs carry — so the colleague's
+  // own send_message updates/reports resolve their requester correctly, and
+  // its toolset never flip-flops by turn origin (the deferred-tool trap).
   const backgroundMcp =
-    spawned.workspaceId !== null
-      ? (await buildWorkspaceBackgroundMcpComposer(turnSessionAppRequest))({
+    spawned.scope === 'agent'
+      ? (await buildDelegatedTurnMcpComposer(turnSessionAppRequest))({
           db,
           userId,
           workspaceId: spawned.workspaceId,
+          target: 'agent-session',
+          targetPrimarySessionId: spawned.id,
         })
-      : null
+      : spawned.workspaceId !== null
+        ? (await buildWorkspaceBackgroundMcpComposer(turnSessionAppRequest))({
+            db,
+            userId,
+            workspaceId: spawned.workspaceId,
+          })
+        : null
 
   // Chat-mentions: re-parse the message server-side. @ dispatches ground in
   // the session's OWN ground (reports land at its grounding workspace's chat,
@@ -126,7 +146,7 @@ export async function streamSpawnedSessionTurn(
       // Re-read the chain head AFTER the wait (locked decision 2): the run we
       // queued behind may have compaction-swapped the primary onto a fresh
       // segment — the turn must resume THAT, never the handle's segment.
-      const head = findSpawnedSessionById(db, { userId, primarySessionId: spawned.id })
+      const head = findRoutableSessionById(db, { userId, primarySessionId: spawned.id })
       if (head === null || head.currentSdkSessionId === null) {
         // Deleted (or corrupted-unlinked) while we queued — nothing to resume.
         logger.warn(
@@ -197,13 +217,20 @@ export async function streamSpawnedSessionTurn(
       )
 
       // Announce on the liveness feed — a spawned session is global-scoped on
-      // the feed (the delegation tick's session-target shape), origin 'web'.
-      // Begun immediately before the try (zombie-turn doctrine).
+      // the feed (the delegation tick's session-target shape); an agent
+      // colleague announces under its GROUNDING workspace (the agent-run
+      // parity), origin 'web'. Begun immediately before the try (zombie-turn
+      // doctrine).
       const activity = c.var.activityFeed.begin({
         userId,
-        scopeKind: 'global',
+        ...(spawned.scope === 'agent' && spawned.workspaceId !== null
+          ? { scopeKind: 'workspace' as const, workspaceId: spawned.workspaceId }
+          : { scopeKind: 'global' as const }),
         sessionId: resumeSessionId,
         origin: 'web',
+        // The continuing identity (persona-sessions) — the live views key a
+        // direct-send turn to the same session card a delegated run uses.
+        primarySessionId: spawned.id,
       })
       try {
         for await (const event of turnStream) {

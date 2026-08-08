@@ -97,6 +97,13 @@ export { markDelegationsSurfacedToRoot, markDelegationJobReported } from './repo
 // Only the anchor is exported; the composed VIEW stays out of this leaf (see below).
 export { findDelegationJobByPartialSessionId } from './repositories/index.js'
 export type { DelegationJobStatus, DelegationJobKind } from './schema/delegation-jobs.js'
+// The kind-membership one home (persona-sessions): delivery vs work predicates
+// — never re-spell kind literals at branch sites.
+export {
+  DELIVERY_JOB_KINDS,
+  isDeliveryJobKind,
+  isWorkJobKind,
+} from './schema/delegation-jobs.js'
 // The queue's CONSUMER half (brain-tree Ch1) — the app-tier delegation service
 // claims one pending job per tick, runs it, and records the terminal state; at
 // startup it fails the jobs a crash left stuck `claimed`. Re-exported (the
@@ -109,7 +116,9 @@ export {
   requeueDelegationJob,
   failPendingDelegationJob,
   failOrphanedClaimedDelegations,
+  requeueOrphanedClaimedReportDeliveries,
   findDelegationJobById,
+  listDelegationJobsByThread,
   type DelegationJob,
 } from './repositories/index.js'
 

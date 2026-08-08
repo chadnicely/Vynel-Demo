@@ -56,6 +56,51 @@ const T0 = 1_700_000_000_000
 const at = (offsetMs: number) => new Date(T0 + offsetMs)
 
 describe('runMonitorTick', () => {
+  it('scans past the capped outbox read — a match beyond 500 boundary-tied events still fires (B5)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const other = seedUser(db)
+      createMonitor(
+        db,
+        {
+          userId: user.id,
+          workspaceId: null,
+          ownerKind: 'global-root',
+          description: 'the needle finishing',
+          eventTypes: ['task.completed'],
+        },
+        { now: () => at(0) },
+      )
+      // 501 subscribed-type events from ANOTHER tenant, all sharing ONE
+      // createdAt (the worst boundary-tie shape), with DETERMINISTIC ids so the
+      // pages split exactly at the cap — then the real match, tied too. The
+      // pre-fix single capped read saw only foreign events, advanced the
+      // watermark to `now`, and lost the wake forever.
+      const tied = at(100)
+      for (let i = 1; i <= 501; i += 1) {
+        insertOutboxEvent(db, {
+          id: `e-${String(i).padStart(4, '0')}`,
+          type: 'task.completed',
+          payload: { userId: other.id },
+          createdAt: tied,
+          processedAt: null,
+        })
+      }
+      insertOutboxEvent(db, {
+        id: 'e-9999',
+        type: 'task.completed',
+        payload: { userId: user.id, taskId: 'needle' },
+        createdAt: tied,
+        processedAt: null,
+      })
+
+      const result = await runMonitorTick(db, { now: () => at(200) })
+      expect(result.firedCount).toBe(1)
+      const [row] = listMonitorsForUser(db, { userId: user.id })
+      expect(row!.status).toBe('fired')
+    })
+  })
+
   it('fires an armed monitor and wakes the global root with the event', async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)

@@ -38,10 +38,10 @@ import AppStatusBar from "./AppStatusBar.vue";
 import ApprovalNotifier from "./ApprovalNotifier.vue";
 import AskNotifier from "../asks/AskNotifier.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
-import ActivityMonitorPanel from "../activity/ActivityMonitorPanel.vue";
+import ConversationSidebar from "../sidebar/ConversationSidebar.vue";
+import WorkingRail from "../rail/WorkingRail.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 import PlanViewDialog from "../plans/PlanViewDialog.vue";
-import ReportViewDialog from "../reports/ReportViewDialog.vue";
 import { useAppLinkRouter } from "../../composables/use-app-link-router.js";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
 import {
@@ -57,7 +57,7 @@ import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
-import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
+import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
@@ -394,14 +394,14 @@ watch(
 // through the shared registry; the non-Modal overlays (palette, voice,
 // monitor, the menu bar's dropdowns) are wired explicitly. Toasts don't hide
 // the page; they dock left instead.
-const activityMonitor = useActivityMonitorStore();
+const conversationSidebar = useConversationSidebarStore();
 const openModalCount = useOpenModalCount();
 const areTitleBarMenusOpen = ref(false);
 watch(
   () =>
     isPaletteOpen.value ||
     ui.isVoiceOverlayOpen ||
-    activityMonitor.isOpen ||
+    conversationSidebar.isOpen ||
     openModalCount.value > 0 ||
     areTitleBarMenusOpen.value,
   (overlayUp) => {
@@ -596,14 +596,14 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       @open-approvals="selectSurface('chat')"
     />
 
-    <ActivityMonitorPanel />
+    <WorkingRail />
+    <ConversationSidebar />
     <ApprovalNotifier />
     <AskNotifier />
     <VoiceOverlay />
     <!-- The SHARED plan review dialog — chat vynel://plan links, list View
          actions, and task plan chips all open this one instance. -->
     <PlanViewDialog />
-    <ReportViewDialog />
     <CreateWorkspaceDialog
       :open="isCreateWorkspaceOpen"
       @close="isCreateWorkspaceOpen = false"

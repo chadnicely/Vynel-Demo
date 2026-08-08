@@ -61,6 +61,7 @@ export default defineConfig({
     './src/schema/agents/agent-skills.ts',
     '../instructions/src/schema/instruction-documents.ts',
     '../session/src/schema/primary-sessions.ts',
+    '../session/src/schema/session-turns.ts',
     '../orchestration/src/schema/delegation-jobs.ts',
     '../desktop-control/src/schema/desktop-app-grants.ts',
     './src/schema/_shared/outbox-events.ts',

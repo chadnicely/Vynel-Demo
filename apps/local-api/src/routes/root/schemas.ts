@@ -78,6 +78,7 @@ export const GlobalRootTranscriptMessageSchema = z.object({
   sourceKind: TranscriptSourceKindSchema.nullable(),
   sourceLabel: z.string().nullable(),
   partialSessionId: z.string().nullable(),
+  threadId: z.string().nullable(),
   originChannel: z.enum(['voice', 'telegram', 'discord', 'zoom']).nullable(),
   attachedImagesMetadata: z
     .array(z.object({ filename: z.string(), mimeType: z.string(), sizeBytes: z.number() }))
@@ -133,9 +134,15 @@ export const InFlightDelegationSchema = z.object({
   // chip's label for session-target jobs. Null for workspace targets, whose
   // workspaceName already labels them.
   sessionName: z.string().nullable(),
+  // The target's CURRENT segment id (serve-time enrichment, redesign 2c) — a
+  // pointer click opens the target's real conversation by it. Null for
+  // workspace targets and unlinked primaries.
+  targetSessionId: z.string().nullable(),
   // The task as a short label — the indicator names the actual work.
   taskLabel: z.string(),
   status: z.enum(['pending', 'claimed']),
+  // 'agent-run' = a colleague mention (the rail's agent badge, redesign Q4).
+  jobKind: z.enum(['task', 'agent-run']),
 })
 
 export const ListInFlightDelegationsResponseSchema = z.object({

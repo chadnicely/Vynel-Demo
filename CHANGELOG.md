@@ -9,6 +9,153 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Colleague rows got identity and receipts.** A delivered message's author
+  line now reads like a profile: the persona's avatar, their name, then the
+  workspace as a small icon — hover it for a profile card with the workspace's
+  name. You can give each workspace its own icon in Customize (it falls back
+  to the colored monogram). Beside it sits a quiet info mark: hover to see the
+  run's receipts — which model did the work, how many tool calls it made, the
+  tokens it used, and how long it took.
+- **Chats fold into tidy turns.** Every turn in every chat now collapses to a
+  single strip — the author's icon and name, the first line as a preview, and
+  the time with a chevron at the right edge. Only the latest turn is open by
+  default, so a long conversation reads like a clean index of what happened;
+  click any strip (or its chevron) to unfold the full turn in place, and
+  collapse anything you're done with. Jumping to a task's start automatically
+  unfolds the turn it lives in.
+- **Colleagues can message you directly.** Sessions, workspaces, and agents got
+  a new way to answer: send the result straight to you instead of reporting to
+  whoever assigned the task. A direct answer lands in your conversation as the
+  sender's own message — a titled box with the full text one click away, badged
+  "Message" — and Claude never repeats it over the sender's shoulder: it quietly
+  absorbs the content so follow-up questions still work. Regular reports are
+  unchanged, so working chatter stays with Claude and finished answers reach
+  you verbatim.
+
+- **The working rail — everyone active, at the right edge.** One small icon
+  per entity that's working right now: workspaces, sessions, agent colleagues
+  (with a corner badge), and even Claude's own background replies. A gold
+  breathing ring means working, an amber dot means something waits on you, and
+  each icon disappears the moment its work completes. Click any icon to open
+  that entity's real conversation. Idle means an empty edge — nothing to
+  dismiss.
+- **Click a pointer, land in the real conversation.** Task pointers now open a
+  right-side panel showing the target's actual conversation — one unified
+  flow, scrolled straight to the row where that task started (a brief gold
+  flash marks it), with the same live streaming and composer every chat has.
+  Pointers clicked inside the panel drill deeper and Back walks up; opening a
+  workspace's pointer shows that workspace's own thread.
+- **Message a colleague directly.** Open an agent colleague's conversation and
+  just type — the same direct-message semantics as @mentioning them: the
+  colleague answers with its full toolset and honest reporting identity, your
+  send queues politely behind any running turn, and the old "view-only —
+  @mention them in chat" note is gone.
+- **Tasks track as pointers now.** When Claude hands work to a workspace or a
+  session, a quiet "task → target" line appears under the hand-off message
+  while the task runs — a breathing gold dot while working, "queued" while
+  waiting — and clicking it opens the live view. It exists only while the task
+  is in flight, so a finished task leaves just its report. Mentions land in a
+  colleague's conversation as you speaking ("You · from Global"), and a relayed
+  task's opening row names Claude honestly instead of masquerading as you.
+
+### Changed
+
+- **Colleague messages now read like a person talking.** A report, update, or
+  direct message from a workspace or colleague renders as a regular chat
+  message — the full text right in the thread, under the sender's name and a
+  quiet Report/Update/Message tag. The special box treatment is gone: no side
+  bar, no teaser line, no "View report" button, no popup. They're participants
+  in the conversation, and now they look like it. Every delivered message
+  collapses to a compact card — a kind icon (document for reports, clock for
+  updates, speech bubble for direct messages), the summary line as its title,
+  and a chevron at the end that unfolds the full text right in the thread,
+  neatly inset. Short messages just show whole.
+- **Task pointers now stay after the work finishes.** The "task → target" line
+  under a hand-off no longer disappears when the task completes — it settles
+  into a quiet "done" (or "failed") state and stays clickable, so you can
+  always jump back to where the work happened. The gold task chip that used to
+  sit under the send-message call is gone: it said the same thing as the
+  pointer, twice.
+- **@mention replies come straight to you.** When you @mention a colleague,
+  its answer now lands in your thread as the colleague speaking — instantly,
+  with no Claude narration repeating what you can already read. Claude still
+  absorbs the reply quietly for context (ask a follow-up and it knows), and
+  a colleague that finishes without ever replying is called out honestly.
+  Reports for tasks Claude itself commissioned keep their spoken relay.
+
+### Removed
+
+- **The old tracking chrome retired.** Persona cards at the thread's edge,
+  watch chips on rows, the activity monitor panel (trace view, agent focus,
+  Background overview), Home's "Right now" band, and the title-bar button are
+  gone — the pointer → sidebar → rail model replaces all of it with real
+  conversations instead of mirrored views. The title-bar dot stays as a
+  passive live/attention signal.
+
+### Fixed
+
+- **Watches scan everything, and lifecycle plumbing stays invisible.** A
+  monitor watching a busy event stream now scans its whole window — a burst of
+  hundreds of events could previously hide the one that mattered, silently
+  losing the wake forever. And the in-flight roster shows only real tasks: the
+  internal hops that carry acks and reports between sessions no longer surface
+  as ghost tasks labeled with message text (stopping one of those could even
+  kill a report's delivery).
+- **Your conversation history survives automatic continuations.** When a long
+  conversation silently continues onto a fresh session mid-reply, the new
+  segment now stays chained to the old one — reloading shows the whole story
+  (previously everything before the continuation could vanish from view), the
+  Sessions list keeps one tidy entry instead of sprouting a stray "New session"
+  or a phantom duplicate, and a continued segment keeps its place in the chain
+  so "conversation continued" follows correctly.
+- **A finished task's report can no longer be lost or doubled.** If the app
+  restarts while a report is being handed to you, the delivery now resumes
+  after startup instead of silently dying (the report is the only copy of the
+  result). And a task that already delivered its report never runs again after
+  a late hiccup — no duplicate reports, and no confusing "it failed" arriving
+  after you already received the answer (including when it merely timed out).
+- **A message sent into a workspace chat no longer collides with a background
+  task running there.** The two used to write the same underlying conversation
+  at once (risking interleaved replies and a forked history); now your message
+  quietly queues and runs the moment the task's turn settles — same rule a
+  session's direct sends already followed.
+
+### Added
+
+- **Your agents are colleagues now.** Every configured agent has ONE continuing
+  session per workspace (and one global) — @mention it and the same colleague
+  resumes with its persona and memory intact, replying into your chat like a
+  person: it acknowledges the task in its own words ("Received — will report
+  when done"), sends interim updates while it works, and delivers exactly one
+  final report. Updates and reports wear honest badges (an update never reads
+  as the finished result), and every relayed message is attributed to who spoke
+  it — persona rows even wear their own face (image or accent monogram) in the
+  author line.
+- **In-flight work shows up as people in the thread.** Each running task
+  renders as a live persona card at the thread's edge — avatar, current step,
+  elapsed time, an "acknowledged" mark when the child has spoken, plus Watch
+  and Stop. Click Watch (or any session chip) and the panel opens the REAL
+  conversation — full transcript, live streaming overlay, and a composer to
+  send into the running session directly (queued sends fire in order). A
+  mid-conversation continuation ("compaction") no longer freezes an open
+  session view — it follows onto the fresh segment with a quiet note.
+- **A Background overview, like Claude desktop's.** The title-bar presence
+  dot is now a button (also Home's "See all" and the thread's "+N more
+  running" line) opening a roster of everything running or queued right now,
+  grouped by persona, with narration, elapsed, origin ("via Telegram", "from
+  a schedule"), Watch and Stop per task — and Back always returns to the
+  overview. Liveness is durable: a refresh or restart rebuilds the roster
+  from the database, and tasks interrupted by a restart now say so instead
+  of dying silently.
+
+### Changed
+
+- Reports and task hand-offs now travel ONLY through the model's own
+  `send_message` (the last automatic result-harvest path is gone), each task
+  chain carries a durable thread id end-to-end, and the three legacy comms
+  tools (`send_task_to_workspace`, `send_task_to_session`,
+  `report_to_requester`) are retired in favor of the one `send_message`.
+
 - **The menu is now grouped — and it's yours to shape.** The sidebar reads in
   named, collapsible groups (Toolkit · Utils · Context · Connections, with
   Schedules and Marketplace standing alone) instead of one long list, with
@@ -27,6 +174,31 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   stays sharp at label size.
 
 ### Fixed
+
+- **The notification listener now says what's actually wrong — once, not every second.** When
+  the Windows notification platform dies (a stopped per-user `WpnUserService` makes every poll
+  throw), the helper used to flood the api log with a useless "One or more errors occurred"
+  warning each second. It now unwraps the real cause (e.g. `Class not registered, hresult
+  0x80040154`), logs it once per distinct error, backs off to one poll a minute while the
+  platform is down, and recovers live the moment the service is back.
+
+- **Saying "Hey Claude" opens the overlay again — and a broken overlay build can no longer
+  silence voice.** The rebuilt dev shell was panicking at launch: the auto-updater plugin
+  demands its config block, which only the release overlay config carries, so every wake
+  spawned an exe that died in under a second — no window, no error, daemon back to sleep.
+  The shell now registers the updater only when the config actually carries it (dev shells,
+  `tauri dev`, and a plain `tauri build` all run cleanly without one). And the voice daemon
+  no longer trusts "the exe file exists" as "the exe works": if the overlay app exits
+  immediately after launch it logs why and opens the Chrome/Edge window instead, so the
+  wake is still answered while you fix the build.
+
+- **The wake overlay no longer loads a dead port after a port change.** Tauri bakes `devUrl` and
+  `frontendDist` into the desktop binary at *compile* time, so the port renumber left the last-built
+  shell still pointing at the old `8999`/`8998` — and because the voice daemon prefers that binary
+  whenever it exists, every wake opened an unreachable page that no amount of restarting `pnpm
+  dev:full` could heal. Added `pnpm dev:desktop` to rebuild the shell, and documented which of the
+  three compiled copies (dev overlay, installer, server-install payload) each port change has to
+  reach.
 
 - **Every menu now shows only its own scope's items.** The strict scope rule that already
   governed Agents, Skills, Rules, Commands, MCP Servers and Channels now covers the last

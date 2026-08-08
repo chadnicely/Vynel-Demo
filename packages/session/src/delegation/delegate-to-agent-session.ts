@@ -76,6 +76,8 @@ export type DelegateToAgentSessionInput = {
   thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   /** The delegation trace key — stamped on every row the turn persists. */
   partialSessionId?: string
+  /** The delegation CHAIN key — per-task, carried across hops (persona-sessions). */
+  threadId?: string
   permissionMode?: DelegationPermissionMode
   mcpAttachment?: RoutedTurnMcpAttachment
   approvalHandler?: Pick<RoutedApprovalHandler, 'onApprovalRequested' | 'onApprovalResolved'>
@@ -155,6 +157,7 @@ export async function delegateToAgentSession(
       : { visibility: 'hidden', title: 'Continued conversation', skipAutoTitle: true, scope: 'agent' },
     messageAttribution: {
       ...(input.partialSessionId !== undefined ? { partialSessionId: input.partialSessionId } : {}),
+      ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
       ...(input.userAttribution !== undefined
         ? {
             userSourceKind: input.userAttribution.userSourceKind,

@@ -49,6 +49,11 @@ export interface EnqueueReportDeliveryInput {
    *  upstream when it came off a completed task; NO further distill happens). */
   reportBody: string
   requester: ReportDeliveryRequester
+  /** Kind `direct_to_user`: the row becomes a 'direct-delivery' — the body is
+   *  addressed to the USER and persists straight onto the requester's
+   *  transcript as the sender speaking (no notify turn; the requester absorbs
+   *  it via the catch-up net). Same queue, claim, and retry machinery. */
+  deliverDirectly?: boolean
 }
 
 /** Enqueue a report-delivery job for the requester and return its id. */
@@ -99,7 +104,7 @@ export function enqueueReportDelivery(
     permissionMode: null,
     model: null,
     thinkingEffort: null,
-    jobKind: 'report-delivery',
+    jobKind: input.deliverDirectly === true ? 'direct-delivery' : 'report-delivery',
     createdAt: now,
   })
   return id

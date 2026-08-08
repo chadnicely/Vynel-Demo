@@ -131,9 +131,19 @@ async function mountView(
     const stream = options.onTurnRequest?.() ?? makeStreamHandle().stream;
     return { data: stream, response };
   });
+  // The opened thread holds a STANDING registry watch on its session (B6) —
+  // serve the observe stream quietly so the watch attaches like production.
+  const GET = vi.fn(async () => ({
+    data: makeStreamHandle().stream,
+    response: { ok: true, status: 200 },
+  }));
   const client = {
-    sessions: { overview: async () => entries },
+    // A fresh payload per read (like the real route) — returning the caller's
+    // array by reference would defeat structural sharing when a test mutates
+    // it to simulate a server-side change.
+    sessions: { overview: async () => [...entries] },
     root: { getSession },
+    GET,
     POST,
   } as unknown as VynelClient;
 
@@ -141,25 +151,17 @@ async function mountView(
   const router = createAppRouter();
   await router.push(options.path ?? "/sessions");
   await router.isReady();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   const wrapper = mount(SessionsView, {
     global: {
-      plugins: [
-        router,
-        pinia,
-        [
-          VueQueryPlugin,
-          {
-            queryClient: new QueryClient({
-              defaultOptions: { queries: { retry: false } },
-            }),
-          },
-        ],
-      ],
+      plugins: [router, pinia, [VueQueryPlugin, { queryClient }]],
       provide: { [vynelClientKey as symbol]: client },
     },
   });
   await flushPromises();
-  return { wrapper, pinia, router, getSession, turnCalls };
+  return { wrapper, pinia, router, getSession, turnCalls, queryClient };
 }
 
 /** Open the first (or given) list row and settle the pane. */
@@ -336,6 +338,10 @@ describe("SessionsView", () => {
     expect(wrapper.text()).toContain("Earlier findings.");
     expect(wrapper.find("textarea").exists()).toBe(true);
     expect(wrapper.find(".view-only-note").exists()).toBe(false);
+    // The composer says who it speaks to (B8) — the session's persona.
+    expect(
+      wrapper.get('[data-testid="composer-destination"]').text(),
+    ).toContain("Research: pricing");
     // Text-only surface: the attach affordance is gone entirely.
     expect(wrapper.find('[aria-label="Attach files"]').exists()).toBe(false);
     // Two-pane: the list stays put and marks the open row.
@@ -344,7 +350,7 @@ describe("SessionsView", () => {
 
   // Pipeline scoping rule 3 (Chad, 2026-07-21 evening): a SESSION view is a
   // leaf — no trace/report watch chips, even on rows that would chip on a
-  // thread surface (SessionThreadView passes show-watch-chips=false).
+  // thread surface (watch chips are gone from ThreadStream entirely).
   it("the opened session's traced rows wear NO watch chip — agent chips only", async () => {
     const { wrapper } = await mountView([makeEntry()], {
       transcriptMessages: [
@@ -505,6 +511,45 @@ describe("SessionsView", () => {
     expect(wrapper.get(".turn-error-note").text()).toBe(
       "This session has moved — go back and reopen it.",
     );
+  });
+
+  it("a mid-view chain swap re-points the open thread at the fresh head (B6 — the old accepted freeze)", async () => {
+    const entries = [makeEntry()];
+    const { wrapper, getSession, queryClient } = await mountView(entries);
+
+    await openRow(wrapper);
+    expect(getSession).toHaveBeenCalledWith("sp-1");
+    expect(wrapper.text()).not.toContain("conversation continued");
+
+    // The conversation continues onto a fresh segment (a compaction swap) —
+    // the overview's next read reports the new head.
+    entries.splice(
+      0,
+      1,
+      makeEntry({
+        sessionId: "sp-2",
+        contextTokens: 12_000,
+        segments: [
+          makeSegment({ isCurrent: false, contextTokens: 166_000 }),
+          makeSegment({
+            sessionId: "sp-2",
+            continuedFromSessionId: "sp-1",
+            contextTokens: 12_000,
+          }),
+        ],
+      }),
+    );
+    await queryClient.invalidateQueries();
+
+    // The open pane followed: detail re-keyed onto the head, the quiet note
+    // says so, and the composer stays (sends now target sp-2).
+    await vi.waitFor(() => expect(getSession).toHaveBeenCalledWith("sp-2"));
+    await vi.waitFor(() =>
+      expect(wrapper.text()).toContain(
+        "This conversation continued onto a fresh session",
+      ),
+    );
+    expect(wrapper.find("textarea").exists()).toBe(true);
   });
 
   it("a superseded chain part opens view-only — no composer, chat continues at the head", async () => {

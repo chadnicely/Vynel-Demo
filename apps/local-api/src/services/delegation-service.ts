@@ -24,8 +24,17 @@
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
-import { failOrphanedClaimedDelegations } from '@vynel/orchestration'
-import { runDelegationClaimAndRunTick } from '@vynel/session/delegation'
+import {
+  failOrphanedClaimedDelegations,
+  isDeliveryJobKind,
+  requeueOrphanedClaimedReportDeliveries,
+} from '@vynel/orchestration'
+import {
+  runDelegationClaimAndRunTick,
+  enqueueJobFailureDelivery,
+  previewTaskText,
+  jobRetryHint,
+} from '@vynel/session/delegation'
 import type {
   TurnEventBroadcaster,
   DelegationCancelRegistry,
@@ -89,16 +98,49 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
     targetLocks,
   } = options
 
-  // Reclaim jobs orphaned in `claimed` by a prior crash/restart mid-run: mark them FAILED — NOT
-  // re-run (exactly-once preserved; the Ch1 decision was no-RE-EXECUTE, not no-cleanup). At
-  // startup nothing is running yet, so any `claimed` row is orphaned; leaving them claimed made
-  // them linger forever as "in-flight" (visible in the Ch3.5 processing indicator).
-  const reclaimed = failOrphanedClaimedDelegations(db, new Date())
-  if (reclaimed > 0) {
+  // Report deliveries orphaned mid-delivery REQUEUE instead of failing: the
+  // report body is the ONLY copy of a child's result, so destroying a claimed
+  // delivery at boot silently lost it forever (session-review B1). At startup
+  // nothing is running, so re-delivery is safe at-least-once.
+  const requeuedDeliveries = requeueOrphanedClaimedReportDeliveries(db, new Date())
+  if (requeuedDeliveries.length > 0) {
     logger.warn(
-      { reclaimed },
+      { requeued: requeuedDeliveries.length },
+      'delegation service: requeued orphaned "claimed" report deliveries at startup (re-delivery is at-least-once; the report is the only copy)',
+    )
+  }
+  // Reclaim the REST of the jobs orphaned in `claimed` by a prior crash/restart mid-run: mark
+  // them FAILED — NOT re-run (exactly-once preserved; the Ch1 decision was no-RE-EXECUTE, not
+  // no-cleanup). At startup nothing is running yet, so any `claimed` row is orphaned; leaving
+  // them claimed made them linger forever as "in-flight" (visible in the Ch3.5 processing
+  // indicator).
+  const reclaimed = failOrphanedClaimedDelegations(db, new Date())
+  if (reclaimed.length > 0) {
+    logger.warn(
+      { reclaimed: reclaimed.length },
       'delegation service: reclaimed orphaned "claimed" jobs at startup (marked failed; a prior crash/restart left them mid-run)',
     )
+  }
+  // Persona-sessions restart parity: with acknowledge-first, silent orphan
+  // death breaks the child's spoken "will report when done" — push an honest
+  // failure delivery for each orphaned WORK row (task/agent-run). Delivery
+  // orphans stay silent (anti-cascade: a delivery must never spawn one), and
+  // a push failure never blocks boot.
+  for (const orphan of reclaimed) {
+    if (isDeliveryJobKind(orphan.jobKind)) continue
+    try {
+      enqueueJobFailureDelivery(
+        db,
+        orphan,
+        `The background task "${previewTaskText(orphan.taskText)}" was interrupted by a ` +
+          `restart and did not finish. Tell the user, and ${jobRetryHint(orphan)}`,
+      )
+    } catch (err) {
+      logger.error(
+        { err, jobId: orphan.id },
+        'delegation service: failed to enqueue the restart-failure delivery for an orphan',
+      )
+    }
   }
 
   // The pool's run count lives here; WHICH targets are held lives in the

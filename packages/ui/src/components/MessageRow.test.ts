@@ -25,71 +25,6 @@ function makeMessage(
 }
 
 describe("MessageRow", () => {
-  it("shows a watch-live chip when the message links a session, and emits on click", async () => {
-    const wrapper = mount(MessageRow, {
-      props: {
-        message: makeMessage({
-          partialSessionId: "child-session",
-          // Persona-FIRST ("<manager> · <workspace>") — the one real form; a
-          // workspace-first fixture here once defended the inverted parse.
-          sourceLabel: "Mara · Marketing site",
-        }),
-      },
-    });
-
-    const chip = wrapper.find(".session-link");
-    expect(chip.text()).toContain("Watch Mara · Marketing site");
-    await chip.trigger("click");
-    expect(wrapper.emitted("openSession")).toBeTruthy();
-  });
-
-  it("names the actual work when the row carries the delegated task label", async () => {
-    const wrapper = mount(MessageRow, {
-      props: {
-        message: makeMessage({
-          partialSessionId: "child-session",
-          // Persona-FIRST label — the workspace is the LAST segment.
-          sourceLabel: "Noah · vynel",
-          delegationTaskLabel: "Set up the login page",
-        }),
-      },
-    });
-
-    const chip = wrapper.find(".session-link");
-    expect(chip.text()).toContain("vynel · Set up the login page");
-    expect(chip.text()).not.toContain("Noah");
-
-    await chip.trigger("click");
-    expect(wrapper.emitted("openSession")).toEqual([["child-session"]]);
-  });
-
-  it("renders no chip for ordinary messages", () => {
-    const wrapper = mount(MessageRow, { props: { message: makeMessage() } });
-
-    expect(wrapper.find(".session-link").exists()).toBe(false);
-  });
-
-  // Pipeline scoping (Chad, 2026-07-21 evening): the host gates the chip per
-  // ROW — a row of a delegation that targeted the host's own thread is the
-  // parent's watch, so ThreadStream passes false. The row's identity (accent,
-  // author) is untouched by the gate; only the chip goes.
-  it("hides the watch chip when the host gates it — accent and author survive", () => {
-    const wrapper = mount(MessageRow, {
-      props: {
-        message: makeMessage({
-          partialSessionId: "child-session",
-          sourceKind: "workspace-manager",
-          sourceLabel: "Sarah · letterman",
-        }),
-        showWatchChip: false,
-      },
-    });
-
-    expect(wrapper.find(".session-link").exists()).toBe(false);
-    expect(wrapper.find(".message-row").classes()).toContain("has-accent");
-    expect(wrapper.find(".role-label").text()).toBe("Sarah · letterman");
-  });
-
   // Author labels are persona-first: the brain speaks as Claude, a workspace
   // persona by its own label — "Assistant · X" prefixes are gone.
   it("labels a delegated-in user message as coming from Claude", () => {
@@ -99,7 +34,10 @@ describe("MessageRow", () => {
       },
     });
 
-    expect(wrapper.find(".role-label").text()).toBe("From Claude");
+    // test: correct expectation — redesign Q1: an UNLABELED routed-task stamp
+    // stays scope-silent "Claude" (was "From Claude"); the labeled branch
+    // below carries the origin scope.
+    expect(wrapper.find(".role-label").text()).toBe("Claude");
   });
 
   it("names the global brain Claude and a workspace report by its persona", () => {
@@ -149,11 +87,12 @@ describe("MessageRow", () => {
     expect(named.find(".role-label").text()).toBe("Claude");
   });
 
-  // Session-comms delivery — the COMPACT incoming box (pipeline model, Chad
-  // locked 2026-07-27): author identity + teaser + the View-report door, never
-  // the full body inline. test: recast — an earlier spec rendered the full
-  // markdown body in-thread; superseded by the compact-box call.
-  it("renders an inbound user-role report as a compact box: author, teaser, View report", async () => {
+  // Session-comms delivery — a REPORT renders as a tool-card-style
+  // collapsible (Chad, 2026-08-09 mock, superseding the same-day full-body
+  // spec): report icon + the lead line as title, chevron at the line's end,
+  // the body expanding in place. No header badge (the icon carries the kind),
+  // no accent bar. test: correct expectation — recast to the card.
+  it("renders an inbound report as a collapsed card: author, icon + title, body behind the chevron", async () => {
     const wrapper = mount(MessageRow, {
       props: {
         message: makeMessage({
@@ -167,25 +106,19 @@ describe("MessageRow", () => {
 
     expect(wrapper.find(".role-label").text()).toContain("Noah · vynel");
     expect(wrapper.find(".role-label").text()).not.toContain("You");
-    expect(wrapper.find(".origin-badge").text()).toBe("Report");
+    expect(wrapper.find(".origin-badge").exists()).toBe(false);
     const row = wrapper.find(".message-row");
+    // Sheds the "your message" bubble but wears NO special chrome.
     expect(row.classes()).toContain("is-report");
-    expect(row.classes()).toContain("has-accent");
-    // Compact: the teaser line, not the full body — no inline markdown render.
-    expect(wrapper.find(".report-teaser").text()).toContain(
-      "Done. The three files are indexed.",
-    );
-    expect(wrapper.text()).not.toContain("Full detail follows below.");
-    // The door carries the FULL (marker-stripped) body to the review dialog.
-    await wrapper.find(".report-open-chip").trigger("click");
-    expect(wrapper.emitted("openReport")).toEqual([
-      [
-        {
-          sourceLabel: "Noah · vynel",
-          body: "**Done.** The three files are indexed.\n\nFull detail follows below.",
-        },
-      ],
-    ]);
+    expect(row.classes()).not.toContain("has-accent");
+    // A SMALL remainder renders whole on the title line — no pointless
+    // chevron on a short message (the fold floor).
+    const card = wrapper.get(".inbound-card");
+    expect(wrapper.find(".inbound-card-icon").exists()).toBe(true);
+    expect(card.attributes("data-kind")).toBe("report");
+    expect(card.text()).toContain("Done. The three files are indexed.");
+    expect(card.text()).toContain("Full detail follows below.");
+    expect(wrapper.find(".expand-chevron").exists()).toBe(false);
   });
 
   it("strips the model-facing attribution marker from a report's displayed body", () => {
@@ -223,31 +156,57 @@ describe("MessageRow", () => {
     expect(wrapper.html()).not.toContain("<strong>");
   });
 
-  it("wears a workspace accent bar on a bubbled-up report", () => {
+  it("a LABELED routed-task anchor row reads Claude · from its origin scope (redesign Q1)", () => {
     const wrapper = mount(MessageRow, {
       props: {
         message: makeMessage({
-          sourceKind: "workspace-manager",
-          sourceLabel: "Noah · vynel",
+          role: "user",
+          sourceKind: "global-root",
+          sourceLabel: "Global",
+          body: "Run July invoicing",
         }),
       },
     });
 
-    const row = wrapper.find(".message-row");
-    expect(row.classes()).toContain("has-accent");
-    expect(row.attributes("style")).toContain("--accent");
+    expect(wrapper.find(".role-label").text()).toBe("Claude · from Global");
   });
 
-  it("stays neutral for the global brain and the user (no accent)", () => {
-    const brain = mount(MessageRow, {
-      props: { message: makeMessage({ sourceKind: "global-root" }) },
+  it("a mention landing in a colleague's thread reads as You · from its origin (redesign Case 3)", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "user",
+          sourceLabel: "Global",
+          body: "what's our invoice numbering rule?",
+        }),
+      },
     });
-    expect(brain.find(".message-row").classes()).not.toContain("has-accent");
 
-    const user = mount(MessageRow, {
-      props: { message: makeMessage({ role: "user" }) },
-    });
-    expect(user.find(".message-row").classes()).not.toContain("has-accent");
+    expect(wrapper.find(".role-label").text()).toBe("You · from Global");
+    // The user speaking is never report-styled.
+    expect(wrapper.find(".message-row").classes()).not.toContain("is-report");
+  });
+
+  // test: correct expectation — the workspace accent bar is retired
+  // (2026-08-09 parity pass): a persona's own assistant rows are regular
+  // participant messages, exactly like its delivered rows in Global. The
+  // author line + workspace chip carry identity; no row wears accent chrome.
+  it("no row wears accent chrome — persona, brain, or user", () => {
+    for (const message of [
+      makeMessage({
+        sourceKind: "workspace-manager",
+        sourceLabel: "Noah · vynel",
+      }),
+      makeMessage({ sourceKind: "global-root" }),
+      makeMessage({ role: "user" }),
+    ]) {
+      const wrapper = mount(MessageRow, { props: { message } });
+      expect(wrapper.find(".message-row").classes()).not.toContain(
+        "has-accent",
+      );
+      expect(wrapper.find(".message-row").attributes("style")).toBeUndefined();
+    }
   });
 });
 
@@ -284,5 +243,357 @@ describe("MessageRow author avatar", () => {
       },
     });
     expect(user.find(".author-avatar").exists()).toBe(false);
+  });
+
+  // Persona-sessions B8: a persona-attributed row wears ITS persona — the
+  // host-resolved image or monogram — instead of the blanket Claude mark.
+  it("a persona row wears the host-resolved monogram (or image); without the prop the mark stays", () => {
+    const reportMessage = makeMessage({
+      role: "user",
+      sourceKind: "agent",
+      sourceLabel: "Nova",
+      body: "[Report from Nova — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\nDone.",
+    });
+
+    const monogram = mount(MessageRow, {
+      props: {
+        message: reportMessage,
+        authorPersona: { imageUrl: null, monogram: "N", accentVar: "--ws-1" },
+      },
+    });
+    expect(monogram.get(".monogram-text").text()).toBe("N");
+    expect(monogram.find(".author-avatar svg").exists()).toBe(false);
+
+    const withImage = mount(MessageRow, {
+      props: {
+        message: reportMessage,
+        authorPersona: {
+          imageUrl: "data:image/png;base64,BBBB",
+          monogram: "N",
+          accentVar: "--ws-1",
+        },
+      },
+    });
+    expect(withImage.get(".author-avatar img").attributes("src")).toBe(
+      "data:image/png;base64,BBBB",
+    );
+
+    const withoutProp = mount(MessageRow, {
+      props: { message: reportMessage },
+    });
+    expect(withoutProp.find(".author-avatar svg").exists()).toBe(true);
+  });
+
+  it("an assistant PERSONA reply wears the persona too — never the surface assistant's image", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          sourceKind: "workspace-manager",
+          sourceLabel: "Noah · vynel",
+        }),
+        assistantIconUrl: "data:image/png;base64,AAAA",
+        authorPersona: { imageUrl: null, monogram: "NV", accentVar: "--ws-2" },
+      },
+    });
+    expect(wrapper.get(".monogram-text").text()).toBe("NV");
+    expect(wrapper.find(".author-avatar img").exists()).toBe(false);
+  });
+});
+
+// The badge split (persona-sessions B8 + the direct kind): an interim UPDATE
+// must never read as the finished result, a direct message reads as a
+// message — while every kind renders its FULL body as a regular participant
+// message (Chad, 2026-08-09; the View door + teaser retired).
+// test: correct expectation — the door/teaser pins recast to badge+body.
+describe("MessageRow badge split (update / report / message)", () => {
+  const updateBody =
+    "[Update from Nova — an interim status on work you delegated, relayed automatically by Vynel. The task is STILL RUNNING; this is NOT its result and NOT a message the user typed.]\n\nReceived — will report when done.";
+
+  // test: correct expectation — the kind badges retired for the card icons
+  // (Chad: "same to message and update").
+  it("an inbound UPDATE cards with the clock icon, no badge; the spoken text renders, marker stripped", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "Nova",
+          body: updateBody,
+        }),
+      },
+    });
+    expect(wrapper.find(".origin-badge").exists()).toBe(false);
+    expect(wrapper.get(".inbound-card").attributes("data-kind")).toBe("update");
+    expect(wrapper.find(".inbound-card-icon").exists()).toBe(true);
+    expect(wrapper.text()).toContain("Received — will report when done.");
+    expect(wrapper.text()).not.toContain("[Update from Nova");
+  });
+
+  it("an inbound DIRECT message cards as kind message — short body whole on the title line", () => {
+    const directBody =
+      "[Message from James · Claw Launcher — addressed DIRECTLY to the user and shown to them in this conversation, relayed automatically by Vynel. Not a message the user typed; do not restate it.]\n\nOverview of the agency app\n\nNuxt 4 + Vue 3; seven Pinia stores.";
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "James · Claw Launcher",
+          body: directBody,
+        }),
+      },
+    });
+    expect(wrapper.find(".origin-badge").exists()).toBe(false);
+    expect(wrapper.get(".inbound-card").attributes("data-kind")).toBe(
+      "message",
+    );
+    expect(wrapper.text()).toContain("Overview of the agency app");
+    expect(wrapper.text()).toContain("Nuxt 4 + Vue 3; seven Pinia stores.");
+    expect(wrapper.text()).not.toContain("[Message from James");
+  });
+
+  // test: correct expectation — the report badge retired for the card icon.
+  it("a final report wears NO badge — the card icon carries the kind; a one-liner gets no chevron", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "workspace-manager",
+          sourceLabel: "Noah · vynel",
+          body: "[Report from Noah · vynel — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\nDone — shipped.",
+        }),
+      },
+    });
+    expect(wrapper.find(".origin-badge").exists()).toBe(false);
+    expect(wrapper.find(".inbound-card-icon").exists()).toBe(true);
+    expect(wrapper.get(".inbound-card").attributes("data-kind")).toBe("report");
+    expect(wrapper.text()).toContain("Done — shipped.");
+    expect(wrapper.find(".expand-chevron").exists()).toBe(false);
+  });
+});
+
+// The delivered-message CARD (Chad, 2026-08-09 — reports first, then "same to
+// message and update"): every kind collapses card-style when its body is
+// substantial; the chevron toggles the body in place — never a popup.
+describe("MessageRow delivered-message card", () => {
+  const lead =
+    "Channels in Claw Launcher: only ONE external channel is wired up.";
+  const detail =
+    "Details:\n\n- Telegram is the only messaging channel the platform supports today, " +
+    "with per-agent bots in the multi-agent setup and pairing-code approval flows.\n" +
+    "- Web chat rides the dashboard's chat page — the OpenClaw web interface.\n" +
+    "- The runtime supports more channels but the plugin allowlist does not expose them.";
+
+  it("a report card collapses to icon + title; the chevron toggles the body in place", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "James · Claw Launcher",
+          body: `[Report from James · Claw Launcher — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\n${lead}\n\n${detail}`,
+        }),
+      },
+    });
+
+    expect(wrapper.get(".inbound-card-title").text()).toContain(lead);
+    expect(wrapper.find(".expand-chevron").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain(
+      "Telegram is the only messaging channel",
+    );
+
+    await wrapper.get(".inbound-card").trigger("click");
+    expect(wrapper.text()).toContain("Telegram is the only messaging channel");
+    expect(wrapper.find(".inbound-card-body").exists()).toBe(true);
+
+    await wrapper.get(".inbound-card").trigger("click");
+    expect(wrapper.text()).not.toContain(
+      "Telegram is the only messaging channel",
+    );
+  });
+
+  it("a long DIRECT message folds the same way, carded as kind message", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "James · Claw Launcher",
+          body: `[Message from James · Claw Launcher — addressed DIRECTLY to the user and shown to them in this conversation, relayed automatically by Vynel. Not a message the user typed; do not restate it.]\n\n${lead}\n\n${detail}`,
+        }),
+      },
+    });
+
+    const card = wrapper.get(".inbound-card");
+    expect(card.attributes("data-kind")).toBe("message");
+    expect(card.text()).toContain(lead);
+    expect(wrapper.text()).not.toContain(
+      "Telegram is the only messaging channel",
+    );
+    await card.trigger("click");
+    expect(wrapper.text()).toContain("Telegram is the only messaging channel");
+  });
+
+  it("a short update renders whole on the title line with NO chevron", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "Nova",
+          body: "[Update from Nova — an interim status on work you delegated, relayed automatically by Vynel. The task is STILL RUNNING; this is NOT its result and NOT a message the user typed.]\n\nReceived.\n\nStarting on the schema now.",
+        }),
+      },
+    });
+    expect(wrapper.text()).toContain("Starting on the schema now.");
+    expect(wrapper.find(".expand-chevron").exists()).toBe(false);
+  });
+});
+
+// The workspace chip + run-stats door (Chad, 2026-08-09): the label's
+// workspace segment becomes an icon (hover = profile card), and a served
+// runStats grows the info icon (hover = model/tools/tokens/duration).
+describe("MessageRow workspace chip + run stats", () => {
+  const badge = {
+    name: "Claw Launcher",
+    imageUrl: null,
+    monogram: "CL",
+    accentVar: "--ws-2",
+  };
+
+  it("the chip replaces the label's workspace segment — persona name + monogram chip", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "James · Claw Launcher",
+          body: "hi",
+        }),
+        workspaceBadge: badge,
+      },
+    });
+    const label = wrapper.find(".role-label");
+    expect(label.text()).toContain("James");
+    expect(label.text()).not.toContain("Claw Launcher");
+    expect(wrapper.get(".workspace-badge .badge-monogram").text()).toBe("CL");
+  });
+
+  // 2026-08-09 parity pass: a persona's OWN assistant rows split the same way
+  // — in its workspace the author line reads like its delivered rows in
+  // Global (persona name + chip), never the raw combined label.
+  it("an assistant persona row with a chip drops the workspace text too", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          sourceKind: "workspace-manager",
+          sourceLabel: "James · Claw Launcher",
+        }),
+        workspaceBadge: badge,
+      },
+    });
+    const label = wrapper.find(".role-label");
+    expect(label.text()).toContain("James");
+    expect(label.text()).not.toContain("Claw Launcher");
+    expect(wrapper.get(".workspace-badge .badge-monogram").text()).toBe("CL");
+  });
+
+  it("a served runStats grows the info door; without it none renders", () => {
+    const withStats = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "James · Claw Launcher",
+          body: "hi",
+          runStats: {
+            model: "claude-x",
+            toolCallCount: 3,
+            inputTokens: 1200,
+            outputTokens: 400,
+            durationMs: 5000,
+          },
+        }),
+        workspaceBadge: badge,
+      },
+    });
+    expect(withStats.find(".run-info").exists()).toBe(true);
+
+    const without = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "Nova",
+          body: "hi",
+        }),
+      },
+    });
+    expect(without.find(".run-info").exists()).toBe(false);
+    expect(without.find(".workspace-badge").exists()).toBe(false);
+  });
+});
+
+// TURN folding (Chad, 2026-08-09): a collapsible header row can fold its whole
+// message to a strip — author, first-line preview, time, chevron.
+describe("MessageRow turn folding (collapsible header)", () => {
+  it("folded: only the strip renders — one-line preview, chevron; the body stays hidden", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          body: "**First** line here.\n\nSecond paragraph.",
+        }),
+        collapsible: true,
+        collapsed: true,
+      },
+    });
+    expect(wrapper.get(".turn-preview").text()).toBe("First line here.");
+    expect(wrapper.find(".collapse-toggle").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("Second paragraph.");
+  });
+
+  it("expanded: the body shows, no preview; both the chevron and the header emit the toggle", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: "Hello world" }),
+        collapsible: true,
+        collapsed: false,
+      },
+    });
+    expect(wrapper.text()).toContain("Hello world");
+    expect(wrapper.find(".turn-preview").exists()).toBe(false);
+    await wrapper.get(".collapse-toggle").trigger("click");
+    await wrapper.get(".row-header").trigger("click");
+    expect(wrapper.emitted("toggleCollapse")).toHaveLength(2);
+  });
+
+  it("a plain row (not collapsible) renders exactly as before — no chevron, no strip", () => {
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage({ body: "Plain." }) },
+    });
+    expect(wrapper.find(".collapse-toggle").exists()).toBe(false);
+    expect(wrapper.find(".turn-preview").exists()).toBe(false);
+    expect(wrapper.text()).toContain("Plain.");
+  });
+
+  it("a body-less header shows the host's fallback preview; own text wins over it", () => {
+    const toolTurn = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: "" }),
+        collapsible: true,
+        collapsed: true,
+        previewFallback: "Read CLAUDE.md",
+      },
+    });
+    expect(toolTurn.get(".turn-preview").text()).toBe("Read CLAUDE.md");
+
+    const withText = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: "Own first line." }),
+        collapsible: true,
+        collapsed: true,
+        previewFallback: "Read CLAUDE.md",
+      },
+    });
+    expect(withText.get(".turn-preview").text()).toBe("Own first line.");
   });
 });

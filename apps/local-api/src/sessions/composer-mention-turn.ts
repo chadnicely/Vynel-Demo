@@ -4,12 +4,14 @@
 // streaming:
 //
 //   @agent / @Persona → deterministic BACKGROUND dispatches (never
-//     model-chosen): an agent mention enqueues one 'agent-run' leaf job; a
-//     persona mention enqueues a workspace delegation to that persona's
-//     workspace. Both carry the ORIGINATING chat as `requesterWorkspaceId`
-//     (null = the global root), so the report box lands where the user typed.
-//     The enqueue waits for the turn's session identity (`onSessionResolved`)
-//     — the job's provenance edge is the very turn that carried the mention.
+//     model-chosen): an agent mention enqueues one 'agent-run' job on that
+//     agent's COLLEAGUE session (persona-sessions — get-or-created here so the
+//     claim serializes same-colleague runs); a persona mention enqueues a
+//     workspace delegation to that persona's workspace. Both carry the
+//     ORIGINATING chat as `requesterWorkspaceId` (null = the global root), so
+//     the report lands where the user typed. The enqueue waits for the turn's
+//     session identity (`onSessionResolved`) — the job's provenance edge is
+//     the very turn that carried the mention.
 //
 //   #workspace → the per-turn read-only STUDY descriptor over exactly the
 //     referenced workspaces (`@vynel/workspaces/mcp`, dynamically imported —
@@ -27,10 +29,13 @@ import type { Logger } from 'pino'
 import {
   enqueueAgentRun,
   enqueueWorkspaceDelegation,
+  findDelegationJobById,
   resolveMentions,
   type DelegationPermissionMode,
   type ResolvedComposerMentions,
 } from '@vynel/orchestration'
+import { stampNewestUserMessageTraceKey } from '@vynel/chat/repositories'
+import { getOrCreateContinuingSession } from '@vynel/session/continuity'
 import type { ThinkingEffortLevel } from '@vynel/contracts/chat/thinking-effort'
 import type { McpFeatureDescriptor } from '@vynel/mcp-contract'
 
@@ -44,8 +49,8 @@ export interface ComposerMentionTurnInput {
   /** The originating chat's run cwd — the agent leaves run here (the
    *  workspace folder, or the global root's hidden dir). */
   originWorkspacePath: string
-  /** The turn's picks, threaded onto persona delegations (the send_task
-   *  precedent); agent leaves take the model only (fixed safety posture). */
+  /** The turn's picks, threaded onto persona delegations AND colleague runs
+   *  (persona-sessions — a colleague turn is a routed turn like any other). */
   permissionMode?: DelegationPermissionMode
   model?: string
   thinkingEffort?: ThinkingEffortLevel
@@ -78,10 +83,10 @@ function composeDispatchNote(
   ].join('; ')
   return (
     `Background mention dispatch (done by the system, not by you): ${dispatched} — each ` +
-    'was handed this same message as a background run, and its report will arrive in ' +
-    'this chat automatically when it finishes. Do NOT duplicate, re-run, or re-delegate ' +
-    'that work; handle the rest of the message yourself and tell the user the mentioned ' +
-    'runs are underway.'
+    'was handed this same message as a background run and will speak its own ' +
+    'acknowledgment and report into this chat with send_message as it works. Do NOT ' +
+    'duplicate, re-run, or re-delegate that work; handle the rest of the message ' +
+    'yourself and tell the user the mentioned runs are underway.'
   )
 }
 
@@ -129,13 +134,48 @@ export async function prepareComposerMentionTurn(
     })
   }
 
+  // Resolve each mentioned agent's COLLEAGUE identity now (persona-sessions):
+  // get-or-create is sync-DB and idempotent, and the id must exist BEFORE the
+  // enqueue so the claim serializes same-colleague runs. Guarded per agent —
+  // a failed resolve falls back to claim-time get-or-create (the tick heals).
+  const colleagueIdBySlug = new Map<string, string>()
+  for (const agent of agents) {
+    try {
+      const colleague = await getOrCreateContinuingSession(db, {
+        userId: input.userId,
+        scope: 'agent',
+        workspaceId: input.originWorkspaceId,
+        scopeRef: agent.slug,
+      })
+      colleagueIdBySlug.set(agent.slug, colleague.id)
+    } catch (err) {
+      deps.logger.error({ err, agentSlug: agent.slug }, 'mention colleague resolve failed')
+    }
+  }
+
   let dispatched = false
+  // The FIRST dispatch's trace key anchors the mention row's pointer (redesign
+  // Phase-2b: hand-offs track as pointers under the message that sent them).
+  // A multi-mention message points at its first task — the rest reach the
+  // rail; recorded limitation. Best-effort like every dispatch here.
+  let stampedPointerAnchor = false
+  const stampPointerAnchor = (jobId: string, sdkSessionId: string): void => {
+    if (stampedPointerAnchor) return
+    const job = findDelegationJobById(db, jobId)
+    if (job?.partialSessionId == null) return
+    stampNewestUserMessageTraceKey(db, {
+      sessionId: sdkSessionId,
+      partialSessionId: job.partialSessionId,
+    })
+    stampedPointerAnchor = true
+  }
   const onSessionResolved = (sdkSessionId: string): void => {
     if (dispatched || (agents.length === 0 && personas.length === 0)) return
     dispatched = true
     for (const agent of agents) {
       try {
-        enqueueAgentRun(db, {
+        const colleagueId = colleagueIdBySlug.get(agent.slug)
+        const jobId = enqueueAgentRun(db, {
           userId: input.userId,
           parentSessionId: sdkSessionId,
           agentSlug: agent.slug,
@@ -143,18 +183,23 @@ export async function prepareComposerMentionTurn(
           taskText: input.userMessageText,
           workspaceId: input.originWorkspaceId,
           runCwdPath: input.originWorkspacePath,
+          ...(colleagueId !== undefined ? { targetPrimarySessionId: colleagueId } : {}),
           ...(input.originWorkspaceId !== null
             ? { requesterWorkspaceId: input.originWorkspaceId }
             : {}),
+          ...(input.permissionMode !== undefined
+            ? { permissionMode: input.permissionMode }
+            : {}),
           ...(input.model !== undefined ? { model: input.model } : {}),
         })
+        stampPointerAnchor(jobId, sdkSessionId)
       } catch (err) {
         deps.logger.error({ err, agentSlug: agent.slug }, 'mention agent-run enqueue failed')
       }
     }
     for (const persona of personas) {
       try {
-        enqueueWorkspaceDelegation(db, {
+        const jobId = enqueueWorkspaceDelegation(db, {
           userId: input.userId,
           parentSessionId: sdkSessionId,
           workspaceId: persona.workspaceId,
@@ -172,6 +217,7 @@ export async function prepareComposerMentionTurn(
             ? { thinkingEffort: input.thinkingEffort }
             : {}),
         })
+        stampPointerAnchor(jobId, sdkSessionId)
       } catch (err) {
         deps.logger.error(
           { err, workspaceId: persona.workspaceId },

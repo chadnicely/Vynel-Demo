@@ -57,7 +57,7 @@ export async function buildWorkspaceBackgroundMcpComposer(
 // The DELEGATED-turn composer (2026-07-21, Chad's re-decision of the ④b pin):
 // a delegated WORKSPACE-ROOT turn is the user's own request arriving through
 // the global root, so it carries the SAME session-routing trio the interactive
-// chat has (create_session / list_sessions / send_task_to_session) — the
+// chat has (create_session / list_sessions / send_message) — the
 // global → workspace → session chain works, and the workspace primary's
 // toolset stops flip-flopping per turn origin (the deferred-tool "dropped
 // again" narrative).
@@ -73,7 +73,12 @@ export async function buildWorkspaceBackgroundMcpComposer(
 //
 // Schedule fires keep `buildWorkspaceBackgroundMcpComposer` above: a truly
 // autonomous turn never gains spawning tools.
-export type DelegatedTurnTarget = 'workspace-root' | 'spawned-session'
+//
+// An 'agent-session' target (persona-sessions) is the COLLEAGUE shape: same
+// toolset rules as a spawned session (workspace-grounded → the interactive
+// set; global-grounded → the routing set), but its caller identity is the
+// agent-session kind so reports/updates resolve the colleague's requester.
+export type DelegatedTurnTarget = 'workspace-root' | 'spawned-session' | 'agent-session'
 
 export type DelegatedTurnMcpComposer = (input: {
   db: Database
@@ -117,8 +122,8 @@ export async function buildDelegatedTurnMcpComposer(
     requesterWorkspaceId,
   }) => {
     // The caller identity (session-comms): stamped server-side onto every
-    // request this routed turn's tools make, so `report_to_requester` resolves
-    // the requester from WHO is running — never from model input. A spawned
+    // request this routed turn's tools make, so the report route resolves the
+    // requester from WHO is running — never from model input. A session-shaped
     // target with no primary id (a shape the tick never produces) gets NO
     // header: the tool then 400s honestly instead of mis-addressing as the
     // workspace primary.
@@ -126,7 +131,10 @@ export async function buildDelegatedTurnMcpComposer(
       target === 'workspace-root' && workspaceId !== null
         ? { kind: 'workspace-primary', workspaceId }
         : targetPrimarySessionId !== undefined
-          ? { kind: 'spawned-session', targetPrimarySessionId }
+          ? {
+              kind: target === 'agent-session' ? 'agent-session' : 'spawned-session',
+              targetPrimarySessionId,
+            }
           : null
     const callerAwareAppRequest =
       caller !== null ? wrapAppRequestWithReportCaller(appRequest, caller) : appRequest

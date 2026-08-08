@@ -67,6 +67,9 @@ export type DelegateToWorkspaceRootInput = {
   /** The delegation request's correlation key (brain-tree Chapter 2) — stamped on
    *  every row the turn persists so the chain is queryable as one trace. */
   partialSessionId?: string
+  /** The delegation CHAIN key — stamped beside the per-hop trace key on every
+   *  row the turn persists (persona-sessions: the UI's settle-match key). */
+  threadId?: string
   /** The permission mode the routed turn runs under (surface-up step 1) — from the
    *  job row. Omit for the pre-mode default (`bypass-with-behavior-gate`). */
   permissionMode?: DelegationPermissionMode
@@ -78,6 +81,10 @@ export type DelegateToWorkspaceRootInput = {
    *  coming from the reporting CHILD instead of the default 'global-root' task
    *  shape. Omit → the shipped task attribution, byte-for-byte. */
   inboundAttribution?: { sourceKind: 'workspace-manager'; sourceLabel: string }
+  /** The origin scope's display name for the TASK shape's anchor row
+   *  ("Claude · from <label>" — redesign Phase-2b); ignored when
+   *  `inboundAttribution` overrides (a notify turn speaks as its child). */
+  userSourceLabel?: string
   /** REPORT-DELIVERY variant: the system steer for this routed turn. Omit →
    *  `ROUTED_TASK_INSTRUCTIONS` (the shipped task steer). */
   steerInstructions?: string
@@ -167,12 +174,15 @@ export async function delegateToWorkspaceRoot(
       ...(input.partialSessionId !== undefined
         ? { partialSessionId: input.partialSessionId }
         : {}),
+      ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
       // A notify turn's inbound row is attributed FROM the reporting child
       // (session-comms); the default is the shipped task shape ('global-root').
       userSourceKind: input.inboundAttribution?.sourceKind ?? 'global-root',
       ...(input.inboundAttribution !== undefined
         ? { userSourceLabel: input.inboundAttribution.sourceLabel }
-        : {}),
+        : input.userSourceLabel !== undefined
+          ? { userSourceLabel: input.userSourceLabel }
+          : {}),
       assistantSourceKind: 'workspace-manager',
       assistantSourceLabel: composeManagerSourceLabel(input.workspaceName, input.managerName),
     },

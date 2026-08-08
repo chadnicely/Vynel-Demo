@@ -12,6 +12,12 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { createAgent } from '@vynel/agents'
 import { claimNextPendingDelegationJob, type DelegationJob } from '@vynel/orchestration'
+import { buildNewChatSessionRow } from '@vynel/chat'
+import {
+  insertChatSession,
+  insertChatMessage,
+  listChatMessagesForSession,
+} from '@vynel/chat/repositories'
 import type { Database } from '@vynel/db'
 import { prepareComposerMentionTurn } from './composer-mention-turn.js'
 
@@ -75,6 +81,67 @@ describe('prepareComposerMentionTurn', () => {
     })
   })
 
+  it("stamps the mention row with the FIRST dispatch's trace key — the pointer anchor (Phase-2b)", async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      await createAgent(db, {
+        userId: user.id,
+        workspaceId: null,
+        slug: 'researcher',
+        name: 'Researcher',
+        description: 'Researches.',
+        prompt: 'You research.',
+        source: 'user',
+        trustTier: 'community',
+      })
+      // The turn's own session + its persisted user row (durability-first shape).
+      const now = new Date()
+      insertChatSession(
+        db,
+        buildNewChatSessionRow({
+          sessionId: 'g-1',
+          userId: user.id,
+          workspaceId: null,
+          providerId: 'claude',
+          startedAt: now,
+        }),
+      )
+      insertChatMessage(db, {
+        id: 'mention-row',
+        sessionId: 'g-1',
+        role: 'user',
+        body: '@researcher look into pricing',
+        thinkingBody: null,
+        inputTokens: null,
+        outputTokens: null,
+        attachedImagesMetadata: null,
+        errorCode: null,
+        errorMessage: null,
+        startedAt: now,
+        completedAt: now,
+        createdAt: now,
+      })
+
+      const plan = await prepareComposerMentionTurn(
+        db,
+        {
+          userId: user.id,
+          userMessageText: '@researcher look into pricing',
+          originWorkspaceId: null,
+          originWorkspacePath: '/tmp/global-root',
+        },
+        { logger: silentLogger },
+      )
+      plan!.onSessionResolved('g-1')
+
+      const [job] = claimAllPendingJobs(db)
+      expect(job!.partialSessionId).not.toBeNull()
+      // The mention message now anchors its task's pointer (click → scroll here).
+      const rows = listChatMessagesForSession(db, 'g-1')
+      expect(rows[0]!.partialSessionId).toBe(job!.partialSessionId)
+    })
+  })
+
   it('plans agent + persona dispatches and enqueues them ONCE on session resolve', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
@@ -122,8 +189,11 @@ describe('prepareComposerMentionTurn', () => {
       expect(agentJob?.workspacePath).toBe('/tmp/global-root')
       expect(agentJob?.requesterWorkspaceId).toBeNull()
       expect(agentJob?.model).toBe('claude-haiku-4-5')
-      // A leaf never inherits the turn's mode (fixed safety posture).
-      expect(agentJob?.permissionMode).toBeNull()
+      // Persona-sessions: a colleague turn is a routed turn — it inherits the
+      // originating turn's mode (the retired leaf posture pinned null here).
+      expect(agentJob?.permissionMode).toBe('ask')
+      // The colleague identity is stamped at enqueue (claim serializes on it).
+      expect(agentJob?.targetPrimarySessionId).not.toBeNull()
 
       const personaJob = jobs.find((job) => (job.jobKind ?? 'task') === 'task')
       expect(personaJob?.workspaceId).toBe(acme.id)

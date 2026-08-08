@@ -33,8 +33,31 @@ which fails `pnpm test` the moment they drift. The hub, portal, and web ports de
 
 ```bash
 pnpm install
-pnpm dev     # engine API (18892) + web dev server (18894)
-pnpm test    # the gate: typecheck + schema/MCP/port parity + vitest
+pnpm dev          # engine API (18892) + web dev server (18894)
+pnpm dev:full     # the above + hub (18890), admin portal (18891), voice daemon (18893)
+pnpm dev:desktop  # rebuild the Tauri shell — see below
+pnpm test         # the gate: typecheck + schema/MCP/port parity + vitest
 ```
 
 Copy `.env.example` to `.env` to adjust local settings.
+
+### Rebuild the Tauri shell after a port or config change
+
+No `dev` script builds the desktop shell — `dev:full` runs the five *services*, while the window
+the voice daemon opens on wake is the already-compiled
+`apps/desktop/src-tauri/target/debug/vynel-desktop.exe` (`apps/voice/src/overlay/jarvis-window.ts`
+prefers it whenever the file exists). Tauri bakes `devUrl` and `frontendDist` into that binary **at
+compile time**, so a `tauri.conf.json` change leaves the old URLs live in the exe and no amount of
+restarting `dev:full` heals it — the overlay just loads a dead port. A shell exe that *crashes* at
+launch is caught: the daemon watches the spawn and falls back to a Chrome/Edge app-window on
+`/jarvis`, logging a rebuild pointer — but a stale exe that still runs (wrong baked port) renders
+its dead page, so rebuild after any port/config change.
+
+A port change therefore has to reach **every compiled or packaged copy**, not just the sources the
+parity check guards:
+
+| Artifact                        | Rebuild with          |
+| ------------------------------- | --------------------- |
+| `target/debug/vynel-desktop.exe` (the dev/voice overlay) | `pnpm dev:desktop`    |
+| `target/release/.../Vynel_<v>_x64-setup.exe` (the installer) | `pnpm release:desktop` |
+| `dist-payloads/` (the remote engine for a server install) | `pnpm release:payload` |

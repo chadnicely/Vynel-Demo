@@ -149,13 +149,24 @@ function onMenuCommand(id: string) {
       </DropdownMenu>
     </nav>
 
-    <!-- Center: window title + presence (the drag region) -->
+    <!-- Center: window title + presence (the drag region). The presence pair
+         is a BUTTON (no-drag island): it opens the Background overview —
+         the dot says something is running; the click shows what. -->
     <div
       class="flex flex-1 items-center justify-center gap-2 px-4"
       data-tauri-drag-region
     >
-      <PresenceDot :state="props.presenceState" :label="props.presenceLabel" />
-      <span class="truncate text-xs text-ink-2">{{ props.title }}</span>
+      <!-- The presence pair is PASSIVE now (redesign Q7d): the working rail
+           is the detail — the dot only says live / attention / idle. It
+           survives because your OWN turn's approval can need you while the
+           rail is empty. -->
+      <span
+        class="flex items-center gap-2 px-2 py-0.5"
+        data-testid="titlebar-presence"
+      >
+        <PresenceDot :state="props.presenceState" :label="props.presenceLabel" />
+        <span class="truncate text-xs text-ink-2">{{ props.title }}</span>
+      </span>
     </div>
 
     <!-- The tasks dock toggle (Chad's right-side icon) — badge counts open work. -->

@@ -79,6 +79,105 @@ per-task. Every message is attributed: from the user, from a session, or from a 
   `attach-delegation-tool-outcomes.ts:75` — update rows must not render as tasks / label chips.
 - Use the A2 one-home helpers (`DELIVERY_JOB_KINDS`, `isDeliveryJobKind`, `isWorkJobKind`) —
   never re-spell kind literals.
+- The tick has NO update-delivery run branch yet (targetKey + claim gate landed early with A4) —
+  a claimed update row would fall into the task path. The run branch MUST land WITH the producer.
+
+## A9 retirement notes (2026-08-04)
+
+- The three superseded tools are REMOVED (routes + schemas + parity rosters); their dispatch
+  cores live on in `dispatch-message.ts`. Their route tests were PORTED onto
+  `POST /routing/message` (same behavioral coverage, mapped bodies).
+- `send_message` gained the optional ambient `workspaceId` field (Slice ④b parity): the old
+  delegate-session tool's generator-injected creator workspace would otherwise have been LOST —
+  a workspace-only user's session sends would 400 without an active global root. Session sends
+  only; workspace-target sends still parent on the global root (the standing unified-tool shape —
+  a follow-up could resolve the creator from the caller header instead).
+
+## B-slice notes (from the A4 review)
+
+- GLOBAL colleagues (workspaceId null) are invisible in the Sessions panel — `SessionsView.vue`
+  global scope filters `scope === 'spawned'`; widen to agents when the panel work lands.
+- Liveness-scope inconsistency: a mention run announces workspace-scoped when grounded; a
+  task-branch run on the SAME colleague announces global (spawned precedent) — unify when the
+  live view builds on the feed.
+- B6 direct-send into a colleague must acquire the same `SessionTargetLocks` key (the key is
+  already the primary id; `POST /sessions/:id/turn` 404s agent scope until then).
+
+## B6 notes (shipped shape + accepted residuals)
+
+- Chain-following is an explicit `followChain` prop on `SessionThreadView`: head opens + the
+  monitor pane follow the chain live (`resolve-chain-head.ts` over the overview, quiet
+  "conversation continued" note); a deliberately-opened EARLIER part passes false and stays put.
+- The direct-send rule's wording lives in ONE home (`session-open-affordance.ts`) shared by
+  SessionsView and `LiveSessionPane`. Colleague direct-send stays deferred (the MCP-set parity
+  item above) — the pane points at @mention instead.
+- Monitor-store stacking rule: `openTrace`/`openAgentDirect` PUSH while the panel is open (the
+  scrim guarantees the click came from inside it) — Back walks the whole pipeline; panel-closed
+  behavior unchanged.
+- The pane refetches its own detail when the watched overlay settles: the registry's settle
+  snapshot only warms the provider-owning subscription (the monitor's, inside the panel); the
+  feed's turn-end invalidation covers the same gap app-wide.
+- ACCEPTED residuals: the panel header's live dot keys on the node's OPENED id — after a
+  mid-watch chain swap the body follows the head while the dot may idle (rare, self-heals on
+  reopen; post-swap the monitor and pane briefly hold two streams — bounded at 2, dying on
+  close). SessionsView's `is-active` row highlight likewise stays on the opened id after a
+  swap. No panel-level composer mount test (AppComposer's five eager roster queries make the
+  harness heavy; the pane unit test pins the affordance props and Chad's smoke covers the send).
+  A superseded view-only part holds an idle registry watch (one code path; entries die at
+  refCount 0 — released on unmount, so boundedness is one per mounted thread, not an LRU).
+- B5 review fixes (applied with B6): workspace threads scope their persona cards to THEIR
+  delegations (`onlyWorkspaceId` — the old banner's `inFlightDelegationsHere` rule; the global
+  thread keeps the full creator roster). The acked detector excludes `'global-root'`-attributed
+  rows — that stamp is the PARENT's routed task, not the child speaking (in the target
+  workspace's thread it shares the chain key and flipped the badge at turn start). The
+  `.narration-*` transition classes hoisted to `styles/app.css` (scoped copies matched nothing
+  outside LiveSessionCard — the crossfade silently never ran). ProcessingBanner reduced to the
+  origin-note strip (dead chip machinery deleted; keyless-job visibility intent moved to the
+  cards — a keyless card hides Watch/Stop, which would no-op without a trace key).
+
+## B7 notes (shipped shape)
+
+- DEVIATION from the plan's outline (recorded): the Background overview is NOT a second shell
+  singleton — it's a monitor-store NODE (`{kind:'background'}`, `openBackground()`), the panel's
+  BASE roster. One overlay system (scrim/Esc/header inherited); row clicks PUSH trace/session
+  nodes so Back returns to the roster. `activeSource` is null for it — the roster owns no
+  channel.
+- Data spine (`use-background-activity.ts`): pure `buildBackgroundActivity` merges the in-flight
+  delegations poll (reused app-wide query) + the feed's server turns + the durable
+  `GET /activity/running` seed (roster-gated, 5s; stream wins on overlap), groups by working
+  identity (`targetPrimarySessionId` → colleague/spawned; `ws:<id>` → workspace persona;
+  unclaimed turns stand alone, persona = personaName ?? manager ?? "Assistant"), working groups
+  first. Narration/persona attach in the composable; elapsed ticks in the view.
+- Openers: the title-bar presence pair is now a BUTTON (`command('background-activity')`), Home's
+  live band gained "See all", and the thread's "+N more running" overflow line opens the roster.
+- ORIGIN_NOTES extracted to `components/home/origin-notes.ts` (one home; HomeView + roster).
+- Review fixes applied: delegation↔turn pairing extracted to ONE home
+  (`delegations/delegation-turn-pairing.ts` — match key + persona-chain head + state + row key;
+  the B5 cards and the roster both import it; each surface keeps its own persona TAIL — cards
+  fall to workspaceName, the roster prefers the manager). `useInFlightDelegations` gained an
+  `enabled` gate — the always-mounted panel gates its observer on the roster (the chat views'
+  observers stay ungated), so the 4s poll is no longer app-permanent. Group sort ties return 0
+  (insertion order holds). The feed's turn-ended settle also invalidates `["activity","running"]`
+  (no 5s seed-ghost of an ended turn). NOTE for B8: ActivityMonitorPanel is ~350 lines — extract
+  a per-node-kind header derivation when touching it next.
+
+## B8 notes (shipped shape — the arc's LAST move)
+
+- Persona-attributed rows (manager replies, colleague reports/updates — both the assistant-role
+  and user-role inbound shapes) wear their PERSONA in the author line: `MessageRow` gained the
+  optional `authorPersona` prop (image or accent-tinted monogram; the blanket ClaudeMark stays
+  the fallback); ThreadStream resolves it per row from `sourceLabel` (workspaceId null — the
+  customized image stays with the cards; monogram + accent carry here).
+- `deriveMessageOrigin` (A10) is now the badge's one reading — a session-relayed row is never
+  "via Telegram"; system rows sit outside the vocabulary. Inbound deliveries split
+  **Update vs Report** (badge, View door, and the dialog title) via the new contracts reader
+  `isUpdateMessageBody`; the openReport payload carries `kind` end-to-end.
+- `AppComposer` gained `destinationLabel` — session panes render a quiet "→ <persona>" line.
+- REVIEW CATCH (fixed, retroactively repairs B5/B7): `ResolvedPersona.accentVar` was a full
+  `var(--ws-N)` reference while every consumer wraps it in `var()` again — invalid CSS, every
+  persona tint silently transparent. The convention is now the BARE property name (`--ws-N`),
+  documented on the type and the MessageRow prop, pinned by a resolver→row contract test
+  (happy-dom drops color-mix values, so the assertion rides the prop, not the style attribute).
 
 ## Move map
 
