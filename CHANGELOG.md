@@ -35,6 +35,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   colleague's conversation as you speaking ("You · from Global"), and a relayed
   task's opening row names Claude honestly instead of masquerading as you.
 
+### Removed
+
+- **The old tracking chrome retired.** Persona cards at the thread's edge,
+  watch chips on rows, the activity monitor panel (trace view, agent focus,
+  Background overview), Home's "Right now" band, and the title-bar button are
+  gone — the pointer → sidebar → rail model replaces all of it with real
+  conversations instead of mirrored views. The title-bar dot stays as a
+  passive live/attention signal.
+
 ### Fixed
 
 - **Watches scan everything, and lifecycle plumbing stays invisible.** A

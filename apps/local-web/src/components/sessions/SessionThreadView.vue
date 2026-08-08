@@ -13,7 +13,6 @@ import { useWatchedTurn } from "../../composables/chat/use-watched-turn.js";
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
 import { useActivityStore } from "../../stores/activity-store.js";
-import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 
 // A session opened from the Sessions list or the monitor's live pane renders
@@ -44,7 +43,6 @@ const props = defineProps<{
 }>();
 
 const activity = useActivityStore();
-const activityMonitor = useActivityMonitorStore();
 
 // Chain-head resolution (B6): the overview names every chain's newest segment;
 // while a turn runs anywhere the list refetches, so a mid-turn swap re-points
@@ -185,8 +183,6 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
         :show-watch-chips="false"
         :scroll-to-trace-id="props.anchorTraceId"
         @decide-approval="onDecideApproval"
-        @open-session="activityMonitor.openTrace"
-        @watch-agent="activityMonitor.openAgentDirect"
       />
     </div>
 

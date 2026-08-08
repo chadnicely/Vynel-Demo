@@ -3,7 +3,6 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useWorkingRail, type RailEntity } from "../../composables/activity/use-working-rail.js";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
-import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
 import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 
@@ -14,7 +13,6 @@ import { useWorkspaceList } from "../../composables/workspaces/use-workspace-lis
 // waiting on you. Strictly what's active NOW: an empty rail renders nothing.
 const { entities } = useWorkingRail();
 const sidebar = useConversationSidebarStore();
-const activityMonitor = useActivityMonitorStore();
 const router = useRouter();
 const { resolvePersona } = usePersonaResolver();
 
@@ -52,11 +50,9 @@ function openEntity(entity: RailEntity) {
   }
   if (entity.segmentId !== null) {
     sidebar.openSession({ sessionId: entity.segmentId, title: labelOf(entity) });
-    return;
   }
-  // No conversation to open yet (an unlinked primary) — the trace view still
-  // shows the run.
-  if (entity.traceId !== null) activityMonitor.openTrace(entity.traceId);
+  // No conversation yet (an unlinked primary — a seconds-wide creation
+  // window): a quiet no-op; the next poll resolves the segment.
 }
 </script>
 

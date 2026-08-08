@@ -4,7 +4,6 @@ import { FolderTree, Sparkles } from "lucide-vue-next";
 import { EmptyState, IconButton, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
-import ProcessingBanner from "../components/chat/ProcessingBanner.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
 import TodoDock from "../components/chat/TodoDock.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
@@ -17,8 +16,6 @@ import type { WorkspaceSectionId } from "../components/workspace/workspace-secti
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
-import { useLiveDelegationCards } from "../composables/delegations/use-live-delegation-cards.js";
-import { useStopDelegation } from "../composables/delegations/use-stop-delegation.js";
 import { buildThreadPointers } from "../components/chat/thread-pointers.js";
 import { useOpenPointerTarget } from "../components/chat/open-pointer-target.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
@@ -33,7 +30,6 @@ import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.j
 import { useUiStore } from "../stores/ui-store.js";
 import { useCustomizeStore } from "../stores/customize-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
-import { useActivityMonitorStore } from "../stores/activity-monitor-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 
 // The workspace room — same continuous-first chat as global, scoped to one
@@ -45,7 +41,6 @@ import { formatSdkError } from "../utils/format-sdk-error.js";
 const ui = useUiStore();
 const tab = ui.activeTab;
 const shell = tab.shell;
-const activityMonitor = useActivityMonitorStore();
 
 const workspacesQuery = useWorkspaceList();
 const workspaces = computed(() => workspacesQuery.data.value ?? []);
@@ -74,47 +69,21 @@ const activeSessionId = computed<string | null>(() => {
 // A routed task streams its rows into THIS workspace's transcript in the
 // background (the shared pipeline) — poll the open thread while one is in
 // flight here so the task/reply/tool-calls appear live, not on refresh.
-// The banner (ProcessingBanner) shows one Watch chip per in-flight job
-// targeting this workspace — closes the recorded Slice-④ gap where the chips
-// appeared only on the global banner.
 const inFlightQuery = useInFlightDelegations();
-// The trace keys with a LIVE delegation — watch chips on matching rows pulse
-// (B1: replaces the dead live-sessions store). UNFILTERED deliberately: a chip
-// hangs off a row this thread SENT, matched by its own trace key — the
-// workspace filter below serves the banner (work TARGETING this workspace).
-const liveTraceIds = computed(() => {
-  const ids = new Set<string>();
-  for (const delegation of inFlightQuery.data.value ?? []) {
-    if (delegation.partialSessionId != null) ids.add(delegation.partialSessionId);
-  }
-  return ids;
-});
-// The inline persona cards (B5): one per in-flight task, fed by the poll +
-// the activity feed + the narration ring — never a per-card SSE. Scoped to
-// THIS workspace's delegations (the banner's old `inFlightDelegationsHere`
-// rule) — the global thread is where the full roster lives.
-const { cards: liveCards } = useLiveDelegationCards({
-  messages: () => messages.value,
-  onlyWorkspaceId: () => tab.workspaceId,
-});
-// The thread pointers (live-tracking redesign, Case 1) — UNFILTERED like the
-// chips: a pointer hangs off a row this thread SENT, matched by its trace key
-// (ThreadStream's received-side gate keeps target threads clean).
+// The thread pointers (live-tracking redesign, Case 1) — UNFILTERED: a
+// pointer hangs off a row this thread SENT, matched by its trace key
+// (ThreadStream's received-side gate keeps target threads clean); the rail
+// carries the roster.
 const threadPointers = computed(() =>
   buildThreadPointers(inFlightQuery.data.value ?? []),
 );
-// A pointer click routes through the one-home opener (sidebar → workspace →
-// trace fallback).
+// A pointer click routes through the one-home opener.
 const openPointerTarget = useOpenPointerTarget();
-const inFlightDelegationsHere = computed(() =>
-  (inFlightQuery.data.value ?? []).filter(
+const hasInFlightDelegationHere = computed(() =>
+  (inFlightQuery.data.value ?? []).some(
     (delegation) => delegation.workspaceId === tab.workspaceId,
   ),
 );
-const hasInFlightDelegationHere = computed(
-  () => inFlightDelegationsHere.value.length > 0,
-);
-const stopDelegation = useStopDelegation();
 
 const chatTurn = useChatTurn({
   scope: () => scope.value,
@@ -134,15 +103,6 @@ const hasBackgroundTurnHere = computed(
     tab.workspaceId !== null &&
     activity.hasServerTurnInWorkspace(tab.workspaceId),
 );
-// The in-thread note for a background turn the thread is NOT rendering — a
-// turn on a DIFFERENT session in this workspace. A turn on the displayed
-// session streams through the watcher's overlay below, which says it better.
-const backgroundTurnLabel = computed(() =>
-  hasBackgroundTurnHere.value && watchedTurn.view.value === null
-    ? `${activeWorkspace.value?.managerName ?? "The assistant"} is working…`
-    : null,
-);
-
 const detailQuery = useSessionDetail(
   () => scope.value,
   () => activeSessionId.value,
@@ -346,22 +306,11 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :active-turn="activeTurn"
         :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
         :assistant-icon-url="assistantIconUrl"
-        :live-trace-ids="liveTraceIds"
-        :live-cards="liveCards"
         :pointers-by-trace-id="threadPointers"
         @decide-approval="onDecideApproval"
-        @open-card="activityMonitor.openTrace"
-        @stop-card="stopDelegation.mutate"
-        @open-session="activityMonitor.openTrace"
         @open-report="(report) => (ui.viewingReport = report)"
-        @open-background="activityMonitor.openBackground"
         @open-pointer="openPointerTarget"
-        @watch-agent="activityMonitor.openAgentDirect"
       />
-
-      <!-- The delegation chips dissolved into the live persona cards (B5) —
-           the banner keeps only the non-delegation origin note. -->
-      <ProcessingBanner :background-turn-label="backgroundTurnLabel" />
 
       <footer class="composer-dock">
         <TodoDock :session-id="activeSessionId" />

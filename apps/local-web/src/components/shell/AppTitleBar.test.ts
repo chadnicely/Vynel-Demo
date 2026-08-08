@@ -40,9 +40,14 @@ describe("AppTitleBar", () => {
     expect(wrapper.text()).toContain("Marketing");
   });
 
-  it("the presence pair is a button opening the Background overview (B7)", async () => {
+  // test: correct expectation — the presence pair is PASSIVE now (redesign
+  // Q7d): the working rail carries the detail; the pair renders no button and
+  // clicking it commands nothing.
+  it("the presence pair is passive — no command behind it (redesign Q7d)", async () => {
     const wrapper = mountTitleBar();
-    await wrapper.get('[data-testid="titlebar-presence"]').trigger("click");
-    expect(wrapper.emitted("command")).toEqual([["background-activity"]]);
+    const presence = wrapper.get('[data-testid="titlebar-presence"]');
+    expect(presence.element.tagName).not.toBe("BUTTON");
+    await presence.trigger("click");
+    expect(wrapper.emitted("command")).toBeUndefined();
   });
 });

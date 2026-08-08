@@ -1,14 +1,13 @@
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
-import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
 import type { ThreadPointerModel } from "./thread-pointers.js";
 
 // The pointer click's ONE home (redesign Case 1): open the TARGET's real
 // conversation in the sidebar, anchored at the row carrying the trace key —
-// session segment first, workspace fallback, and the trace view for the
-// keyless edge. Both chat hosts route through this.
+// session segment first, workspace fallback. A pointer whose target resolves
+// NOWHERE (a session job whose primary is still unlinked — a seconds-wide
+// creation window) is a quiet no-op; the rail re-resolves on the next poll.
 export function useOpenPointerTarget() {
   const sidebar = useConversationSidebarStore();
-  const activityMonitor = useActivityMonitorStore();
 
   return function openPointerTarget(pointer: ThreadPointerModel): void {
     if (pointer.targetSessionId !== null) {
@@ -22,8 +21,6 @@ export function useOpenPointerTarget() {
         workspaceId: pointer.workspaceId,
         anchorTraceId: pointer.partialSessionId,
       });
-    } else {
-      activityMonitor.openTrace(pointer.partialSessionId);
     }
   };
 }

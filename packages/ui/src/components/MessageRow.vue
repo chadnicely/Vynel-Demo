@@ -8,29 +8,17 @@ import {
 import { deriveMessageOrigin } from "@vynel/contracts/chat/message-origin";
 import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
-import PresenceDot from "./PresenceDot.vue";
 import AttachmentChips from "./AttachmentChips.vue";
 import ClaudeMark from "./ClaudeMark.vue";
-import {
-  workspaceAccentVar,
-  workspaceNameFromLabel,
-} from "../lib/workspace-color.js";
+import { workspaceAccentVar } from "../lib/workspace-color.js";
 import { formatMessageTimestamp } from "../lib/format-timestamp.js";
 
-// Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening): a
-// thread shows chips only for its DIRECT children's work — never for the
-// delegation that targeted itself (that's its parent's watch). The row can't
-// know which side of that line it sits on, so the host (ThreadStream, which
-// sees the whole thread) passes `showWatchChip`. This is NOT the old Slice-④
-// per-surface suppression: the accent + author identity always render.
+// Watch chips retired with the live-tracking redesign: tracking is a POINTER
+// under the hand-off row (ThreadStream renders it); a settled row carries
+// only its author identity, accent, and content.
 const props = withDefaults(
   defineProps<{
     message: ChatMessageResponse;
-    /** True while the linked session is streaming — the chip pulses gold. */
-    linkedSessionLive?: boolean | undefined;
-    /** False when the row belongs to a delegation that targeted THIS thread
-     *  (the parent's watch — pipeline scoping above). Default: chip renders. */
-    showWatchChip?: boolean;
     /** The surface's own assistant author — ordinary rows carry no sourceKind,
      *  so the host names who speaks here (the global thread passes "Claude",
      *  a workspace room its manager persona). */
@@ -55,8 +43,6 @@ const props = withDefaults(
     } | null;
   }>(),
   {
-    linkedSessionLive: undefined,
-    showWatchChip: true,
     assistantName: "Assistant",
     assistantIconUrl: null,
     showHeader: true,
@@ -65,8 +51,6 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  /** The delegation chip: open the linked session's live view. */
-  openSession: [sessionId: string];
   /** The report box's "View report/update" chip: open the full text (the
    *  shared review dialog — the plan-card pattern). Content rides along; no
    *  fetch. `kind` keeps the dialog's title honest — an interim update must
@@ -235,26 +219,6 @@ const isInboundUpdate = computed(
   () => isInboundReport.value && isUpdateMessageBody(props.message.body),
 );
 
-const linkedSessionId = computed(() => props.message.partialSessionId ?? null);
-
-// The chip names the actual work when the serve-time enrichment carried the
-// delegated task ("vynel · Set up the login page"); the persona-first
-// sourceLabel keeps only its workspace segment — the persona already speaks
-// in the row's author line. Fallbacks keep the old labels for rows without
-// a task (job pruned, pre-enrichment history).
-const watchChipLabel = computed(() => {
-  const task = props.message.delegationTaskLabel;
-  if (task) {
-    const workspace = props.message.sourceLabel
-      ? workspaceNameFromLabel(props.message.sourceLabel)
-      : null;
-    return workspace ? `${workspace} · ${task}` : task;
-  }
-  return props.message.sourceLabel
-    ? `Watch ${props.message.sourceLabel}`
-    : "Watch this session";
-});
-
 // A report bubbled up from a workspace/agent wears that workspace's stable
 // accent (left bar + chip tint) so it reads as belonging to it — on every
 // surface, the workspace's own room included (chip parity above). This covers
@@ -399,31 +363,6 @@ const accentVar = computed(() => {
       v-if="props.message.attachedImagesMetadata?.length"
       :attachments="props.message.attachedImagesMetadata"
     />
-
-    <button
-      v-if="linkedSessionId && props.showWatchChip"
-      type="button"
-      class="session-link"
-      @click="emit('openSession', linkedSessionId)"
-    >
-      <PresenceDot :state="props.linkedSessionLive ? 'live' : 'idle'" />
-      <span class="session-link-label">{{ watchChipLabel }}</span>
-      <svg
-        width="11"
-        height="11"
-        viewBox="0 0 16 16"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M6 4l4 4-4 4"
-          stroke="currentColor"
-          stroke-width="1.6"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-    </button>
 
     <p v-if="props.message.errorMessage" class="error-note">
       {{ props.message.errorMessage }}
@@ -600,48 +539,6 @@ const accentVar = computed(() => {
 .report-open-chip svg {
   color: var(--ink-3);
   flex: none;
-}
-
-/* The chip carries the workspace accent (its frame), while its PresenceDot
-   still glows gold when the linked session is live — presence stays gold,
-   identity is the accent. Falls back to gold only where no workspace is known. */
-.session-link {
-  appearance: none;
-  border: 1px solid color-mix(in srgb, var(--accent, var(--gold)) 38%, transparent);
-  margin: 0;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 12px;
-  border-radius: 99px;
-  background: color-mix(in srgb, var(--accent, var(--gold)) 12%, transparent);
-  color: var(--ink-1);
-  font: 600 11.5px/1.5 var(--font-ui);
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.session-link:hover {
-  border-color: var(--accent, var(--gold));
-}
-
-.session-link:focus-visible {
-  outline: 2px solid var(--accent, var(--gold));
-  outline-offset: 1px;
-}
-
-.session-link svg {
-  color: var(--ink-3);
-  flex: none;
-}
-
-/* Task labels can run long — the chip stays one line and ellipsizes. */
-.session-link-label {
-  max-width: 420px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .error-note {

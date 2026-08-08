@@ -156,17 +156,17 @@ function onMenuCommand(id: string) {
       class="flex flex-1 items-center justify-center gap-2 px-4"
       data-tauri-drag-region
     >
-      <button
-        type="button"
-        aria-label="Show background activity"
-        title="Show background activity"
-        class="flex items-center gap-2 rounded-sm px-2 py-0.5 transition hover:bg-row-hover [-webkit-app-region:no-drag]"
+      <!-- The presence pair is PASSIVE now (redesign Q7d): the working rail
+           is the detail — the dot only says live / attention / idle. It
+           survives because your OWN turn's approval can need you while the
+           rail is empty. -->
+      <span
+        class="flex items-center gap-2 px-2 py-0.5"
         data-testid="titlebar-presence"
-        @click="emit('command', 'background-activity')"
       >
         <PresenceDot :state="props.presenceState" :label="props.presenceLabel" />
         <span class="truncate text-xs text-ink-2">{{ props.title }}</span>
-      </button>
+      </span>
     </div>
 
     <!-- The tasks dock toggle (Chad's right-side icon) — badge counts open work. -->

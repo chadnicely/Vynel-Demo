@@ -37,7 +37,6 @@ import AppStatusBar from "./AppStatusBar.vue";
 import ApprovalNotifier from "./ApprovalNotifier.vue";
 import AskNotifier from "../asks/AskNotifier.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
-import ActivityMonitorPanel from "../activity/ActivityMonitorPanel.vue";
 import ConversationSidebar from "../sidebar/ConversationSidebar.vue";
 import WorkingRail from "../rail/WorkingRail.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
@@ -58,7 +57,7 @@ import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
-import { useActivityMonitorStore } from "../../stores/activity-monitor-store.js";
+import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
@@ -394,14 +393,14 @@ watch(
 // through the shared registry; the non-Modal overlays (palette, voice,
 // monitor, the menu bar's dropdowns) are wired explicitly. Toasts don't hide
 // the page; they dock left instead.
-const activityMonitor = useActivityMonitorStore();
+const conversationSidebar = useConversationSidebarStore();
 const openModalCount = useOpenModalCount();
 const areTitleBarMenusOpen = ref(false);
 watch(
   () =>
     isPaletteOpen.value ||
     ui.isVoiceOverlayOpen ||
-    activityMonitor.isOpen ||
+    conversationSidebar.isOpen ||
     openModalCount.value > 0 ||
     areTitleBarMenusOpen.value,
   (overlayUp) => {
@@ -430,9 +429,6 @@ function runCommand(id: string) {
       break;
     case "toggle-tasks":
       ui.isTasksPanelOpen = !ui.isTasksPanelOpen;
-      break;
-    case "background-activity":
-      activityMonitor.openBackground();
       break;
     case "go-home":
       void router.push({ name: "home" });
@@ -599,7 +595,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       @open-approvals="selectSurface('chat')"
     />
 
-    <ActivityMonitorPanel />
     <WorkingRail />
     <ConversationSidebar />
     <ApprovalNotifier />

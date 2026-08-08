@@ -6,10 +6,7 @@ import type {
 } from "@vynel/contracts/chat/chat-http";
 import { MessageRow, ToolCallList } from "@vynel/ui";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
-import type { ActivitySource } from "../../composables/activity/use-activity-monitor.js";
-import type { PersonaLiveCardModel } from "../../composables/delegations/use-live-delegation-cards.js";
 import LiveTurn from "./LiveTurn.vue";
-import PersonaLiveCard from "./PersonaLiveCard.vue";
 import PointerRow from "./PointerRow.vue";
 import type { ThreadPointerModel } from "./thread-pointers.js";
 import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
@@ -30,16 +27,6 @@ const props = withDefaults(
     assistantName?: string;
     /** The persona's custom conversation icon; null = the Claude mark. */
     assistantIconUrl?: string | null;
-    /** False on a SESSION view — a pipeline leaf shows agent chips only, no
-     *  trace/report chips at all (scoping rule 3). Threads (global/workspace)
-     *  keep the default and rely on the received-trace discriminator below. */
-    showWatchChips?: boolean;
-    /** The trace keys with a LIVE delegation right now (the host computes it
-     *  from the in-flight poll) — a matching row's watch chip pulses live. */
-    liveTraceIds?: Set<string> | undefined;
-    /** The inline persona cards at the thread's live edge (persona-sessions
-     *  B5) — one per in-flight task, rendered like typing indicators. */
-    liveCards?: PersonaLiveCardModel[] | undefined;
     /** The thread pointers by trace key (live-tracking redesign, Case 1): a
      *  compact "task → target" line renders under the FIRST visible row
      *  carrying an in-flight trace key this thread SENT — the pointer is the
@@ -53,9 +40,6 @@ const props = withDefaults(
   {
     assistantName: "Assistant",
     assistantIconUrl: null,
-    showWatchChips: true,
-    liveTraceIds: undefined,
-    liveCards: undefined,
     pointersByTraceId: undefined,
     scrollToTraceId: undefined,
   },
@@ -63,37 +47,15 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
-  /** A persona card's Watch — open the delegation's live view. */
-  openCard: [partialSessionId: string];
-  /** A persona card's Stop. */
-  stopCard: [partialSessionId: string];
-  /** A message's delegation chip: open that session's live view. */
-  openSession: [sessionId: string];
   /** A report/update box's "View" chip — the host opens the shared dialog. */
   openReport: [
     report: { sourceLabel: string; body: string; kind: "report" | "update" },
   ];
-  /** The live-card overflow line ("+N more running") — the full roster. */
-  openBackground: [];
   /** A thread pointer's click — navigate to where the task started (the
    *  `partialSessionId` anchor; the redesign's tracking mechanic). The host
    *  routes by the pointer's target (session segment / workspace). */
   openPointer: [pointer: ThreadPointerModel];
-  /** An Agent card's Watch chip: open the focused agent view over the source
-   *  that carries the agent's activity (trace for delegation-traced rows, the
-   *  row's own session for a direct turn's agent). */
-  watchAgent: [source: ActivitySource, toolUseId: string];
 }>();
-
-/** The activity source an Agent card's Watch chip opens over: a
- *  delegation-traced row streams on its trace channel; a DIRECT turn's agent
- *  has no trace — its activity lives on the session the turn ran on (live map
- *  while running, persisted subagent fields after settle). */
-function agentWatchSourceFor(message: ChatMessageResponse): ActivitySource {
-  return message.partialSessionId != null
-    ? { kind: "trace", id: message.partialSessionId }
-    : { kind: "session", id: message.sessionId };
-}
 
 // A persona-attributed row (a manager's reply, a colleague's report/update)
 // wears ITS OWN face in the author line (B8) — resolved from the label the
@@ -139,14 +101,6 @@ const receivedTraceIds = computed(() => {
   return ids;
 });
 
-function showsWatchChipFor(message: ChatMessageResponse): boolean {
-  if (!props.showWatchChips) return false;
-  return (
-    message.partialSessionId == null ||
-    !receivedTraceIds.value.has(message.partialSessionId)
-  );
-}
-
 // The pointer renders once per in-flight trace key, under the FIRST visible
 // row that CARRIES it — and only on the SENDING side (the received-trace
 // discriminator above): in the target's own thread the task row is the
@@ -179,14 +133,6 @@ const pointersByMessageId = computed(() => {
   }
   return byMessage;
 });
-
-// Thread-bottom real estate is finite: many parallel tasks cap at a few
-// cards + an overflow count (the Background panel is the full roster, B7).
-const VISIBLE_CARD_CAP = 4;
-const visibleCards = computed(() => (props.liveCards ?? []).slice(0, VISIBLE_CARD_CAP));
-const overflowCardCount = computed(
-  () => Math.max(0, (props.liveCards ?? []).length - VISIBLE_CARD_CAP),
-);
 
 const scroller = ref<HTMLElement | null>(null);
 
@@ -386,30 +332,15 @@ watch(
             :assistant-icon-url="props.assistantIconUrl"
             :author-persona="authorPersonaFor(message)"
             :show-header="showsHeaderFor(index)"
-            :show-watch-chip="showsWatchChipFor(message)"
-            :linked-session-live="
-              message.partialSessionId != null &&
-              (props.liveTraceIds?.has(message.partialSessionId) ?? false)
-            "
-            @open-session="(id) => emit('openSession', id)"
             @open-report="(report) => emit('openReport', report)"
           >
             <template
               v-if="props.toolCallsByMessageId[message.id]?.length"
               #tool-calls
             >
-              <!-- Every Agent card gets a Watch chip: traced rows open over
-                   the delegation's trace channel, direct rows over the
-                   session itself (agentWatchSourceFor). -->
               <ToolCallList
                 class="tool-list"
                 :tool-calls="props.toolCallsByMessageId[message.id] ?? []"
-                watchable-agents
-                @watch-agent="
-                  (toolCall) =>
-                    emit('watchAgent', agentWatchSourceFor(message), toolCall.toolUseId)
-                "
-                @open-delegation="(id) => emit('openSession', id)"
               />
             </template>
           </MessageRow>
@@ -436,33 +367,6 @@ watch(
           />
         </template>
 
-        <!-- The live edge's PEOPLE (persona-sessions B5): one card per
-             in-flight task, like typing indicators — they render no message
-             text, so the settled ack/report rows never contest them. -->
-        <TransitionGroup
-          v-if="visibleCards.length > 0"
-          name="narration"
-          tag="div"
-          class="grid gap-2 pt-1"
-        >
-          <PersonaLiveCard
-            v-for="card in visibleCards"
-            :key="card.key"
-            :card="card"
-            @open="card.partialSessionId && emit('openCard', card.partialSessionId)"
-            @stop="card.partialSessionId && emit('stopCard', card.partialSessionId)"
-          />
-          <button
-            v-if="overflowCardCount > 0"
-            key="overflow"
-            type="button"
-            class="m-0 mx-auto text-[11px] text-[var(--ink-3)] hover:text-[var(--ink-1)]"
-            data-testid="live-cards-overflow"
-            @click="emit('openBackground')"
-          >
-            +{{ overflowCardCount }} more running
-          </button>
-        </TransitionGroup>
       </div>
     </div>
 
