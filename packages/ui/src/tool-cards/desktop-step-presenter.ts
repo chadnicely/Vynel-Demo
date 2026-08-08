@@ -102,8 +102,27 @@ export function describeDesktopStep(toolName: string, toolInput: unknown): strin
     }
     case "act_on_desktop":
       return describeCoordAction(toolInput, "progressive");
+    case "request_desktop_access": {
+      const app = inputString(toolInput, "app") ?? "an app";
+      const tier = inputString(toolInput, "tier");
+      return `Asking to use ${app}${tier !== null ? ` (${tierDisplay(tier)})` : ""}`;
+    }
     default:
       return displayToolName(toolName);
+  }
+}
+
+/** The tier in words a non-technical person reads on the card. */
+export function tierDisplay(tier: string): string {
+  switch (tier) {
+    case "read":
+      return "look only";
+    case "click":
+      return "look + click";
+    case "full":
+      return "look, click + type";
+    default:
+      return tier;
   }
 }
 
@@ -158,6 +177,16 @@ export function presentDesktopToolCall(
         stats: null,
         body,
       };
+    case "request_desktop_access": {
+      const tier = inputString(toolInput, "tier");
+      return {
+        verb: "Asked to use",
+        argument: inputString(toolInput, "app"),
+        subtitle: tier !== null ? tierDisplay(tier) : null,
+        stats: null,
+        body,
+      };
+    }
     default:
       return null;
   }

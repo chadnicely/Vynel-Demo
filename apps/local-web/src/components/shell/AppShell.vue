@@ -14,6 +14,7 @@ import {
   House,
   ListChecks,
   MessageCircle,
+  Monitor,
   NotebookPen,
   Radio,
   ScrollText,
@@ -184,6 +185,7 @@ const GLOBAL_HIDDEN_SECTION_IDS = new Set<string>(["apps"]);
 // catalog, outside every group.
 const GLOBAL_SYSTEM_ITEMS: SidebarItem[] = [
   { id: "engine", label: "Where Vynel runs", icon: Cpu },
+  { id: "desktop-access", label: "Desktop access", icon: Monitor },
   { id: "account", label: "Account", icon: UserRound },
   { id: "application", label: "Application", icon: Settings2 },
 ];

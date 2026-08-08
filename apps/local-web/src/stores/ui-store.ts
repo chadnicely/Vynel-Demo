@@ -27,6 +27,9 @@ export type ChatMainView =
   // Machine-level, global-only (like account/application): WHERE the engine
   // runs is a property of this computer, never of a workspace.
   | "engine"
+  // Machine-level, global-only: which desktop apps Claude may see/control
+  // (the per-app access grants) is a property of this computer.
+  | "desktop-access"
   // Workspace-only: the Customize canvas (persona, color, menu layout). Not a
   // catalog section — it edits the catalog's rendering, so it can never be
   // hidden by it.

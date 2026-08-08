@@ -133,4 +133,28 @@ describe("presentToolCall — the desktop branch", () => {
   it("leaves unknown desktop tools to the generic fallback", () => {
     expect(presentDesktopToolCall("mcp__desktop__future_tool", {}, null)).toBeNull();
   });
+
+  it("renders request_desktop_access with the tier in words a person reads", () => {
+    const presentation = presentToolCall(
+      desktopCall("mcp__desktop__request_desktop_access", {
+        app: "Discord",
+        tier: "click",
+        reason: "Read the #general channel",
+      }),
+    );
+    expect(presentation.verb).toBe("Asked to use");
+    expect(presentation.argument).toBe("Discord");
+    expect(presentation.subtitle).toBe("look + click");
+  });
+});
+
+describe("describeDesktopStep — request_desktop_access", () => {
+  it("labels the consent moment with app + tier words", () => {
+    expect(
+      describeDesktopStep("mcp__desktop__request_desktop_access", {
+        app: "Discord",
+        tier: "full",
+      }),
+    ).toBe("Asking to use Discord (look, click + type)");
+  });
 });
