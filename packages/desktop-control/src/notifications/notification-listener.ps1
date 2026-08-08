@@ -55,6 +55,9 @@ $toastKind    = [Windows.UI.Notifications.NotificationKinds]::Toast
 $listType     = [System.Collections.Generic.IReadOnlyList[Windows.UI.Notifications.UserNotification]]
 $toastBinding = [Windows.UI.Notifications.KnownNotificationBindings]::ToastGeneric
 $seen = @{}
+$pollDelayMs = 1000
+$consecutiveFailures = 0
+$lastPollError = ""
 
 while ($true) {
     # Exit if our spawning Node process is gone (abrupt death — the graceful
@@ -119,9 +122,30 @@ while ($true) {
         # Drop ids no longer present so re-posted notifications can surface again,
         # and keep the dedup table bounded.
         if ($seen.Count -gt 1000) { $seen.Clear() }
+
+        if ($consecutiveFailures -gt 0) {
+            [Console]::Error.WriteLine("poll recovered after $consecutiveFailures failed polls")
+        }
+        $consecutiveFailures = 0
+        $lastPollError = ""
+        $pollDelayMs = 1000
     }
     catch {
-        [Console]::Error.WriteLine("poll error: $($_.Exception.Message)")
+        $consecutiveFailures++
+        # Wait() wraps the real failure in an AggregateException whose own message
+        # is a useless "One or more errors occurred." — log the root cause. E.g. a
+        # stopped per-user WpnUserService surfaces as 0x80040154 Class not registered.
+        $base = $_.Exception.GetBaseException()
+        $message = "poll error: $($base.Message) (hresult 0x$('{0:X8}' -f $base.HResult))"
+        if ($message -ne $lastPollError) {
+            [Console]::Error.WriteLine($message)
+            $lastPollError = $message
+        }
+        # A dead notification platform fails every poll identically: back off to a
+        # minute instead of spamming the api log once a second, and keep polling so
+        # a service restart heals us live. (Orphan self-exit slows to the same cap;
+        # the graceful stop() path kills us directly and doesn't wait on this.)
+        $pollDelayMs = [Math]::Min($pollDelayMs * 2, 60000)
     }
-    Start-Sleep -Milliseconds 1000
+    Start-Sleep -Milliseconds $pollDelayMs
 }
