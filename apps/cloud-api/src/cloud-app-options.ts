@@ -10,6 +10,7 @@ import type {
   EntitlementTokenIssuer,
 } from '@vynel/accounts'
 import type { ArtifactSigner, ArtifactStore } from '@vynel/registry'
+import type { DesktopReleaseSource } from './services/desktop-release-manifest.js'
 import type { UpstreamWatchJob } from './services/upstream-watch-job.js'
 
 export interface CloudAppOptions {
@@ -20,6 +21,9 @@ export interface CloudAppOptions {
   readonly entitlements: EntitlementTokenIssuer
   readonly mail: AccountMailSender
   readonly artifactStore: ArtifactStore
+  /** Answers the desktop updater's /releases update checks (the latest.json
+   * fetch-cache-compare core). */
+  readonly desktopReleases: DesktopReleaseSource
   readonly linkBaseUrl: string
   readonly adminToken: string
   /** HMAC secret for /platform/webhooks; absent = that surface answers 503. */

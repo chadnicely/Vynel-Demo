@@ -9,6 +9,7 @@ import type { CloudAppOptions } from './cloud-app-options.js'
 import { buildAuthRoutes } from './routes/auth.js'
 import { buildAdminRoutes } from './routes/admin.js'
 import { buildCatalogRoutes } from './routes/catalog.js'
+import { buildDesktopReleaseRoutes } from './routes/desktop-releases.js'
 import { buildPlatformRoutes } from './routes/platform.js'
 import { buildSetPasswordPage } from './routes/set-password-page.js'
 
@@ -28,6 +29,7 @@ export function createCloudApp(options: CloudAppOptions): Hono {
   app.route('/admin', buildAdminRoutes(options))
   app.route('/catalog', buildCatalogRoutes(options))
   app.route('/platform', buildPlatformRoutes(options))
+  app.route('/releases', buildDesktopReleaseRoutes(options))
   app.route('/set-password', buildSetPasswordPage())
 
   return app

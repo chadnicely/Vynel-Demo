@@ -51,6 +51,7 @@ function buildApp(db: CloudDatabase): Hono {
     entitlements,
     mail: { sendSetPasswordLink: async () => {} },
     artifactStore: createInMemoryArtifactStore(),
+    desktopReleases: { resolveUpdate: async () => null },
     linkBaseUrl: 'https://hub.test',
     adminToken: ADMIN,
   })
@@ -337,6 +338,7 @@ describe('admin routes — upstream watch', () => {
         entitlements,
         mail: { sendSetPasswordLink: async () => {} },
         artifactStore: createInMemoryArtifactStore(),
+        desktopReleases: { resolveUpdate: async () => null },
         linkBaseUrl: 'https://hub.test',
         adminToken: ADMIN,
         upstreamWatch: { state: () => state, runNow: async () => state, stop: () => {} },
@@ -375,6 +377,7 @@ describe('admin routes — artifact signatures', () => {
       entitlements,
       mail: { sendSetPasswordLink: async () => {} },
       artifactStore: store,
+      desktopReleases: { resolveUpdate: async () => null },
       linkBaseUrl: 'https://hub.test',
       adminToken: ADMIN,
       ...(withSigner ? { artifactSigner: signer } : {}),

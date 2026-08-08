@@ -65,6 +65,7 @@ function buildApp(db: CloudDatabase, mail: AccountMailSender): Hono {
     entitlements,
     mail,
     artifactStore: createInMemoryArtifactStore(),
+    desktopReleases: { resolveUpdate: async () => null },
     linkBaseUrl: 'https://hub.test',
     adminToken: ADMIN_TOKEN,
   })
