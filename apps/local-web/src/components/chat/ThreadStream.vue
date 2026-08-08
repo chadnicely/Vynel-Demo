@@ -45,6 +45,10 @@ const props = withDefaults(
      *  carrying an in-flight trace key this thread SENT — the pointer is the
      *  whole tracker, and it vanishes when the task settles. */
     pointersByTraceId?: Map<string, ThreadPointerModel> | undefined;
+    /** The pointer's landing (redesign Case 1): scroll to the row carrying
+     *  this trace key on open, flash it, and stay there — the user asked for
+     *  where the task started, not the live edge. */
+    scrollToTraceId?: string | undefined;
   }>(),
   {
     assistantName: "Assistant",
@@ -53,6 +57,7 @@ const props = withDefaults(
     liveTraceIds: undefined,
     liveCards: undefined,
     pointersByTraceId: undefined,
+    scrollToTraceId: undefined,
   },
 );
 
@@ -71,8 +76,9 @@ const emit = defineEmits<{
   /** The live-card overflow line ("+N more running") — the full roster. */
   openBackground: [];
   /** A thread pointer's click — navigate to where the task started (the
-   *  `partialSessionId` anchor; the redesign's tracking mechanic). */
-  openPointer: [partialSessionId: string];
+   *  `partialSessionId` anchor; the redesign's tracking mechanic). The host
+   *  routes by the pointer's target (session segment / workspace). */
+  openPointer: [pointer: ThreadPointerModel];
   /** An Agent card's Watch chip: open the focused agent view over the source
    *  that carries the agent's activity (trace for delegation-traced rows, the
    *  row's own session for a direct turn's agent). */
@@ -332,6 +338,29 @@ watch(
     scrollToBottom();
   },
 );
+
+// The pointer's landing (redesign Case 1): reveal + scroll to the row carrying
+// the anchor trace key and flash it — once per anchor; the scroll handler
+// unpins from the bottom naturally. An older-than-window anchor reveals the
+// full history first, then the re-fired watch lands on it.
+let landedTraceId: string | null = null;
+watch(
+  () => [props.scrollToTraceId, visibleMessages.value.length] as const,
+  async ([traceId]) => {
+    if (traceId == null || landedTraceId === traceId) return;
+    await nextTick();
+    const row = scroller.value?.querySelector(`[data-trace-id="${traceId}"]`);
+    if (!(row instanceof HTMLElement)) {
+      if (hiddenOlderCount.value > 0) visibleCount.value = props.messages.length;
+      return;
+    }
+    landedTraceId = traceId;
+    row.scrollIntoView({ block: "center" });
+    row.classList.add("pointer-anchor-flash");
+    window.setTimeout(() => row.classList.remove("pointer-anchor-flash"), 1600);
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -347,6 +376,7 @@ watch(
         <template v-for="(message, index) in visibleMessages" :key="message.id">
           <MessageRow
             :message="message"
+            :data-trace-id="message.partialSessionId ?? undefined"
             :class="{ 'is-continuation': !showsHeaderFor(index) }"
             :assistant-name="props.assistantName"
             :assistant-icon-url="props.assistantIconUrl"
@@ -383,7 +413,7 @@ watch(
             v-for="pointer in pointersByMessageId.get(message.id) ?? []"
             :key="pointer.partialSessionId"
             :pointer="pointer"
-            @open="emit('openPointer', pointer.partialSessionId)"
+            @open="emit('openPointer', pointer)"
           />
         </template>
 
@@ -540,6 +570,19 @@ watch(
   .jump-pill-enter-active,
   .jump-pill-leave-active {
     transition: none;
+  }
+}
+/* The pointer's landing flash — a brief gold wash on the anchor row (gold =
+   presence: the row the live task started from). */
+:deep(.pointer-anchor-flash) {
+  animation: pointer-anchor-flash 1.6s ease-out;
+}
+@keyframes pointer-anchor-flash {
+  0% {
+    background: var(--gold-soft);
+  }
+  100% {
+    background: transparent;
   }
 }
 </style>

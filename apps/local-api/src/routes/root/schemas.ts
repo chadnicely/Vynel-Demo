@@ -134,6 +134,10 @@ export const InFlightDelegationSchema = z.object({
   // chip's label for session-target jobs. Null for workspace targets, whose
   // workspaceName already labels them.
   sessionName: z.string().nullable(),
+  // The target's CURRENT segment id (serve-time enrichment, redesign 2c) — a
+  // pointer click opens the target's real conversation by it. Null for
+  // workspace targets and unlinked primaries.
+  targetSessionId: z.string().nullable(),
   // The task as a short label — the indicator names the actual work.
   taskLabel: z.string(),
   status: z.enum(['pending', 'claimed']),

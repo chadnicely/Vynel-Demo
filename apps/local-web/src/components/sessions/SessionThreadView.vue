@@ -37,6 +37,10 @@ const props = defineProps<{
    *  freeze). False for a deliberately-opened EARLIER part: that view stays
    *  put on its segment. */
   followChain: boolean;
+  /** Scroll to the row carrying this trace key on open (the pointer's landing
+   *  — redesign Case 1: "click will scroll to where the partial id is").
+   *  Absent = open at the latest message like any chat. */
+  anchorTraceId?: string | undefined;
 }>();
 
 const activity = useActivityStore();
@@ -179,6 +183,7 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
         :active-turn="activeTurn"
         :assistant-name="props.title"
         :show-watch-chips="false"
+        :scroll-to-trace-id="props.anchorTraceId"
         @decide-approval="onDecideApproval"
         @open-session="activityMonitor.openTrace"
         @watch-agent="activityMonitor.openAgentDirect"

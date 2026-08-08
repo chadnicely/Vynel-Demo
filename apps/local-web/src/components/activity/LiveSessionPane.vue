@@ -11,7 +11,12 @@ import { sessionOpenAffordance } from "../../composables/sessions/session-open-a
 // the thread machinery is SessionThreadView's; this resolves the node's id
 // against the overview for scope (→ the direct-send rule) and title, and
 // stays honest while the overview loads (view-only, no note).
-const props = defineProps<{ sessionId: string; title: string }>();
+const props = defineProps<{
+  sessionId: string;
+  title: string;
+  /** The pointer's landing — scroll to the row carrying this trace key. */
+  anchorTraceId?: string | undefined;
+}>();
 
 const overviewQuery = useSessionsOverview(true);
 const entry = computed(
@@ -33,5 +38,6 @@ const affordance = computed(() =>
     :chattable="affordance.chattable"
     :view-only-note="affordance.viewOnlyNote"
     :follow-chain="true"
+    :anchor-trace-id="props.anchorTraceId"
   />
 </template>

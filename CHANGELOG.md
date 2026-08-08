@@ -9,6 +9,55 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Click a pointer, land in the real conversation.** Task pointers now open a
+  right-side panel showing the target's actual conversation — one unified
+  flow, scrolled straight to the row where that task started (a brief gold
+  flash marks it), with the same live streaming and composer every chat has.
+  Pointers clicked inside the panel drill deeper and Back walks up; opening a
+  workspace's pointer shows that workspace's own thread.
+- **Message a colleague directly.** Open an agent colleague's conversation and
+  just type — the same direct-message semantics as @mentioning them: the
+  colleague answers with its full toolset and honest reporting identity, your
+  send queues politely behind any running turn, and the old "view-only —
+  @mention them in chat" note is gone.
+- **Tasks track as pointers now.** When Claude hands work to a workspace or a
+  session, a quiet "task → target" line appears under the hand-off message
+  while the task runs — a breathing gold dot while working, "queued" while
+  waiting — and clicking it opens the live view. It exists only while the task
+  is in flight, so a finished task leaves just its report. Mentions land in a
+  colleague's conversation as you speaking ("You · from Global"), and a relayed
+  task's opening row names Claude honestly instead of masquerading as you.
+
+### Fixed
+
+- **Watches scan everything, and lifecycle plumbing stays invisible.** A
+  monitor watching a busy event stream now scans its whole window — a burst of
+  hundreds of events could previously hide the one that mattered, silently
+  losing the wake forever. And the in-flight roster shows only real tasks: the
+  internal hops that carry acks and reports between sessions no longer surface
+  as ghost tasks labeled with message text (stopping one of those could even
+  kill a report's delivery).
+- **Your conversation history survives automatic continuations.** When a long
+  conversation silently continues onto a fresh session mid-reply, the new
+  segment now stays chained to the old one — reloading shows the whole story
+  (previously everything before the continuation could vanish from view), the
+  Sessions list keeps one tidy entry instead of sprouting a stray "New session"
+  or a phantom duplicate, and a continued segment keeps its place in the chain
+  so "conversation continued" follows correctly.
+- **A finished task's report can no longer be lost or doubled.** If the app
+  restarts while a report is being handed to you, the delivery now resumes
+  after startup instead of silently dying (the report is the only copy of the
+  result). And a task that already delivered its report never runs again after
+  a late hiccup — no duplicate reports, and no confusing "it failed" arriving
+  after you already received the answer (including when it merely timed out).
+- **A message sent into a workspace chat no longer collides with a background
+  task running there.** The two used to write the same underlying conversation
+  at once (risking interleaved replies and a forked history); now your message
+  quietly queues and runs the moment the task's turn settles — same rule a
+  session's direct sends already followed.
+
+### Added
+
 - **Your agents are colleagues now.** Every configured agent has ONE continuing
   session per workspace (and one global) — @mention it and the same colleague
   resumes with its persona and memory intact, replying into your chat like a
@@ -61,6 +110,23 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   stays sharp at label size.
 
 ### Fixed
+
+- **The notification listener now says what's actually wrong — once, not every second.** When
+  the Windows notification platform dies (a stopped per-user `WpnUserService` makes every poll
+  throw), the helper used to flood the api log with a useless "One or more errors occurred"
+  warning each second. It now unwraps the real cause (e.g. `Class not registered, hresult
+  0x80040154`), logs it once per distinct error, backs off to one poll a minute while the
+  platform is down, and recovers live the moment the service is back.
+
+- **Saying "Hey Claude" opens the overlay again — and a broken overlay build can no longer
+  silence voice.** The rebuilt dev shell was panicking at launch: the auto-updater plugin
+  demands its config block, which only the release overlay config carries, so every wake
+  spawned an exe that died in under a second — no window, no error, daemon back to sleep.
+  The shell now registers the updater only when the config actually carries it (dev shells,
+  `tauri dev`, and a plain `tauri build` all run cleanly without one). And the voice daemon
+  no longer trusts "the exe file exists" as "the exe works": if the overlay app exits
+  immediately after launch it logs why and opens the Chrome/Edge window instead, so the
+  wake is still answered while you fix the build.
 
 - **The wake overlay no longer loads a dead port after a port change.** Tauri bakes `devUrl` and
   `frontendDist` into the desktop binary at *compile* time, so the port renumber left the last-built

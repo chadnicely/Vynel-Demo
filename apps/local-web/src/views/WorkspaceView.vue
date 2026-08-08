@@ -19,7 +19,11 @@ import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { useLiveDelegationCards } from "../composables/delegations/use-live-delegation-cards.js";
 import { useStopDelegation } from "../composables/delegations/use-stop-delegation.js";
-import { buildThreadPointers } from "../components/chat/thread-pointers.js";
+import {
+  buildThreadPointers,
+  type ThreadPointerModel,
+} from "../components/chat/thread-pointers.js";
+import { useAppSidebarStore } from "../stores/app-sidebar-store.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import { useWatchedTurn } from "../composables/chat/use-watched-turn.js";
@@ -102,6 +106,25 @@ const { cards: liveCards } = useLiveDelegationCards({
 const threadPointers = computed(() =>
   buildThreadPointers(inFlightQuery.data.value ?? []),
 );
+// A pointer click opens the target's real conversation in the sidebar,
+// anchored at the trace key's row (keyless edge → the trace view).
+const sidebar = useAppSidebarStore();
+function openPointerTarget(pointer: ThreadPointerModel) {
+  if (pointer.targetSessionId !== null) {
+    sidebar.openSession({
+      sessionId: pointer.targetSessionId,
+      title: pointer.targetLabel,
+      anchorTraceId: pointer.partialSessionId,
+    });
+  } else if (pointer.workspaceId !== null) {
+    sidebar.openWorkspace({
+      workspaceId: pointer.workspaceId,
+      anchorTraceId: pointer.partialSessionId,
+    });
+  } else {
+    activityMonitor.openTrace(pointer.partialSessionId);
+  }
+}
 const inFlightDelegationsHere = computed(() =>
   (inFlightQuery.data.value ?? []).filter(
     (delegation) => delegation.workspaceId === tab.workspaceId,
@@ -351,7 +374,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         @open-session="activityMonitor.openTrace"
         @open-report="(report) => (ui.viewingReport = report)"
         @open-background="activityMonitor.openBackground"
-        @open-pointer="activityMonitor.openTrace"
+        @open-pointer="openPointerTarget"
         @watch-agent="activityMonitor.openAgentDirect"
       />
 

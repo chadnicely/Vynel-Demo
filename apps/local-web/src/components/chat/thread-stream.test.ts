@@ -113,22 +113,20 @@ describe("ThreadStream", () => {
       startedAt: "2026-07-05T10:00:00.000Z",
       completedAt: "2026-07-05T10:00:01.000Z",
     };
+    const pointer = {
+      partialSessionId: "trace-1",
+      taskLabel: "July invoicing",
+      targetLabel: "Noah · Invoices",
+      status: "working" as const,
+      targetSessionId: "seg-1",
+      workspaceId: null,
+    };
     const wrapper = mount(ThreadStream, {
       props: {
         messages: [makeMessage(0), handOff, makeMessage(2)],
         toolCallsByMessageId: { [handOff.id]: [dispatchCall] },
         activeTurn: null,
-        pointersByTraceId: new Map([
-          [
-            "trace-1",
-            {
-              partialSessionId: "trace-1",
-              taskLabel: "July invoicing",
-              targetLabel: "Noah · Invoices",
-              status: "working" as const,
-            },
-          ],
-        ]),
+        pointersByTraceId: new Map([["trace-1", pointer]]),
       },
       global: { plugins: [createPinia()] },
     });
@@ -138,7 +136,8 @@ describe("ThreadStream", () => {
     expect(pointers[0]!.text()).toContain("July invoicing");
     expect(pointers[0]!.text()).toContain("Noah · Invoices");
     await pointers[0]!.trigger("click");
-    expect(wrapper.emitted("openPointer")).toEqual([["trace-1"]]);
+    // The FULL pointer rides the emit — the host routes by its target.
+    expect(wrapper.emitted("openPointer")).toEqual([[pointer]]);
   });
 
   it("a RECEIVED trace never grows a pointer — the target side has the anchor row, not a tracker", () => {
@@ -161,6 +160,8 @@ describe("ThreadStream", () => {
               taskLabel: "Chase POs",
               targetLabel: "Invoices",
               status: "queued" as const,
+              targetSessionId: null,
+              workspaceId: "ws-1",
             },
           ],
         ]),

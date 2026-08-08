@@ -10,6 +10,8 @@ describe("buildThreadPointers", () => {
         taskLabel: "July invoicing",
         workspaceName: "Invoices",
         sessionName: "July run",
+        targetSessionId: "seg-9",
+        workspaceId: null,
       },
       {
         partialSessionId: "trace-2",
@@ -17,6 +19,7 @@ describe("buildThreadPointers", () => {
         taskLabel: "Chase POs",
         workspaceName: "Invoices",
         sessionName: null,
+        workspaceId: "ws-1",
       },
       // Keyless job — no anchor to point at.
       { partialSessionId: null, status: "pending", taskLabel: "ghost" },
@@ -28,12 +31,16 @@ describe("buildThreadPointers", () => {
       taskLabel: "July invoicing",
       targetLabel: "July run · Invoices",
       status: "working",
+      targetSessionId: "seg-9",
+      workspaceId: null,
     });
     expect(pointers.get("trace-2")).toEqual({
       partialSessionId: "trace-2",
       taskLabel: "Chase POs",
       targetLabel: "Invoices",
       status: "queued",
+      targetSessionId: null,
+      workspaceId: "ws-1",
     });
   });
 
@@ -54,6 +61,8 @@ describe("buildThreadPointers", () => {
       taskLabel: "Task",
       targetLabel: "Acme",
       status: "working",
+      targetSessionId: null,
+      workspaceId: null,
     });
     expect(pointers.get("trace-4")!.targetLabel).toBe("Session");
   });

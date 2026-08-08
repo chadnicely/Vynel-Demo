@@ -46,7 +46,11 @@ import { useDecideApproval } from "../composables/approvals/use-decide-approval.
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { useLiveDelegationCards } from "../composables/delegations/use-live-delegation-cards.js";
 import { useStopDelegation } from "../composables/delegations/use-stop-delegation.js";
-import { buildThreadPointers } from "../components/chat/thread-pointers.js";
+import {
+  buildThreadPointers,
+  type ThreadPointerModel,
+} from "../components/chat/thread-pointers.js";
+import { useAppSidebarStore } from "../stores/app-sidebar-store.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../composables/users/use-current-user.js";
@@ -165,8 +169,28 @@ const liveTraceIds = computed(() => {
 // the activity feed + the narration ring — never a per-card SSE.
 const { cards: liveCards } = useLiveDelegationCards({ messages: () => messages.value });
 // The thread pointers (live-tracking redesign, Case 1) — the tracker is a
-// pointer under the hand-off row; in-flight-only by construction.
+// pointer under the hand-off row; in-flight-only by construction. A click
+// opens the TARGET's real conversation in the sidebar, anchored at the row
+// carrying the trace key; a target that resolves nowhere (keyless edge) falls
+// back to the trace view.
+const sidebar = useAppSidebarStore();
 const threadPointers = computed(() => buildThreadPointers(inFlightDelegations.value));
+function openPointerTarget(pointer: ThreadPointerModel) {
+  if (pointer.targetSessionId !== null) {
+    sidebar.openSession({
+      sessionId: pointer.targetSessionId,
+      title: pointer.targetLabel,
+      anchorTraceId: pointer.partialSessionId,
+    });
+  } else if (pointer.workspaceId !== null) {
+    sidebar.openWorkspace({
+      workspaceId: pointer.workspaceId,
+      anchorTraceId: pointer.partialSessionId,
+    });
+  } else {
+    activityMonitor.openTrace(pointer.partialSessionId);
+  }
+}
 const isProcessing = computed(() => inFlightDelegations.value.length > 0);
 const stopDelegation = useStopDelegation();
 
@@ -449,7 +473,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         @open-session="activityMonitor.openTrace"
         @open-report="(report) => (ui.viewingReport = report)"
         @open-background="activityMonitor.openBackground"
-        @open-pointer="activityMonitor.openTrace"
+        @open-pointer="openPointerTarget"
         @watch-agent="activityMonitor.openAgentDirect"
       />
 

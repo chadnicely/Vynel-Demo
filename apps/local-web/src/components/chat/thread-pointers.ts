@@ -13,6 +13,12 @@ export type ThreadPointerModel = {
    *  "Invoices". */
   targetLabel: string;
   status: "queued" | "working";
+  /** The target's current segment id — the sidebar opens the conversation by
+   *  it (session-target jobs; serve-time enrichment). */
+  targetSessionId: string | null;
+  /** The target workspace — the sidebar's fallback destination when no
+   *  session segment resolves. */
+  workspaceId: string | null;
 };
 
 /** The slice of the in-flight DTO the builder reads — structural, so the
@@ -23,6 +29,8 @@ type InFlightPointerSource = {
   taskLabel?: string | null;
   workspaceName?: string | null;
   sessionName?: string | null;
+  targetSessionId?: string | null;
+  workspaceId?: string | null;
 };
 
 export function buildThreadPointers(
@@ -44,6 +52,8 @@ export function buildThreadPointers(
       taskLabel: delegation.taskLabel?.trim() || "Task",
       targetLabel,
       status: delegation.status === "claimed" ? "working" : "queued",
+      targetSessionId: delegation.targetSessionId ?? null,
+      workspaceId: delegation.workspaceId ?? null,
     });
   }
   return pointers;
