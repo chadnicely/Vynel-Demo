@@ -204,44 +204,36 @@ const isInboundDirect = computed(
   () => isInboundReport.value && isDirectMessageBody(props.message.body),
 );
 
-// A REPORT renders as a tool-card-style collapsible (Chad, 2026-08-09, his
-// mock): report icon + the lead line as the TITLE, chevron at the line's end,
-// the body expanding in place below. The header badge retires for reports —
-// the icon carries the kind. Updates/direct messages stay regular messages.
-const reportCardParts = computed(() => {
-  if (!isInboundReport.value || isInboundUpdate.value || isInboundDirect.value) {
-    return null;
-  }
+// EVERY delivered message renders as a tool-card-style collapsible (Chad,
+// 2026-08-09, his mock — reports first, then "same to message and update"):
+// a kind ICON + the lead line as the TITLE, chevron at the line's end, the
+// body expanding in place below. The header badges retire — the icon carries
+// the kind. A body whose remainder is small renders whole as the title line
+// (no pointless chevron on a two-line update).
+const FOLD_REMAINDER_MIN = 120;
+const inboundCardParts = computed(() => {
+  if (!isInboundReport.value) return null;
   const body = displayBody.value;
   const splitAt = body.indexOf("\n\n");
   if (splitAt === -1) return { title: body, remainder: null };
-  return { title: body.slice(0, splitAt), remainder: body.slice(splitAt + 2) };
+  const remainder = body.slice(splitAt + 2);
+  if (remainder.trim().length < FOLD_REMAINDER_MIN) return { title: body, remainder: null };
+  return { title: body.slice(0, splitAt), remainder };
 });
 
 // The title line reads as plain text — markdown control chars stripped, the
 // same cleanup the old teaser used.
-const reportCardTitle = computed(() =>
-  reportCardParts.value === null
+const inboundCardTitle = computed(() =>
+  inboundCardParts.value === null
     ? null
-    : reportCardParts.value.title.replace(/[#*_`>]/g, "").trim(),
+    : inboundCardParts.value.title.replace(/[#*_`>]/g, "").trim(),
 );
-
-// A LONG update/direct message still collapses to its lead paragraph with the
-// pill expander — short ones render whole, no affordance.
-const COLLAPSE_REMAINDER_MIN = 200;
-const collapsedLead = computed(() => {
-  if (!isInboundReport.value || reportCardParts.value !== null) return null;
-  const body = displayBody.value;
-  const splitAt = body.indexOf("\n\n");
-  if (splitAt === -1) return null;
-  if (body.slice(splitAt + 2).trim().length < COLLAPSE_REMAINDER_MIN) return null;
-  return body.slice(0, splitAt);
-});
-const isExpanded = ref(false);
 
 const inboundKindWord = computed(() =>
-  isInboundUpdate.value ? "update" : "message",
+  isInboundUpdate.value ? "update" : isInboundDirect.value ? "message" : "report",
 );
+
+const isExpanded = ref(false);
 
 // A persona speaking as an ASSISTANT row wears its workspace accent (left
 // bar). An INBOUND delivered row does NOT (Chad, 2026-08-09): a colleague
@@ -334,14 +326,6 @@ const accentVar = computed(() => {
         </svg>
         via {{ originBadge.label }}
       </span>
-      <!-- Quiet provenance mark: this row was DELIVERED, not typed — an
-           interim update says so (never mistakable for the finished result).
-           A REPORT wears no badge: its card icon carries the kind. -->
-      <span
-        v-if="isInboundUpdate || isInboundDirect"
-        class="origin-badge"
-        >{{ isInboundUpdate ? "Update" : "Message" }}</span
-      >
     </p>
     <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
     </div>
@@ -358,101 +342,103 @@ const accentVar = computed(() => {
          LONG one collapses to its lead paragraph behind an in-place
          expander — never a popup. -->
     <MarkdownText v-if="isAssistant" :source="displayBody" />
-    <template v-else-if="isInboundReport">
-      <!-- REPORT: the tool-card treatment — icon + title line, chevron at the
-           line's end, body expands in place. -->
-      <template v-if="reportCardParts !== null">
-        <button
-          type="button"
-          class="report-card"
-          :class="{ 'is-expandable': reportCardParts.remainder !== null }"
-          :aria-expanded="isExpanded"
-          :disabled="reportCardParts.remainder === null"
-          @click="isExpanded = !isExpanded"
+    <!-- The delivered-message card (all kinds): kind icon + title line,
+         chevron at the line's end, body expands in place. -->
+    <template v-else-if="isInboundReport && inboundCardParts !== null">
+      <button
+        type="button"
+        class="inbound-card"
+        :class="{ 'is-expandable': inboundCardParts.remainder !== null }"
+        :data-kind="inboundKindWord"
+        :aria-expanded="isExpanded"
+        :disabled="inboundCardParts.remainder === null"
+        @click="isExpanded = !isExpanded"
+      >
+        <!-- UPDATE: a small clock — interim, still running. -->
+        <svg
+          v-if="isInboundUpdate"
+          class="inbound-card-icon"
+          width="13"
+          height="13"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
         >
-          <svg
-            class="report-card-icon"
-            width="13"
-            height="13"
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M4 1.5h5.5L13 5v9.5H4z"
-              stroke="currentColor"
-              stroke-width="1.3"
-              stroke-linejoin="round"
-            />
-            <path d="M9.5 1.5V5H13" stroke="currentColor" stroke-width="1.3" />
-            <path
-              d="M6 8.5h4M6 11h4"
-              stroke="currentColor"
-              stroke-width="1.3"
-              stroke-linecap="round"
-            />
-          </svg>
-          <span class="report-card-title">{{ reportCardTitle }}</span>
-          <svg
-            v-if="reportCardParts.remainder !== null"
-            class="expand-chevron"
-            :class="{ 'is-open': isExpanded }"
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M4 6l4 4 4-4"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </button>
-        <MarkdownText
-          v-if="isExpanded && reportCardParts.remainder !== null"
-          class="report-card-body"
-          :source="reportCardParts.remainder"
-        />
-      </template>
-      <!-- UPDATE / MESSAGE: a regular message; a long one folds to its lead
-           behind the pill expander. -->
-      <template v-else>
-        <MarkdownText
-          :source="collapsedLead !== null && !isExpanded ? collapsedLead : displayBody"
-        />
-        <button
-          v-if="collapsedLead !== null"
-          type="button"
-          class="expand-chip"
-          :aria-expanded="isExpanded"
-          @click="isExpanded = !isExpanded"
+          <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.3" />
+          <path
+            d="M8 4.75V8l2.25 1.5"
+            stroke="currentColor"
+            stroke-width="1.3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <!-- MESSAGE: a speech bubble — the sender talking to the user. -->
+        <svg
+          v-else-if="isInboundDirect"
+          class="inbound-card-icon"
+          width="13"
+          height="13"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
         >
-          <svg
-            class="expand-chevron"
-            :class="{ 'is-open': isExpanded }"
-            width="11"
-            height="11"
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M4 6l4 4 4-4"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          <span>{{
-            isExpanded ? "Show less" : `Show full ${inboundKindWord}`
-          }}</span>
-        </button>
-      </template>
+          <path
+            d="M2.5 4.25c0-.97.78-1.75 1.75-1.75h7.5c.97 0 1.75.78 1.75 1.75v4.5c0 .97-.78 1.75-1.75 1.75H8.5L5 13.25V10.5h-.75c-.97 0-1.75-.78-1.75-1.75z"
+            stroke="currentColor"
+            stroke-width="1.3"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <!-- REPORT: a document — the finished result. -->
+        <svg
+          v-else
+          class="inbound-card-icon"
+          width="13"
+          height="13"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M4 1.5h5.5L13 5v9.5H4z"
+            stroke="currentColor"
+            stroke-width="1.3"
+            stroke-linejoin="round"
+          />
+          <path d="M9.5 1.5V5H13" stroke="currentColor" stroke-width="1.3" />
+          <path
+            d="M6 8.5h4M6 11h4"
+            stroke="currentColor"
+            stroke-width="1.3"
+            stroke-linecap="round"
+          />
+        </svg>
+        <span class="inbound-card-title">{{ inboundCardTitle }}</span>
+        <svg
+          v-if="inboundCardParts.remainder !== null"
+          class="expand-chevron"
+          :class="{ 'is-open': isExpanded }"
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M4 6l4 4 4-4"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+      <MarkdownText
+        v-if="isExpanded && inboundCardParts.remainder !== null"
+        class="inbound-card-body"
+        :source="inboundCardParts.remainder"
+      />
     </template>
     <p v-else-if="props.message.body" class="plain-body">
       {{ props.message.body }}
@@ -596,11 +582,11 @@ const accentVar = computed(() => {
   color: var(--ink-3);
 }
 
-/* The REPORT card — the tool-card treatment: icon + the lead line as title,
-   the chevron flowing INLINE right after the last word (the whole line is the
-   toggle), the body unfolding below. Inline display keeps the chevron at the
-   text's end even when the title wraps. */
-.report-card {
+/* The delivered-message card — the tool-card treatment: kind icon + the lead
+   line as title, the chevron flowing INLINE right after the last word (the
+   whole line is the toggle), the body unfolding below. Inline display keeps
+   the chevron at the text's end even when the title wraps. */
+.inbound-card {
   appearance: none;
   border: 0;
   margin: 0;
@@ -614,69 +600,41 @@ const accentVar = computed(() => {
   overflow-wrap: break-word;
 }
 
-.report-card.is-expandable {
+.inbound-card.is-expandable {
   cursor: pointer;
 }
 
-.report-card.is-expandable:hover .report-card-title {
+.inbound-card.is-expandable:hover .inbound-card-title {
   color: var(--ink-2);
 }
 
-.report-card:focus-visible {
+.inbound-card:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
   border-radius: var(--radius-s);
 }
 
-.report-card-icon {
+.inbound-card-icon {
   color: var(--ink-3);
   vertical-align: -2px;
   margin-right: 6px;
 }
 
-.report-card .expand-chevron {
+.inbound-card .expand-chevron {
   color: var(--ink-3);
   vertical-align: -2px;
   margin-left: 5px;
 }
 
-.report-card-body {
-  margin-top: 4px;
-}
-
-/* The in-place expander on a long delivered message — quiet pill, chevron
-   rotates open. Never gold (gold = presence only). */
-.expand-chip {
-  appearance: none;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 2px 0 0;
-  padding: 3px 11px;
-  border: 1px solid var(--hair);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ink-3);
-  font: 500 11px/1.5 var(--font-ui);
-  cursor: pointer;
-  transition:
-    color 120ms ease,
-    border-color 120ms ease;
-}
-
-.expand-chip:hover {
-  color: var(--ink-1);
-  border-color: var(--hair-strong, var(--hair));
-}
-
-.expand-chip:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
+/* The unfolded body breathes and sits under the TITLE text, not the icon —
+   the tool-group inset idiom: a quiet hairline down the icon column. */
+.inbound-card-body {
+  margin: 8px 0 2px 5px;
+  padding-left: 14px;
+  border-left: 1px solid var(--hair);
 }
 
 .expand-chevron {
-  flex: none;
   transition: transform 140ms ease;
 }
 

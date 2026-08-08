@@ -51,11 +51,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   message — the full text right in the thread, under the sender's name and a
   quiet Report/Update/Message tag. The special box treatment is gone: no side
   bar, no teaser line, no "View report" button, no popup. They're participants
-  in the conversation, and now they look like it. Reports stay tidy: each one
-  collapses to a compact card — a small report icon, the summary line as its
-  title, and a chevron at the end that unfolds the full report right in the
-  thread. Long updates and direct messages fold behind a "Show full message"
-  pill the same way; short ones just show whole.
+  in the conversation, and now they look like it. Every delivered message
+  collapses to a compact card — a kind icon (document for reports, clock for
+  updates, speech bubble for direct messages), the summary line as its title,
+  and a chevron at the end that unfolds the full text right in the thread,
+  neatly inset. Short messages just show whole.
 - **Task pointers now stay after the work finishes.** The "task → target" line
   under a hand-off no longer disappears when the task completes — it settles
   into a quiet "done" (or "failed") state and stays clickable, so you can

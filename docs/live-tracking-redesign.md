@@ -420,6 +420,14 @@ paragraph (a one-liner card gets no chevron). Updates/direct messages stay regul
 messages with their badges + the long-fold pill. Pins recast: card round-trip, no-badge +
 icon, one-liner-no-chevron, direct-pill kept.
 
+**Refinement 3 (spacing + "same to message and update"):** the unfolded body now breathes —
+inset under the TITLE text with a quiet hairline down the icon column (the tool-group
+idiom), 8px top gap. And ALL THREE kinds card now, each with its own icon: report =
+document, update = clock, message = speech bubble (`data-kind` on the card). ALL header
+kind badges retired; the pill expander deleted. One fold rule for every kind: fold at the
+first paragraph only when the remainder is substantial (>120 chars) — a short body renders
+whole on the title line, no chevron.
+
 ---
 
 *(Case 4+ land here as received.)*

@@ -111,14 +111,14 @@ describe("MessageRow", () => {
     // Sheds the "your message" bubble but wears NO special chrome.
     expect(row.classes()).toContain("is-report");
     expect(row.classes()).not.toContain("has-accent");
-    // Collapsed: the title line (markdown chars stripped), remainder hidden.
-    const card = wrapper.get(".report-card");
-    expect(wrapper.find(".report-card-icon").exists()).toBe(true);
+    // A SMALL remainder renders whole on the title line — no pointless
+    // chevron on a short message (the fold floor).
+    const card = wrapper.get(".inbound-card");
+    expect(wrapper.find(".inbound-card-icon").exists()).toBe(true);
+    expect(card.attributes("data-kind")).toBe("report");
     expect(card.text()).toContain("Done. The three files are indexed.");
-    expect(wrapper.text()).not.toContain("Full detail follows below.");
-    // The chevron at the line's end expands the body in place.
-    await card.trigger("click");
-    expect(wrapper.text()).toContain("Full detail follows below.");
+    expect(card.text()).toContain("Full detail follows below.");
+    expect(wrapper.find(".expand-chevron").exists()).toBe(false);
   });
 
   it("strips the model-facing attribution marker from a report's displayed body", () => {
@@ -313,7 +313,9 @@ describe("MessageRow badge split (update / report / message)", () => {
   const updateBody =
     "[Update from Nova — an interim status on work you delegated, relayed automatically by Vynel. The task is STILL RUNNING; this is NOT its result and NOT a message the user typed.]\n\nReceived — will report when done.";
 
-  it("an inbound UPDATE wears the Update badge; the spoken text renders in full, marker stripped", () => {
+  // test: correct expectation — the kind badges retired for the card icons
+  // (Chad: "same to message and update").
+  it("an inbound UPDATE cards with the clock icon, no badge; the spoken text renders, marker stripped", () => {
     const wrapper = mount(MessageRow, {
       props: {
         message: makeMessage({
@@ -324,13 +326,14 @@ describe("MessageRow badge split (update / report / message)", () => {
         }),
       },
     });
-    expect(wrapper.find(".origin-badge").text()).toBe("Update");
+    expect(wrapper.find(".origin-badge").exists()).toBe(false);
+    expect(wrapper.get(".inbound-card").attributes("data-kind")).toBe("update");
+    expect(wrapper.find(".inbound-card-icon").exists()).toBe(true);
     expect(wrapper.text()).toContain("Received — will report when done.");
     expect(wrapper.text()).not.toContain("[Update from Nova");
-    expect(wrapper.find(".report-open-chip").exists()).toBe(false);
   });
 
-  it("an inbound DIRECT message (kind direct_to_user) wears the Message badge, full text inline under its title", () => {
+  it("an inbound DIRECT message cards as kind message — short body whole on the title line", () => {
     const directBody =
       "[Message from James · Claw Launcher — addressed DIRECTLY to the user and shown to them in this conversation, relayed automatically by Vynel. Not a message the user typed; do not restate it.]\n\nOverview of the agency app\n\nNuxt 4 + Vue 3; seven Pinia stores.";
     const wrapper = mount(MessageRow, {
@@ -343,7 +346,8 @@ describe("MessageRow badge split (update / report / message)", () => {
         }),
       },
     });
-    expect(wrapper.find(".origin-badge").text()).toBe("Message");
+    expect(wrapper.find(".origin-badge").exists()).toBe(false);
+    expect(wrapper.get(".inbound-card").attributes("data-kind")).toBe("message");
     expect(wrapper.text()).toContain("Overview of the agency app");
     expect(wrapper.text()).toContain("Nuxt 4 + Vue 3; seven Pinia stores.");
     expect(wrapper.text()).not.toContain("[Message from James");
@@ -362,16 +366,17 @@ describe("MessageRow badge split (update / report / message)", () => {
       },
     });
     expect(wrapper.find(".origin-badge").exists()).toBe(false);
-    expect(wrapper.find(".report-card-icon").exists()).toBe(true);
+    expect(wrapper.find(".inbound-card-icon").exists()).toBe(true);
+    expect(wrapper.get(".inbound-card").attributes("data-kind")).toBe("report");
     expect(wrapper.text()).toContain("Done — shipped.");
     expect(wrapper.find(".expand-chevron").exists()).toBe(false);
   });
 });
 
-// The report CARD + the long-message pill (Chad, 2026-08-09): a report always
-// collapses card-style; a LONG update/direct message folds to its lead behind
-// the pill; short ones render whole — never a popup anywhere.
-describe("MessageRow report card + long-message expander", () => {
+// The delivered-message CARD (Chad, 2026-08-09 — reports first, then "same to
+// message and update"): every kind collapses card-style when its body is
+// substantial; the chevron toggles the body in place — never a popup.
+describe("MessageRow delivered-message card", () => {
   const lead = "Channels in Claw Launcher: only ONE external channel is wired up.";
   const detail =
     "Details:\n\n- Telegram is the only messaging channel the platform supports today, " +
@@ -391,18 +396,19 @@ describe("MessageRow report card + long-message expander", () => {
       },
     });
 
-    expect(wrapper.get(".report-card-title").text()).toContain(lead);
+    expect(wrapper.get(".inbound-card-title").text()).toContain(lead);
     expect(wrapper.find(".expand-chevron").exists()).toBe(true);
     expect(wrapper.text()).not.toContain("Telegram is the only messaging channel");
 
-    await wrapper.get(".report-card").trigger("click");
+    await wrapper.get(".inbound-card").trigger("click");
     expect(wrapper.text()).toContain("Telegram is the only messaging channel");
+    expect(wrapper.find(".inbound-card-body").exists()).toBe(true);
 
-    await wrapper.get(".report-card").trigger("click");
+    await wrapper.get(".inbound-card").trigger("click");
     expect(wrapper.text()).not.toContain("Telegram is the only messaging channel");
   });
 
-  it("a long DIRECT message folds behind the Show full message pill", async () => {
+  it("a long DIRECT message folds the same way, carded as kind message", async () => {
     const wrapper = mount(MessageRow, {
       props: {
         message: makeMessage({
@@ -414,16 +420,15 @@ describe("MessageRow report card + long-message expander", () => {
       },
     });
 
-    expect(wrapper.text()).toContain(lead);
+    const card = wrapper.get(".inbound-card");
+    expect(card.attributes("data-kind")).toBe("message");
+    expect(card.text()).toContain(lead);
     expect(wrapper.text()).not.toContain("Telegram is the only messaging channel");
-    const chip = wrapper.get(".expand-chip");
-    expect(chip.text()).toContain("Show full message");
-    await chip.trigger("click");
+    await card.trigger("click");
     expect(wrapper.text()).toContain("Telegram is the only messaging channel");
-    expect(wrapper.get(".expand-chip").text()).toContain("Show less");
   });
 
-  it("a short message renders whole with NO expander", () => {
+  it("a short update renders whole on the title line with NO chevron", () => {
     const wrapper = mount(MessageRow, {
       props: {
         message: makeMessage({
@@ -435,6 +440,6 @@ describe("MessageRow report card + long-message expander", () => {
       },
     });
     expect(wrapper.text()).toContain("Starting on the schema now.");
-    expect(wrapper.find(".expand-chip").exists()).toBe(false);
+    expect(wrapper.find(".expand-chevron").exists()).toBe(false);
   });
 });
