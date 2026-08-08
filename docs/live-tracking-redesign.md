@@ -430,4 +430,31 @@ whole on the title line, no chevron.
 
 ---
 
+## Post-smoke tweak 5 — foldable turns (Chad, 2026-08-09; SHIPPED)
+
+**Instruction (his mock):** make all chats expandable — a collapsed view is
+icon · first message · time · expand option; expanding shows the regular view. The last
+message is expanded by default; the user can expand/collapse any message.
+
+**Shipped shape:**
+
+- **The unit is the TURN** (a header row + its continuations — the existing
+  `showsHeaderFor` grouping), keyed by its first row's id. Folded = one strip: author
+  glyph + name, a one-line first-line preview (marker-stripped, md-chars cleaned), and the
+  time + chevron cluster at the RIGHT edge (the mock's red box). The header and the
+  chevron both toggle.
+- **Default:** only the LATEST turn is open; a manual toggle overrides its turn from then
+  on — so an arriving turn folds the previous one unless the user pinned it open.
+  State lives per ThreadStream instance (all four chat surfaces get it for free).
+- **Integrations:** pointers render even under a folded turn (a tracker never hides);
+  pointer-anchor landing unfolds the anchor's turn before scrolling + flashing.
+- **MessageRow** grew `collapsible`/`collapsed` props + a `toggleCollapse` emit — hosts
+  not passing them (LiveTurn, the active-turn user row) render exactly as before.
+
+**Verified:** full local-web suite 544/544 + ui suites green; typecheck 24/24 forced.
+Pins: default-fold + latest-open, chevron round-trip, anchor-unfolds-turn, folded-turn
+continuations return on open (grouping pin recast), plain rows unchanged.
+
+---
+
 *(Case 4+ land here as received.)*

@@ -443,3 +443,44 @@ describe("MessageRow delivered-message card", () => {
     expect(wrapper.find(".expand-chevron").exists()).toBe(false);
   });
 });
+
+// TURN folding (Chad, 2026-08-09): a collapsible header row can fold its whole
+// message to a strip — author, first-line preview, time, chevron.
+describe("MessageRow turn folding (collapsible header)", () => {
+  it("folded: only the strip renders — one-line preview, chevron; the body stays hidden", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: "**First** line here.\n\nSecond paragraph." }),
+        collapsible: true,
+        collapsed: true,
+      },
+    });
+    expect(wrapper.get(".turn-preview").text()).toBe("First line here.");
+    expect(wrapper.find(".collapse-toggle").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("Second paragraph.");
+  });
+
+  it("expanded: the body shows, no preview; both the chevron and the header emit the toggle", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: "Hello world" }),
+        collapsible: true,
+        collapsed: false,
+      },
+    });
+    expect(wrapper.text()).toContain("Hello world");
+    expect(wrapper.find(".turn-preview").exists()).toBe(false);
+    await wrapper.get(".collapse-toggle").trigger("click");
+    await wrapper.get(".row-header").trigger("click");
+    expect(wrapper.emitted("toggleCollapse")).toHaveLength(2);
+  });
+
+  it("a plain row (not collapsible) renders exactly as before — no chevron, no strip", () => {
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage({ body: "Plain." }) },
+    });
+    expect(wrapper.find(".collapse-toggle").exists()).toBe(false);
+    expect(wrapper.find(".turn-preview").exists()).toBe(false);
+    expect(wrapper.text()).toContain("Plain.");
+  });
+});

@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Chats fold into tidy turns.** Every turn in every chat now collapses to a
+  single strip — the author's icon and name, the first line as a preview, and
+  the time with a chevron at the right edge. Only the latest turn is open by
+  default, so a long conversation reads like a clean index of what happened;
+  click any strip (or its chevron) to unfold the full turn in place, and
+  collapse anything you're done with. Jumping to a task's start automatically
+  unfolds the turn it lives in.
 - **Colleagues can message you directly.** Sessions, workspaces, and agents got
   a new way to answer: send the result straight to you instead of reporting to
   whoever assigned the task. A direct answer lands in your conversation as the

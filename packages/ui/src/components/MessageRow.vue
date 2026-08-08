@@ -42,14 +42,28 @@ const props = withDefaults(
       monogram: string;
       accentVar: string;
     } | null;
+    /** TURN folding (Chad, 2026-08-09): true on a turn's header row — the
+     *  header grows the time+chevron toggle at its right edge. */
+    collapsible?: boolean;
+    /** Folded: only the header strip renders — author, first-line preview,
+     *  time, chevron. The body, attachments, and tool calls stay hidden. */
+    collapsed?: boolean;
   }>(),
   {
     assistantName: "Assistant",
     assistantIconUrl: null,
     showHeader: true,
     authorPersona: null,
+    collapsible: false,
+    collapsed: false,
   },
 );
+
+const emit = defineEmits<{
+  /** The turn header's fold toggle (thread-wide turn collapsing — the host
+   *  owns which turns are open; this row only reports the click). */
+  toggleCollapse: [];
+}>();
 
 
 // An inbound REPORT — a workspace's or agent's finished result arriving as
@@ -235,6 +249,15 @@ const inboundKindWord = computed(() =>
 
 const isExpanded = ref(false);
 
+// The folded strip's one-line preview — the first non-empty line of the
+// display body (marker already stripped), the card-title cleanup applied.
+const collapsedPreview = computed(() => {
+  if (!props.collapsed) return null;
+  const firstLine =
+    displayBody.value.split("\n").find((line) => line.trim() !== "") ?? "";
+  return firstLine.replace(/[#*_`>]/g, "").trim();
+});
+
 // A persona speaking as an ASSISTANT row wears its workspace accent (left
 // bar). An INBOUND delivered row does NOT (Chad, 2026-08-09): a colleague
 // responding in the chat is a regular participant — the persona author line
@@ -258,7 +281,12 @@ const accentVar = computed(() => {
     ]"
     :style="accentVar ? { '--accent': accentVar } : undefined"
   >
-    <div v-if="props.showHeader" class="row-header">
+    <div
+      v-if="props.showHeader"
+      class="row-header"
+      :class="{ 'is-collapsible': props.collapsible }"
+      @click="props.collapsible ? emit('toggleCollapse') : undefined"
+    >
     <p class="role-label">
       <span
         v-if="authorGlyph"
@@ -327,9 +355,43 @@ const accentVar = computed(() => {
         via {{ originBadge.label }}
       </span>
     </p>
-    <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
+    <span v-if="collapsedPreview" class="turn-preview">{{
+      collapsedPreview
+    }}</span>
+    <span class="header-meta">
+      <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
+      <button
+        v-if="props.collapsible"
+        type="button"
+        class="collapse-toggle"
+        :aria-expanded="!props.collapsed"
+        aria-label="fold or unfold this message"
+        @click.stop="emit('toggleCollapse')"
+      >
+        <svg
+          class="collapse-chevron"
+          :class="{ 'is-open': !props.collapsed }"
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M4 6l4 4 4-4"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+    </span>
     </div>
 
+    <!-- Folded: only the header strip above renders — everything below waits
+         behind the chevron. -->
+    <template v-if="!props.collapsed">
     <ThinkingBlock
       v-if="props.message.thinkingBody"
       :text="props.message.thinkingBody"
@@ -454,6 +516,7 @@ const accentVar = computed(() => {
     </p>
 
     <slot name="tool-calls" />
+    </template>
   </div>
 </template>
 
@@ -504,6 +567,68 @@ const accentVar = computed(() => {
      time label below the name. */
   align-items: center;
   gap: 8px;
+}
+
+/* TURN folding: a collapsible header is the whole toggle; its time + chevron
+   cluster rides the RIGHT edge (Chad's mock). Non-collapsible headers keep
+   the meta inline after the name — nothing moves for them. */
+.row-header.is-collapsible {
+  cursor: pointer;
+}
+
+.row-header .role-label {
+  flex: none;
+}
+
+.header-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+
+.row-header.is-collapsible .header-meta {
+  margin-left: auto;
+}
+
+/* The folded strip's one-line preview — quiet, ellipsized, never wrapping. */
+.turn-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font: 400 13px/1.5 var(--font-ui);
+}
+
+.collapse-toggle {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 2px;
+  display: inline-flex;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+
+.collapse-toggle:hover {
+  color: var(--ink-1);
+}
+
+.collapse-toggle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.collapse-chevron {
+  transition: transform 140ms ease;
+}
+
+.collapse-chevron.is-open {
+  transform: rotate(180deg);
 }
 
 .author-avatar {

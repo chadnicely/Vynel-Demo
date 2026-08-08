@@ -210,6 +210,50 @@ const hiddenOlderCount = computed(() =>
   Math.max(0, settledMessages.value.length - visibleCount.value),
 );
 
+// TURN folding (Chad, 2026-08-09): every turn folds to its header strip —
+// author, first-line preview, time, chevron. Only the LATEST turn is open by
+// default; a manual toggle overrides its turn from then on (so an arriving
+// turn folds the previous one unless the user pinned it open). A turn = a
+// header row + its continuations (the showsHeaderFor grouping), keyed by its
+// first row's id.
+const turnKeys = computed(() => {
+  const keys: string[] = [];
+  let current: string | null = null;
+  visibleMessages.value.forEach((message, index) => {
+    if (current === null || showsHeaderFor(index)) current = message.id;
+    keys.push(current);
+  });
+  return keys;
+});
+const latestTurnKey = computed(() => turnKeys.value.at(-1) ?? null);
+const collapseOverrides = ref(new Map<string, boolean>());
+
+function turnKeyAt(index: number): string {
+  return turnKeys.value[index] ?? visibleMessages.value[index]?.id ?? "";
+}
+
+function isTurnExpanded(turnKey: string): boolean {
+  return collapseOverrides.value.get(turnKey) ?? turnKey === latestTurnKey.value;
+}
+
+function toggleTurn(turnKey: string) {
+  const next = new Map(collapseOverrides.value);
+  next.set(turnKey, !isTurnExpanded(turnKey));
+  collapseOverrides.value = next;
+}
+
+function expandTurnOf(messageId: string) {
+  const index = visibleMessages.value.findIndex(
+    (message) => message.id === messageId,
+  );
+  if (index === -1) return;
+  const key = turnKeyAt(index);
+  if (isTurnExpanded(key)) return;
+  const next = new Map(collapseOverrides.value);
+  next.set(key, true);
+  collapseOverrides.value = next;
+}
+
 function scrollToBottom(behavior: ScrollBehavior = "auto") {
   const element = scroller.value;
   if (!element) return;
@@ -308,6 +352,12 @@ watch(
   () => [props.scrollToTraceId, visibleMessages.value.length] as const,
   async ([traceId]) => {
     if (traceId == null || landedTraceId === traceId) return;
+    // A folded turn hides its rows — unfold the anchor's turn first so the
+    // landing has a row to land on.
+    const anchorRow = visibleMessages.value.find(
+      (message) => message.partialSessionId === traceId,
+    );
+    if (anchorRow !== undefined) expandTurnOf(anchorRow.id);
     await nextTick();
     const row = scroller.value?.querySelector(`[data-trace-id="${traceId}"]`);
     if (!(row instanceof HTMLElement)) {
@@ -334,7 +384,11 @@ watch(
         </p>
 
         <template v-for="(message, index) in visibleMessages" :key="message.id">
+          <!-- A folded turn renders only its header row (the strip); its
+               continuations wait behind the chevron. Pointers render
+               regardless — a tracker never hides with its turn. -->
           <MessageRow
+            v-if="showsHeaderFor(index) || isTurnExpanded(turnKeyAt(index))"
             :message="message"
             :data-trace-id="message.partialSessionId ?? undefined"
             :class="{ 'is-continuation': !showsHeaderFor(index) }"
@@ -342,6 +396,9 @@ watch(
             :assistant-icon-url="props.assistantIconUrl"
             :author-persona="authorPersonaFor(message)"
             :show-header="showsHeaderFor(index)"
+            :collapsible="showsHeaderFor(index)"
+            :collapsed="!isTurnExpanded(turnKeyAt(index))"
+            @toggle-collapse="toggleTurn(turnKeyAt(index))"
           >
             <template
               v-if="props.toolCallsByMessageId[message.id]?.length"

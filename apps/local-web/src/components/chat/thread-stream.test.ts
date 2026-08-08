@@ -49,6 +49,49 @@ describe("ThreadStream", () => {
     expect(wrapper.find(".older-note").exists()).toBe(false);
   });
 
+  // TURN folding (Chad, 2026-08-09): the thread folds every turn to its strip
+  // except the latest; any turn toggles freely.
+  it("only the LATEST turn is expanded by default; older turns fold to strips", () => {
+    const wrapper = mountStream(3);
+    const rows = wrapper.findAll(".message-row");
+    // Folded rows: the strip (preview, no body). The latest: full body.
+    expect(rows[0]!.find(".turn-preview").exists()).toBe(true);
+    expect(rows[0]!.find(".plain-body").exists()).toBe(false);
+    expect(rows[2]!.find(".turn-preview").exists()).toBe(false);
+    expect(rows[2]!.text()).toContain("message 2");
+  });
+
+  it("the header chevron toggles any turn open and closed", async () => {
+    const wrapper = mountStream(3);
+    await wrapper.findAll(".message-row")[0]!.find(".collapse-toggle").trigger("click");
+    expect(wrapper.findAll(".message-row")[0]!.find(".plain-body").exists()).toBe(true);
+    await wrapper.findAll(".message-row")[0]!.find(".collapse-toggle").trigger("click");
+    expect(wrapper.findAll(".message-row")[0]!.find(".plain-body").exists()).toBe(false);
+  });
+
+  it("landing on an anchor inside a folded turn unfolds it first", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const messages = Array.from({ length: 12 }, (_, i) => makeMessage(i));
+    messages[5] = { ...makeMessage(5), partialSessionId: "trace-fold" };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: {},
+        activeTurn: null,
+        scrollToTraceId: "trace-fold",
+      },
+      global: { plugins: [createPinia()] },
+    });
+    await nextTick();
+    await nextTick();
+    const row = wrapper.find('[data-trace-id="trace-fold"]');
+    expect(row.exists()).toBe(true);
+    expect(row.classes()).toContain("pointer-anchor-flash");
+    // The turn unfolded: the strip's preview is gone, the body renders.
+    expect(row.find(".turn-preview").exists()).toBe(false);
+    expect(row.text()).toContain("message 5");
+  });
+
   it("windows long history to the newest 100 and offers the older rows", () => {
     const wrapper = mountStream(150);
 
@@ -268,7 +311,7 @@ describe("ThreadStream", () => {
     expect(wrapper.text()).toContain("streaming reply…");
   });
 
-  it("groups consecutive assistant rows under ONE author line — a reloaded turn reads like the live overlay", () => {
+  it("groups consecutive assistant rows under ONE author line — a reloaded turn reads like the live overlay", async () => {
     // One turn persists as several assistant rows (one per provider message).
     // Only the first of a run shows the header; a user row breaks the group.
     const messages: ChatMessageResponse[] = [
@@ -283,6 +326,12 @@ describe("ThreadStream", () => {
       props: { messages, toolCallsByMessageId: {}, activeTurn: null },
       global: { plugins: [createPinia()] },
     });
+
+    // test: correct expectation (turn folding) — a folded turn renders only
+    // its header strip, so the continuations appear once the turn is opened.
+    const folded = wrapper.findAll(".message-row");
+    expect(folded.map((row) => row.findAll(".row-header").length)).toEqual([1, 1, 1, 1]);
+    await folded[1]!.find(".collapse-toggle").trigger("click");
 
     const rows = wrapper.findAll(".message-row");
     const headerCounts = rows.map((row) => row.findAll(".row-header").length);
