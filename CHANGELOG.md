@@ -9,6 +9,27 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel now installs in one click, like the apps you know.** No wizard, no
+  questions — run the installer, watch a brief progress window, and Vynel opens
+  itself with its shortcuts in place. The installer also brings the WebView
+  runtime along, so setup no longer depends on a mid-install download.
+- **Updates arrive silently and wait for you.** New versions download in the
+  background while you work; a small "Update ready — Restart" pill appears at
+  the corner and applies the update only when you click it — never a popup,
+  never an interruption. The engine is shut down cleanly before the swap, and
+  if anything fails the pill simply re-arms for another try.
+- **The database backs itself up before every update.** Right before an
+  update's migrations touch your data, a snapshot lands beside the database
+  file — the one step of an update that can't be undone now has an undo.
+- **The hub can serve desktop updates.** A new endpoint answers the app's
+  update checks (with GitHub as automatic fallback), opening the door to
+  release channels, staged rollouts, and server-side rollbacks without ever
+  touching installed apps.
+- **Release builds can be signed end to end.** With signing credentials in the
+  build environment, the app, installer, uninstaller, and engine all carry a
+  Vynel signature — the "Windows protected your PC" wall goes away once the
+  certificate is live. Builds without credentials keep working, unsigned.
+
 - **Colleagues can message you directly.** Sessions, workspaces, and agents got
   a new way to answer: send the result straight to you instead of reporting to
   whoever assigned the task. A direct answer lands in your conversation as the
@@ -45,6 +66,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   task's opening row names Claude honestly instead of masquerading as you.
 
 ### Changed
+
+- **The installed app is unmistakably Vynel now.** The program is `Vynel.exe`
+  (no more `vynel-desktop.exe`), the engine runs as `vynel-engine.exe` instead
+  of a mysterious `node.exe` in Task Manager, and the install folder is two
+  executables and one tidy `resources` folder — `engine` and `ui`, no more
+  `backend`/`web`. Updating from an older version sweeps the old layout away.
+- **Your data moved to a friendly home.** Everything mutable — database,
+  models, logs, settings — now lives in `%APPDATA%\Vynel` instead of the
+  technical `app.vynel.desktop` folder, Telegram-style. Existing installs are
+  migrated automatically on first launch, and the uninstaller's "delete app
+  data" checkbox covers the new home.
 
 - **Colleague messages now read like a person talking.** A report, update, or
   direct message from a workspace or colleague renders as a regular chat
