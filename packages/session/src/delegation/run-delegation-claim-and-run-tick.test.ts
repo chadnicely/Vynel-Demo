@@ -491,6 +491,39 @@ describe('runDelegationClaimAndRunTick', () => {
       expect(direct?.sourceKind).toBe('agent')
       expect(direct?.sourceLabel).toBe('Mark · Acme')
       expect(direct?.body.startsWith('[Message from Mark · Acme')).toBe(true)
+
+      // The Gate-3 catch: a LATER task on the SAME chain whose report goes the
+      // NORMAL narrated route must still surface at completion — the earlier
+      // direct hop belongs to task 1's delivery window, never task 2's.
+      const secondJobId = enqueueWorkspaceDelegation(
+        db,
+        {
+          userId: user.id,
+          parentSessionId: globalSessionId,
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
+          workspaceName: workspace.name,
+          taskText: 'a follow-up task',
+          threadId: taskJob.threadId!,
+        },
+        { now: () => new Date(Date.now() + 60_000) },
+      )
+      markDelegationJobReported(db, secondJobId, new Date())
+      while (
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({
+            seededSessionId: 'ws-root-direct-2',
+            resultText: 'done 2',
+          }),
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+        })
+      ) {
+        // drain
+      }
+      const second = findDelegationJobById(db, secondJobId)
+      expect(second?.status).toBe('completed')
+      expect(second?.surfacedToRootAt).not.toBeNull()
     })
   })
 

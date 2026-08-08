@@ -33,7 +33,11 @@ function resolveRunStats(
   // The producing run: the LATEST work hop enqueued before this delivery —
   // a continued colleague chain holds one work hop per task, and each
   // delivery reports for the one just before it (the chain is oldest-first).
-  const work = listDelegationJobsByThread(db, { userId: delivery.userId, threadId })
+  const work = listDelegationJobsByThread(db, {
+    userId: delivery.userId,
+    threadId,
+    unbounded: true,
+  })
     .filter(
       (job) =>
         isWorkJobKind(job.jobKind) &&

@@ -31,6 +31,7 @@ import {
   failDelegationJob,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   isDeliveryJobKind,
+  isWorkJobKind,
   listDelegationJobsByThread,
   markDelegationsSurfacedToRoot,
   resolveThreadIdOf,
@@ -730,16 +731,35 @@ export async function runDelegationClaimAndRunTick(
   }
 }
 
-/** True when this WORK row's final report was sent kind `direct_to_user`: the
- *  row is reported AND its chain carries a 'direct-delivery' hop. Such a row
- *  must stay UNSURFACED at terminal time — the catch-up net is how the root
+/** True when THIS work row's final report was sent kind `direct_to_user`: the
+ *  row is reported AND a 'direct-delivery' hop exists in ITS OWN delivery
+ *  window — after this hop, before the chain's NEXT work hop. A continued
+ *  chain holds one work hop per task (the run-stats pairing rule), so a
+ *  chain-wide scan would falsely absorb a LATER normally-narrated report just
+ *  because an earlier task on the thread went direct (the Gate-3 catch). Such
+ *  a row stays UNSURFACED at terminal time — the catch-up net is how the root
  *  learns of a reply that ran no notify turn (presented absorb-silently). */
 function finalReportWentDirect(db: Database, claimed: DelegationJob): boolean {
   if (!hasDeliveredFinalReport(db, claimed)) return false
   const threadId = resolveThreadIdOf(claimed)
   if (threadId === null) return false
-  return listDelegationJobsByThread(db, { userId: claimed.userId, threadId }).some(
-    (job) => job.jobKind === 'direct-delivery',
+  const chain = listDelegationJobsByThread(db, {
+    userId: claimed.userId,
+    threadId,
+    unbounded: true,
+  })
+  const startsAt = claimed.createdAt.getTime()
+  const nextWorkAt = chain.find(
+    (job) =>
+      job.id !== claimed.id &&
+      isWorkJobKind(job.jobKind) &&
+      job.createdAt.getTime() > startsAt,
+  )?.createdAt
+  return chain.some(
+    (job) =>
+      job.jobKind === 'direct-delivery' &&
+      job.createdAt.getTime() >= startsAt &&
+      (nextWorkAt === undefined || job.createdAt.getTime() < nextWorkAt.getTime()),
   )
 }
 

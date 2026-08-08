@@ -12,7 +12,9 @@
 // `composeManagerSourceLabel(workspaceName, managerName)` yields
 // "<manager> · <workspace>" (e.g. "Noah · vynel"), or the bare workspace name
 // when there's no persona. So the workspace name is the LAST segment. If that
-// format ever changes, this normalizer must change with it.
+// format ever changes, `splitSourceLabel` (the one home) changes with it.
+
+import { splitSourceLabel } from "./source-label.js";
 
 /** How many `--ws-*` accent tokens exist — pickers iterate 1..N. */
 export const WORKSPACE_ACCENT_SLOTS = 6;
@@ -27,11 +29,13 @@ export function workspaceSlotName(slot: number): string {
   return WS_SLOT_NAMES[slot - 1] ?? `Color ${slot}`;
 }
 
-/** Extract the workspace name from `sourceLabel` (its LAST " · " segment — the
- *  label is "<manager> · <workspace>"), display case preserved. The one home
- *  for that parse — the Watch chip's label and the color slots both use it. */
+/** Extract the workspace name from `sourceLabel`, display case preserved.
+ *  Delegates to `splitSourceLabel` — the ONE home for the persona-first
+ *  parse; a bare persona label resolves to itself (the pre-split behavior
+ *  the color slots rely on). */
 export function workspaceNameFromLabel(label: string): string {
-  return label.split(" · ").at(-1)!.trim();
+  const { persona, workspace } = splitSourceLabel(label);
+  return (workspace ?? persona).trim();
 }
 
 /** Case/whitespace-folded name, so the report row ("Noah · vynel") and the

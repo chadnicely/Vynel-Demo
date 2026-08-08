@@ -27,7 +27,7 @@
 // `report_to_requester` tool INSIDE the notify turn (upward-only + the tree
 // topology bound the chain; it terminates at the global root).
 
-import type { Database } from '@vynel/db'
+import { withTransaction, type Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import {
   ApprovalWaitGate,
@@ -120,10 +120,20 @@ export async function runReportDeliveryJob(
   // fallback path only.
   const isUpdate = claimed.jobKind === 'update-delivery'
   const isDirect = claimed.jobKind === 'direct-delivery'
+  // A mention chain's reply is direct-natured whatever kind it spoke (the
+  // floor) — computed up here so the notify FALLBACK also runs under the
+  // direct steer, never narrating a reply the user was addressed with.
+  const isMentionChainReply =
+    claimedThreadId !== null &&
+    listDelegationJobsByThread(db, {
+      userId: claimed.userId,
+      threadId: claimedThreadId,
+      unbounded: true,
+    }).some((job) => job.jobKind === 'agent-run')
   const queueLabel = claimed.jobKind ?? 'report-delivery'
   const steerInstructions = isUpdate
     ? UPDATE_DELIVERY_INSTRUCTIONS
-    : isDirect
+    : isDirect || isMentionChainReply
       ? DIRECT_DELIVERY_INSTRUCTIONS
       : REPORT_DELIVERY_INSTRUCTIONS
   // The CHILD's label, resolved at enqueue by the same one-home helpers the
@@ -156,23 +166,25 @@ export async function runReportDeliveryJob(
   // do not restate"). The momentary feed announce below carries no narration —
   // it exists so every open window's turn-ended invalidation lands the new
   // row live.
-  const isMentionChainReply = (): boolean =>
-    claimedThreadId !== null &&
-    listDelegationJobsByThread(db, {
-      userId: claimed.userId,
-      threadId: claimedThreadId,
-    }).some((job) => job.jobKind === 'agent-run')
-  if (isGlobalRequester && (isDirect || isMentionChainReply())) {
+  if (isGlobalRequester && (isDirect || isMentionChainReply)) {
     const root = findPrimaryConversation(db, { userId: claimed.userId })
-    const persisted =
-      root?.currentSdkSessionId != null &&
-      recordDirectReplyMessage(db, {
-        globalRootSessionId: root.currentSdkSessionId,
-        body: reportBody,
-        sourceLabel,
-        ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
-        ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+    let persisted = false
+    if (root?.currentSdkSessionId != null) {
+      // Persist + complete CO-COMMIT: both are plain DB writes, and a crash
+      // between them would requeue the delivery and land the row twice
+      // (the Gate-3 catch — the notify path tolerates at-least-once because
+      // a provider turn sits in the middle; here nothing does).
+      withTransaction(db, (tx) => {
+        persisted = recordDirectReplyMessage(tx, {
+          globalRootSessionId: root.currentSdkSessionId!,
+          body: reportBody,
+          sourceLabel,
+          ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
+          ...(partialSessionId !== undefined ? { partialSessionId } : {}),
+        })
+        if (persisted) completeDelegationJob(tx, claimed.id, 'delivered directly', new Date())
       })
+    }
     if (persisted) {
       deps.activityFeed
         .begin({
@@ -185,7 +197,6 @@ export async function runReportDeliveryJob(
           personaName: sourceLabel,
         })
         .end()
-      completeDelegationJob(db, claimed.id, 'delivered directly', new Date())
       deps.logger.info(
         { jobId: claimed.id, from: sourceLabel, kind: queueLabel },
         `${queueLabel}: delivered DIRECTLY to the user (no notify turn)`,
@@ -193,8 +204,7 @@ export async function runReportDeliveryJob(
       return true
     }
     // No root session row to land on — fall through to the notify machinery,
-    // which handles the no-session shapes honestly (the direct steer keeps
-    // the fallback turn from narrating).
+    // which handles the no-session shapes honestly.
   }
 
   const cancelHandle =

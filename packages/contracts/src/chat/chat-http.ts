@@ -70,7 +70,6 @@ export interface ChatSessionResponse {
   updatedAt: string
 }
 
-/** Serialized row shape inside `GET /sessions/{id}` (within the `messages` array). */
 /** The run that PRODUCED a delivered colleague message — resolved at serve
  *  time from the chain's work hop + its message trace. */
 export interface DeliveredRunStatsResponse {
@@ -83,6 +82,7 @@ export interface DeliveredRunStatsResponse {
   durationMs: number | null
 }
 
+/** Serialized row shape inside `GET /sessions/{id}` (within the `messages` array). */
 export interface ChatMessageResponse {
   id: string
   sessionId: string

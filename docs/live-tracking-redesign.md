@@ -487,4 +487,34 @@ playwright — real cards: "Model claude-fable-5 · Tool calls 6 · Tokens 229.4
 
 ---
 
+## Gate-3 review of the tweak arc (`a9df994..f7862b3`, 2026-08-09) — VERDICT: ship-worthy; fixes applied
+
+Full code-reviewer pass over all 17 tweak commits (invariants clean, DOMPurify covers the
+new render path, recast pins honest). **Fixed same-day:**
+
+- **MUST-FIX — the direct exception matched the whole CHAIN:** on a continued colleague
+  thread, task 2's normally-narrated report was falsely absorbed ("already sent DIRECTLY")
+  because task 1's direct hop sat on the same thread. `finalReportWentDirect` now windows
+  to THIS work hop's own deliveries (after it, before the chain's next work hop) + a
+  regression pin (task 2 completes SURFACED).
+- **Direct delivery co-commits:** persist + complete now share one transaction — a crash
+  between them could requeue and land the row twice.
+- **Chain scans read unbounded:** `listDelegationJobsByThread` grew an `unbounded` option
+  for the correctness scans (direct window, mention floor, run-stats pairing) — the 50-row
+  cap stays for list surfaces.
+- **One home for the label parse:** `workspaceNameFromLabel` now delegates to
+  `splitSourceLabel` (two crowns → one).
+- **Mention-chain fallback runs the DIRECT steer** (it narrated under the report steer on
+  the rare no-root-row fallback) + the misplaced contract doc comment restored.
+- **Fold keys stabilized:** turn-fold keys derive from the FULL history, not the visible
+  window — revealing older pages no longer re-keys a boundary turn and orphans a pin.
+
+**Recorded, deferred:** file-size splits (MessageRow.vue 1009 / ThreadStream.vue 602 /
+run-report-delivery-tick.ts 405 — extract InboundMessageCard + hover cards + the fold
+strip next touch); `recordDirectReplyMessage` hardcodes sourceKind 'agent' for workspace
+managers (taxonomy only); short direct titles flatten onto one line (cosmetic);
+millisecond-tie hop pairing edge (vanishing).
+
+---
+
 *(Case 4+ land here as received.)*

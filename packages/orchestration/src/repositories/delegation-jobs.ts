@@ -474,9 +474,21 @@ export function listRecentDelegationJobsForUser(
 // backfill entirely.
 export function listDelegationJobsByThread(
   db: Database,
-  input: { userId: string; threadId: string; limit?: number },
+  input: {
+    userId: string
+    threadId: string
+    limit?: number
+    /** CORRECTNESS scans (direct-exception windows, run-stats hop pairing,
+     *  the tick's mention/direct checks) read the WHOLE chain — a capped
+     *  window silently picks the wrong hop on a long chain. List surfaces
+     *  keep the cap. */
+    unbounded?: boolean
+  },
 ): DelegationJob[] {
-  const cappedLimit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
+  const cappedLimit =
+    input.unbounded === true
+      ? Number.MAX_SAFE_INTEGER
+      : Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
   return db
     .select()
     .from(delegationJobs)

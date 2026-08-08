@@ -230,10 +230,11 @@ const visibleMessages = computed(() =>
 // would also hide the later turn's timestamp.
 const CONTINUATION_MAX_GAP_MS = 10 * 60 * 1000;
 
-function showsHeaderFor(index: number): boolean {
-  const message = visibleMessages.value[index];
-  const previous = visibleMessages.value[index - 1];
-  if (!message || !previous) return true;
+function startsNewTurn(
+  message: ChatMessageResponse,
+  previous: ChatMessageResponse | undefined,
+): boolean {
+  if (!previous) return true;
   const gapMs =
     new Date(message.createdAt).getTime() -
     new Date(previous.createdAt).getTime();
@@ -245,6 +246,12 @@ function showsHeaderFor(index: number): boolean {
     gapMs < CONTINUATION_MAX_GAP_MS
   );
 }
+
+function showsHeaderFor(index: number): boolean {
+  const message = visibleMessages.value[index];
+  if (!message) return true;
+  return startsNewTurn(message, visibleMessages.value[index - 1]);
+}
 const hiddenOlderCount = computed(() =>
   Math.max(0, settledMessages.value.length - visibleCount.value),
 );
@@ -255,20 +262,30 @@ const hiddenOlderCount = computed(() =>
 // turn folds the previous one unless the user pinned it open). A turn = a
 // header row + its continuations (the showsHeaderFor grouping), keyed by its
 // first row's id.
-const turnKeys = computed(() => {
-  const keys: string[] = [];
+// Keys derive from the FULL settled history, not the window — revealing an
+// older page must never re-key a turn cut at the window boundary (that would
+// orphan a manual fold override, the Gate-3 catch).
+const turnKeyByMessageId = computed(() => {
+  const keys = new Map<string, string>();
   let current: string | null = null;
-  visibleMessages.value.forEach((message, index) => {
-    if (current === null || showsHeaderFor(index)) current = message.id;
-    keys.push(current);
+  settledMessages.value.forEach((message, index) => {
+    if (current === null || startsNewTurn(message, settledMessages.value[index - 1])) {
+      current = message.id;
+    }
+    keys.set(message.id, current);
   });
   return keys;
 });
-const latestTurnKey = computed(() => turnKeys.value.at(-1) ?? null);
+const latestTurnKey = computed(() => {
+  const last = settledMessages.value.at(-1);
+  return last === undefined ? null : (turnKeyByMessageId.value.get(last.id) ?? null);
+});
 const collapseOverrides = ref(new Map<string, boolean>());
 
 function turnKeyAt(index: number): string {
-  return turnKeys.value[index] ?? visibleMessages.value[index]?.id ?? "";
+  const message = visibleMessages.value[index];
+  if (message === undefined) return "";
+  return turnKeyByMessageId.value.get(message.id) ?? message.id;
 }
 
 function isTurnExpanded(turnKey: string): boolean {
@@ -282,12 +299,8 @@ function toggleTurn(turnKey: string) {
 }
 
 function expandTurnOf(messageId: string) {
-  const index = visibleMessages.value.findIndex(
-    (message) => message.id === messageId,
-  );
-  if (index === -1) return;
-  const key = turnKeyAt(index);
-  if (isTurnExpanded(key)) return;
+  const key = turnKeyByMessageId.value.get(messageId);
+  if (key === undefined || isTurnExpanded(key)) return;
   const next = new Map(collapseOverrides.value);
   next.set(key, true);
   collapseOverrides.value = next;
