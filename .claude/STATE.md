@@ -1,7 +1,75 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-04.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-08.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## 🔎 SESSION PACKAGE VERIFIED (2026-08-08) — 9 must-fix bugs found; fix arc awaits Chad's okay
+
+Full whole-package review of the session backbone + persona-sessions arc (4 adversarial reviewers
++ 3 wh documenters; every must-fix re-verified in code). Mechanically green: typecheck 47/47,
+1,881 targeted tests (full gate NOT run — CPU rule). **Punch-list + per-view live-tracking report:
+`.claude/reports/2026-08-08-session-package-review.md`**; combined wh doc for Chad's read-through
+(ID'd decision list B#/SF#/G#/AR#): **`docs/live-tracking-wh.md`**. Top items: claimed report-delivery
+destroyed by boot reap (report lost) · failure path ignores `reportedAt` (duplicate report) ·
+workspace chat turn takes no target lock (chain fork) · mid-turn SDK swap orphans the segment
+(global root history unreachable on reload) · delegated turns publish NO narration steps + delivery
+jobs ghost into the in-flight roster + settle-frame snapshot replay (= the "realtime tracking feels
+dead" trio) · monitor watermark cap skips events · pane dot gold while idle. Recommended fix order
+in the report. NOTHING committed, no fixes applied yet. **SAME DAY: Chad REDESIGNED live
+tracking — pointer + rail + sidebar model (tracking = pointer click → scroll to the
+`partialSessionId` row; no cards/panel/roster; Home untouched — rebuilt later). Spec + settled
+Q7 verdicts: `docs/live-tracking-redesign.md`; worked example (scenes + Q1–Q9):
+`docs/live-tracking-example.md`. Arc plan APPROVED ("Go"); Chad's standing instruction: work
+AUTONOMOUSLY — commit each green+reviewed move, interrupt ONLY for browser passes. **PHASE 0
+(backbone) SHIPPED — 4 commits, each reviewed clean + test-pinned:** `80c2931` B3 workspace lock
+on the continue chat path (+ turn-queued sentinel) · `d177c1a` B1+B2 report deliveries requeue at
+boot / reported jobs never re-run (`hasDeliveredFinalReport` one-home, also guards both timed-out
+branches) · `b330aab` B4 mid-turn swap segments chain via `continuedFromSessionId` + the global
+transcript walks ROWS not events · `7b05504` B5 monitor outbox paging (keyset `afterId`, one-home
+`OUTBOX_WINDOW_READ_MAX_LIMIT`) + B7-query in-flight lists WORK kinds only. **PHASE 1 SHIPPED `1373b50`** — PointerRow + buildThreadPointers one-home + ThreadStream
+matches the dispatch tool call's served `delegation` key (reviewer catch: sender rows are
+unstamped in production); mention inbound = `'user'` + origin label ("You · from Global");
+task rows "Claude · from <label>" / scope-silent "Claude". Three deferred attribution items
+recorded in the spec's Phase-1 note (mention-row stamp · delegate-path origin labels ·
+acked-detector 'user' exclusion) — DO THEM WITH PHASE 2. **PHASE 2a SHIPPED `a02bb05`** (G5 colleague direct-send: turn route resolves agent scope via
+findRoutableSessionBySegmentId/ById, composes the DELEGATED 'agent-session' set + caller
+identity, workspace-grounded feed announce; affordance one-home flipped chattable — pane +
+SessionsView follow). **PHASE 2b SHIPPED `365c026`** (mention rows stamp the FIRST
+dispatch's trace key via stampNewestUserMessageTraceKey — mention hand-offs grow pointers;
+task anchor rows carry honest origin labels: tick resolves requesterWorkspaceId → name, else
+'Global' → renders "Claude · from <label>"; deferral ③ acked-'user'-exclusion MOOTED — cards
+die in Phase 4). NEXT: **Phase 2c = the SIDEBAR** (persistent right panel + back-stack hosting
+SessionThreadView for spawned/agent [both chattable now]; scroll-to-anchor by partialSessionId
++ highlight; workspace-primary hosting needs a send-mode branch [continue-route vs session-
+route — B3's lock makes it safe]; Open session + Pause; ephemeral-agent all-activity view) →
+Phase 3 rail → Phase 4 deletions + full gate + Chad's browser smoke (the ONE interrupt point).
+B6/B8/B9 stay mooted-by-redesign.**
+
+## ✅ VOICE WAKE OVERLAY FIXED (2026-08-08) — root cause found + hardened; Chad voice-smoke pending
+
+The 2026-08-08 01:44 `dev:desktop` rebuild (`30a18bc`) produced an exe that **panicked at
+launch**: `tauri_plugin_updater` requires its config block, which only `tauri.release.conf.json`
+carries — every wake spawned an exe that died <1 s, silently ("not working at all"; before that,
+the pre-rebuild exe showed the dead-port 8999 page). Fixed: ① `main.rs` registers the updater
+only when `context.config().plugins` carries an `updater` entry (dev shell / `tauri dev` / plain
+`tauri build` all clean) ② `jarvis-window.ts` no longer trusts `existsSync` — a spawner seam
+watches the child; exit ≤3 s → warn + Chrome `--app` fallback, so a broken exe can't silence a
+wake (5 new tests; 19 overlay tests green; voice-daemon typecheck green). Verified live: rebuilt
+exe stays resident, WebView2 loads `/jarvis` off Vite (::1), SSE reaches the daemon. UNCOMMITTED —
+Chad smokes "hey claude" (dev:full stack was still up; daemon auto-restarted with the fix via
+--watch), then commit. **Binding arc proposed (needs Chad's okay):** `dev:full` runs `dev:desktop`
+first (~6 s incremental) · release shell supervises the voice daemon as a second sidecar
+(port-probe 18893 attach-or-spawn, models packaging decision, voice on/off setting) · focus()-path
+wake-ack watchdog (a connected-but-dead overlay client swallows wakes forever) · pin Vite +
+devUrl to `127.0.0.1` (Vite currently binds `::1` only).
+
+Same session: **desktop-notifications poll spam root-caused** — Chad's machine had the per-user
+`WpnUserService_a2c0a` stopped (Automatic but dead) → every `GetNotificationsAsync` threw
+0x80040154 "Class not registered", and `notification-listener.ps1` logged the outer
+AggregateException ("One or more errors occurred") once a second. Machine healed live
+(`Start-Service`, no elevation needed); helper now logs `GetBaseException()` + HResult once per
+distinct error, backs off 1s→60s while failing, recovers live (verified standalone: real toasts
+on stdout, clean stderr).
 
 ## ✅ PERSONA-SESSIONS ARC (2026-08-04) — ALL 19 MOVES SHIPPED + PUSHED; MORNING SMOKE PENDING
 
