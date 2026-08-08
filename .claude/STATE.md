@@ -3,22 +3,30 @@
 **Updated 2026-08-09.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ WORKSPACE CHAT parity pass (Chad, 2026-08-09) — SHIPPED, awaiting Chad's browser pass
+## ✅ 2026-08-09 SIDEBAR + PARITY ARC — SHIPPED through `e4cf295`, Chad approved ("Great job")
 
-Chad's call: "workspace chat should show similar to global — ui package is global, fix in
-one place shows same to all." Live playwright walk of Claw Launcher vs Global found four
-divergences; ALL fixed in the SHARED components (spec section "Workspace-chat parity
-pass" in `docs/live-tracking-redesign.md`): ① workspace accent bar fully retired
-(persona's own rows are regular participants — completes tweak 4); ② assistant persona
-rows split the author line like delivered rows ("JAMES" + CL chip, badge gate un-roled);
-③ folded strips never empty — preview falls back through the turn's rows then its first
-tool call (`turnPreviewFallbacks`, `presentToolCall` now exported from @vynel/ui);
-④ persona monogram from the label's persona part ("JA", was "J·") + rows resolve the
-customized persona image via the host map. Checked-not-issues: mention anchors as user
-bubbles = designed Case 3; workspace rows carry no run-stats door (they ARE the run).
-Verified live both views (screenshots in `.playwright-cli/`); typecheck 24/24 + 44
-targeted tests green. NOT YET user-verified — ask Chad for a browser pass on hover cards
-(chip profile card in workspace chat) before calling it closed.
+Four moves, each gate-3-reviewed + live-verified (full spec sections in
+`docs/live-tracking-redesign.md`; all pushed, tree clean):
+
+1. **Workspace-chat parity** (`ebada1d`): accent bar retired everywhere; assistant
+   persona rows split to persona + workspace chip; fold previews fall back through the
+   turn then its first tool call; persona monogram from the label's persona part
+   ("JA", was "J·") + customized persona image resolved via the host map.
+2. **Sidebar resize + reflow** (`479a134`): conversation sidebar drags 320–920px
+   (persisted `vynel.sidebar-width`); the thread NEVER side-scrolls
+   (`.thread-column > * {min-width:0}` + scroller `overflow-x:hidden`); markdown
+   tables scroll in their own box; userSelect restored even on unmount-mid-drag.
+3. **One home for panel resize** (`f788e38`): `usePanelResize` composable
+   (@vynel/ui) now drives ResizablePanel (AppShell panes) AND the sidebar handle —
+   capture+selection-suspension from the sidebar, aria/keyboard/dblclick-reset from
+   ResizablePanel; out-of-range stored widths clamp everywhere.
+4. **Forward-only pointer hops** (`e4cf295`): a pointer clicked INSIDE the sidebar
+   REPLACES the docked node (both sidebar hosts wire the one-home opener); the
+   store's push/back stack + Back button DELETED (Chad settled replace-only).
+
+Open flags: re-clicking the SAME pointer after scrolling away won't re-scroll (once-
+per-anchor guard, pre-existing — surface to Chad only if it bothers him live). Full
+`pnpm test` gate not run (CPU rule — Chad's call).
 
 ## 🔎 SESSION VERIFY + LIVE-TRACKING REDESIGN ARC (2026-08-08) — SHIPPED + PUSHED; one fork OPEN (read the ⏳ below)
 
