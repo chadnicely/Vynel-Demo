@@ -204,13 +204,33 @@ const isInboundDirect = computed(
   () => isInboundReport.value && isDirectMessageBody(props.message.body),
 );
 
-// A LONG delivered message collapses to its lead paragraph with an in-place
-// expander (Chad, 2026-08-09) — the thread stays a conversation without a
-// popup. Short messages render whole, no affordance: the expander appears
-// only when the hidden remainder is substantial.
+// A REPORT renders as a tool-card-style collapsible (Chad, 2026-08-09, his
+// mock): report icon + the lead line as the TITLE, chevron at the line's end,
+// the body expanding in place below. The header badge retires for reports —
+// the icon carries the kind. Updates/direct messages stay regular messages.
+const reportCardParts = computed(() => {
+  if (!isInboundReport.value || isInboundUpdate.value || isInboundDirect.value) {
+    return null;
+  }
+  const body = displayBody.value;
+  const splitAt = body.indexOf("\n\n");
+  if (splitAt === -1) return { title: body, remainder: null };
+  return { title: body.slice(0, splitAt), remainder: body.slice(splitAt + 2) };
+});
+
+// The title line reads as plain text — markdown control chars stripped, the
+// same cleanup the old teaser used.
+const reportCardTitle = computed(() =>
+  reportCardParts.value === null
+    ? null
+    : reportCardParts.value.title.replace(/[#*_`>]/g, "").trim(),
+);
+
+// A LONG update/direct message still collapses to its lead paragraph with the
+// pill expander — short ones render whole, no affordance.
 const COLLAPSE_REMAINDER_MIN = 200;
 const collapsedLead = computed(() => {
-  if (!isInboundReport.value) return null;
+  if (!isInboundReport.value || reportCardParts.value !== null) return null;
   const body = displayBody.value;
   const splitAt = body.indexOf("\n\n");
   if (splitAt === -1) return null;
@@ -220,7 +240,7 @@ const collapsedLead = computed(() => {
 const isExpanded = ref(false);
 
 const inboundKindWord = computed(() =>
-  isInboundUpdate.value ? "update" : isInboundDirect.value ? "message" : "report",
+  isInboundUpdate.value ? "update" : "message",
 );
 
 // A persona speaking as an ASSISTANT row wears its workspace accent (left
@@ -315,10 +335,13 @@ const accentVar = computed(() => {
         via {{ originBadge.label }}
       </span>
       <!-- Quiet provenance mark: this row was DELIVERED, not typed — an
-           interim update says so (never mistakable for the finished result). -->
-      <span v-if="isInboundReport" class="origin-badge">{{
-        isInboundUpdate ? "Update" : isInboundDirect ? "Message" : "Report"
-      }}</span>
+           interim update says so (never mistakable for the finished result).
+           A REPORT wears no badge: its card icon carries the kind. -->
+      <span
+        v-if="isInboundUpdate || isInboundDirect"
+        class="origin-badge"
+        >{{ isInboundUpdate ? "Update" : "Message" }}</span
+      >
     </p>
     <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
     </div>
@@ -336,37 +359,100 @@ const accentVar = computed(() => {
          expander — never a popup. -->
     <MarkdownText v-if="isAssistant" :source="displayBody" />
     <template v-else-if="isInboundReport">
-      <MarkdownText
-        :source="collapsedLead !== null && !isExpanded ? collapsedLead : displayBody"
-      />
-      <button
-        v-if="collapsedLead !== null"
-        type="button"
-        class="expand-chip"
-        :aria-expanded="isExpanded"
-        @click="isExpanded = !isExpanded"
-      >
-        <svg
-          class="expand-chevron"
-          :class="{ 'is-open': isExpanded }"
-          width="11"
-          height="11"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
+      <!-- REPORT: the tool-card treatment — icon + title line, chevron at the
+           line's end, body expands in place. -->
+      <template v-if="reportCardParts !== null">
+        <button
+          type="button"
+          class="report-card"
+          :class="{ 'is-expandable': reportCardParts.remainder !== null }"
+          :aria-expanded="isExpanded"
+          :disabled="reportCardParts.remainder === null"
+          @click="isExpanded = !isExpanded"
         >
-          <path
-            d="M4 6l4 4 4-4"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <span>{{
-          isExpanded ? "Show less" : `Show full ${inboundKindWord}`
-        }}</span>
-      </button>
+          <svg
+            class="report-card-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 1.5h5.5L13 5v9.5H4z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+            <path d="M9.5 1.5V5H13" stroke="currentColor" stroke-width="1.3" />
+            <path
+              d="M6 8.5h4M6 11h4"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span class="report-card-title">{{ reportCardTitle }}</span>
+          <svg
+            v-if="reportCardParts.remainder !== null"
+            class="expand-chevron"
+            :class="{ 'is-open': isExpanded }"
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+        <MarkdownText
+          v-if="isExpanded && reportCardParts.remainder !== null"
+          class="report-card-body"
+          :source="reportCardParts.remainder"
+        />
+      </template>
+      <!-- UPDATE / MESSAGE: a regular message; a long one folds to its lead
+           behind the pill expander. -->
+      <template v-else>
+        <MarkdownText
+          :source="collapsedLead !== null && !isExpanded ? collapsedLead : displayBody"
+        />
+        <button
+          v-if="collapsedLead !== null"
+          type="button"
+          class="expand-chip"
+          :aria-expanded="isExpanded"
+          @click="isExpanded = !isExpanded"
+        >
+          <svg
+            class="expand-chevron"
+            :class="{ 'is-open': isExpanded }"
+            width="11"
+            height="11"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span>{{
+            isExpanded ? "Show less" : `Show full ${inboundKindWord}`
+          }}</span>
+        </button>
+      </template>
     </template>
     <p v-else-if="props.message.body" class="plain-body">
       {{ props.message.body }}
@@ -508,6 +594,54 @@ const accentVar = computed(() => {
 
 .role-user.is-report .role-label {
   color: var(--ink-3);
+}
+
+/* The REPORT card — the tool-card treatment: icon + the lead line as title,
+   the chevron flowing INLINE right after the last word (the whole line is the
+   toggle), the body unfolding below. Inline display keeps the chevron at the
+   text's end even when the title wraps. */
+.report-card {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+  display: inline;
+  text-align: left;
+  background: transparent;
+  color: var(--ink-1);
+  font: 400 13.5px/1.65 var(--font-ui);
+  overflow-wrap: break-word;
+}
+
+.report-card.is-expandable {
+  cursor: pointer;
+}
+
+.report-card.is-expandable:hover .report-card-title {
+  color: var(--ink-2);
+}
+
+.report-card:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
+}
+
+.report-card-icon {
+  color: var(--ink-3);
+  vertical-align: -2px;
+  margin-right: 6px;
+}
+
+.report-card .expand-chevron {
+  color: var(--ink-3);
+  vertical-align: -2px;
+  margin-left: 5px;
+}
+
+.report-card-body {
+  margin-top: 4px;
 }
 
 /* The in-place expander on a long delivered message — quiet pill, chevron

@@ -87,11 +87,12 @@ describe("MessageRow", () => {
     expect(named.find(".role-label").text()).toBe("Claude");
   });
 
-  // Session-comms delivery — a REGULAR participant message (Chad, 2026-08-09,
-  // superseding the 2026-07-27 compact-box call): full markdown body inline,
-  // author line + quiet badge as identity, no accent bar, no View door.
-  // test: correct expectation — teaser/chip/accent pins recast to full-body.
-  it("renders an inbound user-role report as a regular participant message: author, badge, full body", () => {
+  // Session-comms delivery — a REPORT renders as a tool-card-style
+  // collapsible (Chad, 2026-08-09 mock, superseding the same-day full-body
+  // spec): report icon + the lead line as title, chevron at the line's end,
+  // the body expanding in place. No header badge (the icon carries the kind),
+  // no accent bar. test: correct expectation — recast to the card.
+  it("renders an inbound report as a collapsed card: author, icon + title, body behind the chevron", async () => {
     const wrapper = mount(MessageRow, {
       props: {
         message: makeMessage({
@@ -105,15 +106,19 @@ describe("MessageRow", () => {
 
     expect(wrapper.find(".role-label").text()).toContain("Noah · vynel");
     expect(wrapper.find(".role-label").text()).not.toContain("You");
-    expect(wrapper.find(".origin-badge").text()).toBe("Report");
+    expect(wrapper.find(".origin-badge").exists()).toBe(false);
     const row = wrapper.find(".message-row");
     // Sheds the "your message" bubble but wears NO special chrome.
     expect(row.classes()).toContain("is-report");
     expect(row.classes()).not.toContain("has-accent");
-    // The FULL body renders inline as markdown — no teaser, no door.
+    // Collapsed: the title line (markdown chars stripped), remainder hidden.
+    const card = wrapper.get(".report-card");
+    expect(wrapper.find(".report-card-icon").exists()).toBe(true);
+    expect(card.text()).toContain("Done. The three files are indexed.");
+    expect(wrapper.text()).not.toContain("Full detail follows below.");
+    // The chevron at the line's end expands the body in place.
+    await card.trigger("click");
     expect(wrapper.text()).toContain("Full detail follows below.");
-    expect(wrapper.find(".report-teaser").exists()).toBe(false);
-    expect(wrapper.find(".report-open-chip").exists()).toBe(false);
   });
 
   it("strips the model-facing attribution marker from a report's displayed body", () => {
@@ -344,7 +349,8 @@ describe("MessageRow badge split (update / report / message)", () => {
     expect(wrapper.text()).not.toContain("[Message from James");
   });
 
-  it("a final report keeps the Report badge", () => {
+  // test: correct expectation — the report badge retired for the card icon.
+  it("a final report wears NO badge — the card icon carries the kind; a one-liner gets no chevron", () => {
     const wrapper = mount(MessageRow, {
       props: {
         message: makeMessage({
@@ -355,31 +361,55 @@ describe("MessageRow badge split (update / report / message)", () => {
         }),
       },
     });
-    expect(wrapper.find(".origin-badge").text()).toBe("Report");
+    expect(wrapper.find(".origin-badge").exists()).toBe(false);
+    expect(wrapper.find(".report-card-icon").exists()).toBe(true);
     expect(wrapper.text()).toContain("Done — shipped.");
+    expect(wrapper.find(".expand-chevron").exists()).toBe(false);
   });
 });
 
-// The in-place expander (Chad, 2026-08-09): a LONG delivered message collapses
-// to its lead paragraph; expanding reveals the rest in the thread — no popup.
-// Short messages render whole with no affordance.
-describe("MessageRow long-message expander", () => {
+// The report CARD + the long-message pill (Chad, 2026-08-09): a report always
+// collapses card-style; a LONG update/direct message folds to its lead behind
+// the pill; short ones render whole — never a popup anywhere.
+describe("MessageRow report card + long-message expander", () => {
   const lead = "Channels in Claw Launcher: only ONE external channel is wired up.";
   const detail =
     "Details:\n\n- Telegram is the only messaging channel the platform supports today, " +
     "with per-agent bots in the multi-agent setup and pairing-code approval flows.\n" +
     "- Web chat rides the dashboard's chat page — the OpenClaw web interface.\n" +
     "- The runtime supports more channels but the plugin allowlist does not expose them.";
-  const longBody = `[Report from James · Claw Launcher — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\n${lead}\n\n${detail}`;
 
-  it("collapses a long report to its lead + a kind-labeled expander; expanding reveals the rest in place", async () => {
+  it("a report card collapses to icon + title; the chevron toggles the body in place", async () => {
     const wrapper = mount(MessageRow, {
       props: {
         message: makeMessage({
           role: "user",
           sourceKind: "agent",
           sourceLabel: "James · Claw Launcher",
-          body: longBody,
+          body: `[Report from James · Claw Launcher — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\n${lead}\n\n${detail}`,
+        }),
+      },
+    });
+
+    expect(wrapper.get(".report-card-title").text()).toContain(lead);
+    expect(wrapper.find(".expand-chevron").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("Telegram is the only messaging channel");
+
+    await wrapper.get(".report-card").trigger("click");
+    expect(wrapper.text()).toContain("Telegram is the only messaging channel");
+
+    await wrapper.get(".report-card").trigger("click");
+    expect(wrapper.text()).not.toContain("Telegram is the only messaging channel");
+  });
+
+  it("a long DIRECT message folds behind the Show full message pill", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "James · Claw Launcher",
+          body: `[Message from James · Claw Launcher — addressed DIRECTLY to the user and shown to them in this conversation, relayed automatically by Vynel. Not a message the user typed; do not restate it.]\n\n${lead}\n\n${detail}`,
         }),
       },
     });
@@ -387,14 +417,10 @@ describe("MessageRow long-message expander", () => {
     expect(wrapper.text()).toContain(lead);
     expect(wrapper.text()).not.toContain("Telegram is the only messaging channel");
     const chip = wrapper.get(".expand-chip");
-    expect(chip.text()).toContain("Show full report");
-
+    expect(chip.text()).toContain("Show full message");
     await chip.trigger("click");
     expect(wrapper.text()).toContain("Telegram is the only messaging channel");
     expect(wrapper.get(".expand-chip").text()).toContain("Show less");
-
-    await wrapper.get(".expand-chip").trigger("click");
-    expect(wrapper.text()).not.toContain("Telegram is the only messaging channel");
   });
 
   it("a short message renders whole with NO expander", () => {

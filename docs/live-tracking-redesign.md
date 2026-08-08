@@ -412,6 +412,14 @@ lead paragraph with an in-place expander — chevron pill, "Show full report/upd
 hidden remainder is substantial (>200 chars past the first paragraph); short messages
 render whole. Pins: collapse/expand round-trip + short-message-no-chip.
 
+**Refinement 2 (Chad's mock — the tool-card treatment for REPORTS):** a report renders
+like a tool card: report ICON + the lead line as the TITLE, the chevron flowing inline at
+the line's end (the whole line toggles), the body unfolding in place below. The header
+REPORT badge retires — the icon carries the kind. Reports always fold at the first
+paragraph (a one-liner card gets no chevron). Updates/direct messages stay regular
+messages with their badges + the long-fold pill. Pins recast: card round-trip, no-badge +
+icon, one-liner-no-chevron, direct-pill kept.
+
 ---
 
 *(Case 4+ land here as received.)*
