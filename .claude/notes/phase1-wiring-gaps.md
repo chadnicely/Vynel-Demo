@@ -35,11 +35,9 @@ Landed green + tested, but **no running turn imports them**:
 
 - **`provider-preferences`** — only its own tests import it; no route, no session-runtime resolution.
   Effective provider is always the `DEFAULT_PROVIDER_ID` fallback (`'claude'`).
-- **`desktop-control`** — code-complete (notifications + a11y read/act, an MCP descriptor), but no
-  `apps/local-api` file imports it, no composer lists `desktopFeatureDescriptor`, and its env flag
-  `VYNEL_DESKTOP_ACT_ENABLED` is consumed nowhere.
-
-Both appear in the README "shipped" tables with this caveat in their docs.
+- ~~**`desktop-control`**~~ — RESOLVED: fully wired (boot creates the listener, both global-root
+  composers list `desktopFeatureDescriptor`, `VYNEL_DESKTOP_ACT_ENABLED` is consumed in env.ts),
+  and the per-app access-grant security model shipped on top (2026-08-04).
 
 ## 3. Background / purge jobs defined but not scheduled
 

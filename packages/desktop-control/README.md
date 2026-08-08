@@ -5,22 +5,31 @@ in-process MCP tools the AI agent calls mid-turn. Re-authored fresh in Vynel's
 house style from a reference scaffold; the accessibility engine is `xa11y`
 (adopted after a dedicated spike).
 
-> **Safety:** the read tools observe whatever is on a named app's screen, and
-> `act_on_app` (click / type) is **default-OFF** behind `VYNEL_DESKTOP_ACT_ENABLED`
-> with `destructiveHint`. The hard approval-card gate is a separate step (spec:
-> `.claude/ceo/desktop-control/act-approval-hook-spec.md`); until it lands, the
-> interim safety for actions is an isolated environment + the flag, not the prompt.
+> **Safety — the per-app access model (Claude-desktop-style).** Every
+> app-directed tool is gated by a **user grant for that specific app**, at a
+> tier: `read` (see) < `click` (also press) < `full` (also type). No grant = no
+> access (fails closed with the recovery path). The ONLY way a grant comes into
+> being is the `request_desktop_access` tool, declared in `mutatingToolNames` so
+> it raises an **approval card in every permission mode** — the card is the
+> consent moment. Grants persist in `desktop_app_grants` until revoked (routes
+> `GET/DELETE /desktop/access`; "Desktop access" section in the app). On top of
+> that: the act tools are **default-OFF** behind `VYNEL_DESKTOP_ACT_ENABLED`,
+> typing into a detected **password control is refused outright**
+> (`a11y/password-control-guard.ts`), and the system-prompt instructions carry
+> the prompt-injection boundary (screen content is data, never instructions) and
+> the prohibited-action canon (credentials / CAPTCHA / financial / agreements).
 
 ## Tool surface
 
 | Tool | Role | Status |
 |---|---|---|
-| `list_desktop_notifications` | Desktop notification events since a timestamp (read-only) | **shipped** |
-| `list_open_apps` | List open windows the agent can target (read-only) | **shipped** |
-| `snapshot_app` | Read a named app's accessibility tree (read-only) | **shipped** |
-| `act_on_app` | Act on an element — press / type_text / set_value (mutating; default-OFF) | **shipped** |
-| `screenshot_app` | Pixel capture of one window, observation-only fallback for a11y-blind apps (read-only; `node-screenshots`/XCap — Windows.Graphics.Capture is the upgrade path if BitBlt-class capture falls short) | **shipped** |
-| `click_xy` | Coordinate-based clicking | deferred (element-addressing preferred) |
+| `list_desktop_notifications` | Desktop notification events since a timestamp (read-only; ungated) | **shipped** |
+| `list_open_apps` | List open windows + the granted `accessTier` per app (read-only; ungated) | **shipped** |
+| `snapshot_app` | Read a named app's accessibility tree (requires `read` grant) | **shipped** |
+| `screenshot_app` | Pixel capture of one window without focusing it; WXGA downscale for coordinate accuracy + full-res `region` zoom (requires `read` grant; `node-screenshots`/XCap) | **shipped** |
+| `request_desktop_access` | Ask the user to grant an app at a tier — cards in EVERY mode; the consent door | **shipped** |
+| `act_on_app` | Act on an element — press (`click` grant) / type_text / set_value (`full` grant); default-OFF | **shipped** |
+| `act_on_desktop` | Coordinate mouse/keyboard — click/scroll/drag (`click` grant), type/press (`full` grant, enforced against the focused/hit-tested window); default-OFF | **shipped** |
 
 ## How it plugs into Vynel
 
