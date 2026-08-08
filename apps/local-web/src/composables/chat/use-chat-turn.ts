@@ -22,6 +22,11 @@ import {
   isWorkMutatingToolName,
 } from "./work-view-invalidation.js";
 
+// A continue-mode workspace turn parked behind a running delegated task leads
+// with the `turn-queued` transport sentinel (B3 — the session-turn precedent);
+// it is not a ChatTurnEvent kind, so the decoded stream widens at the boundary.
+type ChatTurnStreamEvent = ChatTurnEvent | { kind: "turn-queued" };
+
 // Drives one live turn against the real SSE stream. Each ChatTurnEvent folds
 // into the active-turn view (transport-blind — the same pure fold the parser
 // tests cover); once the server-persisted turn ends, history reconciles by
@@ -122,7 +127,13 @@ export function useChatTurn(options: {
               : {}
           : {}),
       });
-      for await (const event of stream) ingest(event);
+      for await (const event of stream as AsyncIterable<ChatTurnStreamEvent>) {
+        // Parked behind a delegated run on this workspace — a transport
+        // sentinel, never folded. The composer's queued surfacing arrives
+        // with the sidebar arc.
+        if (event.kind === "turn-queued") continue;
+        ingest(event);
+      }
       // The stream closed with NO terminal frame at all — a server crash
       // mid-turn used to end here looking exactly like success, pinning
       // "working" forever. A stream the server ENDED deliberately

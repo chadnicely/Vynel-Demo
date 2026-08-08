@@ -11,6 +11,7 @@
 
 import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
+import type { SSEStreamingApi } from 'hono/streaming'
 import {
   startChatTurn,
   composeSessionCapabilities,
@@ -127,22 +128,28 @@ export async function streamChatTurn(
   // session turn. Any non-primary turn (resume by id, or new) is byte-for-byte
   // today's behavior.
   const isContinueActive = input.continueRoot === true && c.var.workspace!.continueEnabled
-  const primaryTarget = isContinueActive
-    ? await resolvePrimaryConversationTarget(c.var.db, {
-        userId: c.var.user.id,
-        workspaceId: c.var.workspace!.id,
-      })
-    : null
-  const resumeSessionId = primaryTarget
-    ? (primaryTarget.resumeSdkSessionId ?? undefined)
-    : input.resumeSessionId
-  // A resumed turn knows its session before the first frame — stamp it now so
-  // even a tool called on the very first event carries the identity.
-  if (resumeSessionId !== undefined) turnSession.resolve(resumeSessionId)
   // Dev/test swap-trigger override (Slice 2 live UI smoke); unset → production 0.85.
   const pressureThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
+  const locks = c.var.sessionTargetLocks
+  const workspaceId = c.var.workspace!.id
 
-  return streamSSE(c, async (stream) => {
+  const runTurn = async (stream: SSEStreamingApi): Promise<void> => {
+    // Resolved INSIDE the target lock (single-writer wrapper below): the
+    // delegated run we may have queued behind can pressure-swap the primary
+    // onto a fresh segment — the turn must resume THAT head, never a pre-wait
+    // read (the session-turn.ts recipe).
+    const primaryTarget = isContinueActive
+      ? await resolvePrimaryConversationTarget(c.var.db, {
+          userId: c.var.user.id,
+          workspaceId,
+        })
+      : null
+    const resumeSessionId = primaryTarget
+      ? (primaryTarget.resumeSdkSessionId ?? undefined)
+      : input.resumeSessionId
+    // A resumed turn knows its session before the first frame — stamp it now so
+    // even a tool called on the very first event carries the identity.
+    if (resumeSessionId !== undefined) turnSession.resolve(resumeSessionId)
     const composed = composeSessionCapabilities(c.var.db, { workspaceId: c.var.workspace!.id })
     // Compose the enabled agents for this session (Mode A — the root model
     // delegates to them via the SDK Agent tool). In ask mode every
@@ -342,6 +349,35 @@ export async function streamChatTurn(
           c.var.logger.warn({ err }, 'primary-as-thread continuity failed after turn')
         }
       }
+    }
+  }
+
+  return streamSSE(c, async (stream) => {
+    // Single-writer on the workspace primary (B3): a continue-mode turn resumes
+    // the SAME SDK session the delegation pool's workspace runs resume, so it
+    // acquires the pool's exact exclusion key — the workspace id — and
+    // FIFO-queues behind a running delegated task (or a second tab) instead of
+    // interleaving two writers on one CLI session (root-turn-lock's documented
+    // failure mode, workspace-side). The queued sentinel goes out BEFORE
+    // parking (the session-turn.ts shape) so the composer can tell waiting from
+    // frozen. Non-primary turns (resume-by-id, new session) target sessions the
+    // pool never writes — no lock, byte-for-byte prior behavior.
+    if (!isContinueActive) {
+      await runTurn(stream)
+      return
+    }
+    if (locks.isBusy(workspaceId)) {
+      await stream.writeSSE({ event: 'turn-queued', data: '{}' })
+    }
+    const releaseTargetLock = await locks.acquire(workspaceId)
+    try {
+      await runTurn(stream)
+    } finally {
+      // Every exit — clean drain, a composition throw, a client disconnect —
+      // MUST pass through this release, or the workspace key leaks and both the
+      // delegation pool and every future continue-turn park on this workspace
+      // forever (the session-turn.ts pin).
+      releaseTargetLock()
     }
   })
 }
