@@ -2,42 +2,43 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useConversationSidebarStore } from "./conversation-sidebar-store.js";
 
+// test: correct expectation — the push/back stack is gone (Chad, 2026-08-09):
+// EVERY open replaces the panel, including a pointer clicked inside it.
+// Forward-only hops, no back navigation.
 describe("useConversationSidebarStore", () => {
   beforeEach(() => setActivePinia(createPinia()));
 
-  it("opening from a thread REPLACES the stack; push drills; Back walks; close clears", () => {
+  it("every open REPLACES the panel; close clears", () => {
     const sidebar = useConversationSidebarStore();
     expect(sidebar.isOpen).toBe(false);
 
-    sidebar.openSession({ sessionId: "s1", title: "July run", anchorTraceId: "t1" });
+    sidebar.openSession({
+      sessionId: "s1",
+      title: "July run",
+      anchorTraceId: "t1",
+    });
     expect(sidebar.activeNode).toMatchObject({
       kind: "session",
       sessionId: "s1",
       anchorTraceId: "t1",
     });
 
-    // A fresh open from a thread replaces — never a runaway stack.
     sidebar.openWorkspace({ workspaceId: "w1" });
-    expect(sidebar.stack).toHaveLength(1);
     expect(sidebar.activeNode).toMatchObject({
       kind: "workspace",
       workspaceId: "w1",
       anchorTraceId: null,
     });
 
-    // A pointer clicked INSIDE the sidebar pushes; Back returns.
-    sidebar.openSession({ sessionId: "s2", title: "Child" }, { push: true });
-    expect(sidebar.stack).toHaveLength(2);
-    sidebar.back();
-    expect(sidebar.activeNode).toMatchObject({ kind: "workspace" });
+    // The forward hop: a pointer inside the panel swaps the node in place.
+    sidebar.openSession({ sessionId: "s2", title: "Child" });
+    expect(sidebar.activeNode).toMatchObject({
+      kind: "session",
+      sessionId: "s2",
+    });
 
     sidebar.close();
     expect(sidebar.isOpen).toBe(false);
-  });
-
-  it("push on an EMPTY stack still opens — never a stranded push", () => {
-    const sidebar = useConversationSidebarStore();
-    sidebar.openSession({ sessionId: "s1", title: "T" }, { push: true });
-    expect(sidebar.stack).toHaveLength(1);
+    expect(sidebar.activeNode).toBeNull();
   });
 });

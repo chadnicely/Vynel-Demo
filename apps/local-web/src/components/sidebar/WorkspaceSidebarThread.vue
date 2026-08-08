@@ -4,6 +4,7 @@ import { PresenceDot, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../chat/ThreadStream.vue";
 import AppComposer from "../chat/AppComposer.vue";
 import QueuedMessageChips from "../chat/QueuedMessageChips.vue";
+import { useOpenPointerTarget } from "../chat/open-pointer-target.js";
 import { useSessionDetail } from "../../composables/chat/use-session-detail.js";
 import { useContinuingConversation } from "../../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../../composables/chat/use-chat-turn.js";
@@ -36,11 +37,16 @@ const scope = computed<SessionScope>(() => ({
 
 const workspacesQuery = useWorkspaceList();
 const workspace = computed(
-  () => (workspacesQuery.data.value ?? []).find((row) => row.id === props.workspaceId) ?? null,
+  () =>
+    (workspacesQuery.data.value ?? []).find(
+      (row) => row.id === props.workspaceId,
+    ) ?? null,
 );
 const managerName = computed(() => workspace.value?.managerName ?? "Assistant");
 const personaLabel = computed(() =>
-  workspace.value === null ? "Workspace" : `${managerName.value} · ${workspace.value.name}`,
+  workspace.value === null
+    ? "Workspace"
+    : `${managerName.value} · ${workspace.value.name}`,
 );
 
 const continuingQuery = useContinuingConversation(() => scope.value);
@@ -61,7 +67,8 @@ const chatTurn = useChatTurn({ scope: () => scope.value });
 const detailQuery = useSessionDetail(
   () => scope.value,
   () => activeSessionId.value,
-  () => (hasBackgroundTurnHere.value && !chatTurn.isStreaming.value ? 4000 : false),
+  () =>
+    hasBackgroundTurnHere.value && !chatTurn.isStreaming.value ? 4000 : false,
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const toolCallsByMessageId = computed(
@@ -77,7 +84,9 @@ const watchedTurn = useWatchedTurn({
     return result.data ?? undefined;
   },
 });
-const activeTurn = computed(() => chatTurn.view.value ?? watchedTurn.view.value);
+const activeTurn = computed(
+  () => chatTurn.view.value ?? watchedTurn.view.value,
+);
 
 // The watched settle lands its rows here too (the SessionThreadView rule).
 watch(
@@ -86,6 +95,11 @@ watch(
     if (previous !== null && next === null) void detailQuery.refetch();
   },
 );
+
+// A pointer clicked INSIDE the sidebar navigates the sidebar itself: the
+// one-home opener REPLACES the docked node (forward-only — Chad, 2026-08-09:
+// no back stack, hop pointer to pointer).
+const openPointerTarget = useOpenPointerTarget();
 
 const decideApproval = useDecideApproval();
 function onDecideApproval(
@@ -104,7 +118,11 @@ function onDecideApproval(
 }
 
 function sendMessage(text: string) {
-  void chatTurn.startTurn({ sessionId: null, isContinuous: true, userText: text });
+  void chatTurn.startTurn({
+    sessionId: null,
+    isContinuous: true,
+    userText: text,
+  });
 }
 const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
 </script>
@@ -112,7 +130,10 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
 <template>
   <div class="workspace-sidebar-thread">
     <div class="thread-body">
-      <ThreadSkeleton v-if="detailQuery.isPending.value" class="thread-skeleton-pad" />
+      <ThreadSkeleton
+        v-if="detailQuery.isPending.value"
+        class="thread-skeleton-pad"
+      />
       <p v-else-if="detailQuery.isError.value" class="state-note is-error">
         {{ formatSdkError(detailQuery.error.value) }}
       </p>
@@ -123,9 +144,9 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
         :assistant-name="managerName"
-        :show-watch-chips="false"
         :scroll-to-trace-id="props.anchorTraceId"
         @decide-approval="onDecideApproval"
+        @open-pointer="openPointerTarget"
       />
     </div>
 

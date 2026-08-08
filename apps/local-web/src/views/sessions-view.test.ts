@@ -350,7 +350,7 @@ describe("SessionsView", () => {
 
   // Pipeline scoping rule 3 (Chad, 2026-07-21 evening): a SESSION view is a
   // leaf — no trace/report watch chips, even on rows that would chip on a
-  // thread surface (SessionThreadView passes show-watch-chips=false).
+  // thread surface (watch chips are gone from ThreadStream entirely).
   it("the opened session's traced rows wear NO watch chip — agent chips only", async () => {
     const { wrapper } = await mountView([makeEntry()], {
       transcriptMessages: [

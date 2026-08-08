@@ -3,9 +3,10 @@ import { defineStore } from "pinia";
 
 // The app sidebar (live-tracking redesign, Case 1): the pointer's landing — a
 // docked right panel showing the REAL conversation of whoever is working. One
-// unified flow, no tabs, no derived views. Nodes STACK: a pointer clicked
-// INSIDE the sidebar drills deeper and Back walks up (the old monitor-panel
-// stacking rule); opening from a thread REPLACES the stack.
+// unified flow, no tabs, no derived views. ONE node at a time: every open
+// REPLACES the panel, including a pointer clicked INSIDE it — forward-only
+// hops, no back stack (Chad, 2026-08-09: navigation stays a pointer, easy to
+// follow here to there).
 export type SidebarNode =
   | {
       kind: "session";
@@ -18,55 +19,41 @@ export type SidebarNode =
     }
   | { kind: "workspace"; workspaceId: string; anchorTraceId: string | null };
 
-export const useConversationSidebarStore = defineStore("conversation-sidebar", () => {
-  const stack = ref<SidebarNode[]>([]);
+export const useConversationSidebarStore = defineStore(
+  "conversation-sidebar",
+  () => {
+    const activeNode = ref<SidebarNode | null>(null);
 
-  const isOpen = computed(() => stack.value.length > 0);
-  const activeNode = computed(() => stack.value[stack.value.length - 1] ?? null);
+    const isOpen = computed(() => activeNode.value !== null);
 
-  // `push` drills deeper from INSIDE the sidebar (redesign D4) — no production
-  // caller yet: in-sidebar pointer rows arrive when the sidebar's threads gain
-  // pointersByTraceId (recorded deferral; the semantics are pinned by test).
-  function open(node: SidebarNode, options: { push?: boolean } = {}) {
-    stack.value = options.push === true && stack.value.length > 0 ? [...stack.value, node] : [node];
-  }
-
-  function openSession(
-    input: { sessionId: string; title: string; anchorTraceId?: string | null },
-    options: { push?: boolean } = {},
-  ) {
-    open(
-      {
+    function openSession(input: {
+      sessionId: string;
+      title: string;
+      anchorTraceId?: string | null;
+    }) {
+      activeNode.value = {
         kind: "session",
         sessionId: input.sessionId,
         title: input.title,
         anchorTraceId: input.anchorTraceId ?? null,
-      },
-      options,
-    );
-  }
+      };
+    }
 
-  function openWorkspace(
-    input: { workspaceId: string; anchorTraceId?: string | null },
-    options: { push?: boolean } = {},
-  ) {
-    open(
-      {
+    function openWorkspace(input: {
+      workspaceId: string;
+      anchorTraceId?: string | null;
+    }) {
+      activeNode.value = {
         kind: "workspace",
         workspaceId: input.workspaceId,
         anchorTraceId: input.anchorTraceId ?? null,
-      },
-      options,
-    );
-  }
+      };
+    }
 
-  function back() {
-    stack.value = stack.value.slice(0, -1);
-  }
+    function close() {
+      activeNode.value = null;
+    }
 
-  function close() {
-    stack.value = [];
-  }
-
-  return { stack, isOpen, activeNode, openSession, openWorkspace, back, close };
-});
+    return { isOpen, activeNode, openSession, openWorkspace, close };
+  },
+);

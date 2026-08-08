@@ -575,4 +575,19 @@ aria-value (from ResizablePanel — the sidebar handle adopted them). Unified se
 an out-of-range stored width CLAMPS (ResizablePanel's pinned behavior; the sidebar test
 recast with a note). Verified live on both surfaces.
 
+## Sidebar pointer hops — forward-only (Chad, 2026-08-09; SHIPPED)
+
+Chad: a pointer clicked inside the sidebar "will just replace sidebar with that session
+so its become a pointer easy to navigate here to there. just in forward way no need of
+any backward kind nav to keep it easy for programming."
+
+- The sidebar hosts (`WorkspaceSidebarThread`, `SessionThreadView`) now wire
+  `@open-pointer` to the one-home opener — which already REPLACES the docked node.
+  From the Sessions canvas the same wiring opens the sidebar like any thread.
+- The store's push/back stack is GONE (it was the D4 drill deferral — Chad settled it
+  as replace-only): `conversation-sidebar-store` holds ONE `activeNode`; the header's
+  Back button is removed; the store test recast with a spec note.
+- The dead `show-watch-chips` fallthrough prop was swept from both hosts (reviewer note
+  from the parity pass).
+
 *(Case 4+ land here as received.)*

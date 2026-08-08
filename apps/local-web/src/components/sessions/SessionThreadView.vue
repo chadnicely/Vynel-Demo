@@ -2,6 +2,7 @@
 import { computed, watch } from "vue";
 import { PresenceDot, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../chat/ThreadStream.vue";
+import { useOpenPointerTarget } from "../chat/open-pointer-target.js";
 import AppComposer from "../chat/AppComposer.vue";
 import QueuedMessageChips from "../chat/QueuedMessageChips.vue";
 import TodoDock from "../chat/TodoDock.vue";
@@ -43,6 +44,12 @@ const props = defineProps<{
 }>();
 
 const activity = useActivityStore();
+
+// A pointer in this session's own thread (it delegated work of its own):
+// the one-home opener swaps the sidebar to the target — from the docked pane
+// that REPLACES the node in place (forward-only, no back stack), from the
+// Sessions canvas it opens the sidebar like any thread.
+const openPointerTarget = useOpenPointerTarget();
 
 // Chain-head resolution (B6): the overview names every chain's newest segment;
 // while a turn runs anywhere the list refetches, so a mid-turn swap re-points
@@ -104,9 +111,7 @@ const watchedTurn = useWatchedTurn({
     return result.data ?? undefined;
   },
 });
-const activeTurn = computed(
-  () => turn.view.value ?? watchedTurn.view.value,
-);
+const activeTurn = computed(() => turn.view.value ?? watchedTurn.view.value);
 
 // A watched turn's settle must land its rows HERE too: the registry's settle
 // snapshot only warms the subscription that owns the provider slot (the
@@ -164,7 +169,10 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
 <template>
   <div class="session-thread">
     <div class="thread-body">
-      <ThreadSkeleton v-if="detailQuery.isPending.value" class="thread-skeleton-pad" />
+      <ThreadSkeleton
+        v-if="detailQuery.isPending.value"
+        class="thread-skeleton-pad"
+      />
       <!-- A failed transcript read must be SAID — an empty thread over a live
            composer would read as a blank conversation. -->
       <p v-else-if="detailQuery.isError.value" class="state-note is-error">
@@ -180,9 +188,9 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
         :assistant-name="props.title"
-        :show-watch-chips="false"
         :scroll-to-trace-id="props.anchorTraceId"
         @decide-approval="onDecideApproval"
+        @open-pointer="openPointerTarget"
       />
     </div>
 

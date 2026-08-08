@@ -15,7 +15,7 @@ import WorkspaceSidebarThread from "./WorkspaceSidebarThread.vue";
 // from the overview and host it the same way (the workspace's own tab stays
 // the composer surface until the sidebar's continue-mode send lands — 2c-2).
 const sidebar = useConversationSidebarStore();
-const { activeNode, stack } = storeToRefs(sidebar);
+const { activeNode } = storeToRefs(sidebar);
 
 // Resizable width (Chad, 2026-08-09): drag the left edge; the chosen width
 // persists across reloads. Mechanics live in `usePanelResize` (the one home
@@ -72,15 +72,6 @@ const headerTitle = computed(() => {
         @dblclick="resetWidth"
       />
       <header class="sidebar-header">
-        <button
-          v-if="stack.length > 1"
-          type="button"
-          class="sidebar-nav"
-          aria-label="Back"
-          @click="sidebar.back()"
-        >
-          ←
-        </button>
         <span class="sidebar-title">{{ headerTitle }}</span>
         <button
           type="button"
