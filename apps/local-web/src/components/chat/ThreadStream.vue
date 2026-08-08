@@ -10,6 +10,8 @@ import type { ActivitySource } from "../../composables/activity/use-activity-mon
 import type { PersonaLiveCardModel } from "../../composables/delegations/use-live-delegation-cards.js";
 import LiveTurn from "./LiveTurn.vue";
 import PersonaLiveCard from "./PersonaLiveCard.vue";
+import PointerRow from "./PointerRow.vue";
+import type { ThreadPointerModel } from "./thread-pointers.js";
 import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
 
 // Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening —
@@ -38,6 +40,11 @@ const props = withDefaults(
     /** The inline persona cards at the thread's live edge (persona-sessions
      *  B5) — one per in-flight task, rendered like typing indicators. */
     liveCards?: PersonaLiveCardModel[] | undefined;
+    /** The thread pointers by trace key (live-tracking redesign, Case 1): a
+     *  compact "task → target" line renders under the FIRST visible row
+     *  carrying an in-flight trace key this thread SENT — the pointer is the
+     *  whole tracker, and it vanishes when the task settles. */
+    pointersByTraceId?: Map<string, ThreadPointerModel> | undefined;
   }>(),
   {
     assistantName: "Assistant",
@@ -45,6 +52,7 @@ const props = withDefaults(
     showWatchChips: true,
     liveTraceIds: undefined,
     liveCards: undefined,
+    pointersByTraceId: undefined,
   },
 );
 
@@ -62,6 +70,9 @@ const emit = defineEmits<{
   ];
   /** The live-card overflow line ("+N more running") — the full roster. */
   openBackground: [];
+  /** A thread pointer's click — navigate to where the task started (the
+   *  `partialSessionId` anchor; the redesign's tracking mechanic). */
+  openPointer: [partialSessionId: string];
   /** An Agent card's Watch chip: open the focused agent view over the source
    *  that carries the agent's activity (trace for delegation-traced rows, the
    *  row's own session for a direct turn's agent). */
@@ -98,8 +109,9 @@ function authorPersonaFor(message: ChatMessageResponse) {
 // HERE as `role:'user'` + a non-null sourceKind carrying the trace key — a
 // routed task lands as 'global-root' (the shared pipeline's
 // messageAttribution — delegate-to-workspace-root / delegate-to-spawned-
-// session), and a report-delivery NOTIFY turn lands as 'workspace-manager'
-// + the child's label (session-comms). The replies share that key. Work this
+// session), a report-delivery NOTIFY turn lands as 'workspace-manager'
+// + the child's label (session-comms), and a MENTION lands as 'user' + the
+// origin scope's label (redesign Case 3). The replies share that key. Work this
 // thread SENT DOWN never leaves an attributed USER row here (its rows are
 // assistant-role). So: a trace key with ANY attributed user row in this
 // thread was RECEIVED → its rows show no watch chip (a delivery turn must
@@ -128,6 +140,39 @@ function showsWatchChipFor(message: ChatMessageResponse): boolean {
     !receivedTraceIds.value.has(message.partialSessionId)
   );
 }
+
+// The pointer renders once per in-flight trace key, under the FIRST visible
+// row that CARRIES it — and only on the SENDING side (the received-trace
+// discriminator above): in the target's own thread the task row is the
+// anchor, not a pointer. Sender-side, the work key lives on the dispatch
+// TOOL CALL's served delegation (send_message / send_task_* — message rows
+// themselves are unstamped on interactive turns), so matching goes through
+// toolCallsByMessageId first; the row-key path stays for target-side gating
+// and the future mention-row stamp.
+const pointersByMessageId = computed(() => {
+  const byMessage = new Map<string, ThreadPointerModel[]>();
+  if (!props.pointersByTraceId?.size) return byMessage;
+  const placed = new Set<string>();
+  for (const message of visibleMessages.value) {
+    const candidateKeys: string[] = [];
+    for (const call of props.toolCallsByMessageId[message.id] ?? []) {
+      if (call.delegation?.partialSessionId != null) {
+        candidateKeys.push(call.delegation.partialSessionId);
+      }
+    }
+    if (message.partialSessionId != null) candidateKeys.push(message.partialSessionId);
+    for (const traceId of candidateKeys) {
+      if (placed.has(traceId) || receivedTraceIds.value.has(traceId)) continue;
+      const pointer = props.pointersByTraceId.get(traceId);
+      if (pointer === undefined) continue;
+      const rowPointers = byMessage.get(message.id) ?? [];
+      rowPointers.push(pointer);
+      byMessage.set(message.id, rowPointers);
+      placed.add(traceId);
+    }
+  }
+  return byMessage;
+});
 
 // Thread-bottom real estate is finite: many parallel tasks cap at a few
 // cards + an overflow count (the Background panel is the full roster, B7).
@@ -334,6 +379,12 @@ watch(
               />
             </template>
           </MessageRow>
+          <PointerRow
+            v-for="pointer in pointersByMessageId.get(message.id) ?? []"
+            :key="pointer.partialSessionId"
+            :pointer="pointer"
+            @open="emit('openPointer', pointer.partialSessionId)"
+          />
         </template>
 
         <template v-if="props.activeTurn">

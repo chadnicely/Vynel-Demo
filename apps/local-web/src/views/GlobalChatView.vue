@@ -46,6 +46,7 @@ import { useDecideApproval } from "../composables/approvals/use-decide-approval.
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { useLiveDelegationCards } from "../composables/delegations/use-live-delegation-cards.js";
 import { useStopDelegation } from "../composables/delegations/use-stop-delegation.js";
+import { buildThreadPointers } from "../components/chat/thread-pointers.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../composables/users/use-current-user.js";
@@ -163,6 +164,9 @@ const liveTraceIds = computed(() => {
 // The inline persona cards (B5): one per in-flight task, fed by the poll +
 // the activity feed + the narration ring — never a per-card SSE.
 const { cards: liveCards } = useLiveDelegationCards({ messages: () => messages.value });
+// The thread pointers (live-tracking redesign, Case 1) — the tracker is a
+// pointer under the hand-off row; in-flight-only by construction.
+const threadPointers = computed(() => buildThreadPointers(inFlightDelegations.value));
 const isProcessing = computed(() => inFlightDelegations.value.length > 0);
 const stopDelegation = useStopDelegation();
 
@@ -438,12 +442,14 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :assistant-icon-url="assistantIconUrl"
         :live-trace-ids="liveTraceIds"
         :live-cards="liveCards"
+        :pointers-by-trace-id="threadPointers"
         @decide-approval="onDecideApproval"
         @open-card="activityMonitor.openTrace"
         @stop-card="stopDelegation.mutate"
         @open-session="activityMonitor.openTrace"
         @open-report="(report) => (ui.viewingReport = report)"
         @open-background="activityMonitor.openBackground"
+        @open-pointer="activityMonitor.openTrace"
         @watch-agent="activityMonitor.openAgentDirect"
       />
 

@@ -82,6 +82,95 @@ describe("ThreadStream", () => {
     expect(wrapper.find(".jump-to-latest").exists()).toBe(false);
   });
 
+  // ── Thread pointers (live-tracking redesign, Case 1): the tracker is a
+  // pointer under the hand-off row — once per in-flight trace, sender-side
+  // only, gone when the task settles (the map mirrors the poll). ──
+
+  it("renders the pointer under the HAND-OFF row via its dispatch tool call's delegation key; click emits openPointer", async () => {
+    // The PRODUCTION shape: sender-side message rows are unstamped — the work
+    // trace key rides the dispatch tool call's served `delegation` (the
+    // reviewer-caught fixture lesson: a row-stamped sender never exists live).
+    const handOff = makeMessage(1);
+    const dispatchCall: ChatToolCallResponse = {
+      id: "tc-dispatch",
+      parentMessageId: handOff.id,
+      toolUseId: "tu-dispatch",
+      toolName: "send_message",
+      toolInput: { to: "workspace:invoices" },
+      toolOutput: "queued",
+      status: "completed",
+      approvalStatus: null,
+      isErrorResult: false,
+      delegation: {
+        jobId: "job-1",
+        partialSessionId: "trace-1",
+        status: "claimed",
+        deliveredTo: "Invoices",
+        taskLabel: "July invoicing",
+        reportedAt: null,
+        completedAt: null,
+      },
+      startedAt: "2026-07-05T10:00:00.000Z",
+      completedAt: "2026-07-05T10:00:01.000Z",
+    };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [makeMessage(0), handOff, makeMessage(2)],
+        toolCallsByMessageId: { [handOff.id]: [dispatchCall] },
+        activeTurn: null,
+        pointersByTraceId: new Map([
+          [
+            "trace-1",
+            {
+              partialSessionId: "trace-1",
+              taskLabel: "July invoicing",
+              targetLabel: "Noah · Invoices",
+              status: "working" as const,
+            },
+          ],
+        ]),
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    const pointers = wrapper.findAll('[data-testid="thread-pointer"]');
+    expect(pointers).toHaveLength(1);
+    expect(pointers[0]!.text()).toContain("July invoicing");
+    expect(pointers[0]!.text()).toContain("Noah · Invoices");
+    await pointers[0]!.trigger("click");
+    expect(wrapper.emitted("openPointer")).toEqual([["trace-1"]]);
+  });
+
+  it("a RECEIVED trace never grows a pointer — the target side has the anchor row, not a tracker", () => {
+    const inboundTask: ChatMessageResponse = {
+      ...makeMessage(0),
+      role: "user",
+      sourceKind: "global-root",
+      partialSessionId: "trace-2",
+    };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [inboundTask],
+        toolCallsByMessageId: {},
+        activeTurn: null,
+        pointersByTraceId: new Map([
+          [
+            "trace-2",
+            {
+              partialSessionId: "trace-2",
+              taskLabel: "Chase POs",
+              targetLabel: "Invoices",
+              status: "queued" as const,
+            },
+          ],
+        ]),
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    expect(wrapper.find('[data-testid="thread-pointer"]').exists()).toBe(false);
+  });
+
   // ── Watch-chip PIPELINE scoping (Chad, 2026-07-21 evening) ──
   // A thread chips ONLY its direct children's work. The discriminator: a
   // delegation that TARGETED this thread left its task row here (role 'user'

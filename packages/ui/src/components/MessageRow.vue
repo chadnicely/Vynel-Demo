@@ -96,8 +96,19 @@ const isInboundReport = computed(() => {
 // ("Noah · vynel") — never "Assistant · X".
 const roleLabel = computed(() => {
   if (props.message.role === "user") {
-    if (props.message.sourceKind === "global-root") return "From Claude";
+    // A routed task's anchor row: Claude relayed the ask (redesign Q1). The
+    // origin scope renders only when the stamp CARRIES one — an unlabeled
+    // legacy stamp stays scope-silent rather than claiming "from Global" for
+    // a workspace-origin dispatch.
+    if (props.message.sourceKind === "global-root")
+      return props.message.sourceLabel
+        ? `Claude · from ${props.message.sourceLabel}`
+        : "Claude";
     if (isInboundReport.value) return props.message.sourceLabel!;
+    // A mention lands as the USER speaking directly into this conversation,
+    // labeled with where it came from (redesign Case 3).
+    if (props.message.sourceKind === "user" && props.message.sourceLabel)
+      return `You · from ${props.message.sourceLabel}`;
     return "You";
   }
   if (props.message.sourceKind === "global-root") return "Claude";

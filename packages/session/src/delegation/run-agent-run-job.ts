@@ -28,6 +28,7 @@ import {
   type DelegationJob,
 } from '@vynel/orchestration'
 import type { AgentRow } from '@vynel/db/repositories/agents'
+import { findWorkspaceById } from '@vynel/workspaces'
 import { deriveDelegationTaskLabel } from '@vynel/contracts/chat/delegation-task-label'
 import { resolveColleagueAgent } from './resolve-colleague-agent.js'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
@@ -230,10 +231,19 @@ export async function runAgentRunJob(
             agentAllowedTools: agent.allowedTools ?? [],
             agentDisallowedTools: agent.disallowedTools ?? [],
             taskText: delegationInput.taskText,
-            // The inbound reads as relayed from the ORIGINATING chat: the
-            // workspace manager context when grounded, else the global root.
+            // A mention is the USER speaking DIRECTLY into the colleague's
+            // conversation (live-tracking redesign, Case 3) — the inbound row
+            // reads "You · from <origin scope>", never as relayed by Claude or
+            // the manager.
             userAttribution: {
-              userSourceKind: claimed.workspaceId === null ? 'global-root' : 'workspace-manager',
+              userSourceKind: 'user',
+              // The origin scope's display name. The agent-run row's
+              // `workspaceName` column carries the AGENT's name (column reuse),
+              // so a workspace grounding resolves its name at run time.
+              userSourceLabel:
+                claimed.workspaceId === null
+                  ? 'Global'
+                  : (findWorkspaceById(db, claimed.workspaceId)?.name ?? 'Workspace'),
             },
             providerId: DEFAULT_PROVIDER_ID,
             ...(partialSessionId !== undefined ? { partialSessionId } : {}),

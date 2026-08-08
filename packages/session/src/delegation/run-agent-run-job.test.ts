@@ -134,9 +134,12 @@ describe('agent-run jobs (persona-sessions)', () => {
       expect(segment?.workspaceId).toBe(workspace.id)
 
       // The transcript persisted with persona attribution (leaf gap closed).
+      // test: correct expectation — a mention is the USER speaking directly
+      // (redesign Case 3): inbound = 'user' + the origin scope's label, was
+      // 'workspace-manager' relay attribution.
       const messages = listChatMessagesForSession(db, 'colleague-sdk-1')
       expect(messages.map((m) => [m.role, m.sourceKind, m.sourceLabel])).toEqual([
-        ['user', 'workspace-manager', null],
+        ['user', 'user', 'Acme'],
         ['assistant', 'agent', 'Code Reviewer'],
       ])
 
@@ -205,9 +208,12 @@ describe('agent-run jobs (persona-sessions)', () => {
 
       // Both exchanges on the ONE listed transcript — memory accumulates.
       expect(listChatMessagesForSession(db, 'colleague-sdk-g1')).toHaveLength(4)
-      // The global-grounded inbound reads as relayed by the global root.
+      // test: correct expectation — the global-grounded inbound is the USER
+      // speaking directly, labeled from Global (redesign Case 3); was a
+      // 'global-root' relay stamp.
       const messages = listChatMessagesForSession(db, 'colleague-sdk-g1')
-      expect(messages[0]!.sourceKind).toBe('global-root')
+      expect(messages[0]!.sourceKind).toBe('user')
+      expect(messages[0]!.sourceLabel).toBe('Global')
     })
   })
 

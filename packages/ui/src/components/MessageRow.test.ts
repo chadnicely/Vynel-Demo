@@ -99,7 +99,10 @@ describe("MessageRow", () => {
       },
     });
 
-    expect(wrapper.find(".role-label").text()).toBe("From Claude");
+    // test: correct expectation — redesign Q1: an UNLABELED routed-task stamp
+    // stays scope-silent "Claude" (was "From Claude"); the labeled branch
+    // below carries the origin scope.
+    expect(wrapper.find(".role-label").text()).toBe("Claude");
   });
 
   it("names the global brain Claude and a workspace report by its persona", () => {
@@ -224,6 +227,38 @@ describe("MessageRow", () => {
     // The user's own text stays literal.
     expect(wrapper.find(".plain-body").exists()).toBe(true);
     expect(wrapper.html()).not.toContain("<strong>");
+  });
+
+  it("a LABELED routed-task anchor row reads Claude · from its origin scope (redesign Q1)", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "global-root",
+          sourceLabel: "Global",
+          body: "Run July invoicing",
+        }),
+      },
+    });
+
+    expect(wrapper.find(".role-label").text()).toBe("Claude · from Global");
+  });
+
+  it("a mention landing in a colleague's thread reads as You · from its origin (redesign Case 3)", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "user",
+          sourceLabel: "Global",
+          body: "what's our invoice numbering rule?",
+        }),
+      },
+    });
+
+    expect(wrapper.find(".role-label").text()).toBe("You · from Global");
+    // The user speaking is never report-styled.
+    expect(wrapper.find(".message-row").classes()).not.toContain("is-report");
   });
 
   it("wears a workspace accent bar on a bubbled-up report", () => {

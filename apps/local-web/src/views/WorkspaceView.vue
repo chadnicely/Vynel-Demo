@@ -19,6 +19,7 @@ import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { useLiveDelegationCards } from "../composables/delegations/use-live-delegation-cards.js";
 import { useStopDelegation } from "../composables/delegations/use-stop-delegation.js";
+import { buildThreadPointers } from "../components/chat/thread-pointers.js";
 import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import { useWatchedTurn } from "../composables/chat/use-watched-turn.js";
@@ -95,6 +96,12 @@ const { cards: liveCards } = useLiveDelegationCards({
   messages: () => messages.value,
   onlyWorkspaceId: () => tab.workspaceId,
 });
+// The thread pointers (live-tracking redesign, Case 1) — UNFILTERED like the
+// chips: a pointer hangs off a row this thread SENT, matched by its trace key
+// (ThreadStream's received-side gate keeps target threads clean).
+const threadPointers = computed(() =>
+  buildThreadPointers(inFlightQuery.data.value ?? []),
+);
 const inFlightDelegationsHere = computed(() =>
   (inFlightQuery.data.value ?? []).filter(
     (delegation) => delegation.workspaceId === tab.workspaceId,
@@ -337,12 +344,14 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :assistant-icon-url="assistantIconUrl"
         :live-trace-ids="liveTraceIds"
         :live-cards="liveCards"
+        :pointers-by-trace-id="threadPointers"
         @decide-approval="onDecideApproval"
         @open-card="activityMonitor.openTrace"
         @stop-card="stopDelegation.mutate"
         @open-session="activityMonitor.openTrace"
         @open-report="(report) => (ui.viewingReport = report)"
         @open-background="activityMonitor.openBackground"
+        @open-pointer="activityMonitor.openTrace"
         @watch-agent="activityMonitor.openAgentDirect"
       />
 
