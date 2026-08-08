@@ -359,3 +359,56 @@ describe("MessageRow badge split (update / report / message)", () => {
     expect(wrapper.text()).toContain("Done — shipped.");
   });
 });
+
+// The in-place expander (Chad, 2026-08-09): a LONG delivered message collapses
+// to its lead paragraph; expanding reveals the rest in the thread — no popup.
+// Short messages render whole with no affordance.
+describe("MessageRow long-message expander", () => {
+  const lead = "Channels in Claw Launcher: only ONE external channel is wired up.";
+  const detail =
+    "Details:\n\n- Telegram is the only messaging channel the platform supports today, " +
+    "with per-agent bots in the multi-agent setup and pairing-code approval flows.\n" +
+    "- Web chat rides the dashboard's chat page — the OpenClaw web interface.\n" +
+    "- The runtime supports more channels but the plugin allowlist does not expose them.";
+  const longBody = `[Report from James · Claw Launcher — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\n${lead}\n\n${detail}`;
+
+  it("collapses a long report to its lead + a kind-labeled expander; expanding reveals the rest in place", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "James · Claw Launcher",
+          body: longBody,
+        }),
+      },
+    });
+
+    expect(wrapper.text()).toContain(lead);
+    expect(wrapper.text()).not.toContain("Telegram is the only messaging channel");
+    const chip = wrapper.get(".expand-chip");
+    expect(chip.text()).toContain("Show full report");
+
+    await chip.trigger("click");
+    expect(wrapper.text()).toContain("Telegram is the only messaging channel");
+    expect(wrapper.get(".expand-chip").text()).toContain("Show less");
+
+    await wrapper.get(".expand-chip").trigger("click");
+    expect(wrapper.text()).not.toContain("Telegram is the only messaging channel");
+  });
+
+  it("a short message renders whole with NO expander", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "Nova",
+          body: "[Update from Nova — an interim status on work you delegated, relayed automatically by Vynel. The task is STILL RUNNING; this is NOT its result and NOT a message the user typed.]\n\nReceived.\n\nStarting on the schema now.",
+        }),
+      },
+    });
+    expect(wrapper.text()).toContain("Starting on the schema now.");
+    expect(wrapper.find(".expand-chip").exists()).toBe(false);
+  });
+});

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
 import {
   isDirectMessageBody,
@@ -204,6 +204,25 @@ const isInboundDirect = computed(
   () => isInboundReport.value && isDirectMessageBody(props.message.body),
 );
 
+// A LONG delivered message collapses to its lead paragraph with an in-place
+// expander (Chad, 2026-08-09) — the thread stays a conversation without a
+// popup. Short messages render whole, no affordance: the expander appears
+// only when the hidden remainder is substantial.
+const COLLAPSE_REMAINDER_MIN = 200;
+const collapsedLead = computed(() => {
+  if (!isInboundReport.value) return null;
+  const body = displayBody.value;
+  const splitAt = body.indexOf("\n\n");
+  if (splitAt === -1) return null;
+  if (body.slice(splitAt + 2).trim().length < COLLAPSE_REMAINDER_MIN) return null;
+  return body.slice(0, splitAt);
+});
+const isExpanded = ref(false);
+
+const inboundKindWord = computed(() =>
+  isInboundUpdate.value ? "update" : isInboundDirect.value ? "message" : "report",
+);
+
 // A persona speaking as an ASSISTANT row wears its workspace accent (left
 // bar). An INBOUND delivered row does NOT (Chad, 2026-08-09): a colleague
 // responding in the chat is a regular participant — the persona author line
@@ -312,8 +331,43 @@ const accentVar = computed(() => {
 
     <!-- A delivered colleague message renders as a REGULAR participant
          message (Chad, 2026-08-09 — the compact teaser + View door retired):
-         full markdown body, author line + quiet badge as its identity. -->
-    <MarkdownText v-if="isAssistant || isInboundReport" :source="displayBody" />
+         full markdown body, author line + quiet badge as its identity. A
+         LONG one collapses to its lead paragraph behind an in-place
+         expander — never a popup. -->
+    <MarkdownText v-if="isAssistant" :source="displayBody" />
+    <template v-else-if="isInboundReport">
+      <MarkdownText
+        :source="collapsedLead !== null && !isExpanded ? collapsedLead : displayBody"
+      />
+      <button
+        v-if="collapsedLead !== null"
+        type="button"
+        class="expand-chip"
+        :aria-expanded="isExpanded"
+        @click="isExpanded = !isExpanded"
+      >
+        <svg
+          class="expand-chevron"
+          :class="{ 'is-open': isExpanded }"
+          width="11"
+          height="11"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M4 6l4 4 4-4"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <span>{{
+          isExpanded ? "Show less" : `Show full ${inboundKindWord}`
+        }}</span>
+      </button>
+    </template>
     <p v-else-if="props.message.body" class="plain-body">
       {{ props.message.body }}
     </p>
@@ -454,6 +508,52 @@ const accentVar = computed(() => {
 
 .role-user.is-report .role-label {
   color: var(--ink-3);
+}
+
+/* The in-place expander on a long delivered message — quiet pill, chevron
+   rotates open. Never gold (gold = presence only). */
+.expand-chip {
+  appearance: none;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 3px 11px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-3);
+  font: 500 11px/1.5 var(--font-ui);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.expand-chip:hover {
+  color: var(--ink-1);
+  border-color: var(--hair-strong, var(--hair));
+}
+
+.expand-chip:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.expand-chevron {
+  flex: none;
+  transition: transform 140ms ease;
+}
+
+.expand-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expand-chevron {
+    transition: none;
+  }
 }
 
 .error-note {

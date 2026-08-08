@@ -406,6 +406,12 @@ colleague is responding in the chat directly as a participant.
 **Verified:** typecheck 24/24 forced; 213 tests green (MessageRow pins recast to
 full-body + badge — `test: correct expectation`, spec change by Chad).
 
+**Refinement (same day, Chad's browser pass):** a LONG delivered message collapses to its
+lead paragraph with an in-place expander — chevron pill, "Show full report/update/message"
+→ "Show less", expands in the thread (never a popup). The affordance appears only when the
+hidden remainder is substantial (>200 chars past the first paragraph); short messages
+render whole. Pins: collapse/expand round-trip + short-message-no-chip.
+
 ---
 
 *(Case 4+ land here as received.)*
