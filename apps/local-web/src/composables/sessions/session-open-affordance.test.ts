@@ -1,5 +1,5 @@
-// The direct-send rule's one home (B6): spawned chats, a colleague points at
-// @mention, everything else carries on in its own chat.
+// The direct-send rule's one home (B6 + redesign D7): spawned sessions AND
+// agent colleagues chat directly; everything else carries on in its own chat.
 
 import { describe, expect, it } from "vitest";
 import { sessionOpenAffordance } from "./session-open-affordance.js";
@@ -12,10 +12,13 @@ describe("sessionOpenAffordance", () => {
     });
   });
 
-  it("an agent colleague is view-only and points at @mention", () => {
-    const affordance = sessionOpenAffordance("agent");
-    expect(affordance.chattable).toBe(false);
-    expect(affordance.viewOnlyNote).toContain("@mention");
+  // test: correct expectation — G5 shipped (redesign D7): colleague direct-send
+  // composes the delegated agent-session set, same semantics as a mention.
+  it("an agent colleague chats directly too (G5)", () => {
+    expect(sessionOpenAffordance("agent")).toEqual({
+      chattable: true,
+      viewOnlyNote: null,
+    });
   });
 
   it("primaries are view-only — the conversation lives in its own chat", () => {

@@ -1,6 +1,6 @@
 // The B6 pane wrapper: the monitor's session node resolves against the
-// overview — scope drives the direct-send rule (spawned chats; a colleague
-// points at @mention), the entry's title wins over the node's, and an
+// overview — scope drives the direct-send rule (spawned AND agent colleagues
+// chat directly, G5), the entry's title wins over the node's, and an
 // unresolved id stays view-only with no note (honest while loading). The
 // thread machinery itself is SessionThreadView's — stubbed here.
 
@@ -86,16 +86,15 @@ describe("LiveSessionPane", () => {
     harness.wrapper.unmount();
   });
 
-  it("an agent colleague stays view-only and points at @mention", async () => {
+  // test: correct expectation — G5 shipped (redesign D7): a colleague chats
+  // directly from the pane, same semantics as a mention (was view-only).
+  it("an agent colleague chats directly from the pane (G5)", async () => {
     const harness = makeHarness([makeEntry({ scope: "agent", title: "Nova" })]);
     await vi.waitFor(() =>
       expect(
-        harness.wrapper.getComponent(SessionThreadViewStub).props("viewOnlyNote"),
-      ).toContain("@mention"),
+        harness.wrapper.getComponent(SessionThreadViewStub).props(),
+      ).toMatchObject({ chattable: true, viewOnlyNote: null, title: "Nova" }),
     );
-    expect(
-      harness.wrapper.getComponent(SessionThreadViewStub).props("chattable"),
-    ).toBe(false);
     harness.wrapper.unmount();
   });
 

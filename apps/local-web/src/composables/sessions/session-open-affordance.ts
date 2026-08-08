@@ -1,9 +1,9 @@
 // The direct-send rule for an opened session, by scope (persona-sessions B6;
-// locked decisions 1–3) — the ONE home for the wording both the Sessions view
-// and the monitor's live pane show. Spawned chain heads chat directly; an
-// agent COLLEAGUE is spoken to by @mention (widening the direct-turn route to
-// agent scope needs MCP-set parity — the deliberate deferral recorded in the
-// module notes); a primary's conversation carries on in its own chat surface.
+// redesign D7) — the ONE home for the wording both the Sessions view and the
+// live pane show. Spawned chain heads chat directly; an agent COLLEAGUE chats
+// directly too (G5 shipped: the direct-turn route composes the delegated
+// 'agent-session' set + caller identity, same semantics as a mention); a
+// primary's conversation carries on in its own chat surface.
 
 import type { SessionsOverviewEntry } from "@vynel/contracts/chat/sessions-overview";
 
@@ -17,13 +17,8 @@ export function sessionOpenAffordance(
 ): SessionOpenAffordance {
   switch (scope) {
     case "spawned":
-      return { chattable: true, viewOnlyNote: null };
     case "agent":
-      return {
-        chattable: false,
-        viewOnlyNote:
-          "This colleague works from chat — @mention them there to send a message.",
-      };
+      return { chattable: true, viewOnlyNote: null };
     default:
       return {
         chattable: false,

@@ -11,5 +11,9 @@ export {
   findRoutableSessionBySegmentId,
 } from './find-spawned-session-by-segment.js'
 export type { FindSpawnedSessionBySegmentIdInput } from './find-spawned-session-by-segment.js'
-export { findSpawnedSessionById, findAgentSessionById } from './find-spawned-session-by-id.js'
+export {
+  findSpawnedSessionById,
+  findAgentSessionById,
+  findRoutableSessionById,
+} from './find-spawned-session-by-id.js'
 export type { FindSpawnedSessionByIdInput } from './find-spawned-session-by-id.js'
