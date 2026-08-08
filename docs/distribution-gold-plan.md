@@ -212,8 +212,13 @@ rotation runbook documented.
 rcedit-rebranded and signed by the script itself, since Tauri never signs resources). No signing
 env → unsigned build, engine keeps its valid OpenJS signature (rcedit skipped). Partial env →
 loud failure. Activation = create the AAS account, `cargo install artifact-signing-cli`, load the
-six values. *Key hygiene verified 2026-08-09:* no `.key` on disk, in scratchpads, or anywhere in
-git history.
+six values. *Key hygiene verified 2026-08-09:* the minisign updater key lives at
+`C:\Users\KLONE\.vynel-keys\vynel-updater.key` (out of repo and Temp; the old scratchpad copy is
+gone); a test signature's key ID matches the baked pubkey (`b6821acc18524268`), so it IS the
+production key — never regenerate it. It carries **no password** — acceptable for the test phase;
+add one (or rotate to a passworded key via the update chain) before going public. Nothing in git
+history. Release build: `$env:TAURI_SIGNING_PRIVATE_KEY = "C:\Users\KLONE\.vynel-keys\vynel-updater.key"`
+then `pnpm release:desktop`.
 *Green:* installer/exe/uninstaller show valid signatures on the VM; SmartScreen shows publisher
 name, no "unknown publisher".
 
