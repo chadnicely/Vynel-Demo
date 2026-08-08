@@ -43,6 +43,9 @@ export function useChatTurn(options: {
   const activity = useActivityStore();
 
   const view = shallowRef<ActiveTurnView | null>(null);
+  /** Parked behind a delegated run on this workspace (the B3 queued sentinel)
+   *  — the composer says "queued" instead of looking frozen. */
+  const isQueuedBehindTask = shallowRef(false);
   /** The session the in-flight turn renders into — known up front for a resume/
    *  continue, or learned from `session-created` for a fresh conversation. */
   const activeSessionId = shallowRef<string | null>(null);
@@ -103,6 +106,7 @@ export function useChatTurn(options: {
     activeSessionId.value = input.sessionId;
     startedContinuous.value = input.isContinuous;
     errorText.value = null;
+    isQueuedBehindTask.value = false;
     activity.turnStarted();
     abortController = new AbortController();
 
@@ -129,9 +133,13 @@ export function useChatTurn(options: {
       });
       for await (const event of stream as AsyncIterable<ChatTurnStreamEvent>) {
         // Parked behind a delegated run on this workspace — a transport
-        // sentinel, never folded. The composer's queued surfacing arrives
-        // with the sidebar arc.
-        if (event.kind === "turn-queued") continue;
+        // sentinel, never folded; the flag lets the composer say "queued"
+        // instead of looking frozen (the sidebar's workspace thread shows it).
+        if (event.kind === "turn-queued") {
+          isQueuedBehindTask.value = true;
+          continue;
+        }
+        isQueuedBehindTask.value = false;
         ingest(event);
       }
       // The stream closed with NO terminal frame at all — a server crash
@@ -203,6 +211,7 @@ export function useChatTurn(options: {
         isRecoverable: true,
       });
     }
+    isQueuedBehindTask.value = false;
     ingest({ kind: "turn-stream-ended" });
   }
 
@@ -228,6 +237,7 @@ export function useChatTurn(options: {
     activeSessionId,
     startedContinuous,
     isStreaming,
+    isQueuedBehindTask,
     errorText,
     startTurn,
     interrupt,

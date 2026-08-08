@@ -2,8 +2,9 @@
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
-import { useSessionsOverview } from "../../composables/sessions/use-sessions-overview.js";
+import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import LiveSessionPane from "../activity/LiveSessionPane.vue";
+import WorkspaceSidebarThread from "./WorkspaceSidebarThread.vue";
 
 // The pointer's landing (live-tracking redesign, Case 1): a docked right panel
 // with the REAL conversation — one unified flow, no Activity/Chat tabs, no
@@ -15,21 +16,17 @@ import LiveSessionPane from "../activity/LiveSessionPane.vue";
 const sidebar = useConversationSidebarStore();
 const { activeNode, stack } = storeToRefs(sidebar);
 
-const overviewQuery = useSessionsOverview(() => activeNode.value?.kind === "workspace");
-const workspaceEntry = computed(() => {
-  const node = activeNode.value;
-  if (node?.kind !== "workspace") return null;
-  return (
-    (overviewQuery.data.value ?? []).find(
-      (entry) => entry.scope === "workspace" && entry.workspaceId === node.workspaceId,
-    ) ?? null
-  );
-});
-
+const workspacesQuery = useWorkspaceList();
 const headerTitle = computed(() => {
   const node = activeNode.value;
   if (node === null) return "";
-  return node.kind === "session" ? node.title : (workspaceEntry.value?.title ?? "Workspace");
+  if (node.kind === "session") return node.title;
+  const workspace = (workspacesQuery.data.value ?? []).find(
+    (row) => row.id === node.workspaceId,
+  );
+  return workspace === undefined
+    ? "Workspace"
+    : `${workspace.managerName ?? "Assistant"} · ${workspace.name}`;
 });
 </script>
 
@@ -64,14 +61,12 @@ const headerTitle = computed(() => {
           :title="activeNode.title"
           :anchor-trace-id="activeNode.anchorTraceId ?? undefined"
         />
-        <LiveSessionPane
-          v-else-if="workspaceEntry"
-          :key="workspaceEntry.sessionId"
-          :session-id="workspaceEntry.sessionId"
-          :title="workspaceEntry.title"
+        <WorkspaceSidebarThread
+          v-else
+          :key="activeNode.workspaceId"
+          :workspace-id="activeNode.workspaceId"
           :anchor-trace-id="activeNode.anchorTraceId ?? undefined"
         />
-        <p v-else class="sidebar-empty">Loading the conversation…</p>
       </div>
     </aside>
   </Transition>
