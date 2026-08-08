@@ -92,7 +92,7 @@ export const EnvSchema = z.object({
   // Where the desktop updater's latest.json lives. v1 proxies the public
   // releases repo (the same manifest build-desktop.ts publishes); overriding
   // this is how a staging hub points at a staging releases repo.
-  VYNEL_RELEASES_MANIFEST_URL: z
+  CLOUD_RELEASES_MANIFEST_URL: z
     .string()
     .url()
     .default('https://github.com/kafijunior/vynel-releases/releases/latest/download/latest.json'),

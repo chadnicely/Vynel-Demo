@@ -65,7 +65,7 @@ export async function boot(): Promise<void> {
     mail: createLoggingAccountMailSender(logger),
     artifactStore: createFilesystemArtifactStore(env.CLOUD_ARTIFACT_DIR),
     desktopReleases: createDesktopReleaseSource({
-      manifestUrl: env.VYNEL_RELEASES_MANIFEST_URL,
+      manifestUrl: env.CLOUD_RELEASES_MANIFEST_URL,
       logger,
     }),
     ...(env.CLOUD_ARTIFACT_SIGNING_PRIVATE_KEY !== undefined

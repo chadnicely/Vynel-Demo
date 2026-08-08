@@ -269,9 +269,18 @@ independent after.
    `app.vynel.desktop` internally).
 2. **Installer level** — **one-click custom NSIS template now** (Discord-class, no wizard); we
    own the template fork across Tauri upgrades.
-3. **Signing** — provider choice open (AAS if US/Canada, else Certum); the `signCommand` seam +
-   rcedit rebrand step are built NOW, credential-gated, so activation is a config drop. Unsigned
-   builds keep working for internal testing.
+3. **Signing** — DEFERRED until after the demo/test phase (Chad, 2026-08-09). Test builds ship
+   unsigned; testers click through SmartScreen ("More info → Run anyway") — accepted. The
+   minisign updater signing stays always-on. Provider locked: **Azure Artifact Signing** —
+   Chad's boss is US-based and handles the identity verification post-demo.
+   **Activation runbook (boss, ~$9.99/mo):** (1) Azure account with pay-as-you-go billing whose
+   name matches a government ID → apply for Artifact Signing Basic → ID verification (takes
+   days); (2) create the signing account + a Public Trust certificate profile (pick a region,
+   e.g. EastUS → endpoint `https://eus.codesigning.azure.net`); (3) app registration with the
+   "Artifact Signing Certificate Profile Signer" role → client id/secret/tenant; (4) build
+   machine: `cargo install artifact-signing-cli`; (5) load the six env vars from §G2 —
+   `pnpm release:desktop` then signs everything automatically. NEVER delete/recreate the
+   identity validation or certificate profile once live — it anchors SmartScreen reputation.
 4. **G4** — build now; Chad prepares the server. Hub endpoint + endpoints-array flip in this arc.
 5. **CLI must keep working** — `@vynel/cli` + MCP stdio talk HTTP to `localhost:18892`; every
    green gate includes `release:cli-verify` against the installed engine.

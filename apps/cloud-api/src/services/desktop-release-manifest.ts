@@ -99,7 +99,7 @@ export function createDesktopReleaseSource(options: {
       }
       throw new ReleaseManifestUnavailableError(
         `Could not fetch the desktop release manifest (${message}). ` +
-          'Check the releases repo / VYNEL_RELEASES_MANIFEST_URL and retry.',
+          'Check the releases repo / CLOUD_RELEASES_MANIFEST_URL and retry.',
       )
     }
   }
