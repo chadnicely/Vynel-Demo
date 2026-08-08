@@ -87,11 +87,11 @@ describe("MessageRow", () => {
     expect(named.find(".role-label").text()).toBe("Claude");
   });
 
-  // Session-comms delivery — the COMPACT incoming box (pipeline model, Chad
-  // locked 2026-07-27): author identity + teaser + the View-report door, never
-  // the full body inline. test: recast — an earlier spec rendered the full
-  // markdown body in-thread; superseded by the compact-box call.
-  it("renders an inbound user-role report as a compact box: author, teaser, View report", async () => {
+  // Session-comms delivery — a REGULAR participant message (Chad, 2026-08-09,
+  // superseding the 2026-07-27 compact-box call): full markdown body inline,
+  // author line + quiet badge as identity, no accent bar, no View door.
+  // test: correct expectation — teaser/chip/accent pins recast to full-body.
+  it("renders an inbound user-role report as a regular participant message: author, badge, full body", () => {
     const wrapper = mount(MessageRow, {
       props: {
         message: makeMessage({
@@ -107,26 +107,13 @@ describe("MessageRow", () => {
     expect(wrapper.find(".role-label").text()).not.toContain("You");
     expect(wrapper.find(".origin-badge").text()).toBe("Report");
     const row = wrapper.find(".message-row");
+    // Sheds the "your message" bubble but wears NO special chrome.
     expect(row.classes()).toContain("is-report");
-    expect(row.classes()).toContain("has-accent");
-    // Compact: the teaser line, not the full body — no inline markdown render.
-    expect(wrapper.find(".report-teaser").text()).toContain(
-      "Done. The three files are indexed.",
-    );
-    expect(wrapper.text()).not.toContain("Full detail follows below.");
-    // The door carries the FULL (marker-stripped) body to the review dialog.
-    // test: correct expectation (B8) — the payload gained `kind`, so the
-    // dialog can title an interim update honestly.
-    await wrapper.find(".report-open-chip").trigger("click");
-    expect(wrapper.emitted("openReport")).toEqual([
-      [
-        {
-          sourceLabel: "Noah · vynel",
-          body: "**Done.** The three files are indexed.\n\nFull detail follows below.",
-          kind: "report",
-        },
-      ],
-    ]);
+    expect(row.classes()).not.toContain("has-accent");
+    // The FULL body renders inline as markdown — no teaser, no door.
+    expect(wrapper.text()).toContain("Full detail follows below.");
+    expect(wrapper.find(".report-teaser").exists()).toBe(false);
+    expect(wrapper.find(".report-open-chip").exists()).toBe(false);
   });
 
   it("strips the model-facing attribution marker from a report's displayed body", () => {
@@ -312,13 +299,16 @@ describe("MessageRow author avatar", () => {
   });
 });
 
-// Persona-sessions B8: an interim UPDATE must never read as the finished
-// result — its own badge and door label.
-describe("MessageRow update vs report", () => {
+// The badge split (persona-sessions B8 + the direct kind): an interim UPDATE
+// must never read as the finished result, a direct message reads as a
+// message — while every kind renders its FULL body as a regular participant
+// message (Chad, 2026-08-09; the View door + teaser retired).
+// test: correct expectation — the door/teaser pins recast to badge+body.
+describe("MessageRow badge split (update / report / message)", () => {
   const updateBody =
     "[Update from Nova — an interim status on work you delegated, relayed automatically by Vynel. The task is STILL RUNNING; this is NOT its result and NOT a message the user typed.]\n\nReceived — will report when done.";
 
-  it("an inbound UPDATE wears the Update badge and the View update door", () => {
+  it("an inbound UPDATE wears the Update badge; the spoken text renders in full, marker stripped", () => {
     const wrapper = mount(MessageRow, {
       props: {
         message: makeMessage({
@@ -329,16 +319,13 @@ describe("MessageRow update vs report", () => {
         }),
       },
     });
-    expect(wrapper.text()).toContain("Update");
-    expect(wrapper.text()).not.toContain("Report");
-    expect(wrapper.get(".report-open-chip").text()).toContain("View update");
-    // The marker never renders — the teaser is the spoken text.
-    expect(wrapper.get(".report-teaser").text()).toContain(
-      "Received — will report when done.",
-    );
+    expect(wrapper.find(".origin-badge").text()).toBe("Update");
+    expect(wrapper.text()).toContain("Received — will report when done.");
+    expect(wrapper.text()).not.toContain("[Update from Nova");
+    expect(wrapper.find(".report-open-chip").exists()).toBe(false);
   });
 
-  it("an inbound DIRECT message (kind direct_to_user) wears the Message badge, its title as teaser, and the View message door", async () => {
+  it("an inbound DIRECT message (kind direct_to_user) wears the Message badge, full text inline under its title", () => {
     const directBody =
       "[Message from James · Claw Launcher — addressed DIRECTLY to the user and shown to them in this conversation, relayed automatically by Vynel. Not a message the user typed; do not restate it.]\n\nOverview of the agency app\n\nNuxt 4 + Vue 3; seven Pinia stores.";
     const wrapper = mount(MessageRow, {
@@ -352,34 +339,9 @@ describe("MessageRow update vs report", () => {
       },
     });
     expect(wrapper.find(".origin-badge").text()).toBe("Message");
-    expect(wrapper.get(".report-open-chip").text()).toContain("View message");
-    // The teaser IS the sender's title line (the marker never renders).
-    expect(wrapper.get(".report-teaser").text()).toContain(
-      "Overview of the agency app",
-    );
-    // The door carries kind 'direct' so the dialog titles it "Message from".
-    await wrapper.find(".report-open-chip").trigger("click");
-    const [payload] = wrapper.emitted("openReport")![0]! as [{ kind: string }];
-    expect(payload.kind).toBe("direct");
-  });
-
-  it("the View door carries the KIND — the dialog title must never call an update a report", async () => {
-    const wrapper = mount(MessageRow, {
-      props: {
-        message: makeMessage({
-          role: "user",
-          sourceKind: "agent",
-          sourceLabel: "Nova",
-          body: updateBody,
-        }),
-      },
-    });
-    await wrapper.get(".report-open-chip").trigger("click");
-    const [payload] = wrapper.emitted("openReport")![0] as [
-      { sourceLabel: string; kind: string },
-    ];
-    expect(payload.kind).toBe("update");
-    expect(payload.sourceLabel).toBe("Nova");
+    expect(wrapper.text()).toContain("Overview of the agency app");
+    expect(wrapper.text()).toContain("Nuxt 4 + Vue 3; seven Pinia stores.");
+    expect(wrapper.text()).not.toContain("[Message from James");
   });
 
   it("a final report keeps the Report badge", () => {
@@ -393,7 +355,7 @@ describe("MessageRow update vs report", () => {
         }),
       },
     });
-    expect(wrapper.text()).toContain("Report");
-    expect(wrapper.get(".report-open-chip").text()).toContain("View report");
+    expect(wrapper.find(".origin-badge").text()).toBe("Report");
+    expect(wrapper.text()).toContain("Done — shipped.");
   });
 });

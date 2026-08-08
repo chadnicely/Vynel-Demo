@@ -48,14 +48,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
-  /** A report/update/direct box's "View" chip — the host opens the shared dialog. */
-  openReport: [
-    report: {
-      sourceLabel: string;
-      body: string;
-      kind: "report" | "update" | "direct";
-    },
-  ];
   /** A thread pointer's click — navigate to where the task started (the
    *  `partialSessionId` anchor; the redesign's tracking mechanic). The host
    *  routes by the pointer's target (session segment / workspace). */
@@ -350,7 +342,6 @@ watch(
             :assistant-icon-url="props.assistantIconUrl"
             :author-persona="authorPersonaFor(message)"
             :show-header="showsHeaderFor(index)"
-            @open-report="(report) => emit('openReport', report)"
           >
             <template
               v-if="props.toolCallsByMessageId[message.id]?.length"

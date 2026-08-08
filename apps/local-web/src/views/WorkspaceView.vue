@@ -308,7 +308,6 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :assistant-icon-url="assistantIconUrl"
         :pointers-by-trace-id="threadPointers"
         @decide-approval="onDecideApproval"
-        @open-report="(report) => (ui.viewingReport = report)"
         @open-pointer="openPointerTarget"
       />
 

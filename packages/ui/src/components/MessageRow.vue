@@ -51,19 +51,6 @@ const props = withDefaults(
   },
 );
 
-const emit = defineEmits<{
-  /** The report box's "View report/update" chip: open the full text (the
-   *  shared review dialog — the plan-card pattern). Content rides along; no
-   *  fetch. `kind` keeps the dialog's title honest — an interim update must
-   *  never present as the finished result. */
-  openReport: [
-    report: {
-      sourceLabel: string;
-      body: string;
-      kind: "report" | "update" | "direct";
-    },
-  ];
-}>();
 
 // An inbound REPORT — a workspace's or agent's finished result arriving as
 // the notify turn's user-role message (session-comms). It must read as ITS
@@ -169,19 +156,6 @@ const displayBody = computed(() =>
     : props.message.body,
 );
 
-// The report box is COMPACT (pipeline model, Chad 2026-07-27): a teaser line,
-// not the full body — the thread stays a conversation; the full report opens
-// in the shared review dialog via the chip below.
-const REPORT_TEASER_LIMIT = 180;
-const reportTeaser = computed(() => {
-  if (!isInboundReport.value) return null;
-  const firstLine =
-    displayBody.value.split("\n").find((line) => line.trim() !== "") ?? "";
-  const plain = firstLine.replace(/[#*_`>]/g, "").trim();
-  return plain.length > REPORT_TEASER_LIMIT
-    ? `${plain.slice(0, REPORT_TEASER_LIMIT)}…`
-    : plain;
-});
 
 // A user message that arrived through a channel wears a small "via X" badge —
 // origin is HOW it reached the brain (voice daemon, Telegram), distinct from
@@ -230,19 +204,17 @@ const isInboundDirect = computed(
   () => isInboundReport.value && isDirectMessageBody(props.message.body),
 );
 
-// A report bubbled up from a workspace/agent wears that workspace's stable
-// accent (left bar + chip tint) so it reads as belonging to it — on every
-// surface, the workspace's own room included (chip parity above). This covers
-// BOTH shapes a report takes: an assistant-role row (a persona speaking) and
-// the user-role inbound of a notify turn (session-comms delivery). The global
-// brain and the user stay neutral regardless.
+// A persona speaking as an ASSISTANT row wears its workspace accent (left
+// bar). An INBOUND delivered row does NOT (Chad, 2026-08-09): a colleague
+// responding in the chat is a regular participant — the persona author line
+// and the quiet badge carry its identity, never special chrome.
 const accentVar = computed(() => {
   const { role, sourceKind, sourceLabel } = props.message;
-  const isWorkspaceReport =
-    (role === "assistant" || isInboundReport.value) &&
+  const isWorkspaceVoice =
+    role === "assistant" &&
     (sourceKind === "workspace-manager" || sourceKind === "agent") &&
     !!sourceLabel;
-  return isWorkspaceReport ? workspaceAccentVar(sourceLabel!) : null;
+  return isWorkspaceVoice ? workspaceAccentVar(sourceLabel!) : null;
 });
 </script>
 
@@ -338,40 +310,10 @@ const accentVar = computed(() => {
       class="thinking"
     />
 
-    <MarkdownText v-if="isAssistant" :source="displayBody" />
-    <!-- A report renders as a COMPACT incoming box: teaser + the door to the
-         full report (the shared review dialog) — never the full body inline. -->
-    <template v-else-if="isInboundReport">
-      <p v-if="reportTeaser" class="report-teaser">{{ reportTeaser }}</p>
-      <button
-        type="button"
-        class="report-open-chip"
-        @click="
-          emit('openReport', {
-            sourceLabel: props.message.sourceLabel!,
-            body: displayBody,
-            kind: isInboundUpdate ? 'update' : isInboundDirect ? 'direct' : 'report',
-          })
-        "
-      >
-        <span>{{
-          isInboundUpdate
-            ? "View update"
-            : isInboundDirect
-              ? "View message"
-              : "View report"
-        }}</span>
-        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path
-            d="M6 4l4 4-4 4"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-    </template>
+    <!-- A delivered colleague message renders as a REGULAR participant
+         message (Chad, 2026-08-09 — the compact teaser + View door retired):
+         full markdown body, author line + quiet badge as its identity. -->
+    <MarkdownText v-if="isAssistant || isInboundReport" :source="displayBody" />
     <p v-else-if="props.message.body" class="plain-body">
       {{ props.message.body }}
     </p>
@@ -500,62 +442,18 @@ const accentVar = computed(() => {
   padding: 10px 14px;
 }
 
-/* An inbound report sheds the "your message" bubble — the user did not write
-   it. The accent bar (always present: a report always names its workspace)
-   and the persona author line carry its identity instead. */
+/* An inbound colleague message sheds the "your message" bubble — the user did
+   not write it. Otherwise it renders as a regular participant message: the
+   persona author line + quiet badge carry its identity, no special chrome. */
 .role-user.is-report {
   background: none;
   border: none;
   border-radius: 0;
-  padding: 0 0 0 14px;
+  padding: 0;
 }
 
 .role-user.is-report .role-label {
   color: var(--ink-3);
-}
-
-/* The compact incoming-report box: one teaser line, ellipsized. */
-.report-teaser {
-  margin: 0;
-  color: var(--ink-2);
-  font: 400 13px/1.6 var(--font-ui);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 640px;
-}
-
-/* The door to the full report — the workspace accent frames it (a report
-   always carries its workspace's accent). */
-.report-open-chip {
-  appearance: none;
-  border: 1px solid color-mix(in srgb, var(--accent, var(--gold)) 38%, transparent);
-  margin: 0;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 99px;
-  background: color-mix(in srgb, var(--accent, var(--gold)) 12%, transparent);
-  color: var(--ink-1);
-  font: 600 11.5px/1.5 var(--font-ui);
-  cursor: default;
-  transition: border-color var(--t-fast) var(--ease-out);
-}
-
-.report-open-chip:hover {
-  border-color: var(--accent, var(--gold));
-}
-
-.report-open-chip:focus-visible {
-  outline: 2px solid var(--accent, var(--gold));
-  outline-offset: 1px;
-}
-
-.report-open-chip svg {
-  color: var(--ink-3);
-  flex: none;
 }
 
 .error-note {

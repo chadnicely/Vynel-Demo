@@ -383,4 +383,29 @@ resolution); SDK/MCP/port parity OK.
 
 ---
 
+## Post-smoke tweak 4 — colleague messages are regular messages (Chad, 2026-08-09; SHIPPED)
+
+**Instruction:** the left accent border + View chip made a colleague's delivered message
+look like a tracked artifact, not a message — it must render as a REGULAR message: the
+colleague is responding in the chat directly as a participant.
+
+**Shipped shape (supersedes the 2026-07-27 compact-box call):**
+
+- An inbound report/update/direct row renders its FULL marker-stripped body inline as
+  markdown — exactly like any participant's message. Identity = the persona author line +
+  the quiet Report/Update/Message badge; the "your message" bubble still sheds.
+- The accent left-bar now marks assistant-role persona rows only — inbound rows wear no
+  special chrome.
+- Retired end-to-end (dead code the moment the door went): the teaser + "View
+  report/update/message" chip, the `openReport` emit chain (MessageRow → ThreadStream →
+  both views), `ui.viewingReport`, and `ReportViewDialog` (file deleted, AppShell mount
+  removed).
+- Unchanged: the model-facing attribution marker (the badge + strip still read it), the
+  absorb/steer machinery, pointers.
+
+**Verified:** typecheck 24/24 forced; 213 tests green (MessageRow pins recast to
+full-body + badge — `test: correct expectation`, spec change by Chad).
+
+---
+
 *(Case 4+ land here as received.)*

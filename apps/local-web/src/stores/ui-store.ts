@@ -311,18 +311,6 @@ export const useUiStore = defineStore("ui", () => {
   // review dialog.
   const viewingPlanId = ref<string | null>(null);
 
-  // The report being viewed in the SHARED ReportViewDialog (the plan-dialog
-  // pattern) — a thread's compact report box carries the full body here on
-  // "View report"; null = closed. The content rides in directly (it is already
-  // in the thread's DTO — no id, no fetch).
-  const viewingReport = ref<{
-    sourceLabel: string;
-    body: string;
-    /** Keeps the dialog title honest — an interim update never presents as
-     *  the finished result (persona-sessions B8); a direct message presents
-     *  as a message, not a report. */
-    kind: "report" | "update" | "direct";
-  } | null>(null);
 
   // Composer selections, shared by every chat surface — both the model
   // allowlist and the mode vocabulary are the real contract/session ones.
@@ -369,7 +357,6 @@ export const useUiStore = defineStore("ui", () => {
     pruneWorkspaceTabs,
     isTasksPanelOpen,
     viewingPlanId,
-    viewingReport,
     composerModelId,
     composerMode,
     composerThinkingEffort,
