@@ -1,8 +1,11 @@
 // The thread pointer (live-tracking redesign, Case 1): the tracker IS a
-// pointer — a compact "task → target" line under the hand-off row while the
-// task is in flight. One home for the model + the builder both chat hosts use;
-// trackers are in-flight-only by nature (Case 3, D6), so the map simply mirrors
-// the poll and pointers vanish as tasks settle.
+// pointer — a compact "task → target" line under the hand-off row. Pointers
+// PERSIST (Chad, 2026-08-09, revising D6's in-flight-only): running shows the
+// live state, and a settled task keeps its pointer in a completed/failed
+// state — the door to where the work happened stays in the history. One home
+// for the model + both builders every chat host uses: the in-flight poll
+// feeds the live map, the dispatch tool call's served delegation payload is
+// the persistent base.
 
 export type ThreadPointerModel = {
   /** The hop's trace key — the anchor: rows carrying it are where the task
@@ -12,7 +15,7 @@ export type ThreadPointerModel = {
   /** Persona-first target: "July run · Invoices" / "Noah · Invoices" /
    *  "Invoices". */
   targetLabel: string;
-  status: "queued" | "working";
+  status: "queued" | "working" | "completed" | "failed";
   /** The target's current segment id — the sidebar opens the conversation by
    *  it (session-target jobs; serve-time enrichment). */
   targetSessionId: string | null;
@@ -57,4 +60,40 @@ export function buildThreadPointers(
     });
   }
   return pointers;
+}
+
+/** The delegation payload slice a dispatch TOOL CALL carries (serve-time
+ *  enrichment) — structural, decoupled from the SDK response type. */
+type ToolCallPointerSource = {
+  partialSessionId: string | null;
+  status: string;
+  taskLabel?: string | null;
+  deliveredTo?: string | null;
+  targetSessionId?: string | null;
+  workspaceId?: string | null;
+};
+
+/** The PERSISTENT pointer: built from the dispatch call's served delegation,
+ *  so it outlives the in-flight poll — a settled task keeps its pointer in
+ *  its terminal state. Null for a delivery hop (a report points at nothing;
+ *  its taskLabel is null by construction) and for pre-tracing rows. */
+export function buildToolCallPointer(
+  delegation: ToolCallPointerSource,
+): ThreadPointerModel | null {
+  if (delegation.partialSessionId == null || delegation.taskLabel == null) return null;
+  return {
+    partialSessionId: delegation.partialSessionId,
+    taskLabel: delegation.taskLabel.trim() || "Task",
+    targetLabel: delegation.deliveredTo?.trim() || "Session",
+    status:
+      delegation.status === "claimed"
+        ? "working"
+        : delegation.status === "pending"
+          ? "queued"
+          : delegation.status === "failed"
+            ? "failed"
+            : "completed",
+    targetSessionId: delegation.targetSessionId ?? null,
+    workspaceId: delegation.workspaceId ?? null,
+  };
 }

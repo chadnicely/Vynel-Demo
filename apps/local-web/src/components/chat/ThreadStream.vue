@@ -8,6 +8,7 @@ import { MessageRow, ToolCallList } from "@vynel/ui";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
 import LiveTurn from "./LiveTurn.vue";
 import PointerRow from "./PointerRow.vue";
+import { buildToolCallPointer } from "./thread-pointers.js";
 import type { ThreadPointerModel } from "./thread-pointers.js";
 import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
 
@@ -105,7 +106,7 @@ const receivedTraceIds = computed(() => {
   return ids;
 });
 
-// The pointer renders once per in-flight trace key, under the FIRST visible
+// The pointer renders once per trace key, under the FIRST visible
 // row that CARRIES it — and only on the SENDING side (the received-trace
 // discriminator above): in the target's own thread the task row is the
 // anchor, not a pointer. Sender-side, the work key lives on the dispatch
@@ -115,24 +116,37 @@ const receivedTraceIds = computed(() => {
 // and the future mention-row stamp.
 const pointersByMessageId = computed(() => {
   const byMessage = new Map<string, ThreadPointerModel[]>();
-  if (!props.pointersByTraceId?.size) return byMessage;
   const placed = new Set<string>();
   for (const message of visibleMessages.value) {
-    const candidateKeys: string[] = [];
+    const candidates: ThreadPointerModel[] = [];
     for (const call of props.toolCallsByMessageId[message.id] ?? []) {
-      if (call.delegation?.partialSessionId != null) {
-        candidateKeys.push(call.delegation.partialSessionId);
-      }
+      if (call.delegation == null) continue;
+      // The live poll overlays first (fresher status, persona-enriched target
+      // labels); the served payload is the PERSISTENT base — a settled task
+      // keeps its pointer in its terminal state (Chad, 2026-08-09, revising
+      // D6's in-flight-only).
+      const key = call.delegation.partialSessionId;
+      const live = key != null ? props.pointersByTraceId?.get(key) : undefined;
+      const pointer = live ?? buildToolCallPointer(call.delegation);
+      if (pointer != null) candidates.push(pointer);
     }
-    if (message.partialSessionId != null) candidateKeys.push(message.partialSessionId);
-    for (const traceId of candidateKeys) {
-      if (placed.has(traceId) || receivedTraceIds.value.has(traceId)) continue;
-      const pointer = props.pointersByTraceId.get(traceId);
-      if (pointer === undefined) continue;
+    // Row-key match (mention-stamped rows): live-only — a settled mention
+    // leaves the colleague's reply box, which is its own record.
+    if (message.partialSessionId != null) {
+      const rowLive = props.pointersByTraceId?.get(message.partialSessionId);
+      if (rowLive !== undefined) candidates.push(rowLive);
+    }
+    for (const pointer of candidates) {
+      if (
+        placed.has(pointer.partialSessionId) ||
+        receivedTraceIds.value.has(pointer.partialSessionId)
+      ) {
+        continue;
+      }
       const rowPointers = byMessage.get(message.id) ?? [];
       rowPointers.push(pointer);
       byMessage.set(message.id, rowPointers);
-      placed.add(traceId);
+      placed.add(pointer.partialSessionId);
     }
   }
   return byMessage;

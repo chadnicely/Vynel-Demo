@@ -354,4 +354,33 @@ delegated-turn task steer.
 
 ---
 
+## Post-smoke tweak 3 — pointers persist; the dispatch chip retires (Chad, 2026-08-09; SHIPPED)
+
+**Instruction:** the gold delegation chip under the send tool call goes — the pointer below
+it is the tracker; and the pointer STAYS after completion: running indicates running,
+complete stays in a completed state.
+
+**Shipped shape:**
+
+- **Chip retired:** ToolCallList renders nothing under a dispatch card — the chip's
+  `openDelegation` emit had no listener left (dead door since the redesign); its tests are
+  replaced by a no-chip pin.
+- **Pointers persist:** the pointer's base is now the dispatch tool call's served
+  `delegation` payload (permanent), with the in-flight poll only OVERLAYING live state
+  (fresher status + persona-enriched labels). Settled mapping: completed → "done", failed
+  → "failed" (--danger; gold stays presence-only). Still clickable — the payload gained
+  `workspaceId` + `targetSessionId` (current segment, serve-time resolved) so the sidebar
+  route works after the poll stops carrying the job. Delivery hops (null taskLabel) and
+  received-side rows still never grow pointers; mention ROW-key pointers stay live-only
+  (the colleague's reply box is the settled record).
+- **D6 revised:** "trackers are in-flight-only" no longer holds for tool-call pointers.
+
+**Verified:** typecheck 45/45 forced (post SDK regen — `DelegationToolOutcomeSchema` gained
+the two fields); 50 tests green across ToolCallList (no-chip pin), thread-pointers
+(`buildToolCallPointer` status mapping + delivery-hop null), thread-stream (settled pointer
+renders + clicks from an EMPTY live map), attach-delegation-tool-outcomes (segment
+resolution); SDK/MCP/port parity OK.
+
+---
+
 *(Case 4+ land here as received.)*

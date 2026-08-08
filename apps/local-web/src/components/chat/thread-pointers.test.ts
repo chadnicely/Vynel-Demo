@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildThreadPointers } from "./thread-pointers.js";
+import { buildThreadPointers, buildToolCallPointer } from "./thread-pointers.js";
 
 describe("buildThreadPointers", () => {
   it("maps in-flight rows by trace key with persona-first target labels", () => {
@@ -65,5 +65,45 @@ describe("buildThreadPointers", () => {
       workspaceId: null,
     });
     expect(pointers.get("trace-4")!.targetLabel).toBe("Session");
+  });
+});
+
+// The PERSISTENT builder (Chad, 2026-08-09 — pointers stay after completion):
+// built from the dispatch tool call's served delegation payload, so a settled
+// task keeps its pointer in its terminal state.
+describe("buildToolCallPointer", () => {
+  it("maps every job status onto the pointer state, keeping the click destinations", () => {
+    const base = {
+      partialSessionId: "trace-1",
+      taskLabel: "Overview of access levels",
+      deliveredTo: "letterman",
+      workspaceId: "ws-1",
+      targetSessionId: "seg-2",
+    };
+    expect(buildToolCallPointer({ ...base, status: "pending" })!.status).toBe("queued");
+    expect(buildToolCallPointer({ ...base, status: "claimed" })!.status).toBe("working");
+    expect(buildToolCallPointer({ ...base, status: "failed" })!.status).toBe("failed");
+    expect(buildToolCallPointer({ ...base, status: "completed" })).toEqual({
+      partialSessionId: "trace-1",
+      taskLabel: "Overview of access levels",
+      targetLabel: "letterman",
+      status: "completed",
+      targetSessionId: "seg-2",
+      workspaceId: "ws-1",
+    });
+  });
+
+  it("builds nothing for a delivery hop (null taskLabel) or a keyless row", () => {
+    expect(
+      buildToolCallPointer({
+        partialSessionId: "trace-r",
+        status: "completed",
+        taskLabel: null,
+        deliveredTo: "Global",
+      }),
+    ).toBeNull();
+    expect(
+      buildToolCallPointer({ partialSessionId: null, status: "completed", taskLabel: "t" }),
+    ).toBeNull();
   });
 });

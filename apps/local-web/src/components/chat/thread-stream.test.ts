@@ -69,8 +69,9 @@ describe("ThreadStream", () => {
   });
 
   // ── Thread pointers (live-tracking redesign, Case 1): the tracker is a
-  // pointer under the hand-off row — once per in-flight trace, sender-side
-  // only, gone when the task settles (the map mirrors the poll). ──
+  // pointer under the hand-off row — once per trace, sender-side only. It
+  // PERSISTS (Chad, 2026-08-09): live state rides the poll map; a settled
+  // task keeps its pointer from the tool call's served delegation payload. ──
 
   it("renders the pointer under the HAND-OFF row via its dispatch tool call's delegation key; click emits openPointer", async () => {
     // The PRODUCTION shape: sender-side message rows are unstamped — the work
@@ -95,6 +96,8 @@ describe("ThreadStream", () => {
         taskLabel: "July invoicing",
         reportedAt: null,
         completedAt: null,
+        workspaceId: null,
+        targetSessionId: null,
       },
       startedAt: "2026-07-05T10:00:00.000Z",
       completedAt: "2026-07-05T10:00:01.000Z",
@@ -124,6 +127,65 @@ describe("ThreadStream", () => {
     await pointers[0]!.trigger("click");
     // The FULL pointer rides the emit — the host routes by its target.
     expect(wrapper.emitted("openPointer")).toEqual([[pointer]]);
+  });
+
+  it("a SETTLED task keeps its pointer — built from the served delegation payload, done state, still clickable", async () => {
+    const handOff = makeMessage(1);
+    const dispatchCall: ChatToolCallResponse = {
+      id: "tc-settled",
+      parentMessageId: handOff.id,
+      toolUseId: "tu-settled",
+      toolName: "send_message",
+      toolInput: { to: "workspace:letterman" },
+      toolOutput: "queued",
+      status: "completed",
+      approvalStatus: null,
+      isErrorResult: false,
+      delegation: {
+        jobId: "job-2",
+        partialSessionId: "trace-5",
+        status: "completed",
+        deliveredTo: "letterman",
+        taskLabel: "Overview of access levels",
+        reportedAt: "2026-08-09T10:05:00.000Z",
+        completedAt: "2026-08-09T10:05:01.000Z",
+        workspaceId: "ws-letterman",
+        targetSessionId: null,
+      },
+      startedAt: "2026-08-09T10:00:00.000Z",
+      completedAt: "2026-08-09T10:00:01.000Z",
+    };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [handOff],
+        toolCallsByMessageId: { [handOff.id]: [dispatchCall] },
+        activeTurn: null,
+        // The in-flight poll no longer carries the settled job — the pointer
+        // must come from the payload alone (the persistence mechanic).
+        pointersByTraceId: new Map(),
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    const pointer = wrapper.find('[data-testid="thread-pointer"]');
+    expect(pointer.exists()).toBe(true);
+    expect(pointer.attributes("data-status")).toBe("completed");
+    expect(pointer.text()).toContain("Overview of access levels");
+    expect(pointer.text()).toContain("letterman");
+    expect(pointer.text()).toContain("done");
+    await pointer.trigger("click");
+    expect(wrapper.emitted("openPointer")).toEqual([
+      [
+        {
+          partialSessionId: "trace-5",
+          taskLabel: "Overview of access levels",
+          targetLabel: "letterman",
+          status: "completed",
+          targetSessionId: null,
+          workspaceId: "ws-letterman",
+        },
+      ],
+    ]);
   });
 
   it("a scroll-to anchor reveals + lands on the trace row and flashes it (the pointer's landing)", async () => {

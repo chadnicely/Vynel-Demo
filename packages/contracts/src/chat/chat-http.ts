@@ -143,6 +143,12 @@ export interface DelegationToolOutcomeResponse {
   reportedAt: string | null
   /** ISO-8601 — when the job settled; null while in flight. */
   completedAt: string | null
+  /** The target workspace (workspace-target tasks) — the settled pointer's
+   *  sidebar destination once the in-flight poll no longer carries the job. */
+  workspaceId: string | null
+  /** The target's CURRENT segment id (session-target tasks), resolved at
+   *  serve time — the settled pointer opens the conversation by it. */
+  targetSessionId: string | null
 }
 
 /** Serialized row shape inside `GET /sessions/{id}` (within `toolCallsByMessageId` values). */

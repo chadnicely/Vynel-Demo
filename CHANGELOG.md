@@ -46,6 +46,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Task pointers now stay after the work finishes.** The "task → target" line
+  under a hand-off no longer disappears when the task completes — it settles
+  into a quiet "done" (or "failed") state and stays clickable, so you can
+  always jump back to where the work happened. The gold task chip that used to
+  sit under the send-message call is gone: it said the same thing as the
+  pointer, twice.
 - **@mention replies come straight to you.** When you @mention a colleague,
   its answer now lands in your thread as the colleague speaking — instantly,
   with no Claude narration repeating what you can already read. Claude still

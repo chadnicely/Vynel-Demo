@@ -205,6 +205,11 @@ export const DelegationToolOutcomeSchema = z.object({
   taskLabel: z.string().nullable(),
   reportedAt: z.string().nullable(),
   completedAt: z.string().nullable(),
+  /** The settled pointer's click destinations (pointers persist, 2026-08-09) —
+   *  the in-flight poll stops carrying a settled job, so the payload says
+   *  where the pointer opens. */
+  workspaceId: z.string().nullable(),
+  targetSessionId: z.string().nullable(),
 })
 
 export const ChatToolCallSchema = z.object({

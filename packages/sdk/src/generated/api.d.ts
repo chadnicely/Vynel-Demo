@@ -6948,6 +6948,8 @@ export interface operations {
                                     taskLabel: string | null;
                                     reportedAt: string | null;
                                     completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
                                 } | null;
                                 startedAt: string;
                                 completedAt: string | null;
@@ -13574,6 +13576,8 @@ export interface operations {
                                     taskLabel: string | null;
                                     reportedAt: string | null;
                                     completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
                                 } | null;
                                 startedAt: string;
                                 completedAt: string | null;
@@ -13651,6 +13655,8 @@ export interface operations {
                                     taskLabel: string | null;
                                     reportedAt: string | null;
                                     completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
                                 } | null;
                                 startedAt: string;
                                 completedAt: string | null;
@@ -13787,6 +13793,8 @@ export interface operations {
                                     taskLabel: string | null;
                                     reportedAt: string | null;
                                     completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
                                 } | null;
                                 startedAt: string;
                                 completedAt: string | null;

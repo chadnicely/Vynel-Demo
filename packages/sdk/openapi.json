@@ -9363,6 +9363,18 @@
                                     "string",
                                     "null"
                                   ]
+                                },
+                                "workspaceId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "targetSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
@@ -9372,7 +9384,9 @@
                                 "deliveredTo",
                                 "taskLabel",
                                 "reportedAt",
-                                "completedAt"
+                                "completedAt",
+                                "workspaceId",
+                                "targetSessionId"
                               ]
                             },
                             "startedAt": {
@@ -26275,6 +26289,18 @@
                                     "string",
                                     "null"
                                   ]
+                                },
+                                "workspaceId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "targetSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
@@ -26284,7 +26310,9 @@
                                 "deliveredTo",
                                 "taskLabel",
                                 "reportedAt",
-                                "completedAt"
+                                "completedAt",
+                                "workspaceId",
+                                "targetSessionId"
                               ]
                             },
                             "startedAt": {
@@ -26562,6 +26590,18 @@
                                         "string",
                                         "null"
                                       ]
+                                    },
+                                    "workspaceId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "targetSessionId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
                                     }
                                   },
                                   "required": [
@@ -26571,7 +26611,9 @@
                                     "deliveredTo",
                                     "taskLabel",
                                     "reportedAt",
-                                    "completedAt"
+                                    "completedAt",
+                                    "workspaceId",
+                                    "targetSessionId"
                                   ]
                                 },
                                 "startedAt": {
@@ -27077,6 +27119,18 @@
                                     "string",
                                     "null"
                                   ]
+                                },
+                                "workspaceId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "targetSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
@@ -27086,7 +27140,9 @@
                                 "deliveredTo",
                                 "taskLabel",
                                 "reportedAt",
-                                "completedAt"
+                                "completedAt",
+                                "workspaceId",
+                                "targetSessionId"
                               ]
                             },
                             "startedAt": {

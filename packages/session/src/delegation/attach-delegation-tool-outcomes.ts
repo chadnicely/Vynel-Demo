@@ -16,6 +16,7 @@ import type { Database } from '@vynel/db'
 import { findDelegationJobById, isDeliveryJobKind, type DelegationJob } from '@vynel/orchestration'
 import { deriveDelegationTaskLabel } from '@vynel/contracts/chat/delegation-task-label'
 import type { DelegationToolOutcomeResponse } from '@vynel/contracts/chat/chat-http'
+import { findPrimarySessionById } from '../repositories/index.js'
 
 const DELEGATION_TOOL_NAMES = new Set([
   'mcp__vynel__send_message',
@@ -105,6 +106,16 @@ export function attachDelegationToolOutcomes<
           taskLabel: hopTaskLabel(job),
           reportedAt: job.reportedAt?.toISOString() ?? null,
           completedAt: job.completedAt?.toISOString() ?? null,
+          // The settled pointer's destinations (pointers persist — Chad,
+          // 2026-08-09): the in-flight poll stops carrying a settled job, so
+          // the payload itself must say where the click goes. Same CURRENT-
+          // segment resolution the in-flight enrichment uses.
+          workspaceId: job.workspaceId,
+          targetSessionId:
+            job.targetPrimarySessionId !== null
+              ? (findPrimarySessionById(db, job.targetPrimarySessionId)?.currentSdkSessionId ??
+                null)
+              : null,
         }
         return { ...call, delegation: outcome }
       }),

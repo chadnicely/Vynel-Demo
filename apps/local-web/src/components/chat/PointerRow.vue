@@ -2,8 +2,10 @@
 import type { ThreadPointerModel } from "./thread-pointers.js";
 
 // The pointer IS the tracker (live-tracking redesign, Case 1): no card, no
-// mirrored narration — a quiet "task → target" line that exists only while
-// the task is in flight; click navigates to the real conversation.
+// mirrored narration — a quiet "task → target" line; click navigates to the
+// real conversation. It PERSISTS (Chad, 2026-08-09): the gold dot breathes
+// while working, and a settled task keeps the line in a done/failed state —
+// the door into where the work happened stays in the history.
 const props = defineProps<{ pointer: ThreadPointerModel }>();
 
 const emit = defineEmits<{ open: [] }>();
@@ -22,6 +24,10 @@ const emit = defineEmits<{ open: [] }>();
     <span aria-hidden="true" class="pointer-glyph">→</span>
     <span class="pointer-target">{{ props.pointer.targetLabel }}</span>
     <span v-if="props.pointer.status === 'queued'" class="pointer-state">queued</span>
+    <span v-else-if="props.pointer.status === 'completed'" class="pointer-state">done</span>
+    <span v-else-if="props.pointer.status === 'failed'" class="pointer-state pointer-failed"
+      >failed</span
+    >
     <span v-else class="pointer-live" role="img" aria-label="working" />
   </button>
 </template>
@@ -65,6 +71,10 @@ const emit = defineEmits<{ open: [] }>();
   text-transform: uppercase;
   letter-spacing: 0.04em;
   opacity: 0.8;
+}
+/* Honest terminal state — never gold (gold = presence only). */
+.pointer-failed {
+  color: var(--danger);
 }
 /* Gold = presence (the one rule): the dot breathes only while working. */
 .pointer-live {

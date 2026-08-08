@@ -16,6 +16,12 @@ import {
   resolveThreadIdOf,
 } from '@vynel/orchestration'
 import type { Database } from '@vynel/db'
+import { insertChatSession } from '@vynel/chat/repositories'
+import { buildNewChatSessionRow } from '@vynel/chat'
+import {
+  getOrCreatePrimarySession,
+  linkPrimarySessionToSdkSession,
+} from '../continuity/index.js'
 import {
   attachDelegationToolOutcomes,
   extractDispatchResult,
@@ -107,6 +113,9 @@ describe('attachDelegationToolOutcomes', () => {
           taskLabel: 'Summarize the pricing docs',
           reportedAt: null,
           completedAt: null,
+          // The settled pointer's destinations (pointers persist, 2026-08-09).
+          workspaceId: job.workspaceId,
+          targetSessionId: null,
         },
       })
       expect(enriched['m1']![1]).toMatchObject({
@@ -175,6 +184,49 @@ describe('attachDelegationToolOutcomes', () => {
         deliveredTo: 'Acme',
       })
       expect(enriched['m1']![0]!.delegation).not.toHaveProperty('chainHops')
+    })
+  })
+
+  it('a SESSION-target dispatch resolves the target CURRENT segment id — the settled pointer destination', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id })
+      insertChatSession(
+        db,
+        buildNewChatSessionRow({
+          sessionId: 'seg-current-1',
+          userId: user.id,
+          workspaceId: null,
+          providerId: 'claude',
+          startedAt: new Date(),
+        }),
+      )
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        sdkSessionId: 'seg-current-1',
+      })
+      const jobId = enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'root-1',
+        targetPrimarySessionId: primary.id,
+        runCwdPath: 'C:/tmp/x',
+        taskText: 'Compare the vendors.',
+      })
+
+      const enriched = attachDelegationToolOutcomes(db, {
+        m1: [
+          {
+            toolName: 'mcp__vynel__send_task_to_session',
+            toolOutput: mcpOutput({ status: 'enqueued', jobId, sessionName: 'Research' }),
+          },
+        ],
+      })
+      expect(enriched['m1']![0]!.delegation).toMatchObject({
+        jobId,
+        targetSessionId: 'seg-current-1',
+        workspaceId: null,
+      })
     })
   })
 
