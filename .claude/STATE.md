@@ -38,12 +38,25 @@ SessionsView follow). **PHASE 2b SHIPPED `365c026`** (mention rows stamp the FIR
 dispatch's trace key via stampNewestUserMessageTraceKey — mention hand-offs grow pointers;
 task anchor rows carry honest origin labels: tick resolves requesterWorkspaceId → name, else
 'Global' → renders "Claude · from <label>"; deferral ③ acked-'user'-exclusion MOOTED — cards
-die in Phase 4). NEXT: **Phase 2c = the SIDEBAR** (persistent right panel + back-stack hosting
-SessionThreadView for spawned/agent [both chattable now]; scroll-to-anchor by partialSessionId
-+ highlight; workspace-primary hosting needs a send-mode branch [continue-route vs session-
-route — B3's lock makes it safe]; Open session + Pause; ephemeral-agent all-activity view) →
-Phase 3 rail → Phase 4 deletions + full gate + Chad's browser smoke (the ONE interrupt point).
-B6/B8/B9 stay mooted-by-redesign.**
+die in Phase 4). **PHASES 2c + 3 SHIPPED** — `d5ec27b` ConversationSidebar (session+workspace nodes, anchor
+landing via data-trace-id + gold flash, LiveSessionPane reuse) · `1b9846d` review fixes (SDK
+parity regen, mount-scroll race [onMounted skips bottom when anchored], useOpenPointerTarget
+one-home, conversation-sidebar naming) · `5900afe` WorkspaceSidebarThread (REAL composer via
+continue-route, B3 queued sentinel surfaced as isQueuedBehindTask) · `dc27e81` WorkingRail
+(buildRailEntities pure+tested; jobKind on the in-flight DTO for the colleague badge; brain
+rails non-web turns; click → sidebar). Chad's browser pass: **"Ahh you build gold. What I asked absolutely"** — PASSED; his small
+tweaks queued post-completion. **PHASE 4 SHIPPED `be11de0` — THE ARC IS CODE-COMPLETE (13
+commits `80c2931..be11de0`, all local, UNPUSHED).** Deleted: PersonaLiveCard + cards composable
++ pairing home, watch chips (MessageRow machinery incl.), ActivityMonitorPanel + trace/agent/
+background nodes + monitor store, use-background-activity, LiveNowBand/LiveSessionCard,
+narration store + labels + origin-notes, ProcessingBanner, title-bar button (→ PASSIVE dot,
+Q7d), Home band (count-only status line; Home rebuilds later). Final sweep: 700/700 local-web+ui
+(+2093 across all suites this arc), typecheck uncached-clean, 4/4 parity. REMAINING FOR CHAD:
+① run the FULL `pnpm test` gate ② `git push` (13 commits) ③ final smoke on the clean UI ④ his
+queued small tweaks. Deferred-recorded (spec): D4 in-sidebar pointer drill · ephemeral-agent
+rail read + sidebar view · sidebar footer actions (Open session/Pause) · per-session attention
+dots · Stop-from-UI returns with the sidebar footer · server delegationTaskLabel row-attach now
+UI-unused (prune later). B6/B8/B9 mooted-by-redesign (recorded in the punch-list report).**
 
 ## ✅ VOICE WAKE OVERLAY FIXED (2026-08-08) — root cause found + hardened; Chad voice-smoke pending
 

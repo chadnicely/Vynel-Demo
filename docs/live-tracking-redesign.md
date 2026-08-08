@@ -266,9 +266,21 @@ arc — it is rebuilt later.)
   conversation (scroll-to-anchor + highlight, composer with queued sends, Open session,
   Pause; the ephemeral-agent all-activity view) + **G5 colleague direct-send** (D7: route
   widening + MCP-set parity + `SessionTargetLocks`).
+  **SHIPPED 2026-08-08** (`a02bb05` G5 · `365c026` mention anchors + origin labels ·
+  `d5ec27b` ConversationSidebar (session + workspace nodes, anchor landing + gold flash) ·
+  `1b9846d` review fixes (SDK parity, mount-scroll race, one-home opener) · `5900afe`
+  WorkspaceSidebarThread with a REAL composer + the B3 queued sentinel surfaced).
+  Deferred, recorded: in-sidebar pointer rows (the D4 push drill — store semantics pinned);
+  Open-session/Pause footer actions; ephemeral-agent sidebar view (tool card carries it).
 - **Phase 3 — the rail:** entity roster (feed presence + work-kind in-flight jobs + running
   Agent tool calls + the brain), icon typing (workspace icon / agent corner badge / session
   monogram), attention dots, start-order, scroll.
+  **SHIPPED 2026-08-08 `dc27e81`** — `buildRailEntities` (pure, tested) from feed presence +
+  the work-kind poll; one icon per entity; colleague corner badge (`jobKind` now on the
+  DTO); workspace attention dot from pending approvals; the brain rails for NON-web
+  background turns; gold breathing ring = working; click → the sidebar (segment → workspace
+  → trace fallback). Deferred, recorded: ephemeral-agent rail icons (needs a running-agent-
+  calls read); per-session attention dots.
 - **Phase 4 — the deletions + polish:** cards, chips, acked joins, pairing-in-threads,
   narration consumers, ActivityMonitorPanel + trace view + AgentFocusView, Background
   overview, Home band (no replacement — Home rebuilds later), title-bar button (→ passive
