@@ -3,7 +3,7 @@
 **Updated 2026-08-08.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔎 SESSION PACKAGE VERIFIED (2026-08-08) — 9 must-fix bugs found; fix arc awaits Chad's okay
+## 🔎 SESSION VERIFY + LIVE-TRACKING REDESIGN ARC (2026-08-08) — SHIPPED + PUSHED; one fork OPEN (read the ⏳ below)
 
 Full whole-package review of the session backbone + persona-sessions arc (4 adversarial reviewers
 + 3 wh documenters; every must-fix re-verified in code). Mechanically green: typecheck 47/47,
@@ -46,17 +46,48 @@ continue-route, B3 queued sentinel surfaced as isQueuedBehindTask) · `dc27e81` 
 (buildRailEntities pure+tested; jobKind on the in-flight DTO for the colleague badge; brain
 rails non-web turns; click → sidebar). Chad's browser pass: **"Ahh you build gold. What I asked absolutely"** — PASSED; his small
 tweaks queued post-completion. **PHASE 4 SHIPPED `be11de0` — THE ARC IS CODE-COMPLETE (13
-commits `80c2931..be11de0`, all local, UNPUSHED).** Deleted: PersonaLiveCard + cards composable
+commits `80c2931..be11de0`).** Deleted: PersonaLiveCard + cards composable
 + pairing home, watch chips (MessageRow machinery incl.), ActivityMonitorPanel + trace/agent/
 background nodes + monitor store, use-background-activity, LiveNowBand/LiveSessionCard,
 narration store + labels + origin-notes, ProcessingBanner, title-bar button (→ PASSIVE dot,
 Q7d), Home band (count-only status line; Home rebuilds later). Final sweep: 700/700 local-web+ui
-(+2093 across all suites this arc), typecheck uncached-clean, 4/4 parity. REMAINING FOR CHAD:
-① run the FULL `pnpm test` gate ② `git push` (13 commits) ③ final smoke on the clean UI ④ his
-queued small tweaks. Deferred-recorded (spec): D4 in-sidebar pointer drill · ephemeral-agent
-rail read + sidebar view · sidebar footer actions (Open session/Pause) · per-session attention
-dots · Stop-from-UI returns with the sidebar footer · server delegationTaskLabel row-attach now
-UI-unused (prune later). B6/B8/B9 mooted-by-redesign (recorded in the punch-list report).**
+(+2093 across all suites this arc), typecheck uncached-clean, 4/4 parity. GATE RUN + PUSHED
+(Chad's explicit "Do test and push"): full `pnpm test` GREEN — 3,852 tests — then pushed; origin
+carries everything through `be81697`. Deferred-recorded (spec): D4 in-sidebar pointer drill ·
+ephemeral-agent rail read + sidebar view · sidebar footer actions (Open session/Pause) ·
+per-session attention dots · Stop-from-UI returns with the sidebar footer · server
+delegationTaskLabel row-attach now UI-unused (prune later). B6/B8/B9 mooted-by-redesign
+(recorded in the punch-list report).**
+
+**POST-SMOKE TWEAK 1 SHIPPED + PUSHED `be81697` — direct mention replies.** An @mentioned
+colleague's report/update now lands DIRECTLY on the global transcript as his own box — NO notify
+turn (also faster: skips the root turn lock). NO new kinds/columns — pure composition of existing
+ones: the delivery tick (`packages/session/src/delegation/run-report-delivery-tick.ts`) direct
+branch fires when isGlobalRequester AND the chain (`listDelegationJobsByThread`) contains an
+`agent-run` work job → `recordDirectReplyMessage` (@vynel/chat, new: role 'user', sourceKind
+'agent', chain-keyed, lastMessageAt bump; FK-gated, falls back to notify if the root row is
+missing) + a momentary activityFeed begin/end blip live-lands it in open windows → job completes
+'delivered directly'. Claude still KNOWS: agent-run completion no longer stamps
+`surfacedToRootAt`; the catch-up net (widened past delivery kinds) injects it on the NEXT root
+turn marked "already replied DIRECTLY to the user — absorb silently, do NOT restate"; a colleague
+finishing WITHOUT ever replying is called out honestly. Claude-COMMISSIONED tasks keep the
+narrated relay (deliberate contrast). Spec: "Post-smoke tweak 1" section in
+`docs/live-tracking-redesign.md` (+ its 2 recorded follow-ups: workspace-origin mentions still
+narrate — needs a workspace-side recorder twin; prune caller-free `recordPushedReportMessage`).
+
+**⏳ OPEN FORK — AWAITING CHAD'S VERDICT (pick this up first): extend direct mode to
+Claude-DISPATCHED colleague replies?** Chad's smoke screenshot: he asked Claude → Claude's turn
+`send_message`'d James (a session-target `task` job, NOT agent-run) → James's report box landed
+AND Claude re-narrated it near-verbatim — the same echo via the other door (per-design today:
+direct fires only for composer @mentions; api runs `node --watch` so this was NOT stale code).
+PROPOSED, my lean = extend: widen the tick's chain condition from `jobKind === 'agent-run'` to
+"any work job targeting a session" (`targetPrimarySessionId != null` — colleague or spawned), so
+EVERY session-kind child speaking to the global root lands as its box, never echoed; the
+absorb-silently net covers Claude's awareness; workspace-TARGET reports (the manager himself
+speaking) keep narration — no box duplication there. Also needs: a task-kind absorb line in
+`collect-delegation-reports-for-root.ts` + test pins (direct test in
+`run-report-delivery-tick.update.test.ts`, collector expectations). Chad had NOT answered when
+the session hit the context limit — ask "extend?" and execute on his yes.
 
 ## ✅ VOICE WAKE OVERLAY FIXED (2026-08-08) — root cause found + hardened; Chad voice-smoke pending
 
