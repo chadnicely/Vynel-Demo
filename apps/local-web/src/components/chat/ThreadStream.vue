@@ -4,7 +4,14 @@ import type {
   ChatMessageResponse,
   ChatToolCallResponse,
 } from "@vynel/contracts/chat/chat-http";
-import { MessageRow, ToolCallList } from "@vynel/ui";
+import {
+  MessageRow,
+  ToolCallList,
+  splitSourceLabel,
+  workspaceColorSlot,
+  workspaceMonogram,
+} from "@vynel/ui";
+import { useCustomizeStore } from "../../stores/customize-store.js";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
 import LiveTurn from "./LiveTurn.vue";
 import PointerRow from "./PointerRow.vue";
@@ -37,12 +44,16 @@ const props = withDefaults(
      *  this trace key on open, flash it, and stay there — the user asked for
      *  where the task started, not the live edge. */
     scrollToTraceId?: string | undefined;
+    /** Workspace name → id (the host's list) — unlocks the delivered-row
+     *  workspace chip's customized icon + accent. Omitted = name-derived look. */
+    workspacesByName?: Record<string, string> | undefined;
   }>(),
   {
     assistantName: "Assistant",
     assistantIconUrl: null,
     pointersByTraceId: undefined,
     scrollToTraceId: undefined,
+    workspacesByName: undefined,
   },
 );
 
@@ -59,6 +70,34 @@ const emit = defineEmits<{
 // same way the live cards resolve theirs. No workspaceId at row level, so the
 // customized image stays with the cards; the monogram + accent carry here.
 const { resolvePersona } = usePersonaResolver();
+
+// The workspace chip beside a delivered row's author (Chad, 2026-08-09): the
+// label's LAST " · " segment (the persona-first rule) resolves to an
+// icon/monogram + accent; hover shows the profile card. The host's name→id
+// map unlocks the customized image + color.
+const customize = useCustomizeStore();
+function workspaceBadgeFor(message: ChatMessageResponse) {
+  if (
+    message.role !== "user" ||
+    (message.sourceKind !== "agent" &&
+      message.sourceKind !== "workspace-manager") ||
+    message.sourceLabel == null
+  ) {
+    return null;
+  }
+  const { workspace } = splitSourceLabel(message.sourceLabel);
+  if (workspace === null) return null;
+  const workspaceId = props.workspacesByName?.[workspace] ?? null;
+  const custom =
+    workspaceId !== null ? customize.customizationFor(workspaceId) : null;
+  return {
+    name: workspace,
+    imageUrl: custom?.workspaceImage ?? null,
+    monogram: workspaceMonogram(workspace),
+    accentVar: `--ws-${custom?.colorSlot ?? workspaceColorSlot(workspace)}`,
+  };
+}
+
 function authorPersonaFor(message: ChatMessageResponse) {
   const isPersonaRow =
     (message.sourceKind === "workspace-manager" ||
@@ -395,6 +434,7 @@ watch(
             :assistant-name="props.assistantName"
             :assistant-icon-url="props.assistantIconUrl"
             :author-persona="authorPersonaFor(message)"
+            :workspace-badge="workspaceBadgeFor(message)"
             :show-header="showsHeaderFor(index)"
             :collapsible="showsHeaderFor(index)"
             :collapsed="!isTurnExpanded(turnKeyAt(index))"

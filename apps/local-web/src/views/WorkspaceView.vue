@@ -43,6 +43,15 @@ const tab = ui.activeTab;
 const shell = tab.shell;
 
 const workspacesQuery = useWorkspaceList();
+// Name -> id for the delivered-row workspace chips (ThreadStream).
+const workspacesByName = computed(() =>
+  Object.fromEntries(
+    (workspacesQuery.data.value ?? []).map((workspace) => [
+      workspace.name,
+      workspace.id,
+    ]),
+  ),
+);
 const workspaces = computed(() => workspacesQuery.data.value ?? []);
 
 const activeWorkspace = computed(
@@ -307,6 +316,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
         :assistant-icon-url="assistantIconUrl"
         :pointers-by-trace-id="threadPointers"
+        :workspaces-by-name="workspacesByName"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"
       />

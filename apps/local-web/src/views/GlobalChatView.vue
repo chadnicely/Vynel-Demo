@@ -123,6 +123,15 @@ const globalChannels = computed(() =>
 // The workspaces the assistant runs — shown on the hero's command deck, each
 // wearing its accent color with its manager persona.
 const workspacesQuery = useWorkspaceList();
+// Name -> id for the delivered-row workspace chips (ThreadStream).
+const workspacesByName = computed(() =>
+  Object.fromEntries(
+    (workspacesQuery.data.value ?? []).map((workspace) => [
+      workspace.name,
+      workspace.id,
+    ]),
+  ),
+);
 const activeWorkspaces = computed(() =>
   (workspacesQuery.data.value ?? []).filter(
     (workspace) => !workspace.isArchived,
@@ -415,6 +424,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :assistant-name="ASSISTANT_NAME"
         :assistant-icon-url="assistantIconUrl"
         :pointers-by-trace-id="threadPointers"
+        :workspaces-by-name="workspacesByName"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"
       />

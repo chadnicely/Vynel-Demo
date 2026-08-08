@@ -444,6 +444,71 @@ describe("MessageRow delivered-message card", () => {
   });
 });
 
+// The workspace chip + run-stats door (Chad, 2026-08-09): the label's
+// workspace segment becomes an icon (hover = profile card), and a served
+// runStats grows the info icon (hover = model/tools/tokens/duration).
+describe("MessageRow workspace chip + run stats", () => {
+  const badge = {
+    name: "Claw Launcher",
+    imageUrl: null,
+    monogram: "CL",
+    accentVar: "--ws-2",
+  };
+
+  it("the chip replaces the label's workspace segment — persona name + monogram chip", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "James · Claw Launcher",
+          body: "hi",
+        }),
+        workspaceBadge: badge,
+      },
+    });
+    const label = wrapper.find(".role-label");
+    expect(label.text()).toContain("James");
+    expect(label.text()).not.toContain("Claw Launcher");
+    expect(wrapper.get(".workspace-badge .badge-monogram").text()).toBe("CL");
+  });
+
+  it("a served runStats grows the info door; without it none renders", () => {
+    const withStats = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "James · Claw Launcher",
+          body: "hi",
+          runStats: {
+            model: "claude-x",
+            toolCallCount: 3,
+            inputTokens: 1200,
+            outputTokens: 400,
+            durationMs: 5000,
+          },
+        }),
+        workspaceBadge: badge,
+      },
+    });
+    expect(withStats.find(".run-info").exists()).toBe(true);
+
+    const without = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "Nova",
+          body: "hi",
+        }),
+      },
+    });
+    expect(without.find(".run-info").exists()).toBe(false);
+    expect(without.find(".workspace-badge").exists()).toBe(false);
+  });
+});
+
 // TURN folding (Chad, 2026-08-09): a collapsible header row can fold its whole
 // message to a strip — author, first-line preview, time, chevron.
 describe("MessageRow turn folding (collapsible header)", () => {

@@ -43,6 +43,7 @@ export {
   workspaceColorSlot,
   workspaceNameFromLabel,
 } from "./lib/workspace-color.js";
+export { splitSourceLabel } from "./lib/source-label.js";
 export {
   formatMessageTimestamp,
   formatElapsed,

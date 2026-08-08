@@ -11,8 +11,10 @@ import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
 import AttachmentChips from "./AttachmentChips.vue";
 import ClaudeMark from "./ClaudeMark.vue";
+import Tooltip from "./Tooltip.vue";
 import { workspaceAccentVar } from "../lib/workspace-color.js";
 import { formatMessageTimestamp } from "../lib/format-timestamp.js";
+import { splitSourceLabel } from "../lib/source-label.js";
 
 // Watch chips retired with the live-tracking redesign: tracking is a POINTER
 // under the hand-off row (ThreadStream renders it); a settled row carries
@@ -42,6 +44,16 @@ const props = withDefaults(
       monogram: string;
       accentVar: string;
     } | null;
+    /** The row's WORKSPACE identity chip (delivered colleague rows): the host
+     *  resolves the label's workspace segment to an icon/monogram + accent —
+     *  the chip's hover shows a small profile card, and the author line drops
+     *  the workspace text (the chip carries it). Null hides the chip. */
+    workspaceBadge?: {
+      name: string;
+      imageUrl: string | null;
+      monogram: string;
+      accentVar: string;
+    } | null;
     /** TURN folding (Chad, 2026-08-09): true on a turn's header row — the
      *  header grows the time+chevron toggle at its right edge. */
     collapsible?: boolean;
@@ -54,6 +66,7 @@ const props = withDefaults(
     assistantIconUrl: null,
     showHeader: true,
     authorPersona: null,
+    workspaceBadge: null,
     collapsible: false,
     collapsed: false,
   },
@@ -94,7 +107,13 @@ const roleLabel = computed(() => {
       return props.message.sourceLabel
         ? `Claude · from ${props.message.sourceLabel}`
         : "Claude";
-    if (isInboundReport.value) return props.message.sourceLabel!;
+    if (isInboundReport.value) {
+      // With a workspace chip beside the name, the label shows the PERSONA
+      // part only — the workspace moved into the chip + its hover card.
+      return props.workspaceBadge !== null
+        ? splitSourceLabel(props.message.sourceLabel!).persona
+        : props.message.sourceLabel!;
+    }
     // A mention lands as the USER speaking directly into this conversation,
     // labeled with where it came from (redesign Case 3).
     if (props.message.sourceKind === "user" && props.message.sourceLabel)
@@ -249,6 +268,36 @@ const inboundKindWord = computed(() =>
 
 const isExpanded = ref(false);
 
+// The run-stats hover card (Chad, 2026-08-09): the info icon beside the
+// workspace chip reveals the PRODUCING run's stats — served on delivered rows.
+function formatTokenCount(count: number): string {
+  return count >= 1000
+    ? `${(count / 1000).toFixed(1).replace(/\.0$/, "")}k`
+    : String(count);
+}
+
+function formatRunDuration(ms: number): string {
+  if (ms < 1000) return "<1s";
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
+}
+
+const runTokensLabel = computed(() => {
+  const stats = props.message.runStats;
+  if (stats == null) return null;
+  if (stats.inputTokens === null && stats.outputTokens === null) return "—";
+  return `${formatTokenCount(stats.inputTokens ?? 0)} in · ${formatTokenCount(
+    stats.outputTokens ?? 0,
+  )} out`;
+});
+
+const runDurationLabel = computed(() =>
+  props.message.runStats?.durationMs != null
+    ? formatRunDuration(props.message.runStats.durationMs)
+    : "still running",
+);
+
 // The folded strip's one-line preview — the first non-empty line of the
 // display body (marker already stripped), the card-title cleanup applied.
 const collapsedPreview = computed(() => {
@@ -311,6 +360,79 @@ const accentVar = computed(() => {
         <ClaudeMark v-else :size="14" />
       </span>
       {{ roleLabel }}
+      <!-- The WORKSPACE chip (Chad, 2026-08-09): the label's workspace text
+           became an icon; hover shows the profile card. -->
+      <Tooltip v-if="props.workspaceBadge" side="bottom" :delay-ms="150">
+        <template #content>
+          <span class="hover-card">
+            <span
+              class="hover-card-chip"
+              :style="{
+                background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
+              }"
+            >
+              <img
+                v-if="props.workspaceBadge.imageUrl"
+                :src="props.workspaceBadge.imageUrl"
+                alt=""
+              />
+              <span v-else>{{ props.workspaceBadge.monogram }}</span>
+            </span>
+            <span class="hover-card-title">{{ props.workspaceBadge.name }}</span>
+            <span class="hover-card-caption">Workspace</span>
+          </span>
+        </template>
+        <span
+          class="workspace-badge"
+          :style="{
+            background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
+          }"
+          :aria-label="`workspace ${props.workspaceBadge.name}`"
+        >
+          <img
+            v-if="props.workspaceBadge.imageUrl"
+            :src="props.workspaceBadge.imageUrl"
+            alt=""
+          />
+          <span v-else class="badge-monogram">{{
+            props.workspaceBadge.monogram
+          }}</span>
+        </span>
+      </Tooltip>
+      <!-- The run-stats door: hover reveals the producing run's metadata. -->
+      <Tooltip v-if="props.message.runStats" side="bottom" :delay-ms="150">
+        <template #content>
+          <span class="hover-card stats-card">
+            <span class="stats-row">
+              <span class="stats-key">Model</span>
+              <span>{{ props.message.runStats.model ?? "default" }}</span>
+            </span>
+            <span class="stats-row">
+              <span class="stats-key">Tool calls</span>
+              <span>{{ props.message.runStats.toolCallCount }}</span>
+            </span>
+            <span class="stats-row">
+              <span class="stats-key">Tokens</span>
+              <span>{{ runTokensLabel }}</span>
+            </span>
+            <span class="stats-row">
+              <span class="stats-key">Took</span>
+              <span>{{ runDurationLabel }}</span>
+            </span>
+          </span>
+        </template>
+        <span class="run-info" aria-label="run details">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.3" />
+            <path
+              d="M8 7.4v3.1M8 5.3v.2"
+              stroke="currentColor"
+              stroke-width="1.4"
+              stroke-linecap="round"
+            />
+          </svg>
+        </span>
+      </Tooltip>
       <span v-if="originBadge" class="origin-badge">
         <!-- Inline glyphs keep @vynel/ui icon-library-free -->
         <svg
@@ -677,6 +799,94 @@ const accentVar = computed(() => {
   font: 400 10px/1.5 var(--font-ui);
   letter-spacing: 0.02em;
   opacity: 0.85;
+}
+
+/* The workspace identity chip beside the author name — the label's workspace
+   text as an icon (accent-tinted monogram, or the customized image). */
+.workspace-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.workspace-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.badge-monogram {
+  color: var(--ink-1);
+  font: 600 8px/1 var(--font-ui);
+  letter-spacing: 0.02em;
+}
+
+.run-info {
+  display: inline-flex;
+  color: var(--ink-3);
+}
+
+.run-info:hover {
+  color: var(--ink-1);
+}
+
+/* Hover-card content (teleported, but it keeps this component's scope). */
+.hover-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+}
+
+.hover-card-chip {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  overflow: hidden;
+  color: var(--ink-1);
+  font: 600 11px/1 var(--font-ui);
+}
+
+.hover-card-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hover-card-title {
+  color: var(--ink-1);
+  font: 600 12px/1.4 var(--font-ui);
+}
+
+.hover-card-caption {
+  color: var(--ink-3);
+  font: 500 9.5px/1.2 var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stats-card {
+  align-items: stretch;
+  min-width: 150px;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink-1);
+  font: 400 11.5px/1.6 var(--font-ui);
+}
+
+.stats-key {
+  color: var(--ink-3);
 }
 
 /* "via Voice" — a quiet provenance mark beside the author line. */

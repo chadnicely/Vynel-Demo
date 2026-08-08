@@ -8,6 +8,7 @@ import { useCustomizeStore } from "../../stores/customize-store.js";
 import SectionHeader from "../sections/SectionHeader.vue";
 import MenuEditor from "./MenuEditor.vue";
 import PersonaIconPicker from "./PersonaIconPicker.vue";
+import WorkspaceIconPicker from "./WorkspaceIconPicker.vue";
 
 // The workspace's Customize canvas: who runs this room (name, persona,
 // accent color) and how its menu reads (the layout editor). Names save
@@ -114,6 +115,10 @@ const cardClass = "rounded-lg border border-hair bg-panel p-3.5";
           renaming it changes the mention too.
         </p>
         <PersonaIconPicker :scope-key="props.workspaceId" />
+        <WorkspaceIconPicker
+          :workspace-id="props.workspaceId"
+          :workspace-name="nameDraft"
+        />
         <div class="flex items-center justify-between">
           <WorkspaceColorPicker
             :selected-slot="colorSlot"

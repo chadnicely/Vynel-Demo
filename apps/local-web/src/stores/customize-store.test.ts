@@ -183,4 +183,22 @@ describe("customize-store persona image", () => {
     reloaded.setPersonaImage("global", null);
     expect(reloaded.customizationFor("global").personaImage).toBeNull();
   });
+
+  it("stores the WORKSPACE icon per scope, independent of the persona image, and survives reload", () => {
+    const store = useCustomizeStore();
+
+    store.setWorkspaceImage("w1", "data:image/png;base64,BBBB");
+    expect(store.customizationFor("w1").workspaceImage).toBe(
+      "data:image/png;base64,BBBB",
+    );
+    expect(store.customizationFor("w1").personaImage).toBeNull();
+
+    setActivePinia(createPinia());
+    const reloaded = useCustomizeStore();
+    expect(reloaded.customizationFor("w1").workspaceImage).toBe(
+      "data:image/png;base64,BBBB",
+    );
+    reloaded.setWorkspaceImage("w1", null);
+    expect(reloaded.customizationFor("w1").workspaceImage).toBeNull();
+  });
 });

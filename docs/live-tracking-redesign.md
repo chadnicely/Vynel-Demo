@@ -457,4 +457,34 @@ continuations return on open (grouping pin recast), plain rows unchanged.
 
 ---
 
+## Post-smoke tweak 6 — author-line icons + run receipts (Chad, 2026-08-09; SHIPPED)
+
+**Instruction (his mock):** persona icon + a WORKSPACE icon in the author line (icon
+option per workspace); after it another icon whose hover shows the conversation's
+metadata — model used, tool calls, tokens, time to complete; the workspace icon's hover
+shows the workspace name like a profile card.
+
+**Shipped shape:**
+
+- **Server** — `attachDeliveredRunStats` (session tier, the task-labels sibling): a
+  delivered colleague row resolves its delivery hop → the chain's latest WORK hop → that
+  run's stats: model (job override, else the session's), tool-call count + token sums off
+  the trace rows, duration = claim → report/completion. Rides `ChatMessageResponse.runStats`
+  on both detail reads (root + workspace); SDK regenerated.
+- **UI** — the label's workspace segment (LAST " · ", the persona-first rule) becomes an
+  accent-tinted icon chip; hover = profile card (chip + name + "Workspace"). `runStats`
+  grows the ⓘ door; hover = Model / Tool calls / Tokens (in · out) / Took. Tooltip gained
+  a rich `#content` slot; `splitSourceLabel` is the one-home split.
+- **Workspace icon option** — `workspaceImage` in the local customize store (per-scope,
+  like the persona image) + a WorkspaceIconPicker in the workspace Customize section;
+  the chips read it via the hosts' name→id map (ThreadStream stays data-blind).
+
+**Verified:** typecheck 72/72 forced; 229 tests green (enrichment resolution incl.
+session-model fallback + orphan pass-through, chip/label split, info door, store
+round-trip, splitSourceLabel last-segment rule); SDK/MCP/port parity OK; live via
+playwright — real cards: "Model claude-fable-5 · Tool calls 6 · Tokens 229.4k in · 35 out
+· Took 32s" and "CL · Claw Launcher · Workspace".
+
+---
+
 *(Case 4+ land here as received.)*

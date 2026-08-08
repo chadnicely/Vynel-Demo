@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Colleague rows got identity and receipts.** A delivered message's author
+  line now reads like a profile: the persona's avatar, their name, then the
+  workspace as a small icon — hover it for a profile card with the workspace's
+  name. You can give each workspace its own icon in Customize (it falls back
+  to the colored monogram). Beside it sits a quiet info mark: hover to see the
+  run's receipts — which model did the work, how many tool calls it made, the
+  tokens it used, and how long it took.
 - **Chats fold into tidy turns.** Every turn in every chat now collapses to a
   single strip — the author's icon and name, the first line as a preview, and
   the time with a chevron at the right edge. Only the latest turn is open by

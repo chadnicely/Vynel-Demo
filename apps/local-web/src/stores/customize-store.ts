@@ -34,6 +34,9 @@ export interface ScopeCustomization {
   colorSlot: number | null;
   /** Data-URL avatar for the persona's conversation icon; null = ClaudeMark. */
   personaImage: string | null;
+  /** Data-URL icon for the WORKSPACE itself (author-line chips, hover cards);
+   *  null = the name-derived monogram over the accent. */
+  workspaceImage: string | null;
   groups: WorkspaceMenuGroup[];
   entries: WorkspaceMenuEntry[];
 }
@@ -46,6 +49,7 @@ export function defaultCustomization(): ScopeCustomization {
   return {
     colorSlot: null,
     personaImage: null,
+    workspaceImage: null,
     groups: Object.entries(MENU_GROUP_LABELS).map(([id, label]) => ({
       id,
       label,
@@ -81,6 +85,7 @@ function reconcile(stored: ScopeCustomization): ScopeCustomization {
   return {
     colorSlot: stored.colorSlot,
     personaImage: stored.personaImage,
+    workspaceImage: stored.workspaceImage,
     groups: stored.groups,
     entries,
   };
@@ -106,6 +111,10 @@ function readStored(): Record<string, ScopeCustomization> {
         personaImage:
           typeof candidate.personaImage === "string"
             ? candidate.personaImage
+            : null,
+        workspaceImage:
+          typeof candidate.workspaceImage === "string"
+            ? candidate.workspaceImage
             : null,
         groups: candidate.groups,
         entries: candidate.entries,
@@ -147,6 +156,11 @@ export const useCustomizeStore = defineStore("customize", () => {
 
     function setPersonaImage(workspaceId: string, dataUrl: string | null) {
       ensure(workspaceId).personaImage = dataUrl;
+      persist();
+    }
+
+    function setWorkspaceImage(workspaceId: string, dataUrl: string | null) {
+      ensure(workspaceId).workspaceImage = dataUrl;
       persist();
     }
 
@@ -246,6 +260,7 @@ export const useCustomizeStore = defineStore("customize", () => {
       isCustomized,
       setColorSlot,
       setPersonaImage,
+      setWorkspaceImage,
       setHidden,
       setGroup,
       moveEntry,
