@@ -10,7 +10,13 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { serve } from '@hono/node-server'
 import pino from 'pino'
-import { createDatabase, closeDatabase, runMigrations, sqliteMigrationsFolder } from '@vynel/db'
+import {
+  createDatabase,
+  closeDatabase,
+  runMigrations,
+  backupBeforePendingMigrations,
+  sqliteMigrationsFolder,
+} from '@vynel/db'
 import { getOrCreateLocalUser } from '@vynel/core/users'
 import { configureEmbeddingsCacheDir } from '@vynel/embeddings'
 import { expireAskRequests } from '@vynel/asks'
@@ -93,6 +99,19 @@ export async function boot(): Promise<void> {
     env.VYNEL_ASSETS_DIR !== undefined
       ? join(env.VYNEL_ASSETS_DIR, 'migrations-sqlite')
       : sqliteMigrationsFolder
+  // First boot after an app update: snapshot the DB before its migrations run
+  // (the one non-rollbackable update step). No-op on fresh installs and
+  // ordinary boots; a file path is the sqlite marker (the backup is
+  // sqlite-only by nature — VACUUM INTO through the live connection).
+  if (env.DB_PATH !== undefined) {
+    const backupPath = backupBeforePendingMigrations(db, {
+      migrationsFolder,
+      databasePath: env.DB_PATH,
+    })
+    if (backupPath !== null) {
+      logger.info({ backupPath }, 'api boot: database backed up before pending migrations')
+    }
+  }
   logger.info({ migrationsFolder }, 'api boot: running migrations')
   runMigrations(db, { migrationsFolder })
 
