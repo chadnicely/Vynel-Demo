@@ -58,6 +58,9 @@ export type DelegateToSpawnedSessionInput = {
   /** The spawned session's name — the reply attribution's `sourceLabel` (v1: the
    *  session plays the "manager" role in the report chain). */
   sessionName: string
+  /** The origin scope's display name for the task anchor row ("Claude · from
+   *  <label>" — redesign Phase-2b). */
+  userSourceLabel?: string
   /** The task the global root delegates. */
   taskText: string
   /** The provider id stamped on the persisted rows. */
@@ -172,6 +175,9 @@ export async function delegateToSpawnedSession(
         : {}),
       ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
       userSourceKind: 'global-root',
+      ...(input.userSourceLabel !== undefined
+        ? { userSourceLabel: input.userSourceLabel }
+        : {}),
       assistantSourceKind: 'workspace-manager',
       assistantSourceLabel: composeManagerSourceLabel(input.sessionName),
     },

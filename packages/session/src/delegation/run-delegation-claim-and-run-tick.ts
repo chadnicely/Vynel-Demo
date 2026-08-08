@@ -471,6 +471,13 @@ export async function runDelegationClaimAndRunTick(
     // byte-for-byte the pre-slice path. Captured for closure narrowing.
     const spawnedTargetId = claimed.targetPrimarySessionId
     const agentTarget = colleagueAgent
+    // The task anchor row's honest origin (redesign Phase-2b): a mention-routed
+    // job carries its requester workspace; everything else was asked at the
+    // global root. Renders as "Claude · from <label>".
+    const originScopeLabel =
+      claimed.requesterWorkspaceId !== null
+        ? (findWorkspaceById(db, claimed.requesterWorkspaceId)?.name ?? 'Workspace')
+        : 'Global'
     const delegate: DelegateForRouting =
       spawnedTargetId !== null && agentTarget !== null
         ? (delegationInput) =>
@@ -485,9 +492,12 @@ export async function runDelegationClaimAndRunTick(
               agentAllowedTools: agentTarget.allowedTools,
               agentDisallowedTools: agentTarget.disallowedTools,
               taskText: delegationInput.taskText,
-              // v1 parity with spawned targets: the sender reads as the
-              // system-relayed global root (the recorded compromise).
-              userAttribution: { userSourceKind: 'global-root' },
+              // The sender reads as Claude relaying the ask, labeled with its
+              // honest origin scope (redesign Phase-2b).
+              userAttribution: {
+                userSourceKind: 'global-root',
+                userSourceLabel: originScopeLabel,
+              },
               ...sharedRunnerOptions,
               // The agent's own model backs the job's pick (job pick wins).
               ...(claimed.model === null && agentTarget.model !== null
@@ -503,6 +513,7 @@ export async function runDelegationClaimAndRunTick(
                 runCwdPath,
                 sessionName: targetName,
                 taskText: delegationInput.taskText,
+                userSourceLabel: originScopeLabel,
                 ...sharedRunnerOptions,
               })
           : (delegationInput) =>
@@ -510,6 +521,7 @@ export async function runDelegationClaimAndRunTick(
                 ...delegationInput,
                 workspaceName: targetName,
                 ...(managerName !== undefined ? { managerName } : {}),
+                userSourceLabel: originScopeLabel,
                 ...sharedRunnerOptions,
               })
 

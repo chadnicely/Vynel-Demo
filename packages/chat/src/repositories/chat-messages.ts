@@ -7,7 +7,7 @@
 // No `delete*ChatMessage` — messages are deleted by cascade when their
 // session is hard-deleted by the purge job.
 
-import { asc, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   chatMessages,
@@ -78,6 +78,36 @@ export function listRecentChatMessagesForSession(
     .limit(limit)
     .all()
     .reverse()
+}
+
+// Stamp the turn's OWN user row with a delegation trace key (redesign
+// Phase-2b: a mention hand-off grows a thread pointer). The newest unstamped
+// user row on the session IS the mention message — the dispatch runs inside
+// that turn, which holds its target's single-writer lock, so no concurrent
+// writer exists; the isNull guard keeps attributed inbound rows (which carry
+// their own keys) untouched, and a re-stamp can never overwrite.
+export function stampNewestUserMessageTraceKey(
+  db: Database,
+  input: { sessionId: string; partialSessionId: string },
+): void {
+  const [newest] = db
+    .select({ id: chatMessages.id })
+    .from(chatMessages)
+    .where(
+      and(
+        eq(chatMessages.sessionId, input.sessionId),
+        eq(chatMessages.role, 'user'),
+        isNull(chatMessages.partialSessionId),
+      ),
+    )
+    .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id))
+    .limit(1)
+    .all()
+  if (newest === undefined) return
+  db.update(chatMessages)
+    .set({ partialSessionId: input.partialSessionId })
+    .where(eq(chatMessages.id, newest.id))
+    .run()
 }
 
 export function insertChatMessage(db: Database, newMessage: NewChatMessage): ChatMessage {

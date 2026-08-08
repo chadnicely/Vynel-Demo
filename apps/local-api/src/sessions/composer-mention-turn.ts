@@ -29,10 +29,12 @@ import type { Logger } from 'pino'
 import {
   enqueueAgentRun,
   enqueueWorkspaceDelegation,
+  findDelegationJobById,
   resolveMentions,
   type DelegationPermissionMode,
   type ResolvedComposerMentions,
 } from '@vynel/orchestration'
+import { stampNewestUserMessageTraceKey } from '@vynel/chat/repositories'
 import { getOrCreateContinuingSession } from '@vynel/session/continuity'
 import type { ThinkingEffortLevel } from '@vynel/contracts/chat/thinking-effort'
 import type { McpFeatureDescriptor } from '@vynel/mcp-contract'
@@ -152,13 +154,28 @@ export async function prepareComposerMentionTurn(
   }
 
   let dispatched = false
+  // The FIRST dispatch's trace key anchors the mention row's pointer (redesign
+  // Phase-2b: hand-offs track as pointers under the message that sent them).
+  // A multi-mention message points at its first task — the rest reach the
+  // rail; recorded limitation. Best-effort like every dispatch here.
+  let stampedPointerAnchor = false
+  const stampPointerAnchor = (jobId: string, sdkSessionId: string): void => {
+    if (stampedPointerAnchor) return
+    const job = findDelegationJobById(db, jobId)
+    if (job?.partialSessionId == null) return
+    stampNewestUserMessageTraceKey(db, {
+      sessionId: sdkSessionId,
+      partialSessionId: job.partialSessionId,
+    })
+    stampedPointerAnchor = true
+  }
   const onSessionResolved = (sdkSessionId: string): void => {
     if (dispatched || (agents.length === 0 && personas.length === 0)) return
     dispatched = true
     for (const agent of agents) {
       try {
         const colleagueId = colleagueIdBySlug.get(agent.slug)
-        enqueueAgentRun(db, {
+        const jobId = enqueueAgentRun(db, {
           userId: input.userId,
           parentSessionId: sdkSessionId,
           agentSlug: agent.slug,
@@ -175,13 +192,14 @@ export async function prepareComposerMentionTurn(
             : {}),
           ...(input.model !== undefined ? { model: input.model } : {}),
         })
+        stampPointerAnchor(jobId, sdkSessionId)
       } catch (err) {
         deps.logger.error({ err, agentSlug: agent.slug }, 'mention agent-run enqueue failed')
       }
     }
     for (const persona of personas) {
       try {
-        enqueueWorkspaceDelegation(db, {
+        const jobId = enqueueWorkspaceDelegation(db, {
           userId: input.userId,
           parentSessionId: sdkSessionId,
           workspaceId: persona.workspaceId,
@@ -199,6 +217,7 @@ export async function prepareComposerMentionTurn(
             ? { thinkingEffort: input.thinkingEffort }
             : {}),
         })
+        stampPointerAnchor(jobId, sdkSessionId)
       } catch (err) {
         deps.logger.error(
           { err, workspaceId: persona.workspaceId },

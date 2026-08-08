@@ -81,6 +81,10 @@ export type DelegateToWorkspaceRootInput = {
    *  coming from the reporting CHILD instead of the default 'global-root' task
    *  shape. Omit → the shipped task attribution, byte-for-byte. */
   inboundAttribution?: { sourceKind: 'workspace-manager'; sourceLabel: string }
+  /** The origin scope's display name for the TASK shape's anchor row
+   *  ("Claude · from <label>" — redesign Phase-2b); ignored when
+   *  `inboundAttribution` overrides (a notify turn speaks as its child). */
+  userSourceLabel?: string
   /** REPORT-DELIVERY variant: the system steer for this routed turn. Omit →
    *  `ROUTED_TASK_INSTRUCTIONS` (the shipped task steer). */
   steerInstructions?: string
@@ -176,7 +180,9 @@ export async function delegateToWorkspaceRoot(
       userSourceKind: input.inboundAttribution?.sourceKind ?? 'global-root',
       ...(input.inboundAttribution !== undefined
         ? { userSourceLabel: input.inboundAttribution.sourceLabel }
-        : {}),
+        : input.userSourceLabel !== undefined
+          ? { userSourceLabel: input.userSourceLabel }
+          : {}),
       assistantSourceKind: 'workspace-manager',
       assistantSourceLabel: composeManagerSourceLabel(input.workspaceName, input.managerName),
     },

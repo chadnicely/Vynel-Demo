@@ -471,8 +471,10 @@ describe('runDelegationClaimAndRunTick', () => {
         'Acme has 3 docs; all current.',
       ])
       const trace = resolveDelegationTrace(db, { userId: user.id, partialSessionId: traceKey! })
+      // test: correct expectation — Phase-2b: the task anchor row carries its
+      // honest origin-scope label ('Global' for a root-asked job; was null).
       expect(trace.entries.map((e) => [e.sourceKind, e.sourceLabel, e.body])).toEqual([
-        ['global-root', null, 'summarize the docs'],
+        ['global-root', 'Global', 'summarize the docs'],
         ['workspace-manager', 'Mark · Acme', 'Acme has 3 docs; all current.'],
       ])
 
@@ -480,7 +482,7 @@ describe('runDelegationClaimAndRunTick', () => {
       expect(
         listChatMessagesForSession(db, 'ws-root-new').map((m) => [m.role, m.sourceKind, m.sourceLabel]),
       ).toEqual([
-        ['user', 'global-root', null],
+        ['user', 'global-root', 'Global'],
         ['assistant', 'workspace-manager', 'Mark · Acme'],
       ])
 
