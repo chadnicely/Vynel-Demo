@@ -12,7 +12,6 @@ import ThinkingBlock from "./ThinkingBlock.vue";
 import AttachmentChips from "./AttachmentChips.vue";
 import ClaudeMark from "./ClaudeMark.vue";
 import Tooltip from "./Tooltip.vue";
-import { workspaceAccentVar } from "../lib/workspace-color.js";
 import { formatMessageTimestamp } from "../lib/format-timestamp.js";
 import { splitSourceLabel } from "../lib/source-label.js";
 
@@ -60,6 +59,10 @@ const props = withDefaults(
     /** Folded: only the header strip renders — author, first-line preview,
      *  time, chevron. The body, attachments, and tool calls stay hidden. */
     collapsed?: boolean;
+    /** The strip's preview when THIS row's body is empty (a turn that opens
+     *  with tool calls): the host, which sees the whole turn, hands the first
+     *  meaningful line — a later row's text or a tool summary. */
+    previewFallback?: string | null;
   }>(),
   {
     assistantName: "Assistant",
@@ -69,6 +72,7 @@ const props = withDefaults(
     workspaceBadge: null,
     collapsible: false,
     collapsed: false,
+    previewFallback: null,
   },
 );
 
@@ -77,7 +81,6 @@ const emit = defineEmits<{
    *  owns which turns are open; this row only reports the click). */
   toggleCollapse: [];
 }>();
-
 
 // An inbound REPORT — a workspace's or agent's finished result arriving as
 // the notify turn's user-role message (session-comms). It must read as ITS
@@ -126,7 +129,12 @@ const roleLabel = computed(() => {
       props.message.sourceKind === "agent") &&
     props.message.sourceLabel
   ) {
-    return props.message.sourceLabel;
+    // Same rule as the inbound branch: with a workspace chip beside the
+    // name, the label keeps only the persona part — a persona speaking in
+    // its own room reads exactly like its delivered rows elsewhere.
+    return props.workspaceBadge !== null
+      ? splitSourceLabel(props.message.sourceLabel).persona
+      : props.message.sourceLabel;
   }
   return props.assistantName;
 });
@@ -189,7 +197,6 @@ const displayBody = computed(() =>
     : props.message.body,
 );
 
-
 // A user message that arrived through a channel wears a small "via X" badge —
 // origin is HOW it reached the brain (voice daemon, Telegram), distinct from
 // who wrote it. The app composer is the default surface: no badge. Keyed on
@@ -250,7 +257,8 @@ const inboundCardParts = computed(() => {
   const splitAt = body.indexOf("\n\n");
   if (splitAt === -1) return { title: body, remainder: null };
   const remainder = body.slice(splitAt + 2);
-  if (remainder.trim().length < FOLD_REMAINDER_MIN) return { title: body, remainder: null };
+  if (remainder.trim().length < FOLD_REMAINDER_MIN)
+    return { title: body, remainder: null };
   return { title: body.slice(0, splitAt), remainder };
 });
 
@@ -263,7 +271,11 @@ const inboundCardTitle = computed(() =>
 );
 
 const inboundKindWord = computed(() =>
-  isInboundUpdate.value ? "update" : isInboundDirect.value ? "message" : "report",
+  isInboundUpdate.value
+    ? "update"
+    : isInboundDirect.value
+      ? "message"
+      : "report",
 );
 
 const isExpanded = ref(false);
@@ -300,35 +312,22 @@ const runDurationLabel = computed(() =>
 
 // The folded strip's one-line preview — the first non-empty line of the
 // display body (marker already stripped), the card-title cleanup applied.
+// A body-less header row (a turn opening with tool calls) shows the host's
+// fallback — the turn's first meaningful line — instead of an empty strip.
 const collapsedPreview = computed(() => {
   if (!props.collapsed) return null;
   const firstLine =
-    displayBody.value.split("\n").find((line) => line.trim() !== "") ?? "";
+    displayBody.value.split("\n").find((line) => line.trim() !== "") ??
+    props.previewFallback ??
+    "";
   return firstLine.replace(/[#*_`>]/g, "").trim();
-});
-
-// A persona speaking as an ASSISTANT row wears its workspace accent (left
-// bar). An INBOUND delivered row does NOT (Chad, 2026-08-09): a colleague
-// responding in the chat is a regular participant — the persona author line
-// and the quiet badge carry its identity, never special chrome.
-const accentVar = computed(() => {
-  const { role, sourceKind, sourceLabel } = props.message;
-  const isWorkspaceVoice =
-    role === "assistant" &&
-    (sourceKind === "workspace-manager" || sourceKind === "agent") &&
-    !!sourceLabel;
-  return isWorkspaceVoice ? workspaceAccentVar(sourceLabel!) : null;
 });
 </script>
 
 <template>
   <div
     class="message-row"
-    :class="[
-      `role-${props.message.role}`,
-      { 'has-accent': accentVar, 'is-report': isInboundReport },
-    ]"
-    :style="accentVar ? { '--accent': accentVar } : undefined"
+    :class="[`role-${props.message.role}`, { 'is-report': isInboundReport }]"
   >
     <div
       v-if="props.showHeader"
@@ -336,308 +335,330 @@ const accentVar = computed(() => {
       :class="{ 'is-collapsible': props.collapsible }"
       @click="props.collapsible ? emit('toggleCollapse') : undefined"
     >
-    <p class="role-label">
-      <span
-        v-if="authorGlyph"
-        class="author-avatar"
-        :style="
-          authorGlyph.kind === 'monogram'
-            ? {
-                background: `color-mix(in srgb, var(${authorGlyph.accentVar}) 30%, transparent)`,
-              }
-            : undefined
-        "
-        aria-hidden="true"
-      >
-        <img
-          v-if="authorGlyph.kind === 'image'"
-          :src="authorGlyph.imageUrl"
-          alt=""
-        />
-        <span v-else-if="authorGlyph.kind === 'monogram'" class="monogram-text">{{
-          authorGlyph.monogram
-        }}</span>
-        <ClaudeMark v-else :size="14" />
-      </span>
-      {{ roleLabel }}
-      <!-- The WORKSPACE chip (Chad, 2026-08-09): the label's workspace text
-           became an icon; hover shows the profile card. -->
-      <Tooltip v-if="props.workspaceBadge" side="bottom" :delay-ms="150">
-        <template #content>
-          <span class="hover-card">
-            <span
-              class="hover-card-chip"
-              :style="{
-                background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
-              }"
-            >
-              <img
-                v-if="props.workspaceBadge.imageUrl"
-                :src="props.workspaceBadge.imageUrl"
-                alt=""
-              />
-              <span v-else>{{ props.workspaceBadge.monogram }}</span>
-            </span>
-            <span class="hover-card-title">{{ props.workspaceBadge.name }}</span>
-            <span class="hover-card-caption">Workspace</span>
-          </span>
-        </template>
+      <p class="role-label">
         <span
-          class="workspace-badge"
-          :style="{
-            background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
-          }"
-          :aria-label="`workspace ${props.workspaceBadge.name}`"
+          v-if="authorGlyph"
+          class="author-avatar"
+          :style="
+            authorGlyph.kind === 'monogram'
+              ? {
+                  background: `color-mix(in srgb, var(${authorGlyph.accentVar}) 30%, transparent)`,
+                }
+              : undefined
+          "
+          aria-hidden="true"
         >
           <img
-            v-if="props.workspaceBadge.imageUrl"
-            :src="props.workspaceBadge.imageUrl"
+            v-if="authorGlyph.kind === 'image'"
+            :src="authorGlyph.imageUrl"
             alt=""
           />
-          <span v-else class="badge-monogram">{{
-            props.workspaceBadge.monogram
-          }}</span>
+          <span
+            v-else-if="authorGlyph.kind === 'monogram'"
+            class="monogram-text"
+            >{{ authorGlyph.monogram }}</span
+          >
+          <ClaudeMark v-else :size="14" />
         </span>
-      </Tooltip>
-      <!-- The run-stats door: hover reveals the producing run's metadata. -->
-      <Tooltip v-if="props.message.runStats" side="bottom" :delay-ms="150">
-        <template #content>
-          <span class="hover-card stats-card">
-            <span class="stats-row">
-              <span class="stats-key">Model</span>
-              <span>{{ props.message.runStats.model ?? "default" }}</span>
+        {{ roleLabel }}
+        <!-- The WORKSPACE chip (Chad, 2026-08-09): the label's workspace text
+           became an icon; hover shows the profile card. -->
+        <Tooltip v-if="props.workspaceBadge" side="bottom" :delay-ms="150">
+          <template #content>
+            <span class="hover-card">
+              <span
+                class="hover-card-chip"
+                :style="{
+                  background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
+                }"
+              >
+                <img
+                  v-if="props.workspaceBadge.imageUrl"
+                  :src="props.workspaceBadge.imageUrl"
+                  alt=""
+                />
+                <span v-else>{{ props.workspaceBadge.monogram }}</span>
+              </span>
+              <span class="hover-card-title">{{
+                props.workspaceBadge.name
+              }}</span>
+              <span class="hover-card-caption">Workspace</span>
             </span>
-            <span class="stats-row">
-              <span class="stats-key">Tool calls</span>
-              <span>{{ props.message.runStats.toolCallCount }}</span>
-            </span>
-            <span class="stats-row">
-              <span class="stats-key">Tokens</span>
-              <span>{{ runTokensLabel }}</span>
-            </span>
-            <span class="stats-row">
-              <span class="stats-key">Took</span>
-              <span>{{ runDurationLabel }}</span>
-            </span>
+          </template>
+          <span
+            class="workspace-badge"
+            :style="{
+              background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
+            }"
+            :aria-label="`workspace ${props.workspaceBadge.name}`"
+          >
+            <img
+              v-if="props.workspaceBadge.imageUrl"
+              :src="props.workspaceBadge.imageUrl"
+              alt=""
+            />
+            <span v-else class="badge-monogram">{{
+              props.workspaceBadge.monogram
+            }}</span>
           </span>
-        </template>
-        <span class="run-info" aria-label="run details">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.3" />
+        </Tooltip>
+        <!-- The run-stats door: hover reveals the producing run's metadata. -->
+        <Tooltip v-if="props.message.runStats" side="bottom" :delay-ms="150">
+          <template #content>
+            <span class="hover-card stats-card">
+              <span class="stats-row">
+                <span class="stats-key">Model</span>
+                <span>{{ props.message.runStats.model ?? "default" }}</span>
+              </span>
+              <span class="stats-row">
+                <span class="stats-key">Tool calls</span>
+                <span>{{ props.message.runStats.toolCallCount }}</span>
+              </span>
+              <span class="stats-row">
+                <span class="stats-key">Tokens</span>
+                <span>{{ runTokensLabel }}</span>
+              </span>
+              <span class="stats-row">
+                <span class="stats-key">Took</span>
+                <span>{{ runDurationLabel }}</span>
+              </span>
+            </span>
+          </template>
+          <span class="run-info" aria-label="run details">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <circle
+                cx="8"
+                cy="8"
+                r="6.25"
+                stroke="currentColor"
+                stroke-width="1.3"
+              />
+              <path
+                d="M8 7.4v3.1M8 5.3v.2"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+              />
+            </svg>
+          </span>
+        </Tooltip>
+        <span v-if="originBadge" class="origin-badge">
+          <!-- Inline glyphs keep @vynel/ui icon-library-free -->
+          <svg
+            v-if="originBadge.kind === 'voice'"
+            width="10"
+            height="10"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <rect
+              x="5.75"
+              y="1.5"
+              width="4.5"
+              height="8"
+              rx="2.25"
+              stroke="currentColor"
+              stroke-width="1.4"
+            />
             <path
-              d="M8 7.4v3.1M8 5.3v.2"
+              d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14"
               stroke="currentColor"
               stroke-width="1.4"
               stroke-linecap="round"
             />
           </svg>
+          <svg
+            v-else
+            width="10"
+            height="10"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M14.5 1.5L1.5 6.8l4 1.7 1.7 4 2.1-3 3.2 2.3 2-10.3z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+          </svg>
+          via {{ originBadge.label }}
         </span>
-      </Tooltip>
-      <span v-if="originBadge" class="origin-badge">
-        <!-- Inline glyphs keep @vynel/ui icon-library-free -->
-        <svg
-          v-if="originBadge.kind === 'voice'"
-          width="10"
-          height="10"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
+      </p>
+      <span v-if="collapsedPreview" class="turn-preview">{{
+        collapsedPreview
+      }}</span>
+      <span class="header-meta">
+        <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
+        <button
+          v-if="props.collapsible"
+          type="button"
+          class="collapse-toggle"
+          :aria-expanded="!props.collapsed"
+          aria-label="fold or unfold this message"
+          @click.stop="emit('toggleCollapse')"
         >
-          <rect
-            x="5.75"
-            y="1.5"
-            width="4.5"
-            height="8"
-            rx="2.25"
-            stroke="currentColor"
-            stroke-width="1.4"
-          />
-          <path
-            d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14"
-            stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linecap="round"
-          />
-        </svg>
-        <svg
-          v-else
-          width="10"
-          height="10"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M14.5 1.5L1.5 6.8l4 1.7 1.7 4 2.1-3 3.2 2.3 2-10.3z"
-            stroke="currentColor"
-            stroke-width="1.3"
-            stroke-linejoin="round"
-          />
-        </svg>
-        via {{ originBadge.label }}
+          <svg
+            class="collapse-chevron"
+            :class="{ 'is-open': !props.collapsed }"
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
       </span>
-    </p>
-    <span v-if="collapsedPreview" class="turn-preview">{{
-      collapsedPreview
-    }}</span>
-    <span class="header-meta">
-      <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
-      <button
-        v-if="props.collapsible"
-        type="button"
-        class="collapse-toggle"
-        :aria-expanded="!props.collapsed"
-        aria-label="fold or unfold this message"
-        @click.stop="emit('toggleCollapse')"
-      >
-        <svg
-          class="collapse-chevron"
-          :class="{ 'is-open': !props.collapsed }"
-          width="12"
-          height="12"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M4 6l4 4 4-4"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-    </span>
     </div>
 
     <!-- Folded: only the header strip above renders — everything below waits
          behind the chevron. -->
     <template v-if="!props.collapsed">
-    <ThinkingBlock
-      v-if="props.message.thinkingBody"
-      :text="props.message.thinkingBody"
-      class="thinking"
-    />
+      <ThinkingBlock
+        v-if="props.message.thinkingBody"
+        :text="props.message.thinkingBody"
+        class="thinking"
+      />
 
-    <!-- A delivered colleague message renders as a REGULAR participant
+      <!-- A delivered colleague message renders as a REGULAR participant
          message (Chad, 2026-08-09 — the compact teaser + View door retired):
          full markdown body, author line + quiet badge as its identity. A
          LONG one collapses to its lead paragraph behind an in-place
          expander — never a popup. -->
-    <MarkdownText v-if="isAssistant" :source="displayBody" />
-    <!-- The delivered-message card (all kinds): kind icon + title line,
+      <MarkdownText v-if="isAssistant" :source="displayBody" />
+      <!-- The delivered-message card (all kinds): kind icon + title line,
          chevron at the line's end, body expands in place. -->
-    <template v-else-if="isInboundReport && inboundCardParts !== null">
-      <button
-        type="button"
-        class="inbound-card"
-        :class="{ 'is-expandable': inboundCardParts.remainder !== null }"
-        :data-kind="inboundKindWord"
-        :aria-expanded="isExpanded"
-        :disabled="inboundCardParts.remainder === null"
-        @click="isExpanded = !isExpanded"
-      >
-        <!-- UPDATE: a small clock — interim, still running. -->
-        <svg
-          v-if="isInboundUpdate"
-          class="inbound-card-icon"
-          width="13"
-          height="13"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
+      <template v-else-if="isInboundReport && inboundCardParts !== null">
+        <button
+          type="button"
+          class="inbound-card"
+          :class="{ 'is-expandable': inboundCardParts.remainder !== null }"
+          :data-kind="inboundKindWord"
+          :aria-expanded="isExpanded"
+          :disabled="inboundCardParts.remainder === null"
+          @click="isExpanded = !isExpanded"
         >
-          <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.3" />
-          <path
-            d="M8 4.75V8l2.25 1.5"
-            stroke="currentColor"
-            stroke-width="1.3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <!-- MESSAGE: a speech bubble — the sender talking to the user. -->
-        <svg
-          v-else-if="isInboundDirect"
-          class="inbound-card-icon"
-          width="13"
-          height="13"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M2.5 4.25c0-.97.78-1.75 1.75-1.75h7.5c.97 0 1.75.78 1.75 1.75v4.5c0 .97-.78 1.75-1.75 1.75H8.5L5 13.25V10.5h-.75c-.97 0-1.75-.78-1.75-1.75z"
-            stroke="currentColor"
-            stroke-width="1.3"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <!-- REPORT: a document — the finished result. -->
-        <svg
-          v-else
-          class="inbound-card-icon"
-          width="13"
-          height="13"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M4 1.5h5.5L13 5v9.5H4z"
-            stroke="currentColor"
-            stroke-width="1.3"
-            stroke-linejoin="round"
-          />
-          <path d="M9.5 1.5V5H13" stroke="currentColor" stroke-width="1.3" />
-          <path
-            d="M6 8.5h4M6 11h4"
-            stroke="currentColor"
-            stroke-width="1.3"
-            stroke-linecap="round"
-          />
-        </svg>
-        <span class="inbound-card-title">{{ inboundCardTitle }}</span>
-        <svg
-          v-if="inboundCardParts.remainder !== null"
-          class="expand-chevron"
-          :class="{ 'is-open': isExpanded }"
-          width="12"
-          height="12"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M4 6l4 4 4-4"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-      <MarkdownText
-        v-if="isExpanded && inboundCardParts.remainder !== null"
-        class="inbound-card-body"
-        :source="inboundCardParts.remainder"
+          <!-- UPDATE: a small clock — interim, still running. -->
+          <svg
+            v-if="isInboundUpdate"
+            class="inbound-card-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <circle
+              cx="8"
+              cy="8"
+              r="6.25"
+              stroke="currentColor"
+              stroke-width="1.3"
+            />
+            <path
+              d="M8 4.75V8l2.25 1.5"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <!-- MESSAGE: a speech bubble — the sender talking to the user. -->
+          <svg
+            v-else-if="isInboundDirect"
+            class="inbound-card-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M2.5 4.25c0-.97.78-1.75 1.75-1.75h7.5c.97 0 1.75.78 1.75 1.75v4.5c0 .97-.78 1.75-1.75 1.75H8.5L5 13.25V10.5h-.75c-.97 0-1.75-.78-1.75-1.75z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <!-- REPORT: a document — the finished result. -->
+          <svg
+            v-else
+            class="inbound-card-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 1.5h5.5L13 5v9.5H4z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+            <path d="M9.5 1.5V5H13" stroke="currentColor" stroke-width="1.3" />
+            <path
+              d="M6 8.5h4M6 11h4"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span class="inbound-card-title">{{ inboundCardTitle }}</span>
+          <svg
+            v-if="inboundCardParts.remainder !== null"
+            class="expand-chevron"
+            :class="{ 'is-open': isExpanded }"
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+        <MarkdownText
+          v-if="isExpanded && inboundCardParts.remainder !== null"
+          class="inbound-card-body"
+          :source="inboundCardParts.remainder"
+        />
+      </template>
+      <p v-else-if="props.message.body" class="plain-body">
+        {{ props.message.body }}
+      </p>
+
+      <AttachmentChips
+        v-if="props.message.attachedImagesMetadata?.length"
+        :attachments="props.message.attachedImagesMetadata"
       />
-    </template>
-    <p v-else-if="props.message.body" class="plain-body">
-      {{ props.message.body }}
-    </p>
 
-    <AttachmentChips
-      v-if="props.message.attachedImagesMetadata?.length"
-      :attachments="props.message.attachedImagesMetadata"
-    />
+      <p v-if="props.message.errorMessage" class="error-note">
+        {{ props.message.errorMessage }}
+      </p>
 
-    <p v-if="props.message.errorMessage" class="error-note">
-      {{ props.message.errorMessage }}
-    </p>
-
-    <slot name="tool-calls" />
+      <slot name="tool-calls" />
     </template>
   </div>
 </template>
@@ -646,25 +667,6 @@ const accentVar = computed(() => {
 .message-row {
   display: grid;
   gap: 6px;
-}
-
-/* The workspace accent bar — a rounded rule down the left edge, marking a
-   report as belonging to its workspace. Color comes from `--accent`
-   (workspace-color.ts), never gold. */
-.message-row.has-accent {
-  position: relative;
-  padding-left: 14px;
-}
-
-.message-row.has-accent::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 2px;
-  bottom: 2px;
-  width: 3px;
-  border-radius: 99px;
-  background: var(--accent);
 }
 
 .role-label {

@@ -517,4 +517,37 @@ millisecond-tie hop pairing edge (vanishing).
 
 ---
 
+## Workspace-chat parity pass (Chad, 2026-08-09; SHIPPED)
+
+Chad: "The workspace chat view should show similar to global as we are using ui package
+globally so its need to show same to all." Live walk of the Claw Launcher thread against
+Global found four divergences — every fix landed in the SHARED components, so both views
+(and any future host) render identically:
+
+- **The workspace accent bar is fully retired.** Tweak 4 removed it for inbound delivered
+  rows only; a persona's OWN assistant rows (its replies in its workspace) still wore the
+  pink left bar — on the author strip, every tool block, and every folded strip. A persona
+  is a regular participant in its own room too: `accentVar` + the `has-accent` chrome are
+  gone from `MessageRow` entirely.
+- **Assistant persona rows split the author line like delivered rows.** "JAMES · CLAW
+  LAUNCHER" as raw text became "JAMES" + the workspace chip (hover = profile card):
+  `workspaceBadgeFor` dropped its user-role gate, and `roleLabel`'s assistant-persona
+  branch mirrors the inbound split.
+- **Folded strips never render empty.** A turn OPENING with tool calls (the persona
+  pattern: send_message ack first, text later) had no preview — the strip now falls back
+  to the turn's first non-empty row body, else its first tool call's one-line summary
+  ("Read CLAUDE.md"), precomputed once per history change (`turnPreviewFallbacks`).
+  `presentToolCall` is now exported from `@vynel/ui` for the summary.
+- **The persona monogram splits the label.** `workspaceMonogram("James · Claw Launcher")`
+  monogrammed "J·" (first letters of the first two words — the separator dot). The
+  resolver now monograms from the label's PERSONA part ("JA"); the accent keeps hashing
+  the full label (color-slot normalization already lands on the workspace segment, so no
+  surface retints). `authorPersonaFor` also resolves the workspaceId through the host's
+  name→id map, so rows wear the workspace's customized persona image — the same face the
+  live cards use.
+
+Checked, not issues: "CLAUDE · FROM GLOBAL" mention anchors rendering as user-style
+bubbles is the designed Case-3 treatment (parity with Global's YOU bubbles); workspace
+rows carry no run-stats door because they ARE the run (stats ride the delivered copy).
+
 *(Case 4+ land here as received.)*

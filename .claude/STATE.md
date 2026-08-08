@@ -3,25 +3,22 @@
 **Updated 2026-08-09.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ▶ NEXT TASK (Chad, 2026-08-09, given right before compaction): WORKSPACE CHAT review + fix
+## ✅ WORKSPACE CHAT parity pass (Chad, 2026-08-09) — SHIPPED, awaiting Chad's browser pass
 
-Chad: "we will check workspace chat… we had a ui global package so I guess fixing in one
-place will take care of all. So we gonna review and fix — its a workspace chat so all ui
-functionality similar to [global], diff is it handles SESSIONS where global [handles]
-workspaces and sessions." His screenshot of the Claw Launcher workspace chat:
-`C:\Users\KLONE\.claude\image-cache\b055c569-bd88-4b1f-9bfb-7b9599e3fa4d\16.png` — RE-READ
-IT first. Approach: walk the workspace view live (playwright, dev web on :18894, tab →
-Claw Launcher) against Global's behavior; the thread UI is shared (`ThreadStream` +
-`@vynel/ui MessageRow`) so fixes land once. Candidate issues visible in the shot (not
-confirmed with him): ① persona ASSISTANT rows (James's own turns) still wear the pink
-left accent bar — deliberate so far (tweak 4 removed it for inbound rows only), likely
-wants it gone here too for consistency; ② a JAMES folded strip with an EMPTY preview
-(turn whose first row has no text — preview should fall to the first tool call or next
-row); ③ "CLAUDE · FROM GLOBAL" anchor rows render as user bubbles — check their fold/
-strip presentation; ④ workspace-specific: spawned-SESSION pointers/sidebar behavior from
-the workspace surface (workspace → session hops), rail/pointer parity with Global. All
-tweak-session context lives in `docs/live-tracking-redesign.md` (tweaks 1–6 + the Gate-3
-review section, all SHIPPED + pushed through `87ca604`; tree clean).
+Chad's call: "workspace chat should show similar to global — ui package is global, fix in
+one place shows same to all." Live playwright walk of Claw Launcher vs Global found four
+divergences; ALL fixed in the SHARED components (spec section "Workspace-chat parity
+pass" in `docs/live-tracking-redesign.md`): ① workspace accent bar fully retired
+(persona's own rows are regular participants — completes tweak 4); ② assistant persona
+rows split the author line like delivered rows ("JAMES" + CL chip, badge gate un-roled);
+③ folded strips never empty — preview falls back through the turn's rows then its first
+tool call (`turnPreviewFallbacks`, `presentToolCall` now exported from @vynel/ui);
+④ persona monogram from the label's persona part ("JA", was "J·") + rows resolve the
+customized persona image via the host map. Checked-not-issues: mention anchors as user
+bubbles = designed Case 3; workspace rows carry no run-stats door (they ARE the run).
+Verified live both views (screenshots in `.playwright-cli/`); typecheck 24/24 + 44
+targeted tests green. NOT YET user-verified — ask Chad for a browser pass on hover cards
+(chip profile card in workspace chat) before calling it closed.
 
 ## 🔎 SESSION VERIFY + LIVE-TRACKING REDESIGN ARC (2026-08-08) — SHIPPED + PUSHED; one fork OPEN (read the ⏳ below)
 

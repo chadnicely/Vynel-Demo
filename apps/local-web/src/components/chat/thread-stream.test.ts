@@ -29,7 +29,6 @@ function makeMessage(index: number): ChatMessageResponse {
   };
 }
 
-
 function mountStream(messageCount: number) {
   return mount(ThreadStream, {
     props: {
@@ -63,10 +62,20 @@ describe("ThreadStream", () => {
 
   it("the header chevron toggles any turn open and closed", async () => {
     const wrapper = mountStream(3);
-    await wrapper.findAll(".message-row")[0]!.find(".collapse-toggle").trigger("click");
-    expect(wrapper.findAll(".message-row")[0]!.find(".plain-body").exists()).toBe(true);
-    await wrapper.findAll(".message-row")[0]!.find(".collapse-toggle").trigger("click");
-    expect(wrapper.findAll(".message-row")[0]!.find(".plain-body").exists()).toBe(false);
+    await wrapper
+      .findAll(".message-row")[0]!
+      .find(".collapse-toggle")
+      .trigger("click");
+    expect(
+      wrapper.findAll(".message-row")[0]!.find(".plain-body").exists(),
+    ).toBe(true);
+    await wrapper
+      .findAll(".message-row")[0]!
+      .find(".collapse-toggle")
+      .trigger("click");
+    expect(
+      wrapper.findAll(".message-row")[0]!.find(".plain-body").exists(),
+    ).toBe(false);
   });
 
   it("landing on an anchor inside a folded turn unfolds it first", async () => {
@@ -100,9 +109,7 @@ describe("ThreadStream", () => {
     // The newest message is the last row; the oldest 50 stay unrendered.
     expect(rows[rows.length - 1]!.text()).toContain("message 149");
     expect(rows[0]!.text()).toContain("message 50");
-    expect(wrapper.find(".older-note").text()).toContain(
-      "50 earlier messages",
-    );
+    expect(wrapper.find(".older-note").text()).toContain("50 earlier messages");
   });
 
   it("keeps the jump-to-latest pill hidden while pinned at the bottom", () => {
@@ -290,12 +297,22 @@ describe("ThreadStream", () => {
   it("hides persisted rows the live overlay already renders (mid-turn refetch dedupe)", () => {
     // Rows persist per chunk, so a refetch during a turn returns the very
     // messages the overlay is streaming — they must not double-render.
-    const history = [makeMessage(0), makeMessage(1), makeMessage(2), makeMessage(3)];
+    const history = [
+      makeMessage(0),
+      makeMessage(1),
+      makeMessage(2),
+      makeMessage(3),
+    ];
     const activeTurn: ActiveTurnView = {
       ...createActiveTurnView(),
       userMessage: history[2]!, // the turn's own user message, already persisted
       segments: [
-        { messageId: "m3", text: "streaming reply…", thinking: "", toolCalls: [] },
+        {
+          messageId: "m3",
+          text: "streaming reply…",
+          thinking: "",
+          toolCalls: [],
+        },
       ],
     };
     const wrapper = mount(ThreadStream, {
@@ -306,7 +323,9 @@ describe("ThreadStream", () => {
     // Settled rows m0+m1 render from history; m2 (user) renders once via the
     // overlay; m3 renders only as the live turn.
     const rowTexts = wrapper.findAll(".message-row").map((row) => row.text());
-    expect(rowTexts.filter((text) => text.includes("message 2"))).toHaveLength(1);
+    expect(rowTexts.filter((text) => text.includes("message 2"))).toHaveLength(
+      1,
+    );
     expect(rowTexts.some((text) => text.includes("message 3"))).toBe(false);
     expect(wrapper.text()).toContain("streaming reply…");
   });
@@ -330,7 +349,9 @@ describe("ThreadStream", () => {
     // test: correct expectation (turn folding) — a folded turn renders only
     // its header strip, so the continuations appear once the turn is opened.
     const folded = wrapper.findAll(".message-row");
-    expect(folded.map((row) => row.findAll(".row-header").length)).toEqual([1, 1, 1, 1]);
+    expect(folded.map((row) => row.findAll(".row-header").length)).toEqual([
+      1, 1, 1, 1,
+    ]);
     await folded[1]!.find(".collapse-toggle").trigger("click");
 
     const rows = wrapper.findAll(".message-row");
@@ -356,7 +377,9 @@ describe("ThreadStream", () => {
     });
 
     const rows = wrapper.findAll(".message-row");
-    expect(rows.map((row) => row.findAll(".row-header").length)).toEqual([1, 1]);
+    expect(rows.map((row) => row.findAll(".row-header").length)).toEqual([
+      1, 1,
+    ]);
   });
 
   it("does NOT group assistant rows from different authors (a workspace report after a brain reply)", () => {
@@ -376,7 +399,9 @@ describe("ThreadStream", () => {
     });
 
     const rows = wrapper.findAll(".message-row");
-    expect(rows.map((row) => row.findAll(".row-header").length)).toEqual([1, 1]);
+    expect(rows.map((row) => row.findAll(".row-header").length)).toEqual([
+      1, 1,
+    ]);
   });
 
   it("a persona report row wears its resolved monogram, not the Claude mark (B8)", () => {
@@ -403,8 +428,110 @@ describe("ThreadStream", () => {
     // double-wrapped into invalid CSS and silently untinted every persona
     // chip). Asserted on the prop: happy-dom drops color-mix() style values,
     // so the rendered attribute can't carry the check.
-    expect(wrapper.getComponent(MessageRow).props("authorPersona")).toMatchObject(
-      { accentVar: expect.stringMatching(/^--ws-\d+$/) },
-    );
+    expect(
+      wrapper.getComponent(MessageRow).props("authorPersona"),
+    ).toMatchObject({ accentVar: expect.stringMatching(/^--ws-\d+$/) });
+  });
+
+  // 2026-08-09 parity pass: the workspace chat renders exactly like Global —
+  // a persona's OWN reply rows wear the same author treatment as its
+  // delivered rows (persona name + workspace chip), and the persona monogram
+  // comes from the label's persona part, never the separator dot.
+  it("an assistant persona row wears the workspace chip and drops the label's workspace text", () => {
+    const messages: ChatMessageResponse[] = [
+      {
+        ...makeMessage(1),
+        id: "a1",
+        role: "assistant",
+        sourceKind: "workspace-manager",
+        sourceLabel: "James · Claw Launcher",
+        body: "All three modules are green.",
+      },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: { messages, toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+
+    const row = wrapper.get(".message-row");
+    expect(row.find(".workspace-badge").exists()).toBe(true);
+    expect(row.get(".role-label").text()).toContain("James");
+    expect(row.get(".role-label").text()).not.toContain("Claw Launcher");
+    // The avatar monograms from the PERSONA part ("JA"), never "J·".
+    expect(row.get(".monogram-text").text()).toBe("JA");
+  });
+
+  it("a folded turn opening with tool calls previews the turn's first text — or its first tool", () => {
+    const readCall: ChatToolCallResponse = {
+      id: "tc-read",
+      parentMessageId: "a1",
+      toolUseId: "tu-read",
+      toolName: "Read",
+      toolInput: { file_path: "CLAUDE.md" },
+      toolOutput: "…",
+      status: "completed",
+      approvalStatus: null,
+      isErrorResult: false,
+      startedAt: "2026-07-05T10:00:00.000Z",
+      completedAt: "2026-07-05T10:00:01.000Z",
+    };
+    // Turn 1: a body-less header row + a continuation carrying the text.
+    const withText: ChatMessageResponse[] = [
+      { ...makeMessage(1), id: "a1", role: "assistant", body: "" },
+      {
+        ...makeMessage(1),
+        id: "a2",
+        role: "assistant",
+        body: "The answer line.\nMore.",
+      },
+      { ...makeMessage(2), id: "u1", role: "user", body: "next" },
+    ];
+    const textWrapper = mount(ThreadStream, {
+      props: {
+        messages: withText,
+        toolCallsByMessageId: { a1: [readCall] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+    expect(textWrapper.get(".turn-preview").text()).toBe("The answer line.");
+
+    // A turn with NO text anywhere falls to its first tool call's summary.
+    const toolOnly: ChatMessageResponse[] = [
+      { ...makeMessage(1), id: "a1", role: "assistant", body: "" },
+      { ...makeMessage(2), id: "u1", role: "user", body: "next" },
+    ];
+    const toolWrapper = mount(ThreadStream, {
+      props: {
+        messages: toolOnly,
+        toolCallsByMessageId: { a1: [readCall] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+    expect(toolWrapper.get(".turn-preview").text()).toBe("Read CLAUDE.md");
+  });
+
+  it("a marker-only delivered row never leaks the model-facing marker into its strip", () => {
+    // The reviewer-caught edge: content-less report → own displayBody empty →
+    // the fallback fires, and it must read the STRIPPED body, not the raw one.
+    const messages: ChatMessageResponse[] = [
+      {
+        ...makeMessage(0),
+        id: "r1",
+        role: "user",
+        sourceKind: "agent",
+        sourceLabel: "Nova",
+        body: "[Report from Nova — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\n",
+      },
+      { ...makeMessage(2), id: "u1", role: "user", body: "next" },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: { messages, toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+    // The strip renders bare (author + time) — never the raw marker line.
+    const strip = wrapper.findAll(".message-row")[0]!;
+    expect(strip.text()).not.toContain("[Report from");
   });
 });

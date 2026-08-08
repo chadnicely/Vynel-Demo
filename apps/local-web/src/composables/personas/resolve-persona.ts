@@ -4,7 +4,11 @@
 // workspace accent. `@vynel/ui` stays icon-library-free — this resolver hands
 // components a ready image-or-monogram pair, never an icon name to render.
 
-import { workspaceColorSlot, workspaceMonogram } from "@vynel/ui";
+import {
+  splitSourceLabel,
+  workspaceColorSlot,
+  workspaceMonogram,
+} from "@vynel/ui";
 import { useCustomizeStore } from "../../stores/customize-store.js";
 
 export interface ResolvedPersona {
@@ -35,7 +39,12 @@ export function usePersonaResolver() {
     return {
       name: input.name,
       imageUrl,
-      monogram: workspaceMonogram(input.name),
+      // A persona-first combined label ("James · Claw Launcher") monograms
+      // from its PERSONA part — the separator dot must never land in the
+      // avatar ("J·"). The accent keeps hashing the full label: color-slot
+      // normalization already resolves it to the workspace segment, so
+      // every surface keeps its established tint.
+      monogram: workspaceMonogram(splitSourceLabel(input.name).persona),
       accentVar: `--ws-${workspaceColorSlot(input.name)}`,
     };
   }

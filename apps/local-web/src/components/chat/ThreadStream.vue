@@ -4,9 +4,11 @@ import type {
   ChatMessageResponse,
   ChatToolCallResponse,
 } from "@vynel/contracts/chat/chat-http";
+import { stripReportMessageMarker } from "@vynel/contracts/chat/report-message-marker";
 import {
   MessageRow,
   ToolCallList,
+  presentToolCall,
   splitSourceLabel,
   workspaceColorSlot,
   workspaceMonogram,
@@ -67,18 +69,19 @@ const emit = defineEmits<{
 
 // A persona-attributed row (a manager's reply, a colleague's report/update)
 // wears ITS OWN face in the author line (B8) — resolved from the label the
-// same way the live cards resolve theirs. No workspaceId at row level, so the
-// customized image stays with the cards; the monogram + accent carry here.
+// same way the live cards resolve theirs, with the host's name→id map keying
+// the workspace's customized persona image.
 const { resolvePersona } = usePersonaResolver();
 
-// The workspace chip beside a delivered row's author (Chad, 2026-08-09): the
+// The workspace chip beside a persona row's author (Chad, 2026-08-09): the
 // label's LAST " · " segment (the persona-first rule) resolves to an
 // icon/monogram + accent; hover shows the profile card. The host's name→id
-// map unlocks the customized image + color.
+// map unlocks the customized image + color. EVERY persona-stamped row wears
+// it — the delivered colleague row in Global and the persona's own reply in
+// its workspace read as the same participant (2026-08-09 parity pass).
 const customize = useCustomizeStore();
 function workspaceBadgeFor(message: ChatMessageResponse) {
   if (
-    message.role !== "user" ||
     (message.sourceKind !== "agent" &&
       message.sourceKind !== "workspace-manager") ||
     message.sourceLabel == null
@@ -103,9 +106,14 @@ function authorPersonaFor(message: ChatMessageResponse) {
     (message.sourceKind === "workspace-manager" ||
       message.sourceKind === "agent") &&
     message.sourceLabel != null;
-  return isPersonaRow
-    ? resolvePersona({ name: message.sourceLabel!, workspaceId: null })
-    : null;
+  if (!isPersonaRow) return null;
+  // The label's workspace segment keys the host map — a resolved id unlocks
+  // the workspace's customized persona image, the same face the live cards
+  // and the surface's own assistant rows wear.
+  const { workspace } = splitSourceLabel(message.sourceLabel!);
+  const workspaceId =
+    workspace !== null ? (props.workspacesByName?.[workspace] ?? null) : null;
+  return resolvePersona({ name: message.sourceLabel!, workspaceId });
 }
 
 // The received-vs-sent discriminator (empirical, from how rows land): a
@@ -269,7 +277,10 @@ const turnKeyByMessageId = computed(() => {
   const keys = new Map<string, string>();
   let current: string | null = null;
   settledMessages.value.forEach((message, index) => {
-    if (current === null || startsNewTurn(message, settledMessages.value[index - 1])) {
+    if (
+      current === null ||
+      startsNewTurn(message, settledMessages.value[index - 1])
+    ) {
       current = message.id;
     }
     keys.set(message.id, current);
@@ -278,7 +289,9 @@ const turnKeyByMessageId = computed(() => {
 });
 const latestTurnKey = computed(() => {
   const last = settledMessages.value.at(-1);
-  return last === undefined ? null : (turnKeyByMessageId.value.get(last.id) ?? null);
+  return last === undefined
+    ? null
+    : (turnKeyByMessageId.value.get(last.id) ?? null);
 });
 const collapseOverrides = ref(new Map<string, boolean>());
 
@@ -289,7 +302,9 @@ function turnKeyAt(index: number): string {
 }
 
 function isTurnExpanded(turnKey: string): boolean {
-  return collapseOverrides.value.get(turnKey) ?? turnKey === latestTurnKey.value;
+  return (
+    collapseOverrides.value.get(turnKey) ?? turnKey === latestTurnKey.value
+  );
 }
 
 function toggleTurn(turnKey: string) {
@@ -304,6 +319,42 @@ function expandTurnOf(messageId: string) {
   const next = new Map(collapseOverrides.value);
   next.set(key, true);
   collapseOverrides.value = next;
+}
+
+// The folded strip's preview when the turn's HEADER row has no text (a turn
+// opening with tool calls): the first non-empty body among the turn's rows,
+// else the turn's first tool call as a one-line summary ("Read CLAUDE.md") —
+// an empty strip tells the user nothing about what's behind the chevron.
+const turnPreviewFallbacks = computed(() => {
+  const bodyLines = new Map<string, string>();
+  const toolLines = new Map<string, string>();
+  for (const message of settledMessages.value) {
+    const turnKey = turnKeyByMessageId.value.get(message.id) ?? message.id;
+    if (!bodyLines.has(turnKey)) {
+      // Marker-stripped, matching the row's own displayBody — the model-facing
+      // "[Report from …]" line must never surface as a strip preview.
+      const firstLine = stripReportMessageMarker(message.body)
+        .split("\n")
+        .find((line) => line.trim() !== "");
+      if (firstLine !== undefined) bodyLines.set(turnKey, firstLine);
+    }
+    if (!toolLines.has(turnKey)) {
+      const firstCall = props.toolCallsByMessageId[message.id]?.[0];
+      if (firstCall !== undefined) {
+        const { verb, argument } = presentToolCall(firstCall);
+        toolLines.set(
+          turnKey,
+          argument === null ? verb : `${verb} ${argument}`,
+        );
+      }
+    }
+  }
+  return { bodyLines, toolLines };
+});
+
+function turnPreviewFallbackFor(turnKey: string): string | null {
+  const { bodyLines, toolLines } = turnPreviewFallbacks.value;
+  return bodyLines.get(turnKey) ?? toolLines.get(turnKey) ?? null;
 }
 
 function scrollToBottom(behavior: ScrollBehavior = "auto") {
@@ -413,7 +464,8 @@ watch(
     await nextTick();
     const row = scroller.value?.querySelector(`[data-trace-id="${traceId}"]`);
     if (!(row instanceof HTMLElement)) {
-      if (hiddenOlderCount.value > 0) visibleCount.value = props.messages.length;
+      if (hiddenOlderCount.value > 0)
+        visibleCount.value = props.messages.length;
       return;
     }
     landedTraceId = traceId;
@@ -451,6 +503,7 @@ watch(
             :show-header="showsHeaderFor(index)"
             :collapsible="showsHeaderFor(index)"
             :collapsed="!isTurnExpanded(turnKeyAt(index))"
+            :preview-fallback="turnPreviewFallbackFor(turnKeyAt(index))"
             @toggle-collapse="toggleTurn(turnKeyAt(index))"
           >
             <template
@@ -485,7 +538,6 @@ watch(
             "
           />
         </template>
-
       </div>
     </div>
 
@@ -496,7 +548,13 @@ watch(
         class="jump-to-latest"
         @click="scrollToBottom('smooth')"
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
           <path
             d="M3 6l5 5 5-5"
             stroke="currentColor"

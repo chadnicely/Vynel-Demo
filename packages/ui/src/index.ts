@@ -30,7 +30,10 @@ export type {
   AgentActivityToolCallLike,
 } from "./components/AgentActivityPane.vue";
 export { deriveSettledAgentActivity } from "./tool-cards/subagent-activity.js";
-export { displayToolName } from "./tool-cards/tool-presenters.js";
+export {
+  displayToolName,
+  presentToolCall,
+} from "./tool-cards/tool-presenters.js";
 export { describeDesktopStep } from "./tool-cards/desktop-step-presenter.js";
 export { useOpenModalCount } from "./components/modal-registry.js";
 export { default as Tooltip } from "./components/Tooltip.vue";
