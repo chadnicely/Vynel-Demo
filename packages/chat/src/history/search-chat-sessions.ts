@@ -1,6 +1,7 @@
-// Core op — full-text search over a workspace's chat messages. Returns
-// message-level hits (per D6) — UI groups by sessionId in
-// SearchResults.vue.
+// Core op — full-text search over the user's chat messages, optionally
+// narrowed to one workspace. Returns message-level hits (per D6) — UI groups
+// by sessionId in SearchResults.vue. The global root's own thread is always
+// excluded at the repo layer (the cross-session MCP wall — see chat-search.ts).
 //
 // Defense-in-depth on the minimum query length: the Zod schema enforces
 // min(2) at the HTTP boundary; this guard catches non-HTTP callers (CLI,
@@ -19,7 +20,9 @@ const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 100
 
 export type SearchChatSessionsInput = {
-  workspaceId: string
+  userId: string
+  /** Restrict to one workspace's sessions; omitted = every session the user owns. */
+  workspaceId?: string
   query: string
   limit?: number
 }
@@ -32,7 +35,8 @@ export function searchChatSessions(
   if (trimmed.length < MIN_QUERY_LENGTH) return []
   const limit = Math.min(input.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
   return searchChatMessages(db, {
-    workspaceId: input.workspaceId,
+    userId: input.userId,
+    ...(input.workspaceId !== undefined ? { workspaceId: input.workspaceId } : {}),
     query: trimmed,
     limit,
   })

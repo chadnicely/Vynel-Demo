@@ -8864,7 +8864,8 @@
                         "enum": [
                           "global",
                           "workspace",
-                          "agent"
+                          "agent",
+                          "spawned"
                         ]
                       },
                       "isArchived": {
@@ -9043,12 +9044,7 @@
           }
         ],
         "summary": "Full-text search across chat messages in the workspace.",
-        "x-sdk-name": "chat.searchSessions",
-        "x-mcp": {
-          "exposed": true,
-          "name": "search_chat_messages",
-          "description": "Search chat history in a workspace using full-text search (owner-scoped — only the authenticated user's sessions; excludes soft-deleted). Read-only."
-        }
+        "x-sdk-name": "chat.searchSessions"
       }
     },
     "/workspaces/{workspaceId}/chat/continuing": {
@@ -9269,7 +9265,8 @@
                           "enum": [
                             "global",
                             "workspace",
-                            "agent"
+                            "agent",
+                            "spawned"
                           ]
                         },
                         "isArchived": {
@@ -9759,12 +9756,7 @@
           }
         ],
         "summary": "Get a single chat session's full detail (messages + tool calls grouped by parent message).",
-        "x-sdk-name": "chat.getSession",
-        "x-mcp": {
-          "exposed": true,
-          "name": "get_chat_session",
-          "description": "Get one chat session's messages and tool calls by id (owner-scoped — 404 if not in the authenticated user's workspace). Read-only."
-        }
+        "x-sdk-name": "chat.getSession"
       },
       "patch": {
         "responses": {
@@ -9811,7 +9803,8 @@
                       "enum": [
                         "global",
                         "workspace",
-                        "agent"
+                        "agent",
+                        "spawned"
                       ]
                     },
                     "isArchived": {
@@ -10097,7 +10090,8 @@
                       "enum": [
                         "global",
                         "workspace",
-                        "agent"
+                        "agent",
+                        "spawned"
                       ]
                     },
                     "isArchived": {
@@ -10226,7 +10220,8 @@
                       "enum": [
                         "global",
                         "workspace",
-                        "agent"
+                        "agent",
+                        "spawned"
                       ]
                     },
                     "isArchived": {
@@ -27478,7 +27473,8 @@
                           "enum": [
                             "global",
                             "workspace",
-                            "agent"
+                            "agent",
+                            "spawned"
                           ]
                         },
                         "isArchived": {
@@ -29088,7 +29084,8 @@
                             "enum": [
                               "global",
                               "workspace",
-                              "agent"
+                              "agent",
+                              "spawned"
                             ]
                           },
                           "isArchived": {
@@ -29655,6 +29652,633 @@
           "rootSurface": true,
           "workspaceInteractiveSurface": true,
           "description": "List every session — yours (scope 'spawned' = sessions you created), the user's workspaces, and the assistant thread — with per-session context usage: contextTokens used of contextWindow. Check these numbers BEFORE choosing where to send work: a session near its window is a poor target; create a new one instead. Each entry’s sessionId is what send_message’s \"session:<sessionId>\" destination accepts. Read-only."
+        }
+      }
+    },
+    "/sessions/search": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of ChatMessageSearchResult (message-level hits, best rank first).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "messageId": {
+                        "type": "string"
+                      },
+                      "sessionId": {
+                        "type": "string"
+                      },
+                      "snippet": {
+                        "type": "string"
+                      },
+                      "rank": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "messageId",
+                      "sessionId",
+                      "snippet",
+                      "rank"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getSessionsSearch",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 500
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false
+          }
+        ],
+        "summary": "Full-text search across all the user’s session messages (optional workspace filter).",
+        "x-sdk-name": "sessions.searchMessages",
+        "x-mcp": {
+          "exposed": true,
+          "name": "search_chat_messages",
+          "rootSurface": true,
+          "workspaceSurface": true,
+          "ambientWorkspace": false,
+          "description": "Full-text search across ALL of the user’s session conversations — workspace chats and spawned/agent sessions alike (the global assistant thread is excluded). Pass workspaceId to restrict to one workspace; omit it to search the entire system. Returns message-level hits with <mark> snippets and each hit’s sessionId — pass that to get_chat_session to read the full conversation. Read-only."
+        }
+      }
+    },
+    "/sessions/{sessionId}/messages": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ session, messages, toolCallsByMessageId } — the full session detail.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "userId": {
+                          "type": "string"
+                        },
+                        "workspaceId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "providerId": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "visibility": {
+                          "type": "string",
+                          "enum": [
+                            "listed",
+                            "hidden"
+                          ]
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "global",
+                            "workspace",
+                            "agent",
+                            "spawned"
+                          ]
+                        },
+                        "isArchived": {
+                          "type": "boolean"
+                        },
+                        "deletedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "totalMessageCount": {
+                          "type": "number"
+                        },
+                        "totalInputTokens": {
+                          "type": "number"
+                        },
+                        "totalOutputTokens": {
+                          "type": "number"
+                        },
+                        "startedAt": {
+                          "type": "string"
+                        },
+                        "lastMessageAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "userId",
+                        "workspaceId",
+                        "providerId",
+                        "model",
+                        "title",
+                        "visibility",
+                        "scope",
+                        "isArchived",
+                        "deletedAt",
+                        "totalMessageCount",
+                        "totalInputTokens",
+                        "totalOutputTokens",
+                        "startedAt",
+                        "lastMessageAt",
+                        "updatedAt"
+                      ]
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "sessionId": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "assistant",
+                              "system"
+                            ]
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "sourceKind": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "user",
+                              "global-root",
+                              "workspace-manager",
+                              "agent",
+                              null
+                            ]
+                          },
+                          "sourceLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "originChannel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "voice",
+                              "telegram",
+                              "discord",
+                              "zoom",
+                              null
+                            ]
+                          },
+                          "partialSessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "threadId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "delegationTaskLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "runStats": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "model": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "toolCallCount": {
+                                "type": "number"
+                              },
+                              "inputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "outputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "contextTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "toolCallCount",
+                              "inputTokens",
+                              "outputTokens",
+                              "contextTokens",
+                              "durationMs"
+                            ]
+                          },
+                          "thinkingBody": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "inputTokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "outputTokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "attachedImagesMetadata": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "filename": {
+                                  "type": "string"
+                                },
+                                "mimeType": {
+                                  "type": "string"
+                                },
+                                "sizeBytes": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "filename",
+                                "mimeType",
+                                "sizeBytes"
+                              ]
+                            }
+                          },
+                          "errorCode": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "errorMessage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "completedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "sessionId",
+                          "role",
+                          "body",
+                          "sourceKind",
+                          "sourceLabel",
+                          "originChannel",
+                          "partialSessionId",
+                          "threadId",
+                          "thinkingBody",
+                          "inputTokens",
+                          "outputTokens",
+                          "attachedImagesMetadata",
+                          "errorCode",
+                          "errorMessage",
+                          "startedAt",
+                          "completedAt",
+                          "createdAt"
+                        ]
+                      }
+                    },
+                    "toolCallsByMessageId": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "parentMessageId": {
+                              "type": "string"
+                            },
+                            "toolUseId": {
+                              "type": "string"
+                            },
+                            "toolName": {
+                              "type": "string"
+                            },
+                            "toolInput": {},
+                            "toolOutput": {},
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "started",
+                                "completed",
+                                "failed",
+                                "denied",
+                                "cancelled"
+                              ]
+                            },
+                            "approvalStatus": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "enum": [
+                                "approved",
+                                "denied",
+                                "timed-out",
+                                "cancelled",
+                                null
+                              ]
+                            },
+                            "isErrorResult": {
+                              "type": "boolean"
+                            },
+                            "subagentNarrative": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "subagentToolCalls": {
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "toolUseId": {
+                                    "type": "string"
+                                  },
+                                  "toolName": {
+                                    "type": "string"
+                                  },
+                                  "toolInput": {},
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "started",
+                                      "completed",
+                                      "failed"
+                                    ]
+                                  },
+                                  "startedAt": {
+                                    "type": "string"
+                                  },
+                                  "completedAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "toolUseId",
+                                  "toolName",
+                                  "status",
+                                  "startedAt",
+                                  "completedAt"
+                                ]
+                              }
+                            },
+                            "delegation": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "properties": {
+                                "jobId": {
+                                  "type": "string"
+                                },
+                                "partialSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pending",
+                                    "claimed",
+                                    "completed",
+                                    "failed"
+                                  ]
+                                },
+                                "deliveredTo": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "taskLabel": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "reportedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "workspaceId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "targetSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "jobId",
+                                "partialSessionId",
+                                "status",
+                                "deliveredTo",
+                                "taskLabel",
+                                "reportedAt",
+                                "completedAt",
+                                "workspaceId",
+                                "targetSessionId"
+                              ]
+                            },
+                            "startedAt": {
+                              "type": "string"
+                            },
+                            "completedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "parentMessageId",
+                            "toolUseId",
+                            "toolName",
+                            "status",
+                            "approvalStatus",
+                            "isErrorResult",
+                            "startedAt",
+                            "completedAt"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "session",
+                    "messages",
+                    "toolCallsByMessageId"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown session, not owned, or the global assistant thread."
+          }
+        },
+        "operationId": "getSessionsBySessionIdMessages",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Get one owned session's full conversation (messages + tool calls).",
+        "x-sdk-name": "sessions.getMessages",
+        "x-mcp": {
+          "exposed": true,
+          "name": "get_chat_session",
+          "rootSurface": true,
+          "workspaceSurface": true,
+          "description": "Read one session’s full conversation (messages + tool calls) by sessionId — works for any of the user’s sessions across workspaces, including spawned and agent sessions (the global assistant thread is excluded). Get sessionIds from list_sessions or search_chat_messages. Transcripts can be long — prefer search_chat_messages when you only need to find something. Read-only."
         }
       }
     },

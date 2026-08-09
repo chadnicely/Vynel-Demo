@@ -88,7 +88,7 @@ describe('searchChatMessages (FTS5 external-content)', () => {
       const sB = insertChatSession(db, makeChatSession(user.id, wsB.id))
       insertChatMessage(db, makeMessage(sA.id, 'muffin recipe for the bakery'))
       insertChatMessage(db, makeMessage(sB.id, 'muffin was the cat name'))
-      const hits = searchChatMessages(db, { workspaceId: wsA.id, query: 'muffin' })
+      const hits = searchChatMessages(db, { userId: user.id, workspaceId: wsA.id, query: 'muffin' })
       expect(hits.map((h) => h.sessionId)).toEqual([sA.id])
     })
   })
@@ -101,7 +101,7 @@ describe('searchChatMessages (FTS5 external-content)', () => {
       insertWorkspace(db, ws)
       const session = insertChatSession(db, makeChatSession(user.id, ws.id))
       insertChatMessage(db, makeMessage(session.id, 'find the apartment in San Francisco'))
-      const [hit] = searchChatMessages(db, { workspaceId: ws.id, query: 'apartment' })
+      const [hit] = searchChatMessages(db, { userId: user.id, workspaceId: ws.id, query: 'apartment' })
       expect(hit?.snippet).toContain('<mark>apartment</mark>')
     })
   })
@@ -117,7 +117,7 @@ describe('searchChatMessages (FTS5 external-content)', () => {
       insertChatMessage(db, makeMessage(live.id, 'apple pie'))
       insertChatMessage(db, makeMessage(deleted.id, 'apple cider'))
       softDeleteChatSession(db, deleted.id)
-      const hits = searchChatMessages(db, { workspaceId: ws.id, query: 'apple' })
+      const hits = searchChatMessages(db, { userId: user.id, workspaceId: ws.id, query: 'apple' })
       expect(hits.map((h) => h.sessionId)).toEqual([live.id])
     })
   })
@@ -130,7 +130,67 @@ describe('searchChatMessages (FTS5 external-content)', () => {
       insertWorkspace(db, ws)
       const session = insertChatSession(db, makeChatSession(user.id, ws.id))
       insertChatMessage(db, makeMessage(session.id, 'lorem ipsum'))
-      expect(searchChatMessages(db, { workspaceId: ws.id, query: 'zebra' })).toEqual([])
+      expect(searchChatMessages(db, { userId: user.id, workspaceId: ws.id, query: 'zebra' })).toEqual([])
+    })
+  })
+
+  it('searches across ALL of the user’s workspaces when workspaceId is omitted', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const wsA = makeWorkspace(user.id)
+      const wsB = makeWorkspace(user.id)
+      insertWorkspace(db, wsA)
+      insertWorkspace(db, wsB)
+      const sA = insertChatSession(db, makeChatSession(user.id, wsA.id))
+      const sB = insertChatSession(db, makeChatSession(user.id, wsB.id))
+      insertChatMessage(db, makeMessage(sA.id, 'muffin recipe for the bakery'))
+      insertChatMessage(db, makeMessage(sB.id, 'muffin was the cat name'))
+      const hits = searchChatMessages(db, { userId: user.id, query: 'muffin' })
+      expect(hits.map((h) => h.sessionId).sort()).toEqual([sA.id, sB.id].sort())
+    })
+  })
+
+  it('includes workspace-less spawned sessions in a system-wide search', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const spawned = insertChatSession(db, {
+        ...makeChatSession(user.id, ''),
+        workspaceId: null,
+        scope: 'spawned',
+      })
+      insertChatMessage(db, makeMessage(spawned.id, 'muffin research notes'))
+      const hits = searchChatMessages(db, { userId: user.id, query: 'muffin' })
+      expect(hits.map((h) => h.sessionId)).toEqual([spawned.id])
+    })
+  })
+
+  it("never surfaces the global root's own thread (scope 'global')", async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const globalThread = insertChatSession(db, {
+        ...makeChatSession(user.id, ''),
+        workspaceId: null,
+        scope: 'global',
+      })
+      insertChatMessage(db, makeMessage(globalThread.id, 'muffin secret plans'))
+      expect(searchChatMessages(db, { userId: user.id, query: 'muffin' })).toEqual([])
+    })
+  })
+
+  it("excludes other users' sessions", async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      const other = makeUser()
+      insertUser(db, user)
+      insertUser(db, other)
+      const otherWs = makeWorkspace(other.id)
+      insertWorkspace(db, otherWs)
+      const otherSession = insertChatSession(db, makeChatSession(other.id, otherWs.id))
+      insertChatMessage(db, makeMessage(otherSession.id, 'muffin gossip'))
+      expect(searchChatMessages(db, { userId: user.id, query: 'muffin' })).toEqual([])
     })
   })
 
@@ -144,7 +204,7 @@ describe('searchChatMessages (FTS5 external-content)', () => {
       for (let i = 0; i < 5; i++) {
         insertChatMessage(db, makeMessage(session.id, `quick brown fox number ${i}`))
       }
-      const hits = searchChatMessages(db, { workspaceId: ws.id, query: 'brown', limit: 2 })
+      const hits = searchChatMessages(db, { userId: user.id, workspaceId: ws.id, query: 'brown', limit: 2 })
       expect(hits).toHaveLength(2)
     })
   })

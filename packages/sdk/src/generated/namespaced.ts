@@ -1502,8 +1502,22 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getMessages: async (sessionId: NonNullable<paths["/sessions/{sessionId}/messages"]["get"]['parameters']>['path']["sessionId"]) => {
+    const { data, error, response } = await client["GET"]("/sessions/{sessionId}/messages", {
+      params: { path: { sessionId: sessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   overview: async () => {
     const { data, error, response } = await client["GET"]("/sessions/overview")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  searchMessages: async (options: NonNullable<paths["/sessions/search"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/sessions/search", {
+      params: { query: options },
+    })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },

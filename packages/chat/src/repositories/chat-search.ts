@@ -3,7 +3,13 @@
 //
 // Phase 1: SQLite branch — external-content FTS5 + minimal triggers (rowid-
 // only). Joins chat_messages_fts → chat_messages → chat_sessions for
-// workspace scoping + soft-delete filtering.
+// user scoping + soft-delete filtering, with an optional workspace filter.
+//
+// The global root's own thread (`scope = 'global'`) is excluded UNCONDITIONALLY:
+// this search feeds the cross-session MCP tool every workspace/session/agent
+// turn carries, and the brain's private conversation must never surface through
+// it (Chad, 2026-08-10). Workspace-filtered calls never matched those rows
+// anyway (their workspace_id is NULL), so the UI search is byte-for-byte.
 //
 // Phase 2: Postgres branch — tsvector + ts_rank. Signature flips to async
 // when the Postgres migration baseline ships.
@@ -22,7 +28,9 @@ export type ChatMessageSearchResult = {
 }
 
 export type SearchChatMessagesInput = {
-  workspaceId: string
+  userId: string
+  /** Restrict to one workspace's sessions; omitted = every session the user owns. */
+  workspaceId?: string
   query: string
   limit?: number
 }
@@ -48,8 +56,11 @@ function searchChatMessagesSqlite(
 ): ChatMessageSearchResult[] {
   // External-content FTS5: search returns rowid + rank; JOIN back to
   // chat_messages for the body snippet. JOIN against chat_sessions filters
-  // by workspaceId AND excludes soft-deleted sessions.
+  // by userId (+ optional workspace), excludes soft-deleted sessions and the
+  // global root's own thread (see the file header).
   const limit = Math.min(input.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
+  const workspaceFilter =
+    input.workspaceId !== undefined ? sql`AND s.workspace_id = ${input.workspaceId}` : sql``
   return db.all<ChatMessageSearchResult>(sql`
     SELECT
       m.id AS messageId,
@@ -60,8 +71,10 @@ function searchChatMessagesSqlite(
       JOIN chat_messages m ON m.rowid = chat_messages_fts.rowid
       JOIN chat_sessions s ON s.id = m.session_id
     WHERE chat_messages_fts MATCH ${input.query}
-      AND s.workspace_id = ${input.workspaceId}
+      AND s.user_id = ${input.userId}
+      AND s.scope != 'global'
       AND s.deleted_at IS NULL
+      ${workspaceFilter}
     ORDER BY chat_messages_fts.rank
     LIMIT ${limit}
   `)

@@ -72,6 +72,15 @@ export interface McpExtension {
    * is a silent misroute rather than an error.
    */
   workspaceSurface?: boolean
+  /**
+   * Opt OUT of the generator's ambient `scope.workspaceId` stamp on an
+   * omitted optional `workspaceId` query/body field. The stamp is right for
+   * workspace-shaped reads (list_agents: omission means "my workspace"); set
+   * `false` when omission means "the whole system" (sessions search) — there
+   * the stamp would silently narrow every workspace turn's call. Path params
+   * keep their fallback regardless.
+   */
+  ambientWorkspace?: boolean
 }
 
 // The `hono-openapi` describeRoute accepts a wide options object plus

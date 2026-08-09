@@ -124,7 +124,9 @@ export const SearchChatSessionsQuerySchema = z.object({
 // columns serialized to ISO strings, nullables preserved.
 
 const ChatSessionVisibilitySchema = z.enum(["listed", "hidden"]);
-const ChatSessionScopeSchema = z.enum(["global", "workspace", "agent"]);
+// Mirrors ChatSessionScope in @vynel/chat's schema — 'spawned' was missing
+// (drift caught 2026-08-10 when the cross-session detail read landed).
+const ChatSessionScopeSchema = z.enum(["global", "workspace", "agent", "spawned"]);
 const ChatMessageRoleSchema = z.enum(["user", "assistant", "system"]);
 const ChatMessageSourceKindSchema = z.enum([
   "user",

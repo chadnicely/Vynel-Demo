@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Any session can now read any conversation.** Every tier — workspace
+  chats, spawned sessions, agent colleagues, and the global assistant —
+  carries one search tool over all your conversations (optionally narrowed
+  to a workspace) and one read tool that opens any conversation in full,
+  so a session grabs context from another the moment it needs it. The one
+  exception is deliberate: the assistant's own global thread stays private
+  and never surfaces through either tool.
+
 - **Plugins can now install into just one workspace.** Every plugin — the
   hub's and your added marketplaces' alike — appears on workspace shelves
   too: Get there installs it for that workspace only, keeping its skills and

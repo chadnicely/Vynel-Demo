@@ -94,6 +94,13 @@ type XMcp = {
   // REFERENCE it — an entry in both arrays is the same export twice, never a
   // duplicate declaration.
   workspaceSurface?: boolean
+  // Opt OUT of the ambient `scope.workspaceId` stamp on an omitted optional
+  // `workspaceId` query/body field. The stamp is right for workspace-shaped
+  // reads (list_agents: omission means "my workspace"); it is wrong for a tool
+  // whose omission means "the whole system" (sessions search) — there the
+  // stamp would silently narrow every workspace turn's call. Path params are
+  // unaffected (a workspace-pathed route NEEDS the fallback to resolve).
+  ambientWorkspace?: boolean
 }
 
 type OpenApiObjectSchema = {
@@ -159,6 +166,9 @@ type ToolEntry = {
   // Slice ④b: additionally emitted into `generatedWorkspaceInteractiveMcpTools`.
   isWorkspaceInteractive: boolean
   isWorkspaceSurface: boolean
+  // x-mcp.ambientWorkspace !== false — whether an omitted optional
+  // `workspaceId` query/body field is stamped from `scope.workspaceId`.
+  stampsAmbientWorkspace: boolean
 }
 
 const entries: ToolEntry[] = []
@@ -212,6 +222,7 @@ for (const [pathKey, methods] of Object.entries(paths)) {
         (pathKey.startsWith('/routing/') && mcp.rootSurface !== false) || mcp.rootSurface === true,
       isWorkspaceInteractive: mcp.workspaceInteractiveSurface === true,
       isWorkspaceSurface: mcp.workspaceSurface === true,
+      stampsAmbientWorkspace: mcp.ambientWorkspace !== false,
     })
   }
 }
@@ -356,11 +367,12 @@ function buildBodySource(entry: ToolEntry): string {
   // workspace-spawned call inherits its creator's ground without the model
   // needing to know the id. On the root surface `scope.workspaceId` is absent
   // and the field stays omitted (the shipped global behavior).
-  const workspaceFallback = entry.bodyFields.some((f) => f.name === 'workspaceId')
-    ? `\n        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+  const workspaceFallback =
+    entry.stampsAmbientWorkspace && entry.bodyFields.some((f) => f.name === 'workspaceId')
+      ? `\n        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
           bodyObj['workspaceId'] = scope.workspaceId
         }`
-    : ''
+      : ''
   return `        const bodyObj: Record<string, unknown> = {}
         for (const k of [${names}]) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
@@ -405,11 +417,12 @@ function buildQuerySource(entry: ToolEntry): string {
   // rows only (the model generally does not know its ambient workspace id —
   // that is the whole point of the stamp). On the root surface
   // `scope.workspaceId` is absent and the param stays omitted.
-  const workspaceFallback = entry.queryParams.some((p) => p.name === 'workspaceId')
-    ? `\n        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+  const workspaceFallback =
+    entry.stampsAmbientWorkspace && entry.queryParams.some((p) => p.name === 'workspaceId')
+      ? `\n        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
           queryParams.set('workspaceId', scope.workspaceId)
         }`
-    : ''
+      : ''
   return `        const queryParams = new URLSearchParams()
         for (const k of [${names}]) {
           const v = args[k]

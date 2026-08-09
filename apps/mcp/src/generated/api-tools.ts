@@ -787,15 +787,13 @@ export const getBackgroundRun: McpToolFactory = (scope, app) =>
 export const getChatSession: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'get_chat_session',
-    "Get one chat session's messages and tool calls by id (owner-scoped — 404 if not in the authenticated user's workspace). Read-only.",
+    "Read one session’s full conversation (messages + tool calls) by sessionId — works for any of the user’s sessions across workspaces, including spawned and agent sessions (the global assistant thread is excluded). Get sessionIds from list_sessions or search_chat_messages. Transcripts can be long — prefer search_chat_messages when you only need to find something. Read-only.",
     {
-    workspaceId: z.string(),
     sessionId: z.string(),
   },
     async (args: Record<string, unknown>) => {
       try {
-        let pathStr = '/workspaces/{workspaceId}/chat/sessions/{sessionId}'
-        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        let pathStr = '/sessions/{sessionId}/messages'
         pathStr = pathStr.replace('{sessionId}', encodeURIComponent(String(args['sessionId'] ?? '')))
         const queryStr = ''
         const requestBody: string | undefined = undefined
@@ -2416,18 +2414,17 @@ export const replyToChannel: McpToolFactory = (scope, app) =>
 export const searchChatMessages: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'search_chat_messages',
-    "Search chat history in a workspace using full-text search (owner-scoped — only the authenticated user's sessions; excludes soft-deleted). Read-only.",
+    "Full-text search across ALL of the user’s session conversations — workspace chats and spawned/agent sessions alike (the global assistant thread is excluded). Pass workspaceId to restrict to one workspace; omit it to search the entire system. Returns message-level hits with <mark> snippets and each hit’s sessionId — pass that to get_chat_session to read the full conversation. Read-only.",
     {
-    workspaceId: z.string(),
     query: z.string(),
+    workspaceId: z.string().optional(),
     limit: z.number().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
-        let pathStr = '/workspaces/{workspaceId}/chat/sessions/search'
-        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const pathStr = '/sessions/search'
         const queryParams = new URLSearchParams()
-        for (const k of ['query', 'limit']) {
+        for (const k of ['query', 'workspaceId', 'limit']) {
           const v = args[k]
           if (v !== undefined && v !== null) queryParams.set(k, String(v))
         }
@@ -3247,6 +3244,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   createGlobalMonitor,
   createSession,
   getBackgroundRun,
+  getChatSession,
   listBackgroundRuns,
   listGlobalMonitors,
   listRoutingChannels,
@@ -3254,6 +3252,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   listSessions,
   registerWorkspace,
   replyToChannel,
+  searchChatMessages,
   sendMessage,
   sendToChannel,
   setTodos,

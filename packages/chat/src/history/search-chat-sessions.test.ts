@@ -89,7 +89,7 @@ describe('searchChatSessions (core)', () => {
       insertWorkspace(db, ws)
       const session = insertChatSession(db, makeSession(user.id, ws.id))
       insertChatMessage(db, makeMessage(session.id, 'apple pie'))
-      expect(searchChatSessions(db, { workspaceId: ws.id, query: 'a' })).toEqual([])
+      expect(searchChatSessions(db, { userId: user.id, workspaceId: ws.id, query: 'a' })).toEqual([])
     })
   })
 
@@ -102,7 +102,7 @@ describe('searchChatSessions (core)', () => {
       const session = insertChatSession(db, makeSession(user.id, ws.id))
       insertChatMessage(db, makeMessage(session.id, 'apple'))
       // 1 letter + whitespace trimmed = 1 → too short
-      expect(searchChatSessions(db, { workspaceId: ws.id, query: '  a  ' })).toEqual([])
+      expect(searchChatSessions(db, { userId: user.id, workspaceId: ws.id, query: '  a  ' })).toEqual([])
     })
   })
 
@@ -114,7 +114,7 @@ describe('searchChatSessions (core)', () => {
       insertWorkspace(db, ws)
       const session = insertChatSession(db, makeSession(user.id, ws.id))
       insertChatMessage(db, makeMessage(session.id, 'apple cinnamon recipe'))
-      const hits = searchChatSessions(db, { workspaceId: ws.id, query: 'apple' })
+      const hits = searchChatSessions(db, { userId: user.id, workspaceId: ws.id, query: 'apple' })
       expect(hits).toHaveLength(1)
       expect(hits[0]!.sessionId).toBe(session.id)
     })

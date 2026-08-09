@@ -22,6 +22,12 @@ import { getSessionsOverview } from '@vynel/session/overview'
 import { createSpawnedSession } from '@vynel/session/spawned'
 import { getWorkspaceById } from '@vynel/workspaces'
 import { sessionChannelKey } from '@vynel/session/runtime'
+import {
+  attachDelegationTaskLabels,
+  attachDeliveredRunStats,
+  attachDelegationToolOutcomes,
+} from '@vynel/session/delegation'
+import { getChatSessionDetail, searchChatSessions } from '@vynel/chat'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
@@ -33,6 +39,9 @@ import {
   CreateSpawnedSessionRequestSchema,
   CreateSpawnedSessionResponseSchema,
   StartSessionTurnRequestSchema,
+  SearchSessionMessagesQuerySchema,
+  SearchChatSessionsResponseSchema,
+  ChatSessionDetailResponseSchema,
 } from './schemas.js'
 
 const SessionIdParamSchema = z.object({ sessionId: z.string().min(1) })
@@ -74,6 +83,106 @@ export const sessionsApp = factory
     ...userScoped,
     async (c) => {
       return c.json(getSessionsOverview(c.var.db, { userId: c.var.user.id }))
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /search — search_chat_messages: FTS across EVERY owned session
+  // (2026-08-10). User-scoped with an optional workspace filter — the one
+  // search tool every tier carries. The global root's own thread is walled
+  // off at the repo layer (scope != 'global').
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/search',
+    describeRoute({
+      tags: ['sessions'],
+      summary: 'Full-text search across all the user’s session messages (optional workspace filter).',
+      'x-sdk-name': 'sessions.searchMessages',
+      responses: {
+        200: {
+          description: 'Array of ChatMessageSearchResult (message-level hits, best rank first).',
+          content: { 'application/json': { schema: resolver(SearchChatSessionsResponseSchema) } },
+        },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'search_chat_messages',
+        rootSurface: true,
+        workspaceSurface: true,
+        // Omitting workspaceId means "search the whole system" — never let the
+        // generator stamp the turn's own workspace over that.
+        ambientWorkspace: false,
+        description:
+          'Full-text search across ALL of the user’s session conversations — workspace chats and ' +
+          'spawned/agent sessions alike (the global assistant thread is excluded). Pass ' +
+          'workspaceId to restrict to one workspace; omit it to search the entire system. ' +
+          'Returns message-level hits with <mark> snippets and each hit’s sessionId — pass that ' +
+          'to get_chat_session to read the full conversation. Read-only.',
+      },
+    }),
+    validator('query', SearchSessionMessagesQuerySchema),
+    ...userScoped,
+    async (c) => {
+      const query = c.req.valid('query')
+      const results = searchChatSessions(c.var.db, {
+        userId: c.var.user.id,
+        query: query.query,
+        ...(query.workspaceId !== undefined ? { workspaceId: query.workspaceId } : {}),
+        ...(query.limit !== undefined ? { limit: query.limit } : {}),
+      })
+      return c.json(results)
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /:sessionId/messages — get_chat_session: one owned session's full
+  // conversation (2026-08-10). Owner-gated, any grounding — EXCEPT the global
+  // root's own thread (same 404 as unknown/not-owned; no enumeration leak).
+  // The UI's scope-routed reads (chat.getSession / root.getSession) stay
+  // untouched — this is the tool surface's door.
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/:sessionId/messages',
+    describeRoute({
+      tags: ['sessions'],
+      summary: "Get one owned session's full conversation (messages + tool calls).",
+      'x-sdk-name': 'sessions.getMessages',
+      responses: {
+        200: {
+          description: '{ session, messages, toolCallsByMessageId } — the full session detail.',
+          content: { 'application/json': { schema: resolver(ChatSessionDetailResponseSchema) } },
+        },
+        404: { description: 'Unknown session, not owned, or the global assistant thread.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'get_chat_session',
+        rootSurface: true,
+        workspaceSurface: true,
+        description:
+          'Read one session’s full conversation (messages + tool calls) by sessionId — works for ' +
+          'any of the user’s sessions across workspaces, including spawned and agent sessions ' +
+          '(the global assistant thread is excluded). Get sessionIds from list_sessions or ' +
+          'search_chat_messages. Transcripts can be long — prefer search_chat_messages when you ' +
+          'only need to find something. Read-only.',
+      },
+    }),
+    validator('param', SessionIdParamSchema),
+    ...userScoped,
+    async (c) => {
+      const { sessionId } = c.req.valid('param')
+      const detail = getChatSessionDetail(c.var.db, sessionId, { ownerUserId: c.var.user.id })
+      // The wall: the brain's private conversation never leaves through the
+      // tool surface — same 404 as unknown/not-owned (Chad, 2026-08-10).
+      if (detail.session.scope === 'global') throw new NotFoundError('chat-session', sessionId)
+      // Same serve-time enrichment as root.getSession / chat's detail read —
+      // one content contract for every detail door.
+      return c.json({
+        ...detail,
+        messages: attachDeliveredRunStats(
+          c.var.db,
+          attachDelegationTaskLabels(c.var.db, detail.messages),
+        ),
+        toolCallsByMessageId: attachDelegationToolOutcomes(c.var.db, detail.toolCallsByMessageId),
+      })
     },
   )
   // ──────────────────────────────────────────────────────────────────

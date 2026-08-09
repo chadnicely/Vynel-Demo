@@ -120,19 +120,16 @@ export const chatApp = factory
         },
         404: { description: 'Workspace not found.' },
       },
-      'x-mcp': {
-        exposed: true,
-        name: 'search_chat_messages',
-        description:
-          'Search chat history in a workspace using full-text search ' +
-          "(owner-scoped — only the authenticated user's sessions; excludes soft-deleted). Read-only.",
-      },
+      // No x-mcp — the tool (`search_chat_messages`) moved to the user-scoped
+      // cross-session route (`sessions/index.ts`, 2026-08-10); this stays the
+      // UI's workspace-filtered search.
     }),
     validator('query', SearchChatSessionsQuerySchema),
     ...workspaceScoped,
     async (c) => {
       const query = c.req.valid('query')
       const results = searchChatSessions(c.var.db, {
+        userId: c.var.user.id,
         workspaceId: c.var.workspace!.id,
         query: query.query,
         ...(query.limit !== undefined ? { limit: query.limit } : {}),
@@ -212,13 +209,9 @@ export const chatApp = factory
         },
         404: { description: "Session not found or not in this user's workspace." },
       },
-      'x-mcp': {
-        exposed: true,
-        name: 'get_chat_session',
-        description:
-          "Get one chat session's messages and tool calls by id (owner-scoped — 404 if not in " +
-          "the authenticated user's workspace). Read-only.",
-      },
+      // No x-mcp — the tool (`get_chat_session`) moved to the user-scoped
+      // cross-session route (`sessions/index.ts`, 2026-08-10); this stays the
+      // UI's workspace session-detail read.
     }),
     ...sessionScoped,
     async (c) => {

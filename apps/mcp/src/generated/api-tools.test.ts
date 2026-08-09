@@ -177,6 +177,10 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   'create_global_monitor',
   'create_session',
   'get_background_run',
+  // The cross-session conversation reads (2026-08-10): rootSurface +
+  // workspaceSurface — every tier reads any owned session's messages through
+  // ONE tool pair; the global root's own thread is walled off route-side.
+  'get_chat_session',
   'list_background_runs',
   'list_global_monitors',
   'list_routing_channels',
@@ -186,6 +190,8 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   // The channel pipeline (2026-07-27): the model replies to the conversation
   // that drove the turn — addressed by the server-stamped ambient origin.
   'reply_to_channel',
+  // The cross-session search twin of get_chat_session (2026-08-10).
+  'search_chat_messages',
   'send_message',
   'send_to_channel',
   // The working-steps dock (2026-08-02): `rootSurface` + `workspaceSurface` —

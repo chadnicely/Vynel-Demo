@@ -53,6 +53,24 @@ export const CreateSpawnedSessionResponseSchema = z.object({
   name: z.string(),
 })
 
+// ── Cross-session conversation reads (2026-08-10) ──────────────────
+// The user-scoped homes of `search_chat_messages` + `get_chat_session` —
+// every tier (workspace root, spawned/agent sessions, global root) reads any
+// owned session's conversation through these. Response shapes are the chat
+// surface's (re-exported below) — one detail envelope everywhere.
+
+export const SearchSessionMessagesQuerySchema = z.object({
+  query: z.string().min(2).max(500),
+  /** Restrict hits to one workspace's sessions; omitted = the whole system. */
+  workspaceId: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+})
+
+export {
+  SearchChatSessionsResponseSchema,
+  ChatSessionDetailResponseSchema,
+} from '../chat/schemas.js'
+
 // ── Interactive session turns (sessions-surface Slice ③a) ──────────
 
 // Derived from @vynel/session's canonical SESSION_MODES so the route enum

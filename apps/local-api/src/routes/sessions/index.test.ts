@@ -16,7 +16,13 @@ import { withTestDatabase } from '@vynel/testing'
 import { VynelError } from '@vynel/errors'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { insertChatSession, findChatSessionById, type NewChatSession } from '@vynel/chat/repositories'
+import {
+  insertChatSession,
+  insertChatMessage,
+  findChatSessionById,
+  type NewChatSession,
+  type NewChatMessage,
+} from '@vynel/chat/repositories'
 import { TurnEventBroadcaster } from '@vynel/session/delegation'
 import { sessionChannelKey } from '@vynel/session/runtime'
 import { findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
@@ -175,6 +181,120 @@ describe('GET /sessions/overview', () => {
         contextWindow: 1_000_000,
       })
       expect(body[0]!.segments).toHaveLength(2)
+    })
+  })
+})
+
+function makeMessage(sessionId: string, body: string): NewChatMessage {
+  const now = new Date()
+  return {
+    id: randomUUID(),
+    sessionId,
+    role: 'user',
+    body,
+    thinkingBody: null,
+    inputTokens: null,
+    outputTokens: null,
+    attachedImagesMetadata: null,
+    errorCode: null,
+    errorMessage: null,
+    startedAt: now,
+    completedAt: now,
+    createdAt: now,
+  }
+}
+
+function seedWorkspace(db: Database, userId: string, name: string) {
+  return insertWorkspace(db, {
+    id: randomUUID(),
+    userId,
+    name,
+    kind: 'personal',
+    path: `/tmp/vynel/${randomUUID()}`,
+    isArchived: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lastAccessedAt: new Date(),
+  })
+}
+
+describe('GET /sessions/search (cross-session FTS)', () => {
+  it('searches every owned session by default and narrows on workspaceId', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const wsA = seedWorkspace(db, user.id, 'Acme')
+      const wsB = seedWorkspace(db, user.id, 'Beta')
+      const sA = insertChatSession(db, makeSession(user.id, wsA.id))
+      const sB = insertChatSession(db, makeSession(user.id, wsB.id))
+      insertChatMessage(db, makeMessage(sA.id, 'muffin recipe for the bakery'))
+      insertChatMessage(db, makeMessage(sB.id, 'muffin was the cat name'))
+
+      const app = makeHarness(db)
+      const all = await app.request('/sessions/search?query=muffin')
+      expect(all.status).toBe(200)
+      const allHits = (await all.json()) as Array<{ sessionId: string }>
+      expect(allHits.map((h) => h.sessionId).sort()).toEqual([sA.id, sB.id].sort())
+
+      const narrowed = await app.request(`/sessions/search?query=muffin&workspaceId=${wsA.id}`)
+      const narrowedHits = (await narrowed.json()) as Array<{ sessionId: string }>
+      expect(narrowedHits.map((h) => h.sessionId)).toEqual([sA.id])
+    })
+  })
+
+  it("never surfaces the global root's own thread", async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const globalThread = insertChatSession(
+        db,
+        makeSession(user.id, '', { workspaceId: null, scope: 'global' }),
+      )
+      insertChatMessage(db, makeMessage(globalThread.id, 'muffin secret plans'))
+
+      const app = makeHarness(db)
+      const res = await app.request('/sessions/search?query=muffin')
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual([])
+    })
+  })
+})
+
+describe('GET /sessions/:sessionId/messages (cross-session detail)', () => {
+  it("returns any owned session's full conversation, workspace or global-grounded", async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const spawned = insertChatSession(
+        db,
+        makeSession(user.id, '', { workspaceId: null, scope: 'spawned' }),
+      )
+      insertChatMessage(db, makeMessage(spawned.id, 'research notes'))
+
+      const app = makeHarness(db)
+      const res = await app.request(`/sessions/${spawned.id}/messages`)
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        session: { id: string }
+        messages: Array<{ body: string }>
+      }
+      expect(body.session.id).toBe(spawned.id)
+      expect(body.messages.map((m) => m.body)).toEqual(['research notes'])
+    })
+  })
+
+  it("404s on the global root's own thread, unknown ids, and other users' sessions alike", async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const otherUser = seedUser(db)
+      const globalThread = insertChatSession(
+        db,
+        makeSession(user.id, '', { workspaceId: null, scope: 'global' }),
+      )
+      const otherWs = seedWorkspace(db, otherUser.id, 'Theirs')
+      const theirs = insertChatSession(db, makeSession(otherUser.id, otherWs.id))
+
+      const app = makeHarness(db)
+      expect((await app.request(`/sessions/${globalThread.id}/messages`)).status).toBe(404)
+      expect((await app.request('/sessions/no-such-session/messages')).status).toBe(404)
+      expect((await app.request(`/sessions/${theirs.id}/messages`)).status).toBe(404)
     })
   })
 })

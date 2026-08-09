@@ -3257,6 +3257,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessions/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Full-text search across all the user’s session messages (optional workspace filter). */
+        get: operations["getSessionsSearch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sessions/{sessionId}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one owned session's full conversation (messages + tool calls). */
+        get: operations["getSessionsBySessionIdMessages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessions/spawned": {
         parameters: {
             query?: never;
@@ -6905,7 +6939,7 @@ export interface operations {
                         /** @enum {string} */
                         visibility: "listed" | "hidden";
                         /** @enum {string} */
-                        scope: "global" | "workspace" | "agent";
+                        scope: "global" | "workspace" | "agent" | "spawned";
                         isArchived: boolean;
                         deletedAt: string | null;
                         totalMessageCount: number;
@@ -7071,7 +7105,7 @@ export interface operations {
                             /** @enum {string} */
                             visibility: "listed" | "hidden";
                             /** @enum {string} */
-                            scope: "global" | "workspace" | "agent";
+                            scope: "global" | "workspace" | "agent" | "spawned";
                             isArchived: boolean;
                             deletedAt: string | null;
                             totalMessageCount: number;
@@ -7230,7 +7264,7 @@ export interface operations {
                         /** @enum {string} */
                         visibility: "listed" | "hidden";
                         /** @enum {string} */
-                        scope: "global" | "workspace" | "agent";
+                        scope: "global" | "workspace" | "agent" | "spawned";
                         isArchived: boolean;
                         deletedAt: string | null;
                         totalMessageCount: number;
@@ -7354,7 +7388,7 @@ export interface operations {
                         /** @enum {string} */
                         visibility: "listed" | "hidden";
                         /** @enum {string} */
-                        scope: "global" | "workspace" | "agent";
+                        scope: "global" | "workspace" | "agent" | "spawned";
                         isArchived: boolean;
                         deletedAt: string | null;
                         totalMessageCount: number;
@@ -7403,7 +7437,7 @@ export interface operations {
                         /** @enum {string} */
                         visibility: "listed" | "hidden";
                         /** @enum {string} */
-                        scope: "global" | "workspace" | "agent";
+                        scope: "global" | "workspace" | "agent" | "spawned";
                         isArchived: boolean;
                         deletedAt: string | null;
                         totalMessageCount: number;
@@ -14139,7 +14173,7 @@ export interface operations {
                             /** @enum {string} */
                             visibility: "listed" | "hidden";
                             /** @enum {string} */
-                            scope: "global" | "workspace" | "agent";
+                            scope: "global" | "workspace" | "agent" | "spawned";
                             isArchived: boolean;
                             deletedAt: string | null;
                             totalMessageCount: number;
@@ -14746,7 +14780,7 @@ export interface operations {
                             /** @enum {string} */
                             visibility: "listed" | "hidden";
                             /** @enum {string} */
-                            scope: "global" | "workspace" | "agent";
+                            scope: "global" | "workspace" | "agent" | "spawned";
                             isArchived: boolean;
                             deletedAt: string | null;
                             totalMessageCount: number;
@@ -14885,6 +14919,160 @@ export interface operations {
                         }[];
                     }[];
                 };
+            };
+        };
+    };
+    getSessionsSearch: {
+        parameters: {
+            query: {
+                query: string;
+                workspaceId?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of ChatMessageSearchResult (message-level hits, best rank first). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        messageId: string;
+                        sessionId: string;
+                        snippet: string;
+                        rank: number;
+                    }[];
+                };
+            };
+        };
+    };
+    getSessionsBySessionIdMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { session, messages, toolCallsByMessageId } — the full session detail. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        session: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string | null;
+                            providerId: string;
+                            model: string | null;
+                            title: string;
+                            /** @enum {string} */
+                            visibility: "listed" | "hidden";
+                            /** @enum {string} */
+                            scope: "global" | "workspace" | "agent" | "spawned";
+                            isArchived: boolean;
+                            deletedAt: string | null;
+                            totalMessageCount: number;
+                            totalInputTokens: number;
+                            totalOutputTokens: number;
+                            startedAt: string;
+                            lastMessageAt: string;
+                            updatedAt: string;
+                        };
+                        messages: {
+                            id: string;
+                            sessionId: string;
+                            /** @enum {string} */
+                            role: "user" | "assistant" | "system";
+                            body: string;
+                            /** @enum {string|null} */
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
+                            sourceLabel: string | null;
+                            /** @enum {string|null} */
+                            originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
+                            partialSessionId: string | null;
+                            threadId: string | null;
+                            delegationTaskLabel?: string | null;
+                            runStats?: {
+                                model: string | null;
+                                toolCallCount: number;
+                                inputTokens: number | null;
+                                outputTokens: number | null;
+                                contextTokens: number | null;
+                                durationMs: number | null;
+                            } | null;
+                            thinkingBody: string | null;
+                            inputTokens: number | null;
+                            outputTokens: number | null;
+                            attachedImagesMetadata: {
+                                filename: string;
+                                mimeType: string;
+                                sizeBytes: number;
+                            }[] | null;
+                            errorCode: string | null;
+                            errorMessage: string | null;
+                            startedAt: string;
+                            completedAt: string | null;
+                            createdAt: string;
+                        }[];
+                        toolCallsByMessageId: {
+                            [key: string]: {
+                                id: string;
+                                parentMessageId: string;
+                                toolUseId: string;
+                                toolName: string;
+                                toolInput?: unknown;
+                                toolOutput?: unknown;
+                                /** @enum {string} */
+                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                /** @enum {string|null} */
+                                approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
+                                isErrorResult: boolean;
+                                subagentNarrative?: string | null;
+                                subagentToolCalls?: {
+                                    toolUseId: string;
+                                    toolName: string;
+                                    toolInput?: unknown;
+                                    /** @enum {string} */
+                                    status: "started" | "completed" | "failed";
+                                    startedAt: string;
+                                    completedAt: string | null;
+                                }[] | null;
+                                delegation?: {
+                                    jobId: string;
+                                    partialSessionId: string | null;
+                                    /** @enum {string} */
+                                    status: "pending" | "claimed" | "completed" | "failed";
+                                    deliveredTo: string | null;
+                                    taskLabel: string | null;
+                                    reportedAt: string | null;
+                                    completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
+                                } | null;
+                                startedAt: string;
+                                completedAt: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            /** @description Unknown session, not owned, or the global assistant thread. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
