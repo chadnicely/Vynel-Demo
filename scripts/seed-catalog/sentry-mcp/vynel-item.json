@@ -1,0 +1,31 @@
+{
+  "publisher": {
+    "id": "sentry",
+    "name": "Sentry",
+    "tier": "verified",
+    "url": "https://sentry.io"
+  },
+  "item": {
+    "itemId": "sentry-mcp",
+    "kind": "mcp",
+    "displayName": "Sentry",
+    "oneLineDescription": "Connect Sentry — the assistant can look up your projects' errors and issues.",
+    "category": "research",
+    "iconName": "shield",
+    "recommendedScope": "user",
+    "minimumTier": "basic",
+    "sourceUrl": "https://docs.sentry.io/product/sentry-mcp/",
+    "status": "published"
+  },
+  "version": {
+    "version": "1.0.0",
+    "changelog": "Config-is-truth install: Sentry's hosted MCP endpoint; sign in with Connect (browser OAuth via the native claude mcp login flow).",
+    "manifest": {
+      "serverName": "sentry",
+      "transport": "http",
+      "url": "https://mcp.sentry.dev/mcp",
+      "auth": { "type": "oauth" }
+    },
+    "minAppVersion": null
+  }
+}

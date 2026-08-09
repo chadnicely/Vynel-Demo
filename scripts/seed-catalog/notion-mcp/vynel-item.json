@@ -1,0 +1,31 @@
+{
+  "publisher": {
+    "id": "notion",
+    "name": "Notion",
+    "tier": "verified",
+    "url": "https://www.notion.com"
+  },
+  "item": {
+    "itemId": "notion-mcp",
+    "kind": "mcp",
+    "displayName": "Notion",
+    "oneLineDescription": "Connect your Notion workspace — the assistant can read and update your pages and databases.",
+    "category": "notes",
+    "iconName": "notebook",
+    "recommendedScope": "user",
+    "minimumTier": "basic",
+    "sourceUrl": "https://developers.notion.com/docs/mcp",
+    "status": "published"
+  },
+  "version": {
+    "version": "1.0.0",
+    "changelog": "Config-is-truth install: Notion's hosted MCP endpoint; sign in with Connect (browser OAuth via the native claude mcp login flow).",
+    "manifest": {
+      "serverName": "notion",
+      "transport": "http",
+      "url": "https://mcp.notion.com/mcp",
+      "auth": { "type": "oauth" }
+    },
+    "minAppVersion": null
+  }
+}

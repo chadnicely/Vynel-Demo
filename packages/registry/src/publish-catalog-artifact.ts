@@ -14,6 +14,7 @@ import { publishItemVersion, type PublishResult } from './publish-item-version.j
 import { findItemVersion } from './repositories/catalog-repository.js'
 import { artifactKey, type ArtifactStore } from './artifact-store.js'
 import { inspectArtifactArchive } from './inspect-artifact-archive.js'
+import { assertMcpServerNameUnique } from './assert-mcp-server-name-unique.js'
 import type { ArtifactSigner } from './artifact-signer.js'
 
 export { MAX_ARTIFACT_BYTES }
@@ -50,6 +51,15 @@ export async function publishCatalogArtifact(
     throw new ConflictError(
       `${input.item.itemId}@${input.version.version} is already published — bump the version.`,
     )
+  }
+
+  // Every publish path (upload, from-repo, import) funnels through here,
+  // so this wall is the whole enforcement of the mcp serverName rule.
+  if (input.item.kind === 'mcp') {
+    await assertMcpServerNameUnique(db, {
+      itemId: input.item.itemId,
+      manifest: input.version.manifest,
+    })
   }
 
   await artifactStore.put(artifactKey(input.item.itemId, input.version.version), bytes)

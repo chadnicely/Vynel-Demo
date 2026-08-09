@@ -154,6 +154,20 @@ there. That one pass proves token reuse AND native interop.
 - **⏳ Arc-closing smoke (Kafi, browser; needs a Slice-4 oauth seed published):** install →
   Connect → authorize → session uses the tool → same server works in Claude Code directly.
 
+## Slice 4 as built (2026-08-09)
+
+- **The serverName rule is now a publish wall** — `registry/assert-mcp-server-name-unique.ts`,
+  called inside `publishCatalogArtifact` (every publish path funnels through it: upload,
+  from-repo, import). Any-status comparison (a draft holds its name); same-item version bumps
+  pass; the refusal names the holding item. Deliberate narrow bend of manifest-opacity — one
+  string read, lenient on unreadable manifests. Prerequisite for the admin-hub multi-source arc.
+- **Seeds:** `scripts/seed-catalog/{notion-mcp,sentry-mcp}/` — real hosted oauth connectors
+  (Notion `https://mcp.notion.com/mcp`, Sentry `https://mcp.sentry.dev/mcp`), `auth: oauth`,
+  `recommendedScope: user` (account-level, and keeps the first smoke off the `.mcp.json`
+  project-approval wall), publisher credits + sourceUrl. ⚠ Chad/Kafi publish them from the
+  portal (or `cloud:publish`) — nothing shows on the shelf until then.
+- Green: registry 86 (17 in the publish-path files, 3 new wall cases) + cloud-api suites.
+
 ## Deferred (named, not silent)
 
 - Live connection status on the card (needs JSON output or tolerant text parsing of `mcp get`).
@@ -164,3 +178,12 @@ there. That one pass proves token reuse AND native interop.
 - Found while probing: `claude-plugin-cli.ts` reads `~/.claude/plugins/` via `os.homedir()` while
   the CLI itself honors `CLAUDE_CONFIG_DIR` — harmless today (Vynel never sets it), worth one
   shared config-root resolver if that ever changes.
+
+## Handoff to the admin-hub lane (recorded 2026-08-09)
+
+- Reviewer note to take into that arc: `publishItemVersion` is still barrel-exported — a direct
+  caller would bypass the serverName wall; make the invariant structural (move the assert into
+  `publishItemVersion`, or un-export) when publishing grows multi-source.
+- Foundation blockers list for the source dimension lives in the research report (this doc's
+  ancestor conversation) + `.claude/plan/marketplace-remaining.md` inherits nothing from it —
+  the admin-hub lane starts with its own module notes.
