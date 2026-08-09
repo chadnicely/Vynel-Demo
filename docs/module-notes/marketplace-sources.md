@@ -112,6 +112,46 @@ document-skills shape), publisher = the marketplace owner. Upstream-watch extend
 repos. Open for Chad: what badge an admin-approved third-party plugin carries (leaning:
 `community` tier, no Official badge — approval means available, not endorsed).
 
+## Move B as built (2026-08-09)
+
+- **Registry** `claude-marketplace-import.ts`: `inspectClaudeMarketplaceRepo` (STATELESS review
+  material — github URL wall → clone at HEAD via the repo-source lifecycle → parse
+  marketplace.json → plugins with `proposedItemId` (kebab-folded `<marketplace>-<plugin>`) +
+  `alreadyPublished`); `importClaudeMarketplacePlugins` publishes the approved subset as
+  delegate-descriptor `plugin` items (document-skills shape: manifest
+  `{marketplaceRepo, marketplaceName, pluginName}`, descriptor-only artifact, publisher =
+  marketplace owner at **community tier — approval means available, never endorsed**, sourceUrl
+  pinned `/tree/<sha>`; ConflictError → skipped; unfoldable names → invalid-name). Tests over a
+  real git fixture + PGlite, incl. desktop-parser compatibility and the URL-wall-before-git pin.
+- **cloud-api**: `POST /admin/catalog/inspect-claude-marketplace` + `/import-claude-marketplace`
+  behind the dual door (import-anthropic precedent; long-running acceptable).
+- **Portal**: `ImportMarketplaceView` (`/catalog/import-marketplace`, door in CatalogView) —
+  inspect → checkbox review list (already-published rows unticked) → Approve N → outcome
+  summary; view test pins the preselect + exact approved payload. "Add Marketplace Catalog"
+  label left as-is (deliberate earlier rename, not a mislabel).
+- **Desktop needs NOTHING**: hub-published delegate plugin items already install (document-
+  skills precedent) and badge community.
+- Green: registry marketplace-import 3 (registry total 89) · cloud-api 29 · portal 24.
+
+## Move B review round (1 must-fix + 5 should-fixes, ALL applied)
+
+- **Must-fix:** publisher-id collision — a marketplace self-named "Anthropic" folded to the
+  production `anthropic` publisher id, and one approval would have DEMOTED the official
+  publisher (name/tier/url upsert) across every Anthropic item. Fixed by namespacing:
+  `marketplacePublisherId` = `mkt-<folded>` (pinned in the publish test).
+- Should-fixes: ① the real `PublishItemSchema` now runs per item at import (semver + bounds
+  invariants are no longer type-only on this path; failures fold to 'invalid-metadata' with a
+  bounded `detail`) ② per-item try/catch — store/DB hiccups land as 'failed' outcomes with
+  detail, never aborting the batch (re-runs converge via skip) ③ inspection truncates every
+  field to publishable bounds + folds blanks to null, so "Approve N" can't dead-end on one
+  oversized hostile description ④ inspection dedupes plugin names + caps at 100 entries and the
+  already-published flags batch into ONE query ⑤ `sourceUrl` derives via the existing
+  `deriveRepoSourceUrl` home (trailing-slash/.git variants normalized).
+- Deferred (named): repo-inspect size caps (~5MB stat sweep across ALL repo-inspect paths, not
+  just this one); malformed-vs-missing marketplace.json both report not-found; cross-marketplace
+  folded item-id aliasing (deterministic, admin-reviewed); post-import inspection staleness
+  (cosmetic — re-approve skips).
+
 ## Deferred (named, not silent)
 
 - `plugin marketplace update` cadence for user-added sources (the CLI refreshes its clone on

@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The admin portal reviews whole marketplaces.** A new "Import from
+  marketplace" page inspects any GitHub-hosted Claude plugin marketplace at
+  a pinned commit, lists its plugins with checkboxes, and publishes exactly
+  the approved ones into the official catalog as community items — available
+  to everyone, never badged official. Re-running is safe: already-published
+  plugins simply skip.
+
 - **Add whole marketplaces, not just items.** The global Marketplace grew a
   Marketplaces door: paste a GitHub repo (or any https git URL) that hosts a
   Claude plugin marketplace, and its plugins join your shelf behind a source

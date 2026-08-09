@@ -50,6 +50,15 @@ export {
   type AnthropicImportItemResult,
 } from './import-anthropic.js'
 export {
+  inspectClaudeMarketplaceRepo,
+  importClaudeMarketplacePlugins,
+  proposedPluginItemId,
+  type ClaudeMarketplaceInspection,
+  type ClaudeMarketplacePluginInspection,
+  type ImportClaudeMarketplaceInput,
+  type ImportedPluginOutcome,
+} from './claude-marketplace-import.js'
+export {
   packItemFolder,
   ENTRY_FILE_BY_KIND,
   ITEM_METADATA_FILE,

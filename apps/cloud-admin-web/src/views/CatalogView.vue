@@ -80,6 +80,9 @@ function isKind(tab: KindTab): tab is HubItemKind {
         >
           {{ importMutation.isPending.value ? "Importing…" : "Import Anthropic items" }}
         </button>
+        <RouterLink class="button" :to="{ name: 'catalog-import-marketplace' }">
+          Import from marketplace
+        </RouterLink>
         <RouterLink
           class="button button-primary"
           :to="{ name: 'catalog-publish' }"
