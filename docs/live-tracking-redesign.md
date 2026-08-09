@@ -5,8 +5,8 @@ review (`docs/live-tracking-wh.md`, bugs/gaps IDs there). Principle behind every
 **tracking = navigation, not mirroring** — surfaces point at the real conversation instead of
 re-rendering it through correlation joins.
 
-**The definition (Chad, 2026-08-08, verbatim intent):** *"tracking means: pointer — click will
-scroll to where the partial id is."* A primary session continues across multiple tasks and fans
+**The definition (Chad, 2026-08-08, verbatim intent):** _"tracking means: pointer — click will
+scroll to where the partial id is."_ A primary session continues across multiple tasks and fans
 out via spawned sessions; the pointer per task is the entire tracker. Each case lands here verbatim-intent first, then the
 mechanics mapping. Nothing is built until the cases are complete and Chad okays the arc.
 
@@ -50,6 +50,7 @@ exactly TWO facts, both simple and durable:
    no joins, refresh-proof by construction.
 
 Bug-class impact (IDs from `docs/live-tracking-wh.md`):
+
 - **B7** (ghost delivery cards) — moot in the thread: no inline cards to ghost. Rail keys on
   work-kind jobs only (the query fix still applies).
 - **B6** (cards narrate blank) — moot: the sidebar shows the REAL tool rows, which already
@@ -590,4 +591,27 @@ any backward kind nav to keep it easy for programming."
 - The dead `show-watch-chips` fallthrough prop was swept from both hosts (reviewer note
   from the parity pass).
 
-*(Case 4+ land here as received.)*
+## Origin chips + run stats on every turn (Chad, 2026-08-09; SHIPPED)
+
+Two polish asks from the live walk:
+
+- **The "from X" text became the origin chip.** A relayed anchor ("CLAUDE · FROM
+  GLOBAL") and a mention row ("YOU · from X") now wear a SCOPE chip in the same format
+  as the workspace chip — Global wears the house glyph (echoing the Global tab) with a
+  "Global / Scope" profile card on hover; a workspace origin wears that workspace's
+  icon/accent. Works on every ThreadStream host (global, workspace, sessions, sidebar).
+  A workspace literally named "Global" wins over the glyph (map hit first).
+- **Every assistant turn wears the run-stats door** — not just delivered rows. The host
+  aggregates the TURN (tool calls summed, output tokens summed, duration = first
+  start → last completion) and names the session's model; the door renders on the turn
+  header beside the chips. Served delivered-row stats win over the aggregate.
+- **The token math is fixed** (the "462.8k in" bug): a row's `inputTokens` is the
+  request's WHOLE context occupancy (the `chat_messages` column note), so the run's
+  "in" is the LAST row's value — summing over-counted by the full context per message.
+  Output stays summed (per-generation fresh tokens). Fixed in BOTH homes:
+  `attachDeliveredRunStats` (served) and ThreadStream's `turnRunStats` (aggregate);
+  enrichment test recast with a note.
+- Duration honesty: served stats keep "still running" (they know the job state); a turn
+  aggregate with missing timestamps (interrupted/legacy rows) shows "—" instead.
+
+_(Case 4+ land here as received.)_

@@ -512,6 +512,76 @@ describe("ThreadStream", () => {
     expect(toolWrapper.get(".turn-preview").text()).toBe("Read CLAUDE.md");
   });
 
+  // The origin chip (Chad, 2026-08-09): a relayed anchor's "from X" text
+  // becomes a chip — Global wears the house glyph; the profile card rides
+  // the same hover as the workspace chip. Works on every ThreadStream host.
+  it("a CLAUDE · FROM GLOBAL anchor row wears the global chip and drops the from-text", () => {
+    const messages: ChatMessageResponse[] = [
+      {
+        ...makeMessage(0),
+        id: "t1",
+        role: "user",
+        sourceKind: "global-root",
+        sourceLabel: "Global",
+        body: "@James how many modules in the backend?",
+      },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: { messages, toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+
+    const row = wrapper.get(".message-row");
+    expect(row.get(".workspace-badge").classes()).toContain("is-global");
+    expect(row.get(".role-label").text()).toContain("Claude");
+    expect(row.get(".role-label").text()).not.toContain("from Global");
+  });
+
+  // Per-turn run stats (Chad, 2026-08-09): every assistant turn wears the
+  // info door. "in" is the LAST row's context occupancy (each row stores the
+  // whole window — summing was the 462.8k bug); "out" sums fresh tokens.
+  it("an assistant turn's header carries aggregated run stats — last-row context, summed output", () => {
+    const messages: ChatMessageResponse[] = [
+      {
+        ...makeMessage(1),
+        id: "a1",
+        role: "assistant",
+        inputTokens: 40_000,
+        outputTokens: 120,
+        startedAt: "2026-07-05T10:00:00.000Z",
+        completedAt: "2026-07-05T10:00:04.000Z",
+      },
+      {
+        ...makeMessage(1),
+        id: "a2",
+        role: "assistant",
+        inputTokens: 41_500,
+        outputTokens: 80,
+        startedAt: "2026-07-05T10:00:04.000Z",
+        completedAt: "2026-07-05T10:00:09.000Z",
+      },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: {},
+        activeTurn: null,
+        sessionModel: "claude-fable-5",
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    const header = wrapper.getComponent(MessageRow);
+    expect(header.props("runStats")).toEqual({
+      model: "claude-fable-5",
+      toolCallCount: 0,
+      inputTokens: 41_500,
+      outputTokens: 200,
+      durationMs: 9000,
+    });
+    expect(wrapper.find(".run-info").exists()).toBe(true);
+  });
+
   it("a marker-only delivered row never leaks the model-facing marker into its strip", () => {
     // The reviewer-caught edge: content-less report → own displayBody empty →
     // the fallback fires, and it must read the STRIPPED body, not the raw one.

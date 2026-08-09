@@ -49,6 +49,9 @@ const props = withDefaults(
     /** Workspace name → id (the host's list) — unlocks the delivered-row
      *  workspace chip's customized icon + accent. Omitted = name-derived look. */
     workspacesByName?: Record<string, string> | undefined;
+    /** The displayed session's model — names the model in the per-turn
+     *  run-stats card (messages don't carry one). Null/omitted = "default". */
+    sessionModel?: string | null;
   }>(),
   {
     assistantName: "Assistant",
@@ -56,6 +59,7 @@ const props = withDefaults(
     pointersByTraceId: undefined,
     scrollToTraceId: undefined,
     workspacesByName: undefined,
+    sessionModel: null,
   },
 );
 
@@ -80,25 +84,52 @@ const { resolvePersona } = usePersonaResolver();
 // it — the delivered colleague row in Global and the persona's own reply in
 // its workspace read as the same participant (2026-08-09 parity pass).
 const customize = useCustomizeStore();
-function workspaceBadgeFor(message: ChatMessageResponse) {
-  if (
-    (message.sourceKind !== "agent" &&
-      message.sourceKind !== "workspace-manager") ||
-    message.sourceLabel == null
-  ) {
-    return null;
-  }
-  const { workspace } = splitSourceLabel(message.sourceLabel);
-  if (workspace === null) return null;
-  const workspaceId = props.workspacesByName?.[workspace] ?? null;
+
+function workspaceChip(name: string) {
+  const workspaceId = props.workspacesByName?.[name] ?? null;
   const custom =
     workspaceId !== null ? customize.customizationFor(workspaceId) : null;
   return {
-    name: workspace,
+    name,
     imageUrl: custom?.workspaceImage ?? null,
-    monogram: workspaceMonogram(workspace),
-    accentVar: `--ws-${custom?.colorSlot ?? workspaceColorSlot(workspace)}`,
+    monogram: workspaceMonogram(name),
+    accentVar: `--ws-${custom?.colorSlot ?? workspaceColorSlot(name)}`,
   };
+}
+
+function workspaceBadgeFor(message: ChatMessageResponse) {
+  // A persona-stamped row: the label's workspace segment is the chip.
+  if (
+    (message.sourceKind === "agent" ||
+      message.sourceKind === "workspace-manager") &&
+    message.sourceLabel != null
+  ) {
+    const { workspace } = splitSourceLabel(message.sourceLabel);
+    return workspace === null ? null : workspaceChip(workspace);
+  }
+  // A relayed task anchor / mention row: the label IS the origin scope
+  // (Chad, 2026-08-09: the "from X" text becomes the chip — Global wears
+  // the house glyph, a workspace origin its own icon). Known workspaces
+  // win over the literal name "Global" so a workspace named Global keeps
+  // its identity.
+  if (
+    message.role === "user" &&
+    (message.sourceKind === "global-root" || message.sourceKind === "user") &&
+    message.sourceLabel != null
+  ) {
+    const name = message.sourceLabel;
+    if (props.workspacesByName?.[name] === undefined && name === "Global") {
+      return {
+        name: "Global",
+        imageUrl: null,
+        monogram: "G",
+        accentVar: "",
+        isGlobal: true,
+      };
+    }
+    return workspaceChip(name);
+  }
+  return null;
 }
 
 function authorPersonaFor(message: ChatMessageResponse) {
@@ -357,6 +388,76 @@ function turnPreviewFallbackFor(turnKey: string): string | null {
   return bodyLines.get(turnKey) ?? toolLines.get(turnKey) ?? null;
 }
 
+// The per-turn run stats (Chad, 2026-08-09: EVERY assistant turn wears the
+// info door, not just delivered rows): tool calls, tokens, and duration
+// aggregated over the turn's assistant rows. `inputTokens` takes the LAST
+// row's value — each row stores the request's whole context occupancy, so
+// summing over-counts by the context size per row; output sums correctly
+// (per-row output is that generation's fresh tokens).
+const turnRunStats = computed(() => {
+  const byTurn = new Map<
+    string,
+    {
+      toolCallCount: number;
+      inputTokens: number | null;
+      outputTokens: number | null;
+      startedAt: number | null;
+      completedAt: number | null;
+    }
+  >();
+  for (const message of settledMessages.value) {
+    if (message.role !== "assistant") continue;
+    const turnKey = turnKeyByMessageId.value.get(message.id) ?? message.id;
+    const entry = byTurn.get(turnKey) ?? {
+      toolCallCount: 0,
+      inputTokens: null,
+      outputTokens: null,
+      startedAt: null,
+      completedAt: null,
+    };
+    entry.toolCallCount += props.toolCallsByMessageId[message.id]?.length ?? 0;
+    if (message.inputTokens !== null) entry.inputTokens = message.inputTokens;
+    if (message.outputTokens !== null)
+      entry.outputTokens = (entry.outputTokens ?? 0) + message.outputTokens;
+    if (message.startedAt !== null) {
+      const startMs = new Date(message.startedAt).getTime();
+      entry.startedAt =
+        entry.startedAt === null ? startMs : Math.min(entry.startedAt, startMs);
+    }
+    if (message.completedAt !== null) {
+      const endMs = new Date(message.completedAt).getTime();
+      entry.completedAt =
+        entry.completedAt === null ? endMs : Math.max(entry.completedAt, endMs);
+    }
+    byTurn.set(turnKey, entry);
+  }
+  return byTurn;
+});
+
+function turnRunStatsFor(turnKey: string) {
+  const entry = turnRunStats.value.get(turnKey);
+  if (entry === undefined) return null;
+  const durationMs =
+    entry.startedAt !== null && entry.completedAt !== null
+      ? Math.max(0, entry.completedAt - entry.startedAt)
+      : null;
+  // No usage and no duration = nothing worth a door (a just-started turn).
+  if (
+    entry.inputTokens === null &&
+    entry.outputTokens === null &&
+    durationMs === null
+  ) {
+    return null;
+  }
+  return {
+    model: props.sessionModel,
+    toolCallCount: entry.toolCallCount,
+    inputTokens: entry.inputTokens,
+    outputTokens: entry.outputTokens,
+    durationMs,
+  };
+}
+
 function scrollToBottom(behavior: ScrollBehavior = "auto") {
   const element = scroller.value;
   if (!element) return;
@@ -504,6 +605,9 @@ watch(
             :collapsible="showsHeaderFor(index)"
             :collapsed="!isTurnExpanded(turnKeyAt(index))"
             :preview-fallback="turnPreviewFallbackFor(turnKeyAt(index))"
+            :run-stats="
+              showsHeaderFor(index) ? turnRunStatsFor(turnKeyAt(index)) : null
+            "
             @toggle-collapse="toggleTurn(turnKeyAt(index))"
           >
             <template

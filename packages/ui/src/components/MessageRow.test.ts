@@ -497,6 +497,60 @@ describe("MessageRow workspace chip + run stats", () => {
     expect(wrapper.get(".workspace-badge .badge-monogram").text()).toBe("CL");
   });
 
+  it("a GLOBAL origin chip renders the house glyph and drops the from-text", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "global-root",
+          sourceLabel: "Global",
+          body: "@James check the backend",
+        }),
+        workspaceBadge: {
+          name: "Global",
+          imageUrl: null,
+          monogram: "G",
+          accentVar: "",
+          isGlobal: true,
+        },
+      },
+    });
+    const chip = wrapper.get(".workspace-badge");
+    expect(chip.classes()).toContain("is-global");
+    expect(chip.find("svg").exists()).toBe(true);
+    expect(wrapper.get(".role-label").text()).toContain("Claude");
+    expect(wrapper.get(".role-label").text()).not.toContain("from Global");
+  });
+
+  it("the host's turn stats grow the door when the row carries none; served stats win", () => {
+    const turnStats = {
+      model: "claude-fable-5",
+      toolCallCount: 4,
+      inputTokens: 41_500,
+      outputTokens: 200,
+      durationMs: 9000,
+    };
+    const fromTurn = mount(MessageRow, {
+      props: { message: makeMessage(), runStats: turnStats },
+    });
+    expect(fromTurn.find(".run-info").exists()).toBe(true);
+
+    const served = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "agent",
+          sourceLabel: "Nova",
+          body: "hi",
+          runStats: { ...turnStats, model: "claude-opus-x" },
+        }),
+        runStats: turnStats,
+      },
+    });
+    // One door — the served (producing run's) stats, not the turn aggregate.
+    expect(served.findAll(".run-info")).toHaveLength(1);
+  });
+
   it("a served runStats grows the info door; without it none renders", () => {
     const withStats = mount(MessageRow, {
       props: {

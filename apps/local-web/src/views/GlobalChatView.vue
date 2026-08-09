@@ -162,7 +162,9 @@ const inFlightDelegations = computed(() => inFlightQuery.data.value ?? []);
 // The thread pointers (live-tracking redesign, Case 1) — the tracker is a
 // pointer under the hand-off row; in-flight-only by construction; the rail
 // carries the roster. A click routes through the one-home opener.
-const threadPointers = computed(() => buildThreadPointers(inFlightDelegations.value));
+const threadPointers = computed(() =>
+  buildThreadPointers(inFlightDelegations.value),
+);
 const openPointerTarget = useOpenPointerTarget();
 const isProcessing = computed(() => inFlightDelegations.value.length > 0);
 
@@ -212,6 +214,9 @@ const detailQuery = useSessionDetail(
   () => (isProcessing.value || hasUnrenderedGlobalTurn.value ? 4000 : false),
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
+const sessionModel = computed(
+  () => detailQuery.data.value?.session.model ?? null,
+);
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
 );
@@ -245,7 +250,9 @@ const ownActiveTurn = computed(() =>
   }),
 );
 
-const activeTurn = computed(() => ownActiveTurn.value ?? watchedTurn.view.value);
+const activeTurn = computed(
+  () => ownActiveTurn.value ?? watchedTurn.view.value,
+);
 
 // A cold-cache open used to flash the welcome hero over a real conversation
 // while the history fetch was in flight — gate the hero behind the fetch.
@@ -347,10 +354,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           :scope="{ kind: 'global' }"
         />
         <template v-else-if="shell.mainView === 'ssh-servers'">
-          <LockedFeatureCard
-            v-if="isLocked('ssh')"
-            feature-label="Servers"
-          />
+          <LockedFeatureCard v-if="isLocked('ssh')" feature-label="Servers" />
           <SshServersSection v-else :scope="{ kind: 'global' }" />
         </template>
         <EngineSection v-else-if="shell.mainView === 'engine'" />
@@ -428,6 +432,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :assistant-icon-url="assistantIconUrl"
         :pointers-by-trace-id="threadPointers"
         :workspaces-by-name="workspacesByName"
+        :session-model="sessionModel"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"
       />

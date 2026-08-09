@@ -43,16 +43,24 @@ const props = withDefaults(
       monogram: string;
       accentVar: string;
     } | null;
-    /** The row's WORKSPACE identity chip (delivered colleague rows): the host
-     *  resolves the label's workspace segment to an icon/monogram + accent —
-     *  the chip's hover shows a small profile card, and the author line drops
-     *  the workspace text (the chip carries it). Null hides the chip. */
+    /** The row's SCOPE identity chip: a persona row wears its workspace, a
+     *  relayed/mention row its ORIGIN scope. The host resolves the label to
+     *  an icon/monogram + accent — the chip's hover shows a small profile
+     *  card, and the author line drops the scope text (the chip carries it).
+     *  `isGlobal` swaps the image/monogram for the house glyph (the Global
+     *  scope has no workspace identity). Null hides the chip. */
     workspaceBadge?: {
       name: string;
       imageUrl: string | null;
       monogram: string;
       accentVar: string;
+      isGlobal?: boolean;
     } | null;
+    /** The producing run's stats for the info door when the row carries none
+     *  of its own — the host aggregates the TURN (tool calls, tokens,
+     *  duration) for ordinary assistant turns. Served `message.runStats`
+     *  (delivered rows) wins over this. */
+    runStats?: ChatMessageResponse["runStats"] | null;
     /** TURN folding (Chad, 2026-08-09): true on a turn's header row — the
      *  header grows the time+chevron toggle at its right edge. */
     collapsible?: boolean;
@@ -70,6 +78,7 @@ const props = withDefaults(
     showHeader: true,
     authorPersona: null,
     workspaceBadge: null,
+    runStats: null,
     collapsible: false,
     collapsed: false,
     previewFallback: null,
@@ -105,11 +114,14 @@ const roleLabel = computed(() => {
     // A routed task's anchor row: Claude relayed the ask (redesign Q1). The
     // origin scope renders only when the stamp CARRIES one — an unlabeled
     // legacy stamp stays scope-silent rather than claiming "from Global" for
-    // a workspace-origin dispatch.
-    if (props.message.sourceKind === "global-root")
-      return props.message.sourceLabel
-        ? `Claude · from ${props.message.sourceLabel}`
-        : "Claude";
+    // a workspace-origin dispatch. With an origin chip beside the name, the
+    // "from X" text moves into the chip + its hover card.
+    if (props.message.sourceKind === "global-root") {
+      if (!props.message.sourceLabel) return "Claude";
+      return props.workspaceBadge !== null
+        ? "Claude"
+        : `Claude · from ${props.message.sourceLabel}`;
+    }
     if (isInboundReport.value) {
       // With a workspace chip beside the name, the label shows the PERSONA
       // part only — the workspace moved into the chip + its hover card.
@@ -120,7 +132,9 @@ const roleLabel = computed(() => {
     // A mention lands as the USER speaking directly into this conversation,
     // labeled with where it came from (redesign Case 3).
     if (props.message.sourceKind === "user" && props.message.sourceLabel)
-      return `You · from ${props.message.sourceLabel}`;
+      return props.workspaceBadge !== null
+        ? "You"
+        : `You · from ${props.message.sourceLabel}`;
     return "You";
   }
   if (props.message.sourceKind === "global-root") return "Claude";
@@ -281,7 +295,11 @@ const inboundKindWord = computed(() =>
 const isExpanded = ref(false);
 
 // The run-stats hover card (Chad, 2026-08-09): the info icon beside the
-// workspace chip reveals the PRODUCING run's stats — served on delivered rows.
+// author reveals the PRODUCING run's stats. Served stats (delivered rows —
+// the colleague's run) win over the host's TURN aggregate (every other
+// assistant turn) so one door serves both.
+const runStats = computed(() => props.message.runStats ?? props.runStats);
+
 function formatTokenCount(count: number): string {
   return count >= 1000
     ? `${(count / 1000).toFixed(1).replace(/\.0$/, "")}k`
@@ -296,7 +314,7 @@ function formatRunDuration(ms: number): string {
 }
 
 const runTokensLabel = computed(() => {
-  const stats = props.message.runStats;
+  const stats = runStats.value;
   if (stats == null) return null;
   if (stats.inputTokens === null && stats.outputTokens === null) return "—";
   return `${formatTokenCount(stats.inputTokens ?? 0)} in · ${formatTokenCount(
@@ -304,11 +322,14 @@ const runTokensLabel = computed(() => {
   )} out`;
 });
 
-const runDurationLabel = computed(() =>
-  props.message.runStats?.durationMs != null
-    ? formatRunDuration(props.message.runStats.durationMs)
-    : "still running",
-);
+// SERVED stats know a null duration means the run hasn't finished; a turn
+// aggregate's null just means timestamps are missing (an interrupted or
+// legacy turn) — claiming "still running" there would lie.
+const runDurationLabel = computed(() => {
+  if (runStats.value?.durationMs != null)
+    return formatRunDuration(runStats.value.durationMs);
+  return props.message.runStats != null ? "still running" : "—";
+});
 
 // The folded strip's one-line preview — the first non-empty line of the
 // display body (marker already stripped), the card-title cleanup applied.
@@ -361,19 +382,40 @@ const collapsedPreview = computed(() => {
           <ClaudeMark v-else :size="14" />
         </span>
         {{ roleLabel }}
-        <!-- The WORKSPACE chip (Chad, 2026-08-09): the label's workspace text
-           became an icon; hover shows the profile card. -->
+        <!-- The SCOPE chip (Chad, 2026-08-09): the label's workspace/origin
+           text became an icon; hover shows the profile card. Global wears
+           the house glyph (echoing the Global tab). -->
         <Tooltip v-if="props.workspaceBadge" side="bottom" :delay-ms="150">
           <template #content>
             <span class="hover-card">
               <span
                 class="hover-card-chip"
-                :style="{
-                  background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
-                }"
+                :class="{ 'is-global': props.workspaceBadge.isGlobal }"
+                :style="
+                  props.workspaceBadge.isGlobal
+                    ? undefined
+                    : {
+                        background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
+                      }
+                "
               >
+                <svg
+                  v-if="props.workspaceBadge.isGlobal"
+                  width="11"
+                  height="11"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M2.5 6.6 8 2.2l5.5 4.4V13a.8.8 0 0 1-.8.8H3.3a.8.8 0 0 1-.8-.8V6.6Z"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linejoin="round"
+                  />
+                </svg>
                 <img
-                  v-if="props.workspaceBadge.imageUrl"
+                  v-else-if="props.workspaceBadge.imageUrl"
                   :src="props.workspaceBadge.imageUrl"
                   alt=""
                 />
@@ -382,18 +424,44 @@ const collapsedPreview = computed(() => {
               <span class="hover-card-title">{{
                 props.workspaceBadge.name
               }}</span>
-              <span class="hover-card-caption">Workspace</span>
+              <span class="hover-card-caption">{{
+                props.workspaceBadge.isGlobal ? "Scope" : "Workspace"
+              }}</span>
             </span>
           </template>
           <span
             class="workspace-badge"
-            :style="{
-              background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
-            }"
-            :aria-label="`workspace ${props.workspaceBadge.name}`"
+            :class="{ 'is-global': props.workspaceBadge.isGlobal }"
+            :style="
+              props.workspaceBadge.isGlobal
+                ? undefined
+                : {
+                    background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
+                  }
+            "
+            :aria-label="
+              props.workspaceBadge.isGlobal
+                ? 'from Global'
+                : `workspace ${props.workspaceBadge.name}`
+            "
           >
+            <svg
+              v-if="props.workspaceBadge.isGlobal"
+              width="10"
+              height="10"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M2.5 6.6 8 2.2l5.5 4.4V13a.8.8 0 0 1-.8.8H3.3a.8.8 0 0 1-.8-.8V6.6Z"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linejoin="round"
+              />
+            </svg>
             <img
-              v-if="props.workspaceBadge.imageUrl"
+              v-else-if="props.workspaceBadge.imageUrl"
               :src="props.workspaceBadge.imageUrl"
               alt=""
             />
@@ -403,16 +471,16 @@ const collapsedPreview = computed(() => {
           </span>
         </Tooltip>
         <!-- The run-stats door: hover reveals the producing run's metadata. -->
-        <Tooltip v-if="props.message.runStats" side="bottom" :delay-ms="150">
+        <Tooltip v-if="runStats" side="bottom" :delay-ms="150">
           <template #content>
             <span class="hover-card stats-card">
               <span class="stats-row">
                 <span class="stats-key">Model</span>
-                <span>{{ props.message.runStats.model ?? "default" }}</span>
+                <span>{{ runStats.model ?? "default" }}</span>
               </span>
               <span class="stats-row">
                 <span class="stats-key">Tool calls</span>
-                <span>{{ props.message.runStats.toolCallCount }}</span>
+                <span>{{ runStats.toolCallCount }}</span>
               </span>
               <span class="stats-row">
                 <span class="stats-key">Tokens</span>
@@ -813,6 +881,14 @@ const collapsedPreview = computed(() => {
   flex: none;
   border-radius: 6px;
   overflow: hidden;
+}
+
+/* Global has no workspace accent — a quiet neutral chip; the glyph carries
+   the meaning (gold stays reserved for assistant presence). */
+.workspace-badge.is-global,
+.hover-card-chip.is-global {
+  background: var(--row-hover);
+  color: var(--ink-2);
 }
 
 .workspace-badge img {

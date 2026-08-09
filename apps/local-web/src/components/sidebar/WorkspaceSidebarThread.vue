@@ -71,6 +71,9 @@ const detailQuery = useSessionDetail(
     hasBackgroundTurnHere.value && !chatTurn.isStreaming.value ? 4000 : false,
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
+const sessionModel = computed(
+  () => detailQuery.data.value?.session.model ?? null,
+);
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
 );
@@ -144,6 +147,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :tool-calls-by-message-id="toolCallsByMessageId"
         :active-turn="activeTurn"
         :assistant-name="managerName"
+        :session-model="sessionModel"
         :scroll-to-trace-id="props.anchorTraceId"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"

@@ -121,6 +121,9 @@ const detailQuery = useSessionDetail(
       : false,
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
+const sessionModel = computed(
+  () => detailQuery.data.value?.session.model ?? null,
+);
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
 );
@@ -170,7 +173,9 @@ const watchedTurn = useWatchedTurn({
   },
 });
 
-const activeTurn = computed(() => ownActiveTurn.value ?? watchedTurn.view.value);
+const activeTurn = computed(
+  () => ownActiveTurn.value ?? watchedTurn.view.value,
+);
 
 // A cold-cache open used to flash the welcome hero over a real conversation
 // while the history fetch was in flight — gate the hero behind the fetch.
@@ -319,6 +324,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :assistant-icon-url="assistantIconUrl"
         :pointers-by-trace-id="threadPointers"
         :workspaces-by-name="workspacesByName"
+        :session-model="sessionModel"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"
       />
