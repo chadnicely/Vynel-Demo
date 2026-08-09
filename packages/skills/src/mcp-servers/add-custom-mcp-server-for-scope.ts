@@ -13,7 +13,7 @@ import { ConflictError, ValidationError } from '@vynel/errors'
 import type { SkillRequiredMcpServer } from '@vynel/contracts/skills/verified-skills/verified-skill-definition'
 import type { SkillScope } from '../repositories/index.js'
 import { installMcpServerForScope } from './install-mcp-server-for-scope.js'
-import { listMcpServerNamesForScope } from './list-mcp-server-names-for-scope.js'
+import { listMcpServerEntriesForScope } from './list-mcp-server-entries-for-scope.js'
 
 export type AddCustomMcpServerForScopeInput = {
   scope: SkillScope
@@ -31,7 +31,9 @@ export async function addCustomMcpServerForScope(
   if (input.server.transport !== 'stdio') {
     assertAllowedRemoteUrl(input.server.url)
   }
-  const existingNames = listMcpServerNamesForScope(input.scope, input.workspacePath)
+  const existingNames = listMcpServerEntriesForScope(input.scope, input.workspacePath).map(
+    (entry) => entry.serverName,
+  )
   if (existingNames.includes(serverName)) {
     throw new ConflictError(
       `An MCP server named '${serverName}' already exists at this scope — ` +

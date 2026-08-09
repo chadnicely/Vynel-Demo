@@ -9,6 +9,42 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The admin portal reviews whole marketplaces.** A new "Import from
+  marketplace" page inspects any GitHub-hosted Claude plugin marketplace at
+  a pinned commit, lists its plugins with checkboxes, and publishes exactly
+  the approved ones into the official catalog as community items — available
+  to everyone, never badged official. Re-running is safe: already-published
+  plugins simply skip.
+
+- **Add whole marketplaces, not just items.** The global Marketplace grew a
+  Marketplaces door: paste a GitHub repo (or any https git URL) that hosts a
+  Claude plugin marketplace, and its plugins join your shelf behind a source
+  filter — Vynel's own catalog and each added marketplace get their own chip.
+  Third-party items are always marked community (never Official or verified),
+  the add form says plainly that plugins can run code once installed, and
+  everything installs through Claude Code's own plugin system, so it all
+  works in Claude Code directly. Removing a marketplace takes its items off
+  the shelf; chat sessions can never add a marketplace for you — that trust
+  decision stays yours.
+
+- **Connect a browser-sign-in connector with one click.** An installed
+  connector that authenticates through its own website (Notion, Linear, and
+  the like) now shows a Connect button: clicking it opens your browser on
+  the service's real sign-in page, and the credential lands in Claude's own
+  secure store — Vynel never sees or holds it, and the same sign-in works
+  when you use Claude Code directly. Removing the connector signs you out
+  of it first.
+
+- **Marketplace connectors can now ask for your keys — properly.** An MCP
+  server in the marketplace that needs an API key or token no longer has to
+  ship with a shared secret (or nothing): the item declares what it needs,
+  and Get opens a small setup step asking for exactly those values — masked,
+  sent once, written only into your Claude configuration. Connectors that
+  sign in through a browser (OAuth) install cleanly without credentials and
+  say they still need connecting — the connect step itself lands next. Asking
+  a chat session to install one of these points you to the Marketplace
+  instead, so secrets never travel through conversation.
+
 - **Desktop control asks before it touches anything.** Claude's desktop hands
   are now gated by per-app permissions you grant one app at a time, at one of
   three levels — look only, look + click, or look, click + type. In **Ask**
@@ -146,6 +182,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Your own MCP servers are safe from the marketplace.** A connector you
+  added by hand can share a name with a marketplace item — previously that
+  made the item's card claim "Installed", and removing it from the
+  marketplace deleted *your* server from the config. Marketplace installs now
+  stamp their entries with an ownership marker: the card only lights up for
+  entries the marketplace actually installed, installing never overwrites a
+  hand-made entry with the same name (you get a clear "remove it first"
+  message instead), and uninstalling — including a skill taking its bundled
+  connectors with it — only ever removes entries it owns. Everything still
+  lands in the standard Claude config files, so servers keep working in
+  Claude Code directly.
 - **Watches scan everything, and lifecycle plumbing stays invisible.** A
   monitor watching a busy event stream now scans its whole window — a burst of
   hundreds of events could previously hide the one that mattered, silently

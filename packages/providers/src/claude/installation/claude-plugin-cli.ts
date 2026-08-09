@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { ValidationError } from '@vynel/errors'
+import { formatCliErrorDetail } from './format-cli-error-detail.js'
 
 const execFileAsync = promisify(execFile)
 const COMMAND_TIMEOUT_MS = 5 * 60 * 1000
@@ -43,7 +44,9 @@ export function resolveBundledClaudeBinary(): string {
   return path.join(path.dirname(platformPackageJson), binaryName)
 }
 
-async function runPluginCommand(args: string[], binaryPath?: string): Promise<string> {
+// Exported for the marketplace-cli sibling — `plugin marketplace …`
+// subcommands ride the same runner (one exec home, one error shape).
+export async function runPluginCommand(args: string[], binaryPath?: string): Promise<string> {
   const claudeBinary = binaryPath ?? resolveBundledClaudeBinary()
   try {
     const { stdout } = await execFileAsync(claudeBinary, ['plugin', ...args], {
@@ -52,8 +55,7 @@ async function runPluginCommand(args: string[], binaryPath?: string): Promise<st
     })
     return stdout
   } catch (error) {
-    const stderr = (error as { stderr?: string }).stderr ?? ''
-    const detail = stderr.trim().split('\n').slice(-3).join(' ').slice(0, 400)
+    const detail = formatCliErrorDetail((error as { stderr?: string }).stderr)
     throw new ValidationError(
       `The Claude plugin command failed (plugin ${args[0] ?? ''}): ${detail || 'no error output'}`,
     )
@@ -67,6 +69,23 @@ export type InstallClaudePluginInput = {
   marketplaceName: string
   pluginName: string
   binaryPath?: string
+  /** Test seam only (mirrors `listInstalledClaudePlugins`) — where the
+   * known-marketplaces registry is read from. */
+  homeDir?: string
+}
+
+/** One reference, many spellings: `owner/repo`, its https URL, with or
+ * without `.git`/trailing slash all name the same marketplace — the
+ * mismatch guard must compare THIS form, or a shorthand-registered
+ * marketplace refuses installs against its own rendered URL. */
+export function canonicalMarketplaceRef(ref: string): string {
+  const trimmed = ref
+    .trim()
+    .toLowerCase()
+    .replace(/\/+$/, '')
+    .replace(/\.git$/, '')
+  const githubPath = trimmed.match(/^https:\/\/github\.com\/(.+)$/)
+  return githubPath !== null ? githubPath[1]! : trimmed
 }
 
 /** Idempotent marketplace registration + user-scope install. The CLI itself
@@ -74,7 +93,8 @@ export type InstallClaudePluginInput = {
  * `installed_plugins.json`, and flips `enabledPlugins` — one install that
  * works in Vynel sessions AND Claude Code direct use. */
 export async function installClaudePlugin(input: InstallClaudePluginInput): Promise<void> {
-  const known = readKnownClaudeMarketplaces()
+  assertSafePluginKeyParts(input.pluginName, input.marketplaceName)
+  const known = readKnownClaudeMarketplaces(input.homeDir)
   const registered = known[input.marketplaceName]
   if (registered === undefined) {
     await runPluginCommand(['marketplace', 'add', input.marketplaceRepo], input.binaryPath)
@@ -82,12 +102,21 @@ export async function installClaudePlugin(input: InstallClaudePluginInput): Prom
     // The trust story of the delegate: `marketplaceRepo` is honored on
     // first registration only, so a SAME-NAMED marketplace already
     // registered against a different repo would silently supply the
-    // plugin. Refuse instead of installing from the wrong source.
-    const registeredRepo = (registered as { source?: { repo?: string } }).source?.repo
-    if (registeredRepo !== undefined && registeredRepo !== input.marketplaceRepo) {
+    // plugin. Refuse instead of installing from the wrong source. Both
+    // registration shapes count (`github.repo` shorthand / `git.url`),
+    // compared canonically; a BLANK side skips the check — the caller
+    // couldn't name the origin (a row-fact install from an unrecognized
+    // registration shape), and the user's registration stays the anchor.
+    const registrationSource = (registered as { source?: { repo?: string; url?: string } }).source
+    const registeredRef = registrationSource?.repo ?? registrationSource?.url
+    if (
+      registeredRef !== undefined &&
+      input.marketplaceRepo.trim() !== '' &&
+      canonicalMarketplaceRef(registeredRef) !== canonicalMarketplaceRef(input.marketplaceRepo)
+    ) {
       throw new ValidationError(
         `A plugin marketplace named '${input.marketplaceName}' is already registered from ` +
-          `'${registeredRepo}' — expected '${input.marketplaceRepo}'. Remove it in Claude Code first.`,
+          `'${registeredRef}' — expected '${input.marketplaceRepo}'. Remove it in Claude Code first.`,
       )
     }
   }
@@ -97,11 +126,26 @@ export async function installClaudePlugin(input: InstallClaudePluginInput): Prom
   )
 }
 
+// The composed `name@marketplace` becomes CLI argv in every plugin command,
+// and Move A made plugin names attacker-influenced (a hostile clone's
+// marketplace.json) — a dash-leading half would parse as a flag. Same
+// defense class as the marketplace-cli argv guard.
+function assertSafePluginKeyParts(pluginName: string, marketplaceName: string): void {
+  for (const part of [pluginName, marketplaceName]) {
+    if (part.trim().length === 0 || part.startsWith('-')) {
+      throw new ValidationError(
+        `Plugin key part '${part}' is empty or starts with '-' — refusing to drive the CLI with it.`,
+      )
+    }
+  }
+}
+
 export async function uninstallClaudePlugin(input: {
   pluginName: string
   marketplaceName: string
   binaryPath?: string
 }): Promise<void> {
+  assertSafePluginKeyParts(input.pluginName, input.marketplaceName)
   await runPluginCommand(
     ['uninstall', `${input.pluginName}@${input.marketplaceName}`, '--scope', 'user'],
     input.binaryPath,
@@ -119,6 +163,7 @@ export async function updateClaudePlugin(input: {
   marketplaceName: string
   binaryPath?: string
 }): Promise<void> {
+  assertSafePluginKeyParts(input.pluginName, input.marketplaceName)
   await runPluginCommand(
     ['update', `${input.pluginName}@${input.marketplaceName}`],
     input.binaryPath,

@@ -102,6 +102,7 @@ export const marketplaceApp = factory
           c.var.marketplaceInstalledPluginsReader,
           mcpServersReaderFor({ path: c.var.workspace!.path }),
           rulesReaderFor({ path: c.var.workspace!.path }),
+          c.var.claudeMarketplacesReader,
         ),
       )
       return c.json(items.map(serializeMarketplaceItem))
@@ -145,6 +146,7 @@ export const marketplaceApp = factory
           c.var.marketplaceInstalledPluginsReader,
           mcpServersReaderFor({ path: c.var.workspace!.path }),
           rulesReaderFor({ path: c.var.workspace!.path }),
+          c.var.claudeMarketplacesReader,
         ),
       )
       return c.json(serializeMarketplaceItem(item))
@@ -165,9 +167,14 @@ export const marketplaceApp = factory
           '(user-scope = available in every workspace; plugins are always user-scope). Cloud ' +
           'artifacts are downloaded and integrity-verified server-side; plugins install ' +
           'through Claude Code\'s own plugin system; MCP servers are written into the ' +
-          'scope\'s Claude config. Reversible via uninstall_marketplace_item. Side effect: ' +
+          'scope\'s Claude config. An MCP item that requires configuration (API keys, ' +
+          'tokens) cannot be installed from here — direct the user to the Marketplace ' +
+          'panel, which collects those values; secrets must never be pasted into chat. ' +
+          'Reversible via uninstall_marketplace_item. Side effect: ' +
           'the capability becomes available in sessions and appears in the user\'s panels.',
         mutatingApproved: true,
+        // Secrets never transit chat — structurally: the tool has no such field.
+        excludedBodyFields: ['mcpConfigurationValues'],
       },
       responses: {
         201: {
@@ -182,7 +189,7 @@ export const marketplaceApp = factory
     validator('json', InstallMarketplaceItemBodySchema),
     ...workspaceScoped,
     async (c) => {
-      const { itemId, scope } = c.req.valid('json')
+      const { itemId, scope, mcpConfigurationValues } = c.req.valid('json')
       const workspace = c.var.workspace!
       // Surface gate + per-kind dispatch (cloud artifact vs bundled
       // template, skill vs agent) live in `item-lifecycle.ts` — shared with
@@ -190,12 +197,13 @@ export const marketplaceApp = factory
       // fall-through semantics. A user-only item 404s here exactly like an
       // unknown id.
       const installed = await installMarketplaceItem(
-        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader },
+        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader, listClaudeMarketplaces: c.var.claudeMarketplacesReader, mcpAuthDelegate: c.var.mcpAuthDelegate },
         {
           itemId,
           userId: c.var.user.id,
           scope,
           workspace: { id: workspace.id, path: workspace.path },
+          ...(mcpConfigurationValues !== undefined ? { mcpConfigurationValues } : {}),
         },
       )
       return c.json(installed, 201)
@@ -240,7 +248,7 @@ export const marketplaceApp = factory
       // shared with the user-scoped twin. Targets the SAME row the card
       // shows as "Installed" (the annotator's resolution).
       const updated = await updateMarketplaceItem(
-        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader },
+        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader, listClaudeMarketplaces: c.var.claudeMarketplacesReader, mcpAuthDelegate: c.var.mcpAuthDelegate },
         {
           itemId,
           userId: c.var.user.id,
@@ -291,7 +299,7 @@ export const marketplaceApp = factory
       // the card shows as "Installed", and a hand-made agent with a
       // colliding slug is never soft-deleted here.
       const removed = await uninstallMarketplaceItem(
-        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader },
+        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader, listClaudeMarketplaces: c.var.claudeMarketplacesReader, mcpAuthDelegate: c.var.mcpAuthDelegate },
         {
           itemId,
           userId: c.var.user.id,

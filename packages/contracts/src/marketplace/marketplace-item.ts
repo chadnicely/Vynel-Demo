@@ -4,6 +4,7 @@
 // (`@vynel/contracts/marketplace/marketplace-item`); no barrel.
 
 import type { SkillScope } from '../skills/verified-skills/verified-skill-definition.js'
+import type { McpItemAuthView } from './mcp-item-manifest.js'
 
 /** Phase 1 emits only `'verified'`; the other two are reserved for
  * Phase 1.5+ items. Closed union — the UI compiles against all three
@@ -40,6 +41,16 @@ export type MarketplaceSurfaceSelector =
  * installed state). */
 export type MarketplaceItemKind = 'skill' | 'agent' | 'plugin' | 'mcp' | 'rule'
 
+/** WHERE a shelf row comes from — the trust boundary, not a style tag.
+ * 'vynel-catalog' = the bundled catalog + the hub (the curated door);
+ * 'claude-marketplace' = a Claude-native marketplace the USER registered
+ * (its rows are community-tier by construction and never badge Official).
+ * The UI filters on it; item ids can never collide across the boundary
+ * (hub ids are kebab, marketplace ids are `<plugin>@<marketplace>`). */
+export type MarketplaceItemSource =
+  | { kind: 'vynel-catalog' }
+  | { kind: 'claude-marketplace'; marketplaceName: string }
+
 /** Install-status discriminator. Phase 1 has two variants (no
  * `'installed-with-update-available'` per D8). Generalized when the
  * `agent` kind landed (C-agents): `installedId` is the installed row's
@@ -62,6 +73,7 @@ export type MarketplaceItemInstallStatus =
 export type MarketplaceItem = {
   itemId: string
   kind: MarketplaceItemKind
+  source: MarketplaceItemSource
   skillId: string
   publisherTier: PublisherTier
   publisherName: string
@@ -91,6 +103,10 @@ export type MarketplaceItem = {
    * map — the install-status match anchor (config-is-truth: presence of
    * this key in the scope's config IS the installed state). */
   mcpServerName?: string
+  /** Mcp items only: what the install needs from the user — a configure
+   * step ('fields', values supplied at install) or an OAuth connect step
+   * after install ('oauth'). Absent = plain one-click install. */
+  mcpAuth?: McpItemAuthView
   /** True only when the hub carries a downloadable artifact the update
    * route can serve (a cloud-cached SKILL item). Bundled-only items
    * version with app releases — nothing newer to download — so the card

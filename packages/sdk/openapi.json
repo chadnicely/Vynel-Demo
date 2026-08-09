@@ -2606,6 +2606,63 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/mcp-servers/{serverName}/login": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The CLI recorded the credential in its native store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connected": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "connected"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A local (stdio) server, or the sign-in failed/timed out."
+          },
+          "404": {
+            "description": "Workspace not found, or no such server in this workspace's config."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdMcp-serversByServerNameLogin",
+        "tags": [
+          "mcp-servers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serverName",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Sign in to a remote MCP server via the native browser OAuth flow.",
+        "x-sdk-name": "mcpServers.login"
+      }
+    },
     "/workspaces/{workspaceId}/mcp-servers/{serverName}": {
       "delete": {
         "responses": {
@@ -2667,6 +2724,38 @@
                           "plugin",
                           "mcp",
                           "rule"
+                        ]
+                      },
+                      "source": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "vynel-catalog"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "claude-marketplace"
+                              },
+                              "marketplaceName": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "marketplaceName"
+                            ]
+                          }
                         ]
                       },
                       "skillId": {
@@ -2739,6 +2828,57 @@
                       "mcpServerName": {
                         "type": "string"
                       },
+                      "mcpAuth": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "oauth"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "fields"
+                              },
+                              "fields": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "secret": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "name",
+                                    "label",
+                                    "secret"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "fields"
+                            ]
+                          }
+                        ]
+                      },
                       "hasCloudArtifact": {
                         "type": "boolean"
                       },
@@ -2800,6 +2940,7 @@
                     "required": [
                       "itemId",
                       "kind",
+                      "source",
                       "skillId",
                       "publisherTier",
                       "publisherName",
@@ -2925,6 +3066,38 @@
                         "rule"
                       ]
                     },
+                    "source": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "vynel-catalog"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "claude-marketplace"
+                            },
+                            "marketplaceName": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "marketplaceName"
+                          ]
+                        }
+                      ]
+                    },
                     "skillId": {
                       "type": "string"
                     },
@@ -2995,6 +3168,57 @@
                     "mcpServerName": {
                       "type": "string"
                     },
+                    "mcpAuth": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "oauth"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "fields"
+                            },
+                            "fields": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "secret": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "label",
+                                  "secret"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "fields"
+                          ]
+                        }
+                      ]
+                    },
                     "hasCloudArtifact": {
                       "type": "boolean"
                     },
@@ -3056,6 +3280,7 @@
                   "required": [
                     "itemId",
                     "kind",
+                    "source",
                     "skillId",
                     "publisherTier",
                     "publisherName",
@@ -3252,6 +3477,9 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "authRequired": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -3259,7 +3487,8 @@
                         "serverName",
                         "itemId",
                         "scope",
-                        "version"
+                        "version",
+                        "authRequired"
                       ]
                     },
                     {
@@ -3328,8 +3557,11 @@
         "x-mcp": {
           "exposed": true,
           "name": "install_marketplace_item",
-          "description": "Install a marketplace item (a skill, agent, plugin, MCP server, or rule) into this workspace. `itemId` from list_marketplace_items; `scope` \"workspace\" or \"user\" (user-scope = available in every workspace; plugins are always user-scope). Cloud artifacts are downloaded and integrity-verified server-side; plugins install through Claude Code's own plugin system; MCP servers are written into the scope's Claude config. Reversible via uninstall_marketplace_item. Side effect: the capability becomes available in sessions and appears in the user's panels.",
-          "mutatingApproved": true
+          "description": "Install a marketplace item (a skill, agent, plugin, MCP server, or rule) into this workspace. `itemId` from list_marketplace_items; `scope` \"workspace\" or \"user\" (user-scope = available in every workspace; plugins are always user-scope). Cloud artifacts are downloaded and integrity-verified server-side; plugins install through Claude Code's own plugin system; MCP servers are written into the scope's Claude config. An MCP item that requires configuration (API keys, tokens) cannot be installed from here — direct the user to the Marketplace panel, which collects those values; secrets must never be pasted into chat. Reversible via uninstall_marketplace_item. Side effect: the capability becomes available in sessions and appears in the user's panels.",
+          "mutatingApproved": true,
+          "excludedBodyFields": [
+            "mcpConfigurationValues"
+          ]
         },
         "requestBody": {
           "content": {
@@ -3348,6 +3580,18 @@
                       "user",
                       "workspace"
                     ]
+                  },
+                  "mcpConfigurationValues": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
                   }
                 },
                 "required": [
@@ -19971,6 +20215,165 @@
         "x-sdk-name": "desktopAccess.revoke"
       }
     },
+    "/marketplace/sources": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Registered marketplaces with their catalog sizes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "marketplaceName": {
+                            "type": "string"
+                          },
+                          "sourceUrl": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "ownerName": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "pluginCount": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "marketplaceName",
+                          "sourceUrl",
+                          "ownerName",
+                          "pluginCount"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "sources"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getMarketplaceSources",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [],
+        "summary": "List the user's registered Claude plugin marketplaces.",
+        "x-sdk-name": "marketplaceSources.list"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Registered; the marketplace now lists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "marketplaceName": {
+                      "type": "string"
+                    },
+                    "sourceUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "ownerName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "pluginCount": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "marketplaceName",
+                    "sourceUrl",
+                    "ownerName",
+                    "pluginCount"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an https git source, or the CLI refused the registration."
+          }
+        },
+        "operationId": "postMarketplaceSources",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [],
+        "summary": "Register a Claude plugin marketplace (its plugins join the shelf).",
+        "x-sdk-name": "marketplaceSources.add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "source"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/marketplace/sources/{marketplaceName}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Deregistered."
+          },
+          "404": {
+            "description": "No registered marketplace with that name."
+          }
+        },
+        "operationId": "deleteMarketplaceSourcesByMarketplaceName",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "marketplaceName",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          }
+        ],
+        "summary": "Deregister a Claude plugin marketplace (its rows leave the shelf).",
+        "x-sdk-name": "marketplaceSources.remove"
+      }
+    },
     "/marketplace/items": {
       "get": {
         "responses": {
@@ -19994,6 +20397,38 @@
                           "plugin",
                           "mcp",
                           "rule"
+                        ]
+                      },
+                      "source": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "vynel-catalog"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "claude-marketplace"
+                              },
+                              "marketplaceName": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "marketplaceName"
+                            ]
+                          }
                         ]
                       },
                       "skillId": {
@@ -20066,6 +20501,57 @@
                       "mcpServerName": {
                         "type": "string"
                       },
+                      "mcpAuth": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "oauth"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "fields"
+                              },
+                              "fields": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "secret": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "name",
+                                    "label",
+                                    "secret"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "fields"
+                            ]
+                          }
+                        ]
+                      },
                       "hasCloudArtifact": {
                         "type": "boolean"
                       },
@@ -20127,6 +20613,7 @@
                     "required": [
                       "itemId",
                       "kind",
+                      "source",
                       "skillId",
                       "publisherTier",
                       "publisherName",
@@ -20351,6 +20838,9 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "authRequired": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -20358,7 +20848,8 @@
                         "serverName",
                         "itemId",
                         "scope",
-                        "version"
+                        "version",
+                        "authRequired"
                       ]
                     },
                     {
@@ -20425,6 +20916,18 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200
+                  },
+                  "mcpConfigurationValues": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
                   }
                 },
                 "required": [
@@ -22597,6 +23100,55 @@
             }
           }
         }
+      }
+    },
+    "/mcp-servers/{serverName}/login": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The CLI recorded the credential in its native store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connected": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "connected"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A local (stdio) server, or the sign-in failed/timed out."
+          },
+          "404": {
+            "description": "No server with that name in the global config."
+          }
+        },
+        "operationId": "postMcp-serversByServerNameLogin",
+        "tags": [
+          "mcp-servers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serverName",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          }
+        ],
+        "summary": "Sign in to a remote MCP server via the native browser OAuth flow.",
+        "x-sdk-name": "mcpServersUser.login"
       }
     },
     "/mcp-servers/{serverName}": {

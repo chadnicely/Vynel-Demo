@@ -21,6 +21,7 @@ import type {
   MarketplaceItem,
 } from '@vynel/contracts/marketplace/marketplace-item'
 import { annotateWithInstallStatus } from './annotate-with-install-status.js'
+import { claudeMarketplaceItems } from './claude-marketplace-items.js'
 import { filterAndSortMarketplaceItems } from './filter-marketplace-items.js'
 import { isItemVisibleOnSurface } from './surface-visibility.js'
 import type { MarketplaceDeps } from './marketplace-types.js'
@@ -30,9 +31,10 @@ export function listMarketplaceItems(
   input: ListMarketplaceItemsInput,
   deps: MarketplaceDeps,
 ): MarketplaceItem[] {
-  const catalogItems = resolveMergedCatalog(db).filter((item) =>
-    isItemVisibleOnSurface(item, input.surface),
-  )
+  const catalogItems = resolveMergedCatalog(
+    db,
+    claudeMarketplaceItems(deps.listClaudeMarketplaces()),
+  ).filter((item) => isItemVisibleOnSurface(item, input.surface))
   const owner = {
     userId: input.userId,
     workspaceId: input.surface === 'workspace' ? input.workspaceId : null,

@@ -307,6 +307,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/mcp-servers/{serverName}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in to a remote MCP server via the native browser OAuth flow. */
+        post: operations["postWorkspacesByWorkspaceIdMcp-serversByServerNameLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/mcp-servers/{serverName}": {
         parameters: {
             query?: never;
@@ -2177,6 +2194,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/marketplace/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's registered Claude plugin marketplaces. */
+        get: operations["getMarketplaceSources"];
+        put?: never;
+        /** Register a Claude plugin marketplace (its plugins join the shelf). */
+        post: operations["postMarketplaceSources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/marketplace/sources/{marketplaceName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deregister a Claude plugin marketplace (its rows leave the shelf). */
+        delete: operations["deleteMarketplaceSourcesByMarketplaceName"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/marketplace/items": {
         parameters: {
             query?: never;
@@ -2447,6 +2499,23 @@ export interface paths {
         put?: never;
         /** Add a custom MCP server to the global config (~/.claude.json). */
         post: operations["postMcp-servers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp-servers/{serverName}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in to a remote MCP server via the native browser OAuth flow. */
+        post: operations["postMcp-serversByServerNameLogin"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4419,6 +4488,46 @@ export interface operations {
             };
         };
     };
+    "postWorkspacesByWorkspaceIdMcp-serversByServerNameLogin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverName: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The CLI recorded the credential in its native store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        connected: true;
+                    };
+                };
+            };
+            /** @description A local (stdio) server, or the sign-in failed/timed out. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found, or no such server in this workspace's config. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     "deleteWorkspacesByWorkspaceIdMcp-serversByServerName": {
         parameters: {
             query?: never;
@@ -4474,6 +4583,14 @@ export interface operations {
                         itemId: string;
                         /** @enum {string} */
                         kind: "skill" | "agent" | "plugin" | "mcp" | "rule";
+                        source: {
+                            /** @constant */
+                            kind: "vynel-catalog";
+                        } | {
+                            /** @constant */
+                            kind: "claude-marketplace";
+                            marketplaceName: string;
+                        };
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -4493,6 +4610,18 @@ export interface operations {
                         isOfficial: boolean;
                         pluginKey?: string;
                         mcpServerName?: string;
+                        mcpAuth?: {
+                            /** @constant */
+                            kind: "oauth";
+                        } | {
+                            /** @constant */
+                            kind: "fields";
+                            fields: {
+                                name: string;
+                                label: string;
+                                secret: boolean;
+                            }[];
+                        };
                         hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
@@ -4541,6 +4670,14 @@ export interface operations {
                         itemId: string;
                         /** @enum {string} */
                         kind: "skill" | "agent" | "plugin" | "mcp" | "rule";
+                        source: {
+                            /** @constant */
+                            kind: "vynel-catalog";
+                        } | {
+                            /** @constant */
+                            kind: "claude-marketplace";
+                            marketplaceName: string;
+                        };
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -4560,6 +4697,18 @@ export interface operations {
                         isOfficial: boolean;
                         pluginKey?: string;
                         mcpServerName?: string;
+                        mcpAuth?: {
+                            /** @constant */
+                            kind: "oauth";
+                        } | {
+                            /** @constant */
+                            kind: "fields";
+                            fields: {
+                                name: string;
+                                label: string;
+                                secret: boolean;
+                            }[];
+                        };
                         hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
@@ -4601,6 +4750,9 @@ export interface operations {
                     itemId: string;
                     /** @enum {string} */
                     scope: "user" | "workspace";
+                    mcpConfigurationValues?: {
+                        [key: string]: string;
+                    };
                 };
             };
         };
@@ -4644,6 +4796,7 @@ export interface operations {
                         /** @enum {string} */
                         scope: "user" | "workspace";
                         version: string | null;
+                        authRequired: boolean;
                     } | {
                         /** @constant */
                         kind: "rule";
@@ -11352,6 +11505,98 @@ export interface operations {
             };
         };
     };
+    getMarketplaceSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registered marketplaces with their catalog sizes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sources: {
+                            marketplaceName: string;
+                            sourceUrl: string | null;
+                            ownerName: string | null;
+                            pluginCount: number;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    postMarketplaceSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    source: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Registered; the marketplace now lists. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        marketplaceName: string;
+                        sourceUrl: string | null;
+                        ownerName: string | null;
+                        pluginCount: number;
+                    };
+                };
+            };
+            /** @description Not an https git source, or the CLI refused the registration. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteMarketplaceSourcesByMarketplaceName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                marketplaceName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deregistered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No registered marketplace with that name. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getMarketplaceItems: {
         parameters: {
             query?: {
@@ -11377,6 +11622,14 @@ export interface operations {
                         itemId: string;
                         /** @enum {string} */
                         kind: "skill" | "agent" | "plugin" | "mcp" | "rule";
+                        source: {
+                            /** @constant */
+                            kind: "vynel-catalog";
+                        } | {
+                            /** @constant */
+                            kind: "claude-marketplace";
+                            marketplaceName: string;
+                        };
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -11396,6 +11649,18 @@ export interface operations {
                         isOfficial: boolean;
                         pluginKey?: string;
                         mcpServerName?: string;
+                        mcpAuth?: {
+                            /** @constant */
+                            kind: "oauth";
+                        } | {
+                            /** @constant */
+                            kind: "fields";
+                            fields: {
+                                name: string;
+                                label: string;
+                                secret: boolean;
+                            }[];
+                        };
                         hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
@@ -11426,6 +11691,9 @@ export interface operations {
             content: {
                 "application/json": {
                     itemId: string;
+                    mcpConfigurationValues?: {
+                        [key: string]: string;
+                    };
                 };
             };
         };
@@ -11469,6 +11737,7 @@ export interface operations {
                         /** @enum {string} */
                         scope: "user" | "workspace";
                         version: string | null;
+                        authRequired: boolean;
                     } | {
                         /** @constant */
                         kind: "rule";
@@ -12333,6 +12602,45 @@ export interface operations {
             };
             /** @description A server with that name already exists in the global config. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postMcp-serversByServerNameLogin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The CLI recorded the credential in its native store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        connected: true;
+                    };
+                };
+            };
+            /** @description A local (stdio) server, or the sign-in failed/timed out. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No server with that name in the global config. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

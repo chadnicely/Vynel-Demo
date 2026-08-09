@@ -52,6 +52,16 @@ export interface McpExtension {
    */
   workspaceInteractiveSurface?: boolean
   /**
+   * Body fields the emitted MCP tool must NOT advertise or forward — the
+   * structural half of "secrets never transit chat": a field collecting
+   * user-supplied secret values (install configuration) exists for the UI
+   * surface only, and the generated tool's schema simply has no such
+   * parameter (a model-invented value is stripped by the tool's zod
+   * object before the HTTP call). The route still validates for every
+   * surface.
+   */
+  excludedBodyFields?: string[]
+  /**
    * ALSO keep this ROOT tool in the plain workspace array. Routing and workspace
    * are otherwise mutually exclusive (`nonRouting = !isRouting` in the
    * generator), so one route cannot serve both the global root and the turns

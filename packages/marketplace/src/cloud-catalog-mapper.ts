@@ -6,7 +6,10 @@
 
 import { toHubPublisherTier } from '@vynel/contracts/hub/catalog'
 import { parsePluginItemManifest } from '@vynel/contracts/marketplace/plugin-item-manifest'
-import { parseMcpItemManifest } from '@vynel/contracts/marketplace/mcp-item-manifest'
+import {
+  parseMcpItemManifest,
+  toMcpItemAuthView,
+} from '@vynel/contracts/marketplace/mcp-item-manifest'
 import type {
   MarketplaceItem,
   MarketplaceItemKind,
@@ -43,9 +46,11 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
   // manifest IS the install (config-is-truth), so an unparsable one means
   // the item cannot install at all and the merge drops it.
   const mcpManifest = kind === 'mcp' ? parseMcpItemManifest(row.latestVersionManifestJson) : null
+  const mcpAuth = mcpManifest !== null ? toMcpItemAuthView(mcpManifest) : null
   return {
     itemId: row.itemId,
     kind,
+    source: { kind: 'vynel-catalog' },
     skillId: row.itemId,
     publisherTier: toHubPublisherTier(row.publisherTier),
     publisherName: row.publisherName,
@@ -77,6 +82,9 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
       ? { pluginKey: `${pluginManifest.pluginName}@${pluginManifest.marketplaceName}` }
       : {}),
     ...(mcpManifest !== null ? { mcpServerName: mcpManifest.serverName } : {}),
+    // The card needs the auth requirement BEFORE install (configure dialog /
+    // connect step) — derived here so the UI never parses manifests.
+    ...(mcpAuth !== null ? { mcpAuth } : {}),
     // Only skill rows have an artifact the UPDATE route will serve —
     // agents update by uninstall+reinstall, plugins via the CLI delegate
     // (their update slice is a recorded Arc-3 item; widen this then).

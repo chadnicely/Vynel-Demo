@@ -1,0 +1,9 @@
+{
+  "note": "This mcp item installs by writing one entry into the scope's Claude MCP config (config-is-truth). It declares auth: oauth — install writes the entry credential-less, and Connect drives the native `claude mcp login notion` browser flow; the credential lands in Claude's own store, never in Vynel. The desktop never downloads this artifact; the registry's publish schema simply requires one, and this descriptor doubles as the human-readable record of what installing writes.",
+  "server": {
+    "serverName": "notion",
+    "transport": "http",
+    "url": "https://mcp.notion.com/mcp",
+    "auth": { "type": "oauth" }
+  }
+}

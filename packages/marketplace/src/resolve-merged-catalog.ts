@@ -12,7 +12,14 @@ import type { MarketplaceItem } from '@vynel/contracts/marketplace/marketplace-i
 import { listCloudCatalog } from './repositories/cloud-catalog-cache-repository.js'
 import { cloudRowToMarketplaceItem } from './cloud-catalog-mapper.js'
 
-export function resolveMergedCatalog(db: Database): MarketplaceItem[] {
+export function resolveMergedCatalog(
+  db: Database,
+  // Rows from user-registered Claude-native marketplaces (already mapped)
+  // — appended, never overriding: their `<plugin>@<marketplace>` ids can't
+  // collide with kebab catalog ids, and the guard below keeps that fact
+  // load-bearing rather than assumed.
+  claudeMarketplaceRows: readonly MarketplaceItem[] = [],
+): MarketplaceItem[] {
   const byId = new Map<string, MarketplaceItem>()
   for (const item of resolveCatalogSources()) byId.set(item.itemId, item)
   for (const row of listCloudCatalog(db)) {
@@ -35,6 +42,9 @@ export function resolveMergedCatalog(db: Database): MarketplaceItem[] {
     if (row.kind === 'rule' && parseRuleItemManifest(row.latestVersionManifestJson) === null)
       continue
     byId.set(row.itemId, item) // cloud wins
+  }
+  for (const item of claudeMarketplaceRows) {
+    if (!byId.has(item.itemId)) byId.set(item.itemId, item)
   }
   return [...byId.values()]
 }

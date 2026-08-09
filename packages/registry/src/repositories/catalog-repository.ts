@@ -1,7 +1,7 @@
 // Functional catalog repository — items + their versions. `db` first arg,
 // stateless, async.
 
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import type { CloudDatabase } from '@vynel/cloud-db'
 import { catalogItems, type CatalogItemRow } from '../schema/catalog-items.js'
 import { itemVersions, type ItemVersionRow } from '../schema/item-versions.js'
@@ -65,6 +65,20 @@ export async function findCatalogItemById(
 ): Promise<CatalogItemRow | null> {
   const rows = await db.select().from(catalogItems).where(eq(catalogItems.itemId, itemId)).limit(1)
   return rows[0] ?? null
+}
+
+/** Which of the given ids already exist — ONE query for a review list's
+ * already-published flags (per-id lookups stall on large marketplaces). */
+export async function listExistingCatalogItemIds(
+  db: CloudDatabase,
+  itemIds: readonly string[],
+): Promise<Set<string>> {
+  if (itemIds.length === 0) return new Set()
+  const rows = await db
+    .select({ itemId: catalogItems.itemId })
+    .from(catalogItems)
+    .where(inArray(catalogItems.itemId, [...itemIds]))
+  return new Set(rows.map((row) => row.itemId))
 }
 
 export interface CatalogItemWithPublisher {

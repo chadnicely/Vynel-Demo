@@ -1059,7 +1059,7 @@ export const installCuratedAgent: McpToolFactory = (scope, app) =>
 export const installMarketplaceItem: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'install_marketplace_item',
-    "Install a marketplace item (a skill, agent, plugin, MCP server, or rule) into this workspace. `itemId` from list_marketplace_items; `scope` \"workspace\" or \"user\" (user-scope = available in every workspace; plugins are always user-scope). Cloud artifacts are downloaded and integrity-verified server-side; plugins install through Claude Code's own plugin system; MCP servers are written into the scope's Claude config. Reversible via uninstall_marketplace_item. Side effect: the capability becomes available in sessions and appears in the user's panels.",
+    "Install a marketplace item (a skill, agent, plugin, MCP server, or rule) into this workspace. `itemId` from list_marketplace_items; `scope` \"workspace\" or \"user\" (user-scope = available in every workspace; plugins are always user-scope). Cloud artifacts are downloaded and integrity-verified server-side; plugins install through Claude Code's own plugin system; MCP servers are written into the scope's Claude config. An MCP item that requires configuration (API keys, tokens) cannot be installed from here — direct the user to the Marketplace panel, which collects those values; secrets must never be pasted into chat. Reversible via uninstall_marketplace_item. Side effect: the capability becomes available in sessions and appears in the user's panels.",
     {
     workspaceId: z.string(),
     itemId: z.string(),

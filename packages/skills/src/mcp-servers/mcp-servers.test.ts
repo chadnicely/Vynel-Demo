@@ -1,15 +1,18 @@
 // The standalone MCP-server config ops over a real isolated home dir +
 // workspace dir: install/list/remove round-trip per scope, hand-edited
-// key preservation, and the lenient-read postures.
+// key preservation, the lenient-read postures, and the provenance guard
+// in both directions (install never clobbers a foreign entry; a
+// marker-required remove never deletes one).
 
 import { describe, it, expect } from 'vitest'
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { ConflictError } from '@vynel/errors'
 import { withHomeDir } from '../internal/resolve-host-home-dir.js'
 import { installMcpServerForScope } from './install-mcp-server-for-scope.js'
 import { removeMcpServerForScope } from './remove-mcp-server-for-scope.js'
-import { listMcpServerNamesForScope } from './list-mcp-server-names-for-scope.js'
+import { listMcpServerEntriesForScope } from './list-mcp-server-entries-for-scope.js'
 
 const PLAYWRIGHT_SERVER = {
   serverName: 'playwright',
@@ -17,6 +20,15 @@ const PLAYWRIGHT_SERVER = {
   commandOrUrl: 'npx',
   args: ['@playwright/mcp@latest'],
   environment: {},
+}
+
+const PLAYWRIGHT_PROVENANCE = {
+  itemId: 'playwright-mcp',
+  installedAt: '2026-08-09T00:00:00.000Z',
+}
+
+function listedNames(scope: 'user' | 'workspace', workspacePath?: string): string[] {
+  return listMcpServerEntriesForScope(scope, workspacePath).map((entry) => entry.serverName)
 }
 
 async function withIsolatedDirs<T>(
@@ -35,10 +47,16 @@ async function withIsolatedDirs<T>(
 describe('mcp-servers config ops', () => {
   it('user scope: install → listed in ~/.claude.json → remove → gone', async () => {
     await withIsolatedDirs(async (homeDir) => {
-      expect(listMcpServerNamesForScope('user')).toEqual([])
+      expect(listMcpServerEntriesForScope('user')).toEqual([])
 
-      await installMcpServerForScope({ scope: 'user', server: PLAYWRIGHT_SERVER })
-      expect(listMcpServerNamesForScope('user')).toEqual(['playwright'])
+      await installMcpServerForScope({
+        scope: 'user',
+        server: PLAYWRIGHT_SERVER,
+        provenance: PLAYWRIGHT_PROVENANCE,
+      })
+      expect(listMcpServerEntriesForScope('user')).toEqual([
+        { serverName: 'playwright', provenanceItemId: 'playwright-mcp' },
+      ])
 
       const config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
         mcpServers: Record<string, { command: string; args: string[] }>
@@ -46,10 +64,15 @@ describe('mcp-servers config ops', () => {
       expect(config.mcpServers.playwright).toMatchObject({
         command: 'npx',
         args: ['@playwright/mcp@latest'],
+        _vynelProvenance: PLAYWRIGHT_PROVENANCE,
       })
 
-      await removeMcpServerForScope({ scope: 'user', serverName: 'playwright' })
-      expect(listMcpServerNamesForScope('user')).toEqual([])
+      await removeMcpServerForScope({
+        scope: 'user',
+        serverName: 'playwright',
+        onlyIfProvenanceItemId: 'playwright-mcp',
+      })
+      expect(listMcpServerEntriesForScope('user')).toEqual([])
     })
   })
 
@@ -60,12 +83,12 @@ describe('mcp-servers config ops', () => {
         workspacePath: workspaceDir,
         server: PLAYWRIGHT_SERVER,
       })
-      expect(listMcpServerNamesForScope('workspace', workspaceDir)).toEqual(['playwright'])
-      expect(listMcpServerNamesForScope('user')).toEqual([])
+      expect(listedNames('workspace', workspaceDir)).toEqual(['playwright'])
+      expect(listedNames('user')).toEqual([])
     })
   })
 
-  it('preserves the user\'s hand-edited config keys around the write', async () => {
+  it("preserves the user's hand-edited config keys around the write", async () => {
     await withIsolatedDirs(async (homeDir) => {
       writeFileSync(
         join(homeDir, '.claude.json'),
@@ -86,7 +109,79 @@ describe('mcp-servers config ops', () => {
   it('lenient read: malformed config answers empty instead of throwing', async () => {
     await withIsolatedDirs(async (homeDir) => {
       writeFileSync(join(homeDir, '.claude.json'), '{not json', 'utf8')
-      expect(listMcpServerNamesForScope('user')).toEqual([])
+      expect(listMcpServerEntriesForScope('user')).toEqual([])
+    })
+  })
+
+  it('a hand-added entry lists with provenanceItemId null', async () => {
+    await withIsolatedDirs(async () => {
+      await installMcpServerForScope({ scope: 'user', server: PLAYWRIGHT_SERVER })
+      expect(listMcpServerEntriesForScope('user')).toEqual([
+        { serverName: 'playwright', provenanceItemId: null },
+      ])
+    })
+  })
+
+  it('provenance install refuses to overwrite a hand-added entry with the same name', async () => {
+    await withIsolatedDirs(async (homeDir) => {
+      await installMcpServerForScope({ scope: 'user', server: PLAYWRIGHT_SERVER })
+      const before = readFileSync(join(homeDir, '.claude.json'), 'utf8')
+
+      await expect(
+        installMcpServerForScope({
+          scope: 'user',
+          server: { ...PLAYWRIGHT_SERVER, commandOrUrl: 'catalog-cmd' },
+          provenance: PLAYWRIGHT_PROVENANCE,
+        }),
+      ).rejects.toThrow(ConflictError)
+      expect(readFileSync(join(homeDir, '.claude.json'), 'utf8')).toBe(before)
+    })
+  })
+
+  it('provenance install overwrites its OWN prior entry (idempotent repair)', async () => {
+    await withIsolatedDirs(async (homeDir) => {
+      await installMcpServerForScope({
+        scope: 'user',
+        server: PLAYWRIGHT_SERVER,
+        provenance: PLAYWRIGHT_PROVENANCE,
+      })
+      await installMcpServerForScope({
+        scope: 'user',
+        server: { ...PLAYWRIGHT_SERVER, commandOrUrl: 'npx-v2' },
+        provenance: { ...PLAYWRIGHT_PROVENANCE, installedAt: '2026-08-10T00:00:00.000Z' },
+      })
+
+      const config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
+        mcpServers: Record<string, { command: string }>
+      }
+      expect(config.mcpServers.playwright!.command).toBe('npx-v2')
+    })
+  })
+
+  it('marker-required remove refuses a hand-added entry and leaves it in place', async () => {
+    await withIsolatedDirs(async () => {
+      await installMcpServerForScope({ scope: 'user', server: PLAYWRIGHT_SERVER })
+
+      await expect(
+        removeMcpServerForScope({
+          scope: 'user',
+          serverName: 'playwright',
+          onlyIfProvenanceItemId: 'playwright-mcp',
+        }),
+      ).rejects.toThrow(ConflictError)
+      expect(listedNames('user')).toEqual(['playwright'])
+    })
+  })
+
+  it('marker-less remove still removes any entry (the user-driven routes path)', async () => {
+    await withIsolatedDirs(async () => {
+      await installMcpServerForScope({
+        scope: 'user',
+        server: PLAYWRIGHT_SERVER,
+        provenance: PLAYWRIGHT_PROVENANCE,
+      })
+      await removeMcpServerForScope({ scope: 'user', serverName: 'playwright' })
+      expect(listMcpServerEntriesForScope('user')).toEqual([])
     })
   })
 })

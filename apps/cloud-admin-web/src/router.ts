@@ -26,6 +26,11 @@ export function createAppRouter() {
         component: () => import("./views/PublishItemView.vue"),
       },
       {
+        path: "/catalog/import-marketplace",
+        name: "catalog-import-marketplace",
+        component: () => import("./views/ImportMarketplaceView.vue"),
+      },
+      {
         path: "/catalog/:itemId",
         name: "catalog-item",
         component: () => import("./views/CatalogItemView.vue"),

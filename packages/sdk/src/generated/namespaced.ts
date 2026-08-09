@@ -776,6 +776,27 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  marketplaceSources: {
+  add: async (input: NonNullable<paths["/marketplace/sources"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/marketplace/sources", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/marketplace/sources")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  remove: async (marketplaceName: NonNullable<paths["/marketplace/sources/{marketplaceName}"]["delete"]['parameters']>['path']["marketplaceName"]) => {
+    const { error, response } = await client["DELETE"]("/marketplace/sources/{marketplaceName}", {
+      params: { path: { marketplaceName: marketplaceName } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  },
   marketplaceUser: {
   install: async (input: NonNullable<paths["/marketplace/install"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/marketplace/install", {
@@ -822,6 +843,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  login: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/mcp-servers/{serverName}/login"]["post"]['parameters']>['path']["workspaceId"], serverName: NonNullable<paths["/workspaces/{workspaceId}/mcp-servers/{serverName}/login"]["post"]['parameters']>['path']["serverName"]) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/mcp-servers/{serverName}/login", {
+      params: { path: { workspaceId: workspaceId, serverName: serverName } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   remove: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/mcp-servers/{serverName}"]["delete"]['parameters']>['path']["workspaceId"], serverName: NonNullable<paths["/workspaces/{workspaceId}/mcp-servers/{serverName}"]["delete"]['parameters']>['path']["serverName"]) => {
     const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}/mcp-servers/{serverName}", {
       params: { path: { workspaceId: workspaceId, serverName: serverName } },
@@ -840,6 +868,13 @@ export function makeNamespaced(client: Client<paths>) {
   },
   list: async () => {
     const { data, error, response } = await client["GET"]("/mcp-servers")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  login: async (serverName: NonNullable<paths["/mcp-servers/{serverName}/login"]["post"]['parameters']>['path']["serverName"]) => {
+    const { data, error, response } = await client["POST"]("/mcp-servers/{serverName}/login", {
+      params: { path: { serverName: serverName } },
+    })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },

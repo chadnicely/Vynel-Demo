@@ -14,12 +14,26 @@ export function useInstallMarketplaceItem() {
   const vynel = useVynel();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { scope: SectionScope; itemId: string }) =>
+    mutationFn: (input: {
+      scope: SectionScope;
+      itemId: string;
+      /** Values for an mcp item's declared configuration fields (the
+       *  configure dialog's output). Secrets — sent once, never kept. */
+      mcpConfigurationValues?: Record<string, string>;
+    }) =>
       input.scope.kind === "global"
-        ? vynel.marketplaceUser.install({ itemId: input.itemId })
+        ? vynel.marketplaceUser.install({
+            itemId: input.itemId,
+            ...(input.mcpConfigurationValues !== undefined
+              ? { mcpConfigurationValues: input.mcpConfigurationValues }
+              : {}),
+          })
         : vynel.marketplace.install(input.scope.workspaceId, {
             itemId: input.itemId,
             scope: "workspace",
+            ...(input.mcpConfigurationValues !== undefined
+              ? { mcpConfigurationValues: input.mcpConfigurationValues }
+              : {}),
           }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketplace", "items"] });

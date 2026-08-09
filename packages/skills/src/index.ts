@@ -63,7 +63,11 @@ export {
   removeMcpServerForScope,
   type RemoveMcpServerForScopeInput,
 } from './mcp-servers/remove-mcp-server-for-scope.js'
-export { listMcpServerNamesForScope } from './mcp-servers/list-mcp-server-names-for-scope.js'
+export {
+  listMcpServerEntriesForScope,
+  type McpServerEntryView,
+} from './mcp-servers/list-mcp-server-entries-for-scope.js'
+export { type McpServerProvenance } from './internal/mcp-server-provenance.js'
 export {
   listMcpServersForScope,
   type ConfiguredMcpServer,

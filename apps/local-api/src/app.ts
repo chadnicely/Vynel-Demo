@@ -31,6 +31,7 @@ import { mcpServersApp } from './routes/mcp-servers/index.js'
 import { mcpServersUserApp } from './routes/mcp-servers/user-scoped.js'
 import { marketplaceApp } from './routes/marketplace/index.js'
 import { marketplaceUserApp } from './routes/marketplace/user-scoped.js'
+import { marketplaceSourcesApp } from './routes/marketplace/sources.js'
 import { channelsApp } from './routes/channels/index.js'
 import { channelsUserApp } from './routes/channels/user-scoped.js'
 import { schedulesApp } from './routes/schedules/index.js'
@@ -68,6 +69,9 @@ import {
   claudePluginDelegate,
   type MarketplacePluginDelegate,
 } from './services/marketplace-plugin-delegate.js'
+import { claudeMcpAuthDelegate, type McpAuthDelegate } from './services/mcp-auth-delegate.js'
+import { listClaudeMarketplaceSources } from './services/claude-marketplaces-reader.js'
+import type { ClaudeMarketplaceSourceView } from '@vynel/marketplace'
 import { listInstalledClaudePlugins } from '@vynel/providers'
 import type { InstalledPluginView } from '@vynel/marketplace'
 import { featureGate } from './middleware/feature-gate.js'
@@ -135,6 +139,14 @@ export interface CreateAppOptions {
   // `~/.claude/plugins` reader); a route test injects a stub so unmocked
   // list routes never read this machine's registry.
   readonly marketplaceInstalledPluginsReader?: () => InstalledPluginView[]
+  // Override the MCP-server auth delegate (the `claude mcp login/logout`
+  // CLI seam). Production omits it (the real CLI); a route test injects a
+  // fake so the HTTP stack never opens a browser.
+  readonly mcpAuthDelegate?: McpAuthDelegate
+  // Override the user-registered Claude marketplaces reader (the plugin
+  // reader's sibling). Production omits it (the provider's real
+  // ~/.claude/plugins reads); a route test injects a stub.
+  readonly claudeMarketplacesReader?: () => ClaudeMarketplaceSourceView[]
   // The `ask_user` waiter registry — one per process. Injectable so a test can
   // park/resolve waiters around a route call; production omits it and gets a
   // fresh instance.
@@ -222,6 +234,8 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
       'marketplaceInstalledPluginsReader',
       options.marketplaceInstalledPluginsReader ?? listInstalledClaudePlugins,
     )
+    c.set('mcpAuthDelegate', options.mcpAuthDelegate ?? claudeMcpAuthDelegate)
+    c.set('claudeMarketplacesReader', options.claudeMarketplacesReader ?? listClaudeMarketplaceSources)
     await next()
   })
 
@@ -314,6 +328,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/desktop/access', desktopAccessApp)
   // `/marketplace` is the GLOBAL marketplace — user+both items, user-scope
   // installs (Chad's rule). The workspace surface stays mounted above.
+  app.route('/marketplace/sources', marketplaceSourcesApp)
   app.route('/marketplace', marketplaceUserApp)
   // `/notebook` is user-scoped like `/schedules`: books live at either scope
   // (global or one workspace) and the shelf read takes an optional

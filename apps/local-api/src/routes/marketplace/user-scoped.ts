@@ -87,6 +87,7 @@ export const marketplaceUserApp = factory
           c.var.marketplaceInstalledPluginsReader,
           mcpServersReaderFor(null),
           rulesReaderFor(null),
+          c.var.claudeMarketplacesReader,
         ),
       )
       return c.json(items.map(serializeMarketplaceItem))
@@ -111,10 +112,16 @@ export const marketplaceUserApp = factory
     validator('json', InstallUserMarketplaceItemBodySchema),
     ...userScoped,
     async (c) => {
-      const { itemId } = c.req.valid('json')
+      const { itemId, mcpConfigurationValues } = c.req.valid('json')
       const installed = await installMarketplaceItem(
-        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader },
-        { itemId, userId: c.var.user.id, scope: 'user', workspace: null },
+        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader, listClaudeMarketplaces: c.var.claudeMarketplacesReader, mcpAuthDelegate: c.var.mcpAuthDelegate },
+        {
+          itemId,
+          userId: c.var.user.id,
+          scope: 'user',
+          workspace: null,
+          ...(mcpConfigurationValues !== undefined ? { mcpConfigurationValues } : {}),
+        },
       )
       return c.json(installed, 201)
     },
@@ -141,7 +148,7 @@ export const marketplaceUserApp = factory
       // Resolves against USER-scoped installs only (surface 'global'); the
       // user-scope disk home needs no workspace path.
       const updated = await updateMarketplaceItem(
-        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader },
+        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader, listClaudeMarketplaces: c.var.claudeMarketplacesReader, mcpAuthDelegate: c.var.mcpAuthDelegate },
         { itemId, userId: c.var.user.id, workspace: null },
       )
       return c.json(updated)
@@ -169,7 +176,7 @@ export const marketplaceUserApp = factory
       // Resolves against USER-scoped installs only (surface 'global') —
       // a workspace-scope install is untouchable from here.
       const removed = await uninstallMarketplaceItem(
-        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader },
+        { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader, listClaudeMarketplaces: c.var.claudeMarketplacesReader, mcpAuthDelegate: c.var.mcpAuthDelegate },
         { itemId, userId: c.var.user.id, workspace: null },
       )
       return c.json(removed)

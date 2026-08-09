@@ -11,15 +11,34 @@
 // accepts it without a mapping layer. Discriminated on `transport` like the
 // contract type: stdio = command/args/env, remote (http/sse) = url + headers.
 //
+// Per-user auth (2026-08-09) is DECLARED, never published: a manifest says
+// what the install needs (`requiredEnvironment` for stdio keys,
+// `auth: headers` for per-user tokens, `auth: oauth` for the native
+// `claude mcp login` flow) and the user supplies values at install time —
+// a shared secret in a public catalog row was never an honest option.
+// `resolveMcpInstallConfiguration` is the one home turning manifest +
+// user-supplied values into the entry the config writer accepts.
+//
 // Published manifests are immutable hub rows, so the parser stays tolerant
 // of the PRE-discrimination shape: an old remote manifest carried the URL in
 // `commandOrUrl` — it is lifted into `url` here rather than dropping the row
 // off the shelf.
 
 import { z } from 'zod'
+import type { SkillRequiredMcpServer } from '../skills/verified-skills/verified-skill-definition.js'
 
 /** Unique key within the config's `mcpServers` map — the install anchor. */
 const ServerNameSchema = z.string().min(1).max(120)
+
+/** One value the user must supply at install time (an env var or header).
+ * `secret` defaults true — masked input, never logged, never echoed. */
+const McpConfigFieldSchema = z.object({
+  name: z.string().min(1).max(120),
+  label: z.string().min(1).max(120),
+  secret: z.boolean().default(true),
+})
+
+export type McpConfigField = z.infer<typeof McpConfigFieldSchema>
 
 const McpItemStdioManifestSchema = z.object({
   serverName: ServerNameSchema,
@@ -27,16 +46,30 @@ const McpItemStdioManifestSchema = z.object({
   /** The executable command. */
   commandOrUrl: z.string().min(1).max(500),
   args: z.array(z.string().max(500)).max(32).default([]),
-  /** Env vars passed to the MCP server process. */
+  /** Publisher-set env defaults (non-secret — the row is public). */
   environment: z.record(z.string(), z.string()).default({}),
+  /** Env vars the USER supplies at install (API keys etc.). */
+  requiredEnvironment: z.array(McpConfigFieldSchema).max(16).default([]),
 })
 
 const remoteManifestShape = {
   serverName: ServerNameSchema,
   /** The remote endpoint URL. */
   url: z.string().min(1).max(500),
-  /** Static auth headers — secret values; never logged or listed. */
+  /** Publisher-set static headers (non-secret — the row is public). */
   headers: z.record(z.string(), z.string()).default({}),
+  /** How the user authenticates: 'oauth' = the native `claude mcp login`
+   * browser flow after install; 'headers' = user-supplied header values at
+   * install. Absent = the server needs no per-user auth. */
+  auth: z
+    .union([
+      z.object({ type: z.literal('oauth') }),
+      z.object({
+        type: z.literal('headers'),
+        requiredHeaders: z.array(McpConfigFieldSchema).min(1).max(8),
+      }),
+    ])
+    .optional(),
 }
 
 export const McpItemManifestSchema = z.preprocess(
@@ -75,5 +108,101 @@ export function parseMcpItemManifest(manifestJson: string | null): McpItemManife
     return result.success ? result.data : null
   } catch {
     return null
+  }
+}
+
+/** What the card must know BEFORE install: a configure step (user-supplied
+ * values), an OAuth connect step after install, or nothing (null). */
+export type McpItemAuthView =
+  | { kind: 'oauth' }
+  | { kind: 'fields'; fields: McpConfigField[] }
+
+export function toMcpItemAuthView(manifest: McpItemManifest): McpItemAuthView | null {
+  if (manifest.transport === 'stdio') {
+    return manifest.requiredEnvironment.length > 0
+      ? { kind: 'fields', fields: manifest.requiredEnvironment }
+      : null
+  }
+  if (manifest.auth === undefined) return null
+  return manifest.auth.type === 'oauth'
+    ? { kind: 'oauth' }
+    : { kind: 'fields', fields: manifest.auth.requiredHeaders }
+}
+
+export type ResolveMcpInstallConfigurationResult =
+  | {
+      ok: true
+      /** The entry shape the skills leaf's config writer accepts — declared
+       * auth stripped, user-supplied values merged over publisher defaults. */
+      server: SkillRequiredMcpServer
+      /** True for oauth manifests — the entry is written without credentials
+       * and the user connects via the native login flow afterwards. */
+      authRequired: boolean
+    }
+  | {
+      ok: false
+      /** Labels of declared required fields that are absent or blank. */
+      missingFieldLabels: string[]
+      /** Supplied names no declared field matches — refused, so install
+       * values can never inject arbitrary env vars or headers. */
+      unknownFieldNames: string[]
+    }
+
+/** Pure resolution of manifest + user-supplied configuration values into the
+ * installable server entry. Values are keyed by the declared field `name`;
+ * every declared field is required, undeclared names are refused. Contracts
+ * stays dependency-free: the caller maps the failure to its typed error. */
+export function resolveMcpInstallConfiguration(
+  manifest: McpItemManifest,
+  suppliedValues: Record<string, string>,
+): ResolveMcpInstallConfigurationResult {
+  const declaredFields =
+    manifest.transport === 'stdio'
+      ? manifest.requiredEnvironment
+      : manifest.auth?.type === 'headers'
+        ? manifest.auth.requiredHeaders
+        : []
+
+  const declaredNames = new Set(declaredFields.map((field) => field.name))
+  const missingFieldLabels = declaredFields
+    .filter((field) => {
+      const value = suppliedValues[field.name]
+      return value === undefined || value.trim().length === 0
+    })
+    .map((field) => field.label)
+  const unknownFieldNames = Object.keys(suppliedValues).filter(
+    (name) => !declaredNames.has(name),
+  )
+  if (missingFieldLabels.length > 0 || unknownFieldNames.length > 0) {
+    return { ok: false, missingFieldLabels, unknownFieldNames }
+  }
+
+  const suppliedByDeclaredName: Record<string, string> = {}
+  for (const field of declaredFields) {
+    suppliedByDeclaredName[field.name] = suppliedValues[field.name]!
+  }
+
+  if (manifest.transport === 'stdio') {
+    return {
+      ok: true,
+      server: {
+        serverName: manifest.serverName,
+        transport: 'stdio',
+        commandOrUrl: manifest.commandOrUrl,
+        args: manifest.args,
+        environment: { ...manifest.environment, ...suppliedByDeclaredName },
+      },
+      authRequired: false,
+    }
+  }
+  return {
+    ok: true,
+    server: {
+      serverName: manifest.serverName,
+      transport: manifest.transport,
+      url: manifest.url,
+      headers: { ...manifest.headers, ...suppliedByDeclaredName },
+    },
+    authRequired: manifest.auth?.type === 'oauth',
   }
 }

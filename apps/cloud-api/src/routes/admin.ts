@@ -25,6 +25,8 @@ import {
   publishCatalogItemFromRepo,
   inspectRepoSource,
   importAnthropicItems,
+  inspectClaudeMarketplaceRepo,
+  importClaudeMarketplacePlugins,
   signUnsignedVersions,
   listCatalogForAdmin,
   updateCatalogItemMetadata,
@@ -50,6 +52,28 @@ const PublishRequestSchema = PublishItemSchema.extend({
   // The artifact zip, base64-encoded (curated items are small — inline JSON
   // beats multipart for a v1 admin CLI).
   artifactBase64: z.string().min(1),
+})
+
+const InspectClaudeMarketplaceSchema = z.object({
+  url: z.string().min(8).max(300),
+})
+
+const ImportClaudeMarketplaceSchema = z.object({
+  url: z.string().min(8).max(300),
+  pinnedSha: z.string().regex(/^[0-9a-f]{40}$/),
+  marketplaceName: z.string().min(1).max(120),
+  ownerName: z.string().max(120).nullable(),
+  selected: z
+    .array(
+      z.object({
+        pluginName: z.string().min(1).max(120),
+        description: z.string().max(280).nullable(),
+        version: z.string().max(40).nullable(),
+        category: z.string().max(60).nullable(),
+      }),
+    )
+    .min(1)
+    .max(100),
 })
 
 export function buildAdminRoutes(options: CloudAppOptions) {
@@ -249,6 +273,28 @@ export function buildAdminRoutes(options: CloudAppOptions) {
         options.artifactSigner,
       )
       return c.json({ configured: true as const, items })
+    })
+    // The marketplace-aggregation review queue (marketplace-sources Move B):
+    // inspect is STATELESS — clone the marketplace repo at HEAD, read its
+    // marketplace.json, and answer the plugin list with proposed item ids;
+    // the admin reviews in the portal and approves a subset.
+    .post('/catalog/inspect-claude-marketplace', jsonValidator(InspectClaudeMarketplaceSchema), async (c) => {
+      const { url } = c.req.valid('json')
+      const inspection = await inspectClaudeMarketplaceRepo(options.db, { url })
+      return c.json(inspection)
+    })
+    // The approval half: publish the selected plugins as delegate-descriptor
+    // `plugin` items (community tier — approval means available, never
+    // endorsed). Long-running is fine — an operator surface.
+    .post('/catalog/import-claude-marketplace', jsonValidator(ImportClaudeMarketplaceSchema), async (c) => {
+      const body = c.req.valid('json')
+      const { items } = await importClaudeMarketplacePlugins(
+        options.db,
+        options.artifactStore,
+        body,
+        options.artifactSigner,
+      )
+      return c.json({ items })
     })
     // One-time backfill: sign every version published before the hub had its
     // artifact-signing key. Idempotent — signed rows never re-enter the work

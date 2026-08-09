@@ -49,6 +49,7 @@ function verifiedSkillToMarketplaceItem(skill: VerifiedSkillDefinition): Marketp
     // The bundled catalog only ever carries skills; agent items are
     // cloud-only (curated agents have their own surface).
     kind: 'skill',
+    source: { kind: 'vynel-catalog' },
     skillId: skill.skillId,
     publisherTier: 'verified',
     publisherName: VYNEL_TEAM_PUBLISHER_NAME,

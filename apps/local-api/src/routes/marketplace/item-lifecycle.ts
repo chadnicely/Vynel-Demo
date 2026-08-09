@@ -43,11 +43,13 @@ import { installCloudAgent, softDeleteAgent } from '@vynel/agents'
 import { listAgentsForUserAndWorkspace } from '@vynel/db/repositories/agents'
 import type {
   MarketplaceDeps,
+  ClaudeMarketplaceSourceView,
   InstalledPluginView,
   InstalledMcpServerView,
   InstalledRuleView,
 } from '@vynel/marketplace'
 import type { MarketplacePluginDelegate } from '../../services/marketplace-plugin-delegate.js'
+import type { McpAuthDelegate } from '../../services/mcp-auth-delegate.js'
 import { serializeInstalledSkillResponse } from './serializers.js'
 import { installPluginItem, updatePluginItem, uninstallPluginItem } from './plugin-item-lifecycle.js'
 import { installMcpItem, uninstallMcpItem, mcpServersReaderFor } from './mcp-item-lifecycle.js'
@@ -67,6 +69,7 @@ export function marketplaceDepsWith(
   listInstalledPlugins: () => InstalledPluginView[],
   listInstalledMcpServers: () => InstalledMcpServerView[],
   listInstalledRules: () => InstalledRuleView[],
+  listClaudeMarketplaces: () => ClaudeMarketplaceSourceView[],
 ): MarketplaceDeps {
   return {
     listInstalledSkills: listInstalledSkillsForUserAndWorkspace,
@@ -74,6 +77,7 @@ export function marketplaceDepsWith(
     listInstalledPlugins,
     listInstalledMcpServers,
     listInstalledRules,
+    listClaudeMarketplaces,
   }
 }
 
@@ -83,6 +87,8 @@ export type MarketplaceRequestContext = {
   logger: Logger
   pluginDelegate: MarketplacePluginDelegate
   listInstalledPlugins: () => InstalledPluginView[]
+  listClaudeMarketplaces: () => ClaudeMarketplaceSourceView[]
+  mcpAuthDelegate: McpAuthDelegate
 }
 
 // null workspace = the GLOBAL surface; non-null = that workspace's surface.
@@ -102,6 +108,9 @@ export type MarketplaceInstallRequest = {
   scope: SkillScope
   // null = the GLOBAL surface (a user-scope install needs no workspace).
   workspace: { id: string; path: string } | null
+  /** Mcp items only: values for the manifest's declared configuration
+   * fields. Secrets — never logged; other kinds ignore them. */
+  mcpConfigurationValues?: Record<string, string>
 }
 
 export async function installMarketplaceItem(
@@ -119,16 +128,25 @@ export async function installMarketplaceItem(
       ctx.listInstalledPlugins,
       mcpServersReaderFor(workspace),
       rulesReaderFor(workspace),
+      ctx.listClaudeMarketplaces,
     ),
   )
   if (gateItem.kind === 'plugin') {
     return installPluginItem(
       { db: ctx.db, logger: ctx.logger, pluginDelegate: ctx.pluginDelegate },
-      { itemId, pluginKey: gateItem.pluginKey },
+      {
+        itemId,
+        pluginKey: gateItem.pluginKey,
+        source: gateItem.source,
+        sourceUrl: gateItem.sourceUrl,
+      },
     )
   }
   if (gateItem.kind === 'mcp') {
-    return installMcpItem({ db: ctx.db, logger: ctx.logger }, { itemId, scope, workspace })
+    return installMcpItem(
+      { db: ctx.db, logger: ctx.logger },
+      { itemId, scope, workspace, configurationValues: request.mcpConfigurationValues ?? {} },
+    )
   }
   if (gateItem.kind === 'rule') {
     return installRuleItem({ db: ctx.db, logger: ctx.logger }, { itemId, scope, workspace })
@@ -217,6 +235,7 @@ export async function updateMarketplaceItem(
       ctx.listInstalledPlugins,
       mcpServersReaderFor(workspace),
       rulesReaderFor(workspace),
+      ctx.listClaudeMarketplaces,
     ),
   )
   if (item.installStatus.kind !== 'installed') {
@@ -283,6 +302,7 @@ export async function uninstallMarketplaceItem(
       ctx.listInstalledPlugins,
       mcpServersReaderFor(workspace),
       rulesReaderFor(workspace),
+      ctx.listClaudeMarketplaces,
     ),
   )
   if (item.installStatus.kind !== 'installed') {
@@ -296,7 +316,7 @@ export async function uninstallMarketplaceItem(
   }
   if (item.kind === 'mcp') {
     return uninstallMcpItem(
-      { logger: ctx.logger },
+      { db: ctx.db, logger: ctx.logger, mcpAuthDelegate: ctx.mcpAuthDelegate },
       {
         itemId,
         serverName: item.installStatus.installedId,

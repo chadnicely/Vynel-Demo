@@ -169,6 +169,9 @@ describe('installSkillOnDisk (workspace scope)', () => {
       expect(config.mcpServers.gmail.command).toBe('node')
       expect(config.mcpServers.gmail.args).toEqual(['./gmail-mcp.js'])
       expect(config.mcpServers.gmail.env).toEqual({ GMAIL_TOKEN: 'x' })
+      // The provenance marker ties the entry to the installing skill, so
+      // only that skill's uninstall may remove it.
+      expect(config.mcpServers.gmail._vynelProvenance.itemId).toBe('email-drafter')
     })
   })
 

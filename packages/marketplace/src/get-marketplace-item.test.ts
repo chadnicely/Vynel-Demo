@@ -14,7 +14,7 @@ import { getMarketplaceItem } from './get-marketplace-item.js'
 import type { InstalledSkillView, MarketplaceDeps } from './marketplace-types.js'
 
 function depsReturning(installed: InstalledSkillView[]): MarketplaceDeps {
-  return { listInstalledSkills: () => installed, listInstalledAgents: () => [], listInstalledPlugins: () => [], listInstalledMcpServers: () => [], listInstalledRules: () => [] }
+  return { listInstalledSkills: () => installed, listInstalledAgents: () => [], listInstalledPlugins: () => [], listInstalledMcpServers: () => [], listInstalledRules: () => [], listClaudeMarketplaces: () => [] }
 }
 
 const owner = { userId: 'user-1', surface: 'workspace', workspaceId: 'ws-1' } as const

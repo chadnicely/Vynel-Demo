@@ -49,12 +49,20 @@ export async function installSkillOnDisk(
     // rather than passing `workspacePath: undefined` (which the
     // type would reject). Pattern locked at MEMORY 2026-05-21
     // architectural precedent.
+    const installedAt = new Date().toISOString()
     const mcpInput: Parameters<typeof updateMcpServersForScope>[0] = {
       scope: input.scope,
-      serversToAdd: input.skillDefinition.requiredMcpServers,
+      serversToAdd: input.skillDefinition.requiredMcpServers.map((server) => ({
+        server,
+        provenance: { itemId: input.skillDefinition.skillId, installedAt },
+      })),
       serversToRemove: [],
     }
     if (input.workspacePath !== undefined) mcpInput.workspacePath = input.workspacePath
+    // A refused addition means another item (or the user) already owns a
+    // server with that name — the skill still works against the existing
+    // entry, so the install proceeds; the foreign entry is not ours to
+    // replace (shared-server ownership stays with its first installer).
     await updateMcpServersForScope(mcpInput)
   }
 

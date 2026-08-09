@@ -20,6 +20,7 @@ function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
   return {
     itemId: "email-drafter",
     kind: "skill",
+    source: { kind: "vynel-catalog" },
     skillId: "email-drafter",
     publisherTier: "verified",
     publisherName: "Vynel",
@@ -76,6 +77,8 @@ function makeClient(
     userInstall?: (...args: unknown[]) => Promise<unknown>;
     userUpdate?: (...args: unknown[]) => Promise<unknown>;
     userUninstall?: (...args: unknown[]) => Promise<unknown>;
+    mcpLogin?: (...args: unknown[]) => Promise<unknown>;
+    mcpUserLogin?: (...args: unknown[]) => Promise<unknown>;
   } = {},
 ) {
   const listItems = options.items ?? items;
@@ -86,6 +89,9 @@ function makeClient(
     (async () => ({ kind: "skill", installedSkillId: "sk1", itemId: "owned" }));
   return {
     hub: { getSession: async () => session },
+    marketplaceSources: { list: async () => ({ sources: [] }) },
+    mcpServers: { login: options.mcpLogin ?? (async () => ({ connected: true })) },
+    mcpServersUser: { login: options.mcpUserLogin ?? (async () => ({ connected: true })) },
     marketplace: { listItems: async () => listItems, install, update, uninstall },
     // The GLOBAL surface's endpoints — the same shelf, user scope.
     marketplaceUser: {
@@ -682,5 +688,262 @@ describe("WorkspaceSectionPanel — marketplace delegation", () => {
 
     expect(wrapper.findComponent(MarketplaceSection).exists()).toBe(true);
     wrapper.unmount();
+  });
+});
+
+// The configure detour (2026-08-09): an mcp item whose manifest declares
+// required values never installs on the bare Get click — the dialog
+// collects the values and the install carries them; a declaration-less
+// mcp item keeps the one-click Get.
+describe("MarketplaceSection — mcp configure detour", () => {
+  const githubItem = () =>
+    makeItem({
+      itemId: "github-mcp",
+      kind: "mcp",
+      skillId: "github-mcp",
+      displayName: "GitHub",
+      hasCloudArtifact: false,
+      mcpServerName: "github",
+      mcpAuth: {
+        kind: "fields",
+        fields: [{ name: "GITHUB_TOKEN", label: "GitHub token", secret: true }],
+      },
+    });
+
+  function configureDialog(): HTMLElement | null {
+    const dialogs = document.body.querySelectorAll<HTMLElement>('[role="dialog"]');
+    return dialogs[dialogs.length - 1] ?? null;
+  }
+
+  it("Get opens the configure dialog instead of installing; submit installs with the values", async () => {
+    const install = vi.fn(async () => installResult);
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      { items: [githubItem()], install },
+    );
+    await flushPromises();
+
+    await wrapper.get("button.pill").trigger("click");
+    await flushPromises();
+    expect(install).not.toHaveBeenCalled();
+
+    const dialog = configureDialog();
+    if (!dialog) throw new Error("configure dialog did not render");
+    expect(dialog.textContent).toContain("GitHub token");
+
+    const installButton = [...dialog.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Install",
+    )!;
+    expect(installButton.disabled).toBe(true);
+
+    const input = dialog.querySelector<HTMLInputElement>(
+      '[placeholder="GITHUB_TOKEN"]',
+    )!;
+    expect(input.type).toBe("password");
+    input.value = "tok-1";
+    input.dispatchEvent(new Event("input"));
+    await flushPromises();
+
+    installButton.click();
+    await flushPromises();
+
+    expect(install).toHaveBeenCalledWith("w1", {
+      itemId: "github-mcp",
+      scope: "workspace",
+      mcpConfigurationValues: { GITHUB_TOKEN: "tok-1" },
+    });
+    expect(configureDialog()).toBeNull();
+    wrapper.unmount();
+  });
+
+  it("a declaration-less mcp item keeps the one-click Get", async () => {
+    const install = vi.fn(async () => installResult);
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      {
+        items: [
+          makeItem({
+            itemId: "playwright-mcp",
+            kind: "mcp",
+            skillId: "playwright-mcp",
+            displayName: "Playwright",
+            hasCloudArtifact: false,
+            mcpServerName: "playwright",
+          }),
+        ],
+        install,
+      },
+    );
+    await flushPromises();
+
+    await wrapper.get("button.pill").trigger("click");
+    await flushPromises();
+
+    expect(install).toHaveBeenCalledWith("w1", {
+      itemId: "playwright-mcp",
+      scope: "workspace",
+    });
+    expect(configureDialog()).toBeNull();
+    wrapper.unmount();
+  });
+});
+
+// The Connect affordance (Slice 3): an installed OAuth item drives the
+// native browser sign-in via the daemon; the route follows where the entry
+// LIVES (installStatus.scope). Success flips the button to its transient
+// "Connected" readback.
+describe("MarketplaceSection — oauth connect", () => {
+  const notionItem = (installScope: "user" | "workspace") =>
+    makeItem({
+      itemId: "notion-mcp",
+      kind: "mcp",
+      skillId: "notion-mcp",
+      displayName: "Notion",
+      hasCloudArtifact: false,
+      mcpServerName: "notion",
+      mcpAuth: { kind: "oauth" },
+      installStatus: {
+        kind: "installed",
+        scope: installScope,
+        installedId: "notion",
+        versionInstalled: null,
+      },
+    });
+
+  it("drives the workspace login for a workspace-scope install, then reads back Connected", async () => {
+    const mcpLogin = vi.fn(async () => ({ connected: true }));
+    const mcpUserLogin = vi.fn(async () => ({ connected: true }));
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      { items: [notionItem("workspace")], mcpLogin, mcpUserLogin },
+    );
+    await flushPromises();
+
+    const connectButton = wrapper.get('[aria-label="Connect Notion — opens your browser to sign in"]');
+    expect(connectButton.text()).toBe("Connect");
+    await connectButton.trigger("click");
+    await flushPromises();
+
+    expect(mcpLogin).toHaveBeenCalledWith("w1", "notion");
+    expect(mcpUserLogin).not.toHaveBeenCalled();
+    expect(connectButton.text()).toContain("Connected");
+    wrapper.unmount();
+  });
+
+  it("drives the USER login for a user-scope install, even from the workspace shelf", async () => {
+    const mcpLogin = vi.fn(async () => ({ connected: true }));
+    const mcpUserLogin = vi.fn(async () => ({ connected: true }));
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      { items: [notionItem("user")], mcpLogin, mcpUserLogin },
+    );
+    await flushPromises();
+
+    await wrapper
+      .get('[aria-label="Connect Notion — opens your browser to sign in"]')
+      .trigger("click");
+    await flushPromises();
+
+    expect(mcpUserLogin).toHaveBeenCalledWith("notion");
+    expect(mcpLogin).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it("offers no Connect on a non-oauth mcp item or an uninstalled oauth item", async () => {
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      {
+        items: [
+          makeItem({
+            itemId: "playwright-mcp",
+            kind: "mcp",
+            skillId: "playwright-mcp",
+            displayName: "Playwright",
+            mcpServerName: "playwright",
+            installStatus: {
+              kind: "installed",
+              scope: "user",
+              installedId: "playwright",
+              versionInstalled: null,
+            },
+          }),
+          makeItem({
+            itemId: "notion-mcp",
+            kind: "mcp",
+            skillId: "notion-mcp",
+            displayName: "Notion",
+            mcpServerName: "notion",
+            mcpAuth: { kind: "oauth" },
+          }),
+        ],
+      },
+    );
+    await flushPromises();
+
+    expect(wrapper.findAll(".pill.is-connect")).toHaveLength(0);
+    wrapper.unmount();
+  });
+});
+
+// The source dimension (marketplace-sources Move A): third-party rows
+// filter behind source chips; the chips only render once a registered
+// marketplace contributes rows; the global surface offers the manage door.
+describe("MarketplaceSection — source filter", () => {
+  const thirdPartyItem = () =>
+    makeItem({
+      itemId: "invoicer@acme-tools",
+      kind: "plugin",
+      source: { kind: "claude-marketplace", marketplaceName: "acme-tools" },
+      skillId: "invoicer@acme-tools",
+      publisherTier: "community",
+      displayName: "invoicer",
+      pluginKey: "invoicer@acme-tools",
+      hasCloudArtifact: false,
+      scope: "user",
+    });
+
+  it("chips appear with third-party rows and narrow the shelf by source", async () => {
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      { items: [makeItem({ itemId: "email-drafter" }), thirdPartyItem()] },
+      { kind: "global" },
+    );
+    await flushPromises();
+
+    const chipLabels = wrapper.findAll(".source-chip").map((chip) => chip.text());
+    expect(chipLabels).toEqual(["All sources", "Vynel", "acme-tools"]);
+
+    const titles = () => wrapper.findAll(".card-title").map((title) => title.text());
+    expect(titles()).toHaveLength(2);
+
+    await wrapper
+      .findAll(".source-chip")
+      .find((chip) => chip.text() === "acme-tools")!
+      .trigger("click");
+    expect(titles()).toEqual(["invoicer"]);
+
+    await wrapper
+      .findAll(".source-chip")
+      .find((chip) => chip.text() === "Vynel")!
+      .trigger("click");
+    expect(titles()).toEqual(["Email Drafter"]);
+    wrapper.unmount();
+  });
+
+  it("no source chips on a Vynel-only shelf; the manage door is global-only", async () => {
+    const globalWrapper = mountSection({ kind: "signed-out" }, {}, { kind: "global" });
+    await flushPromises();
+    expect(globalWrapper.findAll(".source-chip")).toHaveLength(0);
+    expect(
+      globalWrapper.findAll("button").some((b) => b.text().includes("Marketplaces")),
+    ).toBe(true);
+    globalWrapper.unmount();
+
+    const workspaceWrapper = mountSection({ kind: "signed-out" });
+    await flushPromises();
+    expect(
+      workspaceWrapper.findAll("button").some((b) => b.text().includes("Marketplaces")),
+    ).toBe(false);
+    workspaceWrapper.unmount();
   });
 });
