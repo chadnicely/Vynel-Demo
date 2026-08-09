@@ -8,7 +8,7 @@
 
 Desktop control is what lets the always-on assistant answer "what did I miss?", "what's open right now?", or "read what's on my Slack" — and, when asked, actually do things there — questions and tasks about the *whole computer* rather than any one project. It reaches past Vynel's own data into the live desktop and hands the assistant a small set of tools it calls mid-conversation.
 
-What makes it a product surface rather than plumbing is that it is the assistant's only window onto the machine itself — and the place where Vynel's trust promise is most visible. The user grants access **per app, per capability level**, through an approval card they see in every mode; the assistant can never widen its own reach. It is deliberately framed to the assistant as *things you do yourself, not things you route to a workspace*.
+What makes it a product surface rather than plumbing is that it is the assistant's only window onto the machine itself — and the place where Vynel's trust promise is most visible. The user grants access **per app, per capability level**, through an approval card in Ask mode (in Auto/Bypass that mode choice is itself the consent); the assistant can never widen its own reach beyond the tier granted. It is deliberately framed to the assistant as *things you do yourself, not things you route to a workspace*.
 
 The module has three layers sharing one safety posture: a **notification listener** watching the OS toast stream, an **observation-and-action bridge** over any open app (accessibility tree, screenshots, element and coordinate actions), and the **access-grant model** that gates everything app-directed behind the user's explicit, revocable, per-app consent.
 
@@ -41,7 +41,7 @@ Seven tools make up the surface: four observation tools and the consent tool are
 |---|---|
 | **Access grant** | A persisted record: this user allowed the assistant into ONE app at ONE tier. No record = no access. Created only via the consent card; revocable any time from the settings screen. |
 | **Tier** | The escalating capability ladder: *read* (see the app) < *click* (also press things) < *full* (also type text / press keys). A grant at a higher tier covers the lower ones. |
-| **Consent card** | The approval card the consent tool raises — app, tier, reason — in every permission mode without exception. The user's decision on that card IS the consent moment. |
+| **Consent card** | The approval card the consent tool raises — app, tier, reason — shown on the attention overlay (not the main chat). Raised in **Ask** mode, and in the unattended background default so a scheduled turn can never self-grant; in the user's **Auto/Bypass** the grant records silently, because choosing those modes IS the standing consent. The user's decision on that card IS the consent moment. |
 | **Resolved target** | Enforcement never trusts the assistant's query string: the operation first resolves which real app/window it is about to touch, and the grant is checked against *that* — the app under the click, the app holding keyboard focus. |
 | **Normalized app key** | The exact-match identity a grant is stored under (trimmed, casefolded, extension stripped) — so "Discord" and "Discord.exe" are one grant, and a grant for one app can never fuzzily cover another. |
 | **Desktop notification** | A normalized OS toast: source app, title, body, capture time. Ephemeral — never written to any database. |
@@ -57,7 +57,7 @@ Seven tools make up the surface: four observation tools and the consent tool are
 ## Rules & invariants
 
 - **No grant, no access — and denial teaches the recovery.** Every app-directed operation fails closed when the user hasn't granted that app at the needed tier; the refusal names the consent tool as the path forward, so a denial becomes a consent card, not a dead end.
-- **Grants are born only on a card the user saw.** The consent tool is declared always-carding, in every permission mode. The HTTP surface can only list and revoke — there is deliberately no other creation door.
+- **Grants are born only through the consent tool.** It rides the mutating approval tier: the user sees a card in Ask mode (and on unattended background turns); in Auto/Bypass the mode itself is the consent and the grant records silently. The HTTP surface can only list and revoke — there is deliberately no other creation door.
 - **Grants only ever move up, and shrink only by explicit revoke.** A re-request at a lower tier never silently narrows what the user already approved.
 - **Enforcement targets the resolved app, never the asked-for name.** The grant check runs after target resolution — against the actual window under the point, or the actually focused window — so a fuzzy query can't smuggle an action into an ungranted app.
 - **Passwords are a wall, not a policy.** A detected password control refuses text entry unconditionally; instructions and approval cards are additional layers, but this one lives in code.

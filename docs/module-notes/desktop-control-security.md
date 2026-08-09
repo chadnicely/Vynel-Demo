@@ -42,9 +42,13 @@ desktop-control libraries with Claude's secure desktop-control functionality."
     message tells the model to call `request_desktop_access`).
   - Outbox events co-committed on grant/revoke.
 - New tool `request_desktop_access({app, tier, reason})` — upserts the grant. Declared in
-  **`mutatingToolNames`** → auto-cards in EVERY mode via the existing approval infra. The
-  approval card IS the consent UI (deny = tool never runs = no grant). Zero new consent
-  plumbing; honors the locked approval-tier model (mutating tier = every-mode card).
+  **`mutatingToolNames`** → auto-cards via the existing approval infra. The approval card
+  IS the consent UI (deny = tool never runs = no grant). Zero new consent plumbing.
+  **Mode matrix (Chad 2026-08-04, after the live smoke): ask = card; auto/bypass = no card
+  (those modes ARE the standing consent); the unattended `bypass-with-behavior-gate`
+  default still cards, so a schedule fire can never self-grant.** The desktop card renders
+  on the bottom-right ATTENTION OVERLAY, not in the main chat (the overlay filters
+  `mcp__desktop__*` approvals) — watch that window when smoking the flow.
 - Enforcement at execution, after target resolution (the Cowork frontmost-app pattern):
   - `snapshot_app` / `screenshot_app` → requires `read`
   - `act_on_app` press · `act_on_desktop` click/scroll/drag → requires `click`

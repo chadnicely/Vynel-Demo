@@ -177,10 +177,10 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
     expect(composed.allowedMcpToolPatterns).toContain('mcp__desktop__*')
     // The declaration is unconditional (descriptor contract) — the tier is
     // additive, so declaring an unregistered tool is harmless.
-    // test: correct expectation — the act tools moved from the every-mode set
+    // test: correct expectation — the act tools moved from the mutating set
     // to the ask-approval tier (Chad 2026-07-26); the CONSENT tool
-    // (request_desktop_access) rides the every-mode set by design — the
-    // approval card IS the user's per-app grant moment.
+    // (request_desktop_access) rides the MUTATING tier so it also cards on
+    // unattended background turns (no silent self-grant on a schedule fire).
     expect(composed.askModeApprovalToolNames).toContain('mcp__desktop__act_on_app')
     expect(composed.mutatingToolNames).toEqual(['mcp__desktop__request_desktop_access'])
     expect(composed.systemPromptAppend).toContain('snapshot_app')

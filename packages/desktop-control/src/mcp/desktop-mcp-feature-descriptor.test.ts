@@ -14,10 +14,11 @@ const baseContext: SessionToolContext = {
 describe('desktopFeatureDescriptor', () => {
   it('declares both act tools in the ask-approval tier (element + coordinate acting)', () => {
     expect(desktopFeatureDescriptor.serverName).toBe('desktop')
-    // The consent tool cards in EVERY mode (mutating tier): a grant coming
-    // into being without the user seeing a card would hollow out the per-app
-    // access model. The act tools stay ask-tier (Chad 2026-07-26: "ask mode
-    // gates through approval; auto and bypass, no approval").
+    // The consent tool rides the MUTATING tier: it cards in ask + the
+    // unattended background default (no silent self-grant on a schedule
+    // fire), and runs uncarded in the user's auto/bypass. The act tools stay
+    // ask-tier (Chad 2026-07-26 + 2026-08-04: "ask mode gates through
+    // approval; auto and bypass, no approval").
     expect(desktopFeatureDescriptor.mutatingToolNames).toEqual([
       'mcp__desktop__request_desktop_access',
     ])

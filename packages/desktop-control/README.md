@@ -10,7 +10,8 @@ house style from a reference scaffold; the accessibility engine is `xa11y`
 > tier: `read` (see) < `click` (also press) < `full` (also type). No grant = no
 > access (fails closed with the recovery path). The ONLY way a grant comes into
 > being is the `request_desktop_access` tool, declared in `mutatingToolNames` so
-> it raises an **approval card in every permission mode** — the card is the
+> it raises an **approval card in Ask mode** (and in the unattended
+> `bypass-with-behavior-gate` default, so a schedule fire can't self-grant) — the card is the
 > consent moment. Grants persist in `desktop_app_grants` until revoked (routes
 > `GET/DELETE /desktop/access`; "Desktop access" section in the app). On top of
 > that: the act tools are **default-OFF** behind `VYNEL_DESKTOP_ACT_ENABLED`,
@@ -27,7 +28,7 @@ house style from a reference scaffold; the accessibility engine is `xa11y`
 | `list_open_apps` | List open windows + the granted `accessTier` per app (read-only; ungated) | **shipped** |
 | `snapshot_app` | Read a named app's accessibility tree (requires `read` grant) | **shipped** |
 | `screenshot_app` | Pixel capture of one window without focusing it; WXGA downscale for coordinate accuracy + full-res `region` zoom (requires `read` grant; `node-screenshots`/XCap) | **shipped** |
-| `request_desktop_access` | Ask the user to grant an app at a tier — cards in EVERY mode; the consent door | **shipped** |
+| `request_desktop_access` | Ask the user to grant an app at a tier — the consent door (cards in ask + unattended; uncarded in the user's auto/bypass) | **shipped** |
 | `act_on_app` | Act on an element — press (`click` grant) / type_text / set_value (`full` grant); default-OFF | **shipped** |
 | `act_on_desktop` | Coordinate mouse/keyboard — click/scroll/drag (`click` grant), type/press (`full` grant, enforced against the focused/hit-tested window); default-OFF | **shipped** |
 

@@ -5,7 +5,7 @@
 //   DELETE /:appName  -> revokeDesktopAccess  (the user's revocation door)
 //
 // GRANTS ARE NEVER CREATED HERE. The only creation door is the
-// `request_desktop_access` MCP tool, which cards in every permission mode —
+// `request_desktop_access` MCP tool, which cards in ask mode —
 // the approval card is the consent moment. These routes exist so the user can
 // SEE and REVOKE what they granted (the management surface).
 //

@@ -84,7 +84,7 @@ function requestRevoke(appName: string) {
     <EmptyState
       v-else
       title="No apps granted yet"
-      hint="When Claude needs to see or use one of your apps, it asks first — an approval card shows the app and what it wants to do. Approvals you give appear here, and you can take any of them back."
+      hint="When Claude needs to see or use one of your apps, it takes access one app at a time — in Ask mode you approve each one on a card first; in Auto and Bypass it takes what it needs, since those modes already say yes for you. Whatever it holds shows up here, and you can take any of it back."
     >
       <template #icon>
         <Monitor :size="22" />

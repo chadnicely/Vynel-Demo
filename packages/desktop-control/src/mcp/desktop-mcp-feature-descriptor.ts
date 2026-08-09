@@ -44,10 +44,12 @@ function contributePrompt(context: SessionToolContext): string {
 // only when `enableDesktopActions` is on (default-off). The act tools ride the
 // ASK-approval tier, not the every-mode set — Chad 2026-07-26: "ask mode gates
 // through approval; auto and bypass, no approval" (they previously carded in
-// every mode). `request_desktop_access` is the exception BY DESIGN: it is the
-// user-consent moment of the per-app access model (Claude-desktop-style
-// grants), so it cards in EVERY mode — a grant that could come into being
-// without the user seeing a card would hollow out the whole model. Declared
+// every mode). `request_desktop_access` sits in the MUTATING tier because it
+// is the user-consent moment of the per-app access model: it cards in ASK and
+// in the UNATTENDED `bypass-with-behavior-gate` default (a background turn
+// must never grant itself desktop reach silently). In the user's own AUTO and
+// BYPASS the floor stands down and it runs uncarded — Chad 2026-08-04:
+// "auto, bypass doesn't require card; ask requires card." Declared
 // unconditionally: the tiers are additive, so declaring a tool that isn't
 // registered this turn is harmless.
 export const desktopFeatureDescriptor: McpFeatureDescriptor = {

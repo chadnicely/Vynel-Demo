@@ -75,7 +75,11 @@ describe("DesktopAccessSection", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("No apps granted yet");
-    expect(wrapper.text().toLowerCase()).toContain("approval card");
+    // test: correct expectation — the copy now states the MODE MATRIX honestly
+    // (ask = card; auto/bypass = the mode is the consent), replacing the
+    // inaccurate "asks first, always" wording. Chad 2026-08-04.
+    expect(wrapper.text()).toContain("Ask mode");
+    expect(wrapper.text()).toContain("Bypass");
     expect(wrapper.find("button.add-button").exists()).toBe(false);
   });
 });

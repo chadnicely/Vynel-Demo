@@ -1,9 +1,12 @@
 // The consent tool of the desktop access model: the ONLY way access comes
 // into being. Declared in the descriptor's `mutatingToolNames`, so calling it
-// raises an approval card in EVERY permission mode — the card (showing app +
-// tier + reason) IS the user's consent moment; a denied card means this
-// handler never runs and no grant exists. The handler then just records what
-// the user approved. Grants persist until revoked (Desktop access list).
+// raises an approval card in ASK mode (and in the unattended
+// `bypass-with-behavior-gate` default) — the card (showing app + tier +
+// reason) IS the user's consent moment there; a denied card means this
+// handler never runs and no grant exists. In the user's AUTO/BYPASS the floor
+// stands down and the grant is recorded without a card, per Chad's approval
+// stance: those modes ARE the standing consent. The handler just records what
+// was approved. Grants persist until revoked (Desktop access list).
 
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'

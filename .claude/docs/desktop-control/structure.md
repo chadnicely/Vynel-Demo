@@ -48,7 +48,7 @@ Desktop-control gives the global-root brain senses **and hands** on the local ma
 | `packages/desktop-control/src/input/key-combo.ts` | `parseKeyCombo` — "ctrl+c"/"alt+f4" → nut.js Key values; unknown tokens throw |
 | **mcp/** | |
 | ► `packages/desktop-control/src/mcp/build-desktop-mcp-server.ts` | `buildDesktopMcpServer({ reader, db, userId, enableActions })` → `createSdkMcpServer({ name: 'desktop' })`; builds the authorizer + tier reader; 5 tools always, +2 act tools when `enableActions`; `desktopToolFactories` exported for tests |
-| ► `packages/desktop-control/src/mcp/desktop-mcp-feature-descriptor.ts` | `desktopFeatureDescriptor` — `build` returns `null` when `context.desktopReader === undefined`; `mutatingToolNames: ['mcp__desktop__request_desktop_access']` (cards EVERY mode); `askModeApprovalToolNames: ['mcp__desktop__act_on_app', 'mcp__desktop__act_on_desktop']`; `contributePrompt` |
+| ► `packages/desktop-control/src/mcp/desktop-mcp-feature-descriptor.ts` | `desktopFeatureDescriptor` — `build` returns `null` when `context.desktopReader === undefined`; `mutatingToolNames: ['mcp__desktop__request_desktop_access']` (cards in ask + unattended; uncarded in user auto/bypass); `askModeApprovalToolNames: ['mcp__desktop__act_on_app', 'mcp__desktop__act_on_desktop']`; `contributePrompt` |
 | `packages/desktop-control/src/mcp/list-desktop-notifications-tool.ts` | read tool over the reader; optional ISO `since`; ungated (redacted at ingest) |
 | `packages/desktop-control/src/mcp/list-open-apps-tool.ts` | read tool → `listOpenApps`, each app annotated `accessTier` (`read`/`click`/`full`/`none`) via the bound grant reader; ungated (names only) |
 | `packages/desktop-control/src/mcp/snapshot-app-tool.ts` | grant-gated (`read`) tree read; `maxDepth`; turns `wakeIncomplete`/`focusSucceeded` into actionable guidance; `readOnlyHint` |
@@ -167,7 +167,7 @@ flowchart TD
     B --> C{"authorizer:\ngrant for RESOLVED app\ncovers required tier?"}
     C -->|yes| D["execute (bounded by withTimeout)\n+ password wall before any typing"]
     C -->|"no → ForbiddenError\nnames the recovery"| E["model calls request_desktop_access\n(app, tier, reason)"]
-    E --> F["approval card — EVERY mode\n(mutatingToolNames)"]
+    E --> F["approval card — ask + unattended\n(mutatingToolNames; overlay window)"]
     F -->|user approves| G["grantDesktopAccess — tx:\nupsert (never downgrade)\n+ desktop.access-granted outbox"]
     F -->|user denies| H["handler never runs — no grant"]
     G --> A

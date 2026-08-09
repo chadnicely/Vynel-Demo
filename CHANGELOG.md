@@ -11,10 +11,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 - **Desktop control asks before it touches anything.** Claude's desktop hands
   are now gated by per-app permissions you grant one app at a time, at one of
-  three levels — look only, look + click, or look, click + type. When Claude
-  needs an app it asks with an approval card naming the app, the level, and
-  why; nothing is visible or clickable until you say yes, and a new **Desktop
-  access** section in the sidebar lists every grant with a one-click revoke.
+  three levels — look only, look + click, or look, click + type. In **Ask**
+  mode Claude requests each app with an approval card naming the app, the
+  level, and why (it appears on the desktop overlay, bottom-right); in Auto
+  and Bypass it takes access as it needs it, since those modes already stand
+  in for your yes. Either way nothing is touched without a recorded grant, and
+  a new **Desktop access** section in the sidebar lists everything Claude
+  holds with a one-click revoke.
   Behind the card sit hard walls: Claude can never type into a password
   field, clicks are confined to the window you granted (whatever app is
   actually under the cursor is what gets checked), text seen on screen is
