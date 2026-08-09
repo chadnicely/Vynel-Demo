@@ -187,3 +187,15 @@ there. That one pass proves token reuse AND native interop.
 - Foundation blockers list for the source dimension lives in the research report (this doc's
   ancestor conversation) + `.claude/plan/marketplace-remaining.md` inherits nothing from it —
   the admin-hub lane starts with its own module notes.
+
+## Live smoke finding #1 (Kafi, 2026-08-09) — login needs a console; FIXED
+
+Connect failed from the daemon: the CLI aborts when `stdin.isTTY` is false — in BOTH modes,
+even after arming its loopback callback ("stdin isn't a terminal … re-run in an interactive
+terminal"). No pipe-based spawn can ever pass that check. Probed: a
+`Start-Process -WindowStyle Hidden` child gets a REAL (invisible) console with
+`stdin.isTTY: true`. Fix: Windows login runs through that PowerShell wrapper (bounded
+`Wait-Process`, kill + exit 124 on timeout, child exit code passed through); errors become
+exit-code based (the hidden console's stderr is unreachable — by design). Logout stays on the
+plain pipe spawn (non-interactive; stderr detail intact). Non-Windows keeps the piped spawn +
+the CLI's own actionable error until a pty seam is warranted.
