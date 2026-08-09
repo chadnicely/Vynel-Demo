@@ -19,6 +19,7 @@ import { resolver, validator } from 'hono-openapi/zod'
 import { NotFoundError, ValidationError } from '@vynel/errors'
 import {
   addCustomMcpServerForScope,
+  approveProjectMcpjsonServer,
   listMcpServersForScope,
   removeMcpServerForScope,
 } from '@vynel/skills'
@@ -124,6 +125,16 @@ export const mcpServersApp = factory
         throw new ValidationError(
           `'${serverName}' runs locally on this machine — there is nothing to sign in to.`,
         )
+      }
+      // A `.mcp.json` server stays UNTRUSTED to Claude Code until the
+      // project approval lands in `~/.claude.json` — the login refuses
+      // with "awaiting approval" otherwise. New installs record it at
+      // write time; a provenance-marked entry from BEFORE that fix is
+      // proof of a past carded consent, so heal it here (idempotent).
+      // Hand-added unmarked entries never get auto-approval — that
+      // consent belongs to Claude Code's own review flow.
+      if (server.provenanceItemId !== null) {
+        await approveProjectMcpjsonServer(workspacePath, serverName)
       }
       // The CLI resolves a `.mcp.json` server from its working directory,
       // so the login must run inside the workspace. It opens the user's

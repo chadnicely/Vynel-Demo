@@ -25,6 +25,10 @@ import {
   readMcpServerProvenanceItemId,
   type McpServerProvenance,
 } from './mcp-server-provenance.js'
+import {
+  approveProjectMcpjsonServer,
+  revokeProjectMcpjsonServerApproval,
+} from './update-project-mcp-approval.js'
 
 export type McpServerAddition = {
   server: SkillRequiredMcpServer
@@ -87,7 +91,7 @@ export async function updateMcpServersForScope(
     outcome.removedServerNames.push(removal.serverName)
   }
 
-  let appliedAdditionCount = 0
+  const appliedAdditionNames: string[] = []
   for (const addition of input.serversToAdd) {
     const existing = existingServers[addition.server.serverName]
     if (
@@ -102,18 +106,32 @@ export async function updateMcpServersForScope(
       addition.server,
       addition.provenance,
     )
-    appliedAdditionCount += 1
+    appliedAdditionNames.push(addition.server.serverName)
   }
 
   // A fully-refused (or no-op) update never rewrites the file — the refusal
   // paths promise "we don't touch what isn't ours", and a rewrite would
   // still normalize the user's hand-formatted JSON.
-  if (outcome.removedServerNames.length === 0 && appliedAdditionCount === 0) {
+  if (outcome.removedServerNames.length === 0 && appliedAdditionNames.length === 0) {
     return outcome
   }
 
   const newConfig = { ...existingConfig, mcpServers: existingServers }
   await writeFile(configPath, JSON.stringify(newConfig, null, 2), 'utf8')
+
+  // Workspace `.mcp.json` servers stay UNTRUSTED to Claude Code until
+  // per-project approval lands in `~/.claude.json` — and every workspace
+  // entry written here is consent-backed (carded install / add form /
+  // carded skill install), so the approval rides the same write. Removal
+  // revokes it, keeping the trust record as tidy as the config.
+  if (input.scope === 'workspace' && input.workspacePath !== undefined) {
+    for (const serverName of appliedAdditionNames) {
+      await approveProjectMcpjsonServer(input.workspacePath, serverName)
+    }
+    for (const serverName of outcome.removedServerNames) {
+      await revokeProjectMcpjsonServerApproval(input.workspacePath, serverName)
+    }
+  }
   return outcome
 }
 

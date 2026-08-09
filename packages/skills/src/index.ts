@@ -68,6 +68,7 @@ export {
   type McpServerEntryView,
 } from './mcp-servers/list-mcp-server-entries-for-scope.js'
 export { type McpServerProvenance } from './internal/mcp-server-provenance.js'
+export { approveProjectMcpjsonServer } from './internal/update-project-mcp-approval.js'
 export {
   listMcpServersForScope,
   type ConfiguredMcpServer,

@@ -6,7 +6,7 @@
 // https-only remote policy, and remove's 404-when-absent honesty.
 
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pino from 'pino'
@@ -220,7 +220,11 @@ describe('workspace-scoped /workspaces/:workspaceId/mcp-servers', () => {
     })
   })
 
-  it("adds into the workspace's .mcp.json — the home config stays untouched", async () => {
+  // test: correct expectation — a workspace add now records the project
+  // approval in ~/.claude.json (the consent-backed write; without it the
+  // server stays untrusted to Claude Code, smoked 2026-08-09). The home
+  // config's SERVER map stays untouched — was "the whole file untouched".
+  it("adds into the workspace's .mcp.json — the home config gains ONLY the project approval", async () => {
     await withWorld(async ({ app, homeDir, workspaceDir, workspaceId }) => {
       const res = await app.request(`/workspaces/${workspaceId}/mcp-servers`, {
         method: 'POST',
@@ -232,7 +236,12 @@ describe('workspace-scoped /workspaces/:workspaceId/mcp-servers', () => {
 
       const wsConfig = JSON.parse(readFileSync(join(workspaceDir, '.mcp.json'), 'utf8'))
       expect(wsConfig.mcpServers.linear).toBeDefined()
-      expect(() => readFileSync(join(homeDir, '.claude.json'), 'utf8')).toThrow()
+      const homeConfig = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
+        mcpServers?: unknown
+        projects: Record<string, { enabledMcpjsonServers: string[] }>
+      }
+      expect(homeConfig.mcpServers).toBeUndefined()
+      expect(homeConfig.projects[workspaceDir]!.enabledMcpjsonServers).toEqual(['linear'])
     })
   })
 
@@ -387,6 +396,69 @@ describe('POST /:serverName/login', () => {
           logout: async () => {},
         },
       },
+    )
+  })
+})
+
+// Pre-fix workspace installs (provenance-marked entries) heal their
+// missing project approval AT LOGIN — the marker is proof of the past
+// carded consent. Hand-added entries never get auto-approval; that
+// consent belongs to Claude Code's own review flow.
+describe('workspace login heals the project approval for marked entries', () => {
+  const delegateStub = { login: async () => {}, logout: async () => {} }
+
+  it('marked entry: approval lands before the delegate runs', async () => {
+    await withWorld(
+      async ({ app, homeDir, workspaceDir, workspaceId }) => {
+        writeFileSync(
+          join(workspaceDir, '.mcp.json'),
+          JSON.stringify({
+            mcpServers: {
+              notion: {
+                type: 'http',
+                url: 'https://mcp.notion.com/mcp',
+                _vynelProvenance: { itemId: 'notion-mcp', installedAt: '2026-08-09T00:00:00Z' },
+              },
+            },
+          }),
+          'utf8',
+        )
+        const res = await app.request(
+          `/workspaces/${workspaceId}/mcp-servers/notion/login`,
+          { method: 'POST' },
+        )
+        expect(res.status).toBe(200)
+        const config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
+          projects: Record<string, { enabledMcpjsonServers: string[] }>
+        }
+        expect(config.projects[workspaceDir]!.enabledMcpjsonServers).toEqual(['notion'])
+      },
+      { mcpAuthDelegate: delegateStub },
+    )
+  })
+
+  it('hand-added (unmarked) entry: no auto-approval', async () => {
+    await withWorld(
+      async ({ app, homeDir, workspaceDir, workspaceId }) => {
+        writeFileSync(
+          join(workspaceDir, '.mcp.json'),
+          JSON.stringify({
+            mcpServers: { linear: { type: 'http', url: 'https://mcp.example.com/mcp' } },
+          }),
+          'utf8',
+        )
+        const res = await app.request(
+          `/workspaces/${workspaceId}/mcp-servers/linear/login`,
+          { method: 'POST' },
+        )
+        expect(res.status).toBe(200)
+        // No heal for unmarked entries — the file may not even exist.
+        const raw = existsSync(join(homeDir, '.claude.json'))
+          ? readFileSync(join(homeDir, '.claude.json'), 'utf8')
+          : '{}'
+        expect(raw.includes('enabledMcpjsonServers')).toBe(false)
+      },
+      { mcpAuthDelegate: delegateStub },
     )
   })
 })

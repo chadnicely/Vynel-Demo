@@ -185,3 +185,49 @@ describe('mcp-servers config ops', () => {
     })
   })
 })
+
+// Workspace `.mcp.json` servers stay untrusted to Claude Code until the
+// project approval lands in ~/.claude.json (smoked live 2026-08-09:
+// login refuses with "awaiting approval") — every consent-backed
+// workspace write records it, and removal revokes it.
+describe('workspace installs record the project approval', () => {
+  it('install approves in ~/.claude.json projects; uninstall revokes', async () => {
+    await withIsolatedDirs(async (homeDir, workspaceDir) => {
+      await installMcpServerForScope({
+        scope: 'workspace',
+        workspacePath: workspaceDir,
+        server: PLAYWRIGHT_SERVER,
+        provenance: PLAYWRIGHT_PROVENANCE,
+      })
+      let config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
+        projects: Record<string, { enabledMcpjsonServers: string[] }>
+      }
+      expect(config.projects[workspaceDir]!.enabledMcpjsonServers).toEqual(['playwright'])
+
+      await removeMcpServerForScope({
+        scope: 'workspace',
+        workspacePath: workspaceDir,
+        serverName: 'playwright',
+        onlyIfProvenanceItemId: 'playwright-mcp',
+      })
+      config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
+        projects: Record<string, { enabledMcpjsonServers: string[] }>
+      }
+      expect(config.projects[workspaceDir]!.enabledMcpjsonServers).toEqual([])
+    })
+  })
+
+  it('user-scope installs never touch the projects record', async () => {
+    await withIsolatedDirs(async (homeDir) => {
+      await installMcpServerForScope({
+        scope: 'user',
+        server: PLAYWRIGHT_SERVER,
+        provenance: PLAYWRIGHT_PROVENANCE,
+      })
+      const config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
+        projects?: unknown
+      }
+      expect(config.projects).toBeUndefined()
+    })
+  })
+})
