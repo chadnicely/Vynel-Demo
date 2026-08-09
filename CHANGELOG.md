@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Marketplace connectors can now ask for your keys — properly.** An MCP
+  server in the marketplace that needs an API key or token no longer has to
+  ship with a shared secret (or nothing): the item declares what it needs,
+  and Get opens a small setup step asking for exactly those values — masked,
+  sent once, written only into your Claude configuration. Connectors that
+  sign in through a browser (OAuth) install cleanly without credentials and
+  say they still need connecting — the connect step itself lands next. Asking
+  a chat session to install one of these points you to the Marketplace
+  instead, so secrets never travel through conversation.
+
 - **Desktop control asks before it touches anything.** Claude's desktop hands
   are now gated by per-app permissions you grant one app at a time, at one of
   three levels — look only, look + click, or look, click + type. When Claude

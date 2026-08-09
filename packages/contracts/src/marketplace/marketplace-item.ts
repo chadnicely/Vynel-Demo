@@ -4,6 +4,7 @@
 // (`@vynel/contracts/marketplace/marketplace-item`); no barrel.
 
 import type { SkillScope } from '../skills/verified-skills/verified-skill-definition.js'
+import type { McpItemAuthView } from './mcp-item-manifest.js'
 
 /** Phase 1 emits only `'verified'`; the other two are reserved for
  * Phase 1.5+ items. Closed union — the UI compiles against all three
@@ -91,6 +92,10 @@ export type MarketplaceItem = {
    * map — the install-status match anchor (config-is-truth: presence of
    * this key in the scope's config IS the installed state). */
   mcpServerName?: string
+  /** Mcp items only: what the install needs from the user — a configure
+   * step ('fields', values supplied at install) or an OAuth connect step
+   * after install ('oauth'). Absent = plain one-click install. */
+  mcpAuth?: McpItemAuthView
   /** True only when the hub carries a downloadable artifact the update
    * route can serve (a cloud-cached SKILL item). Bundled-only items
    * version with app releases — nothing newer to download — so the card

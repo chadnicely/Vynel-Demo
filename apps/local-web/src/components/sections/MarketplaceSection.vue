@@ -10,6 +10,7 @@ import { useInstallMarketplaceItem } from "../../composables/marketplace/use-ins
 import { useUpdateMarketplaceItem } from "../../composables/marketplace/use-update-marketplace-item.js";
 import { useUninstallMarketplaceItem } from "../../composables/marketplace/use-uninstall-marketplace-item.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
+import ConfigureMcpItemDialog from "./ConfigureMcpItemDialog.vue";
 import MarketplaceItemCard from "./MarketplaceItemCard.vue";
 import SectionHeader from "./SectionHeader.vue";
 
@@ -81,6 +82,31 @@ const isCatalogEmpty = computed(
 // One install mutation drives the whole grid; `variables` scopes its pending
 // and error state to the card the user actually clicked (AccountSection idiom).
 const install = useInstallMarketplaceItem();
+
+// An mcp item declaring required values (API keys, tokens) detours through
+// the configure dialog — Get opens it, submit installs with the values. The
+// dialog closes on submit; success/failure lands on the card like any
+// install (a failed one re-opens the dialog via another Get).
+const configuringItem = ref<MarketplaceItem | null>(null);
+
+function requestInstall(item: MarketplaceItem) {
+  if (item.mcpAuth?.kind === "fields") {
+    configuringItem.value = item;
+    return;
+  }
+  install.mutate({ scope: props.scope, itemId: item.itemId });
+}
+
+function submitConfiguredInstall(values: Record<string, string>) {
+  const item = configuringItem.value;
+  configuringItem.value = null;
+  if (item === null) return;
+  install.mutate({
+    scope: props.scope,
+    itemId: item.itemId,
+    mcpConfigurationValues: values,
+  });
+}
 
 function isInstalling(itemId: string): boolean {
   return install.isPending.value && install.variables.value?.itemId === itemId;
@@ -219,7 +245,7 @@ function cardErrorFor(itemId: string): string | null {
           :is-removing="isRemoving(item.itemId)"
           :is-remove-armed="armedRemoveItemId === item.itemId"
           :error-message="cardErrorFor(item.itemId)"
-          @install="install.mutate({ scope: props.scope, itemId: item.itemId })"
+          @install="requestInstall(item)"
           @update="update.mutate({ scope: props.scope, itemId: item.itemId })"
           @remove-request="requestRemove(item.itemId)"
           @remove-blur="disarmRemove(item.itemId)"
@@ -245,5 +271,12 @@ function cardErrorFor(itemId: string): string | null {
         </template>
       </EmptyState>
     </template>
+
+    <ConfigureMcpItemDialog
+      :open="configuringItem !== null"
+      :item="configuringItem"
+      @close="configuringItem = null"
+      @submit="submitConfiguredInstall"
+    />
   </div>
 </template>

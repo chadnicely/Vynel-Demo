@@ -684,3 +684,100 @@ describe("WorkspaceSectionPanel — marketplace delegation", () => {
     wrapper.unmount();
   });
 });
+
+// The configure detour (2026-08-09): an mcp item whose manifest declares
+// required values never installs on the bare Get click — the dialog
+// collects the values and the install carries them; a declaration-less
+// mcp item keeps the one-click Get.
+describe("MarketplaceSection — mcp configure detour", () => {
+  const githubItem = () =>
+    makeItem({
+      itemId: "github-mcp",
+      kind: "mcp",
+      skillId: "github-mcp",
+      displayName: "GitHub",
+      hasCloudArtifact: false,
+      mcpServerName: "github",
+      mcpAuth: {
+        kind: "fields",
+        fields: [{ name: "GITHUB_TOKEN", label: "GitHub token", secret: true }],
+      },
+    });
+
+  function configureDialog(): HTMLElement | null {
+    const dialogs = document.body.querySelectorAll<HTMLElement>('[role="dialog"]');
+    return dialogs[dialogs.length - 1] ?? null;
+  }
+
+  it("Get opens the configure dialog instead of installing; submit installs with the values", async () => {
+    const install = vi.fn(async () => installResult);
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      { items: [githubItem()], install },
+    );
+    await flushPromises();
+
+    await wrapper.get("button.pill").trigger("click");
+    await flushPromises();
+    expect(install).not.toHaveBeenCalled();
+
+    const dialog = configureDialog();
+    if (!dialog) throw new Error("configure dialog did not render");
+    expect(dialog.textContent).toContain("GitHub token");
+
+    const installButton = [...dialog.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Install",
+    )!;
+    expect(installButton.disabled).toBe(true);
+
+    const input = dialog.querySelector<HTMLInputElement>(
+      '[placeholder="GITHUB_TOKEN"]',
+    )!;
+    expect(input.type).toBe("password");
+    input.value = "tok-1";
+    input.dispatchEvent(new Event("input"));
+    await flushPromises();
+
+    installButton.click();
+    await flushPromises();
+
+    expect(install).toHaveBeenCalledWith("w1", {
+      itemId: "github-mcp",
+      scope: "workspace",
+      mcpConfigurationValues: { GITHUB_TOKEN: "tok-1" },
+    });
+    expect(configureDialog()).toBeNull();
+    wrapper.unmount();
+  });
+
+  it("a declaration-less mcp item keeps the one-click Get", async () => {
+    const install = vi.fn(async () => installResult);
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      {
+        items: [
+          makeItem({
+            itemId: "playwright-mcp",
+            kind: "mcp",
+            skillId: "playwright-mcp",
+            displayName: "Playwright",
+            hasCloudArtifact: false,
+            mcpServerName: "playwright",
+          }),
+        ],
+        install,
+      },
+    );
+    await flushPromises();
+
+    await wrapper.get("button.pill").trigger("click");
+    await flushPromises();
+
+    expect(install).toHaveBeenCalledWith("w1", {
+      itemId: "playwright-mcp",
+      scope: "workspace",
+    });
+    expect(configureDialog()).toBeNull();
+    wrapper.unmount();
+  });
+});

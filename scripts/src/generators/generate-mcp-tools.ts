@@ -59,6 +59,11 @@ type XMcp = {
   // non-DELETE route — a POST/PATCH that destroys state, or one Chad wants
   // carded regardless (register_workspace).
   askApproval?: boolean
+  // Body fields the emitted tool must NOT advertise or forward (e.g. a
+  // user-supplied-secrets field that exists for the UI surface only) — the
+  // structural "secrets never transit chat" guard. The route validates
+  // for every surface regardless.
+  excludedBodyFields?: string[]
   // Route this tool to the GLOBAL-ROOT ("brain") surface instead of the
   // workspace surface. The default split is path-based (`/routing/*`); a
   // user-scoped brain tool that doesn't live under `/routing/` (e.g. creating a
@@ -179,10 +184,15 @@ for (const [pathKey, methods] of Object.entries(paths)) {
 
     const allParams = operation.parameters ?? []
     const bodySchema = operation.requestBody?.content?.['application/json']?.schema
+    const excludedBodyFields = new Set(mcp.excludedBodyFields ?? [])
     const bodyFields: BodyField[] = []
     if (bodySchema?.properties) {
       const requiredSet = new Set(bodySchema.required ?? [])
       for (const [name, sch] of Object.entries(bodySchema.properties)) {
+        // Excluded fields never reach the tool schema — the emitted zod
+        // object then strips a model-invented value before the HTTP call
+        // (the structural "secrets never transit chat" guard).
+        if (excludedBodyFields.has(name)) continue
         bodyFields.push({ name, required: requiredSet.has(name), schema: sch })
       }
     }

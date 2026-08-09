@@ -77,6 +77,19 @@ export const MarketplaceItemSchema = z.object({
   pluginKey: z.string().optional(),
   // Mcp items only: the entry key inside the Claude config's mcpServers map.
   mcpServerName: z.string().optional(),
+  // Mcp items only: what the install needs from the user — a configure step
+  // ('fields') or a post-install OAuth connect ('oauth'). Absent = one-click.
+  mcpAuth: z
+    .discriminatedUnion('kind', [
+      z.object({ kind: z.literal('oauth') }),
+      z.object({
+        kind: z.literal('fields'),
+        fields: z.array(
+          z.object({ name: z.string(), label: z.string(), secret: z.boolean() }),
+        ),
+      }),
+    ])
+    .optional(),
   // True only when the hub carries an artifact the update route can serve —
   // the card's Update button gates on this (no dead buttons on bundled items).
   hasCloudArtifact: z.boolean(),
@@ -87,9 +100,24 @@ export const MarketplaceItemSchema = z.object({
 
 export const ListMarketplaceItemsResponseSchema = z.array(MarketplaceItemSchema)
 
+// Values for an mcp item's DECLARED configuration fields (env vars or
+// headers), keyed by field name. Secrets — never logged, never echoed;
+// the route refuses undeclared names, so this can't inject arbitrary
+// env/headers. Supply via the Marketplace UI, not chat (the MCP tool
+// excludes this field structurally). Key-count cap = the declared-field
+// ceilings (16 env + headroom) so a hostile record can't bloat the
+// refusal path.
+const McpConfigurationValuesSchema = z
+  .record(z.string().min(1).max(120), z.string().max(2000))
+  .refine((record) => Object.keys(record).length <= 32, {
+    message: 'Too many configuration values — an item declares at most 16 fields.',
+  })
+  .optional()
+
 export const InstallMarketplaceItemBodySchema = z.object({
   itemId: z.string().min(1).max(200),
   scope: SkillScopeSchema,
+  mcpConfigurationValues: McpConfigurationValuesSchema,
 })
 
 // The USER-scoped install carries no scope — the global surface always
@@ -97,6 +125,7 @@ export const InstallMarketplaceItemBodySchema = z.object({
 // disagreement between the route's path and its body.
 export const InstallUserMarketplaceItemBodySchema = z.object({
   itemId: z.string().min(1).max(200),
+  mcpConfigurationValues: McpConfigurationValuesSchema,
 })
 
 export const UninstallMarketplaceItemBodySchema = z.object({
@@ -188,13 +217,16 @@ export const InstallMarketplaceItemResponseSchema = z.discriminatedUnion('kind',
     version: z.string().nullable(),
   }),
   // Mcp installs write one Claude-config entry (config-is-truth) — the
-  // server name is the identity; no Vynel row.
+  // server name is the identity; no Vynel row. `authRequired` = an oauth
+  // item's entry was written without credentials; the user connects via
+  // the native login flow next.
   z.object({
     kind: z.literal('mcp'),
     serverName: z.string(),
     itemId: z.string(),
     scope: SkillScopeSchema,
     version: z.string().nullable(),
+    authRequired: z.boolean(),
   }),
   // Rule installs write one provenance-marked `.claude/rules/<id>.md`
   // (config-is-truth) — the file id is the identity; no Vynel row.

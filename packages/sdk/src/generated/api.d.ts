@@ -4493,6 +4493,18 @@ export interface operations {
                         isOfficial: boolean;
                         pluginKey?: string;
                         mcpServerName?: string;
+                        mcpAuth?: {
+                            /** @constant */
+                            kind: "oauth";
+                        } | {
+                            /** @constant */
+                            kind: "fields";
+                            fields: {
+                                name: string;
+                                label: string;
+                                secret: boolean;
+                            }[];
+                        };
                         hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
@@ -4560,6 +4572,18 @@ export interface operations {
                         isOfficial: boolean;
                         pluginKey?: string;
                         mcpServerName?: string;
+                        mcpAuth?: {
+                            /** @constant */
+                            kind: "oauth";
+                        } | {
+                            /** @constant */
+                            kind: "fields";
+                            fields: {
+                                name: string;
+                                label: string;
+                                secret: boolean;
+                            }[];
+                        };
                         hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
@@ -4601,6 +4625,9 @@ export interface operations {
                     itemId: string;
                     /** @enum {string} */
                     scope: "user" | "workspace";
+                    mcpConfigurationValues?: {
+                        [key: string]: string;
+                    };
                 };
             };
         };
@@ -4644,6 +4671,7 @@ export interface operations {
                         /** @enum {string} */
                         scope: "user" | "workspace";
                         version: string | null;
+                        authRequired: boolean;
                     } | {
                         /** @constant */
                         kind: "rule";
@@ -11395,6 +11423,18 @@ export interface operations {
                         isOfficial: boolean;
                         pluginKey?: string;
                         mcpServerName?: string;
+                        mcpAuth?: {
+                            /** @constant */
+                            kind: "oauth";
+                        } | {
+                            /** @constant */
+                            kind: "fields";
+                            fields: {
+                                name: string;
+                                label: string;
+                                secret: boolean;
+                            }[];
+                        };
                         hasCloudArtifact: boolean;
                         installStatus: {
                             /** @constant */
@@ -11425,6 +11465,9 @@ export interface operations {
             content: {
                 "application/json": {
                     itemId: string;
+                    mcpConfigurationValues?: {
+                        [key: string]: string;
+                    };
                 };
             };
         };
@@ -11468,6 +11511,7 @@ export interface operations {
                         /** @enum {string} */
                         scope: "user" | "workspace";
                         version: string | null;
+                        authRequired: boolean;
                     } | {
                         /** @constant */
                         kind: "rule";

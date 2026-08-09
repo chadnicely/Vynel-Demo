@@ -102,6 +102,9 @@ export type MarketplaceInstallRequest = {
   scope: SkillScope
   // null = the GLOBAL surface (a user-scope install needs no workspace).
   workspace: { id: string; path: string } | null
+  /** Mcp items only: values for the manifest's declared configuration
+   * fields. Secrets — never logged; other kinds ignore them. */
+  mcpConfigurationValues?: Record<string, string>
 }
 
 export async function installMarketplaceItem(
@@ -128,7 +131,10 @@ export async function installMarketplaceItem(
     )
   }
   if (gateItem.kind === 'mcp') {
-    return installMcpItem({ db: ctx.db, logger: ctx.logger }, { itemId, scope, workspace })
+    return installMcpItem(
+      { db: ctx.db, logger: ctx.logger },
+      { itemId, scope, workspace, configurationValues: request.mcpConfigurationValues ?? {} },
+    )
   }
   if (gateItem.kind === 'rule') {
     return installRuleItem({ db: ctx.db, logger: ctx.logger }, { itemId, scope, workspace })

@@ -519,6 +519,7 @@ describe('mcp kind — config-is-truth install/uninstall', () => {
           itemId: 'playwright-mcp',
           scope: 'user',
           version: '1.0.0',
+          authRequired: false,
         })
 
         const items = (await (await app.request('/marketplace/items')).json()) as Array<{
@@ -687,6 +688,181 @@ describe('mcp kind — config-is-truth install/uninstall', () => {
 
           await postJson(app, `${base}/uninstall`, { itemId: 'playwright-mcp' })
           expect(await statusOf()).toEqual({ kind: 'not-installed' })
+        } finally {
+          rmSync(workspaceDir, { recursive: true, force: true })
+        }
+      })
+    })
+  })
+
+  // Declared configuration (2026-08-09): a manifest saying what the user
+  // must supply — the shelf carries the declaration (mcpAuth), a value-less
+  // install answers the actionable 400 (the session tool's path — secrets
+  // never transit chat), and supplied values merge into the entry.
+  const githubManifest = {
+    serverName: 'github',
+    transport: 'stdio',
+    commandOrUrl: 'npx',
+    args: ['github-mcp'],
+    environment: { LOG_LEVEL: 'warn' },
+    requiredEnvironment: [{ name: 'GITHUB_TOKEN', label: 'GitHub token' }],
+  }
+
+  it('configuration-declaring item: shelf carries mcpAuth, value-less install 400s with labels, values merge into the entry', async () => {
+    await withIsolatedHome(async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const now = new Date()
+        const workspaceDir = mkdtempSync(join(tmpdir(), 'vynel-marketplace-mcp-config-'))
+        try {
+          const workspace = insertWorkspace(db, {
+            id: randomUUID(),
+            userId: user.id,
+            name: 'Acme',
+            kind: 'small-business',
+            path: workspaceDir,
+            isArchived: false,
+            createdAt: now,
+            updatedAt: now,
+            lastAccessedAt: now,
+          })
+          syncCloudCatalog(
+            db,
+            [
+              cloudCatalogItem({
+                itemId: 'github-mcp',
+                kind: 'mcp',
+                recommendedScope: 'both',
+                latestVersionManifestJson: JSON.stringify(githubManifest),
+              }),
+            ],
+            new Date(),
+          )
+          const app = createApp({
+            db,
+            logger: silentLogger,
+            marketplaceInstalledPluginsReader: listInstalledPluginsStub,
+          })
+          const base = `/workspaces/${workspace.id}/marketplace`
+
+          const listed = (
+            (await (await app.request(`${base}/items`)).json()) as Array<{
+              itemId: string
+              mcpAuth?: unknown
+            }>
+          ).find((i) => i.itemId === 'github-mcp')
+          expect(listed?.mcpAuth).toEqual({
+            kind: 'fields',
+            fields: [{ name: 'GITHUB_TOKEN', label: 'GitHub token', secret: true }],
+          })
+
+          const valueless = await postJson(app, `${base}/install`, {
+            itemId: 'github-mcp',
+            scope: 'workspace',
+          })
+          expect(valueless.status).toBe(400)
+          const valuelessBody = (await valueless.json()) as { message: string }
+          expect(valuelessBody.message).toContain('GitHub token')
+          expect(valuelessBody.message).toContain('Marketplace')
+          expect(existsSync(join(workspaceDir, '.mcp.json'))).toBe(false)
+
+          const undeclared = await postJson(app, `${base}/install`, {
+            itemId: 'github-mcp',
+            scope: 'workspace',
+            mcpConfigurationValues: { GITHUB_TOKEN: 'tok-1', SNEAKY: 'x' },
+          })
+          expect(undeclared.status).toBe(400)
+          expect(((await undeclared.json()) as { message: string }).message).toContain('SNEAKY')
+
+          const res = await postJson(app, `${base}/install`, {
+            itemId: 'github-mcp',
+            scope: 'workspace',
+            mcpConfigurationValues: { GITHUB_TOKEN: 'tok-1' },
+          })
+          expect(res.status).toBe(201)
+          expect(await res.json()).toMatchObject({ kind: 'mcp', authRequired: false })
+
+          const config = JSON.parse(
+            readFileSync(join(workspaceDir, '.mcp.json'), 'utf8'),
+          ) as { mcpServers: Record<string, { env: Record<string, string>; _vynelProvenance: { itemId: string } }> }
+          expect(config.mcpServers.github!.env).toEqual({
+            LOG_LEVEL: 'warn',
+            GITHUB_TOKEN: 'tok-1',
+          })
+          expect(config.mcpServers.github!._vynelProvenance.itemId).toBe('github-mcp')
+        } finally {
+          rmSync(workspaceDir, { recursive: true, force: true })
+        }
+      })
+    })
+  })
+
+  it('an oauth item installs credential-less and answers authRequired: true', async () => {
+    await withIsolatedHome(async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const now = new Date()
+        const workspaceDir = mkdtempSync(join(tmpdir(), 'vynel-marketplace-mcp-oauth-'))
+        try {
+          const workspace = insertWorkspace(db, {
+            id: randomUUID(),
+            userId: user.id,
+            name: 'Acme',
+            kind: 'small-business',
+            path: workspaceDir,
+            isArchived: false,
+            createdAt: now,
+            updatedAt: now,
+            lastAccessedAt: now,
+          })
+          syncCloudCatalog(
+            db,
+            [
+              cloudCatalogItem({
+                itemId: 'notion-mcp',
+                kind: 'mcp',
+                recommendedScope: 'both',
+                latestVersionManifestJson: JSON.stringify({
+                  serverName: 'notion',
+                  transport: 'http',
+                  url: 'https://mcp.notion.com/mcp',
+                  auth: { type: 'oauth' },
+                }),
+              }),
+            ],
+            new Date(),
+          )
+          const app = createApp({
+            db,
+            logger: silentLogger,
+            marketplaceInstalledPluginsReader: listInstalledPluginsStub,
+          })
+          const base = `/workspaces/${workspace.id}/marketplace`
+
+          const listed = (
+            (await (await app.request(`${base}/items`)).json()) as Array<{
+              itemId: string
+              mcpAuth?: unknown
+            }>
+          ).find((i) => i.itemId === 'notion-mcp')
+          expect(listed?.mcpAuth).toEqual({ kind: 'oauth' })
+
+          const res = await postJson(app, `${base}/install`, {
+            itemId: 'notion-mcp',
+            scope: 'workspace',
+          })
+          expect(res.status).toBe(201)
+          expect(await res.json()).toMatchObject({ kind: 'mcp', authRequired: true })
+
+          const config = JSON.parse(
+            readFileSync(join(workspaceDir, '.mcp.json'), 'utf8'),
+          ) as { mcpServers: Record<string, Record<string, unknown>> }
+          expect(config.mcpServers.notion).toMatchObject({
+            type: 'http',
+            url: 'https://mcp.notion.com/mcp',
+          })
+          // Credential-less: no headers key at all until the user connects.
+          expect(config.mcpServers.notion!.headers).toBeUndefined()
         } finally {
           rmSync(workspaceDir, { recursive: true, force: true })
         }

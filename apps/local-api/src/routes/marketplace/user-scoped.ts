@@ -111,10 +111,16 @@ export const marketplaceUserApp = factory
     validator('json', InstallUserMarketplaceItemBodySchema),
     ...userScoped,
     async (c) => {
-      const { itemId } = c.req.valid('json')
+      const { itemId, mcpConfigurationValues } = c.req.valid('json')
       const installed = await installMarketplaceItem(
         { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader },
-        { itemId, userId: c.var.user.id, scope: 'user', workspace: null },
+        {
+          itemId,
+          userId: c.var.user.id,
+          scope: 'user',
+          workspace: null,
+          ...(mcpConfigurationValues !== undefined ? { mcpConfigurationValues } : {}),
+        },
       )
       return c.json(installed, 201)
     },

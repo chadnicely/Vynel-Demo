@@ -165,9 +165,14 @@ export const marketplaceApp = factory
           '(user-scope = available in every workspace; plugins are always user-scope). Cloud ' +
           'artifacts are downloaded and integrity-verified server-side; plugins install ' +
           'through Claude Code\'s own plugin system; MCP servers are written into the ' +
-          'scope\'s Claude config. Reversible via uninstall_marketplace_item. Side effect: ' +
+          'scope\'s Claude config. An MCP item that requires configuration (API keys, ' +
+          'tokens) cannot be installed from here — direct the user to the Marketplace ' +
+          'panel, which collects those values; secrets must never be pasted into chat. ' +
+          'Reversible via uninstall_marketplace_item. Side effect: ' +
           'the capability becomes available in sessions and appears in the user\'s panels.',
         mutatingApproved: true,
+        // Secrets never transit chat — structurally: the tool has no such field.
+        excludedBodyFields: ['mcpConfigurationValues'],
       },
       responses: {
         201: {
@@ -182,7 +187,7 @@ export const marketplaceApp = factory
     validator('json', InstallMarketplaceItemBodySchema),
     ...workspaceScoped,
     async (c) => {
-      const { itemId, scope } = c.req.valid('json')
+      const { itemId, scope, mcpConfigurationValues } = c.req.valid('json')
       const workspace = c.var.workspace!
       // Surface gate + per-kind dispatch (cloud artifact vs bundled
       // template, skill vs agent) live in `item-lifecycle.ts` — shared with
@@ -196,6 +201,7 @@ export const marketplaceApp = factory
           userId: c.var.user.id,
           scope,
           workspace: { id: workspace.id, path: workspace.path },
+          ...(mcpConfigurationValues !== undefined ? { mcpConfigurationValues } : {}),
         },
       )
       return c.json(installed, 201)

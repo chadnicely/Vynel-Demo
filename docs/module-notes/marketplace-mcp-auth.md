@@ -94,6 +94,35 @@ there. That one pass proves token reuse AND native interop.
 - Green: skills 171 · marketplace 64 · local-api marketplace routes 33 + mcp-servers routes 10;
   typecheck clean across skills/marketplace/local-api/mcp/cli/worker/providers. Full gate = Chad.
 
+## Slice 2 as built (2026-08-09)
+
+- **Contract:** `McpItemManifestSchema` grew additive auth declarations — stdio
+  `requiredEnvironment: [{name,label,secret(=true)}]` (≤16), remote
+  `auth: {type:'oauth'} | {type:'headers', requiredHeaders:[…]}` (≤8). Pure helpers:
+  `toMcpItemAuthView` (card's pre-install knowledge) + `resolveMcpInstallConfiguration`
+  (manifest + values → writer entry; result union, contracts stays dependency-free). Strictness:
+  blank = missing (reported by LABEL, never value), undeclared names refused (no env/header
+  injection through install values).
+- **Wire:** `MarketplaceItem.mcpAuth?` stamped by the cloud-catalog mapper (UI never parses
+  manifests); install bodies accept bounded `mcpConfigurationValues`; the mcp install response
+  carries `authRequired` (oauth = entry written credential-less, connect follows in Slice 3).
+  SDK + MCP tools regenerated, parity 4/4.
+- **Session-tool posture:** value-less by design — a config-declaring item answers the actionable
+  400 pointing at the Marketplace UI (secrets never transit chat); no special-casing needed.
+- **UI:** `ConfigureMcpItemDialog.vue` (pure collector — the section owns the mutation, so
+  pending/error stays card-scoped; secret fields render as password inputs); MarketplaceSection
+  detours Get → dialog for 'fields' items; oauth items install one-click and await Slice 3's
+  Connect affordance.
+- Green: contracts+marketplace 84 · marketplace routes 35 · apps/mcp 21 · local-web 555 (26 in
+  the section suite incl. the two detour cases) · parity 4/4. Full gate = Chad.
+- **Review round (clean; 2 should-fixes + 2 minors, ALL applied):** ① the session tool's
+  value-less posture made STRUCTURAL — new `x-mcp.excludedBodyFields` generator support drops
+  `mcpConfigurationValues` from the emitted tool schema entirely (a model-invented value is
+  stripped by the tool's zod object; the tool description directs config-requiring installs to
+  the Marketplace panel) ② values record capped at 32 keys + unknown-name echo truncated to 8
+  ③ dialog clears typed secrets on close, not just next open ④ secret inputs use
+  `autocomplete="new-password"`.
+
 ## Deferred (named, not silent)
 
 - Live connection status on the card (needs JSON output or tolerant text parsing of `mcp get`).
