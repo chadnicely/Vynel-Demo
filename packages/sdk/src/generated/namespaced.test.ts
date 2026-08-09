@@ -268,6 +268,10 @@ describe('makeNamespaced — shape', () => {
       // keep their fusion).
       'knowledgeUser',
       'marketplace',
+      // test: correct expectation — the marketplace-sources move
+      // (2026-08-09) added the sources management surface (user-registered
+      // claude marketplaces: list/add/remove), a namespace of its own.
+      'marketplaceSources',
       'marketplaceUser',
       'mcpServers',
       'mcpServersUser',
