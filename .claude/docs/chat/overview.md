@@ -1,6 +1,6 @@
 # Chat — Overview
 
-> The conversational domain: every exchange between the user and the AI agent — live-streamed as it happens, persisted turn-by-turn, and searchable across every session in a workspace.
+> The conversational domain: every exchange between the user and the AI agent — live-streamed as it happens, persisted turn-by-turn, and searchable across every conversation the user owns.
 >
 > **Status:** shipped (with two deferred pieces — the retention purge job is not yet wired onto the worker, and chat's own agent-readable context tool lands with the session pull) · **Phase:** 1 · **Depends on:** [session](../session/overview.md), [providers](../providers/overview.md), [mcp](../_apps/mcp/overview.md), [capabilities](../capabilities/overview.md), [orchestration](../orchestration/overview.md), [approvals](../approvals/overview.md), [instructions](../instructions/overview.md) · **Code map:** [structure.md](./structure.md)
 
@@ -22,7 +22,7 @@ One boundary matters throughout: chat does not *drive* a turn. Driving the agent
 - **Show tool calls inline** — when the agent invokes a tool, the stream announces the call starting and completing; each is persisted as a child of the assistant message that triggered it and rendered as an expandable card within that message.
 - **Gate destructive tools** — when the agent asks permission for a risky action, chat's consumer hands the request to the approvals domain, which checks the user's saved rules. A matching rule lets the turn continue automatically (the UI shows a small "auto-approved" note); otherwise an approval card blocks the turn until the user approves or denies.
 - **Serve conversation history** — list a workspace's conversations, open one in full (messages with their tool calls grouped under each), and list a user's most recent conversations across scopes.
-- **Full-text search** across all messages in a workspace, returning ranked, highlighted snippets grouped by conversation.
+- **Full-text search** across all the user's conversations — every workspace and every spawned or agent session — optionally narrowed to one workspace, returning ranked, highlighted snippets grouped by conversation. The agent itself carries this same search (and a read-any-conversation companion) as tools on every tier, so any session can grab context from any other; the one exception is the assistant's own private global thread, which never surfaces through either.
 - **Serve attached images** — images the user attaches arrive inline with the turn; the consumer writes them to a per-conversation store on disk, and a dedicated route serves the bytes back for re-display.
 - **Report context occupancy** — resume the conversation in the provider, ask it for its context-window breakdown, and return that as text for the UI's detail panel.
 - **Lifecycle management** — rename, archive and unarchive, interrupt an active turn, and soft-delete (a reversible hide with a retention window before permanent removal).
@@ -54,7 +54,7 @@ One boundary matters throughout: chat does not *drive* a turn. Driving the agent
 | **Mixed identity source** | A conversation's and an assistant message's identifiers come from the agent runtime (the latter is needed to correlate streamed fragments); the user's message and tool-call rows get Vynel-minted identifiers. |
 | **Archived** | A conversation hidden from the default list. Independent of deletion. |
 | **Soft-deleted** | A conversation marked deleted and hidden from all reads, but recoverable until its retention window lapses and the purge removes it for good. |
-| **Full-text index** | A keyword search index over message bodies, kept in sync by database triggers, backing workspace search. (The semantic/vector index that memory uses does not exist for chat.) |
+| **Full-text index** | A keyword search index over message bodies, kept in sync by database triggers, backing cross-session search. (The semantic/vector index that memory uses does not exist for chat.) |
 | **Context report** | The runtime's breakdown of how the conversation's context window is occupied, fetched by resuming the conversation and asking the runtime for it. |
 | **Session mode** | The user-facing turn posture — ask for permission on every tool, auto-allow with a safety floor, or plan without executing — mapped to the provider's permission model per turn. |
 | **Continuing (primary) conversation** | A per-workspace conversation that keeps going across turns; under context pressure its underlying runtime session can swap to a fresh one invisibly, so the thread the user sees is stable. The naming of this concept is mid-migration (a "root" is being renamed to a "primary"), so the code and the wire still speak the older term in places. |

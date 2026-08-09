@@ -2,7 +2,7 @@
 
 > The code map and connections for the `chat` module. For the concepts behind it, see [overview.md](./overview.md).
 >
-> Folders touched: `packages/chat/src/{schema,repositories,turn-consumption,records,history,queries,context}/` · `packages/db/src/migrations-sqlite/` · `apps/local-api/src/routes/chat/` · `apps/local-api/src/streams/chat-turn.ts` · `apps/local-web/src/{components,composables}/chat/` · `apps/local-web/src/stores/`
+> Folders touched: `packages/chat/src/{schema,repositories,turn-consumption,records,history,queries,context}/` · `packages/db/src/migrations-sqlite/` · `apps/local-api/src/routes/chat/` · `apps/local-api/src/routes/sessions/` (the cross-session read/search tools) · `apps/local-api/src/streams/chat-turn.ts` · `apps/local-web/src/{components,composables}/chat/` · `apps/local-web/src/stores/`
 
 `@vynel/chat` is a **vertical-slice leaf**: it owns its `schema/` + `repositories/` and all its logic under `packages/chat/src/`. It is **pure persistence + history** — it drains a provider's normalized event stream into rows and serves the reads. It does **not** run turns; the turn *runners* live in `@vynel/session` and drive `consumeSessionEventStream` from here. Package exports `.` (`./src/index.ts`) + `./repositories`.
 
@@ -25,7 +25,7 @@
 | `packages/chat/src/repositories/chat-sessions.ts` | session CRUD + counters + soft/hard-delete + `ChatSessionListItem` (`lastMessagePreview` via correlated subquery) |
 | `packages/chat/src/repositories/chat-messages.ts` | message read/insert/update + streaming appenders + partial-session/recent reads |
 | `packages/chat/src/repositories/chat-tool-calls.ts` | tool-call read/insert/update (by-id, by-toolUseId, per-message, per-session) |
-| `packages/chat/src/repositories/chat-search.ts` | `searchChatMessages` — FTS5 (SQLite) / tsvector (Postgres, throws in Phase 1) + `ChatMessageSearchResult` |
+| `packages/chat/src/repositories/chat-search.ts` | `searchChatMessages` — FTS5 (SQLite) / tsvector (Postgres, throws in Phase 1) + `ChatMessageSearchResult`; user-scoped with optional workspace filter, always excludes `scope='global'` (2026-08-10) |
 | `packages/chat/src/repositories/index.ts` | repo barrel (the `./repositories` export) |
 | **turn-consumption** — the persistence engine the session runners drive | |
 | ► `packages/chat/src/turn-consumption/consume-session-event-stream.ts` | translates `AsyncIterable<NormalizedSessionEvent>` → persisted rows + `AsyncIterable<ChatTurnEvent>`; per-turn caches (`assistantMessageByMessageId`, `toolCallByToolUseId`) |
@@ -44,7 +44,7 @@
 | **history** — session-list + detail CRUD | |
 | `packages/chat/src/history/list-chat-sessions-for-workspace.ts` | thin workspace-scoped list wrapper over the repo |
 | `packages/chat/src/history/get-chat-session-detail.ts` | two-query fetch (messages + tool calls); groups tool calls by `parentMessageId`; returns `ChatSessionDetail` |
-| `packages/chat/src/history/search-chat-sessions.ts` | min-length guard + wrapper over `searchChatMessages` |
+| `packages/chat/src/history/search-chat-sessions.ts` | min-length guard + wrapper over `searchChatMessages` (user-scoped; `workspaceId` optional) |
 | `packages/chat/src/history/synchronize-chat-sessions-for-workspace.ts` | reconciles provider-persisted sessions; inserts stubs for unknown ids matching the workspace path |
 | `packages/chat/src/history/rename-chat-session.ts` | find → 404 → `updateChatSession(title)` |
 | `packages/chat/src/history/archive-chat-session.ts` | `archiveChatSession` / `unarchiveChatSession`; archive emits `session-archived` |
@@ -147,7 +147,7 @@ Functional, `db`-first, stateless. `findX` → null; hard-throws live in the cor
 | `findChatToolCallById` / `findChatToolCallByToolUseId` | reads (by-toolUseId for stream correlation) |
 | `listChatToolCallsForMessage` / `listChatToolCallsForSession` | reads (session join via `chat_messages`) |
 | `insertChatToolCall` / `updateChatToolCall` | create / patch |
-| `searchChatMessages` | FTS5 `MATCH` + workspace + soft-delete filter + `snippet()` highlights |
+| `searchChatMessages` | FTS5 `MATCH` + user filter (+ optional workspace) + soft-delete filter + `scope != 'global'` wall + `snippet()` highlights |
 
 ## Core operations
 
@@ -176,10 +176,10 @@ Mounted at `/workspaces/:workspaceId/chat` (from `apps/local-api/src/app.ts`). W
 | Method | Path | Bundle | Purpose | MCP tool |
 |---|---|---|---|---|
 | GET | `/sessions` | workspace | list sessions (optionally include archived) | `list_chat_sessions` |
-| GET | `/sessions/search` | workspace | FTS5 search across messages | `search_chat_messages` |
+| GET | `/sessions/search` | workspace | FTS5 search across messages (UI's workspace-filtered search) | — (tool moved, see MCP surface) |
 | GET | `/continuing` | workspace | resolve the workspace's continuing primary conversation (via `@vynel/session/continuity`) | — |
 | POST | `/sessions/turn` | workspace | start/resume a turn; **SSE stream** | — (SSE) |
-| GET | `/sessions/:sessionId` | session | full detail: messages + grouped tool calls | `get_chat_session` |
+| GET | `/sessions/:sessionId` | session | full detail: messages + grouped tool calls (UI's workspace detail read) | — (tool moved, see MCP surface) |
 | GET | `/sessions/:sessionId/images/:filename` | session | serve a persisted attached image (`nosniff`) | — |
 | GET | `/sessions/:sessionId/context` | session | `/context` markdown breakdown | — |
 | PATCH | `/sessions/:sessionId` | session | rename | — |
@@ -192,7 +192,12 @@ Mounted at `/workspaces/:workspaceId/chat` (from `apps/local-api/src/app.ts`). W
 
 ## MCP surface
 
-Chat has **no `McpFeatureDescriptor`** yet — its tools are exposed via `x-mcp` annotations on three read-only HTTP routes (`list_chat_sessions`, `search_chat_messages`, `get_chat_session`), all owner-scoped and non-mutating. Mutating routes (rename/archive/interrupt/delete) defer `x-mcp` to Phase 1.5 per D26. A dedicated descriptor (backed by `getSessionContextReport` / `getChatSessionDetail` / `searchChatSessions` so a post-swap session can recall its own prior context) **lands with the `@vynel/session` pull** — see `docs/module-notes/chat.md` decision 3.
+Chat has **no `McpFeatureDescriptor`** — its tools are exposed via `x-mcp` route annotations, all owner-scoped and non-mutating. Only `list_chat_sessions` still rides a chat route. The conversation-read pair moved to the **user-scoped sessions surface** (`apps/local-api/src/routes/sessions/index.ts`, 2026-08-10) so EVERY tier — workspace root, spawned/agent sessions, and the global root — reads any owned session's messages through one tool pair:
+
+- `search_chat_messages` ← `GET /sessions/search` — FTS across ALL owned sessions; optional `workspaceId` filter (`x-mcp.ambientWorkspace: false` keeps the generator from stamping the turn's own workspace over an omitted filter, since omission means "the whole system").
+- `get_chat_session` ← `GET /sessions/:sessionId/messages` — full detail for any owned session, with the root-route's delegation enrichments.
+
+Both are `rootSurface: true` + `workspaceSurface: true` (the `send_message` dual-surface shape: one name on every toolset). **The global root's own thread never leaves through either** — the search SQL excludes `scope='global'` and the detail route 404s it (same as not-found; no enumeration leak). Mutating routes (rename/archive/interrupt/delete) defer `x-mcp` to Phase 1.5 per D26.
 
 ## Worker / background jobs
 
