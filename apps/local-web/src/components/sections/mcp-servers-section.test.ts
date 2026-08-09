@@ -196,3 +196,58 @@ describe("McpServersSection — remove", () => {
     wrapper.unmount();
   });
 });
+
+// The Connect affordance (smoke follow-up 2026-08-09): remote rows sign in
+// via the native browser flow from THIS surface too — the marketplace
+// card's twin, covering hand-added servers; the same button refreshes an
+// existing sign-in. Stdio rows have nothing to sign in to.
+describe("McpServersSection — connect", () => {
+  it("shows Connect on remote rows only, drives the row's route, reads back Connected", async () => {
+    const login = vi.fn(async () => ({ connected: true }));
+    const wrapper = mountSection(
+      makeClient({
+        mcpServersUser: {
+          list: async () => ({ servers: [makeRemoteServer(), makeStdioServer({ scope: "user" })] }),
+          remove: async () => undefined,
+          login,
+        },
+      }),
+      { kind: "global" },
+    );
+    await flushPromises();
+
+    const connectButtons = wrapper.findAll(".connect-button");
+    expect(connectButtons).toHaveLength(1);
+    expect(connectButtons[0]!.text()).toBe("Connect");
+
+    await connectButtons[0]!.trigger("click");
+    await flushPromises();
+
+    expect(login).toHaveBeenCalledWith("linear");
+    expect(wrapper.get(".connect-button").text()).toContain("Connected");
+    wrapper.unmount();
+  });
+
+  it("a workspace row connects through the workspace route with its id", async () => {
+    const login = vi.fn(async () => ({ connected: true }));
+    const wrapper = mountSection(
+      makeClient({
+        mcpServers: {
+          list: async () => ({
+            servers: [makeRemoteServer({ scope: "workspace", serverName: "notion" })],
+          }),
+          remove: async () => undefined,
+          login,
+        },
+      }),
+      { kind: "workspace", workspaceId: "w1" },
+    );
+    await flushPromises();
+
+    await wrapper.get(".connect-button").trigger("click");
+    await flushPromises();
+
+    expect(login).toHaveBeenCalledWith("w1", "notion");
+    wrapper.unmount();
+  });
+});

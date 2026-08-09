@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Cable, Plus, X } from "lucide-vue-next";
+import { Cable, Check, Plus, X } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
+import { useLoginMcpServer } from "../../composables/mcp-servers/use-login-mcp-server.js";
 import { useMcpServers } from "../../composables/mcp-servers/use-mcp-servers.js";
 import { useRemoveMcpServer } from "../../composables/mcp-servers/use-remove-mcp-server.js";
 import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
@@ -73,9 +74,41 @@ function requestRemove(server: { scope: "user" | "workspace"; serverName: string
   );
 }
 
-const errorMessage = computed(() =>
-  removeServer.error.value ? formatSdkError(removeServer.error.value) : null,
-);
+// Connect (remote rows): the native browser sign-in via the daemon — the
+// marketplace card's twin, here for hand-added servers too. The SAME button
+// refreshes an existing sign-in (idempotent; the CLI stores a fresh
+// credential), which is the "update auth" affordance. `connectedKey` is the
+// transient success readback — no persisted connection state exists to
+// query (the credential lives in Claude's own store).
+const loginServer = useLoginMcpServer();
+const connectedKey = ref<string | null>(null);
+
+function requestConnect(server: { scope: "user" | "workspace"; serverName: string }) {
+  connectedKey.value = null;
+  loginServer.mutate(
+    server.scope === "workspace" && props.scope.kind === "workspace"
+      ? {
+          scope: "workspace",
+          workspaceId: props.scope.workspaceId,
+          serverName: server.serverName,
+        }
+      : { scope: "user", serverName: server.serverName },
+    { onSuccess: () => (connectedKey.value = rowKey(server)) },
+  );
+}
+
+function isConnecting(server: { scope: string; serverName: string }): boolean {
+  return (
+    loginServer.isPending.value &&
+    loginServer.variables.value?.serverName === server.serverName
+  );
+}
+
+const errorMessage = computed(() => {
+  if (removeServer.error.value) return formatSdkError(removeServer.error.value);
+  if (loginServer.error.value) return formatSdkError(loginServer.error.value);
+  return null;
+});
 
 const isAddOpen = ref(false);
 
@@ -155,6 +188,31 @@ const sectionHint = computed(() =>
             >
           </div>
         </div>
+        <!-- Remote servers sign in through the native browser flow; the
+             same button refreshes an existing sign-in (update auth). -->
+        <button
+          v-if="server.transport !== 'stdio'"
+          type="button"
+          class="connect-button inline-flex shrink-0 cursor-default items-center gap-1 rounded-full px-2.5 py-px text-[11px] font-semibold transition disabled:opacity-55"
+          :class="
+            connectedKey === rowKey(server)
+              ? 'bg-ok/15 text-ok'
+              : 'bg-info/15 text-info hover:bg-info/25'
+          "
+          :disabled="isConnecting(server)"
+          :title="`Connect or refresh the sign-in for ${server.serverName}`"
+          :aria-label="`Connect ${server.serverName} — opens your browser to sign in`"
+          @click="requestConnect(server)"
+        >
+          <Check v-if="connectedKey === rowKey(server)" :size="11" />
+          {{
+            isConnecting(server)
+              ? "Connecting…"
+              : connectedKey === rowKey(server)
+                ? "Connected"
+                : "Connect"
+          }}
+        </button>
         <button
           type="button"
           class="remove-button shrink-0 cursor-default rounded-md p-1 text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
