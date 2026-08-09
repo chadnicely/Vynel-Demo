@@ -12,6 +12,11 @@
 ;   5. PageLeaveReinstall takes upstream's default wizard choice explicitly
 ;      in passive-not-update runs (the radio dialog never existed — reading
 ;      it was undefined behavior).
+;   6. Discord-style install window — `headerImage` is REPURPOSED as splash
+;      art (never a MUI header): the InstFiles page is restyled at SHOW time
+;      into a small branded window (splash + slim progress bar, no wizard
+;      chrome). Swap the art by pointing config `headerImage` at a new
+;      484x244 24-bit BMP; without headerImage the stock passive dialog runs.
 Unicode true
 ManifestDPIAware true
 ; Add in `dpiAwareness` `PerMonitorV2` to manifest for Windows 10 1607+ (note this should not affect lower versions since they should be able to ignore this and pick up `dpiAware` `true` set by `ManifestDPIAware true`)
@@ -151,16 +156,10 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
   !define MUI_WELCOMEFINISHPAGE_BITMAP "${SIDEBARIMAGE}"
 !endif
 
-; Enable header images for installer and uninstaller pages when either image is configured.
-!if "${HEADERIMAGE}" != ""
+; VYNEL (edit 6): HEADERIMAGE is the SPLASH art, never a MUI header — only
+; the uninstaller header image still activates MUI's header machinery.
+!if "${UNINSTALLERHEADERIMAGE}" != ""
   !define MUI_HEADERIMAGE
-!else if "${UNINSTALLERHEADERIMAGE}" != ""
-  !define MUI_HEADERIMAGE
-!endif
-
-; Installer header image
-!if "${HEADERIMAGE}" != ""
-  !define MUI_HEADERIMAGE_BITMAP "${HEADERIMAGE}"
 !endif
 
 ; Uninstaller header image
@@ -425,6 +424,8 @@ Var AppStartMenuFolder
 !insertmacro MUI_PAGE_STARTMENU Application $AppStartMenuFolder
 
 ; 7. Installation page
+; VYNEL (edit 6): restyled into the branded splash window at show time.
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW VynelSplashShow
 !insertmacro MUI_PAGE_INSTFILES
 
 ; 8. Finish page
@@ -512,6 +513,12 @@ Function .onInit
   ${IfNot} ${Silent}
     StrCpy $PassiveMode 1
   ${EndIf}
+
+  ; VYNEL (edit 6): stage the splash art for the install window.
+  !if "${HEADERIMAGE}" != ""
+    InitPluginsDir
+    File "/oname=$PLUGINSDIR\vynel-splash.bmp" "${HEADERIMAGE}"
+  !endif
 
   ${GetOptions} $CMDLINE "/NS" $NoShortcutMode
   ${IfNot} ${Errors}
@@ -951,6 +958,64 @@ Function RestorePreviousInstallLocation
   ReadRegStr $4 SHCTX "${MANUPRODUCTKEY}" ""
   StrCmp $4 "" +2 0
     StrCpy $INSTDIR $4
+FunctionEnd
+
+; VYNEL (edit 6): the Discord-style install window. Runs when the InstFiles
+; page shows: hides every piece of wizard chrome, shrinks the window, fills
+; the client with the staged splash bitmap, and leaves a slim progress bar at
+; the bottom. Control IDs are NSIS/MUI2 standards — outer: buttons 1/2/3,
+; header 1034/1035/1037/1038, footer line 1036, branding 1028/1256; inner:
+; details list 1016, details toggle 1027, status text 1006, progress 1004.
+; Without headerImage the function is empty and the stock dialog runs.
+Function VynelSplashShow
+  !if "${HEADERIMAGE}" != ""
+    ; Outer window: ~500x338 outer ≈ 484x299 client, kept at its position.
+    ; SWP flags: NOMOVE|NOZORDER|NOACTIVATE.
+    System::Call 'user32::SetWindowPos(p $HWNDPARENT, p 0, i 0, i 0, i 500, i 338, i 0x0016)'
+    GetDlgItem $0 $HWNDPARENT 1 ; Next
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $HWNDPARENT 2 ; Cancel
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $HWNDPARENT 3 ; Back
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $HWNDPARENT 1028 ; branding text
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $HWNDPARENT 1256 ; branding text (alt id)
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $HWNDPARENT 1034 ; header background
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $HWNDPARENT 1035 ; header divider
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $HWNDPARENT 1036 ; footer divider
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $HWNDPARENT 1037 ; header title
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $HWNDPARENT 1038 ; header subtitle
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $HWNDPARENT 1039 ; header icon (top-right in headerless MUI)
+    ShowWindow $0 ${SW_HIDE}
+
+    ; Inner page dialog: MOVED to 0,0 (not just resized — its stock ~59px
+    ; offset left the white MUI header strip exposed and pushed the progress
+    ; bar below the client edge) and sized to own the whole client.
+    FindWindow $1 "#32770" "" $HWNDPARENT
+    System::Call 'user32::SetWindowPos(p r1, p 0, i 0, i 0, i 484, i 299, i 0x0014)'
+    SetCtlColors $1 0xF2F2F2 0x121216
+    GetDlgItem $0 $1 1016 ; details list
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $1 1027 ; details toggle
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $1 1006 ; status text
+    ShowWindow $0 ${SW_HIDE}
+    GetDlgItem $0 $1 1004 ; progress bar → slim strip at the bottom
+    System::Call 'user32::SetWindowPos(p r0, p 0, i 24, i 258, i 436, i 10, i 0x0014)'
+
+    ; The splash: a static bitmap control covering the client above the bar.
+    ; Style: WS_CHILD|WS_VISIBLE|SS_BITMAP.
+    System::Call 'user32::CreateWindowEx(i 0, t "STATIC", t "", i 0x5000000E, i 0, i 0, i 484, i 244, p r1, i 0, i 0, i 0) p .r5'
+    System::Call 'user32::LoadImage(p 0, t "$PLUGINSDIR\vynel-splash.bmp", i 0, i 0, i 0, i 0x10) p .r6'
+    SendMessage $5 0x0172 0 $6 ; STM_SETIMAGE, IMAGE_BITMAP
+  !endif
 FunctionEnd
 
 Function Skip

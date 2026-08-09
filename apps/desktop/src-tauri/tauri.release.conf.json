@@ -20,7 +20,8 @@
       "nsis": {
         "installMode": "currentUser",
         "template": "nsis/installer.nsi",
-        "installerIcon": "icons/icon.ico"
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "nsis/installer-splash.bmp"
       }
     }
   },

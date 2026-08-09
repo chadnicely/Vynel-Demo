@@ -43,9 +43,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   unfolds the turn it lives in.
 
 - **Vynel now installs in one click, like the apps you know.** No wizard, no
-  questions — run the installer, watch a brief progress window, and Vynel opens
-  itself with its shortcuts in place. The installer also brings the WebView
-  runtime along, so setup no longer depends on a mid-install download.
+  questions — run the installer and a small branded window appears (the Vynel
+  mark on a dark panel, a slim progress bar), then Vynel opens itself with its
+  shortcuts in place. The installer also brings the WebView runtime along, so
+  setup no longer depends on a mid-install download.
 - **Updates arrive silently and wait for you.** New versions download in the
   background while you work; a small "Update ready — Restart" pill appears at
   the corner and applies the update only when you click it — never a popup,
