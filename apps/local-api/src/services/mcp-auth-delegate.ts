@@ -8,7 +8,7 @@
 import { loginClaudeMcpServer, logoutClaudeMcpServer } from '@vynel/providers'
 
 export type McpAuthDelegate = {
-  login(input: { serverName: string; workingDirectory?: string }): Promise<void>
+  login(input: { serverName: string; workingDirectory?: string; serverUrl?: string }): Promise<void>
   logout(input: { serverName: string; workingDirectory?: string }): Promise<void>
 }
 

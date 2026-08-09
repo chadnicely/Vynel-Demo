@@ -118,7 +118,7 @@ export const mcpServersUserApp = factory
       }
       // The delegate opens the user's browser and resolves when the native
       // CLI records the credential — Vynel never touches the token.
-      await c.var.mcpAuthDelegate.login({ serverName })
+      await c.var.mcpAuthDelegate.login({ serverName, serverUrl: server.url })
       c.var.logger.info({ serverName, scope: 'user' }, 'mcp server connected')
       return c.json({ connected: true as const })
     },

@@ -43,7 +43,36 @@ export type ClaudeMcpAuthInput = {
   serverName: string
   /** Where the CLI resolves project-scope (`.mcp.json`) servers from. */
   workingDirectory?: string
+  /** The remote endpoint — when present, login PRE-FLIGHTS the provider's
+   * OAuth metadata route before spawning anything. */
+  serverUrl?: string
   binaryPath?: string
+}
+
+// The CLI's first post-"Starting authentication" step fetches this route
+// WITHOUT a timeout of its own — a provider-side outage there (smoked live
+// 2026-08-10: Notion's hung while its siblings answered in ms) otherwise
+// burns the full 5-minute ceiling and reads as OUR misleading timeout.
+// ANY HTTP status counts as reachable (401/404 are normal here; discovery
+// fallbacks exist) — only no-answer fails.
+const OAUTH_METADATA_PREFLIGHT_TIMEOUT_MS = 5_000
+
+export async function preflightOauthMetadata(
+  serverUrl: string,
+  serverName: string,
+): Promise<void> {
+  const metadataUrl = new URL('/.well-known/oauth-authorization-server', serverUrl)
+  try {
+    await fetch(metadataUrl, {
+      signal: AbortSignal.timeout(OAUTH_METADATA_PREFLIGHT_TIMEOUT_MS),
+    })
+  } catch {
+    throw new ValidationError(
+      `Can't connect '${serverName}' right now — the provider's sign-in service ` +
+        `(${metadataUrl.hostname}) isn't responding. This is usually temporary; ` +
+        `try again in a few minutes.`,
+    )
+  }
 }
 
 /** Opens the user's browser for the server's OAuth flow and resolves when
@@ -51,6 +80,9 @@ export type ClaudeMcpAuthInput = {
  * surfaces it on the card. */
 export async function loginClaudeMcpServer(input: ClaudeMcpAuthInput): Promise<void> {
   assertSafeServerName(input.serverName)
+  if (input.serverUrl !== undefined) {
+    await preflightOauthMetadata(input.serverUrl, input.serverName)
+  }
   const claudeBinary = input.binaryPath ?? resolveBundledClaudeBinary()
   if (process.platform !== 'win32') {
     // Non-Windows has no hidden-console equivalent from Node; the plain

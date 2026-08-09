@@ -139,7 +139,11 @@ export const mcpServersApp = factory
       // The CLI resolves a `.mcp.json` server from its working directory,
       // so the login must run inside the workspace. It opens the user's
       // browser; Vynel never touches the token.
-      await c.var.mcpAuthDelegate.login({ serverName, workingDirectory: workspacePath })
+      await c.var.mcpAuthDelegate.login({
+        serverName,
+        workingDirectory: workspacePath,
+        serverUrl: server.url,
+      })
       c.var.logger.info(
         { serverName, scope: 'workspace', workspaceId: c.var.workspace!.id },
         'mcp server connected',

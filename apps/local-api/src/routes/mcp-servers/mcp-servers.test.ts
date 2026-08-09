@@ -329,7 +329,10 @@ describe('POST /:serverName/login', () => {
         const res = await app.request('/mcp-servers/linear/login', { method: 'POST' })
         expect(res.status).toBe(200)
         expect(await res.json()).toEqual({ connected: true })
-        expect(calls).toEqual([{ serverName: 'linear' }])
+        // test: correct expectation — login carries serverUrl (the pre-flight).
+        expect(calls).toEqual([
+          { serverName: 'linear', serverUrl: 'https://mcp.example.com/mcp' },
+        ])
       },
       { mcpAuthDelegate: delegate },
     )
@@ -351,7 +354,13 @@ describe('POST /:serverName/login', () => {
           { method: 'POST' },
         )
         expect(res.status).toBe(200)
-        expect(calls).toEqual([{ serverName: 'notion', workingDirectory: workspaceDir }])
+        expect(calls).toEqual([
+          {
+            serverName: 'notion',
+            workingDirectory: workspaceDir,
+            serverUrl: 'https://mcp.notion.com/mcp',
+          },
+        ])
       },
       { mcpAuthDelegate: delegate },
     )

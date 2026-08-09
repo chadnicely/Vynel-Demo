@@ -65,3 +65,43 @@ describe('claude-mcp-cli error mapping', () => {
     ).rejects.toThrow(/cannot start with '-'/)
   })
 })
+
+// The pre-flight (smoke finding #3): a dead provider sign-in service fails
+// FAST with a friendly message instead of burning the 5-minute ceiling and
+// reading as our timeout; any HTTP answer (401/404) passes.
+import { createServer } from 'node:http'
+import { preflightOauthMetadata } from './claude-mcp-cli.js'
+
+describe('preflightOauthMetadata', () => {
+  it('fails friendly and fast when the provider does not answer', async () => {
+    await expect(
+      preflightOauthMetadata('http://127.0.0.1:1/mcp', 'notion'),
+    ).rejects.toThrow(/sign-in service \(127\.0\.0\.1\) isn't responding/)
+  })
+
+  it('any HTTP status counts as reachable (404 here)', async () => {
+    const server = createServer((_req, res) => {
+      res.statusCode = 404
+      res.end()
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const port = (server.address() as { port: number }).port
+    try {
+      await expect(
+        preflightOauthMetadata(`http://127.0.0.1:${port}/mcp`, 'local'),
+      ).resolves.toBeUndefined()
+    } finally {
+      server.close()
+    }
+  })
+
+  it('login runs the pre-flight before any spawn when serverUrl is given', async () => {
+    await expect(
+      loginClaudeMcpServer({
+        serverName: 'notion',
+        serverUrl: 'http://127.0.0.1:1/mcp',
+        binaryPath: process.execPath,
+      }),
+    ).rejects.toThrow(/isn't responding/)
+  })
+})
