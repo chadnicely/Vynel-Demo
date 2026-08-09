@@ -7,6 +7,7 @@ import { mkdtempSync, rmSync, existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { SkillRequiredMcpServerStdio } from '@vynel/contracts/skills/verified-skills/verified-skill-definition'
 import { updateMcpServersForScope } from './update-mcp-servers-for-scope.js'
 
 async function withTempWorkspace<T>(fn: (workspacePath: string) => Promise<T>): Promise<T> {
@@ -38,11 +39,13 @@ describe('updateMcpServersForScope', () => {
         workspacePath,
         serversToAdd: [
           {
-            serverName: 'new',
-            transport: 'stdio',
-            commandOrUrl: 'cmd',
-            args: [],
-            environment: {},
+            server: {
+              serverName: 'new',
+              transport: 'stdio',
+              commandOrUrl: 'cmd',
+              args: [],
+              environment: {},
+            },
           },
         ],
         serversToRemove: [],
@@ -71,16 +74,17 @@ describe('updateMcpServersForScope', () => {
         'utf8',
       )
 
-      await updateMcpServersForScope({
+      const outcome = await updateMcpServersForScope({
         scope: 'workspace',
         workspacePath,
         serversToAdd: [],
-        serversToRemove: ['remove'],
+        serversToRemove: [{ serverName: 'remove' }],
       })
 
       const after = JSON.parse(await readFile(mcpPath, 'utf8'))
       expect(after.mcpServers.keep).toBeDefined()
       expect(after.mcpServers.remove).toBeUndefined()
+      expect(outcome.removedServerNames).toEqual(['remove'])
     })
   })
 
@@ -94,9 +98,11 @@ describe('updateMcpServersForScope', () => {
         workspacePath,
         serversToAdd: [
           {
-            serverName: 'fresh',
-            transport: 'http',
-            url: 'https://x.example.com/mcp',
+            server: {
+              serverName: 'fresh',
+              transport: 'http',
+              url: 'https://x.example.com/mcp',
+            },
           },
         ],
         serversToRemove: [],
@@ -117,11 +123,13 @@ describe('updateMcpServersForScope', () => {
         workspacePath,
         serversToAdd: [
           {
-            serverName: 'playwright',
-            transport: 'stdio',
-            commandOrUrl: 'npx',
-            args: ['@playwright/mcp@latest'],
-            environment: { HEADLESS: '1' },
+            server: {
+              serverName: 'playwright',
+              transport: 'stdio',
+              commandOrUrl: 'npx',
+              args: ['@playwright/mcp@latest'],
+              environment: { HEADLESS: '1' },
+            },
           },
         ],
         serversToRemove: [],
@@ -144,10 +152,12 @@ describe('updateMcpServersForScope', () => {
         workspacePath,
         serversToAdd: [
           {
-            serverName: 'linear',
-            transport: 'sse',
-            url: 'https://mcp.example.com/sse',
-            headers: { Authorization: 'Bearer token-123' },
+            server: {
+              serverName: 'linear',
+              transport: 'sse',
+              url: 'https://mcp.example.com/sse',
+              headers: { Authorization: 'Bearer token-123' },
+            },
           },
         ],
         serversToRemove: [],
@@ -168,7 +178,7 @@ describe('updateMcpServersForScope', () => {
         scope: 'workspace',
         workspacePath,
         serversToAdd: [
-          { serverName: 'open', transport: 'http', url: 'https://mcp.example.com/mcp' },
+          { server: { serverName: 'open', transport: 'http', url: 'https://mcp.example.com/mcp' } },
         ],
         serversToRemove: [],
       })
@@ -189,7 +199,7 @@ describe('updateMcpServersForScope', () => {
         scope: 'workspace',
         workspacePath,
         serversToAdd: [
-          { serverName: 'fresh', transport: 'http', url: 'https://x.example.com/mcp' },
+          { server: { serverName: 'fresh', transport: 'http', url: 'https://x.example.com/mcp' } },
         ],
         serversToRemove: [],
       })
@@ -214,7 +224,15 @@ describe('updateMcpServersForScope', () => {
           scope: 'workspace',
           workspacePath,
           serversToAdd: [
-            { serverName: 's', transport: 'stdio', commandOrUrl: 'c', args: [], environment: {} },
+            {
+              server: {
+                serverName: 's',
+                transport: 'stdio',
+                commandOrUrl: 'c',
+                args: [],
+                environment: {},
+              },
+            },
           ],
           serversToRemove: [],
         }),
@@ -223,6 +241,183 @@ describe('updateMcpServersForScope', () => {
       // File is left untouched — caller must intervene.
       const after = await readFile(mcpPath, 'utf8')
       expect(after).toBe('{ not json')
+    })
+  })
+})
+
+describe('updateMcpServersForScope — provenance marker', () => {
+  const stdioServer = (serverName: string): SkillRequiredMcpServerStdio => ({
+    serverName,
+    transport: 'stdio',
+    commandOrUrl: 'cmd',
+    args: [],
+    environment: {},
+  })
+
+  it('stamps _vynelProvenance on a provenance-carrying addition and omits it otherwise', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      await updateMcpServersForScope({
+        scope: 'workspace',
+        workspacePath,
+        serversToAdd: [
+          {
+            server: stdioServer('managed'),
+            provenance: { itemId: 'playwright-mcp', installedAt: '2026-08-09T00:00:00.000Z' },
+          },
+          { server: stdioServer('hand-shaped') },
+        ],
+        serversToRemove: [],
+      })
+
+      const after = JSON.parse(await readFile(join(workspacePath, '.mcp.json'), 'utf8'))
+      expect(after.mcpServers.managed._vynelProvenance).toEqual({
+        itemId: 'playwright-mcp',
+        installedAt: '2026-08-09T00:00:00.000Z',
+      })
+      expect(after.mcpServers['hand-shaped']._vynelProvenance).toBeUndefined()
+    })
+  })
+
+  it('refuses a provenance-carrying addition over an unmarked or other-marked entry', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      const mcpPath = join(workspacePath, '.mcp.json')
+      await mkdir(workspacePath, { recursive: true })
+      const handMade = { type: 'stdio', command: 'mine', args: [], env: {} }
+      const otherItems = {
+        type: 'stdio',
+        command: 'other',
+        args: [],
+        env: {},
+        _vynelProvenance: { itemId: 'other-item', installedAt: '2026-08-01T00:00:00.000Z' },
+      }
+      await writeFile(
+        mcpPath,
+        JSON.stringify({ mcpServers: { 'hand-made': handMade, 'other-owned': otherItems } }),
+        'utf8',
+      )
+
+      const outcome = await updateMcpServersForScope({
+        scope: 'workspace',
+        workspacePath,
+        serversToAdd: [
+          {
+            server: stdioServer('hand-made'),
+            provenance: { itemId: 'catalog-item', installedAt: '2026-08-09T00:00:00.000Z' },
+          },
+          {
+            server: stdioServer('other-owned'),
+            provenance: { itemId: 'catalog-item', installedAt: '2026-08-09T00:00:00.000Z' },
+          },
+        ],
+        serversToRemove: [],
+      })
+
+      expect(outcome.refusedAdditionServerNames).toEqual(['hand-made', 'other-owned'])
+      const after = JSON.parse(await readFile(mcpPath, 'utf8'))
+      expect(after.mcpServers['hand-made']).toEqual(handMade)
+      expect(after.mcpServers['other-owned']).toEqual(otherItems)
+    })
+  })
+
+  it('overwrites its OWN entry on a same-item re-add (idempotent repair)', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      const provenance = { itemId: 'catalog-item', installedAt: '2026-08-09T00:00:00.000Z' }
+      await updateMcpServersForScope({
+        scope: 'workspace',
+        workspacePath,
+        serversToAdd: [{ server: stdioServer('repairable'), provenance }],
+        serversToRemove: [],
+      })
+      const outcome = await updateMcpServersForScope({
+        scope: 'workspace',
+        workspacePath,
+        serversToAdd: [
+          {
+            server: { ...stdioServer('repairable'), commandOrUrl: 'cmd-v2' },
+            provenance: { ...provenance, installedAt: '2026-08-10T00:00:00.000Z' },
+          },
+        ],
+        serversToRemove: [],
+      })
+
+      expect(outcome.refusedAdditionServerNames).toEqual([])
+      const after = JSON.parse(await readFile(join(workspacePath, '.mcp.json'), 'utf8'))
+      expect(after.mcpServers.repairable.command).toBe('cmd-v2')
+    })
+  })
+
+  it('a fully-refused update leaves the config file bytes untouched', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      const mcpPath = join(workspacePath, '.mcp.json')
+      await mkdir(workspacePath, { recursive: true })
+      // Hand-formatted on purpose — a rewrite would normalize it.
+      const handFormatted = '{\n    "mcpServers": {"hand-made":{"command":"mine"}}\n}\n'
+      await writeFile(mcpPath, handFormatted, 'utf8')
+
+      const outcome = await updateMcpServersForScope({
+        scope: 'workspace',
+        workspacePath,
+        serversToAdd: [
+          {
+            server: stdioServer('hand-made'),
+            provenance: { itemId: 'catalog-item', installedAt: '2026-08-09T00:00:00.000Z' },
+          },
+        ],
+        serversToRemove: [{ serverName: 'hand-made', onlyIfProvenanceItemId: 'catalog-item' }],
+      })
+
+      expect(outcome.refusedAdditionServerNames).toEqual(['hand-made'])
+      expect(outcome.refusedRemovalServerNames).toEqual(['hand-made'])
+      expect(await readFile(mcpPath, 'utf8')).toBe(handFormatted)
+    })
+  })
+
+  it('marker-required removal deletes a matching entry and refuses unmarked/other-marked ones', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      const mcpPath = join(workspacePath, '.mcp.json')
+      await mkdir(workspacePath, { recursive: true })
+      await writeFile(
+        mcpPath,
+        JSON.stringify({
+          mcpServers: {
+            mine: {
+              type: 'stdio',
+              command: 'c',
+              args: [],
+              env: {},
+              _vynelProvenance: { itemId: 'catalog-item', installedAt: '2026-08-09T00:00:00.000Z' },
+            },
+            'hand-made': { type: 'stdio', command: 'mine', args: [], env: {} },
+            'other-owned': {
+              type: 'stdio',
+              command: 'o',
+              args: [],
+              env: {},
+              _vynelProvenance: { itemId: 'other-item', installedAt: '2026-08-01T00:00:00.000Z' },
+            },
+          },
+        }),
+        'utf8',
+      )
+
+      const outcome = await updateMcpServersForScope({
+        scope: 'workspace',
+        workspacePath,
+        serversToAdd: [],
+        serversToRemove: [
+          { serverName: 'mine', onlyIfProvenanceItemId: 'catalog-item' },
+          { serverName: 'hand-made', onlyIfProvenanceItemId: 'catalog-item' },
+          { serverName: 'other-owned', onlyIfProvenanceItemId: 'catalog-item' },
+          { serverName: 'absent', onlyIfProvenanceItemId: 'catalog-item' },
+        ],
+      })
+
+      expect(outcome.removedServerNames).toEqual(['mine'])
+      expect(outcome.refusedRemovalServerNames).toEqual(['hand-made', 'other-owned'])
+      const after = JSON.parse(await readFile(mcpPath, 'utf8'))
+      expect(after.mcpServers.mine).toBeUndefined()
+      expect(after.mcpServers['hand-made']).toBeDefined()
+      expect(after.mcpServers['other-owned']).toBeDefined()
     })
   })
 })

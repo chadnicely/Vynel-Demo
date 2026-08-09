@@ -36,10 +36,16 @@ export async function uninstallSkillFromDisk(input: UninstallSkillFromDiskInput)
 
   if (input.skillDefinition && input.skillDefinition.requiredMcpServers.length > 0) {
     // exactOptionalPropertyTypes: true — conditional assembly.
+    // Marker-guarded: only entries THIS skill installed are removed — an
+    // unmarked (hand-added, or pre-marker) or other-item entry survives,
+    // matching the best-effort posture of the folder removal above.
     const mcpInput: Parameters<typeof updateMcpServersForScope>[0] = {
       scope: input.installedSkill.scope,
       serversToAdd: [],
-      serversToRemove: input.skillDefinition.requiredMcpServers.map((s) => s.serverName),
+      serversToRemove: input.skillDefinition.requiredMcpServers.map((s) => ({
+        serverName: s.serverName,
+        onlyIfProvenanceItemId: input.installedSkill.skillId,
+      })),
     }
     if (input.workspacePath !== undefined) mcpInput.workspacePath = input.workspacePath
     await updateMcpServersForScope(mcpInput)

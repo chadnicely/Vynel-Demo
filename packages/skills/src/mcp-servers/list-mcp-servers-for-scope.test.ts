@@ -47,12 +47,14 @@ describe('listMcpServersForScope', () => {
           command: 'npx',
           args: ['@playwright/mcp@latest'],
           environment: {},
+          provenanceItemId: null,
         },
         {
           serverName: 'linear',
           transport: 'sse',
           url: 'https://mcp.example.com/sse',
           headers: { Authorization: 'Bearer secret-1' },
+          provenanceItemId: null,
         },
       ])
     })
@@ -66,7 +68,14 @@ describe('listMcpServersForScope', () => {
         'utf8',
       )
       expect(listMcpServersForScope('workspace', workspaceDir)).toEqual([
-        { serverName: 'local', transport: 'stdio', command: 'node', args: ['x.js'], environment: {} },
+        {
+          serverName: 'local',
+          transport: 'stdio',
+          command: 'node',
+          args: ['x.js'],
+          environment: {},
+          provenanceItemId: null,
+        },
       ])
       expect(listMcpServersForScope('user')).toEqual([])
     })
@@ -90,6 +99,34 @@ describe('listMcpServersForScope', () => {
           command: 'https://old.example.com',
           args: [],
           environment: {},
+          provenanceItemId: null,
+        },
+      ])
+    })
+  })
+
+  it('surfaces the provenance marker itemId on a marketplace-installed entry', async () => {
+    await withIsolatedDirs(async (homeDir) => {
+      writeFileSync(
+        join(homeDir, '.claude.json'),
+        JSON.stringify({
+          mcpServers: {
+            managed: {
+              type: 'http',
+              url: 'https://mcp.example.com/mcp',
+              _vynelProvenance: { itemId: 'linear-mcp', installedAt: '2026-08-09T00:00:00.000Z' },
+            },
+          },
+        }),
+        'utf8',
+      )
+      expect(listMcpServersForScope('user')).toEqual([
+        {
+          serverName: 'managed',
+          transport: 'http',
+          url: 'https://mcp.example.com/mcp',
+          headers: {},
+          provenanceItemId: 'linear-mcp',
         },
       ])
     })

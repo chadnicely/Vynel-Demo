@@ -126,6 +126,28 @@ describe('uninstallSkillFromDisk (workspace scope)', () => {
     })
   })
 
+  it("leaves a hand-added (unmarked) server matching a required server's name", async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      const mcpPath = join(workspacePath, '.mcp.json')
+      await mkdir(workspacePath, { recursive: true })
+      const handMade = { type: 'stdio', command: 'my-gmail', args: [], env: {} }
+      await writeFile(mcpPath, JSON.stringify({ mcpServers: { gmail: handMade } }), 'utf8')
+
+      await uninstallSkillFromDisk({
+        installedSkill: makeInstalledSkillRow('workspace'),
+        skillDefinition: makeDefinition({
+          requiredMcpServers: [
+            { serverName: 'gmail', transport: 'stdio', commandOrUrl: 'c', args: [], environment: {} },
+          ],
+        }),
+        workspacePath,
+      })
+
+      const config = JSON.parse(await readFile(mcpPath, 'utf8'))
+      expect(config.mcpServers.gmail).toEqual(handMade)
+    })
+  })
+
   it('skips MCP cleanup when definition is null (external skill)', async () => {
     await withTempWorkspace(async (workspacePath) => {
       const mcpPath = join(workspacePath, '.mcp.json')

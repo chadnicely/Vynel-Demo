@@ -71,9 +71,15 @@ function determineMcpInstallStatus(
   installedMcpServers: InstalledMcpServerView[],
 ): MarketplaceItemInstallStatus {
   // Config-is-truth: the entry key in the scope's Claude MCP config is the
-  // whole installed state. `installedId` is the server name — the uninstall
-  // route resolves the config entry to remove through this same match.
-  const matches = installedMcpServers.filter((s) => s.name === item.mcpServerName)
+  // installed state, and the provenance marker says whose install it is —
+  // a hand-added (unmarked) or other-item entry with the same name must
+  // never flip the card to "Installed"; the uninstall route resolves the
+  // entry to remove through this same match and would delete the user's
+  // own entry (the agents-slug / rule-marker / plugin-key precedent).
+  // `installedId` is the server name.
+  const matches = installedMcpServers.filter(
+    (s) => s.name === item.mcpServerName && s.provenanceItemId === item.itemId,
+  )
   if (matches.length === 0) return { kind: 'not-installed' }
   // D12: workspace-scope match preferred when both configs carry the name.
   const match = matches.find((s) => s.scope === 'workspace') ?? matches[0]!

@@ -1,5 +1,5 @@
 // SYNC full-shape read of a scope's Claude MCP config — the MCP view's
-// source (the names-only sibling `list-mcp-server-names-for-scope.ts` stays
+// source (the entries sibling `list-mcp-server-entries-for-scope.ts` stays
 // the marketplace annotator's cheaper read). Same lenient posture: a missing
 // or malformed file answers "no servers"; the WRITER is where malformed JSON
 // hard-fails.
@@ -14,6 +14,7 @@
 import { readFileSync } from 'node:fs'
 import type { SkillScope } from '../repositories/index.js'
 import { resolveMcpConfigPath } from '../internal/resolve-mcp-config-path.js'
+import { readMcpServerProvenanceItemId } from '../internal/mcp-server-provenance.js'
 
 export type ConfiguredMcpServer =
   | {
@@ -23,6 +24,8 @@ export type ConfiguredMcpServer =
       args: string[]
       /** Values are secrets — never log, never list unmasked. */
       environment: Record<string, string>
+      /** The catalog itemId that installed the entry; null = hand-added. */
+      provenanceItemId: string | null
     }
   | {
       serverName: string
@@ -30,6 +33,8 @@ export type ConfiguredMcpServer =
       url: string
       /** Values are secrets — never log, never list unmasked. */
       headers: Record<string, string>
+      /** The catalog itemId that installed the entry; null = hand-added. */
+      provenanceItemId: string | null
     }
 
 export function listMcpServersForScope(
@@ -53,12 +58,14 @@ export function listMcpServersForScope(
   const servers: ConfiguredMcpServer[] = []
   for (const [serverName, entry] of Object.entries(parsed.mcpServers)) {
     if (!isRecord(entry)) continue
+    const provenanceItemId = readMcpServerProvenanceItemId(entry)
     if (entry.type === 'http' || entry.type === 'sse') {
       servers.push({
         serverName,
         transport: entry.type,
         url: asString(entry.url),
         headers: asStringRecord(entry.headers),
+        provenanceItemId,
       })
       continue
     }
@@ -68,6 +75,7 @@ export function listMcpServersForScope(
       command: asString(entry.command),
       args: asStringArray(entry.args),
       environment: asStringRecord(entry.env),
+      provenanceItemId,
     })
   }
   return servers

@@ -109,6 +109,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Your own MCP servers are safe from the marketplace.** A connector you
+  added by hand can share a name with a marketplace item — previously that
+  made the item's card claim "Installed", and removing it from the
+  marketplace deleted *your* server from the config. Marketplace installs now
+  stamp their entries with an ownership marker: the card only lights up for
+  entries the marketplace actually installed, installing never overwrites a
+  hand-made entry with the same name (you get a clear "remove it first"
+  message instead), and uninstalling — including a skill taking its bundled
+  connectors with it — only ever removes entries it owns. Everything still
+  lands in the standard Claude config files, so servers keep working in
+  Claude Code directly.
 - **Watches scan everything, and lifecycle plumbing stays invisible.** A
   monitor watching a busy event stream now scans its whole window — a burst of
   hundreds of events could previously hide the one that mattered, silently

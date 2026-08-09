@@ -3,10 +3,12 @@
 // field. The user's hand-edited other keys (theme settings, env
 // vars, custom config) are preserved.
 //
-// Each entry in `serversToAdd` is converted from the catalog's
-// `SkillRequiredMcpServer` shape into Claude Code's native
-// `mcpServers` entry. `serversToRemove` is a list of server
-// names (string) keyed off the same shape.
+// Vynel-managed additions carry a provenance marker inside the entry
+// (`mcp-server-provenance.ts`); hand-added entries never do. The marker
+// is the data-loss guard in BOTH directions: a provenance-carrying
+// addition refuses to overwrite a foreign entry, and a marker-required
+// removal refuses to delete one. Refusals are reported, not thrown —
+// each caller decides what a refusal means for its operation.
 //
 // Per coding.md §1.2 (the installer is the only filesystem
 // writer for `.claude/skills/` + `.claude.json` + `.mcp.json`).
@@ -18,17 +20,44 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import type { SkillScope } from '../repositories/index.js'
 import type { SkillRequiredMcpServer } from '@vynel/contracts/skills/verified-skills/verified-skill-definition'
 import { resolveMcpConfigPath } from './resolve-mcp-config-path.js'
+import {
+  MCP_SERVER_PROVENANCE_KEY,
+  readMcpServerProvenanceItemId,
+  type McpServerProvenance,
+} from './mcp-server-provenance.js'
+
+export type McpServerAddition = {
+  server: SkillRequiredMcpServer
+  /** Present for Vynel-managed installs (marketplace mcp items, a skill's
+   * required servers); absent for the user's hand-added entries. */
+  provenance?: McpServerProvenance
+}
+
+export type McpServerRemoval = {
+  serverName: string
+  /** When set, only an entry marked with this itemId is removed — an
+   * unmarked or other-marked entry survives (it is not ours to delete). */
+  onlyIfProvenanceItemId?: string
+}
 
 export type UpdateMcpServersForScopeInput = {
   scope: SkillScope
   workspacePath?: string
-  serversToAdd: readonly SkillRequiredMcpServer[]
-  serversToRemove: readonly string[] // server names
+  serversToAdd: readonly McpServerAddition[]
+  serversToRemove: readonly McpServerRemoval[]
+}
+
+export type UpdateMcpServersOutcome = {
+  removedServerNames: string[]
+  /** Marker-required removals whose entry was unmarked or other-marked. */
+  refusedRemovalServerNames: string[]
+  /** Provenance-carrying additions whose name is held by a foreign entry. */
+  refusedAdditionServerNames: string[]
 }
 
 export async function updateMcpServersForScope(
   input: UpdateMcpServersForScopeInput,
-): Promise<void> {
+): Promise<UpdateMcpServersOutcome> {
   const configPath = resolveMcpConfigPath(input.scope, input.workspacePath)
   await mkdir(path.dirname(configPath), { recursive: true })
 
@@ -38,16 +67,54 @@ export async function updateMcpServersForScope(
       ? { ...(existingConfig.mcpServers as Record<string, unknown>) }
       : {}
 
-  for (const name of input.serversToRemove) {
-    delete existingServers[name]
+  const outcome: UpdateMcpServersOutcome = {
+    removedServerNames: [],
+    refusedRemovalServerNames: [],
+    refusedAdditionServerNames: [],
   }
 
-  for (const server of input.serversToAdd) {
-    existingServers[server.serverName] = toClaudeMcpServerEntry(server)
+  for (const removal of input.serversToRemove) {
+    const existing = existingServers[removal.serverName]
+    if (existing === undefined) continue
+    if (
+      removal.onlyIfProvenanceItemId !== undefined &&
+      readMcpServerProvenanceItemId(existing) !== removal.onlyIfProvenanceItemId
+    ) {
+      outcome.refusedRemovalServerNames.push(removal.serverName)
+      continue
+    }
+    delete existingServers[removal.serverName]
+    outcome.removedServerNames.push(removal.serverName)
+  }
+
+  let appliedAdditionCount = 0
+  for (const addition of input.serversToAdd) {
+    const existing = existingServers[addition.server.serverName]
+    if (
+      addition.provenance !== undefined &&
+      existing !== undefined &&
+      readMcpServerProvenanceItemId(existing) !== addition.provenance.itemId
+    ) {
+      outcome.refusedAdditionServerNames.push(addition.server.serverName)
+      continue
+    }
+    existingServers[addition.server.serverName] = toClaudeMcpServerEntry(
+      addition.server,
+      addition.provenance,
+    )
+    appliedAdditionCount += 1
+  }
+
+  // A fully-refused (or no-op) update never rewrites the file — the refusal
+  // paths promise "we don't touch what isn't ours", and a rewrite would
+  // still normalize the user's hand-formatted JSON.
+  if (outcome.removedServerNames.length === 0 && appliedAdditionCount === 0) {
+    return outcome
   }
 
   const newConfig = { ...existingConfig, mcpServers: existingServers }
   await writeFile(configPath, JSON.stringify(newConfig, null, 2), 'utf8')
+  return outcome
 }
 
 // The exact shapes Claude Code reads (SDK `McpStdioServerConfig` /
@@ -56,13 +123,19 @@ export async function updateMcpServersForScope(
 // self-documenting, and it keeps the reader's discrimination symmetric.
 // Remote entries carry NO command/args/env; empty headers are omitted
 // rather than written as `headers: {}`.
-function toClaudeMcpServerEntry(server: SkillRequiredMcpServer): Record<string, unknown> {
+function toClaudeMcpServerEntry(
+  server: SkillRequiredMcpServer,
+  provenance: McpServerProvenance | undefined,
+): Record<string, unknown> {
+  const provenanceField =
+    provenance !== undefined ? { [MCP_SERVER_PROVENANCE_KEY]: provenance } : {}
   if (server.transport === 'stdio') {
     return {
       type: 'stdio',
       command: server.commandOrUrl,
       args: server.args,
       env: server.environment,
+      ...provenanceField,
     }
   }
   return {
@@ -71,6 +144,7 @@ function toClaudeMcpServerEntry(server: SkillRequiredMcpServer): Record<string, 
     ...(server.headers !== undefined && Object.keys(server.headers).length > 0
       ? { headers: server.headers }
       : {}),
+    ...provenanceField,
   }
 }
 

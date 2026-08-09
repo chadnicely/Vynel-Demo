@@ -15,7 +15,7 @@ import type { InstalledMcpServerView } from '@vynel/marketplace'
 import {
   installMcpServerForScope,
   removeMcpServerForScope,
-  listMcpServerNamesForScope,
+  listMcpServerEntriesForScope,
 } from '@vynel/skills'
 import { parseMcpItemManifest } from '@vynel/contracts/marketplace/mcp-item-manifest'
 
@@ -27,12 +27,20 @@ export function mcpServersReaderFor(
   workspace: { path: string } | null,
 ): () => InstalledMcpServerView[] {
   return () => [
-    ...listMcpServerNamesForScope('user').map(
-      (name): InstalledMcpServerView => ({ name, scope: 'user' }),
+    ...listMcpServerEntriesForScope('user').map(
+      (entry): InstalledMcpServerView => ({
+        name: entry.serverName,
+        scope: 'user',
+        provenanceItemId: entry.provenanceItemId,
+      }),
     ),
     ...(workspace !== null
-      ? listMcpServerNamesForScope('workspace', workspace.path).map(
-          (name): InstalledMcpServerView => ({ name, scope: 'workspace' }),
+      ? listMcpServerEntriesForScope('workspace', workspace.path).map(
+          (entry): InstalledMcpServerView => ({
+            name: entry.serverName,
+            scope: 'workspace',
+            provenanceItemId: entry.provenanceItemId,
+          }),
         )
       : []),
   ]
@@ -64,6 +72,7 @@ export async function installMcpItem(
   const installInput: Parameters<typeof installMcpServerForScope>[0] = {
     scope,
     server: manifest,
+    provenance: { itemId, installedAt: new Date().toISOString() },
   }
   if (scope === 'workspace') installInput.workspacePath = workspace!.path
   await installMcpServerForScope(installInput)
@@ -102,9 +111,13 @@ export async function uninstallMcpItem(
       `MCP server '${serverName}' is workspace-installed — uninstall it from that workspace.`,
     )
   }
+  // The annotator only matched a marker-carrying entry, so the marker
+  // requirement here is the drift guard: a config edited between annotate
+  // and remove surfaces as a ConflictError instead of deleting a stranger.
   const removeInput: Parameters<typeof removeMcpServerForScope>[0] = {
     scope: serverScope,
     serverName,
+    onlyIfProvenanceItemId: itemId,
   }
   if (serverScope === 'workspace') removeInput.workspacePath = workspace!.path
   await removeMcpServerForScope(removeInput)

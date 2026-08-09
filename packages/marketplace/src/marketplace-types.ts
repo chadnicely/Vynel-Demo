@@ -61,7 +61,7 @@ export type InstalledPluginView = {
   version: string | null
 }
 
-// The two fields the annotator reads off a standalone MCP-server config
+// The fields the annotator reads off a standalone MCP-server config
 // entry (config-is-truth: presence of the key in the scope's Claude MCP
 // config IS installed; `@vynel/skills` owns the config read — same
 // structural-view rule). The ROUTE binds the reader with the surface's
@@ -70,6 +70,9 @@ export type InstalledPluginView = {
 export type InstalledMcpServerView = {
   name: string
   scope: SkillScope
+  /** The provenance marker's itemId; null = the user's hand-added entry,
+   * which must never annotate a catalog item (the agents-slug precedent). */
+  provenanceItemId: string | null
 }
 
 // The three fields the annotator reads off a marketplace-installed RULE

@@ -193,8 +193,11 @@ describe('annotateWithInstallStatus — agent items (C-agents)', () => {
     })
   })
 
-  // Config-is-truth mcp matching: server-name key against the surface's
-  // config entries; workspace config preferred when both carry the name.
+  // Config-is-truth mcp matching: server-name key AND provenance marker
+  // against the surface's config entries; workspace config preferred when
+  // both carry the name. An unmarked (hand-added) or other-marked entry
+  // never matches — the uninstall route resolves through this match and
+  // would delete an entry that isn't this item's.
   const mcpItem = makeItem({
     itemId: 'playwright-mcp',
     kind: 'mcp',
@@ -202,14 +205,16 @@ describe('annotateWithInstallStatus — agent items (C-agents)', () => {
     mcpServerName: 'playwright',
   })
 
-  it('mcp: matches the config entry by server name (version-less)', () => {
+  it('mcp: matches the marked config entry by server name (version-less)', () => {
     const [annotated] = annotateWithInstallStatus({
       catalogItems: [mcpItem],
       installedSkills: [],
       installedAgents: [],
       installedPlugins: [],
       installedRules: [],
-      installedMcpServers: [{ name: 'playwright', scope: 'user' }],
+      installedMcpServers: [
+        { name: 'playwright', scope: 'user', provenanceItemId: 'playwright-mcp' },
+      ],
     })
     expect(annotated?.installStatus).toEqual({
       kind: 'installed',
@@ -227,8 +232,8 @@ describe('annotateWithInstallStatus — agent items (C-agents)', () => {
       installedPlugins: [],
       installedRules: [],
       installedMcpServers: [
-        { name: 'playwright', scope: 'user' },
-        { name: 'playwright', scope: 'workspace' },
+        { name: 'playwright', scope: 'user', provenanceItemId: 'playwright-mcp' },
+        { name: 'playwright', scope: 'workspace', provenanceItemId: 'playwright-mcp' },
       ],
     })
     expect(annotated?.installStatus).toMatchObject({ kind: 'installed', scope: 'workspace' })
@@ -241,7 +246,35 @@ describe('annotateWithInstallStatus — agent items (C-agents)', () => {
       installedAgents: [],
       installedPlugins: [],
       installedRules: [],
-      installedMcpServers: [{ name: 'other-server', scope: 'user' }],
+      installedMcpServers: [
+        { name: 'other-server', scope: 'user', provenanceItemId: 'playwright-mcp' },
+      ],
+    })
+    expect(annotated?.installStatus).toEqual({ kind: 'not-installed' })
+  })
+
+  it("mcp: a hand-added (unmarked) entry with the item's server name never flips the card", () => {
+    const [annotated] = annotateWithInstallStatus({
+      catalogItems: [mcpItem],
+      installedSkills: [],
+      installedAgents: [],
+      installedPlugins: [],
+      installedRules: [],
+      installedMcpServers: [{ name: 'playwright', scope: 'user', provenanceItemId: null }],
+    })
+    expect(annotated?.installStatus).toEqual({ kind: 'not-installed' })
+  })
+
+  it("mcp: another item's marked entry with the same server name never flips the card", () => {
+    const [annotated] = annotateWithInstallStatus({
+      catalogItems: [mcpItem],
+      installedSkills: [],
+      installedAgents: [],
+      installedPlugins: [],
+      installedRules: [],
+      installedMcpServers: [
+        { name: 'playwright', scope: 'user', provenanceItemId: 'some-other-item' },
+      ],
     })
     expect(annotated?.installStatus).toEqual({ kind: 'not-installed' })
   })
