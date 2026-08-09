@@ -20,6 +20,9 @@ export function useInstallMarketplaceItem() {
       /** Values for an mcp item's declared configuration fields (the
        *  configure dialog's output). Secrets — sent once, never kept. */
       mcpConfigurationValues?: Record<string, string>;
+      /** Plugin installs carry the UI's explicit consent (plugins run
+       *  code); the session tool cannot send it. */
+      acceptPluginExecution?: true;
     }) =>
       input.scope.kind === "global"
         ? vynel.marketplaceUser.install({
@@ -27,12 +30,18 @@ export function useInstallMarketplaceItem() {
             ...(input.mcpConfigurationValues !== undefined
               ? { mcpConfigurationValues: input.mcpConfigurationValues }
               : {}),
+            ...(input.acceptPluginExecution !== undefined
+              ? { acceptPluginExecution: input.acceptPluginExecution }
+              : {}),
           })
         : vynel.marketplace.install(input.scope.workspaceId, {
             itemId: input.itemId,
             scope: "workspace",
             ...(input.mcpConfigurationValues !== undefined
               ? { mcpConfigurationValues: input.mcpConfigurationValues }
+              : {}),
+            ...(input.acceptPluginExecution !== undefined
+              ? { acceptPluginExecution: input.acceptPluginExecution }
               : {}),
           }),
     onSuccess: () => {

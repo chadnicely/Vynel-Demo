@@ -46,6 +46,7 @@ import {
 import { serializeMarketplaceItem } from './serializers.js'
 import {
   marketplaceDepsWith,
+  pluginsReaderFor,
   installMarketplaceItem,
   updateMarketplaceItem,
   uninstallMarketplaceItem,
@@ -99,7 +100,7 @@ export const marketplaceApp = factory
         c.var.db,
         input,
         marketplaceDepsWith(
-          c.var.marketplaceInstalledPluginsReader,
+          pluginsReaderFor({ path: c.var.workspace!.path }, c.var.marketplaceInstalledPluginsReader),
           mcpServersReaderFor({ path: c.var.workspace!.path }),
           rulesReaderFor({ path: c.var.workspace!.path }),
           c.var.claudeMarketplacesReader,
@@ -143,7 +144,7 @@ export const marketplaceApp = factory
           workspaceId: c.var.workspace!.id,
         },
         marketplaceDepsWith(
-          c.var.marketplaceInstalledPluginsReader,
+          pluginsReaderFor({ path: c.var.workspace!.path }, c.var.marketplaceInstalledPluginsReader),
           mcpServersReaderFor({ path: c.var.workspace!.path }),
           rulesReaderFor({ path: c.var.workspace!.path }),
           c.var.claudeMarketplacesReader,
@@ -174,7 +175,7 @@ export const marketplaceApp = factory
           'the capability becomes available in sessions and appears in the user\'s panels.',
         mutatingApproved: true,
         // Secrets never transit chat — structurally: the tool has no such field.
-        excludedBodyFields: ['mcpConfigurationValues'],
+        excludedBodyFields: ['mcpConfigurationValues', 'acceptPluginExecution'],
       },
       responses: {
         201: {
@@ -189,7 +190,7 @@ export const marketplaceApp = factory
     validator('json', InstallMarketplaceItemBodySchema),
     ...workspaceScoped,
     async (c) => {
-      const { itemId, scope, mcpConfigurationValues } = c.req.valid('json')
+      const { itemId, scope, mcpConfigurationValues, acceptPluginExecution } = c.req.valid('json')
       const workspace = c.var.workspace!
       // Surface gate + per-kind dispatch (cloud artifact vs bundled
       // template, skill vs agent) live in `item-lifecycle.ts` — shared with
@@ -204,6 +205,7 @@ export const marketplaceApp = factory
           scope,
           workspace: { id: workspace.id, path: workspace.path },
           ...(mcpConfigurationValues !== undefined ? { mcpConfigurationValues } : {}),
+          ...(acceptPluginExecution !== undefined ? { acceptPluginExecution } : {}),
         },
       )
       return c.json(installed, 201)

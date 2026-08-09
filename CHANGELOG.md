@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Plugins can now install into just one workspace.** Every plugin — the
+  hub's and your added marketplaces' alike — appears on workspace shelves
+  too: Get there installs it for that workspace only, keeping its skills and
+  commands out of every other session's context (installing from the global
+  Marketplace still makes it available everywhere). Each shelf shows its own
+  install state, and chat sessions still can't install plugins for you —
+  the click in the Marketplace panel is the consent that plugins run code.
+
 - **The admin portal reviews whole marketplaces.** A new "Import from
   marketplace" page inspects any GitHub-hosted Claude plugin marketplace at
   a pinned commit, lists its plugins with checkboxes, and publishes exactly

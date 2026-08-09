@@ -59,6 +59,10 @@ export type MarketplaceInstallOwner = {
 export type InstalledPluginView = {
   key: string
   version: string | null
+  /** Where the registry entry lives: 'user' = global install; 'workspace'
+   * = a project-scope entry for THE SURFACE'S workspace (the app-level
+   * reader already filtered other projects out). */
+  scope: 'user' | 'workspace'
 }
 
 // The fields the annotator reads off a standalone MCP-server config

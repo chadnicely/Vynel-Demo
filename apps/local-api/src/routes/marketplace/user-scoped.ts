@@ -43,6 +43,7 @@ import {
 import { serializeMarketplaceItem } from './serializers.js'
 import {
   marketplaceDepsWith,
+  pluginsReaderFor,
   installMarketplaceItem,
   updateMarketplaceItem,
   uninstallMarketplaceItem,
@@ -84,7 +85,7 @@ export const marketplaceUserApp = factory
         c.var.db,
         input,
         marketplaceDepsWith(
-          c.var.marketplaceInstalledPluginsReader,
+          pluginsReaderFor(null, c.var.marketplaceInstalledPluginsReader),
           mcpServersReaderFor(null),
           rulesReaderFor(null),
           c.var.claudeMarketplacesReader,
@@ -112,7 +113,7 @@ export const marketplaceUserApp = factory
     validator('json', InstallUserMarketplaceItemBodySchema),
     ...userScoped,
     async (c) => {
-      const { itemId, mcpConfigurationValues } = c.req.valid('json')
+      const { itemId, mcpConfigurationValues, acceptPluginExecution } = c.req.valid('json')
       const installed = await installMarketplaceItem(
         { db: c.var.db, hubSession: c.var.hubSession, logger: c.var.logger, pluginDelegate: c.var.marketplacePluginDelegate, listInstalledPlugins: c.var.marketplaceInstalledPluginsReader, listClaudeMarketplaces: c.var.claudeMarketplacesReader, mcpAuthDelegate: c.var.mcpAuthDelegate },
         {
@@ -121,6 +122,7 @@ export const marketplaceUserApp = factory
           scope: 'user',
           workspace: null,
           ...(mcpConfigurationValues !== undefined ? { mcpConfigurationValues } : {}),
+          ...(acceptPluginExecution !== undefined ? { acceptPluginExecution } : {}),
         },
       )
       return c.json(installed, 201)

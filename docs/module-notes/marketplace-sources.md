@@ -178,3 +178,15 @@ project` + cwd (registry entries carry `{scope:'project', projectPath}`). Design
   plugin arrives without it and gets an actionable 400; the UI always sends it. This preserves
   the recorded invariant (the non-carded tool can never run the CLI delegate) while widening
   the UI surface.
+
+## Move C as built (2026-08-09)
+
+Provider: `ClaudePluginInstallScope` ('user' | 'project'+workspacePath) threads through
+install/uninstall/update (`--scope project` + cwd); the registry reader emits user AND
+project entries with projectPath. App: `pluginsReaderFor(workspace, providerReader)` narrows
+per surface (user always; project entries whose normalized path == the workspace's);
+annotator prefers the workspace match (D12); plugin rows surface 'both' (hub + third-party
+mappers). The structural wall moved to `acceptPluginExecution` (excluded from the session
+tool schema — tool-shaped installs 400 actionably, pinned e2e; the UI click is the consent).
+Update re-reads the registry scope-aware. Suites: providers 37 · marketplace 66 · routes 44
+· section 32; parity 4/4.

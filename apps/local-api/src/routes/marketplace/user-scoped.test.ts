@@ -33,7 +33,9 @@ import { createApp } from '../../app.js'
 // `marketplacePluginDelegate` twin) — annotation never reads this
 // machine's real `~/.claude/plugins`. Tests stock the array; the stub
 // is passed to every createApp below.
-const installedPluginRows: Array<{ key: string; version: string | null }> = []
+import type { InstalledClaudePluginView } from '@vynel/providers'
+
+const installedPluginRows: InstalledClaudePluginView[] = []
 const listInstalledPluginsStub = () => [...installedPluginRows]
 // A failed assertion must not leak a stocked registry into later tests.
 afterEach(() => {
@@ -363,7 +365,10 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
       }
       const app = createApp({ db, logger: silentLogger, marketplacePluginDelegate: delegate, marketplaceInstalledPluginsReader: listInstalledPluginsStub })
 
-      const res = await postJson(app, '/marketplace/install', { itemId: 'document-skills' })
+      const res = await postJson(app, '/marketplace/install', {
+        itemId: 'document-skills',
+        acceptPluginExecution: true,
+      })
       expect(res.status).toBe(201)
       expect(await res.json()).toEqual({
         kind: 'plugin',
@@ -371,11 +376,15 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
         itemId: 'document-skills',
         version: '1.0.0',
       })
-      expect(delegate.install).toHaveBeenCalledWith(pluginManifest)
+      expect(delegate.install).toHaveBeenCalledWith(pluginManifest, { kind: 'user' })
 
       installedPluginRows.push({
         key: 'document-skills@anthropic-agent-skills',
+        pluginName: 'document-skills',
+        marketplaceName: 'anthropic-agent-skills',
         version: '1.0.0',
+        scope: 'user',
+        projectPath: null,
       })
       const listRes = await app.request('/marketplace/items')
       const items = (await listRes.json()) as Array<{
@@ -404,6 +413,7 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
       expect(delegate.uninstall).toHaveBeenCalledWith({
         pluginName: 'document-skills',
         marketplaceName: 'anthropic-agent-skills',
+        installScope: { kind: 'user' },
       })
     })
   })
@@ -432,7 +442,11 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
       )
       installedPluginRows.push({
         key: 'document-skills@anthropic-agent-skills',
+        pluginName: 'document-skills',
+        marketplaceName: 'anthropic-agent-skills',
         version: '1.0.0',
+        scope: 'user',
+        projectPath: null,
       })
       const delegate = {
         install: vi.fn(async () => {}),
@@ -467,6 +481,7 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
       expect(delegate.update).toHaveBeenCalledWith({
         pluginName: 'document-skills',
         marketplaceName: 'anthropic-agent-skills',
+        installScope: { kind: 'user' },
       })
     })
   })

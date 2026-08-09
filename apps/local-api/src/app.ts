@@ -72,8 +72,7 @@ import {
 import { claudeMcpAuthDelegate, type McpAuthDelegate } from './services/mcp-auth-delegate.js'
 import { listClaudeMarketplaceSources } from './services/claude-marketplaces-reader.js'
 import type { ClaudeMarketplaceSourceView } from '@vynel/marketplace'
-import { listInstalledClaudePlugins } from '@vynel/providers'
-import type { InstalledPluginView } from '@vynel/marketplace'
+import { listInstalledClaudePlugins, type InstalledClaudePluginView } from '@vynel/providers'
 import { featureGate } from './middleware/feature-gate.js'
 import { workspacesApp } from './routes/workspaces/index.js'
 import { hubApp } from './routes/hub/index.js'
@@ -138,7 +137,7 @@ export interface CreateAppOptions {
   // delegate's read twin). Production omits it (the provider's real
   // `~/.claude/plugins` reader); a route test injects a stub so unmocked
   // list routes never read this machine's registry.
-  readonly marketplaceInstalledPluginsReader?: () => InstalledPluginView[]
+  readonly marketplaceInstalledPluginsReader?: () => InstalledClaudePluginView[]
   // Override the MCP-server auth delegate (the `claude mcp login/logout`
   // CLI seam). Production omits it (the real CLI); a route test injects a
   // fake so the HTTP stack never opens a browser.

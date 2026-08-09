@@ -25,7 +25,7 @@ import type { AppProcessSupervisor } from '@vynel/apps'
 import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
-import type { InstalledPluginView } from '@vynel/marketplace'
+import type { InstalledClaudePluginView } from '@vynel/providers'
 import type { MarketplacePluginDelegate } from './services/marketplace-plugin-delegate.js'
 import type { McpAuthDelegate } from './services/mcp-auth-delegate.js'
 import type { ClaudeMarketplaceSourceView } from '@vynel/marketplace'
@@ -101,7 +101,7 @@ export interface AppEnv {
     // read twin). Set once at construction (`app.ts`) — the provider's real
     // `~/.claude/plugins` reader in production, a stub in route tests so an
     // unmocked list route never depends on the developer's machine.
-    marketplaceInstalledPluginsReader: () => InstalledPluginView[]
+    marketplaceInstalledPluginsReader: () => InstalledClaudePluginView[]
     // The MCP-server auth delegate (`claude mcp login/logout` CLI seam).
     // Set once at construction (`app.ts`) — real CLI in production, a fake
     // in route tests (a test must never open a browser).

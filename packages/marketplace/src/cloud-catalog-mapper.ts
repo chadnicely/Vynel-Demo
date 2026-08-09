@@ -70,11 +70,13 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
     recommendedScope: (row.recommendedScope === 'workspace' && kind !== 'plugin'
       ? 'workspace'
       : 'user') as SkillScope,
-    // Plugins are user-scope global BY STRUCTURE, not convention: forcing
-    // 'user' keeps them off the workspace surface — and therefore off the
-    // workspace MCP install tool, whose mutating (non-carded) tier must
-    // never run the external CLI delegate. A hub row can't override this.
-    scope: kind === 'plugin' ? 'user' : toItemScope(row.recommendedScope),
+    // Move C: plugins surface on BOTH shelves (workspace installs are
+    // project-scope — confining their context cost). The old structural
+    // wall (the non-carded workspace tool must never run the CLI
+    // delegate) moved to the install body: `acceptPluginExecution` is
+    // excluded from the session tool's schema, so tool calls get an
+    // actionable 400 while the UI installs normally.
+    scope: kind === 'plugin' ? 'both' : toItemScope(row.recommendedScope),
     // Both curated tiers badge as official — 'verified' (Vynel Team) and
     // 'anthropic-official' (upstream Anthropic). Only community rows don't.
     isOfficial: toHubPublisherTier(row.publisherTier) !== 'community',

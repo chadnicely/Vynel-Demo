@@ -40,7 +40,8 @@ export function claudeMarketplaceItems(
         version: plugin.version ?? '',
         releasedAt: EPOCH_ISO,
         recommendedScope: 'user',
-        scope: 'user',
+        // Move C: both shelves — a workspace Get installs project-scope.
+        scope: 'both',
         isOfficial: false,
         pluginKey,
         hasCloudArtifact: false,

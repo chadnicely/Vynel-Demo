@@ -77,7 +77,13 @@ function requestInstall(item: MarketplaceItem) {
     configuringItem.value = item;
     return;
   }
-  install.mutate({ scope: props.scope, itemId: item.itemId });
+  install.mutate({
+    scope: props.scope,
+    itemId: item.itemId,
+    // Plugins run code — the click IS the consent, and only the UI can
+    // send the flag (the session tool's schema excludes it).
+    ...(item.kind === "plugin" ? { acceptPluginExecution: true as const } : {}),
+  });
 }
 
 function submitConfiguredInstall(values: Record<string, string>) {

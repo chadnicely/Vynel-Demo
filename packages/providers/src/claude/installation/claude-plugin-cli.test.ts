@@ -50,12 +50,24 @@ afterAll(async () => {
 describe('listInstalledClaudePlugins', () => {
   it('returns user-scope entries keyed name@marketplace, newest entry wins', () => {
     const plugins = listInstalledClaudePlugins(home)
+    // test: correct expectation — Move C surfaces PROJECT-scope entries
+    // too (with their projectPath); previously user-only.
     expect(plugins).toEqual([
       {
         key: 'document-skills@anthropic-agent-skills',
         pluginName: 'document-skills',
         marketplaceName: 'anthropic-agent-skills',
         version: '1.2.0',
+        scope: 'user',
+        projectPath: null,
+      },
+      {
+        key: 'stripe@claude-plugins-official',
+        pluginName: 'stripe',
+        marketplaceName: 'claude-plugins-official',
+        version: '0.2.5',
+        scope: 'project',
+        projectPath: 'E:\\somewhere',
       },
     ])
   })

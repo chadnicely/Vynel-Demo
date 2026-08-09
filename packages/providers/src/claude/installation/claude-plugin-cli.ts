@@ -45,13 +45,20 @@ export function resolveBundledClaudeBinary(): string {
 }
 
 // Exported for the marketplace-cli sibling — `plugin marketplace …`
-// subcommands ride the same runner (one exec home, one error shape).
-export async function runPluginCommand(args: string[], binaryPath?: string): Promise<string> {
+// subcommands ride the same runner (one exec home, one error shape). `cwd`
+// matters for PROJECT-scope commands: the CLI resolves the project from
+// its working directory.
+export async function runPluginCommand(
+  args: string[],
+  binaryPath?: string,
+  cwd?: string,
+): Promise<string> {
   const claudeBinary = binaryPath ?? resolveBundledClaudeBinary()
   try {
     const { stdout } = await execFileAsync(claudeBinary, ['plugin', ...args], {
       timeout: COMMAND_TIMEOUT_MS,
       windowsHide: true,
+      ...(cwd !== undefined ? { cwd } : {}),
     })
     return stdout
   } catch (error) {
@@ -62,12 +69,21 @@ export async function runPluginCommand(args: string[], binaryPath?: string): Pro
   }
 }
 
+/** Project scope confines a plugin's skills/commands context cost to
+ * sessions run inside that directory (Move C); the CLI records
+ * `{scope:'project', projectPath}`. */
+export type ClaudePluginInstallScope =
+  | { kind: 'user' }
+  | { kind: 'project'; workspacePath: string }
+
 export type InstallClaudePluginInput = {
   /** GitHub `owner/repo` (or git URL) of the plugin marketplace. */
   marketplaceRepo: string
   /** The marketplace's self-declared name (its marketplace.json `name`). */
   marketplaceName: string
   pluginName: string
+  /** Defaults to user scope (the pre-Move-C behavior). */
+  installScope?: ClaudePluginInstallScope
   binaryPath?: string
   /** Test seam only (mirrors `listInstalledClaudePlugins`) — where the
    * known-marketplaces registry is read from. */
@@ -120,9 +136,16 @@ export async function installClaudePlugin(input: InstallClaudePluginInput): Prom
       )
     }
   }
+  const installScope = input.installScope ?? { kind: 'user' as const }
   await runPluginCommand(
-    ['install', `${input.pluginName}@${input.marketplaceName}`, '--scope', 'user'],
+    [
+      'install',
+      `${input.pluginName}@${input.marketplaceName}`,
+      '--scope',
+      installScope.kind === 'project' ? 'project' : 'user',
+    ],
     input.binaryPath,
+    installScope.kind === 'project' ? installScope.workspacePath : undefined,
   )
 }
 
@@ -143,12 +166,20 @@ function assertSafePluginKeyParts(pluginName: string, marketplaceName: string): 
 export async function uninstallClaudePlugin(input: {
   pluginName: string
   marketplaceName: string
+  installScope?: ClaudePluginInstallScope
   binaryPath?: string
 }): Promise<void> {
   assertSafePluginKeyParts(input.pluginName, input.marketplaceName)
+  const installScope = input.installScope ?? { kind: 'user' as const }
   await runPluginCommand(
-    ['uninstall', `${input.pluginName}@${input.marketplaceName}`, '--scope', 'user'],
+    [
+      'uninstall',
+      `${input.pluginName}@${input.marketplaceName}`,
+      '--scope',
+      installScope.kind === 'project' ? 'project' : 'user',
+    ],
     input.binaryPath,
+    installScope.kind === 'project' ? installScope.workspacePath : undefined,
   )
 }
 
@@ -161,12 +192,17 @@ export async function uninstallClaudePlugin(input: {
 export async function updateClaudePlugin(input: {
   pluginName: string
   marketplaceName: string
+  installScope?: ClaudePluginInstallScope
   binaryPath?: string
 }): Promise<void> {
   assertSafePluginKeyParts(input.pluginName, input.marketplaceName)
+  const installScope = input.installScope ?? { kind: 'user' as const }
+  // No --scope on update (it operates on the installed entry) — but a
+  // project entry resolves from cwd.
   await runPluginCommand(
     ['update', `${input.pluginName}@${input.marketplaceName}`],
     input.binaryPath,
+    installScope.kind === 'project' ? installScope.workspacePath : undefined,
   )
 }
 
@@ -179,22 +215,31 @@ export type InstalledClaudePluginView = {
   marketplaceName: string
   /** null when the registry records 'unknown'. */
   version: string | null
+  scope: 'user' | 'project'
+  /** The project's directory for project-scope entries; null for user. */
+  projectPath: string | null
 }
 
 type InstalledPluginsFile = {
   version?: number
   plugins?: Record<
     string,
-    Array<{ scope?: string; version?: string; installedAt?: string; lastUpdated?: string }>
+    Array<{
+      scope?: string
+      projectPath?: string
+      version?: string
+      installedAt?: string
+      lastUpdated?: string
+    }>
   >
 }
 
 /** Reads Claude Code's install registry (`~/.claude/plugins/
- * installed_plugins.json`, v2). USER-scope entries only — project-scope
- * installs belong to their repos, not to Vynel's global marketplace. A
- * missing or unparsable file is "nothing installed", never an error (the
- * user may simply never have used plugins). SYNC on purpose — it feeds the
- * marketplace's sync annotation pipeline. */
+ * installed_plugins.json`, v2): USER-scope entries plus PROJECT-scope
+ * entries with their projectPath (Move C — workspace surfaces annotate
+ * against those). A missing or unparsable file is "nothing installed",
+ * never an error (the user may simply never have used plugins). SYNC on
+ * purpose — it feeds the marketplace's sync annotation pipeline. */
 export function listInstalledClaudePlugins(
   homeDir = os.homedir(),
 ): InstalledClaudePluginView[] {
@@ -207,23 +252,40 @@ export function listInstalledClaudePlugins(
   }
   const views: InstalledClaudePluginView[] = []
   for (const [key, entries] of Object.entries(parsed.plugins ?? {})) {
-    if (!Array.isArray(entries) || !entries.some((entry) => entry?.scope === 'user')) continue
+    if (!Array.isArray(entries)) continue
     // Plugin names never contain '@' — the FIRST '@' is the split.
     const atIndex = key.indexOf('@')
     if (atIndex <= 0 || atIndex === key.length - 1) continue
-    // Duplicate entries per key exist in real registries — newest wins.
-    const newest = entries
-      .filter((entry) => entry?.scope === 'user')
-      .sort((a, b) =>
-        (b.lastUpdated ?? b.installedAt ?? '').localeCompare(a.lastUpdated ?? a.installedAt ?? ''),
-      )[0]!
-    const version = newest.version
-    views.push({
+    const base = {
       key,
       pluginName: key.slice(0, atIndex),
       marketplaceName: key.slice(atIndex + 1),
-      version: version === undefined || version === 'unknown' ? null : version,
-    })
+    }
+    const toVersion = (raw: string | undefined) =>
+      raw === undefined || raw === 'unknown' ? null : raw
+    // Duplicate user entries per key exist in real registries — newest wins.
+    const newestUser = entries
+      .filter((entry) => entry?.scope === 'user')
+      .sort((a, b) =>
+        (b.lastUpdated ?? b.installedAt ?? '').localeCompare(a.lastUpdated ?? a.installedAt ?? ''),
+      )[0]
+    if (newestUser !== undefined) {
+      views.push({
+        ...base,
+        version: toVersion(newestUser.version),
+        scope: 'user',
+        projectPath: null,
+      })
+    }
+    for (const entry of entries) {
+      if (entry?.scope !== 'project' || typeof entry.projectPath !== 'string') continue
+      views.push({
+        ...base,
+        version: toVersion(entry.version),
+        scope: 'project',
+        projectPath: entry.projectPath,
+      })
+    }
   }
   return views
 }

@@ -175,7 +175,10 @@ describe('third-party rows on the GLOBAL shelf', () => {
         publisherTier: 'community',
       })
 
-      const res = await postJson(app, '/marketplace/install', { itemId: 'invoicer@acme-tools' })
+      const res = await postJson(app, '/marketplace/install', {
+        itemId: 'invoicer@acme-tools',
+        acceptPluginExecution: true,
+      })
       expect(res.status).toBe(201)
       expect(await res.json()).toEqual({
         kind: 'plugin',
@@ -183,15 +186,20 @@ describe('third-party rows on the GLOBAL shelf', () => {
         itemId: 'invoicer@acme-tools',
         version: null,
       })
-      expect(delegate.install).toHaveBeenCalledWith({
-        marketplaceRepo: 'https://github.com/acme/tools.git',
-        marketplaceName: 'acme-tools',
-        pluginName: 'invoicer',
-      })
+      expect(delegate.install).toHaveBeenCalledWith(
+        {
+          marketplaceRepo: 'https://github.com/acme/tools.git',
+          marketplaceName: 'acme-tools',
+          pluginName: 'invoicer',
+        },
+        { kind: 'user' },
+      )
     })
   })
 
-  it('a workspace surface never lists third-party rows (user-scope posture)', async () => {
+  // test: correct expectation — Move C surfaces plugins on BOTH shelves
+  // (workspace Get = project-scope install).
+  it('third-party rows surface at scope both (workspace shelves list them too)', async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)
       const app = createApp({
@@ -200,14 +208,115 @@ describe('third-party rows on the GLOBAL shelf', () => {
         marketplaceInstalledPluginsReader: () => [],
         claudeMarketplacesReader: () => [ACME],
       })
-      // No workspace exists — the global list is the only surface; the
-      // scope-forcing itself is pinned in the leaf's mapper test. Assert
-      // the row's surfacing scope here.
       const items = (await (await app.request('/marketplace/items')).json()) as Array<{
         itemId: string
         scope: string
       }>
-      expect(items.find((item) => item.itemId === 'invoicer@acme-tools')?.scope).toBe('user')
+      expect(items.find((item) => item.itemId === 'invoicer@acme-tools')?.scope).toBe('both')
+    })
+  })
+})
+
+// Move C: a workspace Get installs at PROJECT scope (context-cost
+// confinement), annotates from the project entry, and a session-tool-shaped
+// call (no acceptPluginExecution — the tool schema excludes it) 400s.
+describe('workspace-scope plugin installs (Move C)', () => {
+  it('installs project-scope, annotates per surface, and gates tool-shaped calls', async () => {
+    await withTestDatabase(async (db) => {
+      const { insertWorkspace } = await import('@vynel/db/repositories/workspaces')
+      const user = seedUser(db)
+      const now = new Date()
+      const workspace = insertWorkspace(db, {
+        id: randomUUID(),
+        userId: user.id,
+        name: 'Acme',
+        kind: 'small-business',
+        path: 'C:/ws/acme',
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+        lastAccessedAt: now,
+      })
+      const delegate = fakeDelegate()
+      const installedRows: Array<{
+        key: string
+        pluginName: string
+        marketplaceName: string
+        version: string | null
+        scope: 'user' | 'project'
+        projectPath: string | null
+      }> = []
+      const app = createApp({
+        db,
+        logger: silentLogger,
+        marketplacePluginDelegate: delegate,
+        marketplaceInstalledPluginsReader: () => [...installedRows],
+        claudeMarketplacesReader: () => [ACME],
+      })
+      const base = `/workspaces/${workspace.id}/marketplace`
+
+      // Third-party rows now list on the workspace shelf (scope 'both').
+      const items = (await (await app.request(`${base}/items`)).json()) as Array<{
+        itemId: string
+      }>
+      expect(items.map((i) => i.itemId)).toContain('invoicer@acme-tools')
+
+      // Tool-shaped call (no consent flag) → actionable 400, delegate idle.
+      const refused = await postJson(app, `${base}/install`, {
+        itemId: 'invoicer@acme-tools',
+        scope: 'workspace',
+      })
+      expect(refused.status).toBe(400)
+      expect(delegate.install).not.toHaveBeenCalled()
+
+      // The UI's call installs at PROJECT scope with the workspace cwd.
+      const res = await postJson(app, `${base}/install`, {
+        itemId: 'invoicer@acme-tools',
+        scope: 'workspace',
+        acceptPluginExecution: true,
+      })
+      expect(res.status).toBe(201)
+      expect(delegate.install).toHaveBeenCalledWith(
+        {
+          marketplaceRepo: 'https://github.com/acme/tools.git',
+          marketplaceName: 'acme-tools',
+          pluginName: 'invoicer',
+        },
+        { kind: 'project', workspacePath: 'C:/ws/acme' },
+      )
+
+      // Annotation: the project entry lights THIS workspace's shelf, not
+      // the global one; uninstall resolves project scope.
+      installedRows.push({
+        key: 'invoicer@acme-tools',
+        pluginName: 'invoicer',
+        marketplaceName: 'acme-tools',
+        version: '1.1.0',
+        scope: 'project',
+        projectPath: 'C:/ws/acme',
+      })
+      const wsItems = (await (await app.request(`${base}/items`)).json()) as Array<{
+        itemId: string
+        installStatus: { kind: string; scope?: string }
+      }>
+      expect(
+        wsItems.find((i) => i.itemId === 'invoicer@acme-tools')?.installStatus,
+      ).toMatchObject({ kind: 'installed', scope: 'workspace' })
+      const globalItems = (await (await app.request('/marketplace/items')).json()) as Array<{
+        itemId: string
+        installStatus: { kind: string }
+      }>
+      expect(
+        globalItems.find((i) => i.itemId === 'invoicer@acme-tools')?.installStatus.kind,
+      ).toBe('not-installed')
+
+      const un = await postJson(app, `${base}/uninstall`, { itemId: 'invoicer@acme-tools' })
+      expect(un.status).toBe(200)
+      expect(delegate.uninstall).toHaveBeenCalledWith({
+        pluginName: 'invoicer',
+        marketplaceName: 'acme-tools',
+        installScope: { kind: 'project', workspacePath: 'C:/ws/acme' },
+      })
     })
   })
 })

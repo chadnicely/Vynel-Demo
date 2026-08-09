@@ -123,6 +123,11 @@ export const InstallMarketplaceItemBodySchema = z.object({
   itemId: z.string().min(1).max(200),
   scope: SkillScopeSchema,
   mcpConfigurationValues: McpConfigurationValuesSchema,
+  // Plugins execute code (hooks, MCP servers) — installing one requires
+  // this explicit flag, which the session tool's schema EXCLUDES
+  // (x-mcp.excludedBodyFields): a session's plugin install arrives without
+  // it and gets an actionable 400; the UI always sends it.
+  acceptPluginExecution: z.literal(true).optional(),
 })
 
 // The USER-scoped install carries no scope — the global surface always
@@ -131,6 +136,11 @@ export const InstallMarketplaceItemBodySchema = z.object({
 export const InstallUserMarketplaceItemBodySchema = z.object({
   itemId: z.string().min(1).max(200),
   mcpConfigurationValues: McpConfigurationValuesSchema,
+  // Plugins execute code (hooks, MCP servers) — installing one requires
+  // this explicit flag, which the session tool's schema EXCLUDES
+  // (x-mcp.excludedBodyFields): a session's plugin install arrives without
+  // it and gets an actionable 400; the UI always sends it.
+  acceptPluginExecution: z.literal(true).optional(),
 })
 
 export const UninstallMarketplaceItemBodySchema = z.object({

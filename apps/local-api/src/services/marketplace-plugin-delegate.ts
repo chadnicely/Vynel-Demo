@@ -8,6 +8,7 @@
 
 import type { PluginItemManifest } from '@vynel/contracts/marketplace/plugin-item-manifest'
 import {
+  type ClaudePluginInstallScope,
   addClaudeMarketplace,
   installClaudePlugin,
   removeClaudeMarketplace,
@@ -16,15 +17,23 @@ import {
 } from '@vynel/providers'
 
 export type MarketplacePluginDelegate = {
-  install(manifest: PluginItemManifest): Promise<void>
-  uninstall(input: { pluginName: string; marketplaceName: string }): Promise<void>
-  update(input: { pluginName: string; marketplaceName: string }): Promise<void>
+  install(manifest: PluginItemManifest, installScope: ClaudePluginInstallScope): Promise<void>
+  uninstall(input: {
+    pluginName: string
+    marketplaceName: string
+    installScope: ClaudePluginInstallScope
+  }): Promise<void>
+  update(input: {
+    pluginName: string
+    marketplaceName: string
+    installScope: ClaudePluginInstallScope
+  }): Promise<void>
   addMarketplace(input: { sourceUrl: string }): Promise<void>
   removeMarketplace(input: { marketplaceName: string }): Promise<void>
 }
 
 export const claudePluginDelegate: MarketplacePluginDelegate = {
-  install: (manifest) => installClaudePlugin(manifest),
+  install: (manifest, installScope) => installClaudePlugin({ ...manifest, installScope }),
   uninstall: (input) => uninstallClaudePlugin(input),
   update: (input) => updateClaudePlugin(input),
   addMarketplace: (input) => addClaudeMarketplace(input),

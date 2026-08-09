@@ -25,6 +25,7 @@ export {
   listInstalledClaudePlugins,
   resolveBundledClaudeBinary,
   type InstallClaudePluginInput,
+  type ClaudePluginInstallScope,
   type InstalledClaudePluginView,
 } from './claude/installation/claude-plugin-cli.js'
 export {

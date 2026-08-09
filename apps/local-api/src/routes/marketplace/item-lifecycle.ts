@@ -25,6 +25,7 @@
 // card shows as "Installed", and a hand-made agent with a colliding slug is
 // never soft-deleted.
 
+import { sep } from 'node:path'
 import type { Logger } from 'pino'
 import type { Database } from '@vynel/db'
 import type { HubSession } from '@vynel/hub-account'
@@ -48,6 +49,7 @@ import type {
   InstalledMcpServerView,
   InstalledRuleView,
 } from '@vynel/marketplace'
+import type { InstalledClaudePluginView } from '@vynel/providers'
 import type { MarketplacePluginDelegate } from '../../services/marketplace-plugin-delegate.js'
 import type { McpAuthDelegate } from '../../services/mcp-auth-delegate.js'
 import { serializeInstalledSkillResponse } from './serializers.js'
@@ -81,12 +83,40 @@ export function marketplaceDepsWith(
   }
 }
 
+// The provider registry read is surface-agnostic; `pluginsReaderFor`
+// narrows it per surface: user entries always, plus PROJECT entries whose
+// path is THIS workspace (normalized — the CLI records the cwd spelling).
+export function pluginsReaderFor(
+  workspace: { path: string } | null,
+  listInstalledPlugins: () => InstalledClaudePluginView[],
+): () => InstalledPluginView[] {
+  const normalize = (value: string) =>
+    value.replaceAll('/', sep).replace(/[\\/]+$/, '').toLowerCase()
+  return () => {
+    const views: InstalledPluginView[] = []
+    for (const entry of listInstalledPlugins()) {
+      if (entry.scope === 'user') {
+        views.push({ key: entry.key, version: entry.version, scope: 'user' })
+        continue
+      }
+      if (
+        workspace !== null &&
+        entry.projectPath !== null &&
+        normalize(entry.projectPath) === normalize(workspace.path)
+      ) {
+        views.push({ key: entry.key, version: entry.version, scope: 'workspace' })
+      }
+    }
+    return views
+  }
+}
+
 export type MarketplaceRequestContext = {
   db: Database
   hubSession: HubSession | undefined
   logger: Logger
   pluginDelegate: MarketplacePluginDelegate
-  listInstalledPlugins: () => InstalledPluginView[]
+  listInstalledPlugins: () => InstalledClaudePluginView[]
   listClaudeMarketplaces: () => ClaudeMarketplaceSourceView[]
   mcpAuthDelegate: McpAuthDelegate
 }
@@ -111,6 +141,9 @@ export type MarketplaceInstallRequest = {
   /** Mcp items only: values for the manifest's declared configuration
    * fields. Secrets — never logged; other kinds ignore them. */
   mcpConfigurationValues?: Record<string, string>
+  /** Plugin items only — the UI's explicit consent; the session tool's
+   * schema excludes it, so tool installs of plugins 400 actionably. */
+  acceptPluginExecution?: true
 }
 
 export async function installMarketplaceItem(
@@ -125,7 +158,7 @@ export async function installMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
     marketplaceDepsWith(
-      ctx.listInstalledPlugins,
+      pluginsReaderFor(workspace, ctx.listInstalledPlugins),
       mcpServersReaderFor(workspace),
       rulesReaderFor(workspace),
       ctx.listClaudeMarketplaces,
@@ -139,6 +172,9 @@ export async function installMarketplaceItem(
         pluginKey: gateItem.pluginKey,
         source: gateItem.source,
         sourceUrl: gateItem.sourceUrl,
+        scope,
+        workspace,
+        acceptPluginExecution: request.acceptPluginExecution === true,
       },
     )
   }
@@ -232,7 +268,7 @@ export async function updateMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
     marketplaceDepsWith(
-      ctx.listInstalledPlugins,
+      pluginsReaderFor(workspace, ctx.listInstalledPlugins),
       mcpServersReaderFor(workspace),
       rulesReaderFor(workspace),
       ctx.listClaudeMarketplaces,
@@ -248,7 +284,12 @@ export async function updateMarketplaceItem(
         pluginDelegate: ctx.pluginDelegate,
         listInstalledPlugins: ctx.listInstalledPlugins,
       },
-      { itemId, installedKey: item.installStatus.installedId },
+      {
+        itemId,
+        installedKey: item.installStatus.installedId,
+        installedScope: item.installStatus.scope,
+        workspace,
+      },
     )
   }
   if (item.kind !== 'skill') {
@@ -299,7 +340,7 @@ export async function uninstallMarketplaceItem(
     ctx.db,
     { itemId, userId, ...surfaceSelectorFor(workspace) },
     marketplaceDepsWith(
-      ctx.listInstalledPlugins,
+      pluginsReaderFor(workspace, ctx.listInstalledPlugins),
       mcpServersReaderFor(workspace),
       rulesReaderFor(workspace),
       ctx.listClaudeMarketplaces,
@@ -311,7 +352,12 @@ export async function uninstallMarketplaceItem(
   if (item.kind === 'plugin') {
     return uninstallPluginItem(
       { logger: ctx.logger, pluginDelegate: ctx.pluginDelegate },
-      { itemId, installedKey: item.installStatus.installedId },
+      {
+        itemId,
+        installedKey: item.installStatus.installedId,
+        installedScope: item.installStatus.scope,
+        workspace,
+      },
     )
   }
   if (item.kind === 'mcp') {

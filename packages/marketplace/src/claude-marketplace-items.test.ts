@@ -32,7 +32,7 @@ describe('claudeMarketplaceItems', () => {
       sourceUrl: 'https://github.com/acme/tools.git',
       category: 'business',
       version: '1.1.0',
-      scope: 'user',
+      scope: 'both',
       isOfficial: false,
     })
     expect(bare).toMatchObject({

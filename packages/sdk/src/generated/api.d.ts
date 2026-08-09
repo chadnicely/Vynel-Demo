@@ -4753,6 +4753,8 @@ export interface operations {
                     mcpConfigurationValues?: {
                         [key: string]: string;
                     };
+                    /** @constant */
+                    acceptPluginExecution?: true;
                 };
             };
         };
@@ -11694,6 +11696,8 @@ export interface operations {
                     mcpConfigurationValues?: {
                         [key: string]: string;
                     };
+                    /** @constant */
+                    acceptPluginExecution?: true;
                 };
             };
         };

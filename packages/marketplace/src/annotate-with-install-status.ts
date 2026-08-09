@@ -100,12 +100,14 @@ function determinePluginInstallStatus(
   // Full-key match only (`name@marketplace`) — a same-named plugin from a
   // DIFFERENT marketplace must never flip the card to "Installed"; the
   // uninstall route resolves through this same match and would remove the
-  // wrong plugin (the agents-slug precedent). Plugins are user-scope global.
-  const match = installedPlugins.find((p) => p.key === item.pluginKey)
-  if (match === undefined) return { kind: 'not-installed' }
+  // wrong plugin (the agents-slug precedent). D12: the workspace-scope
+  // (project) entry is preferred when both exist (Move C).
+  const matches = installedPlugins.filter((p) => p.key === item.pluginKey)
+  if (matches.length === 0) return { kind: 'not-installed' }
+  const match = matches.find((p) => p.scope === 'workspace') ?? matches[0]!
   return {
     kind: 'installed',
-    scope: 'user',
+    scope: match.scope,
     installedId: match.key,
     versionInstalled: match.version,
   }
