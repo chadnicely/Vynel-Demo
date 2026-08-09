@@ -59,7 +59,12 @@ const officialBadgeLabel = computed(() =>
 const hasUpdate = computed(() => {
   const { installStatus } = props.item;
   if (installStatus.kind !== "installed") return false;
+  // A version-less catalog row (a third-party marketplace.json that
+  // declares none — item.version '') can't honestly claim the catalog is
+  // ahead: comparing nothing against the CLI registry's real installed
+  // version showed a permanent phantom Update.
   if (
+    props.item.version === "" ||
     installStatus.versionInstalled === null ||
     installStatus.versionInstalled === props.item.version
   )
@@ -189,7 +194,7 @@ const removeLabel = computed(() => {
     <footer class="mt-auto flex items-center justify-between gap-2">
       <p class="m-0 min-w-0 truncate text-2xs text-ink-3">
         <span class="capitalize">{{ item.category }}</span>
-        · v{{ item.version }}
+        <template v-if="item.version !== ''">· v{{ item.version }}</template>
       </p>
       <div class="flex shrink-0 items-center gap-1.5">
         <!-- Install dispatches cloud vs. bundled server-side; the button just

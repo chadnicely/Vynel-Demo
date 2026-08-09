@@ -92,12 +92,9 @@ describe('readClaudeMarketplaceCatalog', () => {
       description: 'Acme plugins',
       plugins: [
         { pluginName: 'invoicer', description: 'Invoices', version: '1.1.0', category: 'business' },
-        {
-          pluginName: 'versionless-plugin',
-          description: null,
-          version: '2.0.0',
-          category: null,
-        },
+        // Per-plugin version only — the marketplace metadata.version is a
+        // different fact (borrowing it fabricated phantom Updates).
+        { pluginName: 'versionless-plugin', description: null, version: null, category: null },
       ],
     })
   })

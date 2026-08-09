@@ -34,7 +34,10 @@ export function claudeMarketplaceItems(
         // No icon vocabulary exists for third-party rows — the card falls
         // back to the monogram for a non-allowlisted name.
         iconName: 'package',
-        version: plugin.version ?? '0.0.0',
+        // '' = the marketplace declares no version. NEVER fabricate one:
+        // the card hides the version line and offers no Update (a made-up
+        // number reads as permanent drift against the CLI registry).
+        version: plugin.version ?? '',
         releasedAt: EPOCH_ISO,
         recommendedScope: 'user',
         scope: 'user',

@@ -38,7 +38,8 @@ describe('claudeMarketplaceItems', () => {
     expect(bare).toMatchObject({
       itemId: 'bare@acme-tools',
       category: 'plugins',
-      version: '0.0.0',
+      // '' = version unknown — never fabricated (phantom-Update guard).
+      version: '',
       oneLineDescription: 'A plugin from this marketplace.',
     })
   })

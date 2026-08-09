@@ -947,3 +947,43 @@ describe("MarketplaceSection — source filter", () => {
     workspaceWrapper.unmount();
   });
 });
+
+// A version-less third-party row (marketplace.json declares none) must not
+// invent one: no phantom Update against the CLI registry's real installed
+// version, and no "v" in the footer.
+describe("MarketplaceSection — version-less third-party rows", () => {
+  it("offers no Update and hides the version line", async () => {
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      {
+        items: [
+          makeItem({
+            itemId: "cloudflare@claude-plugins-official",
+            kind: "plugin",
+            source: { kind: "claude-marketplace", marketplaceName: "claude-plugins-official" },
+            skillId: "cloudflare@claude-plugins-official",
+            publisherTier: "community",
+            displayName: "cloudflare",
+            pluginKey: "cloudflare@claude-plugins-official",
+            hasCloudArtifact: false,
+            scope: "user",
+            version: "",
+            installStatus: {
+              kind: "installed",
+              scope: "user",
+              installedId: "cloudflare@claude-plugins-official",
+              versionInstalled: "1.2.3",
+            },
+          }),
+        ],
+      },
+      { kind: "global" },
+    );
+    await flushPromises();
+
+    expect(wrapper.findAll(".pill.is-update")).toHaveLength(0);
+    expect(wrapper.text()).not.toContain("v1.2.3");
+    expect(wrapper.text()).not.toContain("· v");
+    wrapper.unmount();
+  });
+});

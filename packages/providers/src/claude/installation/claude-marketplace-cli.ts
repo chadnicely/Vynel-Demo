@@ -114,12 +114,10 @@ export function readClaudeMarketplaceCatalog(
     plugins.push({
       pluginName: plugin.name,
       description: typeof plugin.description === 'string' ? plugin.description : null,
-      version:
-        typeof plugin.version === 'string'
-          ? plugin.version
-          : typeof metadata?.version === 'string'
-            ? metadata.version
-            : null,
+      // Per-plugin version ONLY — the marketplace's own metadata.version is
+      // a different fact, and borrowing it made every version-less plugin
+      // claim a number the registry could "drift" from (phantom Updates).
+      version: typeof plugin.version === 'string' ? plugin.version : null,
       category: typeof plugin.category === 'string' ? plugin.category : null,
     })
   }
