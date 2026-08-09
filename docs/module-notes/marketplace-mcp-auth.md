@@ -231,3 +231,16 @@ ADMIN-VISIBLE prefill. Deferred (named): outer-timeout orphan + PS ExitCode-null
 the hidden-console wrapper; typed-error sweep for the "user must repair a file" class;
 non-atomic approval-after-config write; serverName-vs-rowKey matching asymmetry in
 McpServersSection.
+
+## Live smoke finding #3 (Kafi, 2026-08-10) — provider metadata outage reads as our timeout
+
+Morning smoke: seo Connect "stuck" at Connecting… — root cause was NOTION-side:
+`mcp.notion.com/.well-known/oauth-authorization-server` hung (000, every protocol/UA variant)
+while its sibling well-known + /mcp answered in ms. The CLI's FIRST post-"Starting
+authentication" step is that fetch, and it has no timeout of its own — our 5-min ceiling ends
+it with "timed out — finish the sign-in in your browser", which MISLEADS for this failure (no
+browser ever opened; none could). Known cosmetic gap of the hidden-console design (child
+output unreachable → exit-code-only errors). Verified the chain healthy same-day against
+Sentry (metadata 200 in 0.7s). If ever worth closing: pre-flight the metadata endpoint from
+the DAEMON (a 5s fetch) before launching the login, so the card can say "the provider's
+sign-in service isn't responding" instead.
