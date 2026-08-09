@@ -126,13 +126,22 @@ describe("attachDeliveredRunStats", () => {
       expect(claimNextPendingDelegationJob(db, claimedAt)?.id).toBe(jobId);
       const work = findDelegationJobById(db, jobId)!;
 
-      // The colleague's run: two traced assistant rows, one tool call.
+      // The colleague's run: two traced assistant rows, one tool call. An
+      // earlier UNTRACED row gives the session a pre-run occupancy — the
+      // fresh-input delta's baseline.
       const sessionId = seedSession(db, user.id, workspace.id, null);
+      seedTracedAssistantRow(
+        db,
+        sessionId,
+        "unrelated-earlier-run",
+        { input: 150, output: 10 },
+        new Date("2026-08-09T09:00:00Z"),
+      );
       const rowId = seedTracedAssistantRow(
         db,
         sessionId,
         work.partialSessionId!,
-        { input: 100, output: 50 },
+        { input: 170, output: 50 },
         new Date("2026-08-09T10:00:01Z"),
       );
       seedTracedAssistantRow(
@@ -191,11 +200,13 @@ describe("attachDeliveredRunStats", () => {
         model: "claude-opus-x",
         toolCallCount: 1,
         // test: correct expectation — a row's inputTokens is the request's
-        // WHOLE context occupancy, so the run's "in" is the LAST row's value
-        // (was 300, the sum — the 462.8k over-count Chad caught). Output is
-        // per-generation fresh tokens: the sum stays.
-        inputTokens: 200,
+        // WHOLE context occupancy (the 462.8k sum bug Chad caught, then his
+        // per-message ask): the run's "in" is now its FRESH input — final
+        // occupancy 200 minus the pre-run baseline 150 — and the occupancy
+        // rides as contextTokens. Output stays summed (per-generation).
+        inputTokens: 50,
         outputTokens: 75,
+        contextTokens: 200,
         durationMs: 5000,
       });
     });
@@ -257,6 +268,108 @@ describe("attachDeliveredRunStats", () => {
         (withStats as { runStats?: { model: string | null } }).runStats?.model,
       ).toBe("claude-sonnet-y");
       expect(orphan).not.toHaveProperty("runStats");
+    });
+  });
+
+  it("a shrunken or segment-spanning run serves NO fresh-input delta — context still tells the story", async () => {
+    await withTestDatabase((db) => {
+      const user = seedUser(db);
+      const workspace = seedWorkspace(db, user.id);
+
+      function seedRun(taskText: string) {
+        const jobId = enqueueWorkspaceDelegation(db, {
+          userId: user.id,
+          parentSessionId: "g-1",
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
+          workspaceName: workspace.name,
+          taskText,
+        });
+        claimNextPendingDelegationJob(db, new Date());
+        return findDelegationJobById(db, jobId)!;
+      }
+      function deliverFor(work: {
+        id: string;
+        threadId: string | null;
+      }): string {
+        markDelegationJobReported(db, work.id, new Date());
+        const deliveryId = enqueueReportDelivery(db, {
+          userId: user.id,
+          reporterSessionId: "s-x",
+          reporterLabel: "Mark · Acme",
+          reportBody: "r",
+          requester: { kind: "global-root" },
+          threadId: work.threadId!,
+        });
+        return findDelegationJobById(db, deliveryId)!.partialSessionId!;
+      }
+      function statsOf(deliveryKey: string) {
+        const [row] = attachDeliveredRunStats(db, [
+          {
+            id: "d",
+            role: "user",
+            sourceKind: "agent",
+            partialSessionId: deliveryKey,
+          },
+        ]);
+        return (
+          row as {
+            runStats?: {
+              inputTokens: number | null;
+              contextTokens: number | null;
+            };
+          }
+        ).runStats;
+      }
+
+      // SHRUNK: the session held 500 before the run; the run ends at 200 —
+      // occupancy fell (compaction), a negative "added" would lie.
+      const shrunk = seedRun("shrunk");
+      const sessionA = seedSession(db, user.id, workspace.id, null);
+      seedTracedAssistantRow(
+        db,
+        sessionA,
+        "earlier-unrelated",
+        { input: 500, output: 5 },
+        new Date("2026-08-09T09:00:00Z"),
+      );
+      seedTracedAssistantRow(
+        db,
+        sessionA,
+        shrunk.partialSessionId!,
+        { input: 200, output: 40 },
+        new Date("2026-08-09T10:00:00Z"),
+      );
+      expect(statsOf(deliverFor(shrunk))).toMatchObject({
+        inputTokens: null,
+        contextTokens: 200,
+      });
+
+      // SPANS SEGMENTS: the run's usage rows live in two sessions (a mid-run
+      // compaction swap) — final occupancy and baseline are incomparable,
+      // even when the subtraction would come out positive (the reviewer's
+      // climb-back case).
+      const spanning = seedRun("spanning");
+      const sessionB = seedSession(db, user.id, workspace.id, null);
+      const sessionC = seedSession(db, user.id, workspace.id, null);
+      seedTracedAssistantRow(
+        db,
+        sessionB,
+        spanning.partialSessionId!,
+        { input: 100, output: 10 },
+        new Date("2026-08-09T11:00:00Z"),
+      );
+      seedTracedAssistantRow(
+        db,
+        sessionC,
+        spanning.partialSessionId!,
+        { input: 160, output: 10 },
+        new Date("2026-08-09T11:01:00Z"),
+      );
+      expect(statsOf(deliverFor(spanning))).toMatchObject({
+        inputTokens: null,
+        contextTokens: 160,
+      });
     });
   });
 });

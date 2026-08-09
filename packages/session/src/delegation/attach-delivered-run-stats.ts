@@ -19,6 +19,7 @@ import {
   listChatMessagesByPartialSessionId,
   listChatToolCallsForMessage,
   findChatSessionById,
+  findPriorContextOccupancy,
 } from "@vynel/chat/repositories";
 import type { DeliveredRunStatsResponse } from "@vynel/contracts/chat/chat-http";
 
@@ -47,10 +48,12 @@ function resolveRunStats(
   if (work === undefined || work.partialSessionId === null) return null;
 
   let toolCallCount = 0;
-  let inputTokens: number | null = null;
+  let contextTokens: number | null = null;
   let outputTokens = 0;
   let hasOutput = false;
   let model = work.model;
+  let firstUsageRow: { sessionId: string; startedAt: Date } | null = null;
+  let lastUsageSessionId: string | null = null;
   for (const row of listChatMessagesByPartialSessionId(
     db,
     work.partialSessionId,
@@ -58,10 +61,14 @@ function resolveRunStats(
     if (row.role !== "assistant") continue;
     toolCallCount += listChatToolCallsForMessage(db, row.id).length;
     // A row's inputTokens is the request's WHOLE context occupancy (see the
-    // chat_messages column note) — the run's "in" is the LAST row's value;
-    // summing rows over-counts by the full context per message (the 462.8k
-    // bug). Output is per-generation fresh tokens: summing is correct.
-    if (row.inputTokens !== null) inputTokens = row.inputTokens;
+    // chat_messages column note) — the run ENDS at the last row's value, and
+    // "what it added" is that minus the session's occupancy before it.
+    // Output is per-generation fresh tokens: summing is correct.
+    if (row.inputTokens !== null) {
+      contextTokens = row.inputTokens;
+      firstUsageRow ??= { sessionId: row.sessionId, startedAt: row.startedAt };
+      lastUsageSessionId = row.sessionId;
+    }
     if (row.outputTokens !== null) {
       outputTokens += row.outputTokens;
       hasOutput = true;
@@ -71,12 +78,33 @@ function resolveRunStats(
       model = findChatSessionById(db, row.sessionId)?.model ?? null;
   }
 
+  // The fresh-input delta: final occupancy minus the pre-run baseline. Not
+  // derivable when occupancy SHRANK (a compaction swap mid-run) or when the
+  // run spans SEGMENTS (final occupancy and baseline live in different
+  // sessions — the subtraction would be confidently wrong, the reviewer's
+  // climb-back case); the context row still tells the story.
+  let inputTokens: number | null = null;
+  if (
+    contextTokens !== null &&
+    firstUsageRow !== null &&
+    lastUsageSessionId === firstUsageRow.sessionId
+  ) {
+    const baseline =
+      findPriorContextOccupancy(
+        db,
+        firstUsageRow.sessionId,
+        firstUsageRow.startedAt,
+      ) ?? 0;
+    inputTokens = contextTokens >= baseline ? contextTokens - baseline : null;
+  }
+
   const finishedAt = work.reportedAt ?? work.completedAt;
   return {
     model,
     toolCallCount,
     inputTokens,
     outputTokens: hasOutput ? outputTokens : null,
+    contextTokens,
     durationMs:
       work.claimedAt !== null && finishedAt !== null
         ? Math.max(0, finishedAt.getTime() - work.claimedAt.getTime())

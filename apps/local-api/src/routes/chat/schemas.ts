@@ -6,15 +6,15 @@
 //
 // Per blueprint §7.1.
 
-import { z } from 'zod'
-import { ChatModelIdSchema } from '@vynel/contracts/chat/chat-models'
-import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
-import { SESSION_MODES, type SessionMode } from '@vynel/session'
+import { z } from "zod";
+import { ChatModelIdSchema } from "@vynel/contracts/chat/chat-models";
+import { THINKING_EFFORT_LEVELS } from "@vynel/contracts/chat/thinking-effort";
+import { SESSION_MODES, type SessionMode } from "@vynel/session";
 
 // ~5 MB once base64 is decoded (base64 inflates ~4/3). Per-attachment, generous
 // for pasted screenshots while bounding a single JSON turn POST.
-const MAX_IMAGE_BASE64_LENGTH = 7_000_000
-export const MAX_ATTACHED_IMAGES = 6
+const MAX_IMAGE_BASE64_LENGTH = 7_000_000;
+export const MAX_ATTACHED_IMAGES = 6;
 
 // What the chat composer may attach. Images render inline for the agent as
 // `[Image: path]`; documents as `[Attached file: path]` — both read off disk by
@@ -22,24 +22,27 @@ export const MAX_ATTACHED_IMAGES = 6
 // listed is rejected at the boundary (no .exe riding a chat turn). The UI maps
 // picked-file extensions to these (browsers report "" for e.g. `.md`).
 export const ATTACHMENT_MIME_TYPES = [
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-  'application/pdf',
-  'text/plain',
-  'text/markdown',
-  'text/csv',
-  'text/html',
-  'application/json',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-] as const
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "text/html",
+  "application/json",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+] as const;
 
 // Derived from @vynel/session's canonical SESSION_MODES so the route enum can't
 // drift from the SessionMode union — a renamed/removed mode fails to compile here.
-const SESSION_MODE_VALUES = SESSION_MODES.map((entry) => entry.mode) as [SessionMode, ...SessionMode[]]
+const SESSION_MODE_VALUES = SESSION_MODES.map((entry) => entry.mode) as [
+  SessionMode,
+  ...SessionMode[],
+];
 
 export const AttachedImageInputSchema = z.object({
   // Path-traversal defense at the HTTP boundary — the filename is written to
@@ -52,18 +55,18 @@ export const AttachedImageInputSchema = z.object({
     .max(255)
     .refine(
       (name) =>
-        !name.includes('/') &&
-        !name.includes('\\') &&
-        !name.includes('\0') &&
-        name !== '.' &&
-        name !== '..' &&
-        !name.split(/[/\\]/).some((segment) => segment === '..'),
+        !name.includes("/") &&
+        !name.includes("\\") &&
+        !name.includes("\0") &&
+        name !== "." &&
+        name !== ".." &&
+        !name.split(/[/\\]/).some((segment) => segment === ".."),
       'Filename must not contain path separators, "..", or null bytes.',
     ),
   mimeType: z.enum(ATTACHMENT_MIME_TYPES),
   /** The attachment bytes, base64-encoded. */
   base64Data: z.string().min(1).max(MAX_IMAGE_BASE64_LENGTH),
-})
+});
 
 export const StartChatTurnRequestSchema = z.object({
   /** Omit to start a new session; provide to resume an existing one. */
@@ -81,7 +84,10 @@ export const StartChatTurnRequestSchema = z.object({
   // May be empty when at least one image is attached (image-only message); the
   // composer enforces "text or image". Capped to bound the request body.
   userMessageText: z.string().max(50000),
-  attachedImages: z.array(AttachedImageInputSchema).max(MAX_ATTACHED_IMAGES).optional(),
+  attachedImages: z
+    .array(AttachedImageInputSchema)
+    .max(MAX_ATTACHED_IMAGES)
+    .optional(),
   // The model to run this turn (the per-chat picker). Shape-validated — the
   // legal values are discovered (providers.listModels); omit to inherit the
   // Claude Code default.
@@ -93,21 +99,21 @@ export const StartChatTurnRequestSchema = z.object({
   // server maps it to the provider permission mode (`toPermissionMode`) and
   // resolves the default when omitted (the persisted setting, else `ask`).
   mode: z.enum(SESSION_MODE_VALUES).optional(),
-})
+});
 
 export const RenameChatSessionRequestSchema = z.object({
   title: z.string().min(1).max(120),
-})
+});
 
 export const ListChatSessionsQuerySchema = z.object({
   includeArchived: z.coerce.boolean().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
-})
+});
 
 export const SearchChatSessionsQuerySchema = z.object({
   query: z.string().min(2).max(500),
   limit: z.coerce.number().int().min(1).max(100).optional(),
-})
+});
 
 // ── Response schemas ────────────────────────────────────────────────
 // The serialized shapes each route returns — the routes wire them into
@@ -117,12 +123,28 @@ export const SearchChatSessionsQuerySchema = z.object({
 // exactly what `c.json(row)` already emits — Drizzle rows with `Date`
 // columns serialized to ISO strings, nullables preserved.
 
-const ChatSessionVisibilitySchema = z.enum(['listed', 'hidden'])
-const ChatSessionScopeSchema = z.enum(['global', 'workspace', 'agent'])
-const ChatMessageRoleSchema = z.enum(['user', 'assistant', 'system'])
-const ChatMessageSourceKindSchema = z.enum(['user', 'global-root', 'workspace-manager', 'agent'])
-const ToolCallStatusSchema = z.enum(['started', 'completed', 'failed', 'denied', 'cancelled'])
-const ApprovalStatusSchema = z.enum(['approved', 'denied', 'timed-out', 'cancelled'])
+const ChatSessionVisibilitySchema = z.enum(["listed", "hidden"]);
+const ChatSessionScopeSchema = z.enum(["global", "workspace", "agent"]);
+const ChatMessageRoleSchema = z.enum(["user", "assistant", "system"]);
+const ChatMessageSourceKindSchema = z.enum([
+  "user",
+  "global-root",
+  "workspace-manager",
+  "agent",
+]);
+const ToolCallStatusSchema = z.enum([
+  "started",
+  "completed",
+  "failed",
+  "denied",
+  "cancelled",
+]);
+const ApprovalStatusSchema = z.enum([
+  "approved",
+  "denied",
+  "timed-out",
+  "cancelled",
+]);
 
 export const ChatSessionSchema = z.object({
   id: z.string(),
@@ -142,18 +164,18 @@ export const ChatSessionSchema = z.object({
   startedAt: z.string(),
   lastMessageAt: z.string(),
   updatedAt: z.string(),
-})
+});
 
 // The list row = the session + a derived preview (repo correlated subquery).
 export const ChatSessionListItemSchema = ChatSessionSchema.extend({
   lastMessagePreview: z.string().nullable(),
-})
+});
 
 const AttachedImageMetadataSchema = z.object({
   filename: z.string(),
   mimeType: z.string(),
   sizeBytes: z.number(),
-})
+});
 
 export const ChatMessageSchema = z.object({
   id: z.string(),
@@ -163,7 +185,7 @@ export const ChatMessageSchema = z.object({
   sourceKind: ChatMessageSourceKindSchema.nullable(),
   sourceLabel: z.string().nullable(),
   // The inbound channel a USER row arrived through; null = the app composer.
-  originChannel: z.enum(['voice', 'telegram', 'discord', 'zoom']).nullable(),
+  originChannel: z.enum(["voice", "telegram", "discord", "zoom"]).nullable(),
   partialSessionId: z.string().nullable(),
   // The delegation CHAIN key (persona-sessions) — the live card's settle-match.
   threadId: z.string().nullable(),
@@ -179,6 +201,7 @@ export const ChatMessageSchema = z.object({
       toolCallCount: z.number(),
       inputTokens: z.number().nullable(),
       outputTokens: z.number().nullable(),
+      contextTokens: z.number().nullable(),
       durationMs: z.number().nullable(),
     })
     .nullable()
@@ -192,7 +215,7 @@ export const ChatMessageSchema = z.object({
   startedAt: z.string(),
   completedAt: z.string().nullable(),
   createdAt: z.string(),
-})
+});
 
 // One SUBAGENT tool call persisted on its spawning Agent call's row — lean
 // (no output) by design; the settled source for the nested activity pane.
@@ -200,10 +223,10 @@ export const SubagentToolCallSchema = z.object({
   toolUseId: z.string(),
   toolName: z.string(),
   toolInput: z.unknown(),
-  status: z.enum(['started', 'completed', 'failed']),
+  status: z.enum(["started", "completed", "failed"]),
   startedAt: z.string(),
   completedAt: z.string().nullable(),
-})
+});
 
 // The delegation a session-comms dispatch call enqueued — attached at
 // detail-serve time (attachDelegationToolOutcomes), the thread's persistent
@@ -212,7 +235,7 @@ export const SubagentToolCallSchema = z.object({
 export const DelegationToolOutcomeSchema = z.object({
   jobId: z.string(),
   partialSessionId: z.string().nullable(),
-  status: z.enum(['pending', 'claimed', 'completed', 'failed']),
+  status: z.enum(["pending", "claimed", "completed", "failed"]),
   deliveredTo: z.string().nullable(),
   taskLabel: z.string().nullable(),
   reportedAt: z.string().nullable(),
@@ -222,7 +245,7 @@ export const DelegationToolOutcomeSchema = z.object({
    *  where the pointer opens. */
   workspaceId: z.string().nullable(),
   targetSessionId: z.string().nullable(),
-})
+});
 
 export const ChatToolCallSchema = z.object({
   id: z.string(),
@@ -243,7 +266,7 @@ export const ChatToolCallSchema = z.object({
   delegation: DelegationToolOutcomeSchema.nullable().optional(),
   startedAt: z.string(),
   completedAt: z.string().nullable(),
-})
+});
 
 export const ChatMessageSearchResultSchema = z.object({
   messageId: z.string(),
@@ -252,24 +275,28 @@ export const ChatMessageSearchResultSchema = z.object({
   snippet: z.string(),
   /** FTS5 rank (lower = better) or Postgres ts_rank. */
   rank: z.number(),
-})
+});
 
 // Envelope schemas — the exact top-level JSON each route emits.
-export const ListChatSessionsResponseSchema = z.array(ChatSessionListItemSchema)
+export const ListChatSessionsResponseSchema = z.array(
+  ChatSessionListItemSchema,
+);
 
-export const SearchChatSessionsResponseSchema = z.array(ChatMessageSearchResultSchema)
+export const SearchChatSessionsResponseSchema = z.array(
+  ChatMessageSearchResultSchema,
+);
 
 export const ContinuingConversationResponseSchema = z.object({
   rootSessionId: z.string().nullable(),
   currentSdkSessionId: z.string().nullable(),
-})
+});
 
 export const ChatSessionDetailResponseSchema = z.object({
   session: ChatSessionSchema,
   messages: z.array(ChatMessageSchema),
   toolCallsByMessageId: z.record(z.array(ChatToolCallSchema)),
-})
+});
 
 export const SessionContextReportResponseSchema = z.object({
   report: z.string().nullable(),
-})
+});

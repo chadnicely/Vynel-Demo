@@ -9158,6 +9158,12 @@
                                   "null"
                                 ]
                               },
+                              "contextTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
                               "durationMs": {
                                 "type": [
                                   "number",
@@ -9170,6 +9176,7 @@
                               "toolCallCount",
                               "inputTokens",
                               "outputTokens",
+                              "contextTokens",
                               "durationMs"
                             ]
                           },
@@ -27040,6 +27047,12 @@
                                   "null"
                                 ]
                               },
+                              "contextTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
                               "durationMs": {
                                 "type": [
                                   "number",
@@ -27052,6 +27065,7 @@
                               "toolCallCount",
                               "inputTokens",
                               "outputTokens",
+                              "contextTokens",
                               "durationMs"
                             ]
                           },

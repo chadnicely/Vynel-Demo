@@ -605,12 +605,16 @@ Two polish asks from the live walk:
   aggregates the TURN (tool calls summed, output tokens summed, duration = first
   start → last completion) and names the session's model; the door renders on the turn
   header beside the chips. Served delivered-row stats win over the aggregate.
-- **The token math is fixed** (the "462.8k in" bug): a row's `inputTokens` is the
-  request's WHOLE context occupancy (the `chat_messages` column note), so the run's
-  "in" is the LAST row's value — summing over-counted by the full context per message.
-  Output stays summed (per-generation fresh tokens). Fixed in BOTH homes:
-  `attachDeliveredRunStats` (served) and ThreadStream's `turnRunStats` (aggregate);
-  enrichment test recast with a note.
+- **The token math is fixed** (the "462.8k in" bug, then Chad's follow-up "that's the
+  session total — do we have per-message?"): a row's `inputTokens` is the request's
+  WHOLE context occupancy (the `chat_messages` column note) — per-message billed input
+  is NOT stored, but the per-turn FRESH input is derivable as the occupancy delta.
+  The card now shows **Tokens: +X in · Y out** (what the run/turn ADDED — delta vs the
+  previous turn's occupancy; server-side vs the session's pre-run baseline via
+  `findPriorContextOccupancy`) and a separate **Context: Z** row (the occupancy, the
+  same number the composer ring tracks). A negative delta (compaction swap) shows "—".
+  `DeliveredRunStatsResponse` gained `contextTokens`; fixed in BOTH homes
+  (`attachDeliveredRunStats` + ThreadStream's `turnRunStats`); tests recast with notes.
 - Duration honesty: served stats keep "still running" (they know the job state); a turn
   aggregate with missing timestamps (interrupted/legacy rows) shows "—" instead.
 

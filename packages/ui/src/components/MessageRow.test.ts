@@ -526,8 +526,9 @@ describe("MessageRow workspace chip + run stats", () => {
     const turnStats = {
       model: "claude-fable-5",
       toolCallCount: 4,
-      inputTokens: 41_500,
+      inputTokens: 1500,
       outputTokens: 200,
+      contextTokens: 41_500,
       durationMs: 9000,
     };
     const fromTurn = mount(MessageRow, {
@@ -564,6 +565,7 @@ describe("MessageRow workspace chip + run stats", () => {
             toolCallCount: 3,
             inputTokens: 1200,
             outputTokens: 400,
+            contextTokens: 62_000,
             durationMs: 5000,
           },
         }),

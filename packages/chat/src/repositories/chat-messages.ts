@@ -7,13 +7,13 @@
 // No `delete*ChatMessage` — messages are deleted by cascade when their
 // session is hard-deleted by the purge job.
 
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm'
-import type { Database } from '@vynel/db'
+import { and, asc, desc, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import type { Database } from "@vynel/db";
 import {
   chatMessages,
   type ChatMessage,
   type NewChatMessage,
-} from '../schema/chat-messages.js'
+} from "../schema/chat-messages.js";
 
 // Re-export row types + the AttachedImageMetadata JSON shape per the
 // workspaces repo precedent.
@@ -24,20 +24,31 @@ export type {
   ChatMessageSourceKind,
   ChatMessageOriginChannel,
   AttachedImageMetadata,
-} from '../schema/chat-messages.js'
+} from "../schema/chat-messages.js";
 
-export function findChatMessageById(db: Database, messageId: string): ChatMessage | null {
-  const [row] = db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).limit(1).all()
-  return row ?? null
+export function findChatMessageById(
+  db: Database,
+  messageId: string,
+): ChatMessage | null {
+  const [row] = db
+    .select()
+    .from(chatMessages)
+    .where(eq(chatMessages.id, messageId))
+    .limit(1)
+    .all();
+  return row ?? null;
 }
 
-export function listChatMessagesForSession(db: Database, sessionId: string): ChatMessage[] {
+export function listChatMessagesForSession(
+  db: Database,
+  sessionId: string,
+): ChatMessage[] {
   return db
     .select()
     .from(chatMessages)
     .where(eq(chatMessages.sessionId, sessionId))
     .orderBy(asc(chatMessages.startedAt))
-    .all()
+    .all();
 }
 
 // Every message tagged with one delegation request's `partialSessionId` (brain-tree
@@ -58,7 +69,33 @@ export function listChatMessagesByPartialSessionId(
     .from(chatMessages)
     .where(eq(chatMessages.partialSessionId, partialSessionId))
     .orderBy(asc(chatMessages.startedAt))
-    .all()
+    .all();
+}
+
+/** The latest assistant row's context occupancy in a session strictly BEFORE
+ *  a moment — the baseline for a run's fresh-input delta (occupancy is the
+ *  request's WHOLE context, so "what this run added" = its last occupancy
+ *  minus this baseline). Null = no prior usage (the run opened the session). */
+export function findPriorContextOccupancy(
+  db: Database,
+  sessionId: string,
+  before: Date,
+): number | null {
+  const [row] = db
+    .select({ inputTokens: chatMessages.inputTokens })
+    .from(chatMessages)
+    .where(
+      and(
+        eq(chatMessages.sessionId, sessionId),
+        eq(chatMessages.role, "assistant"),
+        isNotNull(chatMessages.inputTokens),
+        lt(chatMessages.startedAt, before),
+      ),
+    )
+    .orderBy(desc(chatMessages.startedAt))
+    .limit(1)
+    .all();
+  return row?.inputTokens ?? null;
 }
 
 // The latest `limit` messages of a session, returned in chronological (asc) order.
@@ -77,7 +114,7 @@ export function listRecentChatMessagesForSession(
     .orderBy(desc(chatMessages.startedAt))
     .limit(limit)
     .all()
-    .reverse()
+    .reverse();
 }
 
 // Stamp the turn's OWN user row with a delegation trace key (redesign
@@ -96,47 +133,58 @@ export function stampNewestUserMessageTraceKey(
     .where(
       and(
         eq(chatMessages.sessionId, input.sessionId),
-        eq(chatMessages.role, 'user'),
+        eq(chatMessages.role, "user"),
         isNull(chatMessages.partialSessionId),
       ),
     )
     .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id))
     .limit(1)
-    .all()
-  if (newest === undefined) return
+    .all();
+  if (newest === undefined) return;
   db.update(chatMessages)
     .set({ partialSessionId: input.partialSessionId })
     .where(eq(chatMessages.id, newest.id))
-    .run()
+    .run();
 }
 
-export function insertChatMessage(db: Database, newMessage: NewChatMessage): ChatMessage {
-  const [inserted] = db.insert(chatMessages).values(newMessage).returning().all()
-  if (!inserted) throw new Error('insertChatMessage: no row returned')
-  return inserted
+export function insertChatMessage(
+  db: Database,
+  newMessage: NewChatMessage,
+): ChatMessage {
+  const [inserted] = db
+    .insert(chatMessages)
+    .values(newMessage)
+    .returning()
+    .all();
+  if (!inserted) throw new Error("insertChatMessage: no row returned");
+  return inserted;
 }
 
 export function updateChatMessage(
   db: Database,
   messageId: string,
-  patch: Partial<Omit<ChatMessage, 'id' | 'sessionId' | 'createdAt'>>,
+  patch: Partial<Omit<ChatMessage, "id" | "sessionId" | "createdAt">>,
 ): ChatMessage | null {
   const [updated] = db
     .update(chatMessages)
     .set(patch)
     .where(eq(chatMessages.id, messageId))
     .returning()
-    .all()
-  return updated ?? null
+    .all();
+  return updated ?? null;
 }
 
 // SQL-side concat — atomic; safe under concurrent chunk arrivals (coding §1.3).
 // Read-modify-write would race itself.
-export function appendToChatMessageBody(db: Database, messageId: string, bodyDelta: string): void {
+export function appendToChatMessageBody(
+  db: Database,
+  messageId: string,
+  bodyDelta: string,
+): void {
   db.update(chatMessages)
     .set({ body: sql`${chatMessages.body} || ${bodyDelta}` })
     .where(eq(chatMessages.id, messageId))
-    .run()
+    .run();
 }
 
 // COALESCE handles null thinkingBody (first chunk for a message).
@@ -146,9 +194,11 @@ export function appendToChatMessageThinking(
   thinkingDelta: string,
 ): void {
   db.update(chatMessages)
-    .set({ thinkingBody: sql`COALESCE(${chatMessages.thinkingBody}, '') || ${thinkingDelta}` })
+    .set({
+      thinkingBody: sql`COALESCE(${chatMessages.thinkingBody}, '') || ${thinkingDelta}`,
+    })
     .where(eq(chatMessages.id, messageId))
-    .run()
+    .run();
 }
 
 // Note: a `stampChatMessageSessionId` helper was briefly added during chat's

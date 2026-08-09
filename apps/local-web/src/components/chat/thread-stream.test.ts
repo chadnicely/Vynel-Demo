@@ -538,9 +538,11 @@ describe("ThreadStream", () => {
   });
 
   // Per-turn run stats (Chad, 2026-08-09): every assistant turn wears the
-  // info door. "in" is the LAST row's context occupancy (each row stores the
-  // whole window — summing was the 462.8k bug); "out" sums fresh tokens.
-  it("an assistant turn's header carries aggregated run stats — last-row context, summed output", () => {
+  // info door. A row's inputTokens is the request's WHOLE context occupancy
+  // (summing was the 462.8k bug; showing it raw read as "the session total"
+  // — Chad's follow-up), so the turn's "in" is its occupancy GROWTH over the
+  // previous turn, and the occupancy itself rides as Context.
+  it("a turn's stats show its context GROWTH as in, summed output, and the occupancy", () => {
     const messages: ChatMessageResponse[] = [
       {
         ...makeMessage(1),
@@ -560,6 +562,16 @@ describe("ThreadStream", () => {
         startedAt: "2026-07-05T10:00:04.000Z",
         completedAt: "2026-07-05T10:00:09.000Z",
       },
+      { ...makeMessage(2), id: "u1", role: "user", body: "next ask" },
+      {
+        ...makeMessage(3),
+        id: "a3",
+        role: "assistant",
+        inputTokens: 43_000,
+        outputTokens: 60,
+        startedAt: "2026-07-05T10:01:00.000Z",
+        completedAt: "2026-07-05T10:01:02.000Z",
+      },
     ];
     const wrapper = mount(ThreadStream, {
       props: {
@@ -571,15 +583,56 @@ describe("ThreadStream", () => {
       global: { plugins: [createPinia()] },
     });
 
-    const header = wrapper.getComponent(MessageRow);
-    expect(header.props("runStats")).toEqual({
+    const rows = wrapper.findAllComponents(MessageRow);
+    // Turn 1 opened the thread: its growth IS its occupancy.
+    expect(rows[0]!.props("runStats")).toEqual({
       model: "claude-fable-5",
       toolCallCount: 0,
       inputTokens: 41_500,
       outputTokens: 200,
+      contextTokens: 41_500,
       durationMs: 9000,
     });
+    // Turn 2 grew the 41.5k context to 43k: +1.5k in.
+    expect(rows.at(-1)!.props("runStats")).toEqual({
+      model: "claude-fable-5",
+      toolCallCount: 0,
+      inputTokens: 1500,
+      outputTokens: 60,
+      contextTokens: 43_000,
+      durationMs: 2000,
+    });
     expect(wrapper.find(".run-info").exists()).toBe(true);
+  });
+
+  it("a turn whose occupancy SHRANK (compaction) reports no fresh-in — context still served", () => {
+    const messages: ChatMessageResponse[] = [
+      {
+        ...makeMessage(1),
+        id: "a1",
+        role: "assistant",
+        inputTokens: 40_000,
+        outputTokens: 100,
+      },
+      { ...makeMessage(2), id: "u1", role: "user", body: "keep going" },
+      {
+        ...makeMessage(3),
+        id: "a2",
+        role: "assistant",
+        inputTokens: 8000,
+        outputTokens: 50,
+      },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: { messages, toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+
+    const lastTurn = wrapper.findAllComponents(MessageRow).at(-1)!;
+    expect(lastTurn.props("runStats")).toMatchObject({
+      inputTokens: null,
+      contextTokens: 8000,
+    });
   });
 
   it("a marker-only delivered row never leaks the model-facing marker into its strip", () => {

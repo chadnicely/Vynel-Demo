@@ -17,42 +17,43 @@
 // parallel sources of truth kept in sync by discipline; `@vynel/contracts`
 // is dependency-free other than zod).
 
-export type ChatMessageRole = 'user' | 'assistant' | 'system'
+export type ChatMessageRole = "user" | "assistant" | "system";
 
-export type ToolCallStatus = 'started' | 'completed' | 'failed' | 'denied' | 'cancelled'
+export type ToolCallStatus =
+  "started" | "completed" | "failed" | "denied" | "cancelled";
 
-export type ApprovalStatus = 'approved' | 'denied' | 'timed-out' | 'cancelled'
+export type ApprovalStatus = "approved" | "denied" | "timed-out" | "cancelled";
 
 export interface AttachedImageMetadata {
-  filename: string
-  mimeType: string
-  sizeBytes: number
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
 }
 
 /** Serialized row shape returned by `GET /workspaces/{workspaceId}/chat/sessions`. */
 export interface ChatSessionResponse {
-  id: string
-  userId: string
+  id: string;
+  userId: string;
   /** The owning workspace, or `null` for a global-root session (the brain's
    *  continuing conversation has no workspace). Matches the wire — the route's
    *  `ChatSessionSchema.workspaceId` is nullable. */
-  workspaceId: string | null
-  providerId: string
+  workspaceId: string | null;
+  providerId: string;
   /** The AI model the session ran with (e.g. 'claude-opus-4-8'), or `null` if
    *  not known yet. Drives the context-window denominator for the usage chip. */
-  model: string | null
-  title: string
-  isArchived: boolean
+  model: string | null;
+  title: string;
+  isArchived: boolean;
   /** Sidebar curation (Slice 2): `'listed'` shows in the curated sidebar;
    *  `'hidden'` is a recorded root-as-thread swap segment kept out of the list.
    *  The default list endpoint only returns `'listed'`, so the sidebar never
    *  sees `'hidden'` here — present for shape accuracy + the includeHidden path. */
-  visibility: 'listed' | 'hidden'
+  visibility: "listed" | "hidden";
   /** ISO-8601 string or `null` (soft-delete). */
-  deletedAt: string | null
-  totalMessageCount: number
-  totalInputTokens: number
-  totalOutputTokens: number
+  deletedAt: string | null;
+  totalMessageCount: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
   /**
    * Up to 120 chars of the most recent message body in this session,
    * for the conversation-list preview line. `null` when the session
@@ -61,82 +62,91 @@ export interface ChatSessionResponse {
    * the previous list shape returned metadata only). Computed by the
    * repo via a correlated subquery; route passes through verbatim.
    */
-  lastMessagePreview: string | null
+  lastMessagePreview: string | null;
   /** ISO-8601 */
-  startedAt: string
+  startedAt: string;
   /** ISO-8601 */
-  lastMessageAt: string
+  lastMessageAt: string;
   /** ISO-8601 */
-  updatedAt: string
+  updatedAt: string;
 }
 
 /** The run that PRODUCED a delivered colleague message — resolved at serve
- *  time from the chain's work hop + its message trace. */
+ *  time from the chain's work hop + its message trace. Also the shape of the
+ *  client-side per-TURN aggregate (the info door on ordinary turns). */
 export interface DeliveredRunStatsResponse {
   /** The model the run used (the job's override, else the session's); null unknown. */
-  model: string | null
-  toolCallCount: number
-  inputTokens: number | null
-  outputTokens: number | null
+  model: string | null;
+  toolCallCount: number;
+  /** FRESH input this run/turn added to the context — the occupancy delta
+   *  against the session's context before it (a row's stored inputTokens is
+   *  the request's WHOLE window, never a per-message cost). Null when the
+   *  delta can't be derived (no usage, or occupancy shrank across a
+   *  compaction swap). */
+  inputTokens: number | null;
+  outputTokens: number | null;
+  /** The context-window occupancy after the run/turn — the same number the
+   *  composer ring tracks. */
+  contextTokens: number | null;
   /** Claim → report/completion; null while the producing run is still going. */
-  durationMs: number | null
+  durationMs: number | null;
 }
 
 /** Serialized row shape inside `GET /sessions/{id}` (within the `messages` array). */
 export interface ChatMessageResponse {
-  id: string
-  sessionId: string
-  role: ChatMessageRole
+  id: string;
+  sessionId: string;
+  role: ChatMessageRole;
   /** Brain-tree source identity (null/absent for ordinary workspace chat). A task
    *  delegated IN from the global brain is `role:'user'` + `sourceKind:'global-root'`;
    *  a bubbled-up report is `role:'assistant'` + `sourceKind:'workspace-manager'|'agent'`
    *  with `sourceLabel` = the workspace/agent name. */
-  sourceKind?: 'user' | 'global-root' | 'workspace-manager' | 'agent' | null
-  sourceLabel?: string | null
+  sourceKind?: "user" | "global-root" | "workspace-manager" | "agent" | null;
+  sourceLabel?: string | null;
   /** The inbound channel a USER row arrived through ('voice'/'telegram'/'discord');
    *  null/absent = the app composer (no badge). Distinct from sourceKind: origin is
    *  HOW the message reached the brain, not who wrote it. */
-  originChannel?: 'voice' | 'telegram' | 'discord' | 'zoom' | null
+  originChannel?: "voice" | "telegram" | "discord" | "zoom" | null;
   /** Brain-tree delegation correlation key (Ch3) — present on a bubbled-up report row so
    *  the surface can open its condensed trace; null/absent on ordinary rows. */
-  partialSessionId?: string | null
+  partialSessionId?: string | null;
   /** The delegation CHAIN key (persona-sessions) — per-task, carried across every hop
    *  where partialSessionId is per-hop. The live card's settle-match key. */
-  threadId?: string | null
+  threadId?: string | null;
   /** The delegated task as a short label ("Set up the login page") — enriched at serve
    *  time from the job the `partialSessionId` names, so the Watch chip can say what the
    *  work IS. Absent on ordinary rows and when the job is gone. */
-  delegationTaskLabel?: string | null
+  delegationTaskLabel?: string | null;
   /** Serve-time enrichment on a DELIVERED colleague row (report/update/message):
    *  the PRODUCING run's stats — the info-icon hover card beside the author
    *  line. Absent on ordinary rows and unenriched routes. */
-  runStats?: DeliveredRunStatsResponse | null
-  body: string
-  thinkingBody: string | null
-  inputTokens: number | null
-  outputTokens: number | null
-  attachedImagesMetadata: AttachedImageMetadata[] | null
-  errorCode: string | null
-  errorMessage: string | null
+  runStats?: DeliveredRunStatsResponse | null;
+  body: string;
+  thinkingBody: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  attachedImagesMetadata: AttachedImageMetadata[] | null;
+  errorCode: string | null;
+  errorMessage: string | null;
   /** ISO-8601 */
-  startedAt: string
+  startedAt: string;
   /** ISO-8601 or `null` (still streaming). */
-  completedAt: string | null
+  completedAt: string | null;
   /** ISO-8601 */
-  createdAt: string
+  createdAt: string;
 }
 
 /** One tool call a SUBAGENT made, persisted lean (no output) on its spawning
  *  Agent call's row — the settled source for the nested activity pane. */
 export interface SubagentToolCallResponse {
-  toolUseId: string
-  toolName: string
-  toolInput?: unknown
-  status: 'started' | 'completed' | 'failed'
+  toolUseId: string;
+  toolName: string;
+  toolInput?: unknown;
+  status: "started" | "completed" | "failed";
   /** ISO-8601 */
-  startedAt: string
+  startedAt: string;
   /** ISO-8601 or `null` (never completed — the run was interrupted). */
-  completedAt: string | null
+  completedAt: string | null;
 }
 
 /** Serve-time enrichment on a session-comms dispatch call: the delegation job
@@ -147,66 +157,66 @@ export interface SubagentToolCallResponse {
  *  level down; deeper hops surface inside the opened watch, never flattened
  *  into an ancestor thread. */
 export interface DelegationToolOutcomeResponse {
-  jobId: string
+  jobId: string;
   /** The trace key the activity monitor opens; null on rows enqueued before tracing. */
-  partialSessionId: string | null
-  status: 'pending' | 'claimed' | 'completed' | 'failed'
+  partialSessionId: string | null;
+  status: "pending" | "claimed" | "completed" | "failed";
   /** Where the message went, as the dispatch route answered ("vynel", "Global"). */
-  deliveredTo: string | null
+  deliveredTo: string | null;
   /** Short label of the delegated task; null for a report delivery (its text is a report). */
-  taskLabel: string | null
+  taskLabel: string | null;
   /** ISO-8601 — when the child reported back via the tool; null otherwise. */
-  reportedAt: string | null
+  reportedAt: string | null;
   /** ISO-8601 — when the job settled; null while in flight. */
-  completedAt: string | null
+  completedAt: string | null;
   /** The target workspace (workspace-target tasks) — the settled pointer's
    *  sidebar destination once the in-flight poll no longer carries the job. */
-  workspaceId: string | null
+  workspaceId: string | null;
   /** The target's CURRENT segment id (session-target tasks), resolved at
    *  serve time — the settled pointer opens the conversation by it. */
-  targetSessionId: string | null
+  targetSessionId: string | null;
 }
 
 /** Serialized row shape inside `GET /sessions/{id}` (within `toolCallsByMessageId` values). */
 export interface ChatToolCallResponse {
-  id: string
-  parentMessageId: string
-  toolUseId: string
-  toolName: string
+  id: string;
+  parentMessageId: string;
+  toolUseId: string;
+  toolName: string;
   /** `z.unknown()` on the wire infers an optional key — present with any value
    *  (including null) in practice; presenters narrow it. */
-  toolInput?: unknown
-  toolOutput?: unknown
-  status: ToolCallStatus
-  approvalStatus: ApprovalStatus | null
-  isErrorResult: boolean
+  toolInput?: unknown;
+  toolOutput?: unknown;
+  status: ToolCallStatus;
+  approvalStatus: ApprovalStatus | null;
+  isErrorResult: boolean;
   /** A spawning Agent/Task call's persisted subagent narrative — null (or
    *  absent, on older payload producers) on ordinary calls. */
-  subagentNarrative?: string | null
+  subagentNarrative?: string | null;
   /** The subagent's persisted tool calls; null/absent on ordinary calls. */
-  subagentToolCalls?: SubagentToolCallResponse[] | null
+  subagentToolCalls?: SubagentToolCallResponse[] | null;
   /** Present on a session-comms dispatch call (send_message / send_task_*):
    *  the enqueued delegation, attached at detail-serve time (absent on
    *  live-streamed rows — the processing banner covers the live window). */
-  delegation?: DelegationToolOutcomeResponse | null
+  delegation?: DelegationToolOutcomeResponse | null;
   /** ISO-8601 */
-  startedAt: string
+  startedAt: string;
   /** ISO-8601 or `null` (still running). */
-  completedAt: string | null
+  completedAt: string | null;
 }
 
 /** Full detail payload returned by `GET /sessions/{id}`. */
 export interface ChatSessionDetailResponse {
-  session: ChatSessionResponse
-  messages: ChatMessageResponse[]
-  toolCallsByMessageId: Record<string, ChatToolCallResponse[]>
+  session: ChatSessionResponse;
+  messages: ChatMessageResponse[];
+  toolCallsByMessageId: Record<string, ChatToolCallResponse[]>;
 }
 
 /** Response of `GET /sessions/{id}/context` — the runtime's `/context`
  *  breakdown as raw markdown, or `null` if the provider exposes no `/context`
  *  command or the read failed (the UI falls back to the lightweight popover). */
 export interface ChatContextReportResponse {
-  report: string | null
+  report: string | null;
 }
 
 /**
@@ -218,18 +228,18 @@ export interface ChatContextReportResponse {
  * (load its detail to seed the thread; it stays browsable even though hidden).
  */
 export interface ContinuingConversationResponse {
-  rootSessionId: string | null
-  currentSdkSessionId: string | null
+  rootSessionId: string | null;
+  currentSdkSessionId: string | null;
 }
 
 /** Each row returned by `GET /sessions/search`. */
 export interface ChatMessageSearchResultResponse {
-  messageId: string
-  sessionId: string
+  messageId: string;
+  sessionId: string;
   /** Body with `<mark>...</mark>` highlight markers around match runs. */
-  snippet: string
+  snippet: string;
   /** FTS5 rank — lower is better. */
-  rank: number
+  rank: number;
 }
 
 /**
@@ -238,81 +248,81 @@ export interface ChatMessageSearchResultResponse {
  * Date fields serialized to ISO strings (the wire shape).
  */
 export type ChatTurnEvent =
-  | { kind: 'user-message-persisted'; message: ChatMessageResponse }
-  | { kind: 'session-created'; session: ChatSessionResponse }
-  | { kind: 'session-titled'; sessionId: string; title: string }
-  | { kind: 'text-chunk'; messageId: string; textDelta: string }
-  | { kind: 'thinking-chunk'; messageId: string; thinkingDelta: string }
-  | { kind: 'tool-call-started'; toolCall: ChatToolCallResponse }
-  | { kind: 'tool-call-completed'; toolCall: ChatToolCallResponse }
+  | { kind: "user-message-persisted"; message: ChatMessageResponse }
+  | { kind: "session-created"; session: ChatSessionResponse }
+  | { kind: "session-titled"; sessionId: string; title: string }
+  | { kind: "text-chunk"; messageId: string; textDelta: string }
+  | { kind: "thinking-chunk"; messageId: string; thinkingDelta: string }
+  | { kind: "tool-call-started"; toolCall: ChatToolCallResponse }
+  | { kind: "tool-call-completed"; toolCall: ChatToolCallResponse }
   // A SUBAGENT's live activity, keyed by the spawning Agent tool call's
   // toolUseId — nested under the card while the turn streams, never in the
   // main transcript. The same activity persists on the Agent call's row
   // (subagentNarrative/subagentToolCalls), so settled reads carry it too.
-  | { kind: 'agent-text-chunk'; parentToolUseId: string; textDelta: string }
+  | { kind: "agent-text-chunk"; parentToolUseId: string; textDelta: string }
   | {
-      kind: 'agent-tool-started'
-      parentToolUseId: string
-      toolUseId: string
-      toolName: string
-      toolInput: unknown
+      kind: "agent-tool-started";
+      parentToolUseId: string;
+      toolUseId: string;
+      toolName: string;
+      toolInput: unknown;
       /** ISO-8601 */
-      startedAt: string
+      startedAt: string;
     }
   | {
-      kind: 'agent-tool-completed'
-      parentToolUseId: string
-      toolUseId: string
-      toolOutput: unknown
-      isError: boolean
+      kind: "agent-tool-completed";
+      parentToolUseId: string;
+      toolUseId: string;
+      toolOutput: unknown;
+      isError: boolean;
       /** ISO-8601 */
-      completedAt: string
+      completedAt: string;
     }
   | {
-      kind: 'approval-requested'
-      approvalRequestId: string
-      parentMessageId: string
-      toolName: string
-      toolInput: unknown
+      kind: "approval-requested";
+      approvalRequestId: string;
+      parentMessageId: string;
+      toolName: string;
+      toolInput: unknown;
       /** ISO-8601 */
-      requestedAt: string
+      requestedAt: string;
     }
   | {
-      kind: 'approval-resolved'
-      approvalRequestId: string
-      decision: unknown // approvals domain owns the typed shape; opaque here
+      kind: "approval-resolved";
+      approvalRequestId: string;
+      decision: unknown; // approvals domain owns the typed shape; opaque here
       /** ISO-8601 */
-      resolvedAt: string
+      resolvedAt: string;
     }
   | {
       // Emitted when chat's consumer auto-resolves an approval via a saved
       // rule. UI renders a "Auto-approved by your rule" pill instead of
       // the full ApprovalCard (approvals D10).
-      kind: 'approval-auto-resolved'
-      approvalRequestId: string
-      parentMessageId?: string
-      matchedRuleId: string
+      kind: "approval-auto-resolved";
+      approvalRequestId: string;
+      parentMessageId?: string;
+      matchedRuleId: string;
       /** ISO-8601 */
-      resolvedAt: string
+      resolvedAt: string;
     }
   | {
       // `inputTokens` is the uncached remainder; the cache fields carry the rest
       // of the input side. Context-window occupancy for the turn = inputTokens +
       // cacheReadInputTokens + cacheCreationInputTokens (prompt caching means
       // inputTokens alone undercounts the real context sent to the model).
-      kind: 'usage-reported'
-      inputTokens: number
-      outputTokens: number
-      cacheReadInputTokens: number
-      cacheCreationInputTokens: number
+      kind: "usage-reported";
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadInputTokens: number;
+      cacheCreationInputTokens: number;
     }
-  | { kind: 'session-completed'; sessionId: string }
-  | { kind: 'session-interrupted'; sessionId: string }
+  | { kind: "session-completed"; sessionId: string }
+  | { kind: "session-interrupted"; sessionId: string }
   | {
-      kind: 'session-errored'
-      sessionId: string
-      errorCode: string
-      errorMessage: string
-      isRecoverable: boolean
+      kind: "session-errored";
+      sessionId: string;
+      errorCode: string;
+      errorMessage: string;
+      isRecoverable: boolean;
     }
-  | { kind: 'turn-stream-ended' }
+  | { kind: "turn-stream-ended" };

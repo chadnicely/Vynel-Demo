@@ -313,14 +313,26 @@ function formatRunDuration(ms: number): string {
   return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
 }
 
+// "Tokens" is what the run/turn ADDED: fresh input (the occupancy delta the
+// host/server derived) + generated output. The window total rides separately
+// as the Context row — the two must never read as one number again (the
+// "462.8k in" confusion).
 const runTokensLabel = computed(() => {
   const stats = runStats.value;
   if (stats == null) return null;
   if (stats.inputTokens === null && stats.outputTokens === null) return "—";
-  return `${formatTokenCount(stats.inputTokens ?? 0)} in · ${formatTokenCount(
-    stats.outputTokens ?? 0,
-  )} out`;
+  const inPart =
+    stats.inputTokens === null
+      ? "—"
+      : `+${formatTokenCount(stats.inputTokens)}`;
+  return `${inPart} in · ${formatTokenCount(stats.outputTokens ?? 0)} out`;
 });
+
+const runContextLabel = computed(() =>
+  runStats.value?.contextTokens != null
+    ? formatTokenCount(runStats.value.contextTokens)
+    : "—",
+);
 
 // SERVED stats know a null duration means the run hasn't finished; a turn
 // aggregate's null just means timestamps are missing (an interrupted or
@@ -485,6 +497,10 @@ const collapsedPreview = computed(() => {
               <span class="stats-row">
                 <span class="stats-key">Tokens</span>
                 <span>{{ runTokensLabel }}</span>
+              </span>
+              <span class="stats-row">
+                <span class="stats-key">Context</span>
+                <span>{{ runContextLabel }}</span>
               </span>
               <span class="stats-row">
                 <span class="stats-key">Took</span>

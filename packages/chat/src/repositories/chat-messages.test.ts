@@ -8,6 +8,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { insertChatSession, type NewChatSession } from './chat-sessions.js'
 import {
   findChatMessageById,
+  findPriorContextOccupancy,
   listChatMessagesForSession,
   listRecentChatMessagesForSession,
   listChatMessagesByPartialSessionId,
@@ -174,6 +175,53 @@ describe('chatMessages repository', () => {
       // The 3 most recent, oldest-first within the window.
       const recent = listRecentChatMessagesForSession(db, session.id, 3).map((m) => m.body)
       expect(recent).toEqual(['m3', 'm4', 'm5'])
+    })
+  })
+
+  it('findPriorContextOccupancy: latest assistant usage STRICTLY before the moment; null when none', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const workspace = makeWorkspace(user.id)
+      insertWorkspace(db, workspace)
+      const session = insertChatSession(db, makeChatSession(user.id, workspace.id))
+      const cutoff = new Date('2026-08-09T10:00:00Z')
+
+      // Before the cutoff: an older usage row (superseded), the LATEST usage
+      // row (the baseline), a user row, and a usage-less assistant row —
+      // only the latest assistant USAGE counts.
+      insertChatMessage(db, makeChatMessage(session.id, {
+        role: 'assistant',
+        inputTokens: 100,
+        startedAt: new Date('2026-08-09T09:00:00Z'),
+      }))
+      insertChatMessage(db, makeChatMessage(session.id, {
+        role: 'assistant',
+        inputTokens: 250,
+        startedAt: new Date('2026-08-09T09:30:00Z'),
+      }))
+      insertChatMessage(db, makeChatMessage(session.id, {
+        role: 'user',
+        startedAt: new Date('2026-08-09T09:45:00Z'),
+      }))
+      insertChatMessage(db, makeChatMessage(session.id, {
+        role: 'assistant',
+        inputTokens: null,
+        startedAt: new Date('2026-08-09T09:50:00Z'),
+      }))
+      // AT the cutoff — strictly-before must exclude it (lte would count the
+      // run's own first row and zero the delta).
+      insertChatMessage(db, makeChatMessage(session.id, {
+        role: 'assistant',
+        inputTokens: 400,
+        startedAt: cutoff,
+      }))
+
+      expect(findPriorContextOccupancy(db, session.id, cutoff)).toBe(250)
+      // No usage before the earliest row → null (the run opened the session).
+      expect(
+        findPriorContextOccupancy(db, session.id, new Date('2026-08-09T08:00:00Z')),
+      ).toBeNull()
     })
   })
 

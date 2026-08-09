@@ -390,33 +390,42 @@ function turnPreviewFallbackFor(turnKey: string): string | null {
 
 // The per-turn run stats (Chad, 2026-08-09: EVERY assistant turn wears the
 // info door, not just delivered rows): tool calls, tokens, and duration
-// aggregated over the turn's assistant rows. `inputTokens` takes the LAST
-// row's value — each row stores the request's whole context occupancy, so
-// summing over-counts by the context size per row; output sums correctly
-// (per-row output is that generation's fresh tokens).
+// aggregated over the turn's assistant rows. A row's inputTokens is the
+// request's WHOLE context occupancy — so the turn's "in" is its occupancy
+// GROWTH over the previous turn (what this turn added: the ask, tool
+// results, its reply), and the occupancy itself rides along as
+// `contextTokens`. Output sums correctly (per-row fresh tokens).
 const turnRunStats = computed(() => {
   const byTurn = new Map<
     string,
     {
       toolCallCount: number;
-      inputTokens: number | null;
+      baseline: number | null;
+      contextTokens: number | null;
       outputTokens: number | null;
       startedAt: number | null;
       completedAt: number | null;
     }
   >();
+  // The last occupancy seen across the whole thread, in order — each turn's
+  // pre-turn baseline.
+  let runningOccupancy: number | null = null;
   for (const message of settledMessages.value) {
     if (message.role !== "assistant") continue;
     const turnKey = turnKeyByMessageId.value.get(message.id) ?? message.id;
     const entry = byTurn.get(turnKey) ?? {
       toolCallCount: 0,
-      inputTokens: null,
+      baseline: runningOccupancy,
+      contextTokens: null,
       outputTokens: null,
       startedAt: null,
       completedAt: null,
     };
     entry.toolCallCount += props.toolCallsByMessageId[message.id]?.length ?? 0;
-    if (message.inputTokens !== null) entry.inputTokens = message.inputTokens;
+    if (message.inputTokens !== null) {
+      entry.contextTokens = message.inputTokens;
+      runningOccupancy = message.inputTokens;
+    }
     if (message.outputTokens !== null)
       entry.outputTokens = (entry.outputTokens ?? 0) + message.outputTokens;
     if (message.startedAt !== null) {
@@ -443,17 +452,25 @@ function turnRunStatsFor(turnKey: string) {
       : null;
   // No usage and no duration = nothing worth a door (a just-started turn).
   if (
-    entry.inputTokens === null &&
+    entry.contextTokens === null &&
     entry.outputTokens === null &&
     durationMs === null
   ) {
     return null;
   }
+  // Occupancy shrank across the turn boundary (a compaction swap) — a
+  // negative "added" figure would lie; the context row still tells the story.
+  const grewFrom = entry.baseline ?? 0;
+  const inputTokens =
+    entry.contextTokens !== null && entry.contextTokens >= grewFrom
+      ? entry.contextTokens - grewFrom
+      : null;
   return {
     model: props.sessionModel,
     toolCallCount: entry.toolCallCount,
-    inputTokens: entry.inputTokens,
+    inputTokens,
     outputTokens: entry.outputTokens,
+    contextTokens: entry.contextTokens,
     durationMs,
   };
 }

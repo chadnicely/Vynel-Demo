@@ -6941,6 +6941,7 @@ export interface operations {
                                 toolCallCount: number;
                                 inputTokens: number | null;
                                 outputTokens: number | null;
+                                contextTokens: number | null;
                                 durationMs: number | null;
                             } | null;
                             thinkingBody: string | null;
@@ -13847,6 +13848,7 @@ export interface operations {
                                 toolCallCount: number;
                                 inputTokens: number | null;
                                 outputTokens: number | null;
+                                contextTokens: number | null;
                                 durationMs: number | null;
                             } | null;
                             thinkingBody: string | null;
