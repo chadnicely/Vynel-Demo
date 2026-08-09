@@ -18,6 +18,7 @@ import * as chatRepository from '../repositories/index.js'
 import { NotFoundError } from '@vynel/errors'
 import type { Database } from '@vynel/db'
 import type { ChatSession, ChatMessage, ChatToolCall } from '../repositories/index.js'
+import type { ChatSessionScope } from '../schema/index.js'
 
 export type ChatSessionDetail = {
   session: ChatSession
@@ -28,6 +29,11 @@ export type ChatSessionDetail = {
 export type GetChatSessionDetailOptions = {
   /** When set, the session must belong to this user — else NotFound (no leak). */
   ownerUserId?: string
+  /** Scopes that 404 as if absent (same NotFound — no leak). The cross-session
+   *  tool read passes `['global']` so the brain's private thread never leaves
+   *  through it; checked BEFORE the messages load, so a walled read costs one
+   *  row fetch. */
+  forbiddenScopes?: readonly ChatSessionScope[]
 }
 
 export function getChatSessionDetail(
@@ -38,6 +44,9 @@ export function getChatSessionDetail(
   const session = chatRepository.findChatSessionById(db, sessionId)
   if (!session || session.deletedAt) throw new NotFoundError('chat-session', sessionId)
   if (options.ownerUserId !== undefined && session.userId !== options.ownerUserId) {
+    throw new NotFoundError('chat-session', sessionId)
+  }
+  if (options.forbiddenScopes?.includes(session.scope)) {
     throw new NotFoundError('chat-session', sessionId)
   }
 

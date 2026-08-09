@@ -14,7 +14,7 @@
 // Phase 2: Postgres branch — tsvector + ts_rank. Signature flips to async
 // when the Postgres migration baseline ships.
 
-import { sql } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import { activeDialect } from '@vynel/db/dialect'
 
@@ -61,6 +61,36 @@ function searchChatMessagesSqlite(
   const limit = Math.min(input.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
   const workspaceFilter =
     input.workspaceId !== undefined ? sql`AND s.workspace_id = ${input.workspaceId}` : sql``
+  try {
+    return runSqliteSearch(db, input, workspaceFilter, limit)
+  } catch (error) {
+    // FTS5 parses the query STRING itself (`"unbalanced`, `NEAR(`, `foo:bar`
+    // where foo is read as a column) — malformed input is a no-match, not a
+    // server error. Anything else (a real schema/SQL bug) still throws.
+    if (isFts5QueryInputError(error)) return []
+    throw error
+  }
+}
+
+// The FTS5 query-parser failure modes for user-typed input. `no such column`
+// is included because `term:rest` makes FTS5 read `term` as a column filter —
+// our own column refs are fixed and test-covered, so a runtime hit here can
+// only come from the query string.
+function isFts5QueryInputError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /fts5: syntax error|unterminated string|unknown special query|no such column|malformed MATCH/.test(
+      error.message,
+    )
+  )
+}
+
+function runSqliteSearch(
+  db: Database,
+  input: SearchChatMessagesInput,
+  workspaceFilter: SQL,
+  limit: number,
+): ChatMessageSearchResult[] {
   return db.all<ChatMessageSearchResult>(sql`
     SELECT
       m.id AS messageId,

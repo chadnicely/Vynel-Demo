@@ -194,6 +194,22 @@ describe('searchChatMessages (FTS5 external-content)', () => {
     })
   })
 
+  it('returns [] for malformed FTS5 query input instead of throwing', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      const session = insertChatSession(db, makeChatSession(user.id, ws.id))
+      insertChatMessage(db, makeMessage(session.id, 'error: connection refused'))
+      // Unbalanced quote, bare NEAR operator, and a colon term (FTS5 reads
+      // `error` as a column filter) — all query-parser failures, all no-match.
+      for (const query of ['"unbalanced', 'NEAR(', 'error: connection']) {
+        expect(searchChatMessages(db, { userId: user.id, query })).toEqual([])
+      }
+    })
+  })
+
   it('respects the limit option', async () => {
     await withTestDatabase((db) => {
       const user = makeUser()

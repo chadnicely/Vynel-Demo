@@ -140,6 +140,26 @@ describe('getChatSessionDetail (core)', () => {
     })
   })
 
+  it('throws NotFoundError on a forbidden scope (the cross-session tool wall)', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const globalThread = insertChatSession(db, {
+        ...makeChatSession(user.id, ''),
+        workspaceId: null,
+        scope: 'global',
+      })
+      expect(() =>
+        getChatSessionDetail(db, globalThread.id, {
+          ownerUserId: user.id,
+          forbiddenScopes: ['global'],
+        }),
+      ).toThrow(NotFoundError)
+      // Without the option the same session reads fine (the UI's root door).
+      expect(getChatSessionDetail(db, globalThread.id).session.id).toBe(globalThread.id)
+    })
+  })
+
   it('returns empty toolCallsByMessageId for messages without tool calls', async () => {
     await withTestDatabase((db) => {
       const user = makeUser()

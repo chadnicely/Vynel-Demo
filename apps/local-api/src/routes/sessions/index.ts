@@ -22,12 +22,8 @@ import { getSessionsOverview } from '@vynel/session/overview'
 import { createSpawnedSession } from '@vynel/session/spawned'
 import { getWorkspaceById } from '@vynel/workspaces'
 import { sessionChannelKey } from '@vynel/session/runtime'
-import {
-  attachDelegationTaskLabels,
-  attachDeliveredRunStats,
-  attachDelegationToolOutcomes,
-} from '@vynel/session/delegation'
 import { getChatSessionDetail, searchChatSessions } from '@vynel/chat'
+import { enrichChatSessionDetail } from '../../sessions/enrich-chat-session-detail.js'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
@@ -169,20 +165,14 @@ export const sessionsApp = factory
     ...userScoped,
     async (c) => {
       const { sessionId } = c.req.valid('param')
-      const detail = getChatSessionDetail(c.var.db, sessionId, { ownerUserId: c.var.user.id })
-      // The wall: the brain's private conversation never leaves through the
-      // tool surface — same 404 as unknown/not-owned (Chad, 2026-08-10).
-      if (detail.session.scope === 'global') throw new NotFoundError('chat-session', sessionId)
-      // Same serve-time enrichment as root.getSession / chat's detail read —
-      // one content contract for every detail door.
-      return c.json({
-        ...detail,
-        messages: attachDeliveredRunStats(
-          c.var.db,
-          attachDelegationTaskLabels(c.var.db, detail.messages),
-        ),
-        toolCallsByMessageId: attachDelegationToolOutcomes(c.var.db, detail.toolCallsByMessageId),
+      // `forbiddenScopes: ['global']` is the wall: the brain's private
+      // conversation never leaves through the tool surface — same 404 as
+      // unknown/not-owned (Chad, 2026-08-10).
+      const detail = getChatSessionDetail(c.var.db, sessionId, {
+        ownerUserId: c.var.user.id,
+        forbiddenScopes: ['global'],
       })
+      return c.json(enrichChatSessionDetail(c.var.db, detail))
     },
   )
   // ──────────────────────────────────────────────────────────────────

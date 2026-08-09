@@ -32,13 +32,8 @@ import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { streamGlobalRootTurn } from '../../streams/global-root-turn.js'
 import { resolveGlobalRootTranscript } from '@vynel/session/runtime'
 import { resolveDelegationTrace } from '@vynel/session/delegation'
-import {
-  traceChannelKey,
-  attachDelegationTaskLabels,
-  attachDeliveredRunStats,
-  attachDelegationToolOutcomes,
-  attachSpawnedSessionNames,
-} from '@vynel/session/delegation'
+import { traceChannelKey, attachSpawnedSessionNames } from '@vynel/session/delegation'
+import { enrichChatSessionDetail } from '../../sessions/enrich-chat-session-detail.js'
 import {
   StartGlobalRootTurnRequestSchema,
   DelegationTraceParamSchema,
@@ -237,20 +232,7 @@ export const rootApp = factory
       const detail = getChatSessionDetail(c.var.db, c.req.valid('param').sessionId, {
         ownerUserId: c.var.user.id,
       })
-      // Report rows gain the delegated task's label — the Watch chip names the
-      // actual work instead of a canned "Watch <persona>" — and dispatch tool
-      // calls gain their delegation outcome (the settled-history door).
-      return c.json({
-        ...detail,
-        messages: attachDeliveredRunStats(
-          c.var.db,
-          attachDelegationTaskLabels(c.var.db, detail.messages),
-        ),
-        toolCallsByMessageId: attachDelegationToolOutcomes(
-          c.var.db,
-          detail.toolCallsByMessageId,
-        ),
-      })
+      return c.json(enrichChatSessionDetail(c.var.db, detail))
     },
   )
   // ──────────────────────────────────────────────────────────────────
