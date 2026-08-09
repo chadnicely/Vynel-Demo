@@ -126,8 +126,12 @@ export type UninstallMcpItemInput = {
   workspace: { id: string; path: string } | null
 }
 
+export type McpUninstallAuthDelegate = {
+  logout(input: { serverName: string; workingDirectory?: string }): Promise<void>
+}
+
 export async function uninstallMcpItem(
-  deps: { logger: Logger },
+  deps: { db: Database; logger: Logger; mcpAuthDelegate: McpUninstallAuthDelegate },
   input: UninstallMcpItemInput,
 ) {
   const { itemId, serverName, serverScope, workspace } = input
@@ -138,6 +142,24 @@ export async function uninstallMcpItem(
     throw new ValidationError(
       `MCP server '${serverName}' is workspace-installed — uninstall it from that workspace.`,
     )
+  }
+  // An oauth item leaves a credential in the native CLI store — clear it
+  // best-effort BEFORE the entry goes (the CLI resolves the server from
+  // config). A failed logout (never connected, CLI unavailable) must not
+  // block the uninstall the user asked for.
+  const manifest = parseMcpItemManifest(
+    findCachedCloudItem(deps.db, itemId)?.latestVersionManifestJson ?? null,
+  )
+  if (manifest !== null && manifest.transport !== 'stdio' && manifest.auth?.type === 'oauth') {
+    try {
+      await deps.mcpAuthDelegate.logout(
+        serverScope === 'workspace'
+          ? { serverName, workingDirectory: workspace!.path }
+          : { serverName },
+      )
+    } catch (error) {
+      deps.logger.warn({ err: error, itemId, serverName }, 'mcp credential cleanup skipped')
+    }
   }
   // The annotator only matched a marker-carrying entry, so the marker
   // requirement here is the drift guard: a config edited between annotate

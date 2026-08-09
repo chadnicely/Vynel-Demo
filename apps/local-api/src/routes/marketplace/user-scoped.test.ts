@@ -1024,3 +1024,118 @@ describe('rule kind — config-is-truth install/uninstall', () => {
     }
   })
 })
+
+// Slice 3: an oauth item's uninstall clears the native credential
+// best-effort BEFORE the entry goes — and a failed logout never blocks
+// the uninstall the user asked for.
+describe('mcp oauth uninstall — credential cleanup', () => {
+  const oauthCatalog = () => [
+    cloudCatalogItem({
+      itemId: 'notion-mcp',
+      kind: 'mcp',
+      recommendedScope: 'both',
+      latestVersionManifestJson: JSON.stringify({
+        serverName: 'notion',
+        transport: 'http',
+        url: 'https://mcp.notion.com/mcp',
+        auth: { type: 'oauth' },
+      }),
+    }),
+  ]
+
+  it('runs logout with the workspace directory, then removes the entry', async () => {
+    const logoutCalls: Array<{ serverName: string; workingDirectory?: string }> = []
+    await withIsolatedHome(async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const now = new Date()
+        const workspaceDir = mkdtempSync(join(tmpdir(), 'vynel-marketplace-oauth-un-'))
+        try {
+          const workspace = insertWorkspace(db, {
+            id: randomUUID(),
+            userId: user.id,
+            name: 'Acme',
+            kind: 'small-business',
+            path: workspaceDir,
+            isArchived: false,
+            createdAt: now,
+            updatedAt: now,
+            lastAccessedAt: now,
+          })
+          syncCloudCatalog(db, oauthCatalog(), new Date())
+          const app = createApp({
+            db,
+            logger: silentLogger,
+            marketplaceInstalledPluginsReader: listInstalledPluginsStub,
+            mcpAuthDelegate: {
+              login: async () => {},
+              logout: async (input) => {
+                logoutCalls.push(input)
+              },
+            },
+          })
+          const base = `/workspaces/${workspace.id}/marketplace`
+          await postJson(app, `${base}/install`, { itemId: 'notion-mcp', scope: 'workspace' })
+
+          const un = await postJson(app, `${base}/uninstall`, { itemId: 'notion-mcp' })
+          expect(un.status).toBe(200)
+          expect(logoutCalls).toEqual([
+            { serverName: 'notion', workingDirectory: workspaceDir },
+          ])
+          const config = JSON.parse(
+            readFileSync(join(workspaceDir, '.mcp.json'), 'utf8'),
+          ) as { mcpServers: Record<string, unknown> }
+          expect(config.mcpServers.notion).toBeUndefined()
+        } finally {
+          rmSync(workspaceDir, { recursive: true, force: true })
+        }
+      })
+    })
+  })
+
+  it('a throwing logout never blocks the uninstall', async () => {
+    await withIsolatedHome(async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const now = new Date()
+        const workspaceDir = mkdtempSync(join(tmpdir(), 'vynel-marketplace-oauth-fail-'))
+        try {
+          const workspace = insertWorkspace(db, {
+            id: randomUUID(),
+            userId: user.id,
+            name: 'Acme',
+            kind: 'small-business',
+            path: workspaceDir,
+            isArchived: false,
+            createdAt: now,
+            updatedAt: now,
+            lastAccessedAt: now,
+          })
+          syncCloudCatalog(db, oauthCatalog(), new Date())
+          const app = createApp({
+            db,
+            logger: silentLogger,
+            marketplaceInstalledPluginsReader: listInstalledPluginsStub,
+            mcpAuthDelegate: {
+              login: async () => {},
+              logout: async () => {
+                throw new Error('never connected')
+              },
+            },
+          })
+          const base = `/workspaces/${workspace.id}/marketplace`
+          await postJson(app, `${base}/install`, { itemId: 'notion-mcp', scope: 'workspace' })
+
+          const un = await postJson(app, `${base}/uninstall`, { itemId: 'notion-mcp' })
+          expect(un.status).toBe(200)
+          const config = JSON.parse(
+            readFileSync(join(workspaceDir, '.mcp.json'), 'utf8'),
+          ) as { mcpServers: Record<string, unknown> }
+          expect(config.mcpServers.notion).toBeUndefined()
+        } finally {
+          rmSync(workspaceDir, { recursive: true, force: true })
+        }
+      })
+    })
+  })
+})

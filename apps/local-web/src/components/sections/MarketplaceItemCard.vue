@@ -16,12 +16,15 @@ const props = defineProps<{
   isUpdating: boolean;
   isRemoving: boolean;
   isRemoveArmed: boolean;
+  isConnecting: boolean;
+  isConnected: boolean;
   errorMessage: string | null;
 }>();
 
 const emit = defineEmits<{
   install: [];
   update: [];
+  connect: [];
   "remove-request": [];
   "remove-blur": [];
 }>();
@@ -78,6 +81,18 @@ const showsProBadge = computed(
 const installLabel = computed(() => {
   if (isInstalled.value) return "Installed";
   return props.isInstalling ? "Installing…" : "Get";
+});
+
+// An installed OAuth connector needs the native browser sign-in before it
+// works; the button is idempotent (re-connecting refreshes the credential),
+// so it stays available — "Connected" is the transient success readback.
+const showsConnect = computed(
+  () => isInstalled.value && props.item.mcpAuth?.kind === "oauth",
+);
+
+const connectLabel = computed(() => {
+  if (props.isConnecting) return "Connecting…";
+  return props.isConnected ? "Connected" : "Connect";
 });
 
 const removeLabel = computed(() => {
@@ -192,6 +207,24 @@ const removeLabel = computed(() => {
         >
           <Check v-if="isInstalled" :size="11" />
           {{ installLabel }}
+        </button>
+        <!-- Connect drives the native browser sign-in (claude mcp login);
+             the credential lands in Claude's own store, never in Vynel. -->
+        <button
+          v-if="showsConnect"
+          type="button"
+          class="pill is-connect inline-flex cursor-default items-center gap-1 rounded-full px-2.5 py-px text-[11px] font-semibold transition disabled:opacity-55"
+          :class="
+            isConnected
+              ? 'bg-ok/15 text-ok'
+              : 'bg-info/15 text-info hover:bg-info/25'
+          "
+          :disabled="isConnecting"
+          :aria-label="`Connect ${item.displayName} — opens your browser to sign in`"
+          @click="emit('connect')"
+        >
+          <Check v-if="isConnected" :size="11" />
+          {{ connectLabel }}
         </button>
         <!-- Update replaces the installed files with the catalog's newer
              version (skills from the hub artifact, plugins via Claude

@@ -76,6 +76,8 @@ function makeClient(
     userInstall?: (...args: unknown[]) => Promise<unknown>;
     userUpdate?: (...args: unknown[]) => Promise<unknown>;
     userUninstall?: (...args: unknown[]) => Promise<unknown>;
+    mcpLogin?: (...args: unknown[]) => Promise<unknown>;
+    mcpUserLogin?: (...args: unknown[]) => Promise<unknown>;
   } = {},
 ) {
   const listItems = options.items ?? items;
@@ -86,6 +88,8 @@ function makeClient(
     (async () => ({ kind: "skill", installedSkillId: "sk1", itemId: "owned" }));
   return {
     hub: { getSession: async () => session },
+    mcpServers: { login: options.mcpLogin ?? (async () => ({ connected: true })) },
+    mcpServersUser: { login: options.mcpUserLogin ?? (async () => ({ connected: true })) },
     marketplace: { listItems: async () => listItems, install, update, uninstall },
     // The GLOBAL surface's endpoints — the same shelf, user scope.
     marketplaceUser: {
@@ -778,6 +782,103 @@ describe("MarketplaceSection — mcp configure detour", () => {
       scope: "workspace",
     });
     expect(configureDialog()).toBeNull();
+    wrapper.unmount();
+  });
+});
+
+// The Connect affordance (Slice 3): an installed OAuth item drives the
+// native browser sign-in via the daemon; the route follows where the entry
+// LIVES (installStatus.scope). Success flips the button to its transient
+// "Connected" readback.
+describe("MarketplaceSection — oauth connect", () => {
+  const notionItem = (installScope: "user" | "workspace") =>
+    makeItem({
+      itemId: "notion-mcp",
+      kind: "mcp",
+      skillId: "notion-mcp",
+      displayName: "Notion",
+      hasCloudArtifact: false,
+      mcpServerName: "notion",
+      mcpAuth: { kind: "oauth" },
+      installStatus: {
+        kind: "installed",
+        scope: installScope,
+        installedId: "notion",
+        versionInstalled: null,
+      },
+    });
+
+  it("drives the workspace login for a workspace-scope install, then reads back Connected", async () => {
+    const mcpLogin = vi.fn(async () => ({ connected: true }));
+    const mcpUserLogin = vi.fn(async () => ({ connected: true }));
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      { items: [notionItem("workspace")], mcpLogin, mcpUserLogin },
+    );
+    await flushPromises();
+
+    const connectButton = wrapper.get('[aria-label="Connect Notion — opens your browser to sign in"]');
+    expect(connectButton.text()).toBe("Connect");
+    await connectButton.trigger("click");
+    await flushPromises();
+
+    expect(mcpLogin).toHaveBeenCalledWith("w1", "notion");
+    expect(mcpUserLogin).not.toHaveBeenCalled();
+    expect(connectButton.text()).toContain("Connected");
+    wrapper.unmount();
+  });
+
+  it("drives the USER login for a user-scope install, even from the workspace shelf", async () => {
+    const mcpLogin = vi.fn(async () => ({ connected: true }));
+    const mcpUserLogin = vi.fn(async () => ({ connected: true }));
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      { items: [notionItem("user")], mcpLogin, mcpUserLogin },
+    );
+    await flushPromises();
+
+    await wrapper
+      .get('[aria-label="Connect Notion — opens your browser to sign in"]')
+      .trigger("click");
+    await flushPromises();
+
+    expect(mcpUserLogin).toHaveBeenCalledWith("notion");
+    expect(mcpLogin).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it("offers no Connect on a non-oauth mcp item or an uninstalled oauth item", async () => {
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      {
+        items: [
+          makeItem({
+            itemId: "playwright-mcp",
+            kind: "mcp",
+            skillId: "playwright-mcp",
+            displayName: "Playwright",
+            mcpServerName: "playwright",
+            installStatus: {
+              kind: "installed",
+              scope: "user",
+              installedId: "playwright",
+              versionInstalled: null,
+            },
+          }),
+          makeItem({
+            itemId: "notion-mcp",
+            kind: "mcp",
+            skillId: "notion-mcp",
+            displayName: "Notion",
+            mcpServerName: "notion",
+            mcpAuth: { kind: "oauth" },
+          }),
+        ],
+      },
+    );
+    await flushPromises();
+
+    expect(wrapper.findAll(".pill.is-connect")).toHaveLength(0);
     wrapper.unmount();
   });
 });

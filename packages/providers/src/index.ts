@@ -27,3 +27,8 @@ export {
   type InstallClaudePluginInput,
   type InstalledClaudePluginView,
 } from './claude/installation/claude-plugin-cli.js'
+export {
+  loginClaudeMcpServer,
+  logoutClaudeMcpServer,
+  type ClaudeMcpAuthInput,
+} from './claude/installation/claude-mcp-cli.js'

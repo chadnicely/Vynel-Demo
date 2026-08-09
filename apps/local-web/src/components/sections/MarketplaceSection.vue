@@ -6,6 +6,7 @@ import type { MarketplaceItem } from "@vynel/contracts/marketplace/marketplace-i
 import type { SectionScope } from "./section-scope.js";
 import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
 import { useMarketplaceItems } from "../../composables/marketplace/use-marketplace-items.js";
+import { useConnectMcpItem } from "../../composables/marketplace/use-connect-mcp-item.js";
 import { useInstallMarketplaceItem } from "../../composables/marketplace/use-install-marketplace-item.js";
 import { useUpdateMarketplaceItem } from "../../composables/marketplace/use-update-marketplace-item.js";
 import { useUninstallMarketplaceItem } from "../../composables/marketplace/use-uninstall-marketplace-item.js";
@@ -118,6 +119,31 @@ function isUpdating(itemId: string): boolean {
   return update.isPending.value && update.variables.value?.itemId === itemId;
 }
 
+// Connect (OAuth items): the browser sign-in via the daemon. `connectedItemId`
+// is the transient success readback — there is no persisted connection state
+// to query (the credential lives in Claude's own store), so the card shows
+// "Connected" until the next action replaces it.
+const connect = useConnectMcpItem();
+const connectedItemId = ref<string | null>(null);
+
+function requestConnect(item: MarketplaceItem) {
+  if (item.installStatus.kind !== "installed" || item.mcpServerName === undefined) return;
+  connectedItemId.value = null;
+  connect.mutate(
+    {
+      itemId: item.itemId,
+      serverName: item.mcpServerName,
+      installScope: item.installStatus.scope,
+      workspaceId: props.scope.kind === "workspace" ? props.scope.workspaceId : null,
+    },
+    { onSuccess: () => (connectedItemId.value = item.itemId) },
+  );
+}
+
+function isConnecting(itemId: string): boolean {
+  return connect.isPending.value && connect.variables.value?.itemId === itemId;
+}
+
 // Removing is irreversible (a skill's settings die with the row; a cloud item
 // re-downloads on the next Get) — so, per the AccountDeviceRow / Notebook
 // idiom, Remove arms first and only a second explicit click uninstalls.
@@ -152,6 +178,9 @@ function cardErrorFor(itemId: string): string | null {
   }
   if (uninstall.isError.value && uninstall.variables.value?.itemId === itemId) {
     return formatSdkError(uninstall.error.value);
+  }
+  if (connect.isError.value && connect.variables.value?.itemId === itemId) {
+    return formatSdkError(connect.error.value);
   }
   return null;
 }
@@ -244,8 +273,11 @@ function cardErrorFor(itemId: string): string | null {
           :is-updating="isUpdating(item.itemId)"
           :is-removing="isRemoving(item.itemId)"
           :is-remove-armed="armedRemoveItemId === item.itemId"
+          :is-connecting="isConnecting(item.itemId)"
+          :is-connected="connectedItemId === item.itemId"
           :error-message="cardErrorFor(item.itemId)"
           @install="requestInstall(item)"
+          @connect="requestConnect(item)"
           @update="update.mutate({ scope: props.scope, itemId: item.itemId })"
           @remove-request="requestRemove(item.itemId)"
           @remove-blur="disarmRemove(item.itemId)"

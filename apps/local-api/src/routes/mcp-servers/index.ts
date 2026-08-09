@@ -7,15 +7,16 @@
 // (Listing user rows here is what let a click in room A delete a server from
 // every room.) No composer picker reads MCP servers: no `/resolved` twin.
 //
-//   GET    /             -> the workspace's own rows, masked
-//   POST   /             -> addCustomMcpServerForScope (workspace .mcp.json)
-//   DELETE /:serverName  -> removeMcpServerForScope    (workspace .mcp.json)
+//   GET    /                   -> the workspace's own rows, masked
+//   POST   /                   -> addCustomMcpServerForScope (workspace .mcp.json)
+//   POST   /:serverName/login  -> native browser OAuth via the auth delegate
+//   DELETE /:serverName        -> removeMcpServerForScope    (workspace .mcp.json)
 //
 // No x-mcp anywhere (management surface for the human — see the user twin).
 // SECURITY: masked responses; logs carry serverName/scope only.
 
 import { resolver, validator } from 'hono-openapi/zod'
-import { NotFoundError } from '@vynel/errors'
+import { NotFoundError, ValidationError } from '@vynel/errors'
 import {
   addCustomMcpServerForScope,
   listMcpServersForScope,
@@ -27,6 +28,7 @@ import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
 import {
   AddMcpServerRequestSchema,
   ListMcpServersResponseSchema,
+  LoginMcpServerResponseSchema,
   McpServerRowSchema,
   ServerNameParamSchema,
 } from './schemas.js'
@@ -92,6 +94,46 @@ export const mcpServersApp = factory
         (server) => server.serverName === body.serverName,
       )!
       return c.json(serializeMcpServer(added, 'workspace'), 201)
+    },
+  )
+  .post(
+    '/:serverName/login',
+    describeRoute({
+      tags: ['mcp-servers'],
+      summary: 'Sign in to a remote MCP server via the native browser OAuth flow.',
+      'x-sdk-name': 'mcpServers.login',
+      responses: {
+        200: {
+          description: 'The CLI recorded the credential in its native store.',
+          content: { 'application/json': { schema: resolver(LoginMcpServerResponseSchema) } },
+        },
+        400: { description: 'A local (stdio) server, or the sign-in failed/timed out.' },
+        404: { description: "Workspace not found, or no such server in this workspace's config." },
+      },
+    }),
+    validator('param', ServerNameParamSchema),
+    ...workspaceScoped,
+    async (c) => {
+      const { serverName } = c.req.valid('param')
+      const workspacePath = c.var.workspace!.path
+      const server = listMcpServersForScope('workspace', workspacePath).find(
+        (entry) => entry.serverName === serverName,
+      )
+      if (server === undefined) throw new NotFoundError('MCP server', serverName)
+      if (server.transport === 'stdio') {
+        throw new ValidationError(
+          `'${serverName}' runs locally on this machine — there is nothing to sign in to.`,
+        )
+      }
+      // The CLI resolves a `.mcp.json` server from its working directory,
+      // so the login must run inside the workspace. It opens the user's
+      // browser; Vynel never touches the token.
+      await c.var.mcpAuthDelegate.login({ serverName, workingDirectory: workspacePath })
+      c.var.logger.info(
+        { serverName, scope: 'workspace', workspaceId: c.var.workspace!.id },
+        'mcp server connected',
+      )
+      return c.json({ connected: true as const })
     },
   )
   .delete(

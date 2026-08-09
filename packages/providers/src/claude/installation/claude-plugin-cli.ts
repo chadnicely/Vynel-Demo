@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { ValidationError } from '@vynel/errors'
+import { formatCliErrorDetail } from './format-cli-error-detail.js'
 
 const execFileAsync = promisify(execFile)
 const COMMAND_TIMEOUT_MS = 5 * 60 * 1000
@@ -52,8 +53,7 @@ async function runPluginCommand(args: string[], binaryPath?: string): Promise<st
     })
     return stdout
   } catch (error) {
-    const stderr = (error as { stderr?: string }).stderr ?? ''
-    const detail = stderr.trim().split('\n').slice(-3).join(' ').slice(0, 400)
+    const detail = formatCliErrorDetail((error as { stderr?: string }).stderr)
     throw new ValidationError(
       `The Claude plugin command failed (plugin ${args[0] ?? ''}): ${detail || 'no error output'}`,
     )

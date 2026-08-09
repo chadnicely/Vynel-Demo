@@ -63,3 +63,10 @@ export const McpServerRowSchema = z.object({
 export const ListMcpServersResponseSchema = z.object({
   servers: z.array(McpServerRowSchema),
 })
+
+// The login route resolves only when the native CLI recorded the
+// credential — a boolean literal keeps the response honest (failure is a
+// typed error, never `connected: false`).
+export const LoginMcpServerResponseSchema = z.object({
+  connected: z.literal(true),
+})

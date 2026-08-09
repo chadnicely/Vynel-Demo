@@ -3,9 +3,10 @@
 // (`/workspaces/:workspaceId/mcp-servers`). This one manages the user's
 // global Claude MCP config (`~/.claude.json` mcpServers):
 //
-//   GET    /             -> listMcpServersForScope('user')   (masked rows)
-//   POST   /             -> addCustomMcpServerForScope       (409 on collision)
-//   DELETE /:serverName  -> removeMcpServerForScope          (404 when absent)
+//   GET    /                   -> listMcpServersForScope('user')   (masked rows)
+//   POST   /                   -> addCustomMcpServerForScope       (409 on collision)
+//   POST   /:serverName/login  -> native browser OAuth via the auth delegate
+//   DELETE /:serverName        -> removeMcpServerForScope          (404 when absent)
 //
 // No x-mcp on ANY route: this is the human's management surface (the agents-
 // routes posture for config would let the model rewrite its own tool wiring).
@@ -17,7 +18,7 @@
 // Locked Hono protocol: describeRoute → validator → `...userScoped` → handler.
 
 import { resolver, validator } from 'hono-openapi/zod'
-import { NotFoundError } from '@vynel/errors'
+import { NotFoundError, ValidationError } from '@vynel/errors'
 import {
   addCustomMcpServerForScope,
   listMcpServersForScope,
@@ -29,6 +30,7 @@ import { userScoped } from '../../handler-bundles/user-scoped.js'
 import {
   AddMcpServerRequestSchema,
   ListMcpServersResponseSchema,
+  LoginMcpServerResponseSchema,
   McpServerRowSchema,
   ServerNameParamSchema,
 } from './schemas.js'
@@ -84,6 +86,41 @@ export const mcpServersUserApp = factory
         (server) => server.serverName === body.serverName,
       )!
       return c.json(serializeMcpServer(added, 'user'), 201)
+    },
+  )
+  .post(
+    '/:serverName/login',
+    describeRoute({
+      tags: ['mcp-servers'],
+      summary: "Sign in to a remote MCP server via the native browser OAuth flow.",
+      'x-sdk-name': 'mcpServersUser.login',
+      responses: {
+        200: {
+          description: 'The CLI recorded the credential in its native store.',
+          content: { 'application/json': { schema: resolver(LoginMcpServerResponseSchema) } },
+        },
+        400: { description: 'A local (stdio) server, or the sign-in failed/timed out.' },
+        404: { description: 'No server with that name in the global config.' },
+      },
+    }),
+    validator('param', ServerNameParamSchema),
+    ...userScoped,
+    async (c) => {
+      const { serverName } = c.req.valid('param')
+      const server = listMcpServersForScope('user').find(
+        (entry) => entry.serverName === serverName,
+      )
+      if (server === undefined) throw new NotFoundError('MCP server', serverName)
+      if (server.transport === 'stdio') {
+        throw new ValidationError(
+          `'${serverName}' runs locally on this machine — there is nothing to sign in to.`,
+        )
+      }
+      // The delegate opens the user's browser and resolves when the native
+      // CLI records the credential — Vynel never touches the token.
+      await c.var.mcpAuthDelegate.login({ serverName })
+      c.var.logger.info({ serverName, scope: 'user' }, 'mcp server connected')
+      return c.json({ connected: true as const })
     },
   )
   .delete(

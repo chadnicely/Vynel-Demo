@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pino from 'pino'
 import { describe, expect, it } from 'vitest'
+import { ValidationError } from '@vynel/errors'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
@@ -54,13 +55,14 @@ async function withWorld<T>(
     workspaceDir: string
     workspaceId: string
   }) => Promise<T>,
+  appOptions: Partial<Parameters<typeof createApp>[0]> = {},
 ): Promise<T> {
   const homeDir = mkdtempSync(join(tmpdir(), 'vynel-mcp-routes-home-'))
   const workspaceDir = mkdtempSync(join(tmpdir(), 'vynel-mcp-routes-ws-'))
   try {
     return await withTestDatabase(async (db) => {
       const { workspace } = seedWorld(db, workspaceDir)
-      const app = createApp({ db, logger: silentLogger })
+      const app = createApp({ db, logger: silentLogger, ...appOptions })
       return withHomeDir(homeDir, () =>
         fn({ db, app, homeDir, workspaceDir, workspaceId: workspace.id }),
       )
@@ -273,5 +275,118 @@ describe('workspace-scoped /workspaces/:workspaceId/mcp-servers', () => {
       const res = await app.request(`/workspaces/${randomUUID()}/mcp-servers`)
       expect(res.status).toBe(404)
     })
+  })
+})
+
+// The login route (Slice 3): a remote server signs in through the injected
+// auth delegate (the real one drives `claude mcp login` and opens a
+// browser — tests must never reach it); stdio servers have nothing to sign
+// in to; the workspace variant runs the CLI inside the workspace so its
+// `.mcp.json` resolves.
+describe('POST /:serverName/login', () => {
+  function loginDelegate() {
+    const calls: Array<{ serverName: string; workingDirectory?: string }> = []
+    return {
+      calls,
+      delegate: {
+        login: async (input: { serverName: string; workingDirectory?: string }) => {
+          calls.push(input)
+        },
+        logout: async () => {},
+      },
+    }
+  }
+
+  it('signs in a user-scope remote server through the delegate', async () => {
+    const { calls, delegate } = loginDelegate()
+    await withWorld(
+      async ({ app, homeDir }) => {
+        writeFileSync(
+          join(homeDir, '.claude.json'),
+          JSON.stringify({
+            mcpServers: { linear: { type: 'http', url: 'https://mcp.example.com/mcp' } },
+          }),
+          'utf8',
+        )
+        const res = await app.request('/mcp-servers/linear/login', { method: 'POST' })
+        expect(res.status).toBe(200)
+        expect(await res.json()).toEqual({ connected: true })
+        expect(calls).toEqual([{ serverName: 'linear' }])
+      },
+      { mcpAuthDelegate: delegate },
+    )
+  })
+
+  it('runs the workspace login inside the workspace directory', async () => {
+    const { calls, delegate } = loginDelegate()
+    await withWorld(
+      async ({ app, workspaceDir, workspaceId }) => {
+        writeFileSync(
+          join(workspaceDir, '.mcp.json'),
+          JSON.stringify({
+            mcpServers: { notion: { type: 'http', url: 'https://mcp.notion.com/mcp' } },
+          }),
+          'utf8',
+        )
+        const res = await app.request(
+          `/workspaces/${workspaceId}/mcp-servers/notion/login`,
+          { method: 'POST' },
+        )
+        expect(res.status).toBe(200)
+        expect(calls).toEqual([{ serverName: 'notion', workingDirectory: workspaceDir }])
+      },
+      { mcpAuthDelegate: delegate },
+    )
+  })
+
+  it('400s a stdio server and 404s an absent name — the delegate never runs', async () => {
+    const { calls, delegate } = loginDelegate()
+    await withWorld(
+      async ({ app, homeDir }) => {
+        writeFileSync(
+          join(homeDir, '.claude.json'),
+          JSON.stringify({
+            mcpServers: { playwright: { type: 'stdio', command: 'npx', args: [], env: {} } },
+          }),
+          'utf8',
+        )
+        expect(
+          (await app.request('/mcp-servers/playwright/login', { method: 'POST' })).status,
+        ).toBe(400)
+        expect(
+          (await app.request('/mcp-servers/absent/login', { method: 'POST' })).status,
+        ).toBe(404)
+        expect(calls).toEqual([])
+      },
+      { mcpAuthDelegate: delegate },
+    )
+  })
+
+  it('a delegate failure surfaces as the typed 400, not a crash', async () => {
+    await withWorld(
+      async ({ app, homeDir }) => {
+        writeFileSync(
+          join(homeDir, '.claude.json'),
+          JSON.stringify({
+            mcpServers: { linear: { type: 'http', url: 'https://mcp.example.com/mcp' } },
+          }),
+          'utf8',
+        )
+        const res = await app.request('/mcp-servers/linear/login', { method: 'POST' })
+        expect(res.status).toBe(400)
+        const body = (await res.json()) as { message: string }
+        expect(body.message).toContain('browser')
+      },
+      {
+        mcpAuthDelegate: {
+          login: async () => {
+            throw new ValidationError(
+              "Connecting 'linear' timed out — finish the sign-in in your browser and try again.",
+            )
+          },
+          logout: async () => {},
+        },
+      },
+    )
   })
 })

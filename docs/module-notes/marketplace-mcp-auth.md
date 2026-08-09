@@ -123,6 +123,37 @@ there. That one pass proves token reuse AND native interop.
   ③ dialog clears typed secrets on close, not just next open ④ secret inputs use
   `autocomplete="new-password"`.
 
+## Slice 3 as built (2026-08-09)
+
+- **Provider seam** `providers/src/claude/installation/claude-mcp-cli.ts` —
+  `loginClaudeMcpServer` / `logoutClaudeMcpServer` drive the bundled binary (`claude mcp
+  login/logout <name>`); 5-min login ceiling (browser consent time), timeout surfaces as an
+  actionable "finish the sign-in in your browser" error. `workingDirectory` matters: the CLI
+  resolves `.mcp.json` servers from CWD, so workspace logins run inside the workspace.
+- **App seam** `services/mcp-auth-delegate.ts` (plugin-delegate recipe) —
+  `CreateAppOptions.mcpAuthDelegate` injectable; tests never open a browser.
+- **Routes** `POST /mcp-servers/:serverName/login` (user) + workspace twin — 404 absent, 400
+  stdio ("nothing to sign in to"), delegate failure = typed 400. Deliberately NOT x-mcp-exposed
+  (a chat turn must not pop a browser); SDK `mcpServers.login`/`mcpServersUser.login` (245→247).
+- **Oauth uninstall** clears the native credential best-effort BEFORE removing the entry
+  (manifest-gated so non-oauth uninstalls never touch the CLI; a failed logout warns and never
+  blocks).
+- **UI**: card Connect pill (installed oauth items only; idempotent — reconnect refreshes),
+  transient "Connected" readback (no persisted connection state exists to query), route split
+  follows installStatus.scope (a user-scope install signs in via the global route even from a
+  workspace shelf), connect errors join the card error slot.
+- Green: mcp-servers routes 14 (4 login) · marketplace routes 37 (2 oauth-uninstall) ·
+  section suite 29 (3 connect) · parity 4/4 · typechecks providers/local-api/local-web.
+- **Review round (clean; 4 should-fixes ALL applied):** ① cleanup-warn logs `err` (house idiom)
+  ② stderr-tail formatter extracted to `format-cli-error-detail.ts` (one home, own tests; the
+  plugin CLI rewired) ③ `claude-mcp-cli.test.ts` exercises the real exec path via
+  `process.execPath` as the fake binary (failure mapping + wording) ④ route-inventory headers
+  name the login verb. Plus the deferred-improve leading-dash argv guard, taken now at the
+  provider boundary (the DELETE param stays permissive — a hand-edited dash-name entry must
+  remain removable). Still deferred: MarketplaceSection extraction (~314 lines, next touch).
+- **⏳ Arc-closing smoke (Kafi, browser; needs a Slice-4 oauth seed published):** install →
+  Connect → authorize → session uses the tool → same server works in Claude Code directly.
+
 ## Deferred (named, not silent)
 
 - Live connection status on the card (needs JSON output or tolerant text parsing of `mcp get`).

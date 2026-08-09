@@ -2606,6 +2606,63 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/mcp-servers/{serverName}/login": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The CLI recorded the credential in its native store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connected": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "connected"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A local (stdio) server, or the sign-in failed/timed out."
+          },
+          "404": {
+            "description": "Workspace not found, or no such server in this workspace's config."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdMcp-serversByServerNameLogin",
+        "tags": [
+          "mcp-servers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serverName",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Sign in to a remote MCP server via the native browser OAuth flow.",
+        "x-sdk-name": "mcpServers.login"
+      }
+    },
     "/workspaces/{workspaceId}/mcp-servers/{serverName}": {
       "delete": {
         "responses": {
@@ -22778,6 +22835,55 @@
             }
           }
         }
+      }
+    },
+    "/mcp-servers/{serverName}/login": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The CLI recorded the credential in its native store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connected": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "connected"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A local (stdio) server, or the sign-in failed/timed out."
+          },
+          "404": {
+            "description": "No server with that name in the global config."
+          }
+        },
+        "operationId": "postMcp-serversByServerNameLogin",
+        "tags": [
+          "mcp-servers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serverName",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          }
+        ],
+        "summary": "Sign in to a remote MCP server via the native browser OAuth flow.",
+        "x-sdk-name": "mcpServersUser.login"
       }
     },
     "/mcp-servers/{serverName}": {

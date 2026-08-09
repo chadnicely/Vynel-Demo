@@ -307,6 +307,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/mcp-servers/{serverName}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in to a remote MCP server via the native browser OAuth flow. */
+        post: operations["postWorkspacesByWorkspaceIdMcp-serversByServerNameLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/mcp-servers/{serverName}": {
         parameters: {
             query?: never;
@@ -2453,6 +2470,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mcp-servers/{serverName}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in to a remote MCP server via the native browser OAuth flow. */
+        post: operations["postMcp-serversByServerNameLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mcp-servers/{serverName}": {
         parameters: {
             query?: never;
@@ -4412,6 +4446,46 @@ export interface operations {
             };
             /** @description A server with that name already exists in this workspace's config. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postWorkspacesByWorkspaceIdMcp-serversByServerNameLogin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverName: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The CLI recorded the credential in its native store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        connected: true;
+                    };
+                };
+            };
+            /** @description A local (stdio) server, or the sign-in failed/timed out. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found, or no such server in this workspace's config. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12376,6 +12450,45 @@ export interface operations {
             };
             /** @description A server with that name already exists in the global config. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postMcp-serversByServerNameLogin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The CLI recorded the credential in its native store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        connected: true;
+                    };
+                };
+            };
+            /** @description A local (stdio) server, or the sign-in failed/timed out. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No server with that name in the global config. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

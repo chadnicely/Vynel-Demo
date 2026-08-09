@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Connect a browser-sign-in connector with one click.** An installed
+  connector that authenticates through its own website (Notion, Linear, and
+  the like) now shows a Connect button: clicking it opens your browser on
+  the service's real sign-in page, and the credential lands in Claude's own
+  secure store — Vynel never sees or holds it, and the same sign-in works
+  when you use Claude Code directly. Removing the connector signs you out
+  of it first.
+
 - **Marketplace connectors can now ask for your keys — properly.** An MCP
   server in the marketplace that needs an API key or token no longer has to
   ship with a shared secret (or nothing): the item declares what it needs,

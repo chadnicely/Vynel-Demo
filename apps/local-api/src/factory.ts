@@ -27,6 +27,7 @@ import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
 import type { InstalledPluginView } from '@vynel/marketplace'
 import type { MarketplacePluginDelegate } from './services/marketplace-plugin-delegate.js'
+import type { McpAuthDelegate } from './services/mcp-auth-delegate.js'
 import type {
   TurnEventBroadcaster,
   DelegationCancelRegistry,
@@ -100,6 +101,10 @@ export interface AppEnv {
     // `~/.claude/plugins` reader in production, a stub in route tests so an
     // unmocked list route never depends on the developer's machine.
     marketplaceInstalledPluginsReader: () => InstalledPluginView[]
+    // The MCP-server auth delegate (`claude mcp login/logout` CLI seam).
+    // Set once at construction (`app.ts`) — real CLI in production, a fake
+    // in route tests (a test must never open a browser).
+    mcpAuthDelegate: McpAuthDelegate
     // The process-wide map of `ask_user` tool calls awaiting the user's answer
     // (the blocking bridge's in-memory half). Set once at construction
     // (`app.ts`), like `fileWatcher` — the turn streams park waiters on it and

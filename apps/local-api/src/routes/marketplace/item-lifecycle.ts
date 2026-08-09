@@ -48,6 +48,7 @@ import type {
   InstalledRuleView,
 } from '@vynel/marketplace'
 import type { MarketplacePluginDelegate } from '../../services/marketplace-plugin-delegate.js'
+import type { McpAuthDelegate } from '../../services/mcp-auth-delegate.js'
 import { serializeInstalledSkillResponse } from './serializers.js'
 import { installPluginItem, updatePluginItem, uninstallPluginItem } from './plugin-item-lifecycle.js'
 import { installMcpItem, uninstallMcpItem, mcpServersReaderFor } from './mcp-item-lifecycle.js'
@@ -83,6 +84,7 @@ export type MarketplaceRequestContext = {
   logger: Logger
   pluginDelegate: MarketplacePluginDelegate
   listInstalledPlugins: () => InstalledPluginView[]
+  mcpAuthDelegate: McpAuthDelegate
 }
 
 // null workspace = the GLOBAL surface; non-null = that workspace's surface.
@@ -302,7 +304,7 @@ export async function uninstallMarketplaceItem(
   }
   if (item.kind === 'mcp') {
     return uninstallMcpItem(
-      { logger: ctx.logger },
+      { db: ctx.db, logger: ctx.logger, mcpAuthDelegate: ctx.mcpAuthDelegate },
       {
         itemId,
         serverName: item.installStatus.installedId,

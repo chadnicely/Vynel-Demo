@@ -68,6 +68,7 @@ import {
   claudePluginDelegate,
   type MarketplacePluginDelegate,
 } from './services/marketplace-plugin-delegate.js'
+import { claudeMcpAuthDelegate, type McpAuthDelegate } from './services/mcp-auth-delegate.js'
 import { listInstalledClaudePlugins } from '@vynel/providers'
 import type { InstalledPluginView } from '@vynel/marketplace'
 import { featureGate } from './middleware/feature-gate.js'
@@ -135,6 +136,10 @@ export interface CreateAppOptions {
   // `~/.claude/plugins` reader); a route test injects a stub so unmocked
   // list routes never read this machine's registry.
   readonly marketplaceInstalledPluginsReader?: () => InstalledPluginView[]
+  // Override the MCP-server auth delegate (the `claude mcp login/logout`
+  // CLI seam). Production omits it (the real CLI); a route test injects a
+  // fake so the HTTP stack never opens a browser.
+  readonly mcpAuthDelegate?: McpAuthDelegate
   // The `ask_user` waiter registry — one per process. Injectable so a test can
   // park/resolve waiters around a route call; production omits it and gets a
   // fresh instance.
@@ -222,6 +227,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
       'marketplaceInstalledPluginsReader',
       options.marketplaceInstalledPluginsReader ?? listInstalledClaudePlugins,
     )
+    c.set('mcpAuthDelegate', options.mcpAuthDelegate ?? claudeMcpAuthDelegate)
     await next()
   })
 
