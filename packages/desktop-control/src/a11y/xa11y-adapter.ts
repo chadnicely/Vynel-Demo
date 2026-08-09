@@ -24,6 +24,9 @@ const MAX_SNAPSHOT_MAX_DEPTH = 40
 
 const ACT_TIMEOUT_MS = 15000
 const SNAPSHOT_TIMEOUT_MS = 25000
+// App enumeration is normally sub-second; a long bound here means one wedged
+// provider, not a slow desktop.
+const LIST_TIMEOUT_MS = 10000
 
 export type OpenApp = {
   name: string
@@ -33,7 +36,11 @@ export type OpenApp = {
 /** List the apps xa11y can see (those exposing an accessibility tree), for targeting. */
 export async function listOpenApps(): Promise<OpenApp[]> {
   const { App } = loadXa11y()
-  const apps = await App.list()
+  // Bounded like every other a11y op — a single wedged UIA provider can make the
+  // native enumeration block indefinitely, and this is an ALWAYS-ON tool, so an
+  // unbounded call hangs the whole turn (the "never hang the brain" rule, which
+  // snapshot/act already honor but this path had missed).
+  const apps = await withTimeout(App.list(), LIST_TIMEOUT_MS, 'app list')
   return apps
     .map((app) => ({ name: app.name, pid: app.pid }))
     .filter((app) => app.name.length > 0)
