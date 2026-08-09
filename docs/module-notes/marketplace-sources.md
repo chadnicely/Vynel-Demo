@@ -158,3 +158,23 @@ repos. Open for Chad: what badge an admin-approved third-party plugin carries (l
   install; a stale shelf shows stale descriptions until then).
 - Session-tool exposure of source management (human-only v1).
 - Structural funnel for the serverName wall (`publishItemVersion` un-export) — rides Move B.
+
+## Move C — workspace-scope plugins (Kafi's call, 2026-08-09; rationale: context tokens)
+
+A user-scope plugin surfaces its skills/commands into EVERY session's context; workspace-scope
+confines that cost to where it's wanted. Natively supported: `claude plugin install --scope
+project` + cwd (registry entries carry `{scope:'project', projectPath}`). Design:
+- Provider: `runPluginCommand` gains cwd; install/uninstall/update gain
+  `installScope: 'user'|'project'` + workspacePath (project → `--scope project` + cwd);
+  `listInstalledClaudePlugins` emits scope + projectPath (user entries + per-project entries).
+- Surfacing: plugin rows become scope 'both' (hub mapper + third-party mapper); surface-decides-
+  scope (memory rule): workspace shelf installs project-scope, global installs user-scope.
+- Annotation: per-surface plugin reader (mcpServersReaderFor recipe) — global = user entries;
+  workspace = user ∪ project entries with normalized projectPath == workspace.path; annotator
+  prefers the workspace match (D12).
+- **The structural wall stays**: plugin installs now require body field
+  `acceptPluginExecution: true`, excluded from the session tool schema via
+  `x-mcp.excludedBodyFields` (the mcpConfigurationValues mechanism) — a session's install of a
+  plugin arrives without it and gets an actionable 400; the UI always sends it. This preserves
+  the recorded invariant (the non-carded tool can never run the CLI delegate) while widening
+  the UI surface.
