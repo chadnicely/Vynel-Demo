@@ -164,6 +164,9 @@ function resolveHooks(overrides: Partial<ResolveAppHooks> = {}) {
         }),
       delay: clock.delay,
       now: clock.now,
+      // Default fake: no window source, so identity falls back to the name
+      // xa11y gave. Tests that care about canonicalization override it.
+      resolveIdentity: (_pid: number | null, fallbackName: string) => fallbackName,
       ...overrides,
     },
   }
@@ -222,6 +225,23 @@ describe('resolveAppWithFallback (Electron path, fakes only)', () => {
     // test above, where a LATER failure must release both).
     expect(releases).toHaveLength(0)
     expect(subscriptionCloses()).toBe(0)
+  })
+
+  it('authorizes the CANONICAL app name, never the window title', async () => {
+    // The live bug (2026-08-04): xa11y hands back "Vynel - Google Chrome", so
+    // the grant was keyed to a tab title and died on the next tab switch.
+    const App = {
+      find: () => Promise.resolve({ name: 'Vynel - Google Chrome', pid: 77 }),
+    } as unknown as Xa11yModule['App']
+    const { hooks } = resolveHooks({
+      resolveIdentity: (pid, fallbackName) => (pid === 77 ? 'Google Chrome' : fallbackName),
+    })
+    const identities: string[] = []
+    const resolved = await resolveAppWithFallback(App, 'chrome', 'read', hooks, (name) =>
+      identities.push(name),
+    )
+    expect(identities).toEqual(['Google Chrome'])
+    resolved.dispose()
   })
 
   it('a fast-path denial propagates AS the denial — never retried down the pid path', async () => {

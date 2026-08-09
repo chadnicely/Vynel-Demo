@@ -48,3 +48,32 @@ describe('normalizeDesktopAppKey', () => {
     expect(normalizeDesktopAppKey('my.exe.notes')).toBe('my.exe.notes')
   })
 })
+
+describe('normalizeDesktopAppKey — full-path app names', () => {
+  it('reduces a packaged-app executable path to the bare app name', () => {
+    // The window source reports packaged Windows apps as a full path whose
+    // directory carries the VERSION — keying on it would mint a fresh grant
+    // on every app update.
+    expect(
+      normalizeDesktopAppKey(
+        String.raw`C:\Program Files\WindowsApps\Microsoft.WindowsNotepad_11.2605.34.0_x64__8wekyb3d8bbwe\Notepad\Notepad.exe`,
+      ),
+    ).toBe('notepad')
+  })
+
+  it('survives an app-update path change (same grant key before and after)', () => {
+    const before = normalizeDesktopAppKey(String.raw`C:\Apps\Thing_1.0.0\Thing.exe`)
+    const after = normalizeDesktopAppKey(String.raw`C:\Apps\Thing_2.5.9\Thing.exe`)
+    expect(before).toBe(after)
+    expect(before).toBe('thing')
+  })
+
+  it('handles forward-slash paths too', () => {
+    expect(normalizeDesktopAppKey('/usr/local/bin/Discord')).toBe('discord')
+  })
+
+  it('leaves an ordinary app name (spaces included) untouched apart from casing', () => {
+    expect(normalizeDesktopAppKey('Google Chrome')).toBe('google chrome')
+    expect(normalizeDesktopAppKey('Zoom Meetings')).toBe('zoom meetings')
+  })
+})

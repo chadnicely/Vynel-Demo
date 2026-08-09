@@ -125,6 +125,32 @@ undocumented; wake recipe outdated). Refresh both + README + the stale `src/inde
   against node-screenshots 0.2.8) in the pure `pickTopmostWindowAt`.
 - **Password wall fails closed** when the matched element can't be re-inspected.
 
+## Canonical app identity (fixed 2026-08-04, after the live smoke)
+
+The first cut let each source name apps its own way: xa11y's `App.name` is the **window
+title** ("Vynel – Google Chrome", a different string on the next tab switch), while the
+window source reports the stable app ("Google Chrome"). Grants were stored under whichever
+door asked, so a grant taken through the accessibility path did not cover the
+screenshot/click path, and any title-keyed grant died the moment the user switched tabs —
+Chad had to grant Chrome twice, and Vynel's own Claude reported the same thing unprompted.
+
+**One identity, resolved through the pid** (`a11y/window-identity.ts`):
+`resolveAppIdentity(pid, fallbackName)` maps a process to its real app name via the window
+source, falling back to the caller's name only when the pid can't be mapped (that fallback
+can only ever match a grant taken under the same fallback, so it never widens access). It is
+used by BOTH the enforcement seam (`resolveAppWithFallback`'s `resolveIdentity` hook) and the
+grant door (`listGrantableApps`), so every door agrees. `normalizeDesktopAppKey` additionally
+drops a directory prefix — packaged Windows apps arrive as a full path whose directory
+carries the **version**, so keying on it would mint a fresh grant on every app update.
+
+Verified against the live desktop: tab titles like "Urvashi Video | Shahid Kapoor…" and
+"#management-text | KS Esports - Discord" now resolve to `google chrome` and `discord`, and
+two Paint windows collapse onto one `mspaint` grant.
+
+*Known cosmetic follow-up:* the grant key doubles as the display name, so a few apps read as
+`mspaint` / `snippingtool` rather than "Paint" / "Snipping Tool". Fixing that means storing a
+separate display name (a schema change) — deliberately deferred.
+
 ## Accepted residual risks (documented, not coded around)
 
 - **TOCTOU**: focus/z-order can change between the lookup and the input landing; a

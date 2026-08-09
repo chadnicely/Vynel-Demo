@@ -7,7 +7,12 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import type { Database } from '@vynel/db'
-import { makeRequestDesktopAccessTool, resolveRequestedApp } from './request-desktop-access-tool.js'
+import {
+  makeRequestDesktopAccessTool,
+  resolveRequestedApp,
+  listGrantableApps,
+} from './request-desktop-access-tool.js'
+import { normalizeDesktopAppKey } from '../access/desktop-access-tiers.js'
 import { findDesktopAppGrant } from '../repositories/desktop-app-grants.js'
 
 type BuiltTool = {
@@ -138,5 +143,29 @@ describe('makeRequestDesktopAccessTool', () => {
     }) as BuiltTool
     const result = await built.handler({ app: 'discord', tier: 'admin', reason: 'x' })
     expect(result.isError).toBe(true)
+  })
+})
+
+describe('listGrantableApps — canonical identity', () => {
+  it('maps an xa11y WINDOW TITLE through its pid to the real app name', async () => {
+    // The live bug: granting from the accessibility door stored
+    // "Vynel - Google Chrome", which stopped matching on the next tab switch
+    // and never covered the screenshot door's "Google Chrome".
+    const apps = await listGrantableApps({
+      windowAppNames: () => [],
+      accessibilityApps: async () => [{ name: 'Vynel - Google Chrome', pid: 77 }],
+      appNameByPid: (pid) => (pid === 77 ? 'Google Chrome' : null),
+    })
+    expect(apps.map((a) => a.name)).toContain('Google Chrome')
+    expect(apps.map((a) => a.name)).not.toContain('Vynel - Google Chrome')
+  })
+
+  it('dedupes the two sources onto ONE entry per real app', async () => {
+    const apps = await listGrantableApps({
+      windowAppNames: () => ['Google Chrome'],
+      accessibilityApps: async () => [{ name: 'Vynel - Google Chrome', pid: 77 }],
+      appNameByPid: (pid) => (pid === 77 ? 'Google Chrome' : null),
+    })
+    expect(apps.filter((a) => normalizeDesktopAppKey(a.name) === 'google chrome')).toHaveLength(1)
   })
 })

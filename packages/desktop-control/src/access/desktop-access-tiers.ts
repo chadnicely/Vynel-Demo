@@ -26,13 +26,21 @@ export function maxTier(a: DesktopAccessTier, b: DesktopAccessTier): DesktopAcce
 }
 
 /**
- * The grant key for an app name: trimmed, casefolded, `.exe` stripped — so
- * "Discord", "discord" and "Discord.exe" (xa11y vs node-screenshots naming)
- * resolve to ONE grant row. Exact-match by design: fuzzy grant matching would
- * be a security hole (a grant for "Word" must never cover "PasswordSafe").
+ * The grant key for an app name: directory prefix dropped, trimmed, casefolded,
+ * `.exe` stripped — so "Discord", "discord" and "Discord.exe" resolve to ONE
+ * grant row. The basename step matters because the window source reports some
+ * apps as a full executable path (packaged Windows apps arrive as
+ * `C:\…\WindowsApps\Microsoft.WindowsNotepad_11.2605.34.0_x64__…\Notepad.exe`)
+ * — keying on that would mint a NEW grant on every app update. An app name
+ * never legitimately contains a path separator, so taking the last segment is
+ * safe. Exact-match by design: fuzzy grant matching would be a security hole
+ * (a grant for "Word" must never cover "PasswordSafe").
  */
 export function normalizeDesktopAppKey(appName: string): string {
-  return appName.trim().toLowerCase().replace(/\.exe$/, '')
+  const trimmed = appName.trim()
+  const lastSeparator = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'))
+  const basename = lastSeparator === -1 ? trimmed : trimmed.slice(lastSeparator + 1)
+  return basename.toLowerCase().replace(/\.exe$/, '')
 }
 
 /**

@@ -32,6 +32,8 @@ type NativeImage = {
 
 type NativeWindow = {
   id(): number
+  /** Owning process — the join key between this source and xa11y's app list. */
+  pid(): number
   appName(): string
   title(): string
   isMinimized(): boolean

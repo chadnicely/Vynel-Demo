@@ -13,7 +13,11 @@ import { z } from 'zod'
 import type { Database } from '@vynel/db'
 import type { McpToolFn } from './mcp-tool-fn.js'
 import { listOpenApps, isAppNameMatch, type OpenApp } from '../a11y/xa11y-adapter.js'
-import { listWindowAppNames } from '../a11y/window-identity.js'
+import {
+  listWindowAppNames,
+  findAppNameByPid,
+  resolveAppIdentity,
+} from '../a11y/window-identity.js'
 import { grantDesktopAccess } from '../access/grant-desktop-access.js'
 import {
   DESKTOP_ACCESS_TIERS,
@@ -36,14 +40,30 @@ export type RequestDesktopAccessDeps = {
 }
 
 /**
- * The identity sources a grant can name, UNIONED: xa11y's `App.list()` misses
- * the Electron/Chromium class (tree off until woken), while node-screenshots
- * sees every real window — a grant door limited to one source would deadlock
- * the exact screenshot/wake paths built for those apps. A source that fails
- * to load contributes nothing; if BOTH fail, the first failure surfaces
- * (never a silent empty list).
+ * The apps a grant can name, UNIONED across both identity sources and reduced
+ * to CANONICAL app identities.
+ *
+ * Two sources are needed: xa11y's `App.list()` misses the Electron/Chromium
+ * class (tree off until woken), while the window source sees every real
+ * window. But xa11y names apps by WINDOW TITLE, so each of its entries is
+ * mapped through its pid to the real app name first — otherwise a grant lands
+ * under "Vynel – Google Chrome" and stops matching the moment the user
+ * switches tabs (live smoke, 2026-08-04). The window source is listed FIRST so
+ * its already-canonical names win the dedupe.
+ *
+ * A source that fails to load contributes nothing; if BOTH fail, the first
+ * failure surfaces (never a silent empty list).
  */
-export async function listGrantableApps(): Promise<OpenApp[]> {
+export async function listGrantableApps(
+  deps: {
+    windowAppNames?: () => string[]
+    appNameByPid?: (pid: number) => string | null
+    accessibilityApps?: () => Promise<OpenApp[]>
+  } = {},
+): Promise<OpenApp[]> {
+  const windowAppNames = deps.windowAppNames ?? listWindowAppNames
+  const appNameByPid = deps.appNameByPid ?? findAppNameByPid
+  const accessibilityApps = deps.accessibilityApps ?? listOpenApps
   const failures: unknown[] = []
   const seen = new Set<string>()
   const apps: OpenApp[] = []
@@ -54,12 +74,15 @@ export async function listGrantableApps(): Promise<OpenApp[]> {
     apps.push({ name, pid })
   }
   try {
-    for (const app of await listOpenApps()) add(app.name, app.pid)
+    for (const name of windowAppNames()) add(name, null)
   } catch (err) {
     failures.push(err)
   }
   try {
-    for (const name of listWindowAppNames()) add(name, null)
+    for (const app of await accessibilityApps()) {
+      // Canonicalize through the pid — never grant a window title.
+      add(resolveAppIdentity(app.pid, app.name, appNameByPid), app.pid)
+    }
   } catch (err) {
     failures.push(err)
   }

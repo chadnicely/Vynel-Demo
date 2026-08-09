@@ -99,3 +99,49 @@ export function listWindowAppNames(): string[] {
   }
   return [...names]
 }
+
+/**
+ * The APP name owning a process — the canonical identity every grant is keyed
+ * on. Null when no window maps to that pid.
+ *
+ * WHY this exists: the two desktop sources name things differently. xa11y's
+ * `App.name` is the WINDOW TITLE ("Vynel – Google Chrome", and a different
+ * string the moment the user switches tabs); the window source reports the
+ * stable app ("Google Chrome"). Keying a grant on a title made it die on the
+ * next tab switch and made a grant taken through the accessibility door fail
+ * on the screenshot door. The pid is the one thing both sources agree on, so
+ * identity resolves THROUGH it.
+ */
+export function findAppNameByPid(pid: number): string | null {
+  const { Window } = loadNodeScreenshots()
+  for (const native of Window.all()) {
+    try {
+      if (Number(native.pid()) === pid) {
+        const appName = String(native.appName())
+        if (appName.length > 0) return appName
+      }
+    } catch {
+      // A shape surprise on one window must not blind the whole lookup.
+    }
+  }
+  return null
+}
+
+/** The lookup `resolveAppIdentity` performs — injectable for tests. */
+export type AppNameByPidLookup = (pid: number) => string | null
+
+/**
+ * Canonical identity for an app reached through the accessibility tree:
+ * the pid's real app name, falling back to the name the caller had when the
+ * pid can't be mapped (a pid-less app, or a window the capture source can't
+ * see). The fallback is deliberately the LAST resort — it can only ever match
+ * a grant taken under that same fallback, so it never widens access.
+ */
+export function resolveAppIdentity(
+  pid: number | null,
+  fallbackName: string,
+  lookup: AppNameByPidLookup = findAppNameByPid,
+): string {
+  if (pid === null) return fallbackName
+  return lookup(pid) ?? fallbackName
+}

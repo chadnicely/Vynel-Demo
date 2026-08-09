@@ -25,6 +25,7 @@ import { isAppNameMatch } from './app-name-match.js'
 import { findWindowedPidByName } from './windowed-process.js'
 import { ensureForeground } from './window-focus.js'
 import { screenReaderFlag } from './screen-reader-flag.js'
+import { resolveAppIdentity } from './window-identity.js'
 
 // Shorter timeout for the UIA-enumeration attempt: an already-open app matches
 // near-instantly, so a 2.5s miss means "not enumerated" (the Electron case) —
@@ -123,6 +124,9 @@ export type ResolveAppHooks = {
   acquireScreenReaderFlag: () => Promise<() => void>
   delay: (ms: number) => Promise<void>
   now: () => number
+  /** Map a resolved app to its CANONICAL identity (the grant key) — xa11y's
+   *  own `name` is the window title, which changes with the active tab. */
+  resolveIdentity: (pid: number | null, fallbackName: string) => string
 }
 
 export const defaultResolveAppHooks: ResolveAppHooks = {
@@ -131,6 +135,7 @@ export const defaultResolveAppHooks: ResolveAppHooks = {
   acquireScreenReaderFlag: () => screenReaderFlag.acquire(),
   delay: defaultDelay,
   now: () => Date.now(),
+  resolveIdentity: (pid, fallbackName) => resolveAppIdentity(pid, fallbackName),
 }
 
 /** Resolve a named app to an xa11y App, transparently waking Electron apps.
@@ -159,7 +164,7 @@ export async function resolveAppWithFallback(
     findError = lookupError
   }
   if (found !== null) {
-    onResolvedIdentity?.(found.name)
+    onResolvedIdentity?.(hooks.resolveIdentity(found.pid, found.name))
     return {
       app: found,
       dispose: NO_OP,
@@ -179,7 +184,7 @@ export async function resolveAppWithFallback(
     const initial = await App.byPid(pid, { timeout: APP_LOOKUP_TIMEOUT_MS })
     // Enforce BEFORE the flag/subscription/foreground steps — the wake
     // actuates the desktop, and a denied app must never be woken.
-    onResolvedIdentity?.(initial.name)
+    onResolvedIdentity?.(hooks.resolveIdentity(pid, initial.name))
     // Screen-reader flag BEFORE the subscription — Chromium reads it when the
     // subscription's presence triggers accessibility activation.
     const releaseFlag = await hooks.acquireScreenReaderFlag()

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pickTopmostWindowAt, type WindowHitCandidate } from './window-identity.js'
+import { pickTopmostWindowAt, resolveAppIdentity, type WindowHitCandidate } from './window-identity.js'
 
 describe('pickTopmostWindowAt', () => {
   const candidate = (overrides: Partial<WindowHitCandidate>): WindowHitCandidate => ({
@@ -33,5 +33,27 @@ describe('pickTopmostWindowAt', () => {
 
   it('returns null when nothing contains the point (fail closed at the caller)', () => {
     expect(pickTopmostWindowAt([candidate({})], 500, 500)).toBeNull()
+  })
+})
+
+describe('resolveAppIdentity', () => {
+  it('prefers the pid-mapped APP name over the caller name (the window title)', () => {
+    // The bug this exists for: xa11y hands us "Vynel – Google Chrome", which
+    // becomes a different string on the next tab switch.
+    expect(resolveAppIdentity(4242, 'Vynel – Google Chrome', () => 'Google Chrome')).toBe(
+      'Google Chrome',
+    )
+  })
+
+  it('falls back to the caller name when the pid maps to nothing', () => {
+    expect(resolveAppIdentity(4242, 'Some App', () => null)).toBe('Some App')
+  })
+
+  it('falls back when there is no pid at all', () => {
+    expect(
+      resolveAppIdentity(null, 'Some App', () => {
+        throw new Error('lookup must not run without a pid')
+      }),
+    ).toBe('Some App')
   })
 })
