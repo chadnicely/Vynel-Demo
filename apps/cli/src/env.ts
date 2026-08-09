@@ -6,7 +6,10 @@ import { z } from 'zod'
 import { VYNEL_ENGINE_PORT } from '@vynel/contracts/network/ports'
 
 export const EnvSchema = z.object({
-  VYNEL_API_URL: z.string().url().default(`http://localhost:${VYNEL_ENGINE_PORT}`),
+  // 127.0.0.1 literal, never `localhost`: the engine binds IPv4 loopback
+  // only, and Node's fetch may resolve localhost to ::1 first → ECONNREFUSED
+  // ("fetch failed") on perfectly healthy installs.
+  VYNEL_API_URL: z.string().url().default(`http://127.0.0.1:${VYNEL_ENGINE_PORT}`),
 })
 
 export type Env = z.infer<typeof EnvSchema>

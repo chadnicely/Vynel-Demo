@@ -18,7 +18,7 @@ const repoRoot = resolve(here, '..', '..', '..')
 const publishDir = join(repoRoot, 'apps', 'cli', 'dist-npm')
 // The spawned CLI/MCP children read the same env var — probe and programs
 // must agree on which daemon is under test.
-const apiUrl = process.env['VYNEL_API_URL'] ?? 'http://localhost:18892'
+const apiUrl = process.env['VYNEL_API_URL'] ?? 'http://127.0.0.1:18892'
 
 const failures: string[] = []
 function assertThat(condition: boolean, message: string): void {

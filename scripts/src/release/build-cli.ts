@@ -103,7 +103,7 @@ function writeReadme(version: string): void {
       `# @vynel/cli ${version}`,
       '',
       'Command-line client and MCP server for [Vynel](https://github.com/kafijunior/vynel-releases).',
-      'Both need a running Vynel app (the daemon answers on `http://localhost:18892`;',
+      'Both need a running Vynel app (the daemon answers on `http://127.0.0.1:18892`;',
       'override with `VYNEL_API_URL`).',
       '',
       '## CLI',
