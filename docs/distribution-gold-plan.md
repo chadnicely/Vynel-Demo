@@ -217,8 +217,14 @@ six values. *Key hygiene verified 2026-08-09:* the minisign updater key lives at
 gone); a test signature's key ID matches the baked pubkey (`b6821acc18524268`), so it IS the
 production key — never regenerate it. It carries **no password** — acceptable for the test phase;
 add one (or rotate to a passworded key via the update chain) before going public. Nothing in git
-history. Release build: `$env:TAURI_SIGNING_PRIVATE_KEY = "C:\Users\KLONE\.vynel-keys\vynel-updater.key"`
-then `pnpm release:desktop`.
+history. Release build — BOTH vars, always:
+```powershell
+$env:TAURI_SIGNING_PRIVATE_KEY = "C:\Users\KLONE\.vynel-keys\vynel-updater.key"
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""   # REQUIRED even though the key has no password:
+pnpm release:desktop                            # unset, the tauri CLI PROMPTS on stdin and a
+                                                # non-interactive build hangs forever after NSIS
+                                                # (bit us on the first 0.2.0 build, 2026-08-09)
+```
 *Green:* installer/exe/uninstaller show valid signatures on the VM; SmartScreen shows publisher
 name, no "unknown publisher".
 
