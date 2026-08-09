@@ -1,25 +1,25 @@
 // Claude Code treats a project's `.mcp.json` servers as UNTRUSTED until the
-// user approves them per project — recorded in `~/.claude.json` under
-// `projects[<path>].enabledMcpjsonServers` (probed live 2026-08-09: login
-// refuses with "awaiting approval" until the name appears there). Every
-// workspace-scope entry Vynel writes is consent-backed (the carded
+// user approves them — and the CLI (2.1.213, probed live 2026-08-09) reads
+// that verdict from the PROJECT's own `.claude/settings.local.json`:
+// `enabledMcpjsonServers` / `disabledMcpjsonServers` (the legacy
+// `~/.claude.json` projects arrays are dead — writing them changes
+// nothing). A rejection OUTRANKS an approval, so recording consent must
+// also clear the name from the disabled list (a declined prompt in some
+// earlier Claude Code run otherwise silently kills the server forever).
+//
+// Every workspace-scope entry Vynel writes is consent-backed (the carded
 // marketplace install, the add-server form, a skill's carded install), so
 // recording the approval belongs to the same single writer that writes the
-// entry — without it, workspace servers can never sign in or connect.
+// entry. Revoking on removal clears ONLY the approval — Vynel's uninstall
+// is not a rejection, so the disabled list is never touched there.
 //
-// The real-world config keys the SAME directory under several spellings
-// (drive-letter case, slash direction) — approval updates EVERY entry that
-// normalizes to the workspace, and creates the native-form entry when none
-// exists. Same protective posture as the mcp-config writer: other keys are
-// preserved verbatim; malformed JSON throws rather than clobbering.
+// Same protective posture as the mcp-config writer: other settings keys
+// (permissions etc.) are preserved verbatim; malformed JSON throws rather
+// than clobbering. `settings.local.json` is Claude's per-machine local
+// settings file — the right home for a trust decision.
 
 import path from 'node:path'
-import { readFile, writeFile } from 'node:fs/promises'
-import { resolveMcpConfigPath } from './resolve-mcp-config-path.js'
-
-function normalizeProjectPath(value: string): string {
-  return path.normalize(value).replace(/[\\/]+$/, '').toLowerCase()
-}
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 
 export async function approveProjectMcpjsonServer(
   workspacePath: string,
@@ -40,12 +40,13 @@ async function updateProjectApproval(
   serverName: string,
   action: 'approve' | 'revoke',
 ): Promise<void> {
-  const configPath = resolveMcpConfigPath('user')
+  const settingsPath = path.join(workspacePath, '.claude', 'settings.local.json')
   let raw: string
   try {
-    raw = await readFile(configPath, 'utf8')
+    raw = await readFile(settingsPath, 'utf8')
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+    if (action === 'revoke') return
     raw = '{}'
   }
   let parsed: unknown
@@ -53,51 +54,29 @@ async function updateProjectApproval(
     parsed = JSON.parse(raw)
   } catch (err) {
     throw new Error(
-      `Claude config at ${configPath} is malformed JSON and cannot be safely updated; ` +
-        `repair or remove it before retrying. Underlying parse error: ` +
+      `Project settings at ${settingsPath} are malformed JSON and cannot be safely updated; ` +
+        `repair or remove the file before retrying. Underlying parse error: ` +
         `${err instanceof Error ? err.message : String(err)}`,
     )
   }
   if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error(`Claude config at ${configPath} is JSON but not an object.`)
+    throw new Error(`Project settings at ${settingsPath} are JSON but not an object.`)
   }
-  const config = parsed as Record<string, unknown>
-  const projects =
-    typeof config.projects === 'object' && config.projects !== null
-      ? { ...(config.projects as Record<string, unknown>) }
-      : {}
-
-  const normalizedTarget = normalizeProjectPath(workspacePath)
-  const matchingKeys = Object.keys(projects).filter(
-    (key) => normalizeProjectPath(key) === normalizedTarget,
-  )
-  if (matchingKeys.length === 0 && action === 'approve') {
-    matchingKeys.push(workspacePath)
-  }
-  for (const key of matchingKeys) {
-    const entry =
-      typeof projects[key] === 'object' && projects[key] !== null
-        ? { ...(projects[key] as Record<string, unknown>) }
-        : {}
-    const enabled = asStringArray(entry.enabledMcpjsonServers)
-    const disabled = asStringArray(entry.disabledMcpjsonServers)
-    if (action === 'approve') {
-      entry.enabledMcpjsonServers = enabled.includes(serverName)
-        ? enabled
-        : [...enabled, serverName]
-      // An earlier in-CLI rejection must not outrank the user's explicit
-      // consent in Vynel's own flow.
-      entry.disabledMcpjsonServers = disabled.filter((name) => name !== serverName)
-    } else {
-      entry.enabledMcpjsonServers = enabled.filter((name) => name !== serverName)
+  const settings = parsed as Record<string, unknown>
+  const enabled = asStringArray(settings.enabledMcpjsonServers)
+  const disabled = asStringArray(settings.disabledMcpjsonServers)
+  if (action === 'approve') {
+    settings.enabledMcpjsonServers = enabled.includes(serverName)
+      ? enabled
+      : [...enabled, serverName]
+    if (disabled.includes(serverName)) {
+      settings.disabledMcpjsonServers = disabled.filter((name) => name !== serverName)
     }
-    projects[key] = entry
+  } else {
+    settings.enabledMcpjsonServers = enabled.filter((name) => name !== serverName)
   }
-  await writeFile(
-    configPath,
-    JSON.stringify({ ...config, projects }, null, 2),
-    'utf8',
-  )
+  await mkdir(path.dirname(settingsPath), { recursive: true })
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8')
 }
 
 function asStringArray(value: unknown): string[] {

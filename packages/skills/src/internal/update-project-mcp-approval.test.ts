@@ -1,92 +1,93 @@
-// The project-approval record (`projects[<path>].enabledMcpjsonServers` in
-// ~/.claude.json) over a real temp home: path-spelling variants all update,
-// a missing entry is created native-form, an earlier rejection is cleared
-// by explicit consent, and every unrelated key survives verbatim.
+// The project-approval record — `<workspace>/.claude/settings.local.json`
+// `enabledMcpjsonServers`/`disabledMcpjsonServers` (the location the CLI
+// actually reads, probed live 2026-08-09) — over a real temp workspace:
+// approval clears a prior rejection (rejection outranks otherwise), revoke
+// clears only the approval, and every unrelated settings key survives.
 
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { withHomeDir } from './resolve-host-home-dir.js'
 import {
   approveProjectMcpjsonServer,
   revokeProjectMcpjsonServerApproval,
 } from './update-project-mcp-approval.js'
 
-async function withIsolatedHome<T>(fn: (homeDir: string) => Promise<T>): Promise<T> {
-  const homeDir = mkdtempSync(join(tmpdir(), 'vynel-mcp-approval-'))
+async function withTempWorkspace<T>(fn: (workspacePath: string) => Promise<T>): Promise<T> {
+  const dir = mkdtempSync(join(tmpdir(), 'vynel-mcp-approval-'))
   try {
-    return await withHomeDir(homeDir, () => fn(homeDir))
+    return await fn(dir)
   } finally {
-    rmSync(homeDir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true })
   }
 }
 
-function readConfig(homeDir: string): Record<string, any> {
-  return JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8'))
+function readSettings(workspacePath: string): Record<string, any> {
+  return JSON.parse(
+    readFileSync(join(workspacePath, '.claude', 'settings.local.json'), 'utf8'),
+  )
 }
 
 describe('approveProjectMcpjsonServer', () => {
-  it('updates EVERY path-spelling variant of the workspace and clears a prior rejection', async () => {
-    await withIsolatedHome(async (homeDir) => {
+  it('creates the settings file when absent; approval is idempotent', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      await approveProjectMcpjsonServer(workspacePath, 'notion')
+      await approveProjectMcpjsonServer(workspacePath, 'notion')
+      expect(readSettings(workspacePath).enabledMcpjsonServers).toEqual(['notion'])
+    })
+  })
+
+  it('clears a prior REJECTION (rejection outranks approval) and preserves other keys', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      mkdirSync(join(workspacePath, '.claude'), { recursive: true })
       writeFileSync(
-        join(homeDir, '.claude.json'),
+        join(workspacePath, '.claude', 'settings.local.json'),
         JSON.stringify({
-          theme: 'dark',
-          projects: {
-            'C:\\Users\\T\\ws': {
-              allowedTools: ['Bash'],
-              enabledMcpjsonServers: [],
-              disabledMcpjsonServers: ['notion'],
-            },
-            'c:/users/t/ws': { enabledMcpjsonServers: ['other'] },
-            'C:\\Users\\T\\unrelated': { enabledMcpjsonServers: [] },
-          },
+          permissions: { allow: ['Bash(npm:*)'] },
+          disabledMcpjsonServers: ['playwright', 'notion'],
+          enabledMcpjsonServers: [],
         }),
         'utf8',
       )
 
-      await approveProjectMcpjsonServer('C:\\Users\\T\\ws', 'notion')
+      await approveProjectMcpjsonServer(workspacePath, 'notion')
 
-      const config = readConfig(homeDir)
-      expect(config.theme).toBe('dark')
-      expect(config.projects['C:\\Users\\T\\ws']).toEqual({
-        allowedTools: ['Bash'],
+      expect(readSettings(workspacePath)).toEqual({
+        permissions: { allow: ['Bash(npm:*)'] },
+        // Another server's rejection is not ours to clear.
+        disabledMcpjsonServers: ['playwright'],
         enabledMcpjsonServers: ['notion'],
-        disabledMcpjsonServers: [],
       })
-      expect(config.projects['c:/users/t/ws'].enabledMcpjsonServers).toEqual(['other', 'notion'])
-      expect(config.projects['C:\\Users\\T\\unrelated'].enabledMcpjsonServers).toEqual([])
     })
   })
 
-  it('creates the native-form project entry when none exists; approval is idempotent', async () => {
-    await withIsolatedHome(async (homeDir) => {
-      await approveProjectMcpjsonServer('D:\\my ws', 'notion')
-      await approveProjectMcpjsonServer('D:\\my ws', 'notion')
-      const config = readConfig(homeDir)
-      expect(config.projects['D:\\my ws'].enabledMcpjsonServers).toEqual(['notion'])
+  it('revoke clears ONLY the approval — an uninstall is not a rejection', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      await approveProjectMcpjsonServer(workspacePath, 'notion')
+      await revokeProjectMcpjsonServerApproval(workspacePath, 'notion')
+      const settings = readSettings(workspacePath)
+      expect(settings.enabledMcpjsonServers).toEqual([])
+      expect(settings.disabledMcpjsonServers).toBeUndefined()
     })
   })
 
-  it('revoke removes the approval without inventing entries', async () => {
-    await withIsolatedHome(async (homeDir) => {
-      await approveProjectMcpjsonServer('D:\\my ws', 'notion')
-      await revokeProjectMcpjsonServerApproval('D:\\my ws', 'notion')
-      await revokeProjectMcpjsonServerApproval('D:\\other', 'notion')
-      const config = readConfig(homeDir)
-      expect(config.projects['D:\\my ws'].enabledMcpjsonServers).toEqual([])
-      expect(config.projects['D:\\other']).toBeUndefined()
+  it('revoke on a workspace without a settings file invents nothing', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      await revokeProjectMcpjsonServerApproval(workspacePath, 'notion')
+      expect(existsSync(join(workspacePath, '.claude', 'settings.local.json'))).toBe(false)
     })
   })
 
-  it('refuses to clobber a malformed config', async () => {
-    await withIsolatedHome(async (homeDir) => {
-      writeFileSync(join(homeDir, '.claude.json'), '{ not json', 'utf8')
-      await expect(approveProjectMcpjsonServer('D:\\ws', 'notion')).rejects.toThrow(
+  it('refuses to clobber a malformed settings file', async () => {
+    await withTempWorkspace(async (workspacePath) => {
+      mkdirSync(join(workspacePath, '.claude'), { recursive: true })
+      writeFileSync(join(workspacePath, '.claude', 'settings.local.json'), '{ not json', 'utf8')
+      await expect(approveProjectMcpjsonServer(workspacePath, 'notion')).rejects.toThrow(
         /malformed JSON/i,
       )
-      expect(readFileSync(join(homeDir, '.claude.json'), 'utf8')).toBe('{ not json')
+      expect(
+        readFileSync(join(workspacePath, '.claude', 'settings.local.json'), 'utf8'),
+      ).toBe('{ not json')
     })
   })
 })

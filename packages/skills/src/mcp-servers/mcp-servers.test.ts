@@ -5,7 +5,7 @@
 // marker-required remove never deletes one).
 
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ConflictError } from '@vynel/errors'
@@ -191,18 +191,19 @@ describe('mcp-servers config ops', () => {
 // login refuses with "awaiting approval") — every consent-backed
 // workspace write records it, and removal revokes it.
 describe('workspace installs record the project approval', () => {
-  it('install approves in ~/.claude.json projects; uninstall revokes', async () => {
-    await withIsolatedDirs(async (homeDir, workspaceDir) => {
+  it('install approves in the workspace settings.local.json; uninstall revokes', async () => {
+    await withIsolatedDirs(async (_homeDir, workspaceDir) => {
       await installMcpServerForScope({
         scope: 'workspace',
         workspacePath: workspaceDir,
         server: PLAYWRIGHT_SERVER,
         provenance: PLAYWRIGHT_PROVENANCE,
       })
-      let config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
-        projects: Record<string, { enabledMcpjsonServers: string[] }>
+      const settingsPath = join(workspaceDir, '.claude', 'settings.local.json')
+      let settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
+        enabledMcpjsonServers: string[]
       }
-      expect(config.projects[workspaceDir]!.enabledMcpjsonServers).toEqual(['playwright'])
+      expect(settings.enabledMcpjsonServers).toEqual(['playwright'])
 
       await removeMcpServerForScope({
         scope: 'workspace',
@@ -210,20 +211,21 @@ describe('workspace installs record the project approval', () => {
         serverName: 'playwright',
         onlyIfProvenanceItemId: 'playwright-mcp',
       })
-      config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
-        projects: Record<string, { enabledMcpjsonServers: string[] }>
+      settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
+        enabledMcpjsonServers: string[]
       }
-      expect(config.projects[workspaceDir]!.enabledMcpjsonServers).toEqual([])
+      expect(settings.enabledMcpjsonServers).toEqual([])
     })
   })
 
-  it('user-scope installs never touch the projects record', async () => {
-    await withIsolatedDirs(async (homeDir) => {
+  it('user-scope installs never create workspace settings', async () => {
+    await withIsolatedDirs(async (homeDir, workspaceDir) => {
       await installMcpServerForScope({
         scope: 'user',
         server: PLAYWRIGHT_SERVER,
         provenance: PLAYWRIGHT_PROVENANCE,
       })
+      expect(existsSync(join(workspaceDir, '.claude', 'settings.local.json'))).toBe(false)
       const config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
         projects?: unknown
       }

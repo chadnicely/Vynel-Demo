@@ -224,7 +224,7 @@ describe('workspace-scoped /workspaces/:workspaceId/mcp-servers', () => {
   // approval in ~/.claude.json (the consent-backed write; without it the
   // server stays untrusted to Claude Code, smoked 2026-08-09). The home
   // config's SERVER map stays untouched — was "the whole file untouched".
-  it("adds into the workspace's .mcp.json — the home config gains ONLY the project approval", async () => {
+  it("adds into the workspace's .mcp.json — the home config stays untouched; the workspace settings gain the approval", async () => {
     await withWorld(async ({ app, homeDir, workspaceDir, workspaceId }) => {
       const res = await app.request(`/workspaces/${workspaceId}/mcp-servers`, {
         method: 'POST',
@@ -236,12 +236,13 @@ describe('workspace-scoped /workspaces/:workspaceId/mcp-servers', () => {
 
       const wsConfig = JSON.parse(readFileSync(join(workspaceDir, '.mcp.json'), 'utf8'))
       expect(wsConfig.mcpServers.linear).toBeDefined()
-      const homeConfig = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
-        mcpServers?: unknown
-        projects: Record<string, { enabledMcpjsonServers: string[] }>
-      }
-      expect(homeConfig.mcpServers).toBeUndefined()
-      expect(homeConfig.projects[workspaceDir]!.enabledMcpjsonServers).toEqual(['linear'])
+      // The HOME config stays untouched — the approval lives in the
+      // workspace's own settings.local.json (the file the CLI reads).
+      expect(existsSync(join(homeDir, '.claude.json'))).toBe(false)
+      const settings = JSON.parse(
+        readFileSync(join(workspaceDir, '.claude', 'settings.local.json'), 'utf8'),
+      ) as { enabledMcpjsonServers: string[] }
+      expect(settings.enabledMcpjsonServers).toEqual(['linear'])
     })
   })
 
@@ -428,10 +429,10 @@ describe('workspace login heals the project approval for marked entries', () => 
           { method: 'POST' },
         )
         expect(res.status).toBe(200)
-        const config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
-          projects: Record<string, { enabledMcpjsonServers: string[] }>
-        }
-        expect(config.projects[workspaceDir]!.enabledMcpjsonServers).toEqual(['notion'])
+        const settings = JSON.parse(
+          readFileSync(join(workspaceDir, '.claude', 'settings.local.json'), 'utf8'),
+        ) as { enabledMcpjsonServers: string[] }
+        expect(settings.enabledMcpjsonServers).toEqual(['notion'])
       },
       { mcpAuthDelegate: delegateStub },
     )
@@ -452,11 +453,8 @@ describe('workspace login heals the project approval for marked entries', () => 
           { method: 'POST' },
         )
         expect(res.status).toBe(200)
-        // No heal for unmarked entries — the file may not even exist.
-        const raw = existsSync(join(homeDir, '.claude.json'))
-          ? readFileSync(join(homeDir, '.claude.json'), 'utf8')
-          : '{}'
-        expect(raw.includes('enabledMcpjsonServers')).toBe(false)
+        // No heal for unmarked entries — no settings file appears.
+        expect(existsSync(join(workspaceDir, '.claude', 'settings.local.json'))).toBe(false)
       },
       { mcpAuthDelegate: delegateStub },
     )
