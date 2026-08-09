@@ -2,12 +2,13 @@
 //
 //   tsx scripts/src/release/build-desktop.ts [--skip-web] [--skip-payload] [--publish]
 //
-// payload → verify → stage the runtime as tauri's externalBin → bake
-// release.env (when a hub is configured in the build env) → `tauri build`
-// with the release overlay config (the base tauri.conf.json stays
-// bundle-inactive so dev cargo builds never demand a staged payload) →
-// emit latest.json beside the installer → with --publish, push the release
-// (installer + latest.json) to the public vynel-releases repo via `gh`.
+// payload → verify → bake release.env (when a hub is configured in the build
+// env) → `tauri build` with the release overlay config (the base
+// tauri.conf.json stays bundle-inactive so dev cargo builds never demand a
+// staged payload) → emit latest.json beside the installer → with --publish,
+// push the release (installer + latest.json) to the public vynel-releases
+// repo via `gh`. The runtime (payload/vynel-engine.exe) rides the resources
+// map into resources\engine — no externalBin staging step anymore.
 //
 // Signing: TAURI_SIGNING_PRIVATE_KEY(_PATH) must be set for updater
 // artifacts; the key itself must NEVER be in the repo — this script refuses
@@ -17,16 +18,15 @@
 
 import { spawnSync } from 'node:child_process'
 import {
-  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
-  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { rcedit } from 'rcedit'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..', '..', '..')
@@ -43,14 +43,6 @@ function run(command: string, args: string[], cwd: string): void {
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(' ')} failed with exit code ${result.status ?? 'null'}.`)
   }
-}
-
-function stageExternalBinRuntime(): void {
-  // Tauri's externalBin naming: <name>-<target-triple><ext>, renamed to
-  // node.exe beside Vynel.exe at install time — where launch_plan.rs expects it.
-  const binariesDir = join(srcTauriDir, 'binaries')
-  mkdirSync(binariesDir, { recursive: true })
-  cpSync(join(payloadDir, 'node.exe'), join(binariesDir, 'node-x86_64-pc-windows-msvc.exe'))
 }
 
 function bakeReleaseEnv(): void {
@@ -82,6 +74,117 @@ function bakeReleaseEnv(): void {
 
 const RELEASES_REPO = 'kafijunior/vynel-releases'
 const nsisDir = join(srcTauriDir, 'target', 'release', 'bundle', 'nsis')
+
+// ── Authenticode signing seam (G2) ──────────────────────────────────────────
+// Credential-gated: with the full six-variable env present the build signs
+// (Azure Artifact Signing via artifact-signing-cli in bundle.windows
+// .signCommand — Tauri signs Vynel.exe, the NSIS installer AND uninstaller);
+// with none it builds unsigned for internal testing. The engine exe is a
+// RESOURCE, which Tauri never signs — so when signing is on, this script
+// rebrands it (rcedit: "Vynel Engine" in Task Manager, our icon) and signs it
+// itself. Unsigned builds skip the rebrand too: rcedit would invalidate the
+// OpenJS signature the renamed node.exe still carries.
+
+type SigningEnv = { endpoint: string; account: string; profile: string }
+
+const SIGNING_ENV_NAMES = [
+  'VYNEL_SIGN_ENDPOINT', // e.g. https://eus.codesigning.azure.net
+  'VYNEL_SIGN_ACCOUNT', // the Artifact Signing account name
+  'VYNEL_SIGN_PROFILE', // the certificate profile name
+  'AZURE_CLIENT_ID', // service principal with the profile-signer role
+  'AZURE_TENANT_ID',
+  'AZURE_CLIENT_SECRET',
+] as const
+
+function resolveSigningEnv(): SigningEnv | null {
+  const missing = SIGNING_ENV_NAMES.filter((name) => process.env[name] === undefined)
+  if (missing.length === SIGNING_ENV_NAMES.length) {
+    console.log('build-desktop: no signing env — UNSIGNED build (internal testing only).')
+    return null
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `Half-configured signing env: missing ${missing.join(', ')}. Set all of ` +
+        `${SIGNING_ENV_NAMES.join(', ')}, or none for an unsigned build.`,
+    )
+  }
+  return {
+    endpoint: process.env['VYNEL_SIGN_ENDPOINT']!,
+    account: process.env['VYNEL_SIGN_ACCOUNT']!,
+    profile: process.env['VYNEL_SIGN_PROFILE']!,
+  }
+}
+
+function signCommandTemplate(signing: SigningEnv): string {
+  // %1 is Tauri's file-path placeholder; the CLI reads AZURE_* from the env
+  // and timestamps against Microsoft's TSA by default.
+  return `artifact-signing-cli -e ${signing.endpoint} -a ${signing.account} -c ${signing.profile} %1`
+}
+
+/** The generated signing overlay (second --config): keeps signCommand out of
+ *  the committed release conf so credential-less builds stay green. */
+function writeSigningOverlay(signing: SigningEnv): string {
+  const overlayPath = join(srcTauriDir, 'target', 'tauri.signing.generated.conf.json')
+  mkdirSync(dirname(overlayPath), { recursive: true })
+  writeFileSync(
+    overlayPath,
+    `${JSON.stringify(
+      { bundle: { windows: { signCommand: signCommandTemplate(signing) } } },
+      null,
+      2,
+    )}\n`,
+  )
+  return overlayPath
+}
+
+/** Hub-configured builds poll the hub first — channels, staged rollout, and
+ *  rollback pointers all live server-side then — with the GitHub manifest as
+ *  fallback entry #2 (the updater walks the array in order). Hub-less builds
+ *  keep the GitHub-only endpoint baked in the committed release conf. The
+ *  {{target}}/{{arch}}/{{current_version}} placeholders are substituted by
+ *  the updater plugin client-side. */
+function writeUpdaterEndpointsOverlay(hubUrl: string): string {
+  const overlayPath = join(srcTauriDir, 'target', 'tauri.endpoints.generated.conf.json')
+  mkdirSync(dirname(overlayPath), { recursive: true })
+  writeFileSync(
+    overlayPath,
+    `${JSON.stringify(
+      {
+        plugins: {
+          updater: {
+            endpoints: [
+              `${hubUrl}/releases/desktop/{{target}}/{{arch}}/{{current_version}}`,
+              `https://github.com/${RELEASES_REPO}/releases/latest/download/latest.json`,
+            ],
+          },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  )
+  return overlayPath
+}
+
+async function rebrandAndSignEngine(signing: SigningEnv, version: string): Promise<void> {
+  const enginePath = join(payloadDir, 'vynel-engine.exe')
+  await rcedit(enginePath, {
+    'version-string': {
+      FileDescription: 'Vynel Engine',
+      ProductName: 'Vynel',
+      CompanyName: 'Vynel',
+      OriginalFilename: 'vynel-engine.exe',
+      LegalCopyright: '© 2026 Vynel',
+    },
+    'file-version': version,
+    'product-version': version,
+    icon: join(srcTauriDir, 'icons', 'icon.ico'),
+  })
+  const [bin, ...commandArgs] = signCommandTemplate(signing).split(' ')
+  // %1 swaps at the ARGUMENT level — run() itself quotes spaced paths.
+  run(bin!, commandArgs.map((arg) => (arg === '%1' ? enginePath : arg)), repoRoot)
+  console.log('build-desktop: engine exe rebranded ("Vynel Engine") and signed.')
+}
 
 function appVersion(): string {
   const config = JSON.parse(readFileSync(join(srcTauriDir, 'tauri.conf.json'), 'utf8')) as {
@@ -189,27 +292,41 @@ function publishRelease(version: string, installerPath: string, manifestPath: st
   console.log(`build-desktop: published v${version} to ${RELEASES_REPO}`)
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const args = process.argv.slice(2)
   const passthrough = args.includes('--skip-web') ? ['--skip-web'] : []
   const version = appVersion()
 
   assertSigningEnvSafe()
+  const signing = resolveSigningEnv()
   if (!args.includes('--skip-payload')) {
     run('tsx', [join(here, 'build-payload.ts'), 'win-x64', ...passthrough], repoRoot)
   } else if (!existsSync(join(payloadDir, 'backend', 'dist', 'server.mjs'))) {
     throw new Error('--skip-payload passed but no payload exists — run build-payload first.')
   }
+  // Rebrand + sign BEFORE the verify gate, so verify's PE-magic check and
+  // smoke boot prove the exact binary that ships — not a pre-mutation one.
+  if (signing !== null) {
+    await rebrandAndSignEngine(signing, version)
+  }
   run('tsx', [join(here, 'verify-payload.ts'), 'win-x64'], repoRoot)
 
-  stageExternalBinRuntime()
   bakeReleaseEnv()
   // A stale installer from a previous build must not survive to mask a failed
   // one — the artifact asserts below only mean something on a clean dir.
   rmSync(nsisDir, { recursive: true, force: true })
+  const configFlags = ['--config', join(srcTauriDir, 'tauri.release.conf.json')]
+  if (signing !== null) {
+    configFlags.push('--config', writeSigningOverlay(signing))
+  }
+  // bakeReleaseEnv above already rejected a half-configured hub pair.
+  const hubUrl = process.env['VYNEL_HUB_URL']
+  if (hubUrl !== undefined) {
+    configFlags.push('--config', writeUpdaterEndpointsOverlay(hubUrl))
+  }
   run(
     'pnpm',
-    ['--filter', '@vynel/desktop', 'exec', 'tauri', 'build', '--config', join(srcTauriDir, 'tauri.release.conf.json')],
+    ['--filter', '@vynel/desktop', 'exec', 'tauri', 'build', ...configFlags],
     repoRoot,
   )
 
@@ -224,7 +341,7 @@ function main(): void {
 }
 
 try {
-  main()
+  await main()
 } catch (err) {
   console.error('build-desktop failed:', err)
   process.exitCode = 1

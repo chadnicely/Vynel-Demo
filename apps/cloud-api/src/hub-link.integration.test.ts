@@ -79,6 +79,7 @@ describe('hub-account against the real hub', () => {
         entitlements,
         mail,
         artifactStore: createInMemoryArtifactStore(),
+        desktopReleases: { resolveUpdate: async () => null },
         linkBaseUrl: 'https://hub.test',
         adminToken: 'test-admin-token-0123456789abcdef-0123456789abcdef',
       })
@@ -142,6 +143,7 @@ describe('hub-account against the real hub', () => {
         entitlements,
         mail: { sendSetPasswordLink: async () => {} },
         artifactStore: createInMemoryArtifactStore(),
+        desktopReleases: { resolveUpdate: async () => null },
         linkBaseUrl: 'https://hub.test',
         adminToken: 'test-admin-token-0123456789abcdef-0123456789abcdef',
       })

@@ -11,7 +11,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::Manager;
 
 const ENGINE_CONFIG_FILE: &str = "engine.json";
 
@@ -25,10 +24,7 @@ pub struct EngineConfig {
 }
 
 fn config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map(|dir| dir.join(ENGINE_CONFIG_FILE))
-        .map_err(|error| format!("no app data dir: {error}"))
+    crate::data_home::resolve_data_home(app).map(|dir| dir.join(ENGINE_CONFIG_FILE))
 }
 
 /// The pre-daemon read (launch_plan.rs): Some(install_id option) in remote

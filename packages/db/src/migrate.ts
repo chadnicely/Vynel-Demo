@@ -4,11 +4,68 @@
 // Per `docs/foundation.md §2 row 11` + `.claude/rules/data-standard.md`
 // "Migrations".
 
+import { readFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { getSqliteClient, type Database } from './client.js'
 
 export interface RunMigrationsOptions {
   readonly migrationsFolder: string
+}
+
+export interface BackupBeforePendingMigrationsOptions {
+  readonly migrationsFolder: string
+  /** The SQLite file's path — the backup lands beside it as `<path>.pre-migration.bak`. */
+  readonly databasePath: string
+}
+
+/**
+ * Snapshot the database before an app update's migrations touch it —
+ * migrations are the one non-rollbackable step of an update, and the backup
+ * is what "reinstall the previous version" restores from. Backs up ONLY when
+ * a populated, previously-migrated database faces pending migrations: a fresh
+ * install (nothing applied yet) and an ordinary boot (nothing pending) skip
+ * the copy, so steady-state boot pays nothing. Keeps exactly one backup —
+ * the state right before the most recent migration run.
+ *
+ * Returns the backup path, or null when no backup was taken.
+ */
+export function backupBeforePendingMigrations(
+  db: Database,
+  options: BackupBeforePendingMigrationsOptions,
+): string | null {
+  const journalPath = join(options.migrationsFolder, 'meta', '_journal.json')
+  let journalCount: number
+  try {
+    const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
+      entries?: readonly unknown[]
+    }
+    journalCount = journal.entries?.length ?? 0
+  } catch {
+    // No readable journal — migrate() itself will fail loudly right after;
+    // a backup of an untouched database adds nothing.
+    return null
+  }
+
+  const sqlite = getSqliteClient(db)
+  const migrationsTable = sqlite
+    .prepare(
+      "select count(*) as found from sqlite_master where type = 'table' and name = '__drizzle_migrations'",
+    )
+    .get() as { found: number }
+  if (migrationsTable.found === 0) return null
+  const applied = sqlite
+    .prepare('select count(*) as applied from __drizzle_migrations')
+    .get() as { applied: number }
+  if (applied.applied === 0 || journalCount <= applied.applied) return null
+
+  // VACUUM INTO writes a consistent snapshot through the live connection —
+  // WAL content included, which a plain file copy would miss. It refuses an
+  // existing target, so the previous backup clears first.
+  const backupPath = `${options.databasePath}.pre-migration.bak`
+  rmSync(backupPath, { force: true })
+  sqlite.prepare('VACUUM INTO ?').run(backupPath)
+  return backupPath
 }
 
 export function runMigrations(db: Database, options: RunMigrationsOptions): void {

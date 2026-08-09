@@ -20,8 +20,16 @@ export type PayloadTarget = {
   nodeArchiveName: string
   /** Path of the node binary inside the archive. */
   nodeBinaryInArchive: string
-  /** Staged binary name at the payload root. */
-  stagedNodeName: 'node.exe' | 'node'
+  /**
+   * Staged binary name at the payload root. win-x64 renames the runtime to
+   * `vynel-engine.exe` — Task Manager, AV dialogs, and the install dir show a
+   * Vynel-owned name instead of a mystery "Node.js" process. A pure rename
+   * keeps the OpenJS Authenticode signature valid (it covers content, not
+   * filename); the version-resource rebrand waits for our own signing (G2).
+   * Linux targets stay `node`: the server-install systemd unit's ExecStart
+   * (`<engine>/node`) is a shipped contract.
+   */
+  stagedNodeName: 'vynel-engine.exe' | 'node'
 }
 
 export const PAYLOAD_TARGETS: Record<PayloadTargetId, PayloadTarget> = {
@@ -31,7 +39,7 @@ export const PAYLOAD_TARGETS: Record<PayloadTargetId, PayloadTarget> = {
     cpu: 'x64',
     nodeArchiveName: `node-v${PINNED_NODE_VERSION}-win-x64.zip`,
     nodeBinaryInArchive: `node-v${PINNED_NODE_VERSION}-win-x64/node.exe`,
-    stagedNodeName: 'node.exe',
+    stagedNodeName: 'vynel-engine.exe',
   },
   'linux-x64': {
     id: 'linux-x64',

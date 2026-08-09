@@ -89,6 +89,13 @@ export const EnvSchema = z.object({
     .default('scripts/anthropic-catalog/manifest.json')
     .transform(resolveAgainstRepoRoot),
   CLOUD_UPSTREAM_CHECK_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
+  // Where the desktop updater's latest.json lives. v1 proxies the public
+  // releases repo (the same manifest build-desktop.ts publishes); overriding
+  // this is how a staging hub points at a staging releases repo.
+  CLOUD_RELEASES_MANIFEST_URL: z
+    .string()
+    .url()
+    .default('https://github.com/kafijunior/vynel-releases/releases/latest/download/latest.json'),
 })
 
 export type Env = z.infer<typeof EnvSchema>

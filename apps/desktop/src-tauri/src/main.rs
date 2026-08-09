@@ -8,6 +8,7 @@ use tauri::Manager;
 
 mod browser;
 mod daemon;
+mod data_home;
 mod engine_config;
 mod job_object;
 mod launch_plan;
@@ -15,6 +16,12 @@ mod updater;
 mod windows;
 
 fn main() {
+    // BEFORE anything else: the legacy→%APPDATA%\Vynel data-home migration.
+    // The log plugin below eagerly creates the new home's logs dir at plugin
+    // init — migrating any later would see "both dirs exist" on the first
+    // updated boot and permanently strand the user's data (reviewer-caught).
+    data_home::migrate_legacy_data_home();
+
     // The voice daemon launches this exe with --jarvis-only on wake: only the
     // overlay window opens (the full app stays closed). The daemon sidecar is
     // still ensured in release — the overlay's UI is served by it.
@@ -42,16 +49,24 @@ fn main() {
                 }
             }
         }))
-        // Shell diagnostics: stdout when a terminal is attached, and the
-        // platform log dir always — a windowed installed app swallows stderr,
-        // and "it did not open" must be diagnosable from a file on disk.
+        // Shell diagnostics: stdout when a terminal is attached, and a file
+        // always — a windowed installed app swallows stderr, and "it did not
+        // open" must be diagnosable from disk. The file sits in the data
+        // home's logs\ beside daemon.log (ONE folder to zip for support);
+        // the identifier-keyed LogDir is only the no-APPDATA fallback.
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
                 .targets([
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
-                        file_name: Some(String::from("vynel-shell")),
+                    tauri_plugin_log::Target::new(match data_home::data_home_from_env() {
+                        Some(home) => tauri_plugin_log::TargetKind::Folder {
+                            path: home.join("logs"),
+                            file_name: Some(String::from("vynel-shell")),
+                        },
+                        None => tauri_plugin_log::TargetKind::LogDir {
+                            file_name: Some(String::from("vynel-shell")),
+                        },
                     }),
                 ])
                 .build(),
@@ -70,6 +85,8 @@ fn main() {
             engine_config::engine_get_config,
             engine_config::engine_set_config,
             engine_config::engine_restart_app,
+            updater::updater_pending_version,
+            updater::updater_install_now,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -78,12 +95,12 @@ fn main() {
                 windows::create_windows(&handle, jarvis_only)?;
             } else {
                 daemon::ensure_daemon_then_open_windows(handle.clone(), jarvis_only);
-                // Not on a --jarvis-only cold launch: a modal update dialog
-                // (and, on accept, the app killing itself to install) is
-                // hostile mid-voice-interaction. The common main-window
-                // launch path carries the update check — but only when the
-                // plugin was registered above (handle.updater() panics on
-                // unmanaged state, not a graceful Err).
+                // Not on a --jarvis-only cold launch: the update pipeline
+                // (and the app exiting itself on install) is hostile
+                // mid-voice-interaction. The common main-window launch path
+                // carries the silent check + background download — but only
+                // when the plugin was registered above (handle.updater() on
+                // unmanaged state panics, not a graceful Err).
                 if !jarvis_only && updater_configured {
                     updater::check_for_updates_in_background(handle);
                 }

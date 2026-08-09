@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 export type { Database, CreateDatabaseOptions } from './client.js'
 export { createDatabase, createSqliteDatabase, closeDatabase } from './client.js'
 export { withTransaction } from './transactions.js'
-export { runMigrations } from './migrate.js'
+export { runMigrations, backupBeforePendingMigrations } from './migrate.js'
 
 // Absolute path to the SQLite migrations folder, resolved at module load.
 // Callers (apps/local-api boot, apps/worker bootstrap if it ever migrates) pass

@@ -11,11 +11,15 @@
 // during the run. With the fix it passes; remove the fix and it throws.
 
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { createSqliteDatabase, closeDatabase, getSqliteClient } from './client.js'
-import { runMigrations, toActionableMigrationError } from './migrate.js'
+import {
+  backupBeforePendingMigrations,
+  runMigrations,
+  toActionableMigrationError,
+} from './migrate.js'
 
 function writeMigrationsFolder(migrations: { tag: string; sql: string }[]): string {
   const folder = mkdtempSync(path.join(os.tmpdir(), 'vynel-mig-'))
@@ -68,6 +72,113 @@ describe('runMigrations — foreign-key handling', () => {
     closeDatabase(db)
     rmSync(folder, { recursive: true, force: true })
     rmSync(dbDir, { recursive: true, force: true })
+  })
+})
+
+describe('backupBeforePendingMigrations', () => {
+  const FIRST_MIGRATION = {
+    tag: '0000_init',
+    sql: "CREATE TABLE `notes` (`id` text PRIMARY KEY NOT NULL);--> statement-breakpoint\nINSERT INTO `notes` (`id`) VALUES ('n1');",
+  }
+  const SECOND_MIGRATION = {
+    tag: '0001_more',
+    sql: 'CREATE TABLE `extras` (`id` text PRIMARY KEY NOT NULL);',
+  }
+
+  function scratchDatabase() {
+    const dbDir = mkdtempSync(path.join(os.tmpdir(), 'vynel-db-'))
+    const databasePath = path.join(dbDir, 'test.db')
+    const db = createSqliteDatabase({ dialect: 'sqlite', path: databasePath })
+    return {
+      db,
+      databasePath,
+      done: (...folders: string[]) => {
+        closeDatabase(db)
+        rmSync(dbDir, { recursive: true, force: true })
+        for (const folder of folders) rmSync(folder, { recursive: true, force: true })
+      },
+    }
+  }
+
+  it('skips a fresh database (nothing applied yet, nothing worth saving)', () => {
+    const { db, databasePath, done } = scratchDatabase()
+    const folder = writeMigrationsFolder([FIRST_MIGRATION])
+
+    expect(backupBeforePendingMigrations(db, { migrationsFolder: folder, databasePath })).toBeNull()
+
+    done(folder)
+  })
+
+  it('skips an up-to-date database (steady-state boots pay nothing)', () => {
+    const { db, databasePath, done } = scratchDatabase()
+    const folder = writeMigrationsFolder([FIRST_MIGRATION])
+    runMigrations(db, { migrationsFolder: folder })
+
+    expect(backupBeforePendingMigrations(db, { migrationsFolder: folder, databasePath })).toBeNull()
+
+    done(folder)
+  })
+
+  it('backs up a migrated database facing pending migrations — the update case', () => {
+    const { db, databasePath, done } = scratchDatabase()
+    const applied = writeMigrationsFolder([FIRST_MIGRATION])
+    runMigrations(db, { migrationsFolder: applied })
+    // The "new app version" ships a folder with one more migration.
+    const shipped = writeMigrationsFolder([FIRST_MIGRATION, SECOND_MIGRATION])
+
+    const backupPath = backupBeforePendingMigrations(db, {
+      migrationsFolder: shipped,
+      databasePath,
+    })
+
+    expect(backupPath).toBe(`${databasePath}.pre-migration.bak`)
+    expect(existsSync(backupPath!)).toBe(true)
+    // The snapshot is a real pre-migration database: the applied table is
+    // there with its data, the pending one is not.
+    const backup = createSqliteDatabase({ dialect: 'sqlite', path: backupPath! })
+    const backupSqlite = getSqliteClient(backup)
+    expect(backupSqlite.prepare('SELECT id FROM notes').get()).toEqual({ id: 'n1' })
+    expect(
+      backupSqlite
+        .prepare("SELECT count(*) as found FROM sqlite_master WHERE name = 'extras'")
+        .get(),
+    ).toEqual({ found: 0 })
+    closeDatabase(backup)
+
+    done(applied, shipped)
+  })
+
+  it('replaces the previous backup (exactly one kept)', () => {
+    const { db, databasePath, done } = scratchDatabase()
+    const applied = writeMigrationsFolder([FIRST_MIGRATION])
+    runMigrations(db, { migrationsFolder: applied })
+    const shipped = writeMigrationsFolder([FIRST_MIGRATION, SECOND_MIGRATION])
+
+    writeFileSync(`${databasePath}.pre-migration.bak`, 'stale previous backup')
+    const backupPath = backupBeforePendingMigrations(db, {
+      migrationsFolder: shipped,
+      databasePath,
+    })
+
+    expect(backupPath).not.toBeNull()
+    const backup = createSqliteDatabase({ dialect: 'sqlite', path: backupPath! })
+    expect(getSqliteClient(backup).prepare('SELECT id FROM notes').get()).toEqual({ id: 'n1' })
+    closeDatabase(backup)
+
+    done(applied, shipped)
+  })
+
+  it('skips when the journal is unreadable (migrate itself will fail loudly)', () => {
+    const { db, databasePath, done } = scratchDatabase()
+
+    expect(
+      backupBeforePendingMigrations(db, {
+        migrationsFolder: path.join(os.tmpdir(), 'vynel-no-such-folder'),
+        databasePath,
+      }),
+    ).toBeNull()
+
+    done()
   })
 })
 
