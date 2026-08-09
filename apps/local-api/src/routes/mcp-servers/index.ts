@@ -54,9 +54,10 @@ export const mcpServersApp = factory
     ...workspaceScoped,
     (c) => {
       const workspacePath = c.var.workspace!.path
+      const credentialStatuses = c.var.mcpCredentialStatusesReader()
       return c.json({
         servers: listMcpServersForScope('workspace', workspacePath).map((server) =>
-          serializeMcpServer(server, 'workspace'),
+          serializeMcpServer(server, 'workspace', credentialStatuses),
         ),
       })
     },
@@ -94,7 +95,7 @@ export const mcpServersApp = factory
       const added = listMcpServersForScope('workspace', workspacePath).find(
         (server) => server.serverName === body.serverName,
       )!
-      return c.json(serializeMcpServer(added, 'workspace'), 201)
+      return c.json(serializeMcpServer(added, 'workspace', c.var.mcpCredentialStatusesReader()), 201)
     },
   )
   .post(

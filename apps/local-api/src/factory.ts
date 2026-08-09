@@ -25,7 +25,7 @@ import type { AppProcessSupervisor } from '@vynel/apps'
 import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
-import type { InstalledClaudePluginView } from '@vynel/providers'
+import type { InstalledClaudePluginView, McpOauthCredentialStatus } from '@vynel/providers'
 import type { MarketplacePluginDelegate } from './services/marketplace-plugin-delegate.js'
 import type { McpAuthDelegate } from './services/mcp-auth-delegate.js'
 import type { ClaudeMarketplaceSourceView } from '@vynel/marketplace'
@@ -106,6 +106,11 @@ export interface AppEnv {
     // Set once at construction (`app.ts`) — real CLI in production, a fake
     // in route tests (a test must never open a browser).
     mcpAuthDelegate: McpAuthDelegate
+    // Which remote servers hold a usable OAuth credential in Claude Code's
+    // native store (metadata only, never token values) — powers the rows'
+    // persisted `signedIn`. Real store read in production, a stub in route
+    // tests so listings never depend on the developer's machine.
+    mcpCredentialStatusesReader: () => McpOauthCredentialStatus[]
     // The user-registered Claude marketplaces reader (the plugin reader's
     // sibling) — real ~/.claude/plugins reads in production, a stub in
     // route tests.

@@ -2332,6 +2332,9 @@
                                 "hasValue"
                               ]
                             }
+                          },
+                          "signedIn": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -2341,7 +2344,8 @@
                           "commandOrUrl",
                           "args",
                           "environmentKeys",
-                          "headers"
+                          "headers",
+                          "signedIn"
                         ]
                       }
                     }
@@ -2433,6 +2437,9 @@
                           "hasValue"
                         ]
                       }
+                    },
+                    "signedIn": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -2442,7 +2449,8 @@
                     "commandOrUrl",
                     "args",
                     "environmentKeys",
-                    "headers"
+                    "headers",
+                    "signedIn"
                   ]
                 }
               }
@@ -22875,6 +22883,9 @@
                                 "hasValue"
                               ]
                             }
+                          },
+                          "signedIn": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -22884,7 +22895,8 @@
                           "commandOrUrl",
                           "args",
                           "environmentKeys",
-                          "headers"
+                          "headers",
+                          "signedIn"
                         ]
                       }
                     }
@@ -22964,6 +22976,9 @@
                           "hasValue"
                         ]
                       }
+                    },
+                    "signedIn": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -22973,7 +22988,8 @@
                     "commandOrUrl",
                     "args",
                     "environmentKeys",
-                    "headers"
+                    "headers",
+                    "signedIn"
                   ]
                 }
               }

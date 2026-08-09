@@ -5,6 +5,7 @@
 
 import type { ConfiguredMcpServer } from '@vynel/skills'
 import type { SkillRequiredMcpServer } from '@vynel/contracts/skills/verified-skills/verified-skill-definition'
+import type { McpOauthCredentialStatus } from '@vynel/providers'
 import type { z } from 'zod'
 import type { McpServerRowSchema, AddMcpServerRequestSchema } from './schemas.js'
 
@@ -13,6 +14,7 @@ export type McpServerRow = z.infer<typeof McpServerRowSchema>
 export function serializeMcpServer(
   server: ConfiguredMcpServer,
   scope: 'user' | 'workspace',
+  credentialStatuses: McpOauthCredentialStatus[],
 ): McpServerRow {
   if (server.transport === 'stdio') {
     return {
@@ -23,6 +25,7 @@ export function serializeMcpServer(
       args: server.args,
       environmentKeys: Object.keys(server.environment).sort(),
       headers: [],
+      signedIn: false,
     }
   }
   return {
@@ -35,6 +38,15 @@ export function serializeMcpServer(
     headers: Object.keys(server.headers)
       .sort()
       .map((name) => ({ name, hasValue: server.headers[name]!.length > 0 })),
+    // The store keys credentials by server NAME; the stored URL (when
+    // present) must also agree, so a same-named server pointing elsewhere
+    // never borrows another server's sign-in.
+    signedIn: credentialStatuses.some(
+      (status) =>
+        status.isUsable &&
+        status.serverName === server.serverName &&
+        (status.serverUrl === null || status.serverUrl === server.url),
+    ),
   }
 }
 

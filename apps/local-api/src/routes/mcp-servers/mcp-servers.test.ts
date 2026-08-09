@@ -62,7 +62,14 @@ async function withWorld<T>(
   try {
     return await withTestDatabase(async (db) => {
       const { workspace } = seedWorld(db, workspaceDir)
-      const app = createApp({ db, logger: silentLogger, ...appOptions })
+      // Credential-store reads default to empty here — a listing must never
+      // depend on the developer machine's real ~/.claude/.credentials.json.
+      const app = createApp({
+        db,
+        logger: silentLogger,
+        mcpCredentialStatusesReader: () => [],
+        ...appOptions,
+      })
       return withHomeDir(homeDir, () =>
         fn({ db, app, homeDir, workspaceDir, workspaceId: workspace.id }),
       )
@@ -106,6 +113,7 @@ describe('user-scoped /mcp-servers', () => {
           args: [],
           environmentKeys: [],
           headers: [{ name: 'Authorization', hasValue: true }],
+          signedIn: false,
         },
       ])
 
@@ -474,6 +482,47 @@ describe('workspace login heals the project approval for marked entries', () => 
         expect(existsSync(join(workspaceDir, '.claude', 'settings.local.json'))).toBe(false)
       },
       { mcpAuthDelegate: delegateStub },
+    )
+  })
+})
+
+// The persisted `signedIn` — a row shows Connected across reloads when
+// Claude Code's own store holds a usable credential (smoke finding #4:
+// the resting state always read "Connect" even after a successful auth).
+describe('list rows carry the persisted signedIn from the credential store', () => {
+  it('matches by server name AND stored URL; expired-unrenewable stays false', async () => {
+    await withWorld(
+      async ({ app, workspaceId, workspaceDir }) => {
+        writeFileSync(
+          join(workspaceDir, '.mcp.json'),
+          JSON.stringify({
+            mcpServers: {
+              sentry: { type: 'http', url: 'https://mcp.sentry.dev/mcp' },
+              notion: { type: 'http', url: 'https://mcp.notion.com/mcp' },
+              linear: { type: 'http', url: 'https://mcp.linear.app/mcp' },
+            },
+          }),
+          'utf8',
+        )
+        const res = await app.request(`/workspaces/${workspaceId}/mcp-servers`)
+        expect(res.status).toBe(200)
+        const body = (await res.json()) as { servers: { serverName: string; signedIn: boolean }[] }
+        const signedInByName = Object.fromEntries(
+          body.servers.map((server) => [server.serverName, server.signedIn]),
+        )
+        expect(signedInByName).toEqual({
+          sentry: true, // usable credential, URL agrees
+          notion: false, // stored URL points at a DIFFERENT server — no borrowing
+          linear: false, // credential expired with no refresh token
+        })
+      },
+      {
+        mcpCredentialStatusesReader: () => [
+          { serverName: 'sentry', serverUrl: 'https://mcp.sentry.dev/mcp', isUsable: true },
+          { serverName: 'notion', serverUrl: 'https://elsewhere.example.com/mcp', isUsable: true },
+          { serverName: 'linear', serverUrl: 'https://mcp.linear.app/mcp', isUsable: false },
+        ],
+      },
     )
   })
 })

@@ -54,7 +54,10 @@ export const mcpServersUserApp = factory
     ...userScoped,
     (c) => {
       const servers = listMcpServersForScope('user')
-      return c.json({ servers: servers.map((server) => serializeMcpServer(server, 'user')) })
+      const credentialStatuses = c.var.mcpCredentialStatusesReader()
+      return c.json({
+        servers: servers.map((server) => serializeMcpServer(server, 'user', credentialStatuses)),
+      })
     },
   )
   .post(
@@ -85,7 +88,7 @@ export const mcpServersUserApp = factory
       const added = listMcpServersForScope('user').find(
         (server) => server.serverName === body.serverName,
       )!
-      return c.json(serializeMcpServer(added, 'user'), 201)
+      return c.json(serializeMcpServer(added, 'user', c.var.mcpCredentialStatusesReader()), 201)
     },
   )
   .post(

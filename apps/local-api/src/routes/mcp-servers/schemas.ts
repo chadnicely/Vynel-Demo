@@ -58,6 +58,10 @@ export const McpServerRowSchema = z.object({
   environmentKeys: z.array(z.string()),
   /** Header names + presence only — values are secrets. */
   headers: z.array(MaskedHeaderSchema),
+  /** True when Claude Code's credential store holds a usable OAuth token for
+   * this server (presence/expiry metadata only — the tokens stay native).
+   * Always false for stdio rows. */
+  signedIn: z.boolean(),
 })
 
 export const ListMcpServersResponseSchema = z.object({

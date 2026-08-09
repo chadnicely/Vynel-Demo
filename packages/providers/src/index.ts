@@ -29,6 +29,10 @@ export {
   type InstalledClaudePluginView,
 } from './claude/installation/claude-plugin-cli.js'
 export {
+  listMcpOauthCredentialStatuses,
+  type McpOauthCredentialStatus,
+} from './claude/installation/read-claude-mcp-credentials.js'
+export {
   loginClaudeMcpServer,
   logoutClaudeMcpServer,
   type ClaudeMcpAuthInput,

@@ -72,7 +72,12 @@ import {
 import { claudeMcpAuthDelegate, type McpAuthDelegate } from './services/mcp-auth-delegate.js'
 import { listClaudeMarketplaceSources } from './services/claude-marketplaces-reader.js'
 import type { ClaudeMarketplaceSourceView } from '@vynel/marketplace'
-import { listInstalledClaudePlugins, type InstalledClaudePluginView } from '@vynel/providers'
+import {
+  listInstalledClaudePlugins,
+  listMcpOauthCredentialStatuses,
+  type InstalledClaudePluginView,
+  type McpOauthCredentialStatus,
+} from '@vynel/providers'
 import { featureGate } from './middleware/feature-gate.js'
 import { workspacesApp } from './routes/workspaces/index.js'
 import { hubApp } from './routes/hub/index.js'
@@ -142,6 +147,10 @@ export interface CreateAppOptions {
   // CLI seam). Production omits it (the real CLI); a route test injects a
   // fake so the HTTP stack never opens a browser.
   readonly mcpAuthDelegate?: McpAuthDelegate
+  // Override the credential-store presence reader behind the rows'
+  // persisted `signedIn`. Production omits it (Claude Code's real store,
+  // metadata only); a route test injects a stub.
+  readonly mcpCredentialStatusesReader?: () => McpOauthCredentialStatus[]
   // Override the user-registered Claude marketplaces reader (the plugin
   // reader's sibling). Production omits it (the provider's real
   // ~/.claude/plugins reads); a route test injects a stub.
@@ -234,6 +243,10 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
       options.marketplaceInstalledPluginsReader ?? listInstalledClaudePlugins,
     )
     c.set('mcpAuthDelegate', options.mcpAuthDelegate ?? claudeMcpAuthDelegate)
+    c.set(
+      'mcpCredentialStatusesReader',
+      options.mcpCredentialStatusesReader ?? (() => listMcpOauthCredentialStatuses()),
+    )
     c.set('claudeMarketplacesReader', options.claudeMarketplacesReader ?? listClaudeMarketplaceSources)
     await next()
   })

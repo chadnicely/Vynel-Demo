@@ -77,11 +77,20 @@ function requestRemove(server: { scope: "user" | "workspace"; serverName: string
 // Connect (remote rows): the native browser sign-in via the daemon — the
 // marketplace card's twin, here for hand-added servers too. The SAME button
 // refreshes an existing sign-in (idempotent; the CLI stores a fresh
-// credential), which is the "update auth" affordance. `connectedKey` is the
-// transient success readback — no persisted connection state exists to
-// query (the credential lives in Claude's own store).
+// credential), which is the "update auth" affordance. The resting state
+// comes from the row's persisted `signedIn` (the daemon's metadata-only
+// read of Claude's credential store); `connectedKey` bridges the instant
+// after a successful login until the invalidated listing lands.
 const loginServer = useLoginMcpServer();
 const connectedKey = ref<string | null>(null);
+
+function isSignedIn(server: {
+  scope: string;
+  serverName: string;
+  signedIn: boolean;
+}): boolean {
+  return server.signedIn || connectedKey.value === rowKey(server);
+}
 
 function requestConnect(server: { scope: "user" | "workspace"; serverName: string }) {
   connectedKey.value = null;
@@ -195,20 +204,24 @@ const sectionHint = computed(() =>
           type="button"
           class="connect-button inline-flex shrink-0 cursor-default items-center gap-1 rounded-full px-2.5 py-px text-[11px] font-semibold transition disabled:opacity-55"
           :class="
-            connectedKey === rowKey(server)
-              ? 'bg-ok/15 text-ok'
+            isSignedIn(server)
+              ? 'bg-ok/15 text-ok hover:bg-ok/25'
               : 'bg-info/15 text-info hover:bg-info/25'
           "
           :disabled="isConnecting(server)"
-          :title="`Connect or refresh the sign-in for ${server.serverName}`"
+          :title="
+            isSignedIn(server)
+              ? `${server.serverName} is signed in — click to refresh the sign-in`
+              : `Connect or refresh the sign-in for ${server.serverName}`
+          "
           :aria-label="`Connect ${server.serverName} — opens your browser to sign in`"
           @click="requestConnect(server)"
         >
-          <Check v-if="connectedKey === rowKey(server)" :size="11" />
+          <Check v-if="isSignedIn(server) && !isConnecting(server)" :size="11" />
           {{
             isConnecting(server)
               ? "Connecting…"
-              : connectedKey === rowKey(server)
+              : isSignedIn(server)
                 ? "Connected"
                 : "Connect"
           }}

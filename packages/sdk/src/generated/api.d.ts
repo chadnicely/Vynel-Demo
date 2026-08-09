@@ -4420,6 +4420,7 @@ export interface operations {
                                 name: string;
                                 hasValue: boolean;
                             }[];
+                            signedIn: boolean;
                         }[];
                     };
                 };
@@ -4496,6 +4497,7 @@ export interface operations {
                             name: string;
                             hasValue: boolean;
                         }[];
+                        signedIn: boolean;
                     };
                 };
             };
@@ -12569,6 +12571,7 @@ export interface operations {
                                 name: string;
                                 hasValue: boolean;
                             }[];
+                            signedIn: boolean;
                         }[];
                     };
                 };
@@ -12636,6 +12639,7 @@ export interface operations {
                             name: string;
                             hasValue: boolean;
                         }[];
+                        signedIn: boolean;
                     };
                 };
             };

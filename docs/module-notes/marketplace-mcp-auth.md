@@ -244,3 +244,17 @@ output unreachable → exit-code-only errors). Verified the chain healthy same-d
 Sentry (metadata 200 in 0.7s). If ever worth closing: pre-flight the metadata endpoint from
 the DAEMON (a 5s fetch) before launching the login, so the card can say "the provider's
 sign-in service isn't responding" instead.
+
+## Smoke finding #4 (2026-08-10) — persisted signed-in state
+
+After a successful browser auth the row rested at "Connect" again on reload —
+the credential WAS stored (`claude mcp get` says Connected), Vynel just had no
+persisted state to show. Fix: `~/.claude/.credentials.json` → `mcpOAuth` is
+readable structure (keys `<serverName>|<hash>`, entries carry `serverName`,
+`serverUrl`, `expiresAt`, `refreshToken`). New provider reader
+`listMcpOauthCredentialStatuses` returns presence/expiry METADATA only (token
+values never leave the module); injected into the app as
+`mcpCredentialStatusesReader` (stubbed empty in route tests). Rows gain
+`signedIn` (name AND stored-URL match; expired-without-refresh = false); the
+Connect pill rests green "Connected" when signed in and stays clickable as the
+refresh-sign-in affordance; login now invalidates the listings.
