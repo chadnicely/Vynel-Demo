@@ -91,3 +91,61 @@ describe('approveProjectMcpjsonServer', () => {
     })
   })
 })
+
+// The trust half: approval also records folder trust in ~/.claude.json,
+// keyed by the FORWARD-SLASH spelling (backslash keys are invisible to
+// the CLI — probed live), preserving an existing entry's other keys.
+import { withHomeDir } from './resolve-host-home-dir.js'
+
+async function withIsolatedHomeAndWorkspace<T>(
+  fn: (homeDir: string, workspacePath: string) => Promise<T>,
+): Promise<T> {
+  const homeDir = mkdtempSync(join(tmpdir(), 'vynel-mcp-trust-home-'))
+  const workspacePath = mkdtempSync(join(tmpdir(), 'vynel-mcp-trust-ws-'))
+  try {
+    return await withHomeDir(homeDir, () => fn(homeDir, workspacePath))
+  } finally {
+    rmSync(homeDir, { recursive: true, force: true })
+    rmSync(workspacePath, { recursive: true, force: true })
+  }
+}
+
+describe('approval records folder trust', () => {
+  it('writes hasTrustDialogAccepted under the forward-slash key, preserving other keys', async () => {
+    await withIsolatedHomeAndWorkspace(async (homeDir, workspacePath) => {
+      const forwardKey = workspacePath.replaceAll('\\', '/')
+      writeFileSync(
+        join(homeDir, '.claude.json'),
+        JSON.stringify({
+          theme: 'dark',
+          projects: { [forwardKey]: { allowedTools: ['Bash'] } },
+        }),
+        'utf8',
+      )
+
+      await approveProjectMcpjsonServer(workspacePath, 'notion')
+
+      const config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8'))
+      expect(config.theme).toBe('dark')
+      expect(config.projects[forwardKey]).toEqual({
+        allowedTools: ['Bash'],
+        hasTrustDialogAccepted: true,
+      })
+      // No backslash twin invented.
+      expect(Object.keys(config.projects)).toEqual([forwardKey])
+    })
+  })
+
+  it('creates the home config and entry when neither exists; already-trusted is a no-write', async () => {
+    await withIsolatedHomeAndWorkspace(async (homeDir, workspacePath) => {
+      await approveProjectMcpjsonServer(workspacePath, 'notion')
+      const forwardKey = workspacePath.replaceAll('\\', '/')
+      const config = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8'))
+      expect(config.projects[forwardKey].hasTrustDialogAccepted).toBe(true)
+
+      const before = readFileSync(join(homeDir, '.claude.json'), 'utf8')
+      await approveProjectMcpjsonServer(workspacePath, 'other-server')
+      expect(readFileSync(join(homeDir, '.claude.json'), 'utf8')).toBe(before)
+    })
+  })
+})

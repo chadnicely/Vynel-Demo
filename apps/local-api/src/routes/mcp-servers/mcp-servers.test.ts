@@ -236,9 +236,17 @@ describe('workspace-scoped /workspaces/:workspaceId/mcp-servers', () => {
 
       const wsConfig = JSON.parse(readFileSync(join(workspaceDir, '.mcp.json'), 'utf8'))
       expect(wsConfig.mcpServers.linear).toBeDefined()
-      // The HOME config stays untouched — the approval lives in the
-      // workspace's own settings.local.json (the file the CLI reads).
-      expect(existsSync(join(homeDir, '.claude.json'))).toBe(false)
+      // The HOME config gains ONLY the folder-trust record (forward-slash
+      // key — the spelling the CLI resolves); its server map stays
+      // untouched. The approval lives in the workspace's own
+      // settings.local.json (the file the CLI reads once trusted).
+      const homeConfig = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8')) as {
+        mcpServers?: unknown
+        projects: Record<string, { hasTrustDialogAccepted: boolean }>
+      }
+      expect(homeConfig.mcpServers).toBeUndefined()
+      const forwardKey = workspaceDir.replaceAll('\\', '/')
+      expect(homeConfig.projects[forwardKey]!.hasTrustDialogAccepted).toBe(true)
       const settings = JSON.parse(
         readFileSync(join(workspaceDir, '.claude', 'settings.local.json'), 'utf8'),
       ) as { enabledMcpjsonServers: string[] }

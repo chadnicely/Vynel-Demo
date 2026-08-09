@@ -199,3 +199,24 @@ terminal"). No pipe-based spawn can ever pass that check. Probed: a
 exit-code based (the hidden console's stderr is unreachable — by design). Logout stays on the
 plain pipe spawn (non-interactive; stderr detail intact). Non-Windows keeps the piped spawn +
 the CLI's own actionable error until a pty seam is warranted.
+
+## Live smoke finding #2 (Kafi, 2026-08-09) — the TWO consent walls; FIXED
+
+Workspace Connect stayed dead after the console fix. Probed one wall at a time with Kafi
+narrating the interactive flow (folder trust dialog -> per-server chooser):
+
+1. **Folder trust** — `~/.claude.json` `projects["<path>"].hasTrustDialogAccepted`, keyed by
+   the FORWARD-SLASH path spelling (backslash keys are invisible to the CLI). Until true, the
+   project's `.claude/` settings are ignored ENTIRELY (reading settings from an untrusted
+   folder would be the attack the dialog guards).
+2. **Server approval** — the workspace's `.claude/settings.local.json`
+   `enabledMcpjsonServers`/`disabledMcpjsonServers`; a REJECTION outranks approval (Kafi's
+   workspace had notion + playwright dead from a declined chooser months of sessions never
+   surfaced).
+
+The consent-backed writer now records BOTH: folder trust (a Vynel workspace = the user's
+explicitly added folder, sessions already run there) + approval with rejection-clearing.
+Uninstall revokes only the approval; trust is folder-level standing consent. The legacy
+`~/.claude.json` projects mcpjson arrays are dead — first fix targeted them, second round
+found `settings.local.json`, third found the trust gate + key spelling. Confirmed live in
+BOTH workspaces (trusted + fresh-untrusted): the login prints the authorize URL.

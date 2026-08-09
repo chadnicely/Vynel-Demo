@@ -1,31 +1,80 @@
-// Claude Code treats a project's `.mcp.json` servers as UNTRUSTED until the
-// user approves them — and the CLI (2.1.213, probed live 2026-08-09) reads
-// that verdict from the PROJECT's own `.claude/settings.local.json`:
-// `enabledMcpjsonServers` / `disabledMcpjsonServers` (the legacy
-// `~/.claude.json` projects arrays are dead — writing them changes
-// nothing). A rejection OUTRANKS an approval, so recording consent must
-// also clear the name from the disabled list (a declined prompt in some
-// earlier Claude Code run otherwise silently kills the server forever).
+// Claude Code gates a project's `.mcp.json` servers behind TWO consent
+// records (probed live against 2.1.213, 2026-08-09, one wall at a time):
+//
+// 1. FOLDER TRUST — `~/.claude.json` → `projects["<path>"]
+//    .hasTrustDialogAccepted`, keyed by the FORWARD-SLASH spelling of the
+//    directory (backslash entries are invisible to the CLI). Until it is
+//    true, the project's `.claude/` settings are ignored ENTIRELY —
+//    reading settings from an untrusted folder would be the exact attack
+//    the trust dialog exists to stop.
+// 2. SERVER APPROVAL — the project's own `.claude/settings.local.json`:
+//    `enabledMcpjsonServers` / `disabledMcpjsonServers`. A rejection
+//    OUTRANKS an approval, so recording consent must also clear the name
+//    from the disabled list (a declined chooser prompt in some earlier
+//    Claude Code run otherwise silently kills the server forever).
 //
 // Every workspace-scope entry Vynel writes is consent-backed (the carded
-// marketplace install, the add-server form, a skill's carded install), so
-// recording the approval belongs to the same single writer that writes the
-// entry. Revoking on removal clears ONLY the approval — Vynel's uninstall
-// is not a rejection, so the disabled list is never touched there.
+// marketplace install, the add-server form, a skill's carded install) —
+// and a Vynel WORKSPACE is a folder the user explicitly added, in which
+// Vynel already runs sessions daily — so recording both halves belongs to
+// the same single writer that writes the entry. Revoking on removal
+// clears ONLY the approval: an uninstall is not a rejection, and folder
+// trust is folder-level standing consent, never withdrawn per-server.
 //
-// Same protective posture as the mcp-config writer: other settings keys
-// (permissions etc.) are preserved verbatim; malformed JSON throws rather
-// than clobbering. `settings.local.json` is Claude's per-machine local
-// settings file — the right home for a trust decision.
+// Same protective posture as the mcp-config writer: other keys in both
+// files are preserved verbatim; malformed JSON throws rather than
+// clobbering.
 
 import path from 'node:path'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { resolveMcpConfigPath } from './resolve-mcp-config-path.js'
 
 export async function approveProjectMcpjsonServer(
   workspacePath: string,
   serverName: string,
 ): Promise<void> {
+  await ensureProjectFolderTrusted(workspacePath)
   await updateProjectApproval(workspacePath, serverName, 'approve')
+}
+
+// The workspace path reaches the login's cwd from the same stored value,
+// so forward-slashing it lands on exactly the key the CLI resolves.
+async function ensureProjectFolderTrusted(workspacePath: string): Promise<void> {
+  const configPath = resolveMcpConfigPath('user')
+  let raw: string
+  try {
+    raw = await readFile(configPath, 'utf8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+    raw = '{}'
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    throw new Error(
+      `Claude config at ${configPath} is malformed JSON and cannot be safely updated; ` +
+        `repair or remove it before retrying. Underlying parse error: ` +
+        `${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error(`Claude config at ${configPath} is JSON but not an object.`)
+  }
+  const config = parsed as Record<string, unknown>
+  const projects =
+    typeof config.projects === 'object' && config.projects !== null
+      ? { ...(config.projects as Record<string, unknown>) }
+      : {}
+  const key = workspacePath.replaceAll('\\', '/')
+  const entry =
+    typeof projects[key] === 'object' && projects[key] !== null
+      ? { ...(projects[key] as Record<string, unknown>) }
+      : {}
+  if (entry.hasTrustDialogAccepted === true) return
+  entry.hasTrustDialogAccepted = true
+  projects[key] = entry
+  await writeFile(configPath, JSON.stringify({ ...config, projects }, null, 2), 'utf8')
 }
 
 export async function revokeProjectMcpjsonServerApproval(
