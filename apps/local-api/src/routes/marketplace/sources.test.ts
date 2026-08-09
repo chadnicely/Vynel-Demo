@@ -293,7 +293,7 @@ describe('workspace-scope plugin installs (Move C)', () => {
         marketplaceName: 'acme-tools',
         version: '1.1.0',
         scope: 'project',
-        projectPath: 'C:/ws/acme',
+        projectPath: 'c:/WS/acme/',
       })
       const wsItems = (await (await app.request(`${base}/items`)).json()) as Array<{
         itemId: string
@@ -310,7 +310,10 @@ describe('workspace-scope plugin installs (Move C)', () => {
         globalItems.find((i) => i.itemId === 'invoicer@acme-tools')?.installStatus.kind,
       ).toBe('not-installed')
 
-      const un = await postJson(app, `${base}/uninstall`, { itemId: 'invoicer@acme-tools' })
+      const un = await postJson(app, `${base}/uninstall`, {
+        itemId: 'invoicer@acme-tools',
+        acceptPluginExecution: true,
+      })
       expect(un.status).toBe(200)
       expect(delegate.uninstall).toHaveBeenCalledWith({
         pluginName: 'invoicer',

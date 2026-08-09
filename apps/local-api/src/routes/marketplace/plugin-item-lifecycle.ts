@@ -9,7 +9,7 @@ import type { Logger } from 'pino'
 import type { Database } from '@vynel/db'
 import type { MarketplaceItemSource } from '@vynel/contracts/marketplace/marketplace-item'
 import type { SkillScope } from '@vynel/contracts/skills/verified-skills/verified-skill-definition'
-import type { ClaudePluginInstallScope } from '@vynel/providers'
+import type { ClaudePluginInstallScope, InstalledClaudePluginView } from '@vynel/providers'
 import { ValidationError } from '@vynel/errors'
 import { findCachedCloudItem } from '@vynel/marketplace'
 import { parsePluginItemManifest } from '@vynel/contracts/marketplace/plugin-item-manifest'
@@ -100,6 +100,9 @@ export type UpdatePluginItemInput = {
   installedKey: string
   installedScope: SkillScope
   workspace: { id: string; path: string } | null
+  /** UI-only consent — plugin verbs run the CLI delegate (update even
+   * pulls NEW publisher code); the session tool schemas exclude it. */
+  acceptPluginExecution: boolean
 }
 
 // In-place update via the delegate (`claude plugin update`) — previously
@@ -110,22 +113,36 @@ export async function updatePluginItem(
   deps: {
     logger: Logger
     pluginDelegate: MarketplacePluginDelegate
-    listInstalledPlugins: () => Array<{ key: string; version: string | null; scope: 'user' | 'project'; projectPath: string | null }>
+    listInstalledPlugins: () => InstalledClaudePluginView[]
   },
   input: UpdatePluginItemInput,
 ) {
+  if (!input.acceptPluginExecution) {
+    throw new ValidationError(
+      'Plugin changes run code on this machine — use the Marketplace panel, which asks for ' +
+        'that consent explicitly.',
+    )
+  }
   const { itemId, installedKey } = input
   const split = splitPluginKey(installedKey)
   const installScope = toInstallScope(input.installedScope, input.workspace)
   await deps.pluginDelegate.update({ ...split, installScope })
-  // Scope-aware re-read: both a user and a project entry can hold the key.
+  // Scope-aware re-read: both a user and a project entry can hold the
+  // key, and two workspaces can each hold a project entry — match THIS
+  // workspace's.
+  const normalizePath = (value: string) =>
+    value.replaceAll('/', '\\').replace(/[\\/]+$/, '').toLowerCase()
   const version =
     deps
       .listInstalledPlugins()
-      .find(
-        (plugin) =>
-          plugin.key === installedKey &&
-          plugin.scope === (input.installedScope === 'workspace' ? 'project' : 'user'),
+      .find((plugin) =>
+        plugin.key === installedKey &&
+        (input.installedScope === 'workspace'
+          ? plugin.scope === 'project' &&
+            plugin.projectPath !== null &&
+            input.workspace !== null &&
+            normalizePath(plugin.projectPath) === normalizePath(input.workspace.path)
+          : plugin.scope === 'user'),
       )?.version ?? null
   deps.logger.info({ itemId, pluginKey: installedKey, version }, 'marketplace plugin updated')
   return { kind: 'plugin' as const, pluginKey: installedKey, itemId, version }
@@ -137,12 +154,21 @@ export type UninstallPluginItemInput = {
   installedKey: string
   installedScope: SkillScope
   workspace: { id: string; path: string } | null
+  /** UI-only consent — plugin verbs run the CLI delegate (update even
+   * pulls NEW publisher code); the session tool schemas exclude it. */
+  acceptPluginExecution: boolean
 }
 
 export async function uninstallPluginItem(
   deps: { logger: Logger; pluginDelegate: MarketplacePluginDelegate },
   input: UninstallPluginItemInput,
 ) {
+  if (!input.acceptPluginExecution) {
+    throw new ValidationError(
+      'Plugin changes run code on this machine — use the Marketplace panel, which asks for ' +
+        'that consent explicitly.',
+    )
+  }
   const { itemId, installedKey } = input
   await deps.pluginDelegate.uninstall({
     ...splitPluginKey(installedKey),

@@ -403,7 +403,10 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
         versionInstalled: '1.0.0',
       })
 
-      const un = await postJson(app, '/marketplace/uninstall', { itemId: 'document-skills' })
+      const un = await postJson(app, '/marketplace/uninstall', {
+        itemId: 'document-skills',
+        acceptPluginExecution: true,
+      })
       expect(un.status).toBe(200)
       expect(await un.json()).toEqual({
         kind: 'plugin',
@@ -470,7 +473,10 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
       expect(ids).toContain('document-skills')
       expect(ids).not.toContain('broken-plugin')
 
-      const res = await postJson(app, '/marketplace/update', { itemId: 'document-skills' })
+      const res = await postJson(app, '/marketplace/update', {
+        itemId: 'document-skills',
+        acceptPluginExecution: true,
+      })
       expect(res.status).toBe(200)
       expect(await res.json()).toEqual({
         kind: 'plugin',

@@ -145,10 +145,18 @@ export const InstallUserMarketplaceItemBodySchema = z.object({
 
 export const UninstallMarketplaceItemBodySchema = z.object({
   itemId: z.string().min(1).max(200),
+  // Plugin verbs run the external CLI delegate (update even pulls NEW
+  // publisher code) — same UI-only consent as install; the session tool
+  // schemas exclude it.
+  acceptPluginExecution: z.literal(true).optional(),
 })
 
 export const UpdateMarketplaceItemBodySchema = z.object({
   itemId: z.string().min(1).max(200),
+  // Plugin verbs run the external CLI delegate (update even pulls NEW
+  // publisher code) — same UI-only consent as install; the session tool
+  // schemas exclude it.
+  acceptPluginExecution: z.literal(true).optional(),
 })
 
 // Skills (hub artifact) + plugins (Claude CLI delegate) update in place;

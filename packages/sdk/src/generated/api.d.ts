@@ -4846,6 +4846,8 @@ export interface operations {
             content: {
                 "application/json": {
                     itemId: string;
+                    /** @constant */
+                    acceptPluginExecution?: true;
                 };
             };
         };
@@ -4904,6 +4906,8 @@ export interface operations {
             content: {
                 "application/json": {
                     itemId: string;
+                    /** @constant */
+                    acceptPluginExecution?: true;
                 };
             };
         };
@@ -11787,6 +11791,8 @@ export interface operations {
             content: {
                 "application/json": {
                     itemId: string;
+                    /** @constant */
+                    acceptPluginExecution?: true;
                 };
             };
         };
@@ -11843,6 +11849,8 @@ export interface operations {
             content: {
                 "application/json": {
                     itemId: string;
+                    /** @constant */
+                    acceptPluginExecution?: true;
                 };
             };
         };

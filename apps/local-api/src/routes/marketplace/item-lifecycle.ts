@@ -248,6 +248,8 @@ export async function installMarketplaceItem(
 }
 
 export type MarketplaceUpdateRequest = {
+  /** Plugin verbs run the CLI delegate — UI-only consent (tool schemas exclude it). */
+  acceptPluginExecution?: true
   itemId: string
   userId: string
   // null = the GLOBAL surface (resolves against user-scope installs).
@@ -289,6 +291,7 @@ export async function updateMarketplaceItem(
         installedKey: item.installStatus.installedId,
         installedScope: item.installStatus.scope,
         workspace,
+        acceptPluginExecution: request.acceptPluginExecution === true,
       },
     )
   }
@@ -324,6 +327,8 @@ export async function updateMarketplaceItem(
 }
 
 export type MarketplaceUninstallRequest = {
+  /** Plugin verbs run the CLI delegate — UI-only consent (tool schemas exclude it). */
+  acceptPluginExecution?: true
   itemId: string
   userId: string
   // null = the GLOBAL surface: resolve against USER-scoped installs and
@@ -357,6 +362,7 @@ export async function uninstallMarketplaceItem(
         installedKey: item.installStatus.installedId,
         installedScope: item.installStatus.scope,
         workspace,
+        acceptPluginExecution: request.acceptPluginExecution === true,
       },
     )
   }

@@ -144,7 +144,12 @@ function requestRemove(itemId: string) {
     return;
   }
   armedRemoveItemId.value = null;
-  uninstall.mutate({ scope: props.scope, itemId });
+  const item = items.value.find((row) => row.itemId === itemId);
+  uninstall.mutate({
+    scope: props.scope,
+    itemId,
+    ...(item?.kind === "plugin" ? { acceptPluginExecution: true as const } : {}),
+  });
 }
 
 function disarmRemove(itemId: string) {
@@ -301,7 +306,13 @@ function cardErrorFor(itemId: string): string | null {
           :error-message="cardErrorFor(item.itemId)"
           @install="requestInstall(item)"
           @connect="requestConnect(item)"
-          @update="update.mutate({ scope: props.scope, itemId: item.itemId })"
+          @update="
+            update.mutate({
+              scope: props.scope,
+              itemId: item.itemId,
+              ...(item.kind === 'plugin' ? { acceptPluginExecution: true as const } : {}),
+            })
+          "
           @remove-request="requestRemove(item.itemId)"
           @remove-blur="disarmRemove(item.itemId)"
         />

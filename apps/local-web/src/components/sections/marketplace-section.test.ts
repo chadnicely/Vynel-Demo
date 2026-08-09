@@ -437,7 +437,11 @@ describe("MarketplaceSection — update flow", () => {
 
     await wrapper.get(".is-update").trigger("click");
     await flushPromises();
-    expect(update).toHaveBeenCalledWith("w1", { itemId: "document-skills" });
+    // test: correct expectation — plugin verbs carry the UI-only consent.
+    expect(update).toHaveBeenCalledWith("w1", {
+      itemId: "document-skills",
+      acceptPluginExecution: true,
+    });
     wrapper.unmount();
   });
 

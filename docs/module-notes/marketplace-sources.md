@@ -190,3 +190,14 @@ mappers). The structural wall moved to `acceptPluginExecution` (excluded from th
 tool schema — tool-shaped installs 400 actionably, pinned e2e; the UI click is the consent).
 Update re-reads the registry scope-aware. Suites: providers 37 · marketplace 66 · routes 44
 · section 32; parity 4/4.
+
+## Move C review round — must-fix applied: the wall covers ALL plugin verbs
+
+The reviewer caught that flipping plugins to scope 'both' quietly opened plugin UPDATE (which
+pulls new publisher code) and UNINSTALL to the workspace session tools. `acceptPluginExecution`
+now gates all three verbs — bodies + `excludedBodyFields` on install/update/uninstall tools,
+UI verbs send it, gates sit in every plugin lifecycle body — pinned by the tool-shaped-400
+e2e. Also applied: provider project-entry newest-wins dedupe per (key, projectPath);
+update re-read matches THIS workspace's projectPath (never another workspace's twin); shared
+provider view type; tool descriptions say plugins are Marketplace-panel-only; normalization
+variant (case + trailing slash) exercised in the e2e.

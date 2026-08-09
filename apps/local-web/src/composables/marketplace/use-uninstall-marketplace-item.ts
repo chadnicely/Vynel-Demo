@@ -14,11 +14,19 @@ export function useUninstallMarketplaceItem() {
   const vynel = useVynel();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { scope: SectionScope; itemId: string }) =>
+    mutationFn: (input: { scope: SectionScope; itemId: string; acceptPluginExecution?: true }) =>
       input.scope.kind === "global"
-        ? vynel.marketplaceUser.uninstall({ itemId: input.itemId })
+        ? vynel.marketplaceUser.uninstall({
+            itemId: input.itemId,
+            ...(input.acceptPluginExecution !== undefined
+              ? { acceptPluginExecution: input.acceptPluginExecution }
+              : {}),
+          })
         : vynel.marketplace.uninstall(input.scope.workspaceId, {
             itemId: input.itemId,
+            ...(input.acceptPluginExecution !== undefined
+              ? { acceptPluginExecution: input.acceptPluginExecution }
+              : {}),
           }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketplace", "items"] });

@@ -277,14 +277,19 @@ export function listInstalledClaudePlugins(
         projectPath: null,
       })
     }
+    // Newest-wins per (key, projectPath) — duplicate project entries
+    // exist in real registries just like user ones.
+    const newestByProjectPath = new Map<string, (typeof entries)[number]>()
     for (const entry of entries) {
       if (entry?.scope !== 'project' || typeof entry.projectPath !== 'string') continue
-      views.push({
-        ...base,
-        version: toVersion(entry.version),
-        scope: 'project',
-        projectPath: entry.projectPath,
-      })
+      const held = newestByProjectPath.get(entry.projectPath)
+      const stamp = (candidate: typeof entry) => candidate.lastUpdated ?? candidate.installedAt ?? ''
+      if (held === undefined || stamp(entry).localeCompare(stamp(held)) > 0) {
+        newestByProjectPath.set(entry.projectPath, entry)
+      }
+    }
+    for (const [projectPath, entry] of newestByProjectPath) {
+      views.push({ ...base, version: toVersion(entry.version), scope: 'project', projectPath })
     }
   }
   return views

@@ -13,11 +13,19 @@ export function useUpdateMarketplaceItem() {
   const vynel = useVynel();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { scope: SectionScope; itemId: string }) =>
+    mutationFn: (input: { scope: SectionScope; itemId: string; acceptPluginExecution?: true }) =>
       input.scope.kind === "global"
-        ? vynel.marketplaceUser.update({ itemId: input.itemId })
+        ? vynel.marketplaceUser.update({
+            itemId: input.itemId,
+            ...(input.acceptPluginExecution !== undefined
+              ? { acceptPluginExecution: input.acceptPluginExecution }
+              : {}),
+          })
         : vynel.marketplace.update(input.scope.workspaceId, {
             itemId: input.itemId,
+            ...(input.acceptPluginExecution !== undefined
+              ? { acceptPluginExecution: input.acceptPluginExecution }
+              : {}),
           }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketplace", "items"] });

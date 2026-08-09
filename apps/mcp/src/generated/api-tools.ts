@@ -1059,7 +1059,7 @@ export const installCuratedAgent: McpToolFactory = (scope, app) =>
 export const installMarketplaceItem: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'install_marketplace_item',
-    "Install a marketplace item (a skill, agent, plugin, MCP server, or rule) into this workspace. `itemId` from list_marketplace_items; `scope` \"workspace\" or \"user\" (user-scope = available in every workspace; plugins are always user-scope). Cloud artifacts are downloaded and integrity-verified server-side; plugins install through Claude Code's own plugin system; MCP servers are written into the scope's Claude config. An MCP item that requires configuration (API keys, tokens) cannot be installed from here — direct the user to the Marketplace panel, which collects those values; secrets must never be pasted into chat. Reversible via uninstall_marketplace_item. Side effect: the capability becomes available in sessions and appears in the user's panels.",
+    "Install a marketplace item (a skill, agent, plugin, MCP server, or rule) into this workspace. `itemId` from list_marketplace_items; `scope` \"workspace\" or \"user\" (user-scope = available in every workspace). Cloud artifacts are downloaded and integrity-verified server-side; plugins install through Claude Code's own plugin system; MCP servers are written into the scope's Claude config. An MCP item that requires configuration (API keys, tokens) cannot be installed from here — direct the user to the Marketplace panel, which collects those values; secrets must never be pasted into chat. Reversible via uninstall_marketplace_item. Side effect: the capability becomes available in sessions and appears in the user's panels.",
     {
     workspaceId: z.string(),
     itemId: z.string(),
@@ -2869,7 +2869,7 @@ export const stopMonitor: McpToolFactory = (scope, app) =>
 export const uninstallMarketplaceItem: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'uninstall_marketplace_item',
-    "Uninstall a marketplace item from this workspace by `itemId`. A skill uninstall hard-deletes its files (re-install is possible but any local edits are lost); an agent uninstall is a soft-delete; a plugin uninstall removes it via Claude Code's plugin system; MCP-server and rule uninstalls remove the config entry / rules file. Confirm intent when the user names the item loosely.",
+    "Uninstall a marketplace item from this workspace by `itemId`. A skill uninstall hard-deletes its files (re-install is possible but any local edits are lost); an agent uninstall is a soft-delete; a plugin uninstall removes it via Claude Code's plugin system — but only from the Marketplace panel, not from here; MCP-server and rule uninstalls remove the config entry / rules file. Confirm intent when the user names the item loosely.",
     {
     workspaceId: z.string(),
     itemId: z.string(),
@@ -3004,6 +3004,7 @@ export const updateMarketplaceItem: McpToolFactory = (scope, app) =>
     {
     workspaceId: z.string(),
     itemId: z.string(),
+    acceptPluginExecution: z.boolean().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
@@ -3011,7 +3012,7 @@ export const updateMarketplaceItem: McpToolFactory = (scope, app) =>
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['itemId']) {
+        for (const k of ['itemId', 'acceptPluginExecution']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)

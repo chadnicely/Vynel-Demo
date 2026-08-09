@@ -165,7 +165,7 @@ export const marketplaceApp = factory
         description:
           'Install a marketplace item (a skill, agent, plugin, MCP server, or rule) into this ' +
           'workspace. `itemId` from list_marketplace_items; `scope` "workspace" or "user" ' +
-          '(user-scope = available in every workspace; plugins are always user-scope). Cloud ' +
+          '(user-scope = available in every workspace). Cloud ' +
           'artifacts are downloaded and integrity-verified server-side; plugins install ' +
           'through Claude Code\'s own plugin system; MCP servers are written into the ' +
           'scope\'s Claude config. An MCP item that requires configuration (API keys, ' +
@@ -244,7 +244,7 @@ export const marketplaceApp = factory
     validator('json', UpdateMarketplaceItemBodySchema),
     ...workspaceScoped,
     async (c) => {
-      const { itemId } = c.req.valid('json')
+      const { itemId, acceptPluginExecution } = c.req.valid('json')
       const workspace = c.var.workspace!
       // Resolution + the skills-only dispatch live in `item-lifecycle.ts`,
       // shared with the user-scoped twin. Targets the SAME row the card
@@ -255,6 +255,7 @@ export const marketplaceApp = factory
           itemId,
           userId: c.var.user.id,
           workspace: { id: workspace.id, path: workspace.path },
+          ...(acceptPluginExecution !== undefined ? { acceptPluginExecution } : {}),
         },
       )
       return c.json(updated)
@@ -275,10 +276,12 @@ export const marketplaceApp = factory
           'Uninstall a marketplace item from this workspace by `itemId`. A skill uninstall ' +
           'hard-deletes its files (re-install is possible but any local edits are lost); an ' +
           'agent uninstall is a soft-delete; a plugin uninstall removes it via Claude Code\'s ' +
-          'plugin system; MCP-server and rule uninstalls remove the config entry / rules file. Confirm ' +
+          'plugin system — but only from the Marketplace panel, not from here; MCP-server and ' +
+          'rule uninstalls remove the config entry / rules file. Confirm ' +
           'intent when the user names the item loosely.',
         mutatingApproved: true,
         askApproval: true,
+        excludedBodyFields: ['acceptPluginExecution'],
       },
       responses: {
         200: {
@@ -292,7 +295,7 @@ export const marketplaceApp = factory
     validator('json', UninstallMarketplaceItemBodySchema),
     ...workspaceScoped,
     async (c) => {
-      const { itemId } = c.req.valid('json')
+      const { itemId, acceptPluginExecution } = c.req.valid('json')
       const workspace = c.var.workspace!
       // Resolution + per-kind dispatch live in `item-lifecycle.ts`: the
       // SAME resolution the list annotator uses (skills key on skillId,
@@ -306,6 +309,7 @@ export const marketplaceApp = factory
           itemId,
           userId: c.var.user.id,
           workspace: { id: workspace.id, path: workspace.path },
+          ...(acceptPluginExecution !== undefined ? { acceptPluginExecution } : {}),
         },
       )
       return c.json(removed)
