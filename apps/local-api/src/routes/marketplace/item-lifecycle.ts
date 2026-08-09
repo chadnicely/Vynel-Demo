@@ -43,6 +43,7 @@ import { installCloudAgent, softDeleteAgent } from '@vynel/agents'
 import { listAgentsForUserAndWorkspace } from '@vynel/db/repositories/agents'
 import type {
   MarketplaceDeps,
+  ClaudeMarketplaceSourceView,
   InstalledPluginView,
   InstalledMcpServerView,
   InstalledRuleView,
@@ -68,6 +69,7 @@ export function marketplaceDepsWith(
   listInstalledPlugins: () => InstalledPluginView[],
   listInstalledMcpServers: () => InstalledMcpServerView[],
   listInstalledRules: () => InstalledRuleView[],
+  listClaudeMarketplaces: () => ClaudeMarketplaceSourceView[],
 ): MarketplaceDeps {
   return {
     listInstalledSkills: listInstalledSkillsForUserAndWorkspace,
@@ -75,6 +77,7 @@ export function marketplaceDepsWith(
     listInstalledPlugins,
     listInstalledMcpServers,
     listInstalledRules,
+    listClaudeMarketplaces,
   }
 }
 
@@ -84,6 +87,7 @@ export type MarketplaceRequestContext = {
   logger: Logger
   pluginDelegate: MarketplacePluginDelegate
   listInstalledPlugins: () => InstalledPluginView[]
+  listClaudeMarketplaces: () => ClaudeMarketplaceSourceView[]
   mcpAuthDelegate: McpAuthDelegate
 }
 
@@ -124,12 +128,18 @@ export async function installMarketplaceItem(
       ctx.listInstalledPlugins,
       mcpServersReaderFor(workspace),
       rulesReaderFor(workspace),
+      ctx.listClaudeMarketplaces,
     ),
   )
   if (gateItem.kind === 'plugin') {
     return installPluginItem(
       { db: ctx.db, logger: ctx.logger, pluginDelegate: ctx.pluginDelegate },
-      { itemId, pluginKey: gateItem.pluginKey },
+      {
+        itemId,
+        pluginKey: gateItem.pluginKey,
+        source: gateItem.source,
+        sourceUrl: gateItem.sourceUrl,
+      },
     )
   }
   if (gateItem.kind === 'mcp') {
@@ -225,6 +235,7 @@ export async function updateMarketplaceItem(
       ctx.listInstalledPlugins,
       mcpServersReaderFor(workspace),
       rulesReaderFor(workspace),
+      ctx.listClaudeMarketplaces,
     ),
   )
   if (item.installStatus.kind !== 'installed') {
@@ -291,6 +302,7 @@ export async function uninstallMarketplaceItem(
       ctx.listInstalledPlugins,
       mcpServersReaderFor(workspace),
       rulesReaderFor(workspace),
+      ctx.listClaudeMarketplaces,
     ),
   )
   if (item.installStatus.kind !== 'installed') {

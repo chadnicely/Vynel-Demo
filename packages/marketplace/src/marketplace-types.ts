@@ -86,10 +86,28 @@ export type InstalledRuleView = {
   scope: SkillScope
 }
 
+// One USER-REGISTERED Claude-native marketplace with its plugin catalog —
+// read live from Claude's own files (`known_marketplaces.json` + the
+// clone's marketplace.json; config-is-truth, never cached in our table).
+// Structural view like its installed-state siblings: `@vynel/providers`
+// owns the disk read, the app injects it.
+export type ClaudeMarketplaceSourceView = {
+  marketplaceName: string
+  sourceUrl: string | null
+  ownerName: string | null
+  plugins: {
+    pluginName: string
+    description: string | null
+    version: string | null
+    category: string | null
+  }[]
+}
+
 export type MarketplaceDeps = {
   listInstalledSkills: (db: Database, input: MarketplaceInstallOwner) => InstalledSkillView[]
   listInstalledAgents: (db: Database, input: MarketplaceInstallOwner) => InstalledAgentView[]
   listInstalledPlugins: () => InstalledPluginView[]
   listInstalledMcpServers: () => InstalledMcpServerView[]
   listInstalledRules: () => InstalledRuleView[]
+  listClaudeMarketplaces: () => ClaudeMarketplaceSourceView[]
 }

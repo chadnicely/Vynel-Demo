@@ -22,6 +22,7 @@ import type {
 } from '@vynel/contracts/marketplace/marketplace-item'
 import { annotateWithInstallStatus } from './annotate-with-install-status.js'
 import { isItemVisibleOnSurface } from './surface-visibility.js'
+import { claudeMarketplaceItems } from './claude-marketplace-items.js'
 import type { MarketplaceDeps } from './marketplace-types.js'
 
 export type GetMarketplaceItemInput = {
@@ -34,7 +35,10 @@ export function getMarketplaceItem(
   input: GetMarketplaceItemInput,
   deps: MarketplaceDeps,
 ): MarketplaceItem {
-  const catalogItems = resolveMergedCatalog(db)
+  const catalogItems = resolveMergedCatalog(
+    db,
+    claudeMarketplaceItems(deps.listClaudeMarketplaces()),
+  )
   const item = catalogItems.find((i) => i.itemId === input.itemId)
   if (!item || !isItemVisibleOnSurface(item, input.surface)) {
     throw new NotFoundError('marketplace-item', input.itemId)

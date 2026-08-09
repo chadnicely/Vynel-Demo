@@ -9,6 +9,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Add whole marketplaces, not just items.** The global Marketplace grew a
+  Marketplaces door: paste a GitHub repo (or any https git URL) that hosts a
+  Claude plugin marketplace, and its plugins join your shelf behind a source
+  filter — Vynel's own catalog and each added marketplace get their own chip.
+  Third-party items are always marked community (never Official or verified),
+  the add form says plainly that plugins can run code once installed, and
+  everything installs through Claude Code's own plugin system, so it all
+  works in Claude Code directly. Removing a marketplace takes its items off
+  the shelf; chat sessions can never add a marketplace for you — that trust
+  decision stays yours.
+
 - **Connect a browser-sign-in connector with one click.** An installed
   connector that authenticates through its own website (Notion, Linear, and
   the like) now shows a Connect button: clicking it opens your browser on

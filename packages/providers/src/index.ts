@@ -32,3 +32,12 @@ export {
   logoutClaudeMcpServer,
   type ClaudeMcpAuthInput,
 } from './claude/installation/claude-mcp-cli.js'
+export {
+  addClaudeMarketplace,
+  removeClaudeMarketplace,
+  listKnownClaudeMarketplaces,
+  readClaudeMarketplaceCatalog,
+  type KnownClaudeMarketplaceView,
+  type ClaudeMarketplaceCatalogView,
+  type ClaudeMarketplacePluginView,
+} from './claude/installation/claude-marketplace-cli.js'

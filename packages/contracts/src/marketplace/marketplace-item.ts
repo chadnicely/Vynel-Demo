@@ -41,6 +41,16 @@ export type MarketplaceSurfaceSelector =
  * installed state). */
 export type MarketplaceItemKind = 'skill' | 'agent' | 'plugin' | 'mcp' | 'rule'
 
+/** WHERE a shelf row comes from — the trust boundary, not a style tag.
+ * 'vynel-catalog' = the bundled catalog + the hub (the curated door);
+ * 'claude-marketplace' = a Claude-native marketplace the USER registered
+ * (its rows are community-tier by construction and never badge Official).
+ * The UI filters on it; item ids can never collide across the boundary
+ * (hub ids are kebab, marketplace ids are `<plugin>@<marketplace>`). */
+export type MarketplaceItemSource =
+  | { kind: 'vynel-catalog' }
+  | { kind: 'claude-marketplace'; marketplaceName: string }
+
 /** Install-status discriminator. Phase 1 has two variants (no
  * `'installed-with-update-available'` per D8). Generalized when the
  * `agent` kind landed (C-agents): `installedId` is the installed row's
@@ -63,6 +73,7 @@ export type MarketplaceItemInstallStatus =
 export type MarketplaceItem = {
   itemId: string
   kind: MarketplaceItemKind
+  source: MarketplaceItemSource
   skillId: string
   publisherTier: PublisherTier
   publisherName: string

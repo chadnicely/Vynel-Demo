@@ -50,6 +50,7 @@ export function cloudRowToMarketplaceItem(row: MarketplaceCloudCatalogRow): Mark
   return {
     itemId: row.itemId,
     kind,
+    source: { kind: 'vynel-catalog' },
     skillId: row.itemId,
     publisherTier: toHubPublisherTier(row.publisherTier),
     publisherName: row.publisherName,

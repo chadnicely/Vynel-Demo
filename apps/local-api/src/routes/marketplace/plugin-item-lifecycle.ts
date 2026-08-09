@@ -7,6 +7,7 @@
 
 import type { Logger } from 'pino'
 import type { Database } from '@vynel/db'
+import type { MarketplaceItemSource } from '@vynel/contracts/marketplace/marketplace-item'
 import { ValidationError } from '@vynel/errors'
 import { findCachedCloudItem } from '@vynel/marketplace'
 import { parsePluginItemManifest } from '@vynel/contracts/marketplace/plugin-item-manifest'
@@ -15,6 +16,8 @@ import type { MarketplacePluginDelegate } from '../../services/marketplace-plugi
 export type InstallPluginItemInput = {
   itemId: string
   pluginKey: string | undefined
+  source: MarketplaceItemSource
+  sourceUrl: string | null
 }
 
 // No scope choice: plugins are user-scope global (their forced
@@ -24,6 +27,24 @@ export async function installPluginItem(
   input: InstallPluginItemInput,
 ) {
   const { itemId } = input
+  // A third-party row's install facts live ON the row — its marketplace is
+  // already registered (that's how the row exists), so the delegate's
+  // `install name@marketplace` resolves against the CLI's own registry;
+  // the hub cache never carries these items.
+  if (input.source.kind === 'claude-marketplace') {
+    const pluginKey = input.pluginKey
+    if (pluginKey === undefined) {
+      throw new ValidationError('This marketplace row carries no plugin key — refresh the shelf.')
+    }
+    const { pluginName } = splitPluginKey(pluginKey)
+    await deps.pluginDelegate.install({
+      marketplaceRepo: input.sourceUrl ?? '',
+      marketplaceName: input.source.marketplaceName,
+      pluginName,
+    })
+    deps.logger.info({ itemId, pluginKey }, 'marketplace plugin installed')
+    return { kind: 'plugin' as const, pluginKey, itemId, version: null }
+  }
   const cached = findCachedCloudItem(deps.db, itemId)
   const manifest = parsePluginItemManifest(cached?.latestVersionManifestJson ?? null)
   if (manifest === null) {

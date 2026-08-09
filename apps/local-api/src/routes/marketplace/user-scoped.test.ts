@@ -357,6 +357,8 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
       const delegate = {
         install: vi.fn(async () => {}),
         uninstall: vi.fn(async () => {}),
+        addMarketplace: vi.fn(async () => {}),
+        removeMarketplace: vi.fn(async () => {}),
         update: vi.fn(async () => {}),
       }
       const app = createApp({ db, logger: silentLogger, marketplacePluginDelegate: delegate, marketplaceInstalledPluginsReader: listInstalledPluginsStub })
@@ -435,6 +437,8 @@ describe('plugin items (global surface) — the Claude-CLI delegate', () => {
       const delegate = {
         install: vi.fn(async () => {}),
         uninstall: vi.fn(async () => {}),
+        addMarketplace: vi.fn(async () => {}),
+        removeMarketplace: vi.fn(async () => {}),
         // The real delegate drives `claude plugin update`, after which the
         // registry holds whatever the publisher's marketplace ACTUALLY
         // ships — deliberately different from the catalog's 1.1.0 here, so

@@ -2194,6 +2194,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/marketplace/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's registered Claude plugin marketplaces. */
+        get: operations["getMarketplaceSources"];
+        put?: never;
+        /** Register a Claude plugin marketplace (its plugins join the shelf). */
+        post: operations["postMarketplaceSources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/marketplace/sources/{marketplaceName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deregister a Claude plugin marketplace (its rows leave the shelf). */
+        delete: operations["deleteMarketplaceSourcesByMarketplaceName"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/marketplace/items": {
         parameters: {
             query?: never;
@@ -4548,6 +4583,14 @@ export interface operations {
                         itemId: string;
                         /** @enum {string} */
                         kind: "skill" | "agent" | "plugin" | "mcp" | "rule";
+                        source: {
+                            /** @constant */
+                            kind: "vynel-catalog";
+                        } | {
+                            /** @constant */
+                            kind: "claude-marketplace";
+                            marketplaceName: string;
+                        };
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -4627,6 +4670,14 @@ export interface operations {
                         itemId: string;
                         /** @enum {string} */
                         kind: "skill" | "agent" | "plugin" | "mcp" | "rule";
+                        source: {
+                            /** @constant */
+                            kind: "vynel-catalog";
+                        } | {
+                            /** @constant */
+                            kind: "claude-marketplace";
+                            marketplaceName: string;
+                        };
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";
@@ -11453,6 +11504,98 @@ export interface operations {
             };
         };
     };
+    getMarketplaceSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registered marketplaces with their catalog sizes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sources: {
+                            marketplaceName: string;
+                            sourceUrl: string | null;
+                            ownerName: string | null;
+                            pluginCount: number;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    postMarketplaceSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    source: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Registered; the marketplace now lists. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        marketplaceName: string;
+                        sourceUrl: string | null;
+                        ownerName: string | null;
+                        pluginCount: number;
+                    };
+                };
+            };
+            /** @description Not an https git source, or the CLI refused the registration. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteMarketplaceSourcesByMarketplaceName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                marketplaceName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deregistered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No registered marketplace with that name. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getMarketplaceItems: {
         parameters: {
             query?: {
@@ -11478,6 +11621,14 @@ export interface operations {
                         itemId: string;
                         /** @enum {string} */
                         kind: "skill" | "agent" | "plugin" | "mcp" | "rule";
+                        source: {
+                            /** @constant */
+                            kind: "vynel-catalog";
+                        } | {
+                            /** @constant */
+                            kind: "claude-marketplace";
+                            marketplaceName: string;
+                        };
                         skillId: string;
                         /** @enum {string} */
                         publisherTier: "verified" | "anthropic-official" | "community";

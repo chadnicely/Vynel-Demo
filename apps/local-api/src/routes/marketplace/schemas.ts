@@ -59,6 +59,11 @@ const MarketplaceItemInstallStatusSchema = z.discriminatedUnion('kind', [
 export const MarketplaceItemSchema = z.object({
   itemId: z.string(),
   kind: MarketplaceItemKindSchema,
+  // Where the row comes from — the trust boundary the UI filters on.
+  source: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('vynel-catalog') }),
+    z.object({ kind: z.literal('claude-marketplace'), marketplaceName: z.string() }),
+  ]),
   skillId: z.string(),
   publisherTier: PublisherTierSchema,
   publisherName: z.string(),

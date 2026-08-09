@@ -7,16 +7,26 @@
 // so the HTTP stack never runs the real CLI.
 
 import type { PluginItemManifest } from '@vynel/contracts/marketplace/plugin-item-manifest'
-import { installClaudePlugin, uninstallClaudePlugin, updateClaudePlugin } from '@vynel/providers'
+import {
+  addClaudeMarketplace,
+  installClaudePlugin,
+  removeClaudeMarketplace,
+  uninstallClaudePlugin,
+  updateClaudePlugin,
+} from '@vynel/providers'
 
 export type MarketplacePluginDelegate = {
   install(manifest: PluginItemManifest): Promise<void>
   uninstall(input: { pluginName: string; marketplaceName: string }): Promise<void>
   update(input: { pluginName: string; marketplaceName: string }): Promise<void>
+  addMarketplace(input: { sourceUrl: string }): Promise<void>
+  removeMarketplace(input: { marketplaceName: string }): Promise<void>
 }
 
 export const claudePluginDelegate: MarketplacePluginDelegate = {
   install: (manifest) => installClaudePlugin(manifest),
   uninstall: (input) => uninstallClaudePlugin(input),
   update: (input) => updateClaudePlugin(input),
+  addMarketplace: (input) => addClaudeMarketplace(input),
+  removeMarketplace: (input) => removeClaudeMarketplace(input),
 }

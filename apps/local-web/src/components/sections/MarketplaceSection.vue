@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Blocks, Check, Search, SearchX } from "lucide-vue-next";
+import { Blocks, Check, Search, SearchX, Store } from "lucide-vue-next";
 import { EmptyState } from "@vynel/ui";
 import type { MarketplaceItem } from "@vynel/contracts/marketplace/marketplace-item";
 import type { SectionScope } from "./section-scope.js";
 import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
 import { useMarketplaceItems } from "../../composables/marketplace/use-marketplace-items.js";
+import {
+  KIND_FILTERS,
+  useMarketplaceShelfFilters,
+} from "../../composables/marketplace/use-marketplace-shelf-filters.js";
 import { useConnectMcpItem } from "../../composables/marketplace/use-connect-mcp-item.js";
 import { useInstallMarketplaceItem } from "../../composables/marketplace/use-install-marketplace-item.js";
 import { useUpdateMarketplaceItem } from "../../composables/marketplace/use-update-marketplace-item.js";
 import { useUninstallMarketplaceItem } from "../../composables/marketplace/use-uninstall-marketplace-item.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import ConfigureMcpItemDialog from "./ConfigureMcpItemDialog.vue";
+import ManageMarketplacesDialog from "./ManageMarketplacesDialog.vue";
 import MarketplaceItemCard from "./MarketplaceItemCard.vue";
 import SectionHeader from "./SectionHeader.vue";
 
@@ -37,42 +42,19 @@ const sectionHint = computed(() =>
 
 const { isPro } = useHubFeatures();
 
-// --- Search + filters: client-side, plain computed — the curated catalog is
-// small, so there's nothing to debounce or page. Filters compose with AND.
-type KindFilter = "all" | "skill" | "agent" | "plugin";
+// Filter state + composition live in the composable (one home); this file
+// stays the layout.
+const {
+  searchText,
+  kindFilter,
+  showInstalledOnly,
+  sourceFilter,
+  marketplaceNames,
+  visibleItems,
+  clearFilters,
+} = useMarketplaceShelfFilters(items);
 
-const KIND_FILTERS: Array<{ value: KindFilter; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "skill", label: "Skills" },
-  { value: "agent", label: "Agents" },
-  { value: "plugin", label: "Plugins" },
-];
-
-const searchText = ref("");
-const kindFilter = ref<KindFilter>("all");
-const showInstalledOnly = ref(false);
-
-function matchesSearch(item: MarketplaceItem, query: string): boolean {
-  return [item.displayName, item.oneLineDescription, item.category].some(
-    (field) => field.toLowerCase().includes(query),
-  );
-}
-
-const visibleItems = computed(() => {
-  const query = searchText.value.trim().toLowerCase();
-  return items.value.filter(
-    (item) =>
-      (kindFilter.value === "all" || item.kind === kindFilter.value) &&
-      (!showInstalledOnly.value || item.installStatus.kind === "installed") &&
-      (query.length === 0 || matchesSearch(item, query)),
-  );
-});
-
-function clearFilters() {
-  searchText.value = "";
-  kindFilter.value = "all";
-  showInstalledOnly.value = false;
-}
+const manageMarketplacesOpen = ref(false);
 
 // "Nothing here yet" and "your filters matched nothing" are different
 // stories — the second must say so, or a filtered-out shelf reads as broken.
@@ -258,6 +240,41 @@ function cardErrorFor(itemId: string): string | null {
             Installed
           </button>
         </div>
+        <div
+          v-if="marketplaceNames.length > 0"
+          class="flex flex-wrap items-center gap-1"
+          role="group"
+          aria-label="Filter by source"
+        >
+          <button
+            v-for="option in [
+              { value: 'all', label: 'All sources' },
+              { value: 'vynel', label: 'Vynel' },
+              ...marketplaceNames.map((name) => ({ value: name, label: name })),
+            ]"
+            :key="option.value"
+            type="button"
+            class="source-chip inline-flex cursor-default items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition"
+            :class="
+              sourceFilter === option.value
+                ? 'border-hair-strong bg-row-active text-ink-1'
+                : 'border-transparent text-ink-3 hover:bg-row-hover hover:text-ink-1'
+            "
+            :aria-pressed="sourceFilter === option.value"
+            @click="sourceFilter = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+        <button
+          v-if="props.scope.kind === 'global'"
+          type="button"
+          class="ml-auto inline-flex cursor-default items-center gap-1.5 rounded-full border border-hair-strong bg-raised px-3 py-0.5 text-[11px] font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+          @click="manageMarketplacesOpen = true"
+        >
+          <Store :size="12" />
+          Marketplaces
+        </button>
       </div>
 
       <div
@@ -309,6 +326,12 @@ function cardErrorFor(itemId: string): string | null {
       :item="configuringItem"
       @close="configuringItem = null"
       @submit="submitConfiguredInstall"
+    />
+
+    <ManageMarketplacesDialog
+      v-if="props.scope.kind === 'global'"
+      :open="manageMarketplacesOpen"
+      @close="manageMarketplacesOpen = false"
     />
   </div>
 </template>

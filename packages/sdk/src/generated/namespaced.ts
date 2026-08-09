@@ -776,6 +776,27 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  marketplaceSources: {
+  add: async (input: NonNullable<paths["/marketplace/sources"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/marketplace/sources", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/marketplace/sources")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  remove: async (marketplaceName: NonNullable<paths["/marketplace/sources/{marketplaceName}"]["delete"]['parameters']>['path']["marketplaceName"]) => {
+    const { error, response } = await client["DELETE"]("/marketplace/sources/{marketplaceName}", {
+      params: { path: { marketplaceName: marketplaceName } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  },
   marketplaceUser: {
   install: async (input: NonNullable<paths["/marketplace/install"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/marketplace/install", {

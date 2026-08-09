@@ -13,6 +13,7 @@ function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
   return {
     itemId: 'email-drafter',
     kind: 'skill',
+    source: { kind: 'vynel-catalog' },
     skillId: 'email-drafter',
     publisherTier: 'verified',
     publisherName: 'Vynel Team',

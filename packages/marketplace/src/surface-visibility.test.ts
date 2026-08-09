@@ -21,12 +21,14 @@ const emptyDeps: MarketplaceDeps = {
   listInstalledPlugins: () => [],
   listInstalledMcpServers: () => [],
   listInstalledRules: () => [],
+  listClaudeMarketplaces: () => [],
 }
 
 function makeItem(scope: MarketplaceItem['scope']): MarketplaceItem {
   return {
     itemId: 'x',
     kind: 'skill',
+    source: { kind: 'vynel-catalog' },
     skillId: 'x',
     publisherTier: 'verified',
     publisherName: 'Vynel Team',
@@ -177,6 +179,7 @@ describe('surface filtering through the browse pipeline', () => {
         listInstalledPlugins: () => [],
         listInstalledMcpServers: () => [],
         listInstalledRules: () => [],
+        listClaudeMarketplaces: () => [],
       }
       // Installed only at WORKSPACE scope → the global shelf still says Get.
       const globalItem = listMarketplaceItems(db, { userId: 'u', surface: 'global' }, deps).find(

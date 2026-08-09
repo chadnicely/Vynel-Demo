@@ -26,6 +26,7 @@ export type {
   InstalledPluginView,
   InstalledMcpServerView,
   InstalledRuleView,
+  ClaudeMarketplaceSourceView,
   MarketplaceDeps,
   MarketplaceInstallOwner,
 } from './marketplace-types.js'
@@ -33,6 +34,7 @@ export type {
 export { isItemVisibleOnSurface } from './surface-visibility.js'
 
 export { annotateWithInstallStatus, type AnnotateInput } from './annotate-with-install-status.js'
+export { claudeMarketplaceItems } from './claude-marketplace-items.js'
 
 export { filterAndSortMarketplaceItems } from './filter-marketplace-items.js'
 

@@ -2726,6 +2726,38 @@
                           "rule"
                         ]
                       },
+                      "source": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "vynel-catalog"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "claude-marketplace"
+                              },
+                              "marketplaceName": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "marketplaceName"
+                            ]
+                          }
+                        ]
+                      },
                       "skillId": {
                         "type": "string"
                       },
@@ -2908,6 +2940,7 @@
                     "required": [
                       "itemId",
                       "kind",
+                      "source",
                       "skillId",
                       "publisherTier",
                       "publisherName",
@@ -3031,6 +3064,38 @@
                         "plugin",
                         "mcp",
                         "rule"
+                      ]
+                    },
+                    "source": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "vynel-catalog"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "claude-marketplace"
+                            },
+                            "marketplaceName": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "marketplaceName"
+                          ]
+                        }
                       ]
                     },
                     "skillId": {
@@ -3215,6 +3280,7 @@
                   "required": [
                     "itemId",
                     "kind",
+                    "source",
                     "skillId",
                     "publisherTier",
                     "publisherName",
@@ -20142,6 +20208,165 @@
         "x-sdk-name": "desktopAccess.revoke"
       }
     },
+    "/marketplace/sources": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Registered marketplaces with their catalog sizes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "marketplaceName": {
+                            "type": "string"
+                          },
+                          "sourceUrl": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "ownerName": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "pluginCount": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "marketplaceName",
+                          "sourceUrl",
+                          "ownerName",
+                          "pluginCount"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "sources"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getMarketplaceSources",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [],
+        "summary": "List the user's registered Claude plugin marketplaces.",
+        "x-sdk-name": "marketplaceSources.list"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Registered; the marketplace now lists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "marketplaceName": {
+                      "type": "string"
+                    },
+                    "sourceUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "ownerName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "pluginCount": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "marketplaceName",
+                    "sourceUrl",
+                    "ownerName",
+                    "pluginCount"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an https git source, or the CLI refused the registration."
+          }
+        },
+        "operationId": "postMarketplaceSources",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [],
+        "summary": "Register a Claude plugin marketplace (its plugins join the shelf).",
+        "x-sdk-name": "marketplaceSources.add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "source"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/marketplace/sources/{marketplaceName}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Deregistered."
+          },
+          "404": {
+            "description": "No registered marketplace with that name."
+          }
+        },
+        "operationId": "deleteMarketplaceSourcesByMarketplaceName",
+        "tags": [
+          "marketplace"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "marketplaceName",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          }
+        ],
+        "summary": "Deregister a Claude plugin marketplace (its rows leave the shelf).",
+        "x-sdk-name": "marketplaceSources.remove"
+      }
+    },
     "/marketplace/items": {
       "get": {
         "responses": {
@@ -20165,6 +20390,38 @@
                           "plugin",
                           "mcp",
                           "rule"
+                        ]
+                      },
+                      "source": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "vynel-catalog"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "claude-marketplace"
+                              },
+                              "marketplaceName": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "marketplaceName"
+                            ]
+                          }
                         ]
                       },
                       "skillId": {
@@ -20349,6 +20606,7 @@
                     "required": [
                       "itemId",
                       "kind",
+                      "source",
                       "skillId",
                       "publisherTier",
                       "publisherName",

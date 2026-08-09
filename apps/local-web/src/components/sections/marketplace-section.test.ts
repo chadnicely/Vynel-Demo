@@ -20,6 +20,7 @@ function makeItem(overrides: Partial<MarketplaceItem> = {}): MarketplaceItem {
   return {
     itemId: "email-drafter",
     kind: "skill",
+    source: { kind: "vynel-catalog" },
     skillId: "email-drafter",
     publisherTier: "verified",
     publisherName: "Vynel",
@@ -88,6 +89,7 @@ function makeClient(
     (async () => ({ kind: "skill", installedSkillId: "sk1", itemId: "owned" }));
   return {
     hub: { getSession: async () => session },
+    marketplaceSources: { list: async () => ({ sources: [] }) },
     mcpServers: { login: options.mcpLogin ?? (async () => ({ connected: true })) },
     mcpServersUser: { login: options.mcpUserLogin ?? (async () => ({ connected: true })) },
     marketplace: { listItems: async () => listItems, install, update, uninstall },
@@ -880,5 +882,68 @@ describe("MarketplaceSection — oauth connect", () => {
 
     expect(wrapper.findAll(".pill.is-connect")).toHaveLength(0);
     wrapper.unmount();
+  });
+});
+
+// The source dimension (marketplace-sources Move A): third-party rows
+// filter behind source chips; the chips only render once a registered
+// marketplace contributes rows; the global surface offers the manage door.
+describe("MarketplaceSection — source filter", () => {
+  const thirdPartyItem = () =>
+    makeItem({
+      itemId: "invoicer@acme-tools",
+      kind: "plugin",
+      source: { kind: "claude-marketplace", marketplaceName: "acme-tools" },
+      skillId: "invoicer@acme-tools",
+      publisherTier: "community",
+      displayName: "invoicer",
+      pluginKey: "invoicer@acme-tools",
+      hasCloudArtifact: false,
+      scope: "user",
+    });
+
+  it("chips appear with third-party rows and narrow the shelf by source", async () => {
+    const wrapper = mountSection(
+      { kind: "signed-out" },
+      { items: [makeItem({ itemId: "email-drafter" }), thirdPartyItem()] },
+      { kind: "global" },
+    );
+    await flushPromises();
+
+    const chipLabels = wrapper.findAll(".source-chip").map((chip) => chip.text());
+    expect(chipLabels).toEqual(["All sources", "Vynel", "acme-tools"]);
+
+    const titles = () => wrapper.findAll(".card-title").map((title) => title.text());
+    expect(titles()).toHaveLength(2);
+
+    await wrapper
+      .findAll(".source-chip")
+      .find((chip) => chip.text() === "acme-tools")!
+      .trigger("click");
+    expect(titles()).toEqual(["invoicer"]);
+
+    await wrapper
+      .findAll(".source-chip")
+      .find((chip) => chip.text() === "Vynel")!
+      .trigger("click");
+    expect(titles()).toEqual(["Email Drafter"]);
+    wrapper.unmount();
+  });
+
+  it("no source chips on a Vynel-only shelf; the manage door is global-only", async () => {
+    const globalWrapper = mountSection({ kind: "signed-out" }, {}, { kind: "global" });
+    await flushPromises();
+    expect(globalWrapper.findAll(".source-chip")).toHaveLength(0);
+    expect(
+      globalWrapper.findAll("button").some((b) => b.text().includes("Marketplaces")),
+    ).toBe(true);
+    globalWrapper.unmount();
+
+    const workspaceWrapper = mountSection({ kind: "signed-out" });
+    await flushPromises();
+    expect(
+      workspaceWrapper.findAll("button").some((b) => b.text().includes("Marketplaces")),
+    ).toBe(false);
+    workspaceWrapper.unmount();
   });
 });
