@@ -10,10 +10,11 @@
 // removal refuses to delete one. Refusals are reported, not thrown —
 // each caller decides what a refusal means for its operation.
 //
-// Per coding.md §1.2 (the installer is the only filesystem
-// writer for `.claude/skills/` + `.claude.json` + `.mcp.json`).
-// Code-reviewer enforces by grep — no other code writes these
-// paths.
+// Per coding.md §1.2 (this leaf is the only filesystem writer for
+// `.claude/skills/` + `.claude.json` + `.mcp.json` + the workspace
+// `settings.local.json`). Two writer files share that license: this one
+// and its consent sibling `update-project-mcp-approval.ts` (folder trust
+// + mcpjson approval). Code-reviewer enforces by grep.
 
 import path from 'node:path'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'

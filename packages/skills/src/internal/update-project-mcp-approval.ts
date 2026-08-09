@@ -114,7 +114,11 @@ async function updateProjectApproval(
   const settings = parsed as Record<string, unknown>
   const enabled = asStringArray(settings.enabledMcpjsonServers)
   const disabled = asStringArray(settings.disabledMcpjsonServers)
+  // No-op honesty (the sibling writer's promise): an already-recorded
+  // verdict never rewrites the user's file — the login heal runs this on
+  // EVERY Connect click.
   if (action === 'approve') {
+    if (enabled.includes(serverName) && !disabled.includes(serverName)) return
     settings.enabledMcpjsonServers = enabled.includes(serverName)
       ? enabled
       : [...enabled, serverName]
@@ -122,6 +126,7 @@ async function updateProjectApproval(
       settings.disabledMcpjsonServers = disabled.filter((name) => name !== serverName)
     }
   } else {
+    if (!enabled.includes(serverName)) return
     settings.enabledMcpjsonServers = enabled.filter((name) => name !== serverName)
   }
   await mkdir(path.dirname(settingsPath), { recursive: true })

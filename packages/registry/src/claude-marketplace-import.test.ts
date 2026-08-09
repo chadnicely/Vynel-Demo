@@ -246,3 +246,24 @@ describe('hostile marketplace.json hardening', () => {
     })
   })
 })
+
+// Version-less selections refuse rather than publish a fabricated number
+// (the phantom-Update class the desktop banned).
+describe('version-less selections', () => {
+  it('refuses with invalid-metadata instead of publishing 0.0.0', async () => {
+    await withTestCloudDatabase(async (db) => {
+      const { items } = await importClaudeMarketplacePlugins(
+        db,
+        createInMemoryArtifactStore(),
+        {
+          url: REPO_URL,
+          pinnedSha: pinSha,
+          marketplaceName: 'acme-tools',
+          ownerName: null,
+          selected: [{ pluginName: 'no-version', description: null, version: null, category: null }],
+        },
+      )
+      expect(items[0]).toMatchObject({ outcome: 'invalid-metadata' })
+    })
+  })
+})

@@ -220,3 +220,14 @@ Uninstall revokes only the approval; trust is folder-level standing consent. The
 `~/.claude.json` projects mcpjson arrays are dead — first fix targeted them, second round
 found `settings.local.json`, third found the trust gate + key spelling. Confirmed live in
 BOTH workspaces (trusted + fresh-untrusted): the login prints the authorize URL.
+
+## Post-merge batch review (2026-08-09) — clean; 3 should-fixes applied
+
+① approval writer no-op honesty (an already-recorded verdict never rewrites the file — the
+login heal runs on every Connect) ② the single-writer exclusivity comment names its consent
+sibling ③ the registry import refuses version-less plugins ('' fails the SEMVER wall →
+invalid-metadata) instead of fabricating 0.0.0; inspection's metadata.version stays as an
+ADMIN-VISIBLE prefill. Deferred (named): outer-timeout orphan + PS ExitCode-null hardening in
+the hidden-console wrapper; typed-error sweep for the "user must repair a file" class;
+non-atomic approval-after-config write; serverName-vs-rowKey matching asymmetry in
+McpServersSection.

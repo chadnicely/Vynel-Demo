@@ -126,6 +126,8 @@ export async function inspectClaudeMarketplaceRepo(
       plugins.push({
         pluginName,
         description: boundedOrNull(plugin?.description, 280),
+        // metadata.version is a deliberate ADMIN-VISIBLE prefill (the
+        // review table shows it before approval) — never a silent default.
         version: boundedOrNull(plugin?.version, 40) ?? boundedOrNull(metadata?.version, 40),
         category: boundedOrNull(plugin?.category, 60),
         proposedItemId,
@@ -223,7 +225,10 @@ export async function importClaudeMarketplacePlugins(
         status: 'published',
       },
       version: {
-        version: boundedOrNull(plugin.version, 40) ?? '0.0.0',
+        // A fabricated version resurrects the phantom-Update class on the
+        // desktop card — '' fails the schema's SEMVER wall instead, so a
+        // version-less selection surfaces as invalid-metadata.
+        version: boundedOrNull(plugin.version, 40) ?? '',
         changelog: `imported from ${input.marketplaceName}@${input.pinnedSha.slice(0, 7)}`,
         manifest,
         minAppVersion: null,
