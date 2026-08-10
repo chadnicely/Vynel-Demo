@@ -28,6 +28,7 @@ function build(context: SessionToolContext): SessionMcpServer | null {
     db: context.db as Database,
     userId: context.userId,
     enableActions: context.enableDesktopActions ?? false,
+    planConsent: context.desktopPlanConsent ?? 'display-only',
   })
 }
 
@@ -41,14 +42,17 @@ function contributePrompt(context: SessionToolContext): string {
 }
 
 // Read-only desktop observation always; the MUTATING act tools are registered
-// only when `enableDesktopActions` is on (default-off). The act tools ride the
-// ASK-approval tier, not the every-mode set — Chad 2026-07-26: "ask mode gates
-// through approval; auto and bypass, no approval" (they previously carded in
-// every mode). `request_desktop_access` sits in the MUTATING tier because it
-// is the user-consent moment of the per-app access model: it cards in ASK and
-// in the UNATTENDED `bypass-with-behavior-gate` default (a background turn
-// must never grant itself desktop reach silently). In the user's own AUTO and
-// BYPASS the floor stands down and it runs uncarded — Chad 2026-08-04:
+// only when `enableDesktopActions` is on (default-off). PLAN-LEVEL APPROVAL
+// (Kafi 2026-08-11): the ask-approval tier holds `propose_desktop_plan` — the
+// ONE card of a desktop task — and the act tools left it: they are gated
+// in-tool by the plan envelope instead (no armed plan → refusal, in every
+// mode), so an approved plan runs its steps card-free. In auto/bypass the plan
+// runs uncarded (those modes are the standing consent); on unattended turns it
+// runs uncarded but 'display-only'. `request_desktop_access` sits in the
+// MUTATING tier because it is the STANDING-grant consent moment: it cards in
+// ASK and in the UNATTENDED `bypass-with-behavior-gate` default (a background
+// turn must never grant itself desktop reach silently). In the user's own AUTO
+// and BYPASS the floor stands down and it runs uncarded — Chad 2026-08-04:
 // "auto, bypass doesn't require card; ask requires card." Declared
 // unconditionally: the tiers are additive, so declaring a tool that isn't
 // registered this turn is harmless.
@@ -56,6 +60,6 @@ export const desktopFeatureDescriptor: McpFeatureDescriptor = {
   serverName: 'desktop',
   build,
   mutatingToolNames: ['mcp__desktop__request_desktop_access'],
-  askModeApprovalToolNames: ['mcp__desktop__act_on_app', 'mcp__desktop__act_on_desktop'],
+  askModeApprovalToolNames: ['mcp__desktop__propose_desktop_plan'],
   contributePrompt,
 }

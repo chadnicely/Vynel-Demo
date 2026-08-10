@@ -204,7 +204,9 @@ export async function runGlobalRootTurn(
   // has none. Dynamic import keeps the heavy SDK out of module load.
   const { vynelRoutingDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  const { desktopFeatureDescriptor } = await import('@vynel/desktop-control')
+  const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
+    '@vynel/desktop-control'
+  )
   const composedMcp = composeSessionMcpServers(
     [vynelRoutingDescriptor, notebookFeatureDescriptor, desktopFeatureDescriptor],
     {
@@ -213,6 +215,10 @@ export async function runGlobalRootTurn(
       appRequest,
       desktopReader: deps.desktopReader,
       enableDesktopActions: deps.enableDesktopActions ?? false,
+      // Channel/unattended turns carry no user mode → 'display-only': the plan
+      // narrates on the overlay, but authority stays with standing grants (a
+      // background turn can never self-grant).
+      desktopPlanConsent: deriveDesktopPlanConsent(undefined),
     },
     // The global root has no workspace, so no capability override rows can
     // exist for it — the catalog defaults ARE its enabled set (without this,

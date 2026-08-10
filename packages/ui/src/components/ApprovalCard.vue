@@ -2,6 +2,10 @@
 import { computed } from "vue";
 import type { ActionKind } from "@vynel/contracts/approvals/approval-http";
 import CodeBlock from "./CodeBlock.vue";
+import {
+  parseDesktopPlanCard,
+  tierDisplay,
+} from "../tool-cards/desktop-step-presenter.js";
 
 // The approval card — the product's trust primitive. Rendered inline in a
 // thread AND as a shell notification (compact), so it must work data-blind:
@@ -67,6 +71,16 @@ const inputFields = computed<Record<string, unknown> | null>(() =>
     : null,
 );
 
+/** A desktop plan renders as THE plan — goal headline, numbered steps, apps
+ *  with tier words, the make-mistakes acknowledgment — because the user is
+ *  approving the whole task once, not one tool call. Malformed input falls
+ *  back to the generic panes (nothing is ever hidden). */
+const desktopPlan = computed(() =>
+  props.toolName === "mcp__desktop__propose_desktop_plan"
+    ? parseDesktopPlanCard(props.toolInput)
+    : null,
+);
+
 /** The agent's own explanation of the action — promoted to the headline. */
 const descriptionTitle = computed(() => {
   const value = inputFields.value?.["description"];
@@ -87,14 +101,17 @@ const commandText = computed(() => {
 });
 
 // Everything not already promoted (the title'd description, the terminal'd
-// command) still shows — pretty-printed, syntax-colored. Nothing is hidden.
+// command, the plan pane's goal/steps/apps) still shows — pretty-printed,
+// syntax-colored. Nothing is hidden.
+const PLAN_PROMOTED_KEYS = ["goal", "steps", "apps"];
 const remainingInputJson = computed(() => {
   if (inputFields.value === null) return null;
   const remaining = Object.fromEntries(
     Object.entries(inputFields.value).filter(
       ([key]) =>
         !(key === "description" && descriptionTitle.value !== null) &&
-        !(key === "command" && commandText.value !== null),
+        !(key === "command" && commandText.value !== null) &&
+        !(desktopPlan.value !== null && PLAN_PROMOTED_KEYS.includes(key)),
     ),
   );
   if (Object.keys(remaining).length === 0) return null;
@@ -110,20 +127,24 @@ const inputPreview = computed(() => {
 });
 
 const headline = computed(() => {
+  if (desktopPlan.value !== null) return desktopPlan.value.goal;
   const sentence = `Your assistant ${actionLabel.value}${
     props.contextLabel ? ` in ${props.contextLabel}` : ""
   }`;
   return descriptionTitle.value ?? sentence;
 });
 
-/** With a description as the headline, the sentence becomes the context line. */
-const contextLine = computed(() =>
-  descriptionTitle.value !== null
+/** With a description (or a plan's goal) as the headline, the sentence
+ *  becomes the context line. */
+const contextLine = computed(() => {
+  if (desktopPlan.value !== null)
+    return "Your assistant wants to run this plan on your desktop";
+  return descriptionTitle.value !== null
     ? `Your assistant ${actionLabel.value}${
         props.contextLabel ? ` in ${props.contextLabel}` : ""
       }`
-    : null,
-);
+    : null;
+});
 </script>
 
 <template>
@@ -140,6 +161,26 @@ const contextLine = computed(() =>
     <p v-if="commandText" class="command-line">
       <span class="prompt">$</span> {{ commandText }}
     </p>
+
+    <!-- The plan pane — the user reads exactly what will happen, then approves
+         ONCE for all of it. -->
+    <div v-if="desktopPlan" class="plan-pane">
+      <ol class="plan-steps">
+        <li v-for="(step, index) in desktopPlan.steps" :key="index">{{ step }}</li>
+      </ol>
+      <p class="plan-apps">
+        <!-- Index key: the same app may appear at two tiers — an app-name key
+             would collide on exactly the consent surface. -->
+        <span
+          v-for="(planApp, index) in desktopPlan.apps"
+          :key="index"
+          class="plan-app"
+        >
+          {{ planApp.app }} — {{ tierDisplay(planApp.tier) }}
+        </span>
+      </p>
+    </div>
+
     <CodeBlock
       v-if="remainingInputJson"
       class="input-json"
@@ -166,6 +207,11 @@ const contextLine = computed(() =>
         Deny
       </button>
     </div>
+
+    <p v-if="desktopPlan" class="plan-acknowledgment">
+      AI can make mistakes. Approving runs this whole plan on your computer
+      without asking step-by-step.
+    </p>
   </div>
 </template>
 
@@ -225,6 +271,46 @@ const contextLine = computed(() =>
 
 .command-line .prompt {
   color: var(--ink-3);
+}
+
+/* The plan the user is deciding on — a readable checklist, not a JSON blob. */
+.plan-pane {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px 10px;
+  background: var(--bg-shell);
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-s);
+}
+
+.plan-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+  color: var(--ink-1);
+  font: 400 12px/1.5 var(--font-ui);
+}
+
+.plan-apps {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--ink-3);
+  font: 500 11px/1.5 var(--font-ui);
+}
+
+.plan-acknowledgment {
+  margin: 0;
+  color: var(--ink-3);
+  font: 400 10.5px/1.5 var(--font-ui);
+}
+
+.is-compact .plan-pane {
+  max-height: 120px;
 }
 
 /* Compounded with CodeBlock's root class — outranks its own rules by

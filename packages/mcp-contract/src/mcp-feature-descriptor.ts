@@ -31,6 +31,15 @@ export type HonoAppRequestFn = (
   init?: RequestInit,
 ) => Response | Promise<Response>
 
+// How a proposed desktop plan acquires authority for the turn — derived from
+// the turn's permission mode by the desktop producer's `deriveDesktopPlanConsent`
+// and threaded here so the turn entry-points stay mode-vocabulary-free:
+//   'approval-card'    the plan raised an approval card; approval IS the consent
+//   'standing-consent' the user's auto/bypass mode is the standing consent
+//   'display-only'     unattended turn — the plan narrates but never authorizes
+//                      (standing per-app grants remain the only authority)
+export type DesktopPlanConsent = 'approval-card' | 'standing-consent' | 'display-only'
+
 // The per-turn deps a feature's `build(context)` may read. Structural +
 // dependency-light: `db` and `desktopReader` are `unknown` so a producer
 // package implements the contract WITHOUT importing `@vynel/db` or
@@ -46,6 +55,8 @@ export interface SessionToolContext {
   readonly desktopReader?: unknown
   /** Whether the mutating desktop `act_on_app` tool is enabled (default-off env flag). */
   readonly enableDesktopActions?: boolean
+  /** How a proposed desktop plan acquires authority this turn (absent → 'display-only'). */
+  readonly desktopPlanConsent?: DesktopPlanConsent
 }
 
 export interface McpFeatureDescriptor {

@@ -3,15 +3,19 @@ import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
 import { actOnApp, DESKTOP_ACTIONS, type ActOnAppResult, type DesktopAction } from '../a11y/xa11y-adapter.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
+import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
+import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
 
 const TOOL_DESCRIPTION =
   "Act on an element in a desktop app — click, type, or set a value. This CHANGES things on the user's " +
-  'screen. First call snapshot_app to see the element\'s role + name, then target it: `app` = the app name; ' +
+  'screen. Requires a plan: call propose_desktop_plan first (once per task). First call snapshot_app to ' +
+  'see the element\'s role + name, then target it: `app` = the app name; ' +
   '`selector` = `role[name="X"]` (e.g. button[name="Save"]) or `[stable_id="…"]` for precision; `action` = ' +
   'press (click) / type_text / set_value; `value` = the text for type_text or set_value. If the selector ' +
   'matches more than one element, NO action runs — you get the matches with their stable_ids, so re-target ' +
-  'ONE precisely. IMPORTANT: before an IRREVERSIBLE action (sending a message, deleting, paying, submitting ' +
-  'a form), ask the user to confirm first — do not do it autonomously. Windows only.'
+  'ONE precisely. IMPORTANT: an IRREVERSIBLE action (sending a message, deleting, paying, submitting a ' +
+  'form) must be stated in the approved plan — one that is not still needs the user\'s confirmation first. ' +
+  'Windows only.'
 
 function parseAction(raw: unknown): DesktopAction | null {
   return typeof raw === 'string' && (DESKTOP_ACTIONS as readonly string[]).includes(raw)
@@ -44,8 +48,16 @@ export function buildActResponse(
   return { content: [{ type: 'text', text: `Done: ${result.action} on ${result.selector} in "${app}".` }] }
 }
 
-/** Construct the `act_on_app` SDK MCP tool (mutating — destructiveHint). */
-export function makeActOnAppTool(authorize?: DesktopAccessAuthorizer): unknown {
+/** Construct the `act_on_app` SDK MCP tool (mutating — destructiveHint).
+ *  The envelope is REQUIRED — acting is PLAN-GATED by construction: refused
+ *  until the turn's plan is armed, and the armed plan authorizes its apps
+ *  alongside standing grants. (An optional envelope would be a fail-open
+ *  default waiting for a second construction site.) */
+export function makeActOnAppTool(
+  envelope: DesktopPlanEnvelope,
+  authorize?: DesktopAccessAuthorizer,
+): unknown {
+  const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
   return (tool as unknown as McpToolFn)(
     'act_on_app',
     TOOL_DESCRIPTION,
@@ -62,6 +74,10 @@ export function makeActOnAppTool(authorize?: DesktopAccessAuthorizer): unknown {
       value: z.string().optional().describe('The text to enter, for type_text or set_value.'),
     },
     async (args: Record<string, unknown>) => {
+      const planRefusal = planRequiredError(envelope)
+      if (planRefusal !== null) {
+        return { content: [{ type: 'text', text: planRefusal }], isError: true }
+      }
       const action = parseAction(args['action'])
       if (action === null) {
         return {
@@ -73,7 +89,7 @@ export function makeActOnAppTool(authorize?: DesktopAccessAuthorizer): unknown {
         const app = typeof args['app'] === 'string' ? args['app'] : ''
         const selector = typeof args['selector'] === 'string' ? args['selector'] : ''
         const value = typeof args['value'] === 'string' ? args['value'] : undefined
-        return buildActResponse(app, await actOnApp(app, selector, action, value, authorize))
+        return buildActResponse(app, await actOnApp(app, selector, action, value, effectiveAuthorize))
       } catch (err) {
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],

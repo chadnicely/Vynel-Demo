@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Desktop control asks once — for the whole plan.** Before touching your
+  computer, Claude now proposes its full plan: the goal in your words, the
+  steps it will take, and every app it needs. In ask mode you approve that
+  one card — goal, numbered steps, apps in plain tier words ("look, click +
+  type"), with the "AI can make mistakes" note at the bottom — and the steps
+  then run without per-click interruptions. The approval covers only that
+  task: nothing is silently remembered, and background/remote turns still
+  can't grant themselves anything new. Deny the plan and nothing moves.
+
 - **Any session can now read any conversation.** Every tier — workspace
   chats, spawned sessions, agent colleagues, and the global assistant —
   carries one search tool over all your conversations (optionally narrowed

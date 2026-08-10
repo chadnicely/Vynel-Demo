@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { createDesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
+import { PLAN_REQUIRED_MESSAGE } from '../plan/plan-gated-authorization.js'
 import { buildActResponse, makeActOnAppTool } from './act-on-app-tool.js'
 
 describe('buildActResponse', () => {
@@ -31,12 +33,24 @@ describe('makeActOnAppTool', () => {
   it('is named act_on_app and marked DESTRUCTIVE, not read-only', () => {
     // The destructive annotation is the safety contract — a flip to read-only
     // (or a name typo) would mis-class the one mutating desktop tool.
-    const toolDefinition = makeActOnAppTool() as {
+    const toolDefinition = makeActOnAppTool(createDesktopPlanEnvelope('standing-consent')) as {
       name: string
       annotations?: { destructiveHint?: boolean; readOnlyHint?: boolean }
     }
     expect(toolDefinition.name).toBe('act_on_app')
     expect(toolDefinition.annotations?.destructiveHint).toBe(true)
     expect(toolDefinition.annotations?.readOnlyHint).not.toBe(true)
+  })
+
+  it('refuses to act without an armed plan — in any consent mode', async () => {
+    const built = makeActOnAppTool(createDesktopPlanEnvelope('standing-consent')) as {
+      handler: (args: Record<string, unknown>) => Promise<{
+        isError?: boolean
+        content: Array<{ type: string; text?: string }>
+      }>
+    }
+    const result = await built.handler({ app: 'Notepad', selector: 'button[name="Save"]', action: 'press' })
+    expect(result.isError).toBe(true)
+    expect(result.content[0]?.text).toBe(PLAN_REQUIRED_MESSAGE)
   })
 })

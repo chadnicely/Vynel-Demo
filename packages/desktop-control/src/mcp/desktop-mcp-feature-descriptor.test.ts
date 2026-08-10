@@ -12,19 +12,19 @@ const baseContext: SessionToolContext = {
 }
 
 describe('desktopFeatureDescriptor', () => {
-  it('declares both act tools in the ask-approval tier (element + coordinate acting)', () => {
+  it('declares the PLAN as the ask-approval tier — the act tools left it (plan-level approval)', () => {
     expect(desktopFeatureDescriptor.serverName).toBe('desktop')
-    // The consent tool rides the MUTATING tier: it cards in ask + the
-    // unattended background default (no silent self-grant on a schedule
-    // fire), and runs uncarded in the user's auto/bypass. The act tools stay
-    // ask-tier (Chad 2026-07-26 + 2026-08-04: "ask mode gates through
-    // approval; auto and bypass, no approval").
+    // The standing-grant consent tool keeps the MUTATING tier: it cards in ask
+    // + the unattended background default (no silent self-grant on a schedule
+    // fire), and runs uncarded in the user's auto/bypass. The ask tier holds
+    // ONLY `propose_desktop_plan` (Kafi 2026-08-11: one card per task, on the
+    // plan) — the act tools are gated in-tool by the plan envelope instead, so
+    // their presence here would re-create the per-step cards the plan removed.
     expect(desktopFeatureDescriptor.mutatingToolNames).toEqual([
       'mcp__desktop__request_desktop_access',
     ])
     expect(desktopFeatureDescriptor.askModeApprovalToolNames).toEqual([
-      'mcp__desktop__act_on_app',
-      'mcp__desktop__act_on_desktop',
+      'mcp__desktop__propose_desktop_plan',
     ])
   })
 

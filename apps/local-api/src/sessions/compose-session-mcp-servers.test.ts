@@ -167,7 +167,7 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
     expect(composed.systemPromptAppend).toBe('')
   })
 
-  it('attaches observation with actions off: server + prompt, act_on_app still in the ask tier', () => {
+  it('attaches observation with actions off: server + prompt, the PLAN in the ask tier', () => {
     const composed = composeSessionMcpServers([desktopFeatureDescriptor], {
       ...context,
       desktopReader: fakeReader,
@@ -177,11 +177,12 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
     expect(composed.allowedMcpToolPatterns).toContain('mcp__desktop__*')
     // The declaration is unconditional (descriptor contract) — the tier is
     // additive, so declaring an unregistered tool is harmless.
-    // test: correct expectation — the act tools moved from the mutating set
-    // to the ask-approval tier (Chad 2026-07-26); the CONSENT tool
-    // (request_desktop_access) rides the MUTATING tier so it also cards on
-    // unattended background turns (no silent self-grant on a schedule fire).
-    expect(composed.askModeApprovalToolNames).toContain('mcp__desktop__act_on_app')
+    // test: correct expectation — plan-level approval (Kafi 2026-08-11): the
+    // ask tier holds ONLY propose_desktop_plan (one card per desktop task);
+    // the act tools left it — they are plan-envelope-gated in-tool instead.
+    // The CONSENT tool (request_desktop_access) keeps the MUTATING tier so it
+    // also cards on unattended background turns (no silent self-grant).
+    expect(composed.askModeApprovalToolNames).toEqual(['mcp__desktop__propose_desktop_plan'])
     expect(composed.mutatingToolNames).toEqual(['mcp__desktop__request_desktop_access'])
     expect(composed.systemPromptAppend).toContain('snapshot_app')
     expect(composed.systemPromptAppend).not.toContain('act_on_app')
@@ -194,7 +195,8 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
       enableDesktopActions: true,
     })
     expect(composed.mcpServers).toHaveProperty('desktop')
-    expect(composed.askModeApprovalToolNames).toContain('mcp__desktop__act_on_app')
+    expect(composed.askModeApprovalToolNames).toEqual(['mcp__desktop__propose_desktop_plan'])
     expect(composed.systemPromptAppend).toContain('act_on_app')
+    expect(composed.systemPromptAppend).toContain('propose_desktop_plan')
   })
 })

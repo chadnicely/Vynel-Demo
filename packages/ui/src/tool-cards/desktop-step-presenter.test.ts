@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   describeDesktopStep,
+  parseDesktopPlanCard,
   presentDesktopToolCall,
   selectorDisplayName,
 } from "./desktop-step-presenter.js";
@@ -156,5 +157,60 @@ describe("describeDesktopStep — request_desktop_access", () => {
         tier: "full",
       }),
     ).toBe("Asking to use Discord (look, click + type)");
+  });
+});
+
+const planInput = {
+  goal: "Open Chrome and search the latest song on YouTube",
+  steps: ["Focus Chrome", "Open youtube.com", "Search"],
+  apps: [{ app: "Google Chrome", tier: "full" }],
+};
+
+describe("propose_desktop_plan presentation", () => {
+  it("narrates the plan proposal with its goal", () => {
+    expect(describeDesktopStep("mcp__desktop__propose_desktop_plan", planInput)).toBe(
+      "Proposing a plan: Open Chrome and search the latest song on YouTube",
+    );
+    expect(describeDesktopStep("mcp__desktop__propose_desktop_plan", {})).toBe(
+      "Proposing a plan",
+    );
+  });
+
+  it("renders the settled card with the goal and step count", () => {
+    const presentation = presentToolCall(
+      desktopCall("mcp__desktop__propose_desktop_plan", planInput),
+    );
+    expect(presentation.verb).toBe("Proposed a plan");
+    expect(presentation.argument).toBe(planInput.goal);
+    expect(presentation.subtitle).toBe("3 steps");
+  });
+});
+
+describe("parseDesktopPlanCard", () => {
+  it("parses a plan-shaped input", () => {
+    expect(parseDesktopPlanCard(planInput)).toEqual(planInput);
+  });
+
+  it("is ALL-OR-NOTHING: one malformed entry rejects the whole parse", () => {
+    // Never a cleaned subset — the plan pane must show exactly what an
+    // approval can arm; a partial render would under-display the consent.
+    expect(
+      parseDesktopPlanCard({
+        goal: "g",
+        steps: ["ok", 42],
+        apps: [{ app: "Chrome", tier: "full" }],
+      }),
+    ).toBeNull();
+    expect(
+      parseDesktopPlanCard({
+        goal: "g",
+        steps: ["ok"],
+        apps: [{ app: "Chrome", tier: "full" }, { app: "" }],
+      }),
+    ).toBeNull();
+    expect(parseDesktopPlanCard(null)).toBeNull();
+    expect(parseDesktopPlanCard({ goal: "g" })).toBeNull();
+    expect(parseDesktopPlanCard({ goal: "g", steps: [], apps: [] })).toBeNull();
+    expect(parseDesktopPlanCard({ goal: "g", steps: ["s"], apps: [{}] })).toBeNull();
   });
 });

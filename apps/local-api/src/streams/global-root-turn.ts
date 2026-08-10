@@ -160,7 +160,9 @@ export async function streamGlobalRootTurn(
   // Desktop observation (+ gated actions) — the brain's desktop senses. The
   // descriptor excludes itself when no reader was wired at boot (off-Windows /
   // tests), so composition stays safe everywhere.
-  const { desktopFeatureDescriptor } = await import('@vynel/desktop-control')
+  const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
+    '@vynel/desktop-control'
+  )
   // Chat-mentions: re-parse the message server-side — @/@Persona dispatches
   // (enqueued once the turn's session resolves) + the per-turn # study
   // descriptor. Never throws; null = a token-free turn. The global root
@@ -193,6 +195,10 @@ export async function streamGlobalRootTurn(
       appRequest,
       desktopReader: c.var.desktopNotifications,
       enableDesktopActions: c.var.desktopActionsEnabled,
+      // Plan-level approval: the turn's mode decides what an approved desktop
+      // plan may authorize (ask = the card; auto/bypass = standing consent;
+      // absent = display-only).
+      desktopPlanConsent: deriveDesktopPlanConsent(permissionMode),
     },
     // The global root has no workspace, so no capability override rows can
     // exist for it — the catalog defaults ARE its enabled set (without this,

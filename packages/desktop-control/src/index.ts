@@ -49,6 +49,14 @@ export { buildDesktopMcpServer } from './mcp/build-desktop-mcp-server.js'
 export type { BuildDesktopMcpServerInput } from './mcp/build-desktop-mcp-server.js'
 export { desktopFeatureDescriptor } from './mcp/desktop-mcp-feature-descriptor.js'
 
+export { deriveDesktopPlanConsent } from './plan/desktop-plan-consent.js'
+export { createDesktopPlanEnvelope } from './plan/desktop-plan-envelope.js'
+export type {
+  DesktopPlan,
+  DesktopPlanApp,
+  DesktopPlanEnvelope,
+} from './plan/desktop-plan-envelope.js'
+
 export {
   DESKTOP_ACCESS_TIERS,
   isDesktopAccessTier,

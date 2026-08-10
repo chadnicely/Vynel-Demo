@@ -38,7 +38,7 @@
 //
 // The policy is the static floor (`tools-always-requiring-approval.ts`) UNIONED
 // with the per-turn `alwaysRequireApprovalToolNames` (a feature's declared mutating tools,
-// e.g. desktop `act_on_app`). The floor is imported here directly — ADDITIVE, so
+// e.g. desktop `request_desktop_access`). The floor is imported here directly — ADDITIVE, so
 // the backstop cards the floor even when no per-turn set is passed — and the
 // SAME effective check is used by `buildClaudeCanUseToolCallback`, so gate and
 // backstop can't drift.

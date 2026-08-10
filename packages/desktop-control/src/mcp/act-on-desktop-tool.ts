@@ -7,16 +7,20 @@ import {
   type ActOnDesktopParams,
 } from '../input/desktop-input.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
+import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
+import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
 
 const TOOL_DESCRIPTION =
   "Control the desktop by COORDINATES — click, type, press keys, scroll, or drag at a pixel, the way a " +
-  'person uses a mouse and keyboard. This CHANGES things on the screen. Use this when you only have a ' +
+  'person uses a mouse and keyboard. This CHANGES things on the screen. Requires a plan: call ' +
+  "propose_desktop_plan first (once per task). Use this when you only have a " +
   "SCREENSHOT (no accessibility tree) — prefer act_on_app's selectors when snapshot_app exposes the " +
   'element. Pass `app` = the window name so x/y are relative to THAT window\'s screenshot (top-left = 0,0); ' +
   'omit `app` for absolute screen coordinates. Actions: click {x,y,button?,double?} · type {text} (into ' +
   'whatever is focused — click first) · press {keys} (e.g. "enter", "ctrl+c", "alt+f4") · scroll ' +
-  '{x,y,direction?,amount?} · drag {x,y,toX,toY}. IMPORTANT: before an IRREVERSIBLE action (sending, ' +
-  'deleting, paying, submitting), ask the user to confirm first. Windows only.'
+  '{x,y,direction?,amount?} · drag {x,y,toX,toY}. IMPORTANT: an IRREVERSIBLE action (sending, deleting, ' +
+  'paying, submitting) must be stated in the approved plan — one that is not still needs the user\'s ' +
+  'confirmation first. Windows only.'
 
 function parseAction(raw: unknown): ActOnDesktopParams['action'] | null {
   return typeof raw === 'string' && (DESKTOP_INPUT_ACTIONS as readonly string[]).includes(raw)
@@ -32,8 +36,16 @@ function stringArg(args: Record<string, unknown>, key: string): string | undefin
   return typeof args[key] === 'string' ? (args[key] as string) : undefined
 }
 
-/** Construct the `act_on_desktop` SDK MCP tool (mutating — destructiveHint). */
-export function makeActOnDesktopTool(authorize?: DesktopAccessAuthorizer): unknown {
+/** Construct the `act_on_desktop` SDK MCP tool (mutating — destructiveHint).
+ *  The envelope is REQUIRED — acting is PLAN-GATED by construction: refused
+ *  until the turn's plan is armed, and the armed plan authorizes its apps
+ *  alongside standing grants. (An optional envelope would be a fail-open
+ *  default waiting for a second construction site.) */
+export function makeActOnDesktopTool(
+  envelope: DesktopPlanEnvelope,
+  authorize?: DesktopAccessAuthorizer,
+): unknown {
+  const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
   return (tool as unknown as McpToolFn)(
     'act_on_desktop',
     TOOL_DESCRIPTION,
@@ -55,6 +67,10 @@ export function makeActOnDesktopTool(authorize?: DesktopAccessAuthorizer): unkno
       amount: z.number().optional().describe('Scroll steps (default 3).'),
     },
     async (args: Record<string, unknown>) => {
+      const planRefusal = planRequiredError(envelope)
+      if (planRefusal !== null) {
+        return { content: [{ type: 'text', text: planRefusal }], isError: true }
+      }
       const action = parseAction(args['action'])
       if (action === null) {
         return {
@@ -100,7 +116,7 @@ export function makeActOnDesktopTool(authorize?: DesktopAccessAuthorizer): unkno
         ...(direction !== undefined ? { direction } : {}),
       }
       try {
-        const result = await actOnDesktop(params, authorize)
+        const result = await actOnDesktop(params, effectiveAuthorize)
         return { content: [{ type: 'text', text: `Done: ${result.detail}.` }] }
       } catch (err) {
         return {

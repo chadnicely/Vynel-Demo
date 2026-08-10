@@ -30,14 +30,26 @@ describe('DESKTOP_TOOL_INSTRUCTIONS', () => {
 })
 
 describe('DESKTOP_ACT_INSTRUCTIONS', () => {
-  it('names act_on_app and requires asking before irreversible actions', () => {
-    // Appended only when desktop actions are enabled; the ask-before-irreversible
-    // line is one safety layer (the hard walls are the grant gate + the
-    // password-control refusal + the approval cards), so it must survive any
-    // future edit.
+  it('opens with the plan-first contract (one approved plan per task)', () => {
+    // Plan-level approval (Kafi 2026-08-11): the plan is the consent moment,
+    // so the instructions must both REQUIRE proposing it before acting and
+    // say the act tools refuse without one.
+    expect(DESKTOP_ACT_INSTRUCTIONS).toContain('propose_desktop_plan')
+    expect(DESKTOP_ACT_INSTRUCTIONS.toLowerCase()).toContain('before any action')
+    expect(DESKTOP_ACT_INSTRUCTIONS.toLowerCase()).toContain('refuse without one')
+  })
+
+  it('names act_on_app and binds irreversible actions to the stated plan', () => {
+    // The plan supersedes per-step asking: an irreversible outcome must be
+    // STATED in the approved plan, and one the plan did not state still needs
+    // the user's confirmation. This line is one safety layer (the hard walls
+    // are the grant gate + the password-control refusal + the plan card), so
+    // it must survive any future edit.
     expect(DESKTOP_ACT_INSTRUCTIONS).toContain('act_on_app')
     expect(DESKTOP_ACT_INSTRUCTIONS.toLowerCase()).toContain('irreversible')
-    expect(DESKTOP_ACT_INSTRUCTIONS.toLowerCase()).toContain('ask the user')
+    expect(DESKTOP_ACT_INSTRUCTIONS.toLowerCase()).toContain(
+      'did not state still needs the user',
+    )
   })
 
   it('carries the prohibited-action canon (credentials / CAPTCHA / financial / agreements)', () => {

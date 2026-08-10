@@ -7,4 +7,5 @@ export type {
   SessionToolContext,
   SessionMcpServer,
   HonoAppRequestFn,
+  DesktopPlanConsent,
 } from './mcp-feature-descriptor.js'

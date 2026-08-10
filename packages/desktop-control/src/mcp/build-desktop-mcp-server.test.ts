@@ -39,11 +39,60 @@ describe('desktopToolFactories', () => {
     ])
   })
 
-  it('adds the two act tools only when actions are enabled', () => {
+  it('adds the plan tool and the two act tools only when actions are enabled', () => {
     const names = toolNames(
       desktopToolFactories({ reader: emptyReader, db: dbStandIn, userId: 'u', enableActions: true }),
     )
+    expect(names).toContain('propose_desktop_plan')
     expect(names).toContain('act_on_app')
     expect(names).toContain('act_on_desktop')
+    // Planning without acting is meaningless — observe-only turns carry no plan tool.
+    const observeOnly = toolNames(
+      desktopToolFactories({ reader: emptyReader, db: dbStandIn, userId: 'u' }),
+    )
+    expect(observeOnly).not.toContain('propose_desktop_plan')
+  })
+
+  it('shares ONE envelope between the plan tool and the act tools (arming lifts the refusal)', async () => {
+    type BuiltTool = {
+      name: string
+      handler: (args: Record<string, unknown>) => Promise<{
+        isError?: boolean
+        content: Array<{ type: string; text?: string }>
+      }>
+    }
+    const factories = desktopToolFactories({
+      reader: emptyReader,
+      db: dbStandIn,
+      userId: 'u',
+      enableActions: true,
+      planConsent: 'approval-card',
+    }) as BuiltTool[]
+    const findTool = (name: string) => factories.find((factory) => factory.name === name)!
+    // The probe uses an INVALID action on purpose: the plan refusal fires
+    // before action parsing, so the returned error tells us which gate hit —
+    // without ever reaching the native execution layer.
+    const probeArgs = { action: 'not-an-action' }
+
+    const actOnApp = findTool('act_on_app')
+    const actOnDesktop = findTool('act_on_desktop')
+    const beforeApp = await actOnApp.handler(probeArgs)
+    const beforeDesktop = await actOnDesktop.handler(probeArgs)
+    expect(beforeApp.isError).toBe(true)
+    expect(beforeApp.content[0]?.text).toContain('propose_desktop_plan')
+    expect(beforeDesktop.content[0]?.text).toContain('propose_desktop_plan')
+
+    const proposed = await findTool('propose_desktop_plan').handler({
+      goal: 'g',
+      steps: ['s'],
+      apps: [{ app: 'Notepad', tier: 'click' }],
+    })
+    expect(proposed.isError).not.toBe(true)
+
+    const afterApp = await actOnApp.handler(probeArgs)
+    const afterDesktop = await actOnDesktop.handler(probeArgs)
+    // The plan gate stood down — the probe now fails at action parsing instead.
+    expect(afterApp.content[0]?.text).toContain('Unknown action')
+    expect(afterDesktop.content[0]?.text).toContain('Unknown action')
   })
 })

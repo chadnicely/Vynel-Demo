@@ -122,4 +122,49 @@ describe("ApprovalCard", () => {
     expect(wrapper.find(".context-line").exists()).toBe(false);
     expect(wrapper.find(".input-json").text()).toContain("notes.md");
   });
+
+  it("renders a desktop plan as THE plan: goal headline, numbered steps, tier words, acknowledgment", () => {
+    const wrapper = mount(ApprovalCard, {
+      props: {
+        toolName: "mcp__desktop__propose_desktop_plan",
+        toolInput: {
+          goal: "Open Chrome and search the latest song on YouTube",
+          steps: ["Focus Chrome", "Open youtube.com", "Search for the latest song"],
+          apps: [{ app: "Google Chrome", tier: "full" }],
+        },
+      },
+    });
+
+    expect(wrapper.find(".headline").text()).toBe(
+      "Open Chrome and search the latest song on YouTube",
+    );
+    expect(wrapper.find(".context-line").text()).toBe(
+      "Your assistant wants to run this plan on your desktop",
+    );
+    const steps = wrapper.findAll(".plan-steps li");
+    expect(steps).toHaveLength(3);
+    expect(steps[0]?.text()).toBe("Focus Chrome");
+    expect(wrapper.find(".plan-apps").text()).toContain(
+      "Google Chrome — look, click + type",
+    );
+    // Kafi 2026-08-11: the make-mistakes line sits at the bottom of the box.
+    expect(wrapper.find(".plan-acknowledgment").text()).toContain(
+      "AI can make mistakes",
+    );
+    // goal/steps/apps are promoted into the plan pane — no JSON echo.
+    expect(wrapper.find(".input-json").exists()).toBe(false);
+  });
+
+  it("a malformed plan input falls back to the generic panes (nothing hidden)", () => {
+    const wrapper = mount(ApprovalCard, {
+      props: {
+        toolName: "mcp__desktop__propose_desktop_plan",
+        toolInput: { goal: "g", steps: [], apps: [] },
+      },
+    });
+
+    expect(wrapper.find(".plan-pane").exists()).toBe(false);
+    expect(wrapper.find(".plan-acknowledgment").exists()).toBe(false);
+    expect(wrapper.find(".input-json").text()).toContain('"goal"');
+  });
 });

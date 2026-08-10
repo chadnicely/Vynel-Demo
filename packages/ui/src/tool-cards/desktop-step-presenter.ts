@@ -102,6 +102,10 @@ export function describeDesktopStep(toolName: string, toolInput: unknown): strin
     }
     case "act_on_desktop":
       return describeCoordAction(toolInput, "progressive");
+    case "propose_desktop_plan": {
+      const goal = inputString(toolInput, "goal");
+      return goal !== null ? `Proposing a plan: ${goal}` : "Proposing a plan";
+    }
     case "request_desktop_access": {
       const app = inputString(toolInput, "app") ?? "an app";
       const tier = inputString(toolInput, "tier");
@@ -110,6 +114,42 @@ export function describeDesktopStep(toolName: string, toolInput: unknown): strin
     default:
       return displayToolName(toolName);
   }
+}
+
+/** A desktop plan parsed off the approval card's tool input — null when the
+ *  input isn't plan-shaped (the card then falls back to its generic panes). */
+export type DesktopPlanCard = {
+  goal: string;
+  steps: string[];
+  apps: Array<{ app: string; tier: string }>;
+};
+
+/** ALL-OR-NOTHING by design: one malformed entry rejects the whole parse (→
+ *  generic JSON panes), never a cleaned subset — the plan pane must show
+ *  exactly what an approval can arm, structurally, not by trusting the server
+ *  validator to have been stricter. */
+export function parseDesktopPlanCard(toolInput: unknown): DesktopPlanCard | null {
+  const goal = inputString(toolInput, "goal");
+  if (goal === null) return null;
+  const bag = toolInput as Record<string, unknown>;
+  const rawSteps = bag["steps"];
+  const rawApps = bag["apps"];
+  if (!Array.isArray(rawSteps) || !Array.isArray(rawApps)) return null;
+  if (rawSteps.length === 0 || rawApps.length === 0) return null;
+  const steps: string[] = [];
+  for (const step of rawSteps) {
+    if (typeof step !== "string" || step.length === 0) return null;
+    steps.push(step);
+  }
+  const apps: Array<{ app: string; tier: string }> = [];
+  for (const entry of rawApps) {
+    if (typeof entry !== "object" || entry === null) return null;
+    const app = (entry as Record<string, unknown>)["app"];
+    const tier = (entry as Record<string, unknown>)["tier"];
+    if (typeof app !== "string" || app.length === 0 || typeof tier !== "string") return null;
+    apps.push({ app, tier });
+  }
+  return { goal, steps, apps };
 }
 
 /** The tier in words a non-technical person reads on the card. */
@@ -177,6 +217,16 @@ export function presentDesktopToolCall(
         stats: null,
         body,
       };
+    case "propose_desktop_plan": {
+      const plan = parseDesktopPlanCard(toolInput);
+      return {
+        verb: "Proposed a plan",
+        argument: inputString(toolInput, "goal"),
+        subtitle: plan !== null ? `${plan.steps.length} steps` : null,
+        stats: null,
+        body,
+      };
+    }
     case "request_desktop_access": {
       const tier = inputString(toolInput, "tier");
       return {

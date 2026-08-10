@@ -1,15 +1,18 @@
 import { createSdkMcpServer, type SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk'
 import type { Database } from '@vynel/db'
+import type { DesktopPlanConsent } from '@vynel/mcp-contract'
 import type { DesktopNotificationReader } from '../notifications/desktop-notification.js'
 import { makeDesktopAccessAuthorizer } from '../access/assert-desktop-access.js'
 import { normalizeDesktopAppKey } from '../access/desktop-access-tiers.js'
 import { findDesktopAppGrant } from '../repositories/desktop-app-grants.js'
+import { createDesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makeListDesktopNotificationsTool } from './list-desktop-notifications-tool.js'
 import { makeListOpenAppsTool } from './list-open-apps-tool.js'
 import { makeSnapshotAppTool } from './snapshot-app-tool.js'
 import { makeScreenshotAppTool } from './screenshot-app-tool.js'
 import { makeActOnAppTool } from './act-on-app-tool.js'
 import { makeActOnDesktopTool } from './act-on-desktop-tool.js'
+import { makeProposeDesktopPlanTool } from './propose-desktop-plan-tool.js'
 import { makeRequestDesktopAccessTool } from './request-desktop-access-tool.js'
 
 export type BuildDesktopMcpServerInput = {
@@ -24,6 +27,13 @@ export type BuildDesktopMcpServerInput = {
    * grant row (user consent via `request_desktop_access`) = no action.
    */
   enableActions?: boolean
+  /**
+   * How this turn's proposed plan acquires authority (mode-derived by the
+   * caller via `deriveDesktopPlanConsent`). Default 'display-only' — the
+   * conservative floor: a caller that forgets to thread it gets a plan that
+   * narrates without authorizing anything beyond standing grants.
+   */
+  planConsent?: DesktopPlanConsent
 }
 
 // Builds the in-process `desktop` MCP server — tools become `mcp__desktop__*`.
@@ -55,8 +65,14 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     makeRequestDesktopAccessTool(input.db, input.userId),
   ]
   if (input.enableActions === true) {
-    factories.push(makeActOnAppTool(authorize))
-    factories.push(makeActOnDesktopTool(authorize))
+    // ONE envelope shared by the plan tool and both act tools — that shared
+    // instance is the whole plan-approval mechanism: propose arms it, acts
+    // refuse without it. Server instances are per-turn, so the plan (and
+    // whatever its approval authorized) dies with the turn.
+    const envelope = createDesktopPlanEnvelope(input.planConsent ?? 'display-only')
+    factories.push(makeProposeDesktopPlanTool(envelope))
+    factories.push(makeActOnAppTool(envelope, authorize))
+    factories.push(makeActOnDesktopTool(envelope, authorize))
   }
   return factories
 }
