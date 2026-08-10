@@ -7,6 +7,7 @@
 // Pure functions; anything unparseable falls back to readable generics.
 
 import { displayToolName, type ToolCallPresentation } from "./tool-presenters.js";
+import { parseDesktopPlanCard } from "./desktop-plan-card.js";
 
 export const DESKTOP_TOOL_PREFIX = "mcp__desktop__";
 
@@ -79,6 +80,59 @@ function actTarget(toolInput: unknown): string {
   return app;
 }
 
+/** One element-addressed action in the overlay's progressive voice — shared by
+ *  the single act_on_app call and each step of a batched one. */
+function describeElementAction(toolInput: unknown): string {
+  const action = inputString(toolInput, "action");
+  const voice = action !== null ? ACTION_VOICES[action] : undefined;
+  return `${voice?.progressive ?? "Acting on"} ${actTarget(toolInput)}`;
+}
+
+/** The `actions` array of a batched act call — null when the call is the
+ *  single form (or the array is unusable). */
+function batchedActions(toolInput: unknown): Array<Record<string, unknown>> | null {
+  if (typeof toolInput !== "object" || toolInput === null) return null;
+  const actions = (toolInput as Record<string, unknown>)["actions"];
+  if (!Array.isArray(actions) || actions.length === 0) return null;
+  const entries = actions.filter(
+    (entry): entry is Record<string, unknown> =>
+      typeof entry === "object" && entry !== null,
+  );
+  // An all-junk array is NOT a batch — the server rejects those calls, and
+  // reporting "Ran 0 actions" would be a worse lie than the generic fallback.
+  return entries.length > 0 ? entries : null;
+}
+
+/** A batch reads as ONE step, but must still NAME its ending: the irreversible
+ *  action of a sequence is nearly always the last one ("…then Send"), and the
+ *  overlay is the only live surface the user watches — a bare "+2 more" would
+ *  hide exactly the step that matters most. First → last, with the count of
+ *  what sits between them. `app` comes from the CALL (the server ignores any
+ *  step-level app), so each action is described against the call's app only. */
+function describeBatch(
+  actions: Array<Record<string, unknown>>,
+  app: string | null,
+  describeOne: (action: Record<string, unknown>) => string,
+): string {
+  const withCallApp = (action: Record<string, unknown>) =>
+    describeOne({ ...action, app: app ?? undefined });
+  const first = actions[0];
+  if (first === undefined) return "Acting on your desktop";
+  const label = withCallApp(first);
+  if (actions.length === 1) return label;
+  const last = actions[actions.length - 1];
+  const between = actions.length - 2;
+  const tail = last !== undefined ? withCallApp(last) : "";
+  return between > 0
+    ? `${label}, +${between} more, then ${lowerFirst(tail)}`
+    : `${label}, then ${lowerFirst(tail)}`;
+}
+
+/** "Pressing X" → "pressing X" — the tail of a joined sentence. */
+function lowerFirst(text: string): string {
+  return text.length > 0 ? `${text[0]?.toLowerCase() ?? ""}${text.slice(1)}` : text;
+}
+
 /**
  * The overlay's step label — present progressive, or null for a tool that
  * isn't a desktop tool (the caller keeps its own fallback).
@@ -86,6 +140,14 @@ function actTarget(toolInput: unknown): string {
 export function describeDesktopStep(toolName: string, toolInput: unknown): string | null {
   if (!toolName.startsWith(DESKTOP_TOOL_PREFIX)) return null;
   const shortName = toolName.slice(DESKTOP_TOOL_PREFIX.length);
+  const actions = batchedActions(toolInput);
+  if (actions !== null && (shortName === "act_on_app" || shortName === "act_on_desktop")) {
+    return describeBatch(actions, inputString(toolInput, "app"), (action) =>
+      shortName === "act_on_app"
+        ? describeElementAction(action)
+        : describeCoordAction(action, "progressive"),
+    );
+  }
   switch (shortName) {
     case "list_open_apps":
       return "Looking at your open apps";
@@ -95,11 +157,8 @@ export function describeDesktopStep(toolName: string, toolInput: unknown): strin
       return `Reading ${inputString(toolInput, "app") ?? "an app"}`;
     case "screenshot_app":
       return `Taking a look at ${inputString(toolInput, "app") ?? "an app"}`;
-    case "act_on_app": {
-      const action = inputString(toolInput, "action");
-      const voice = action !== null ? ACTION_VOICES[action] : undefined;
-      return `${voice?.progressive ?? "Acting on"} ${actTarget(toolInput)}`;
-    }
+    case "act_on_app":
+      return describeElementAction(toolInput);
     case "act_on_desktop":
       return describeCoordAction(toolInput, "progressive");
     case "propose_desktop_plan": {
@@ -114,42 +173,6 @@ export function describeDesktopStep(toolName: string, toolInput: unknown): strin
     default:
       return displayToolName(toolName);
   }
-}
-
-/** A desktop plan parsed off the approval card's tool input — null when the
- *  input isn't plan-shaped (the card then falls back to its generic panes). */
-export type DesktopPlanCard = {
-  goal: string;
-  steps: string[];
-  apps: Array<{ app: string; tier: string }>;
-};
-
-/** ALL-OR-NOTHING by design: one malformed entry rejects the whole parse (→
- *  generic JSON panes), never a cleaned subset — the plan pane must show
- *  exactly what an approval can arm, structurally, not by trusting the server
- *  validator to have been stricter. */
-export function parseDesktopPlanCard(toolInput: unknown): DesktopPlanCard | null {
-  const goal = inputString(toolInput, "goal");
-  if (goal === null) return null;
-  const bag = toolInput as Record<string, unknown>;
-  const rawSteps = bag["steps"];
-  const rawApps = bag["apps"];
-  if (!Array.isArray(rawSteps) || !Array.isArray(rawApps)) return null;
-  if (rawSteps.length === 0 || rawApps.length === 0) return null;
-  const steps: string[] = [];
-  for (const step of rawSteps) {
-    if (typeof step !== "string" || step.length === 0) return null;
-    steps.push(step);
-  }
-  const apps: Array<{ app: string; tier: string }> = [];
-  for (const entry of rawApps) {
-    if (typeof entry !== "object" || entry === null) return null;
-    const app = (entry as Record<string, unknown>)["app"];
-    const tier = (entry as Record<string, unknown>)["tier"];
-    if (typeof app !== "string" || app.length === 0 || typeof tier !== "string") return null;
-    apps.push({ app, tier });
-  }
-  return { goal, steps, apps };
 }
 
 /** The tier in words a non-technical person reads on the card. */
@@ -199,6 +222,16 @@ export function presentDesktopToolCall(
         body,
       };
     case "act_on_app": {
+      const batch = batchedActions(toolInput);
+      if (batch !== null) {
+        return {
+          verb: `Ran ${batch.length} action${batch.length === 1 ? "" : "s"}`,
+          argument: inputString(toolInput, "app"),
+          subtitle: "on your desktop",
+          stats: null,
+          body,
+        };
+      }
       const action = inputString(toolInput, "action");
       const voice = action !== null ? ACTION_VOICES[action] : undefined;
       return {
@@ -209,14 +242,19 @@ export function presentDesktopToolCall(
         body,
       };
     }
-    case "act_on_desktop":
+    case "act_on_desktop": {
+      const batch = batchedActions(toolInput);
       return {
-        verb: describeCoordAction(toolInput, "past"),
-        argument: null,
+        verb:
+          batch !== null
+            ? `Ran ${batch.length} action${batch.length === 1 ? "" : "s"}`
+            : describeCoordAction(toolInput, "past"),
+        argument: batch !== null ? inputString(toolInput, "app") : null,
         subtitle: "on your desktop",
         stats: null,
         body,
       };
+    }
     case "propose_desktop_plan": {
       const plan = parseDesktopPlanCard(toolInput);
       return {

@@ -52,6 +52,15 @@ describe('DESKTOP_ACT_INSTRUCTIONS', () => {
     )
   })
 
+  it('teaches batching — several known steps in one call, stopping at the first failure', () => {
+    const lower = DESKTOP_ACT_INSTRUCTIONS.toLowerCase()
+    expect(lower).toContain('batch steps you already know')
+    expect(lower).toContain('stops at the first failure')
+    // The recovery instruction matters as much as the speed one: a part-way
+    // screen must be re-observed, not guessed at.
+    expect(lower).toContain('look again')
+  })
+
   it('carries the prohibited-action canon (credentials / CAPTCHA / financial / agreements)', () => {
     const lower = DESKTOP_ACT_INSTRUCTIONS.toLowerCase()
     expect(lower).toContain('password')

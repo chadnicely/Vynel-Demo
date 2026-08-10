@@ -2,10 +2,8 @@
 import { computed } from "vue";
 import type { ActionKind } from "@vynel/contracts/approvals/approval-http";
 import CodeBlock from "./CodeBlock.vue";
-import {
-  parseDesktopPlanCard,
-  tierDisplay,
-} from "../tool-cards/desktop-step-presenter.js";
+import { parseDesktopPlanCard } from "../tool-cards/desktop-plan-card.js";
+import { tierDisplay } from "../tool-cards/desktop-step-presenter.js";
 
 // The approval card — the product's trust primitive. Rendered inline in a
 // thread AND as a shell notification (compact), so it must work data-blind:

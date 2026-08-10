@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   describeDesktopStep,
-  parseDesktopPlanCard,
   presentDesktopToolCall,
   selectorDisplayName,
 } from "./desktop-step-presenter.js";
+import { parseDesktopPlanCard } from "./desktop-plan-card.js";
 import { presentToolCall } from "./tool-presenters.js";
 import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 
@@ -91,6 +91,66 @@ describe("describeDesktopStep — the overlay's progressive voice", () => {
     expect(describeDesktopStep("Read", { file_path: "a.ts" })).toBeNull();
     expect(describeDesktopStep("mcp__vynel__list_workspaces", {})).toBeNull();
   });
+
+  it("narrates a BATCH as one step naming its FIRST and LAST actions", () => {
+    // A batch is ONE tool call, but the irreversible action is nearly always
+    // the LAST one — a bare "+N more" would hide exactly the step that matters
+    // (here: Send). The overlay is the only live surface, so it must name it.
+    expect(
+      describeDesktopStep("mcp__desktop__act_on_app", {
+        app: "Discord",
+        actions: [
+          { selector: 'edit[name="Message"]', action: "type_text", value: "hi" },
+          { selector: 'button[name="Send"]', action: "press" },
+        ],
+      }),
+    ).toBe('Typing into "Message" in Discord, then pressing "Send" in Discord');
+
+    expect(
+      describeDesktopStep("mcp__desktop__act_on_desktop", {
+        app: "Google Chrome",
+        actions: [
+          { action: "click", x: 100, y: 60 },
+          { action: "type", text: "lofi" },
+          { action: "press", keys: "enter" },
+        ],
+      }),
+    ).toBe("Clicking at (100, 60) in Google Chrome, +1 more, then pressing enter");
+  });
+
+  it("a one-entry batch reads exactly like the single form", () => {
+    expect(
+      describeDesktopStep("mcp__desktop__act_on_desktop", {
+        app: "Zoom",
+        actions: [{ action: "press", keys: "ctrl+c" }],
+      }),
+    ).toBe("Pressing ctrl+c");
+  });
+
+  it("never names a window the CALL did not use", () => {
+    // The server ignores a step-level `app` (the frame comes from the call), so
+    // echoing one would put model-controlled text on the trust surface claiming
+    // a window that was never targeted.
+    expect(
+      describeDesktopStep("mcp__desktop__act_on_desktop", {
+        actions: [
+          { action: "click", x: 500, y: 300, app: "Notepad" },
+          { action: "press", keys: "enter" },
+        ],
+      }),
+    ).toBe("Clicking at (500, 300), then pressing enter");
+  });
+
+  it("treats an all-junk actions array as not-a-batch", () => {
+    expect(
+      describeDesktopStep("mcp__desktop__act_on_desktop", {
+        action: "click",
+        x: 1,
+        y: 2,
+        actions: ["junk"],
+      }),
+    ).toBe("Clicking at (1, 2)");
+  });
 });
 
 function desktopCall(toolName: string, toolInput: unknown): ChatToolCallResponse {
@@ -133,6 +193,29 @@ describe("presentToolCall — the desktop branch", () => {
 
   it("leaves unknown desktop tools to the generic fallback", () => {
     expect(presentDesktopToolCall("mcp__desktop__future_tool", {}, null)).toBeNull();
+  });
+
+  it("renders a settled batch as one card naming the action count and app", () => {
+    const elementBatch = presentToolCall(
+      desktopCall("mcp__desktop__act_on_app", {
+        app: "Discord",
+        actions: [
+          { selector: 'edit[name="Message"]', action: "type_text", value: "hi" },
+          { selector: 'button[name="Send"]', action: "press" },
+        ],
+      }),
+    );
+    expect(elementBatch.verb).toBe("Ran 2 actions");
+    expect(elementBatch.argument).toBe("Discord");
+
+    const coordBatch = presentToolCall(
+      desktopCall("mcp__desktop__act_on_desktop", {
+        app: "Google Chrome",
+        actions: [{ action: "click", x: 1, y: 2 }],
+      }),
+    );
+    expect(coordBatch.verb).toBe("Ran 1 action");
+    expect(coordBatch.argument).toBe("Google Chrome");
   });
 
   it("renders request_desktop_access with the tier in words a person reads", () => {

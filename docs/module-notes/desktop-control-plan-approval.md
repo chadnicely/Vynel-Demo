@@ -1,4 +1,4 @@
-# Desktop control — plan-level approval (Arc 1a)
+# Desktop control — plan-level approval + batching (Arcs 1a · 1b)
 
 **Direction (Kafi, 2026-08-11).** Desktop control is functional but the consent UX is wrong for
 the product: in ask mode every `act_on_app` / `act_on_desktop` call raises its own approval card.
@@ -59,9 +59,42 @@ words) with the acknowledgment as a small footer line — Kafi: *"add that as sm
 of that box"* — "AI can make mistakes. Approving runs this whole plan on your computer without
 asking step-by-step."
 
+## Arc 1b — batched actions (SHIPPED)
+
+Both act tools take `actions[]` (up to 20) instead of one action, so click → type → press enter is
+ONE tool call rather than three model round-trips. Semantics live once in `mcp/act-batch.ts`:
+sequential, **stop at the first failure** (the desktop is stateful — a step after a failed one
+would act on a screen the model never saw), with a numbered per-step report naming what ran, what
+stopped it, what never ran, and the re-observe path.
+
+**Batching weakens nothing.** The batch runner performs no authorization itself: every step calls
+the same per-action entry point a single call uses, so target re-resolution, the plan envelope +
+standing grants, coordinate confinement, the z-order hit-test and the password-control guard all
+re-run per step. Three properties needed deliberate work to keep parity with N separate calls:
+
+1. **The settle** (`input/foreground-settle.ts`). nut.js resolves a click when input is *sent*;
+   Windows activates the window when its thread processes the message. Between separate calls the
+   model round-trip WAS that settle — inside a batch the next step's focus probe could read the
+   pre-click foreground (denying a legitimate action, or authorizing app A while keystrokes land in
+   app B). After a focus-changing step (click/drag) the coordinate batch polls until two
+   consecutive focus reads agree, bounded at 400ms. Timing out is not an error — authorization
+   still runs and still fails closed.
+2. **Atomic validation.** Every step is fully validated up front (`planDesktopAction` for
+   coordinates, `actionRequiresValue` for elements), so a malformed batch runs *nothing* — with
+   separate calls a bad call mutated nothing, and a half-run batch would strand the screen.
+3. **The frame is the call's.** `app` is always read from the CALL, never from a step, so no step
+   can redirect the coordinate frame it was authorized against.
+
+The overlay renders a batch as ONE step naming its **first and last** actions ("Typing into
+"Message" in Discord, then pressing "Send" in Discord") — the irreversible action is nearly always
+last, and a bare "+N more" would hide exactly the step that matters most.
+
+**Open (Kafi's call, natural Arc 2 company):** Stop-lever granularity. `interruptTurn` stops the
+model loop, not an in-flight handler, so a 20-action batch is un-interruptible once started (every
+action still authorized). Options: a `shouldStop()` predicate between steps, a lower cap, or both.
+
 ## Deliberately NOT in this arc
 
-- Batched actions in one act call → Arc 1b.
 - Overlay active-control banner + live plan progress + all-modes reveal verification → Arc 2.
 - `list_installed_apps` / `launch_app` → Arc 3.
 - Input-method research note + `driving-the-desktop` notebook book → Arc 4.

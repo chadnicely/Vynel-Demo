@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Desktop steps run in one go.** Claude can now group actions it already
+  knows — click the search box, type the query, press enter — into a single
+  step instead of one slow round-trip each, so watching it work feels closer
+  to watching a person. The group stops the moment something doesn't go as
+  expected and tells you exactly what did and didn't happen, and the overlay
+  names both the first action and the last one, so a step like "send" is
+  never hidden behind a count.
+
 - **Desktop control asks once — for the whole plan.** Before touching your
   computer, Claude now proposes its full plan: the goal in your words, the
   steps it will take, and every app it needs. In ask mode you approve that

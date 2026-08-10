@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Database } from '@vynel/db'
 import type { DesktopNotificationReader } from '../notifications/desktop-notification.js'
+import { PLAN_REQUIRED_MESSAGE } from '../plan/plan-gated-authorization.js'
 import { buildDesktopMcpServer, desktopToolFactories } from './build-desktop-mcp-server.js'
 
 const emptyReader: DesktopNotificationReader = { listSince: () => [] }
@@ -91,8 +92,12 @@ describe('desktopToolFactories', () => {
 
     const afterApp = await actOnApp.handler(probeArgs)
     const afterDesktop = await actOnDesktop.handler(probeArgs)
-    // The plan gate stood down — the probe now fails at action parsing instead.
-    expect(afterApp.content[0]?.text).toContain('Unknown action')
-    expect(afterDesktop.content[0]?.text).toContain('Unknown action')
+    // The plan gate stood down — the probe now fails at the LATER argument
+    // validation instead (both tools word that refusal with "EITHER a single").
+    expect(afterApp.isError).toBe(true)
+    expect(afterApp.content[0]?.text).toContain('EITHER a single')
+    expect(afterApp.content[0]?.text).not.toContain(PLAN_REQUIRED_MESSAGE)
+    expect(afterDesktop.isError).toBe(true)
+    expect(afterDesktop.content[0]?.text).toContain('EITHER a single')
   })
 })
