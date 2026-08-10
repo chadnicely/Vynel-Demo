@@ -96,6 +96,7 @@ describe("applyChatTurnEvent", () => {
         kind: "agent-tool-completed",
         parentToolUseId: "tu_agent_1",
         toolUseId: "tu_sub_read",
+        toolName: "Read",
         toolOutput: "file body",
         isError: false,
         completedAt: "2026-07-19T10:00:02.000Z",

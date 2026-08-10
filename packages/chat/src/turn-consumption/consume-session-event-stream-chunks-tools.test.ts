@@ -760,6 +760,13 @@ describe('consumeSessionEventStream — SUBAGENT activity (parentToolUseId-marke
       expect(kinds).toContain('agent-text-chunk')
       expect(kinds).toContain('agent-tool-started')
       expect(kinds).toContain('agent-tool-completed')
+      // The COMPLETED frame names its tool: a live consumer settles a subagent
+      // step from this frame alone (the desktop overlay does), so losing the
+      // name would leave that step spinning forever.
+      expect(events.find((event) => event.kind === 'agent-tool-completed')).toMatchObject({
+        toolUseId: 'tu_sub_read',
+        toolName: 'Read',
+      })
       // Subagent thinking is dropped, and NO main-transcript events leaked
       // beyond the Agent call's own start.
       expect(kinds).not.toContain('text-chunk')

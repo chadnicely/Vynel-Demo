@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The desktop overlay says whether Claude is looking or driving.** While
+  Claude touches your computer, the overlay now names which of the two is
+  happening and — once you've approved a plan — shows that plan next to the
+  live steps, so you can follow along against what you agreed to. It appears
+  whenever Claude reaches for your desktop in every mode; approval mode just
+  adds the card. Two gaps closed: work Claude handed to a helper used to run
+  behind a dark overlay, and desktop approvals no longer appear twice.
+
 - **Desktop steps run in one go.** Claude can now group actions it already
   knows — click the search box, type the query, press enter — into a single
   step instead of one slow round-trip each, so watching it work feels closer

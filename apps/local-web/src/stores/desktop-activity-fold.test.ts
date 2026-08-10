@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyDesktopActivityEvent,
   emptyDesktopActivity,
+  isControllingDesktop,
   isDesktopOverlayVisible,
   IDLE_HIDE_MS,
   type DesktopActivityState,
@@ -28,6 +29,84 @@ function desktopStep(toolUseId: string, toolName = "mcp__desktop__snapshot_app")
     toolInput: { app: "Discord" },
   };
 }
+
+const PLAN_TOOL = "mcp__desktop__propose_desktop_plan";
+const planInput = {
+  goal: "Open Chrome and search the latest song on YouTube",
+  steps: ["Focus Chrome", "Open youtube.com", "Search"],
+  apps: [{ app: "Google Chrome", tier: "full" }],
+};
+
+function planStep(toolUseId: string, toolInput: unknown = planInput) {
+  return {
+    kind: "turn-tool-started" as const,
+    turnId: "t1",
+    toolUseId,
+    toolName: PLAN_TOOL,
+    toolInput,
+  };
+}
+
+describe("the active plan — looking vs controlling", () => {
+  it("stays LOOKING while only reading the desktop", () => {
+    const state = fold([
+      desktopStep("a"),
+      { kind: "turn-tool-settled", turnId: "t1", toolUseId: "a", status: "completed" },
+    ]);
+    expect(isControllingDesktop(state)).toBe(false);
+    expect(state.activePlan).toBeNull();
+  });
+
+  it("becomes CONTROLLING once a proposed plan completes (approved + armed)", () => {
+    const state = fold([
+      planStep("p1"),
+      { kind: "turn-tool-settled", turnId: "t1", toolUseId: "p1", status: "completed" },
+    ]);
+    expect(isControllingDesktop(state)).toBe(true);
+    expect(state.activePlan).toEqual({ goal: planInput.goal, steps: planInput.steps });
+  });
+
+  it("a DENIED plan never takes control", () => {
+    // A denied card means the tool never ran, so nothing was armed — the
+    // overlay must not claim Claude is driving.
+    for (const status of ["denied", "failed", "cancelled"] as const) {
+      const state = fold([
+        planStep("p1"),
+        { kind: "turn-tool-settled", turnId: "t1", toolUseId: "p1", status },
+      ]);
+      expect(isControllingDesktop(state)).toBe(false);
+    }
+  });
+
+  it("ignores an unparseable plan input rather than showing a half plan", () => {
+    const state = fold([
+      planStep("p1", { goal: "g", steps: [], apps: [] }),
+      { kind: "turn-tool-settled", turnId: "t1", toolUseId: "p1", status: "completed" },
+    ]);
+    expect(state.activePlan).toBeNull();
+  });
+
+  it("a re-proposed plan replaces the shown one", () => {
+    const second = { ...planInput, goal: "Reply in Discord", steps: ["Open", "Send"] };
+    const state = fold([
+      planStep("p1"),
+      { kind: "turn-tool-settled", turnId: "t1", toolUseId: "p1", status: "completed" },
+      planStep("p2", second),
+      { kind: "turn-tool-settled", turnId: "t1", toolUseId: "p2", status: "completed" },
+    ]);
+    expect(state.activePlan?.goal).toBe("Reply in Discord");
+  });
+
+  it("control ends with the turn", () => {
+    const state = fold([
+      planStep("p1"),
+      { kind: "turn-tool-settled", turnId: "t1", toolUseId: "p1", status: "completed" },
+      { kind: "turn-ended", turnId: "t1", sessionId: null },
+    ]);
+    expect(isControllingDesktop(state)).toBe(false);
+    expect(state).toEqual(emptyDesktopActivity());
+  });
+});
 
 describe("applyDesktopActivityEvent", () => {
   it("tracks only desktop steps — other tools leave the state untouched", () => {

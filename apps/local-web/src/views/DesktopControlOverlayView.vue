@@ -1,21 +1,36 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { ApprovalCard, ClaudeMark, PresenceDot, describeDesktopStep } from "@vynel/ui";
+import {
+  ApprovalCard,
+  ClaudeMark,
+  PresenceDot,
+  describeDesktopStep,
+  DESKTOP_TOOL_PREFIX,
+} from "@vynel/ui";
 import { useVynel } from "../composables/use-vynel.js";
 import { useSessionActivityFeed } from "../composables/activity/use-session-activity-feed.js";
 import { useDesktopActivityStore } from "../stores/desktop-activity-store.js";
-import { isDesktopOverlayVisible } from "../stores/desktop-activity-fold.js";
+import {
+  isControllingDesktop,
+  isDesktopOverlayVisible,
+} from "../stores/desktop-activity-fold.js";
 import { usePendingApprovals } from "../composables/approvals/use-pending-approvals.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import { createOverlayWindowControls } from "../composables/voice/tauri-overlay-window.js";
 
 // The desktop-control attention overlay — a bare always-on-top window that
 // narrates, step by step, what Claude is doing to the user's desktop while a
-// turn drives the mcp__desktop__* tools: current step, recent steps, the
-// approval card for a mutating action, and a Stop lever. Burst-based: appears
-// on the first desktop step, lingers ~8s after the last, hides. Bare routes
-// bypass AppShell, so this view mounts its OWN /activity/stream subscription
-// (the feed folds into the desktop-activity store this view reads).
+// turn drives the mcp__desktop__* tools: the approval card, what was approved,
+// the current step, the settled log, and a Stop lever. It appears on the first
+// desktop step in EVERY permission mode (ask only adds the card) and stays up
+// continuously until the turn ends or IDLE_HIDE_MS passes with no desktop
+// activity. Bare routes bypass AppShell, so this view mounts its OWN
+// /activity/stream subscription (the feed folds into the desktop-activity
+// store this view reads).
+//
+// LOOKING vs CONTROLLING is the distinction the header makes: reading the
+// screen and driving it are very different things to have happening behind
+// your back, so the banner changes the moment a plan is armed.
 
 const WINDOW_TITLE = "Claude on your desktop";
 // Mirrors the desktop-overlay window's inner_size (src-tauri/windows.rs).
@@ -38,9 +53,19 @@ const decideApproval = useDecideApproval();
 const nowMs = ref(Date.now());
 let tickTimer: ReturnType<typeof setInterval> | undefined;
 
-const isVisible = computed(() =>
-  isDesktopOverlayVisible(desktopActivity.state, nowMs.value),
+// The fold's rule OR "a desktop card is waiting". Belt-and-braces on purpose:
+// the main window HIDES desktop cards while this shell is running, so if the
+// fold ever missed the bell (a feed reconnect replays only the turn's last
+// step) the card would exist with nowhere to decide it. A ghost panel is a far
+// smaller failure than an approval the user cannot answer.
+const isVisible = computed(
+  () =>
+    isDesktopOverlayVisible(desktopActivity.state, nowMs.value) ||
+    desktopApprovals.value.length > 0,
 );
+
+const isControlling = computed(() => isControllingDesktop(desktopActivity.state));
+const activePlan = computed(() => desktopActivity.state.activePlan);
 
 const runningStep = computed(() =>
   [...desktopActivity.state.steps].reverse().find((step) => step.status === "running"),
@@ -56,10 +81,11 @@ function stepLabel(toolName: string, toolInput: unknown): string {
 }
 
 // Only DESKTOP approvals belong on this window — everything else stays with
-// the main window's ApprovalNotifier.
+// the main window's ApprovalNotifier. This predicate must stay the EXACT
+// complement of that notifier's filter, or a card lands in neither place.
 const desktopApprovals = computed(() =>
   (pendingQuery.data.value ?? []).filter((approval) =>
-    approval.toolName.startsWith("mcp__desktop__"),
+    approval.toolName.startsWith(DESKTOP_TOOL_PREFIX),
   ),
 );
 
@@ -114,11 +140,29 @@ onUnmounted(() => {
 <template>
   <div class="overlay-window" :class="{ 'is-tauri': overlayWindow.isTauri }">
     <div class="overlay-card">
-      <header class="overlay-header" data-tauri-drag-region>
+      <header
+        class="overlay-header"
+        :class="{ 'is-controlling': isControlling }"
+        data-tauri-drag-region
+      >
         <ClaudeMark :size="18" />
-        <span class="overlay-title">Claude is using your desktop</span>
+        <span class="overlay-title">{{
+          isControlling
+            ? "Claude is controlling your desktop"
+            : "Claude is looking at your desktop"
+        }}</span>
         <PresenceDot :state="desktopApprovals.length > 0 ? 'attention' : 'live'" />
       </header>
+
+      <!-- What the user approved — the running steps below are Claude working
+           through THIS. Shown verbatim; the overlay never claims which step is
+           current, because nothing reports that. -->
+      <div v-if="activePlan" class="plan-panel">
+        <p class="plan-goal">{{ activePlan.goal }}</p>
+        <ol class="plan-steps">
+          <li v-for="(step, index) in activePlan.steps" :key="index">{{ step }}</li>
+        </ol>
+      </div>
 
       <!-- PINNED: an approval must never scroll away under the step log. It sits
            right below the header, above the current step + the log. -->
@@ -204,6 +248,38 @@ onUnmounted(() => {
   cursor: grab;
   user-select: none;
   flex: none;
+}
+
+/* Controlling the machine is a different state from reading it — the header
+   carries that weight so it registers peripherally, without a second banner. */
+.overlay-header.is-controlling .overlay-title {
+  color: var(--gold, #d4a24e);
+}
+
+/* The approved plan — scrolls with the log rather than pinning, so a long plan
+   can never push the current step or the Stop button off the window. */
+.plan-panel {
+  flex: none;
+  max-height: 96px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--edge-2, rgb(255 255 255 / 0.1));
+}
+
+.plan-goal {
+  margin: 0 0 4px;
+  color: var(--ink-2);
+  font: 600 11.5px/1.4 var(--font-ui);
+}
+
+.plan-steps {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 2px;
+  color: var(--ink-3);
+  font: 400 11px/1.45 var(--font-ui);
 }
 
 /* The pinned approval zone — never scrolls, accented so it's unmissable. */

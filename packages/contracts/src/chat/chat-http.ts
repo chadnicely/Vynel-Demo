@@ -273,6 +273,11 @@ export type ChatTurnEvent =
       kind: "agent-tool-completed";
       parentToolUseId: string;
       toolUseId: string;
+      /** The tool that completed — carried so a consumer can act on the frame
+       *  without having tracked the matching `agent-tool-started` (the desktop
+       *  overlay settles its steps from this). Null when the start was never
+       *  recorded. */
+      toolName: string | null;
       toolOutput: unknown;
       isError: boolean;
       /** ISO-8601 */

@@ -1,4 +1,5 @@
 import type { SessionActivityEvent } from "@vynel/contracts/chat/session-activity";
+import { DESKTOP_TOOL_PREFIX, parseDesktopPlanCard } from "@vynel/ui";
 
 // The pure fold behind the desktop-control overlay: activity-feed events in,
 // "what is Claude doing to the desktop right now" out. Only `mcp__desktop__*`
@@ -12,7 +13,6 @@ import type { SessionActivityEvent } from "@vynel/contracts/chat/session-activit
 // activity (the previous 8s per-settle linger made it flicker open/closed
 // between steps). `lastActivityAtMs` is stamped on EVERY desktop event.
 
-export const DESKTOP_TOOL_PREFIX = "mcp__desktop__";
 
 /** How long the overlay stays up after the LAST desktop activity (any step or
  *  bell), so a multi-step sequence never flickers it closed between steps. */
@@ -29,6 +29,12 @@ export interface DesktopStep {
   status: "running" | "completed" | "failed" | "denied" | "cancelled";
 }
 
+/** The plan the user approved for this turn — what Claude said it would do. */
+export interface ActiveDesktopPlan {
+  goal: string;
+  steps: string[];
+}
+
 export interface DesktopActivityState {
   /** The turn currently driving desktop steps — Stop targets it. */
   trackedTurn: { turnId: string; scopeKind: "global" | "workspace" } | null;
@@ -38,14 +44,32 @@ export interface DesktopActivityState {
   pendingApprovalIds: string[];
   /** When the last desktop activity happened (ms epoch) — drives the idle hide. */
   lastActivityAtMs: number | null;
+  /** Set once a proposed plan is ARMED (its tool call completed) — the moment
+   *  Claude goes from looking to controlling. Null while merely observing. */
+  activePlan: ActiveDesktopPlan | null;
 }
 
 export function emptyDesktopActivity(): DesktopActivityState {
-  return { trackedTurn: null, steps: [], pendingApprovalIds: [], lastActivityAtMs: null };
+  return {
+    trackedTurn: null,
+    steps: [],
+    pendingApprovalIds: [],
+    lastActivityAtMs: null,
+    activePlan: null,
+  };
 }
+
+const PLAN_TOOL_NAME = `${DESKTOP_TOOL_PREFIX}propose_desktop_plan`;
 
 function isDesktopTool(toolName: string): boolean {
   return toolName.startsWith(DESKTOP_TOOL_PREFIX);
+}
+
+/** Whether Claude is CONTROLLING the desktop (an approved plan is armed) as
+ *  opposed to merely looking at it. Drives the overlay's banner — the user
+ *  should never have to guess which of the two is happening. */
+export function isControllingDesktop(state: DesktopActivityState): boolean {
+  return state.activePlan !== null;
 }
 
 function trackTurn(
@@ -91,8 +115,23 @@ export function applyDesktopActivityEvent(
       const index = state.steps.findIndex((step) => step.toolUseId === event.toolUseId);
       if (index === -1) return state;
       const steps = state.steps.slice();
-      steps[index] = { ...steps[index]!, status: event.status };
-      return { ...state, steps, lastActivityAtMs: nowMs };
+      const settled = { ...steps[index]!, status: event.status };
+      steps[index] = settled;
+      // A plan that COMPLETED is a plan that was approved and armed (a denied
+      // card never runs the tool) — that is the moment Claude stops looking and
+      // starts controlling, so the overlay can show what was agreed to.
+      const armedPlan =
+        settled.status === "completed" && settled.toolName === PLAN_TOOL_NAME
+          ? parseDesktopPlanCard(settled.toolInput)
+          : null;
+      return {
+        ...state,
+        steps,
+        lastActivityAtMs: nowMs,
+        ...(armedPlan !== null
+          ? { activePlan: { goal: armedPlan.goal, steps: armedPlan.steps } }
+          : {}),
+      };
     }
     case "turn-approval-requested": {
       if (!isDesktopTool(event.toolName)) return state;

@@ -47,6 +47,11 @@ export function createSubagentActivityRecorder(input: {
   // ids already warned about (an unknown parent no-ops but must not spam).
   const toolCallsByAgentDbId = new Map<string, SubagentToolCall[]>()
   const warnedParentToolUseIds = new Set<string>()
+  // toolUseId → toolName, so the COMPLETED wire frame can name its tool. Kept
+  // independently of the persisted entries because those exist only when the
+  // parent Agent row resolved — a live consumer (the desktop overlay settling
+  // its steps) must not depend on persistence having succeeded.
+  const toolNameByToolUseId = new Map<string, string>()
 
   function agentDbIdFor(parentToolUseId: string): string | null {
     const dbId = toolCallByToolUseId.get(parentToolUseId)
@@ -77,6 +82,7 @@ export function createSubagentActivityRecorder(input: {
     },
 
     onToolStarted(parentToolUseId, call) {
+      toolNameByToolUseId.set(call.toolUseId, call.toolName)
       const agentDbId = agentDbIdFor(parentToolUseId)
       if (agentDbId !== null) {
         const entries = toolCallsByAgentDbId.get(agentDbId) ?? []
@@ -116,6 +122,7 @@ export function createSubagentActivityRecorder(input: {
         kind: 'agent-tool-completed',
         parentToolUseId,
         toolUseId: call.toolUseId,
+        toolName: toolNameByToolUseId.get(call.toolUseId) ?? null,
         toolOutput: call.toolOutput,
         isError: call.isError,
         completedAt: call.completedAt,

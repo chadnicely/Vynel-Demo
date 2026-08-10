@@ -20,6 +20,13 @@ function findTauriWindowNamespace(): TauriWindowNamespace | null {
   return tauriWindow?.window ?? null;
 }
 
+/** Whether we're running inside the Tauri desktop shell (vs a browser tab).
+ *  Read-only and side-effect-free — for callers that need the fact alone,
+ *  without constructing a controls object they never drive. */
+export function isTauriShell(): boolean {
+  return findTauriWindowNamespace() !== null;
+}
+
 export interface OverlayWindowOptions {
   /** The window's fixed footprint — mirror the inner_size in
    *  apps/desktop/src-tauri/src/windows.rs. Default: the jarvis 420×560. */

@@ -93,9 +93,45 @@ last, and a bare "+N more" would hide exactly the step that matters most.
 model loop, not an in-flight handler, so a 20-action batch is un-interruptible once started (every
 action still authorized). Options: a `shouldStop()` predicate between steps, a lower cap, or both.
 
-## Deliberately NOT in this arc
+## Arc 2 — the overlay (SHIPPED)
 
-- Overlay active-control banner + live plan progress + all-modes reveal verification → Arc 2.
+**All-modes reveal VERIFIED in code, not assumed** (Kafi: *"the overlay while claude accessing
+always need to opened on any mode auto/ask/bypass only diff is ask for permission or not"*). Step
+publishing is unconditional per tool call — no mode or approval gates it — and both global-root turn
+paths tap it, so a Telegram-driven turn lights the overlay exactly like a web one. In auto/bypass
+there is simply no card; the first desktop step still reveals it.
+
+**One real gap was found and closed:** a desktop tool called by a SUBAGENT emitted
+`agent-tool-started` (nested under the Agent card, invisible to the overlay's fold) — a delegated
+desktop task drove the machine behind a dark overlay. `activity-turn-steps.ts` now maps subagent
+tool events into turn steps **for `mcp__desktop__*` only**: the overlay is a safety surface, so who
+inside the turn drives the machine is irrelevant to whether the user sees it. That required
+`toolName` on the `agent-tool-completed` frame (it carried none), so a consumer can settle a step
+from that frame alone.
+
+**Looking vs controlling.** The header distinguishes them — reading your screen and driving it are
+very different things to have happening behind your back. `activePlan` is set only when a
+`propose_desktop_plan` step settles **completed** (a denied card never runs the tool), and the panel
+shows the approved goal + steps verbatim. The overlay deliberately never claims WHICH plan step is
+current: nothing reports that, so a progress cursor would be invention.
+
+**Desktop steps carry a larger input bound** (8KB vs the general 2KB). The overlay reads the plan
+out of the step's `toolInput`; a maximum legal plan is ~6KB, so the general bound would silently
+blank the safety surface on a big-but-valid plan — reading as "only looking" while an approved plan
+ran.
+
+**Double-card fix:** the main window's toast stack drops `mcp__desktop__*` cards inside the desktop
+shell (the overlay owns them, parked over the app being driven); a plain browser has no overlay
+window, so there they still render. The overlay also reveals on a pending desktop card even if the
+fold missed the bell — an undecidable approval is far worse than a ghost panel.
+
+**Known, accepted:** `onParentSettled` (subagent completion when the parent Agent call ends) emits
+no wire events, so a subagent desktop step can spin "running" until `turn-ended`. It fails VISIBLE
+(a stuck spinner pins the overlay open), never dark. A `display-only` envelope also flips the banner
+to "controlling" though it authorizes nothing — the feed carries no consent mode; fixing it needs a
+contract change.
+
+## Deliberately NOT in this arc
 - `list_installed_apps` / `launch_app` → Arc 3.
 - Input-method research note + `driving-the-desktop` notebook book → Arc 4.
 - A settings toggle replacing the `VYNEL_DESKTOP_ACT_ENABLED` env flag (with the full

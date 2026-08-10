@@ -38,9 +38,42 @@ describe('turnStepFromChatTurnEvent', () => {
   it('drops a large tool input but keeps the step', () => {
     const step = turnStepFromChatTurnEvent({
       kind: 'tool-call-started',
-      toolCall: toolCall({ toolInput: { blob: 'x'.repeat(5000) } }),
+      toolCall: toolCall({ toolName: 'Read', toolInput: { blob: 'x'.repeat(5000) } }),
     })
     expect(step).toMatchObject({ kind: 'turn-tool-started', toolUseId: 'toolu_1' })
+    expect(step).not.toHaveProperty('toolInput')
+  })
+
+  it('keeps a MAXIMUM-SIZE desktop plan — its input IS the safety surface', () => {
+    // A maximum legal plan is ~6KB (goal 500 + 20 steps x 200 + 10 apps x 120).
+    // Under the general 2KB bound the overlay would silently show "Claude is
+    // looking at your desktop" with a blank plan panel while an APPROVED plan
+    // drove the machine — the exact failure the overlay exists to prevent.
+    const maxPlan = {
+      goal: 'g'.repeat(500),
+      steps: Array.from({ length: 20 }, () => 's'.repeat(200)),
+      apps: Array.from({ length: 10 }, () => ({ app: 'a'.repeat(120), tier: 'full' })),
+    }
+    expect(JSON.stringify(maxPlan).length).toBeGreaterThan(2048)
+    const step = turnStepFromChatTurnEvent({
+      kind: 'tool-call-started',
+      toolCall: toolCall({
+        toolName: 'mcp__desktop__propose_desktop_plan',
+        toolInput: maxPlan,
+      }),
+    })
+    expect(step).toHaveProperty('toolInput', maxPlan)
+  })
+
+  it('still bounds a desktop input that is genuinely huge', () => {
+    const step = turnStepFromChatTurnEvent({
+      kind: 'tool-call-started',
+      toolCall: toolCall({
+        toolName: 'mcp__desktop__act_on_app',
+        toolInput: { value: 'x'.repeat(20_000) },
+      }),
+    })
+    expect(step).toMatchObject({ kind: 'turn-tool-started' })
     expect(step).not.toHaveProperty('toolInput')
   })
 
@@ -94,6 +127,56 @@ describe('turnStepFromChatTurnEvent', () => {
     for (const event of nonSteps) {
       expect(turnStepFromChatTurnEvent(event)).toBeNull()
     }
+  })
+
+  describe('subagent DESKTOP work still narrates', () => {
+    // A subagent's tool calls normally stay nested under its Agent card. Desktop
+    // tools are the exception: the attention overlay is a safety surface, so a
+    // delegated desktop task must never drive the machine behind a dark overlay.
+    const agentStarted = (toolName: string): ChatTurnEvent => ({
+      kind: 'agent-tool-started',
+      parentToolUseId: 'toolu_parent',
+      toolUseId: 'toolu_child',
+      toolName,
+      toolInput: { app: 'Discord' },
+      startedAt: new Date('2026-08-11T10:00:00Z'),
+    })
+    const agentCompleted = (toolName: string | null, isError = false): ChatTurnEvent => ({
+      kind: 'agent-tool-completed',
+      parentToolUseId: 'toolu_parent',
+      toolUseId: 'toolu_child',
+      toolName,
+      toolOutput: 'ok',
+      isError,
+      completedAt: new Date('2026-08-11T10:00:01Z'),
+    })
+
+    it('surfaces a subagent desktop step as a turn step', () => {
+      expect(turnStepFromChatTurnEvent(agentStarted('mcp__desktop__act_on_app'))).toEqual({
+        kind: 'turn-tool-started',
+        toolUseId: 'toolu_child',
+        toolName: 'mcp__desktop__act_on_app',
+        toolInput: { app: 'Discord' },
+      })
+      expect(turnStepFromChatTurnEvent(agentCompleted('mcp__desktop__act_on_app'))).toEqual({
+        kind: 'turn-tool-settled',
+        toolUseId: 'toolu_child',
+        status: 'completed',
+      })
+      expect(turnStepFromChatTurnEvent(agentCompleted('mcp__desktop__act_on_app', true))).toEqual({
+        kind: 'turn-tool-settled',
+        toolUseId: 'toolu_child',
+        status: 'failed',
+      })
+    })
+
+    it('leaves every OTHER subagent tool nested (the feed is not a subagent log)', () => {
+      expect(turnStepFromChatTurnEvent(agentStarted('Read'))).toBeNull()
+      expect(turnStepFromChatTurnEvent(agentStarted('mcp__vynel__list_workspaces'))).toBeNull()
+      expect(turnStepFromChatTurnEvent(agentCompleted('Read'))).toBeNull()
+      // An unnamed completion (its start was never recorded) settles nothing.
+      expect(turnStepFromChatTurnEvent(agentCompleted(null))).toBeNull()
+    })
   })
 })
 

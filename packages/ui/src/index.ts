@@ -34,7 +34,12 @@ export {
   displayToolName,
   presentToolCall,
 } from "./tool-cards/tool-presenters.js";
-export { describeDesktopStep } from "./tool-cards/desktop-step-presenter.js";
+export {
+  describeDesktopStep,
+  DESKTOP_TOOL_PREFIX,
+} from "./tool-cards/desktop-step-presenter.js";
+export { parseDesktopPlanCard } from "./tool-cards/desktop-plan-card.js";
+export type { DesktopPlanCard } from "./tool-cards/desktop-plan-card.js";
 export { useOpenModalCount } from "./components/modal-registry.js";
 export { usePanelResize } from "./components/use-panel-resize.js";
 export { default as Tooltip } from "./components/Tooltip.vue";

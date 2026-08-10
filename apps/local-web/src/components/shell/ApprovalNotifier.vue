@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ApprovalCard } from "@vynel/ui";
+import { ApprovalCard, DESKTOP_TOOL_PREFIX } from "@vynel/ui";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
 import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
+import { isTauriShell } from "../../composables/voice/tauri-overlay-window.js";
 
 // Approvals are notifications (Chad's directive): whatever view is open, a
 // pending approval slides in here, decidable on the spot. Polls the REAL
@@ -18,7 +19,19 @@ const pendingQuery = usePendingApprovals();
 const decideApproval = useDecideApproval();
 const workspacesQuery = useWorkspaceList();
 
-const pending = computed(() => pendingQuery.data.value ?? []);
+// Inside the desktop shell a desktop approval belongs on the attention overlay
+// (parked over the app Claude is driving, where the user is actually looking),
+// so showing it here too would ask the same question twice in two places. In a
+// plain browser there IS no overlay window — these toasts are the only door,
+// so they keep rendering.
+const hasOverlayWindow = isTauriShell();
+
+const pending = computed(() =>
+  (pendingQuery.data.value ?? []).filter(
+    (approval) =>
+      !hasOverlayWindow || !approval.toolName.startsWith(DESKTOP_TOOL_PREFIX),
+  ),
+);
 const visible = computed(() => pending.value.slice(0, MAX_VISIBLE));
 const hiddenCount = computed(() =>
   Math.max(0, pending.value.length - MAX_VISIBLE),
