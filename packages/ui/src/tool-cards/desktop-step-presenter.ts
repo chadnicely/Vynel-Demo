@@ -151,6 +151,10 @@ export function describeDesktopStep(toolName: string, toolInput: unknown): strin
   switch (shortName) {
     case "list_open_apps":
       return "Looking at your open apps";
+    case "list_installed_apps":
+      return "Looking for an app on your computer";
+    case "launch_app":
+      return `Opening ${inputString(toolInput, "app") ?? "an app"}`;
     case "list_desktop_notifications":
       return "Checking your notifications";
     case "snapshot_app":
@@ -203,6 +207,22 @@ export function presentDesktopToolCall(
   switch (shortName) {
     case "list_open_apps":
       return { verb: "Looked at open apps", argument: null, subtitle: null, stats: null, body };
+    case "list_installed_apps":
+      return {
+        verb: "Looked for an app",
+        argument: inputString(toolInput, "query"),
+        subtitle: "installed on your computer",
+        stats: null,
+        body,
+      };
+    case "launch_app":
+      return {
+        verb: "Opened",
+        argument: inputString(toolInput, "app"),
+        subtitle: "on your desktop",
+        stats: null,
+        body,
+      };
     case "list_desktop_notifications":
       return { verb: "Checked notifications", argument: null, subtitle: null, stats: null, body };
     case "snapshot_app":

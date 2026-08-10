@@ -24,6 +24,12 @@ describe("describeDesktopStep — the overlay's progressive voice", () => {
     expect(describeDesktopStep("mcp__desktop__list_open_apps", {})).toBe(
       "Looking at your open apps",
     );
+    expect(describeDesktopStep("mcp__desktop__list_installed_apps", {})).toBe(
+      "Looking for an app on your computer",
+    );
+    expect(
+      describeDesktopStep("mcp__desktop__launch_app", { app: "Google Chrome" }),
+    ).toBe("Opening Google Chrome");
     expect(describeDesktopStep("mcp__desktop__list_desktop_notifications", {})).toBe(
       "Checking your notifications",
     );

@@ -16,6 +16,7 @@ describe('DESKTOP_TOOL_INSTRUCTIONS', () => {
 
   it('names the desktop-observation read tools (apps + snapshot)', () => {
     expect(DESKTOP_TOOL_INSTRUCTIONS).toContain('list_open_apps')
+    expect(DESKTOP_TOOL_INSTRUCTIONS).toContain('list_installed_apps')
     expect(DESKTOP_TOOL_INSTRUCTIONS).toContain('snapshot_app')
   })
 
@@ -50,6 +51,14 @@ describe('DESKTOP_ACT_INSTRUCTIONS', () => {
     expect(DESKTOP_ACT_INSTRUCTIONS.toLowerCase()).toContain(
       'did not state still needs the user',
     )
+  })
+
+  it('teaches the not-running path (check open → find installed → launch)', () => {
+    const lower = DESKTOP_ACT_INSTRUCTIONS.toLowerCase()
+    expect(DESKTOP_ACT_INSTRUCTIONS).toContain('launch_app')
+    expect(lower).toContain("isn't running")
+    // Launching something already open is the obvious failure mode.
+    expect(lower).toContain('already open')
   })
 
   it('teaches batching — several known steps in one call, stopping at the first failure', () => {

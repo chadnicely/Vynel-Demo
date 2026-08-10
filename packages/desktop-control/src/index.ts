@@ -49,6 +49,11 @@ export { buildDesktopMcpServer } from './mcp/build-desktop-mcp-server.js'
 export type { BuildDesktopMcpServerInput } from './mcp/build-desktop-mcp-server.js'
 export { desktopFeatureDescriptor } from './mcp/desktop-mcp-feature-descriptor.js'
 
+export { listInstalledApps, matchInstalledApps } from './apps/installed-apps.js'
+export type { InstalledApp } from './apps/installed-apps.js'
+export { launchApp } from './apps/launch-app.js'
+export type { LaunchAppResult } from './apps/launch-app.js'
+
 export { deriveDesktopPlanConsent } from './plan/desktop-plan-consent.js'
 export { createDesktopPlanEnvelope } from './plan/desktop-plan-envelope.js'
 export type {

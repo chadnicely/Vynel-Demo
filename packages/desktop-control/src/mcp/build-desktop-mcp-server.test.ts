@@ -34,24 +34,28 @@ describe('desktopToolFactories', () => {
     expect(names).toEqual([
       'list_desktop_notifications',
       'list_open_apps',
+      'list_installed_apps',
       'snapshot_app',
       'screenshot_app',
       'request_desktop_access',
     ])
   })
 
-  it('adds the plan tool and the two act tools only when actions are enabled', () => {
+  it('adds the plan tool, the act tools and launch only when actions are enabled', () => {
     const names = toolNames(
       desktopToolFactories({ reader: emptyReader, db: dbStandIn, userId: 'u', enableActions: true }),
     )
     expect(names).toContain('propose_desktop_plan')
     expect(names).toContain('act_on_app')
     expect(names).toContain('act_on_desktop')
+    // Starting a program is an action — it must not exist on observe-only turns.
+    expect(names).toContain('launch_app')
     // Planning without acting is meaningless — observe-only turns carry no plan tool.
     const observeOnly = toolNames(
       desktopToolFactories({ reader: emptyReader, db: dbStandIn, userId: 'u' }),
     )
     expect(observeOnly).not.toContain('propose_desktop_plan')
+    expect(observeOnly).not.toContain('launch_app')
   })
 
   it('shares ONE envelope between the plan tool and the act tools (arming lifts the refusal)', async () => {

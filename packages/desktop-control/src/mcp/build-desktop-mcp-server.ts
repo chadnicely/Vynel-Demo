@@ -8,6 +8,8 @@ import { findDesktopAppGrant } from '../repositories/desktop-app-grants.js'
 import { createDesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makeListDesktopNotificationsTool } from './list-desktop-notifications-tool.js'
 import { makeListOpenAppsTool } from './list-open-apps-tool.js'
+import { makeListInstalledAppsTool } from './list-installed-apps-tool.js'
+import { makeLaunchAppTool } from './launch-app-tool.js'
 import { makeSnapshotAppTool } from './snapshot-app-tool.js'
 import { makeScreenshotAppTool } from './screenshot-app-tool.js'
 import { makeActOnAppTool } from './act-on-app-tool.js'
@@ -58,6 +60,8 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
   const factories: unknown[] = [
     makeListDesktopNotificationsTool(input.reader),
     makeListOpenAppsTool(readGrantedTier),
+    // Names only, like list_open_apps — knowing an app exists grants nothing.
+    makeListInstalledAppsTool(),
     makeSnapshotAppTool(authorize),
     makeScreenshotAppTool(authorize),
     // Registered even with actions OFF — the read tools are grant-gated too,
@@ -73,6 +77,8 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     factories.push(makeProposeDesktopPlanTool(envelope))
     factories.push(makeActOnAppTool(envelope, authorize))
     factories.push(makeActOnDesktopTool(envelope, authorize))
+    // Starting a program is an action — same envelope, same authorizer.
+    factories.push(makeLaunchAppTool(envelope, authorize))
   }
   return factories
 }

@@ -131,6 +131,29 @@ no wire events, so a subagent desktop step can spin "running" until `turn-ended`
 to "controlling" though it authorizes nothing — the feed carries no consent mode; fixing it needs a
 contract change.
 
+## Arc 3 — installed apps + launch (SHIPPED)
+
+Every other primitive in this package addresses a LIVE window, so "open Chrome and search YouTube"
+dead-ended the moment Chrome wasn't already running. Two tools close that:
+
+- **`list_installed_apps`** (read-only, ungated like `list_open_apps` — names grant nothing) via
+  PowerShell `Get-StartApps`: one roster covering Win32 + packaged (UWP) apps, each with the AppID
+  that can launch it, so what we list is exactly what we can start — no exe-path guessing. Optional
+  `query` ranks exact → prefix → substring; results cap at 60 and the response SAYS when it
+  truncated (silence would read as "not installed").
+- **`launch_app`** — an ACTION, so it is plan-gated exactly like the act tools and authorized
+  against the resolved app before anything starts. **Tier: `click`, not `read`** — "look only" is a
+  promise to observe and not touch, and starting a program is touching. Launching goes through
+  `shell:AppsFolder\<AppID>`, which addresses both app kinds identically; the id rides `execFile`'s
+  ARGUMENT array (never interpolated into command text) and is validated against shell
+  metacharacters first. Then it WAITS for a matching window and returns the window name to target —
+  without that the model snapshots a window that doesn't exist yet and concludes the app failed.
+  Ambiguity never guesses (launching the wrong program is a visible side effect the user must undo).
+
+Window-appeared matching is a forgiving substring both ways (Start-menu "Google Chrome" vs window
+"chrome.exe"); it only decides whether to keep WAITING and grants nothing — the exact-normalized-key
+grant/plan check still runs on every act.
+
 ## Deliberately NOT in this arc
 - `list_installed_apps` / `launch_app` → Arc 3.
 - Input-method research note + `driving-the-desktop` notebook book → Arc 4.

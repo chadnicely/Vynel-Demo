@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude can open an app that isn't running.** Ask for something in an app
+  you don't have open and Claude can now find it among your installed
+  programs, start it, and wait for its window before carrying on — so "open
+  Chrome and search YouTube" works from a cold start. Starting a program
+  counts as an action: it only happens for an app named in a plan you
+  approved, it never guesses between similarly named programs, and permission
+  to *look* at an app is never permission to launch it.
+
 - **The desktop overlay says whether Claude is looking or driving.** While
   Claude touches your computer, the overlay now names which of the two is
   happening and — once you've approved a plan — shows that plan next to the
