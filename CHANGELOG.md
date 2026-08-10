@@ -33,6 +33,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   names both the first action and the last one, so a step like "send" is
   never hidden behind a count.
 
+- **A playbook for driving your desktop.** The assistant's notebook gained a
+  book on working your computer well: reach for a keyboard shortcut before
+  hunting for a button, press the real control rather than a pixel, batch the
+  steps that belong together, and check the screen afterward instead of
+  assuming. It also knows what Windows simply won't allow — administrator
+  windows, security prompts — so it tells you plainly and hands those back to
+  you instead of silently failing.
+
 - **Desktop control asks once — for the whole plan.** Before touching your
   computer, Claude now proposes its full plan: the goal in your words, the
   steps it will take, and every app it needs. In ask mode you approve that

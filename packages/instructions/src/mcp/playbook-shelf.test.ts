@@ -60,6 +60,9 @@ describe('listPlaybooks', () => {
       const globalShelf = listPlaybooks(db, { userId: user.id })
       expect(globalShelf.filter((p) => p.verified).map((p) => p.id)).toEqual([
         'communicating-with-users',
+        // test: correct expectation — the desktop-driving playbook joined the
+        // shipped shelf (desktop-control polish arc, 2026-08-11).
+        'driving-the-desktop',
         // test: correct expectation — the node-app-scaffold, node-sdk, and
         // project-kickoff playbooks joined the shipped shelf (notebook arc,
         // 2026-07-27).

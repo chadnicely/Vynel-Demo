@@ -72,11 +72,12 @@ describe('the tool responses', () => {
         count: number
         playbooks: Array<{ id: string; verified: boolean }>
       }
-      // test: correct expectation — was 3 verified books, now 9: the
+      // test: correct expectation — was 3 verified books, now 10: the
       // notebook arc (2026-07-27) added project-kickoff, node-app-scaffold,
-      // node-mcp-server, node-sdk, vue/nuxt-frontend, and task-planner.
-      expect(parsed.count).toBe(10)
-      expect(parsed.playbooks.filter((p) => p.verified)).toHaveLength(9)
+      // node-mcp-server, node-sdk, vue/nuxt-frontend, and task-planner; the
+      // desktop-control polish arc (2026-08-11) added driving-the-desktop.
+      expect(parsed.count).toBe(11)
+      expect(parsed.playbooks.filter((p) => p.verified)).toHaveLength(10)
       expect(parsed.playbooks.filter((p) => !p.verified)).toHaveLength(1)
     })
   })

@@ -61,6 +61,31 @@ describe('DESKTOP_ACT_INSTRUCTIONS', () => {
     expect(lower).toContain('already open')
   })
 
+  it('ranks the three ways to act — shortcut, then element, then coordinates', () => {
+    // The ladder is the research verdict (docs/desktop-control-input-methods.md):
+    // each rung down is strictly more fragile, so the ORDER is the guidance. A
+    // future edit that reshuffles them would quietly make desktop work slower
+    // and flakier, which no other test would catch.
+    const shortcut = DESKTOP_ACT_INSTRUCTIONS.indexOf('A KEYBOARD SHORTCUT')
+    const element = DESKTOP_ACT_INSTRUCTIONS.indexOf('2. act_on_app')
+    const coordinates = DESKTOP_ACT_INSTRUCTIONS.indexOf('3. act_on_desktop with COORDINATES')
+    expect(shortcut).toBeGreaterThan(-1)
+    expect(element).toBeGreaterThan(shortcut)
+    expect(coordinates).toBeGreaterThan(element)
+    // The two "press" verbs mean different things — the collision is the most
+    // likely misread in the whole guide, so the disambiguation must survive.
+    expect(DESKTOP_ACT_INSTRUCTIONS).toContain('ACTIVATES AN ELEMENT')
+  })
+
+  it('points at the driving-the-desktop playbook without dead-ending when the notebook is off', () => {
+    expect(DESKTOP_ACT_INSTRUCTIONS).toContain('driving-the-desktop')
+    // Conditional by construction: the desktop descriptor cannot see whether the
+    // notebook capability is enabled, so the pointer must never read as a
+    // required call (the composer's own rule against steering into denied tools).
+    expect(DESKTOP_ACT_INSTRUCTIONS.toLowerCase()).toContain('if a "driving-the-desktop" playbook')
+    expect(DESKTOP_ACT_INSTRUCTIONS.toLowerCase()).toContain("isn't available")
+  })
+
   it('teaches batching — several known steps in one call, stopping at the first failure', () => {
     const lower = DESKTOP_ACT_INSTRUCTIONS.toLowerCase()
     expect(lower).toContain('batch steps you already know')
