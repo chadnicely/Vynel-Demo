@@ -12,6 +12,7 @@
 
 import { loadNutInput } from './nut-input-loader.js'
 import { parseKeyCombo } from './key-combo.js'
+import { buildDragPath } from './human-drag.js'
 import { withTimeout } from '../a11y/xa11y-loader.js'
 import {
   authorizeFocusedTarget,
@@ -23,7 +24,14 @@ import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 export type { DesktopInputProbes, ResolvedTargetFrame, FrameBounds } from './input-authorization.js'
 
-export const DESKTOP_INPUT_ACTIONS = ['click', 'type', 'press', 'scroll', 'drag'] as const
+export const DESKTOP_INPUT_ACTIONS = [
+  'click',
+  'type',
+  'press',
+  'scroll',
+  'drag',
+  'move',
+] as const
 export type DesktopInputAction = (typeof DESKTOP_INPUT_ACTIONS)[number]
 export type MouseButton = 'left' | 'right' | 'middle'
 export type ScrollDirection = 'up' | 'down' | 'left' | 'right'
@@ -51,7 +59,14 @@ export interface ActOnDesktopResult {
 }
 
 const INPUT_TIMEOUT_MS = 15000
+// A stepped drag is deliberately unhurried (dozens of interpolated moves, each
+// with nut's own inter-step delay), so it needs more headroom than a click.
+const DRAG_TIMEOUT_MS = 30000
+/** Time held over the target before releasing, so it registers the hover. */
+const DROP_DWELL_MS = 400
 const DEFAULT_SCROLL_AMOUNT = 3
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 // A screen-coordinate translation frame: absolute when no app, window-origin
 // offset when an app was named. `scale` is the screenshot downscale factor
@@ -106,6 +121,7 @@ type ActionPlan =
   | { action: 'press'; keys: string }
   | { action: 'scroll'; x: number; y: number }
   | { action: 'drag'; x: number; y: number; toX: number; toY: number }
+  | { action: 'move'; x: number; y: number }
 
 export function planDesktopAction(params: ActOnDesktopParams): ActionPlan {
   switch (params.action) {
@@ -138,6 +154,12 @@ export function planDesktopAction(params: ActOnDesktopParams): ActionPlan {
         y: requireNumber(params.y, 'y', 'drag'),
         toX: requireNumber(params.toX, 'toX', 'drag'),
         toY: requireNumber(params.toY, 'toY', 'drag'),
+      }
+    case 'move':
+      return {
+        action: 'move',
+        x: requireNumber(params.x, 'x', 'move'),
+        y: requireNumber(params.y, 'y', 'move'),
       }
     default: {
       // Exhaustiveness guard — a new action MUST add a case above.
@@ -224,16 +246,41 @@ export async function actOnDesktop(
       // different app than it grabbed from).
       authorizeMouseTarget(authorize, probes, resolved, from, 'click')
       authorizeMouseTarget(authorize, probes, resolved, to, 'click')
-      const { mouse, Point } = loadNutInput()
-      await withTimeout(
-        mouse.drag([new Point(from.x, from.y), new Point(to.x, to.y)]),
-        INPUT_TIMEOUT_MS,
-        'drag',
-      )
+      const { mouse, Point, Button } = loadNutInput()
+      // Press → threshold nudge → interpolated travel → dwell → release, rather
+      // than nut's one-jump `drag()`. See `human-drag.ts` for why a jump moves a
+      // slider but never completes a drop.
+      const path = buildDragPath(from, to)
+      await withTimeout(mouse.setPosition(new Point(from.x, from.y)), INPUT_TIMEOUT_MS, 'move')
+      await withTimeout(mouse.pressButton(Button.LEFT), INPUT_TIMEOUT_MS, 'drag')
+      try {
+        await withTimeout(
+          mouse.move(path.map((step) => new Point(step.x, step.y))),
+          DRAG_TIMEOUT_MS,
+          'drag',
+        )
+        // Dwell so the target registers the hover before the drop lands.
+        await sleep(DROP_DWELL_MS)
+      } finally {
+        // ALWAYS release. Throwing mid-drag would otherwise leave the button
+        // held down across the whole desktop — every later click becomes a
+        // drag, and the user has to fix it by hand.
+        await withTimeout(mouse.releaseButton(Button.LEFT), INPUT_TIMEOUT_MS, 'drag')
+      }
       return {
         action: 'drag',
         detail: `dragged (${from.x}, ${from.y}) → (${to.x}, ${to.y})${where}`,
       }
+    }
+    case 'move': {
+      const resolved = probes.resolveTargetFrame(params.app)
+      const point = translatePoint(resolved.frame, plan.x, plan.y)
+      // Moving the pointer is `click`-tier: it is how a hover menu opens or a
+      // tooltip appears, so it changes what is on screen.
+      authorizeMouseTarget(authorize, probes, resolved, point, 'click')
+      const { mouse, Point } = loadNutInput()
+      await withTimeout(mouse.setPosition(new Point(point.x, point.y)), INPUT_TIMEOUT_MS, 'move')
+      return { action: 'move', detail: `moved to (${point.x}, ${point.y})${where}` }
     }
   }
 }

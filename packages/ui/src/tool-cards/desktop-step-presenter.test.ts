@@ -325,3 +325,39 @@ describe("parseDesktopPlanCard", () => {
     expect(parseDesktopPlanCard({ goal: "g", steps: ["s"], apps: [{}] })).toBeNull();
   });
 });
+
+// The overlay is a SAFETY surface, so every tool that can run on it needs a
+// sentence a non-technical person reads — a raw `mcp__desktop__read_clipboard`
+// on screen is the surface failing at its one job.
+describe("the capability tools added for desktop autopilot", () => {
+  const step = (name: string, input: unknown = {}) =>
+    describeDesktopStep(`mcp__desktop__${name}`, input);
+
+  it("names the clipboard EXPLICITLY — it is shared by the whole computer", () => {
+    // Deliberately not folded into a vaguer "reading": if something private was
+    // read, the user should see it said.
+    expect(step("read_clipboard")).toBe("Reading your clipboard");
+    expect(step("write_clipboard")).toBe("Copying text to your clipboard");
+  });
+
+  it("labels the screen listing", () => {
+    expect(step("list_monitors")).toBe("Checking your screens");
+  });
+
+  it("says the POINTER moved, never just 'moving'", () => {
+    // "Moving … in Chrome" would read as a file or window being moved.
+    expect(step("act_on_desktop", { action: "move", x: 10, y: 20, app: "Chrome" })).toBe(
+      "Moving the pointer at (10, 20) in Chrome",
+    );
+  });
+
+  it("gives the settled card a past-tense voice for each", () => {
+    const card = (name: string, input: unknown = {}) =>
+      presentDesktopToolCall(`mcp__desktop__${name}`, input, "ok");
+    expect(card("read_clipboard")?.verb).toBe("Read your clipboard");
+    expect(card("write_clipboard")?.verb).toBe("Copied text to your clipboard");
+    expect(card("list_monitors")?.verb).toBe("Checked your screens");
+    expect(presentDesktopToolCall("mcp__desktop__act_on_desktop", { action: "move", x: 1, y: 2 }, "")
+      ?.verb).toContain("Moved the pointer");
+  });
+});

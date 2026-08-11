@@ -21,7 +21,9 @@ const TOOL_DESCRIPTION =
   'element. Pass `app` = the window name so x/y are relative to THAT window\'s screenshot (top-left = 0,0); ' +
   'omit `app` for absolute screen coordinates. Actions: click {x,y,button?,double?} · type {text} (into ' +
   'whatever is focused — click first) · press {keys} (e.g. "enter", "ctrl+c", "alt+f4") · scroll ' +
-  '{x,y,direction?,amount?} · drag {x,y,toX,toY}. BATCH RELATED STEPS: pass `actions` = [{action, …}, …] ' +
+  '{x,y,direction?,amount?} · drag {x,y,toX,toY} (stepped, so a real drag-and-drop actually lands) · ' +
+  'move {x,y} (hover, to open a hover menu or reveal a tooltip). ' +
+  'BATCH RELATED STEPS: pass `actions` = [{action, …}, …] ' +
   'to run several in ONE call (e.g. click a field, type into it, press enter) — much faster than one call ' +
   'per step. They run in order and STOP at the first failure, which is reported with what did and did not ' +
   'run. Use the single form when you must see the result before choosing the next step. IMPORTANT: an ' +
@@ -146,7 +148,8 @@ export function makeActOnDesktopTool(
       action: z
         .enum(DESKTOP_INPUT_ACTIONS)
         .optional()
-        .describe('Single action: click · type · press · scroll · drag.'),
+        .describe('Single action: click · type · press · scroll · drag · move.'),
+      // NOTE: `move` reuses x/y; no new parameter is needed.
       app: z
         .string()
         .optional()
@@ -164,7 +167,7 @@ export function makeActOnDesktopTool(
       actions: z
         .array(
           z.object({
-            action: z.enum(DESKTOP_INPUT_ACTIONS).describe('click · type · press · scroll · drag.'),
+            action: z.enum(DESKTOP_INPUT_ACTIONS).describe('click · type · press · scroll · drag · move.'),
             x: z.number().optional(),
             y: z.number().optional(),
             toX: z.number().optional(),

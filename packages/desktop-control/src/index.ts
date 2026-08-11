@@ -28,6 +28,8 @@ export {
   DESKTOP_ACTIONS,
 } from './a11y/xa11y-adapter.js'
 export { screenshotApp, findAppWindowBounds } from './a11y/screenshot-adapter.js'
+export { listMonitors } from './a11y/monitors.js'
+export type { MonitorInfo } from './a11y/monitors.js'
 export type { AppScreenshot, WindowBounds } from './a11y/screenshot-adapter.js'
 export {
   restoreIfMinimized,
@@ -38,6 +40,8 @@ export {
 export type { WindowState } from './a11y/window-state.js'
 
 export { actOnDesktop, DESKTOP_INPUT_ACTIONS } from './input/desktop-input.js'
+export { readClipboard, writeClipboard } from './input/clipboard.js'
+export type { ClipboardReadResult } from './input/clipboard.js'
 export type {
   ActOnDesktopParams,
   ActOnDesktopResult,
