@@ -1,0 +1,1 @@
+List the live calls Vynel is currently on — each with its callId, label, mode (notetaker/participant), sessionId, and when it started. Empty when not in any call. Read-only; use it before start_call (one call at a time in this version) or to find the callId for speak/end_call.

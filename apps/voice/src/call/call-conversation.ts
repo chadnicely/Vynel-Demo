@@ -1,6 +1,13 @@
 import type { Logger } from 'pino'
 import type { PcmAudio, VoiceActivityDetector } from '@vynel/voice-engine'
-import { decideCallUtterance, stripSpokenMarkup, type CallMode, type LineSpeaker } from '@vynel/voice'
+import {
+  buildNoteFlushMessage,
+  decideCallUtterance,
+  isNotedSentinel,
+  stripSpokenMarkup,
+  type CallMode,
+  type LineSpeaker,
+} from '@vynel/voice'
 import type { CallSessionClient } from './call-session-client.js'
 
 // One live call's conversation loop: Cable-B segments → transcript → the pure
@@ -243,18 +250,4 @@ export class CallConversation {
       this.#noteFlushTimer = null
     }
   }
-}
-
-/** The session replies with exactly this when a note flush needs no voice. */
-function isNotedSentinel(reply: string): boolean {
-  return reply.trim().toLowerCase().replace(/[.!]+$/, '') === 'noted'
-}
-
-export function buildNoteFlushMessage(notes: string[]): string {
-  return [
-    'Transcript notes from the live call (you are the notetaker):',
-    ...notes.map((note) => `- ${note}`),
-    '',
-    "Reply with exactly 'noted' unless something here warrants speaking up in the call.",
-  ].join('\n')
 }

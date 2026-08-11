@@ -51,6 +51,7 @@
     "@vynel/server-install": "workspace:*",
     "@vynel/ssh-servers": "workspace:*",
     "@vynel/tasks": "workspace:*",
+    "@vynel/voice": "workspace:*",
     "@vynel/workspaces": "workspace:*",
     "hono": "^4.6.0",
     "hono-openapi": "^0.4.0",

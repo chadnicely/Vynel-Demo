@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import pino from 'pino'
-import { LineSpeaker, type CallMode } from '@vynel/voice'
+import { buildNoteFlushMessage, LineSpeaker, type CallMode } from '@vynel/voice'
 import type { PcmAudio, VoiceActivityDetector } from '@vynel/voice-engine'
 import type { VoiceBrainEvent } from '../loop/voice-session-types.js'
 import type { CallSessionClient } from './call-session-client.js'
-import { buildNoteFlushMessage, CallConversation } from './call-conversation.js'
+import { CallConversation } from './call-conversation.js'
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 const settle = async () => {

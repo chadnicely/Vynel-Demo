@@ -28956,14 +28956,14 @@
           "voice"
         ],
         "parameters": [],
-        "summary": "Speak text aloud through the user's voice (the Jarvis speaker).",
+        "summary": "Speak text aloud through the user's voice (the Jarvis speaker) or into a live call.",
         "x-sdk-name": "voice.speak",
         "x-mcp": {
           "exposed": true,
           "name": "speak",
           "mutatingApproved": true,
           "rootSurface": true,
-          "description": "Speak a short message ALOUD to the user through their voice assistant. Pass plain, spoken-style prose — NO markdown, lists, code, or URLs; write it the way you would say it out loud, and keep it brief (a sentence or two). Use this to answer or notify the user by voice, especially when the request came in by voice. Returns { spoken: true } when it played, or { spoken: false, reason } when the voice assistant is not running (then reply in text instead)."
+          "description": "Speak a short message ALOUD to the user through their voice assistant. Pass plain, spoken-style prose — NO markdown, lists, code, or URLs; write it the way you would say it out loud, and keep it brief (a sentence or two). Use this to answer or notify the user by voice, especially when the request came in by voice. Pass callId (from start_call/list_calls) to speak INTO a live call instead of the local speaker — for brief announcements only (the call session handles the conversation itself, and a participant talking can cut an announcement off mid-sentence). Returns { spoken: true } when it played, or { spoken: false, reason } when the voice assistant is not running (then reply in text instead) or the call is gone."
         },
         "requestBody": {
           "content": {
@@ -28975,6 +28975,10 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 2000
+                  },
+                  "callId": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [
@@ -28983,6 +28987,205 @@
               }
             }
           }
+        }
+      }
+    },
+    "/voice/calls": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ started: true, callId, sessionId } — or { started: false, reason } when the daemon/cables are unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "started": {
+                      "type": "boolean"
+                    },
+                    "callId": {
+                      "type": "string"
+                    },
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "started"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postVoiceCalls",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "Join a live call: spawn the call session, attach call audio, announce the presence.",
+        "x-sdk-name": "voice.startCall",
+        "x-mcp": {
+          "exposed": true,
+          "name": "start_call",
+          "mutatingApproved": true,
+          "askApproval": true,
+          "rootSurface": true,
+          "description": "Join a live meeting/call with Vynel's voice — AFTER the user has the call app open with its audio pointed at the virtual cable pair. This creates a dedicated call session (visible in the user's Sessions panel), attaches call audio to it, and announces Vynel's presence aloud. Pick the mode the user asked for: 'notetaker' (group calls — listens and takes notes, speaks only when addressed by name or when something truly warrants it) or 'participant' (one-to-one — converses naturally). Pass the user's goal so the call session knows what matters. Returns { started, callId, sessionId } — use speak with that callId for announcements (note: an announcement can be cut off mid-sentence if a participant starts talking), end_call when the meeting is over, and read the call session afterwards for what happened. One call at a time in this version. This does NOT open the call app or click Join — the user (or desktop control) does that."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "notetaker",
+                      "participant"
+                    ],
+                    "default": "notetaker"
+                  },
+                  "goal": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "label"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ calls } — empty when not in any call (or on a remote engine).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "calls": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "callId": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "notetaker",
+                              "participant"
+                            ]
+                          },
+                          "sessionId": {
+                            "type": "string"
+                          },
+                          "startedAtIso": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "callId",
+                          "label",
+                          "mode",
+                          "startedAtIso"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "calls"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getVoiceCalls",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "List the live calls Vynel is currently on.",
+        "x-sdk-name": "voice.listCalls",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_calls",
+          "rootSurface": true,
+          "description": "List the live calls Vynel is currently on — each with its callId, label, mode (notetaker/participant), sessionId, and when it started. Empty when not in any call. Read-only; use it before start_call (one call at a time in this version) or to find the callId for speak/end_call."
+        }
+      }
+    },
+    "/voice/calls/{callId}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "{ ended: true, sessionId } — or { ended: false, reason } when the call was already gone.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ended": {
+                      "type": "boolean"
+                    },
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ended"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "deleteVoiceCallsByCallId",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "callId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Leave a live call — detach Vynel's ears and voice; the call session remains.",
+        "x-sdk-name": "voice.endCall",
+        "x-mcp": {
+          "exposed": true,
+          "name": "end_call",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "description": "Leave a live call: detaches Vynel's ears and voice from the call audio and stops the call conversation. The call's session remains — after ending, collect the outcome for the user: send one message to \"session:<sessionId>\" asking for a summary of decisions, open questions, and action items (or read it with get_chat_session), then relay that to the user. Returns { ended, sessionId } on success, or { ended: false, reason } when the call was already gone."
         }
       }
     },

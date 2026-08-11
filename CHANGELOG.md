@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel can sit in your meetings.** Ask it to join a call (Zoom, Meet,
+  Teams, Discord — anything whose audio you point at the virtual cable) and
+  it opens a dedicated call session you can watch live in Sessions. In a
+  group call it takes notes and only speaks when addressed by name or when
+  something truly needs saying; in a one-to-one it converses naturally, and
+  you can talk over it — it stops mid-sentence. It announces itself out loud
+  when it joins, joining always asks your approval first, and when the call
+  ends the whole conversation stays searchable with a summary on request.
+
 - **Choose which microphone and speaker Vynel's voice uses.** Until now the
   voice assistant always used your system-default devices. You can now point
   it at a specific microphone or speaker by name — the first building block

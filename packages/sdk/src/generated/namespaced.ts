@@ -1746,8 +1746,27 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   voice: {
+  endCall: async (callId: NonNullable<paths["/voice/calls/{callId}"]["delete"]['parameters']>['path']["callId"]) => {
+    const { data, error, response } = await client["DELETE"]("/voice/calls/{callId}", {
+      params: { path: { callId: callId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listCalls: async () => {
+    const { data, error, response } = await client["GET"]("/voice/calls")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   speak: async (input: NonNullable<paths["/voice/speak"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/voice/speak", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  startCall: async (input: NonNullable<paths["/voice/calls"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/voice/calls", {
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

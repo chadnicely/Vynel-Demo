@@ -1,7 +1,9 @@
-// The /voice/speak surface's remote-engine contract: a remote daemon has no
-// speaker (its loopback voice URL would resolve to the SERVER), so `speak`
-// answers unavailable WITHOUT probing — while a local daemon still relays.
-// Full HTTP stack, the capabilities route test's setup style.
+// The /voice surface's remote-engine contracts: a remote engine has no speaker
+// and no call cables (its loopback URLs would resolve to the SERVER), so speak
+// and every call tool answer honestly WITHOUT probing — while a local engine
+// still relays. Full HTTP stack, the capabilities route test's setup style.
+// The daemon-relay mechanics themselves are covered in
+// calls-through-daemon.test.ts with a stubbed fetch.
 
 import { describe, it, expect } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -35,6 +37,54 @@ async function postSpeak(app: ReturnType<typeof createApp>): Promise<{ spoken: b
   expect(response.status).toBe(200)
   return (await response.json()) as { spoken: boolean; reason?: string }
 }
+
+describe('the call tools on a remote engine', () => {
+  it('start_call refuses without spawning a session or touching the daemon', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = createApp({ db, logger: silentLogger, remoteEngine: true })
+      const response = await app.request('/voice/calls', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ label: '9pm standup', mode: 'notetaker' }),
+      })
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as { started: boolean; reason?: string }
+      expect(body.started).toBe(false)
+      expect(body.reason).toContain('remote server')
+    })
+  })
+
+  it('list_calls answers empty and end_call answers honestly', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = createApp({ db, logger: silentLogger, remoteEngine: true })
+
+      const listed = await app.request('/voice/calls')
+      expect(await listed.json()).toEqual({ calls: [] })
+
+      const ended = await app.request('/voice/calls/call-1', { method: 'DELETE' })
+      const endedBody = (await ended.json()) as { ended: boolean; reason?: string }
+      expect(endedBody.ended).toBe(false)
+      expect(endedBody.reason).toContain('remote server')
+    })
+  })
+
+  it('speak with a callId refuses the same way', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = createApp({ db, logger: silentLogger, remoteEngine: true })
+      const response = await app.request('/voice/speak', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: 'hello', callId: 'call-1' }),
+      })
+      const body = (await response.json()) as { spoken: boolean; reason?: string }
+      expect(body.spoken).toBe(false)
+      expect(body.reason).toContain('remote server')
+    })
+  })
+})
 
 describe('POST /voice/speak', () => {
   it('answers unavailable on a remote engine without touching the daemon', async () => {

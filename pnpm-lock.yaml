@@ -284,6 +284,9 @@ importers:
       '@vynel/tasks':
         specifier: workspace:*
         version: link:../../packages/tasks
+      '@vynel/voice':
+        specifier: workspace:*
+        version: link:../../packages/voice
       '@vynel/workspaces':
         specifier: workspace:*
         version: link:../../packages/workspaces

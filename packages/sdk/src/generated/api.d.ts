@@ -3198,9 +3198,44 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Speak text aloud through the user's voice (the Jarvis speaker). */
+        /** Speak text aloud through the user's voice (the Jarvis speaker) or into a live call. */
         post: operations["postVoiceSpeak"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voice/calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the live calls Vynel is currently on. */
+        get: operations["getVoiceCalls"];
+        put?: never;
+        /** Join a live call: spawn the call session, attach call audio, announce the presence. */
+        post: operations["postVoiceCalls"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voice/calls/{callId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Leave a live call — detach Vynel's ears and voice; the call session remains. */
+        delete: operations["deleteVoiceCallsByCallId"];
         options?: never;
         head?: never;
         patch?: never;
@@ -14726,6 +14761,7 @@ export interface operations {
             content: {
                 "application/json": {
                     text: string;
+                    callId?: string;
                 };
             };
         };
@@ -14738,6 +14774,98 @@ export interface operations {
                 content: {
                     "application/json": {
                         spoken: boolean;
+                        reason?: string;
+                    };
+                };
+            };
+        };
+    };
+    getVoiceCalls: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { calls } — empty when not in any call (or on a remote engine). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        calls: {
+                            callId: string;
+                            label: string;
+                            /** @enum {string} */
+                            mode: "notetaker" | "participant";
+                            sessionId?: string;
+                            startedAtIso: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    postVoiceCalls: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    label: string;
+                    /**
+                     * @default notetaker
+                     * @enum {string}
+                     */
+                    mode?: "notetaker" | "participant";
+                    goal?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description { started: true, callId, sessionId } — or { started: false, reason } when the daemon/cables are unavailable. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        started: boolean;
+                        callId?: string;
+                        sessionId?: string;
+                        reason?: string;
+                    };
+                };
+            };
+        };
+    };
+    deleteVoiceCallsByCallId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                callId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { ended: true, sessionId } — or { ended: false, reason } when the call was already gone. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ended: boolean;
+                        sessionId?: string;
                         reason?: string;
                     };
                 };

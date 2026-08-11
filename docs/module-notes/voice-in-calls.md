@@ -185,9 +185,20 @@ call loop) is born — Cable B is physically echo-free (it carries only remote p
 call feed is never busy-gated and its barge-in needs no echo discrimination. **Primary-line human
 barge-in is DEFERRED to live-tune with a real mic**: the open mic hears the daemon's own speaker,
 so enabling it naively means TTS interrupting itself — that needs echo discrimination, not
-plumbing. → C1 conductor tools + call registry (single-call, registry-shaped) → C2 communicator
-(line-speaker home + onset cancel + priming/modes/report bookends) → C3 multi-call (cable-pair
-inventory).
+plumbing. → **C1 LANDED** `fa403c3` — registry + `/calls` endpoints (strict cable resolution, pair-busy) →
+**C2 LANDED** in five reviewed commits: `173abb6` LineSpeaker home (wake driver adopted) ·
+`d5ba3bd` turn policy + session client · `cd4df07` CallConversation (modes, barge-in, note
+batching) · `4d63ade` speak-into-call · C2e-api (this commit) — conductor tools
+`start_call`/`list_calls`/`end_call` + `speak.callId` on local-api, priming/sentinel one-home in
+`packages/voice/call/call-briefing.ts`, deterministic disclosure at join (wording = Chad), D7
+stances (start_call `askApproval`-carded; end_call DELETE → auto-carded; speak uncarded).
+**Report path v1: the conductor collects** — global-grounded spawned sessions attach NO tools
+(sessions-surface locked decision 1), so the call session cannot send_message its own report;
+end_call's description points the conductor at `session:<id>` / get_chat_session for the summary.
+An automated drained report bookend is a recorded later-improve, as is surfacing
+`disclosureSpoken` in the start_call response (retry affordance — bundle with Chad's wording
+sign-off; a failed disclosure currently warns in the log). → C3 multi-call (cable-pair inventory)
+remains.
 
 ---
 

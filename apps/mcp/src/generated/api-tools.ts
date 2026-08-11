@@ -635,6 +635,39 @@ export const discoverInstalledSkillsForProvider: McpToolFactory = (scope, app) =
     { annotations: { readOnlyHint: true } },
   )
 
+export const endCall: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'end_call',
+    "Leave a live call: detaches Vynel's ears and voice from the call audio and stops the call conversation. The call's session remains — after ending, collect the outcome for the user: send one message to \"session:<sessionId>\" asking for a summary of decisions, open questions, and action items (or read it with get_chat_session), then relay that to the user. Returns { ended, sessionId } on success, or { ended: false, reason } when the call was already gone.",
+    {
+    callId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/voice/calls/{callId}'
+        pathStr = pathStr.replace('{callId}', encodeURIComponent(String(args['callId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'DELETE' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const getAgent: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'get_agent',
@@ -1305,6 +1338,36 @@ export const listBackgroundRuns: McpToolFactory = (scope, app) =>
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/routing/background-runs'
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listCalls: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_calls',
+    "List the live calls Vynel is currently on — each with its callId, label, mode (notetaker/participant), sessionId, and when it started. Empty when not in any call. Read-only; use it before start_call (one call at a time in this version) or to find the callId for speak/end_call.",
+    {},
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/voice/calls'
         const queryStr = ''
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
@@ -2692,16 +2755,17 @@ export const setTodos: McpToolFactory = (scope, app) =>
 export const speak: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'speak',
-    "Speak a short message ALOUD to the user through their voice assistant. Pass plain, spoken-style prose — NO markdown, lists, code, or URLs; write it the way you would say it out loud, and keep it brief (a sentence or two). Use this to answer or notify the user by voice, especially when the request came in by voice. Returns { spoken: true } when it played, or { spoken: false, reason } when the voice assistant is not running (then reply in text instead).",
+    "Speak a short message ALOUD to the user through their voice assistant. Pass plain, spoken-style prose — NO markdown, lists, code, or URLs; write it the way you would say it out loud, and keep it brief (a sentence or two). Use this to answer or notify the user by voice, especially when the request came in by voice. Pass callId (from start_call/list_calls) to speak INTO a live call instead of the local speaker — for brief announcements only (the call session handles the conversation itself, and a participant talking can cut an announcement off mid-sentence). Returns { spoken: true } when it played, or { spoken: false, reason } when the voice assistant is not running (then reply in text instead) or the call is gone.",
     {
     text: z.string(),
+    callId: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/voice/speak'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['text']) {
+        for (const k of ['text', 'callId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -2742,6 +2806,44 @@ export const startApp: McpToolFactory = (scope, app) =>
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const startCall: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'start_call',
+    "Join a live meeting/call with Vynel's voice — AFTER the user has the call app open with its audio pointed at the virtual cable pair. This creates a dedicated call session (visible in the user's Sessions panel), attaches call audio to it, and announces Vynel's presence aloud. Pick the mode the user asked for: 'notetaker' (group calls — listens and takes notes, speaks only when addressed by name or when something truly warrants it) or 'participant' (one-to-one — converses naturally). Pass the user's goal so the call session knows what matters. Returns { started, callId, sessionId } — use speak with that callId for announcements (note: an announcement can be cut off mid-sentence if a participant starts talking), end_call when the meeting is over, and read the call session afterwards for what happened. One call at a time in this version. This does NOT open the call app or click Join — the user (or desktop control) does that.",
+    {
+    label: z.string(),
+    mode: z.enum(['notetaker', 'participant']).optional(),
+    goal: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/voice/calls'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['label', 'mode', 'goal']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
         const bodyText = await response.text()
         if (!response.ok) {
           return {
@@ -3243,9 +3345,11 @@ export const generatedMcpTools: McpToolFactory[] = [
 export const generatedRoutingMcpTools: McpToolFactory[] = [
   createGlobalMonitor,
   createSession,
+  endCall,
   getBackgroundRun,
   getChatSession,
   listBackgroundRuns,
+  listCalls,
   listGlobalMonitors,
   listRoutingChannels,
   listRoutingWorkspaces,
@@ -3257,6 +3361,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   sendToChannel,
   setTodos,
   speak,
+  startCall,
   stopGlobalMonitor,
 ]
 
@@ -3277,7 +3382,9 @@ export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
 // server prefix, matching the descriptor layer's hardcoded server name.
 export const generatedAskModeApprovalToolNames: string[] = [
   'mcp__vynel__delete_agent',
+  'mcp__vynel__end_call',
   'mcp__vynel__register_workspace',
   'mcp__vynel__remove_knowledge_source',
+  'mcp__vynel__start_call',
   'mcp__vynel__uninstall_marketplace_item',
 ]
