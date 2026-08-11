@@ -1,5 +1,5 @@
 import type { PcmAudio, SpeechRecognizer, VoiceActivityDetector, VoiceEngine } from '@vynel/voice-engine'
-import { detectWakeWord, SpokenSentenceBuffer } from '@vynel/voice'
+import { detectWakeWord, LineSpeaker } from '@vynel/voice'
 import type { VoiceBrainEvent, VoiceSessionIo } from './voice-session-types.js'
 
 // The always-on voice loop, as a headless state machine. Mic PCM (16 kHz mono)
@@ -66,8 +66,9 @@ export class VoiceSessionDriver {
   #state: DriverState = 'asleep'
   #processing = false
   #idleTimer: ReturnType<typeof setTimeout> | null = null
-  #resolvePlaybackDrained: (() => void) | null = null
-  #playbackDrainedPending = false
+  // The line mechanics (sentence pipelining, drain waits, the cancel contract)
+  // live in the shared LineSpeaker home; the driver owns queueing + states.
+  readonly #lineSpeaker: LineSpeaker
   // External `speak` text (the `speak` tool / proactive lines), drained even
   // while handed off (the daemon speaker is free; the browser owns the mic).
   #speakQueue: string[] = []
@@ -82,6 +83,16 @@ export class VoiceSessionDriver {
     this.#deps = deps
     this.#idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS
     this.#voiceId = options.voiceId
+    this.#lineSpeaker = new LineSpeaker({
+      synthesize: (sentence) =>
+        deps.synthesizer.synthesize(
+          sentence,
+          this.#voiceId !== undefined ? { voiceId: this.#voiceId } : undefined,
+        ),
+      emitAudio: (audio) => deps.io.emitAudio(audio),
+      endSpeech: () => deps.io.endSpeech(),
+      cutPlayback: () => deps.io.cutPlayback(),
+    })
   }
 
   /** Whether a conversation is currently active (awake). */
@@ -178,25 +189,13 @@ export class VoiceSessionDriver {
   }
 
   async #speakLine(text: string): Promise<void> {
-    const buffer = new SpokenSentenceBuffer()
-    let spoke = false
-    for (const sentence of buffer.push(text)) spoke = (await this.#speak(sentence)) || spoke
-    for (const sentence of buffer.flush()) spoke = (await this.#speak(sentence)) || spoke
-    if (spoke) {
-      this.#deps.io.endSpeech()
-      await this.#awaitPlaybackDrained()
-    }
+    this.#deps.io.setState('speaking')
+    await this.#lineSpeaker.speakLine(text)
   }
 
   /** The shell finished playing all queued TTS — safe to reopen the mic. */
   notifyPlaybackDrained(): void {
-    if (this.#resolvePlaybackDrained !== null) {
-      const resolve = this.#resolvePlaybackDrained
-      this.#resolvePlaybackDrained = null
-      resolve()
-    } else {
-      this.#playbackDrainedPending = true
-    }
+    this.#lineSpeaker.notifyPlaybackDrained()
   }
 
   /** The overlay's command session ended (or its client disconnected) — the
@@ -278,26 +277,6 @@ export class VoiceSessionDriver {
     if (failed) this.speak(FAILED_TURN_LINE)
     // Stay in the conversation for follow-ups; silence eventually sleeps it.
     this.#goActive()
-  }
-
-  async #speak(text: string): Promise<boolean> {
-    this.#deps.io.setState('speaking')
-    const audio = await this.#deps.synthesizer.synthesize(
-      text,
-      this.#voiceId !== undefined ? { voiceId: this.#voiceId } : undefined,
-    )
-    await this.#deps.io.emitAudio(audio)
-    return true
-  }
-
-  #awaitPlaybackDrained(): Promise<void> {
-    if (this.#playbackDrainedPending) {
-      this.#playbackDrainedPending = false
-      return Promise.resolve()
-    }
-    return new Promise((resolve) => {
-      this.#resolvePlaybackDrained = resolve
-    })
   }
 
   #goActive(): void {

@@ -57,6 +57,7 @@ export function createAudioShell(
     },
     emitAudio: (pcm: PcmAudio): void => sink.emitAudio(pcm),
     endSpeech: (): void => sink.endSpeech(),
+    cutPlayback: (): void => sink.cutPlayback(),
   }
 
   return {

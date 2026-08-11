@@ -25,4 +25,7 @@ export interface VoiceSessionIo {
    *  the mic stays closed until playback truly ends, not merely until we stopped
    *  sending audio. */
   endSpeech(): void
+  /** Discard everything queued on the speaker NOW (the barge-in cut — see
+   *  output-sink.cutPlayback for the pairing contract). */
+  cutPlayback(): void
 }

@@ -44,6 +44,10 @@ class RecordingIo implements VoiceSessionIo {
     this.endSpeechCount += 1
     this.onEndSpeech?.()
   }
+  cutPlaybackCount = 0
+  cutPlayback(): void {
+    this.cutPlaybackCount += 1
+  }
 }
 
 async function* brainSaying(...deltas: string[]): AsyncIterable<VoiceBrainEvent> {

@@ -138,6 +138,7 @@ function main(): void {
     },
     emitAudio: (audio) => audioShell.io.emitAudio(audio),
     endSpeech: () => audioShell.io.endSpeech(),
+    cutPlayback: () => audioShell.io.cutPlayback(),
   }
   driver = new VoiceSessionDriver(
     {
