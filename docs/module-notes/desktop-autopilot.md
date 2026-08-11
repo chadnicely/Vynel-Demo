@@ -401,12 +401,33 @@ than treated as "condition false", which is also what makes `app_closes` work.
 Instructions + playbook now teach: wait with `wait_for`, then **confirm** — a tool returning success
 means the action was *sent*, not that it worked.
 
+**Review caught three real defects in `wait_for`, all fixed before it shipped:**
+
+- **A permission refusal reported as SUCCESS.** Collapsing "the read failed" into "the tree is
+  empty" made a *denied grant* satisfy `text_disappears` on the first attempt — the model was told
+  the dialog closed and never told about the denial. Observations are now a discriminated union
+  (`read` / `open-state` / `unreadable`); an unreadable app proves nothing about content, and only
+  `app_closes` may treat it as an answer. A `ForbiddenError` now aborts the wait instead of being
+  retried for the whole budget, so the recovery path reaches the model immediately.
+- **Electron apps inverted.** Existence went through `listOpenApps` alone, which is xa11y's
+  `App.list()` — and Electron apps don't appear there. `app_closes` on a *running* Discord returned
+  "met" instantly; `app_appears` never fired. Now falls back to `findWindowedPidByName`, the same
+  resolution the rest of the package uses.
+- **The Electron poll stole focus repeatedly.** Polling `snapshotApp` meant a COLD wake per poll:
+  un-minimise the user's window, steal the foreground, and — when activation is refused — send a
+  bare **Alt keypress into whatever they are currently typing**, plus set/clear the global
+  `SPI_SETSCREENREADER` flag each cycle. `window-focus.ts` permits that side effect precisely
+  because it "fires at most once per wake"; polling broke the invariant that made it acceptable.
+  New `openAppTreeReader` resolves ONCE and holds the wake for the whole wait, re-authorizing per
+  read so the revoked-grant property survives. The tool description now discloses the one
+  foreground grab, as `snapshot_app` already did.
+
 > ⚠ **Live smoke inconclusive, deliberately not claimed as passing.** The PowerShell WinForms
 > fixture used to conjure a throwaway window launches unreliably from a background shell (the same
 > window was visible one minute and absent the next), so the end-to-end run proved nothing either
-> way. The polling logic is unit-verified (21 tests, injected probes + fake clock) and `wait_for`
-> calls the same `listOpenApps` / `snapshotApp` paths shipped tools already use. **Worth exercising
-> in Chad's browser smoke:** `wait_for` on a real app, both a hit and a timeout.
+> way. The logic is unit-verified (25 tests, injected probes + fake clock). **Worth exercising in
+> Chad's browser smoke:** `wait_for` on a real app — a hit, a timeout, and one on an Electron app
+> (Discord) where the held wake and the pid fallback both matter.
 
 ### Arc 3 (original scope) — Supervision: stop it, watch it, bound it
 

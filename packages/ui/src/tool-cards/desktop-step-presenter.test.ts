@@ -344,6 +344,15 @@ describe("the capability tools added for desktop autopilot", () => {
     expect(step("list_monitors")).toBe("Checking your screens");
   });
 
+  it("says what wait_for is waiting on, in both voices", () => {
+    expect(step("wait_for", { app: "Google Chrome", until: "text_appears" })).toBe(
+      "Waiting for Google Chrome to be ready",
+    );
+    expect(presentDesktopToolCall("mcp__desktop__wait_for", { app: "Discord" }, "met")?.verb).toBe(
+      "Waited for",
+    );
+  });
+
   it("says the POINTER moved, never just 'moving'", () => {
     // "Moving … in Chrome" would read as a file or window being moved.
     expect(step("act_on_desktop", { action: "move", x: 10, y: 20, app: "Chrome" })).toBe(

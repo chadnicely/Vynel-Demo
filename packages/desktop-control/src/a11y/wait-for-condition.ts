@@ -63,35 +63,64 @@ export type WaitOutcome = {
 }
 
 export type WaitProbes = {
-  /** The app's accessibility tree as text, or null when the app isn't open. */
-  readTree: (app: string) => Promise<string | null>
+  /** The app's accessibility tree as text. THROWS when it cannot be read — the
+   *  loop distinguishes that from a successful read, see `Observation`. */
+  readTree: (app: string) => Promise<string>
   /** Whether an app with this name is currently open. */
   isAppOpen: (app: string) => Promise<boolean>
 }
+
+/**
+ * What one look actually established.
+ *
+ * The `unreadable` case is the whole reason this is a discriminated union
+ * rather than `tree: string | null`. Collapsing "the read failed" into "the
+ * tree is empty" made a DENIED grant satisfy `text_disappears` on the first
+ * attempt: no grant → throw → null tree → "the text is gone" → reported as
+ * success, with the refusal never shown to anyone. A failed read establishes
+ * NOTHING about the content, and only `app_closes` may treat it as meaningful.
+ */
+export type Observation =
+  | { kind: 'read'; tree: string }
+  | { kind: 'open-state'; isOpen: boolean }
+  | { kind: 'unreadable'; error: string }
 
 export type WaitClock = {
   now: () => number
   sleep: (ms: number) => Promise<void>
 }
 
+/** A failure that no amount of waiting can fix — retrying it just spends the
+ *  budget hiding the answer. An access denial is the one that matters: it
+ *  carries the `request_desktop_access` recovery path the caller needs NOW. */
+export function isPermanentWaitFailure(error: unknown): boolean {
+  return error instanceof Error && error.name === 'ForbiddenError'
+}
+
 /** Evaluate a condition once. Pure given its inputs — the polling above it owns
  *  all the timing. */
 export function conditionMet(
   kind: WaitConditionKind,
-  observation: { tree: string | null; isOpen: boolean },
+  observation: Observation,
   text: string,
 ): boolean {
+  // An unreadable app proves nothing about its CONTENT. Only the
+  // "did it go away" condition may read a failure as an answer — that one is
+  // satisfied precisely by the app becoming unreachable.
+  if (observation.kind === 'unreadable') return kind === 'app_closes'
   switch (kind) {
     case 'text_appears':
-      return observation.tree !== null && observation.tree.toLowerCase().includes(text.toLowerCase())
+      return (
+        observation.kind === 'read' && observation.tree.toLowerCase().includes(text.toLowerCase())
+      )
     case 'text_disappears':
-      // An app that has CLOSED no longer shows the text, which counts: the
-      // caller asked for the text to be gone, and it is.
-      return observation.tree === null || !observation.tree.toLowerCase().includes(text.toLowerCase())
+      return (
+        observation.kind === 'read' && !observation.tree.toLowerCase().includes(text.toLowerCase())
+      )
     case 'app_appears':
-      return observation.isOpen
+      return observation.kind === 'open-state' && observation.isOpen
     case 'app_closes':
-      return !observation.isOpen
+      return observation.kind === 'open-state' && !observation.isOpen
   }
 }
 
@@ -116,15 +145,19 @@ export async function waitForCondition(
 
   for (;;) {
     attempts += 1
-    let observation: { tree: string | null; isOpen: boolean } = { tree: null, isOpen: false }
+    let observation: Observation
     try {
       observation = conditionReadsContent(input.kind)
-        ? { tree: await probes.readTree(input.app), isOpen: true }
-        : { tree: null, isOpen: await probes.isAppOpen(input.app) }
+        ? { kind: 'read', tree: await probes.readTree(input.app) }
+        : { kind: 'open-state', isOpen: await probes.isAppOpen(input.app) }
     } catch (err) {
+      // A PERMANENT refusal must not be retried: a denied grant can never
+      // succeed on a later poll, and swallowing it would spend the whole budget
+      // hiding the one thing the caller needs to know (and the recovery path it
+      // names). Rethrown for the tool to report.
+      if (isPermanentWaitFailure(err)) throw err
       lastError = err instanceof Error ? err.message : String(err)
-      // Leave `observation` at its "nothing readable" default and let the
-      // condition decide — that is what makes app_closes work.
+      observation = { kind: 'unreadable', error: lastError }
     }
 
     if (conditionMet(input.kind, observation, text)) {

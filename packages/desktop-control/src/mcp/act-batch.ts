@@ -22,7 +22,9 @@ export type BatchStopReason = 'step-failed' | 'deadline'
 
 export type ActionBatchOutcome = {
   results: BatchStepResult[]
-  /** 0-based index of the step that stopped the batch; null = all ran. */
+  /** 0-based index of the step that FAILED. Null when nothing failed — which
+   *  includes both "every step ran" and "the deadline cut it short"; read
+   *  `stopReason` to tell those apart. */
   failedAt: number | null
   /** Steps never attempted because an earlier one stopped the batch. */
   skipped: number
@@ -84,9 +86,14 @@ export async function runActionBatch<T>(
     // runs — a batch that did nothing at all would report a stop the user never
     // saw a reason for.
     if (index > 0 && now() - startedAt >= budgetMs) {
+      // `failedAt` stays NULL: nothing failed. Pointing it at the last step
+      // would name a step that SUCCEEDED as the one that stopped the batch —
+      // and the next consumer to mark `results[failedAt]` as failed would blame
+      // work that was fine, which is the confusion this whole report exists to
+      // prevent. `stopReason` is what distinguishes the two endings.
       return {
         results,
-        failedAt: index - 1,
+        failedAt: null,
         skipped: items.length - index,
         stopReason: 'deadline',
       }
@@ -122,20 +129,13 @@ export function buildBatchResponse(outcome: ActionBatchOutcome): {
   const lines = outcome.results.map(
     (result, index) => `${index + 1}. ${result.ok ? 'OK' : 'STOPPED'} — ${result.detail}`,
   )
-  if (outcome.failedAt === null) {
-    return {
-      content: [
-        { type: 'text', text: `All ${outcome.results.length} actions ran:\n${lines.join('\n')}` },
-      ],
-    }
-  }
   const skippedNote =
     outcome.skipped > 0
       ? ` The remaining ${outcome.skipped} action${outcome.skipped === 1 ? '' : 's'} did NOT run.`
       : ''
-  // A deadline is NOT a failure — every step that ran, ran fine. Saying
-  // "stopped at action N" there would send the model hunting for a fault in a
-  // step that worked, so the two reasons read differently.
+  // Checked BEFORE the all-ran branch: a deadline also leaves `failedAt` null
+  // (nothing failed), so testing that first would report a cut-off batch as a
+  // complete one — the model would carry on believing every step ran.
   if (outcome.stopReason === 'deadline') {
     return {
       content: [
@@ -151,6 +151,13 @@ export function buildBatchResponse(outcome: ActionBatchOutcome): {
         },
       ],
       isError: true,
+    }
+  }
+  if (outcome.failedAt === null) {
+    return {
+      content: [
+        { type: 'text', text: `All ${outcome.results.length} actions ran:\n${lines.join('\n')}` },
+      ],
     }
   }
   return {

@@ -25,8 +25,15 @@ function fakeClock(): WaitClock & { elapsed: () => number } {
 }
 
 const neverOpen: WaitProbes = {
-  readTree: async () => null,
+  readTree: async () => '',
   isAppOpen: async () => false,
+}
+
+/** The shape `assertDesktopAccess` throws — a denial that no wait can fix. */
+function forbidden(message = 'No access to "X". Call request_desktop_access.'): Error {
+  const error = new Error(message)
+  error.name = 'ForbiddenError'
+  return error
 }
 
 describe('clampWaitTimeout', () => {
@@ -47,20 +54,35 @@ describe('clampWaitTimeout', () => {
 
 describe('conditionMet', () => {
   it('matches text case-insensitively, anywhere in the tree', () => {
-    const seen = { tree: 'button[name="Send Message"]', isOpen: true }
+    const seen = { kind: 'read', tree: 'button[name="Send Message"]' } as const
     expect(conditionMet('text_appears', seen, 'send message')).toBe(true)
     expect(conditionMet('text_appears', seen, 'Reply')).toBe(false)
   })
 
-  it('treats a CLOSED app as the text having disappeared', () => {
-    // The caller asked for the text to be gone. It is.
-    expect(conditionMet('text_disappears', { tree: null, isOpen: false }, 'Saving…')).toBe(true)
+  it('reads existence conditions off isOpen', () => {
+    expect(conditionMet('app_appears', { kind: 'open-state', isOpen: true }, '')).toBe(true)
+    expect(conditionMet('app_closes', { kind: 'open-state', isOpen: false }, '')).toBe(true)
+    expect(conditionMet('app_closes', { kind: 'open-state', isOpen: true }, '')).toBe(false)
   })
 
-  it('reads existence conditions off isOpen', () => {
-    expect(conditionMet('app_appears', { tree: null, isOpen: true }, '')).toBe(true)
-    expect(conditionMet('app_closes', { tree: null, isOpen: false }, '')).toBe(true)
-    expect(conditionMet('app_closes', { tree: null, isOpen: true }, '')).toBe(false)
+  // THE security property. An earlier version collapsed "the read failed" into
+  // "the tree is empty", so a DENIED grant satisfied text_disappears on the
+  // first attempt and the refusal was reported to the model as success.
+  describe('an UNREADABLE app proves nothing about content', () => {
+    const unreadable = { kind: 'unreadable', error: 'no access' } as const
+
+    it('does NOT satisfy text_disappears', () => {
+      expect(conditionMet('text_disappears', unreadable, 'Saving…')).toBe(false)
+    })
+
+    it('does not satisfy text_appears or app_appears either', () => {
+      expect(conditionMet('text_appears', unreadable, 'Done')).toBe(false)
+      expect(conditionMet('app_appears', unreadable, '')).toBe(false)
+    })
+
+    it('DOES satisfy app_closes — that condition is about reachability', () => {
+      expect(conditionMet('app_closes', unreadable, '')).toBe(true)
+    })
   })
 })
 
@@ -118,7 +140,7 @@ describe('waitForCondition', () => {
     const clock = fakeClock()
     const outcome = await waitForCondition(
       { kind: 'app_appears', app: 'X', timeoutMs: 0 },
-      { readTree: async () => null, isAppOpen: async () => true },
+      { readTree: async () => '', isAppOpen: async () => true },
       clock,
     )
     expect(outcome.met).toBe(true)
@@ -150,7 +172,7 @@ describe('waitForCondition', () => {
     const outcome = await waitForCondition(
       { kind: 'app_closes', app: 'Gone' },
       {
-        readTree: async () => null,
+        readTree: async () => '',
         isAppOpen: async () => {
           throw new Error('app is gone')
         },
@@ -159,6 +181,41 @@ describe('waitForCondition', () => {
     )
     expect(outcome.met).toBe(true)
     expect(outcome.lastError).toMatch(/gone/)
+  })
+
+  // A denial can never come good on a later poll. Swallowing it would spend the
+  // whole budget hiding the one thing the caller needs — and the recovery path
+  // that error names.
+  it('RETHROWS a permission denial instead of waiting it out', async () => {
+    const clock = fakeClock()
+    await expect(
+      waitForCondition(
+        { kind: 'text_appears', app: 'Secret', text: 'x', timeoutMs: 30_000 },
+        {
+          readTree: async () => {
+            throw forbidden()
+          },
+          isAppOpen: async () => true,
+        },
+        clock,
+      ),
+    ).rejects.toThrow(/request_desktop_access/)
+  })
+
+  it('a denial does not silently satisfy text_disappears', async () => {
+    const clock = fakeClock()
+    await expect(
+      waitForCondition(
+        { kind: 'text_disappears', app: 'Secret', text: 'x' },
+        {
+          readTree: async () => {
+            throw forbidden()
+          },
+          isAppOpen: async () => true,
+        },
+        clock,
+      ),
+    ).rejects.toThrow(/request_desktop_access/)
   })
 
   it('never exceeds the hard ceiling however large the ask', async () => {

@@ -185,6 +185,9 @@ describe('runActionBatch — the wall-clock bound', () => {
     expect(outcome.stopReason).toBe('deadline')
     expect(outcome.results).toHaveLength(2)
     expect(outcome.skipped).toBe(2)
+    // Nothing FAILED — naming a successful step as the culprit would blame work
+    // that was fine.
+    expect(outcome.failedAt).toBeNull()
   })
 
   it('never interrupts a step that is already running', async () => {
@@ -230,10 +233,13 @@ describe('runActionBatch — the wall-clock bound', () => {
 })
 
 describe('buildBatchResponse — a deadline reads differently from a failure', () => {
+  // `failedAt` is null on a deadline (nothing failed), so this branch MUST be
+  // tested before the all-ran one — otherwise a cut-off batch reports as a
+  // complete one and the model carries on believing every step ran.
   it('does NOT blame a step when the batch merely ran out of time', async () => {
     const response = buildBatchResponse({
       results: [{ ok: true, detail: 'clicked' }, { ok: true, detail: 'typed' }],
-      failedAt: 1,
+      failedAt: null,
       skipped: 3,
       stopReason: 'deadline',
     })
