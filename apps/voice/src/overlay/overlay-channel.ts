@@ -50,6 +50,9 @@ export interface OverlayChannelOptions {
   /** 'jarvis' = only the floating window runs wake sessions (app tabs still
    *  get state events + manual sessions); 'any' = the newest client does. */
   readonly wakeSurface: OverlaySurface | 'any'
+  /** Extra route groups mounted on this loopback server (the /calls surface) —
+   *  they ride the same port and the same local-api `/voice/*` proxy. */
+  readonly routes?: ReadonlyArray<{ readonly path: string; readonly app: Hono }>
 }
 
 export interface OverlayChannel {
@@ -190,6 +193,8 @@ export function startOverlayChannel(
         return c.json({ error: 'synthesis failed — see the daemon log' }, 500)
       }
     })
+
+  for (const group of options.routes ?? []) app.route(group.path, group.app)
 
   // The executor runs synchronously, so `server` is assigned before any use.
   let server!: ServerType

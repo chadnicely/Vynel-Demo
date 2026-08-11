@@ -193,6 +193,9 @@ inventory).
 
 ## Environment notes
 
+- **`/calls` inherits the overlay channel's open CORS** (loopback-bound, Phase-1 unauthenticated —
+  same standing posture as `/speak`). Any local page can read call labels/ids and POST. Recorded
+  here so the Phase-2 auth sweep covers the call surface too.
 - **Virtual cables are install/config, not code.** Windows: VB-Cable (Cable A) + VoiceMeeter or the
   A+B pack (Cable B). The guide's §2.2 call-app settings (disable AGC / noise suppression;
   Discord = Voice Activity, not Push-to-Talk) are real and worth following — AGC mangling TTS

@@ -34,6 +34,13 @@ export const EnvSchema = z.object({
   // uninstalled cable must not take the daemon down.
   VYNEL_VOICE_INPUT_DEVICE: z.string().min(1).optional(),
   VYNEL_VOICE_OUTPUT_DEVICE: z.string().min(1).optional(),
+  // The call cable pair (voice-in-calls, docs/module-notes/voice-in-calls.md).
+  // Unlike the two above these NEVER fall back to a default device — a call
+  // must not capture the real mic or speak over the real speakers.
+  // Cable B's capture end — the call app's speaker plays into it (call audio in):
+  VYNEL_CALL_INPUT_DEVICE: z.string().min(1).optional(),
+  // Cable A's playback end — the call app's microphone (Vynel's call voice out):
+  VYNEL_CALL_OUTPUT_DEVICE: z.string().min(1).optional(),
   // Silence (ms) in an active conversation before falling back asleep.
   VYNEL_VOICE_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   // Loopback port for the browser Jarvis-view channel (SSE wake/state events).

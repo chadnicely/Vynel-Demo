@@ -20,6 +20,8 @@ import { createAudioShell } from './audio/audio-shell.js'
 import { cpal } from './audio/cpal.js'
 import { resolveAudioDevices } from './audio/device-selection.js'
 import { encodeWav } from './audio/wav-encode.js'
+import { CallRegistry } from './call/call-registry.js'
+import { createCallEndpoints } from './call/call-endpoints.js'
 import { startOverlayChannel } from './overlay/overlay-channel.js'
 import { createJarvisWindow } from './overlay/jarvis-window.js'
 import { VoiceSessionDriver } from './loop/voice-session-driver.js'
@@ -63,6 +65,10 @@ function main(): void {
     () => cpal.getDevices(),
   )
   const audioShell = createAudioShell(logger, () => driver.notifyPlaybackDrained(), audioDevices)
+  const callRegistry = new CallRegistry(logger, {
+    inputName: env.VYNEL_CALL_INPUT_DEVICE,
+    outputName: env.VYNEL_CALL_OUTPUT_DEVICE,
+  })
   const jarvisEnabled = env.VYNEL_VOICE_JARVIS_WINDOW === '1'
   const overlay = startOverlayChannel(
     env.VYNEL_VOICE_DAEMON_PORT,
@@ -99,7 +105,10 @@ function main(): void {
     logger,
     // With the floating window on, ONLY it runs wake sessions — app tabs keep
     // their state events + manual mic sessions but never race it for a wake.
-    { wakeSurface: jarvisEnabled ? 'jarvis' : 'any' },
+    {
+      wakeSurface: jarvisEnabled ? 'jarvis' : 'any',
+      routes: [{ path: '/calls', app: createCallEndpoints(callRegistry, logger) }],
+    },
   )
   overlay.whenListening.catch((error: unknown) => {
     logger.error(
@@ -178,6 +187,7 @@ function main(): void {
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'voice daemon shutting down')
     if (jarvisConnectWatchdog !== null) clearTimeout(jarvisConnectWatchdog)
+    callRegistry.stopAll()
     audioShell.stop()
     overlay.stop()
     driver.stop()
