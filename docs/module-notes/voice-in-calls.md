@@ -176,9 +176,18 @@ in the same daemon; the primary channel never learns calls exist.
   thread. Management is the session library as-is: listed from birth, watchable live mid-call,
   stoppable, searchable forever.
 
-Build order: B1 dual capture → B2 output fan-out → B3 duplex turn-taking (serves human barge-in
-too) → C1 conductor tools + registry (single-call, registry-shaped from day one) → C2 communicator
-(priming + modes + report bookends) → C3 multi-call (second cable pair in the inventory).
+Build order (status 2026-08-11): **B1 LANDED** `1be8903` — capture-stream home, N-instance ·
+**B2 LANDED** `d15a9c5` — output-sink home, per-sink keepalive/drain · **B3 slimmed + LANDED** —
+the barge-in primitive `OutputSink.cutPlayback()` (close+reopen is the only true discard;
+`pauseStream` would replay the cut tail; stale-drain guarded). The cancellable sentence-speaker
+extraction and the call-side duplex/onset-cancel policy **fold into C2**, where their consumer (the
+call loop) is born — Cable B is physically echo-free (it carries only remote participants), so the
+call feed is never busy-gated and its barge-in needs no echo discrimination. **Primary-line human
+barge-in is DEFERRED to live-tune with a real mic**: the open mic hears the daemon's own speaker,
+so enabling it naively means TTS interrupting itself — that needs echo discrimination, not
+plumbing. → C1 conductor tools + call registry (single-call, registry-shaped) → C2 communicator
+(line-speaker home + onset cancel + priming/modes/report bookends) → C3 multi-call (cable-pair
+inventory).
 
 ---
 

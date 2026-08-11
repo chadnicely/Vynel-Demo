@@ -111,6 +111,99 @@ describe('openOutputSink', () => {
     expect(onDrained).toHaveBeenCalledTimes(1)
   })
 
+  it('cutPlayback discards mid-drain audio, resolves the drain once, and re-arms nothing', () => {
+    const { sink, onDrained } = openSink()
+
+    sink.emitAudio(oneSecondOfSpeech())
+    sink.endSpeech() // drain armed for t=1350
+    vi.advanceTimersByTime(500)
+    sink.cutPlayback()
+
+    expect(closeStream).toHaveBeenCalledTimes(1)
+    expect(createStream).toHaveBeenCalledTimes(2) // open + the discard-reopen
+    expect(onDrained).toHaveBeenCalledTimes(1) // resolved NOW, not at t=1350
+    vi.advanceTimersByTime(2000)
+    expect(onDrained).toHaveBeenCalledTimes(1) // the old timer is gone
+  })
+
+  it('cutPlayback between sentences (no endSpeech yet) still resolves the waiter', () => {
+    const { sink, onDrained } = openSink()
+
+    sink.emitAudio(oneSecondOfSpeech())
+    sink.cutPlayback()
+
+    expect(onDrained).toHaveBeenCalledTimes(1)
+  })
+
+  it('cutPlayback on an idle sink reopens silently — no spurious drain signal', () => {
+    const { sink, onDrained } = openSink()
+
+    sink.cutPlayback()
+
+    expect(createStream).toHaveBeenCalledTimes(2)
+    // A spurious onDrained would leave a stale pending flag upstream and reopen
+    // the mic into the NEXT speak's tail.
+    expect(onDrained).not.toHaveBeenCalled()
+  })
+
+  it('the sink stays usable after a cut — later writes go to the fresh stream', () => {
+    createStream.mockReturnValueOnce('handle-1').mockReturnValueOnce('handle-2')
+    const { sink } = openSink()
+
+    sink.emitAudio(oneSecondOfSpeech())
+    sink.cutPlayback()
+    writeToStream.mockClear()
+    sink.emitAudio(oneSecondOfSpeech())
+
+    expect(writeToStream.mock.calls[0]?.[0]).toBe('handle-2')
+  })
+
+  it('a failed reopen degrades the sink to dead instead of crashing the keepalive', () => {
+    const { sink, onDrained } = openSink()
+
+    sink.emitAudio(oneSecondOfSpeech())
+    sink.endSpeech()
+    createStream.mockImplementationOnce(() => {
+      throw new Error('device gone')
+    })
+    sink.cutPlayback()
+
+    expect(onDrained).toHaveBeenCalledTimes(1) // the waiter still resolves
+    writeToStream.mockClear()
+    sink.emitAudio(oneSecondOfSpeech()) // swallowed — dead sink
+    vi.advanceTimersByTime(500) // keepalive skips — no closed-handle hammering
+    expect(writeToStream).not.toHaveBeenCalled()
+    closeStream.mockClear()
+    sink.stop() // clean no-op on the handle
+    expect(closeStream).not.toHaveBeenCalled()
+  })
+
+  it('a close failure during cut is best-effort — the reopen still happens', () => {
+    createStream.mockReturnValueOnce('handle-1').mockReturnValueOnce('handle-2')
+    const { sink } = openSink()
+
+    sink.emitAudio(oneSecondOfSpeech())
+    closeStream.mockImplementationOnce(() => {
+      throw new Error('handle already invalid')
+    })
+    sink.cutPlayback()
+
+    writeToStream.mockClear()
+    sink.emitAudio(oneSecondOfSpeech())
+    expect(writeToStream.mock.calls[0]?.[0]).toBe('handle-2')
+  })
+
+  it('cutPlayback after stop is a no-op', () => {
+    const { sink, onDrained } = openSink()
+
+    sink.stop()
+    sink.cutPlayback()
+
+    expect(closeStream).toHaveBeenCalledTimes(1) // stop's close only
+    expect(createStream).toHaveBeenCalledTimes(1) // no reopen
+    expect(onDrained).not.toHaveBeenCalled()
+  })
+
   it('stop closes the stream once, silences keepalive, and swallows late writes', () => {
     const { sink, onDrained } = openSink()
 

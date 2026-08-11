@@ -23,7 +23,7 @@ const openCapture = vi.mocked(openCaptureStream)
 const openSink = vi.mocked(openOutputSink)
 
 function fakeSink(): OutputSink {
-  return { emitAudio: vi.fn(), endSpeech: vi.fn(), stop: vi.fn() }
+  return { emitAudio: vi.fn(), endSpeech: vi.fn(), cutPlayback: vi.fn(), stop: vi.fn() }
 }
 
 function silentLogger() {

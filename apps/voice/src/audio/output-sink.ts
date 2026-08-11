@@ -29,6 +29,12 @@ export interface OutputSinkSource {
 export interface OutputSink {
   emitAudio(pcm: PcmAudio): void
   endSpeech(): void
+  /** Discard everything queued on the device and declare playback over NOW —
+   *  the barge-in primitive. The sink stays usable for the next speak.
+   *  Mid-line callers must ALSO cancel their emit loop and suppress the
+   *  trailing `endSpeech` (C2's line-speaker owns that) — a trailing
+   *  `endSpeech` after a cut arms a fresh drain and double-fires `onDrained`. */
+  cutPlayback(): void
   stop(): void
 }
 
@@ -84,6 +90,43 @@ export function openOutputSink(
         queuedSeconds = 0
         onDrained()
       }, remainingMs)
+    },
+    cutPlayback(): void {
+      if (handle === null) return
+      // Close+reopen is the only true DISCARD: the runtime's pauseStream HOLDS
+      // queued audio and would replay the cut tail on resume.
+      const hadPlayback = playbackStartedAt !== null || drainTimer !== null
+      const closing = handle
+      // Null-first: if the device vanished and anything below throws, every
+      // guard (emit swallow, keepalive skip, stop, repeat cut) must see a dead
+      // sink — a lingering closed handle would crash the 50 ms keepalive tick.
+      handle = null
+      if (drainTimer !== null) {
+        clearTimeout(drainTimer)
+        drainTimer = null
+      }
+      playbackStartedAt = null
+      queuedSeconds = 0
+      try {
+        cpal.closeStream(closing)
+      } catch (error) {
+        logger.debug(
+          { sink: label, error: error instanceof Error ? error.message : String(error) },
+          'closing the cut stream failed (device likely gone) — continuing to reopen',
+        )
+      }
+      try {
+        handle = cpal.createStream(device.deviceId, false, config, () => {})
+      } catch (error) {
+        logger.error(
+          { sink: label, device: device.name, error: error instanceof Error ? error.message : String(error) },
+          'reopen after cut failed — this sink is dead until the daemon restarts',
+        )
+      }
+      // Only a cut that interrupted REAL playback resolves the drain waiter — a
+      // spurious onDrained here would leave a stale pending flag that reopens
+      // the mic into the NEXT speak's tail.
+      if (hadPlayback) onDrained()
     },
     // Idempotent for the same reason capture-stream's stop is: the call
     // registry will have racing stop paths.
