@@ -387,7 +387,28 @@ makes it an instruction/routing concern, not a locking one.
   primitive, so the model burns a screenshot round-trip per poll.
 - **Recovery from the unexpected** — popup, login wall, crashed app. Today the turn just ends.
 
-### Arc 5 — Cheap capability fills
+### Arc 5 — Capability fills — SHIPPED (`94b9c56` + `36564b3`)
+
+Four fills, no new dependency (nut.js and node-screenshots already shipped what was missing), all
+verified against the real desktop:
+
+- **`read_clipboard` / `write_clipboard`** — the reliable route for "copy from A, paste into B".
+  Both gated by `unattendedRefusalError`, **not** the plain plan check: the clipboard is app-less,
+  so there is no standing-grant second door and `isArmed()` alone would be the whole authorization —
+  which the model grants itself. They now additionally require real consent and refuse under
+  `display-only`. `read_clipboard`'s output is **not persisted** to the transcript
+  (`toolOutputForStorage`, in contracts) — its output *is* whatever the user last copied.
+- **`list_monitors`** — display topology. Ungated (a screen's existence reveals nothing about its
+  contents). Handles the Monitor API's mixed units: origin is virtual-desktop, size is physical.
+- **Stepped drag** — nut's `drag()` was a single jump, which moves a slider but never completes a
+  drop. Now threshold-nudged, interpolated, denser for long paths, with a guaranteed release.
+- **`move`** (hover) — opens hover menus and tooltips; `click` tier, same two walls as a click.
+
+**Review caught three real problems**, all fixed in `36564b3` — the clipboard being open to
+unattended turns, a timed-out drag able to leave the mouse button held down desktop-wide, and
+clipboard plaintext persisted forever. The full reasoning is in that commit message.
+
+### Arc 5 (original scope) — remaining cheap fills
 
 Mostly one file: widening `input/nut-input-loader.ts:22-34` unlocks `mouse_move`, `mouse_position`,
 `mouse_button` (press/hold/release) and Guide §15.3's stepped `humanDrag` — **no new dependency**.
