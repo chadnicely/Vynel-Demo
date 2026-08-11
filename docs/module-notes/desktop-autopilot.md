@@ -57,7 +57,40 @@ Microsoft's recommended arrangement, and that swapping libraries changes none of
 
 Findings 1 and 2 were verified **live on Chad's actual machine**, not read off docs.
 
-### 1. Desktop control is unreliable on Chad's second monitor, today
+### 1. ~~Desktop control is unreliable on the second monitor~~ — RETRACTED, it is fine
+
+> **Corrected 2026-08-11, same day.** The claim below was **wrong**, and the
+> commit that recorded it (`279c40b`) is wrong on this point. Read the correction first.
+>
+> **The window-relative click path is COHERENT on a fractionally-scaled monitor.** Verified against
+> Win32 `GetCursorPos` on the 1080×1920 @125% panel at a negative origin: all sampled
+> window-relative points land on target and inside the window, to within a pixel of rounding.
+> No fix is needed and **no DPI factor belongs in that path** — adding one moves clicks *off*
+> target. A bridge was implemented, tested green, and then reverted when the ground truth arrived.
+>
+> **What actually misled me: nut.js's `mouse.getPosition()` mis-reports on a scaled monitor.** It
+> returned `(-648,-79)` for a cursor Win32 confirms was at `(-540,113)`. Every early probe used
+> `getPosition` on *both* sides of the measurement, so the least-squares fit below describes the
+> **reader's** error, not the writer's — and it fitted `1/scaleFactor` beautifully, which made a
+> phantom bug look rigorously established. A green test suite did not save me either: the tests
+> encoded the same wrong model.
+>
+> **The lessons, worth keeping:**
+> - Never measure an actuator with its own sensor. `setPosition` cannot be judged by `getPosition`.
+> - `scripts/src/desktop/probe-cursor-oracle.mjs` is the independent witness (Win32, per-monitor
+>   DPI aware). Use it for any coordinate claim.
+> - Nothing in production reads `getPosition`, and nothing should.
+> - A clean linear fit with a physically meaningful constant is *not* proof of the mechanism.
+>
+> **What survives and is still worth doing:** the model has no way to know a second monitor exists
+> at all — there is no `screen_info` / `list_monitors` tool, so it cannot target the other screen.
+> That is the real Arc 1, and it is a capability gap, not a bug. `node-screenshots`' `Monitor` API
+> (already installed) supplies the topology.
+
+<details>
+<summary>The original, incorrect finding — kept so the reasoning error stays visible</summary>
+
+#### ~~Desktop control is unreliable on Chad's second monitor, today~~
 
 ```
 monitor 1:  1920×1080  at (0,0)         scale 1.00  primary
@@ -114,6 +147,13 @@ spaces coincide. This matters beyond accuracy — the **confinement wall**
 (`input/input-authorization.ts:101-114`) compares a point against a window rect, so mixed units
 there would weaken a security check, not merely misplace a click. Resolve it with a test that puts
 a window on a scaled monitor as the first step of the arc.
+
+*(It was settled: a window's bounds and its captured image agree exactly, 1.0 on both monitors, and
+the whole translate path lands on target. The confinement wall is sound. The "mixed units"
+diagnosis applied only to the **Monitor** API — whose size is physical while its origin is shared —
+and production never reads Monitor geometry, which is why it never mattered.)*
+
+</details>
 
 ### 2. The audio-device finding kills most of Guide 2's plumbing
 
@@ -201,21 +241,27 @@ Ordered by what actually blocks the autopilot story. Each lands green and review
 `.claude/docs/desktop-control/structure.md` is already self-flagged partially stale, so the doc
 refresh rides **in** the arc that changes the tool table, never deferred.
 
-### Arc 1 — Coordinate truth (P0, small, unblocks all live verification)
+### Arc 1 — The model cannot see past the primary monitor (revised)
 
-First because every later arc is verified by watching clicks land, and today we cannot trust that
-on half of Chad's setup.
+*Originally "coordinate truth", on the assumption that scaled-monitor clicks were broken. They are
+not (see the retraction in finding 1). What remains is a genuine capability gap.*
+
+Nothing in the tool surface reports that a second monitor exists. `list_open_apps` gives names,
+`screenshot_app` captures one window — there is **no `screen_info` / `list_monitors`**, no display
+count, no resolution, no topology. So the model cannot reason about "the other screen" at all, and
+an absolute-coordinate action on a monitor at a negative origin is a guess.
 
 - Expose monitor topology from the **already-installed** `node-screenshots` `Monitor` API
-  (`Monitor.all()` → id, x, y, width, height, `scaleFactor`, `isPrimary`, `rotation`).
-- Carry a **per-monitor** scale factor through capture → translation, replacing the single global
-  assumption in `translatePoint` (`input/desktop-input.ts:69-79`).
-- Settle process DPI awareness (manifest vs. runtime call) so the two coordinate spaces provably agree.
-- Ship the Guide §14 smoke test: `screen_info` → move to a known point → read position back →
-  assert. One test catches scaling, permission and topology bugs together.
+  (`Monitor.all()` → id, x, y, width, height, `scaleFactor`, `isPrimary`, `rotation`). No new
+  dependency; `Window.currentMonitor()` also exists, so a window can name its display.
+- **Report `scaleFactor` as information, not as a correction.** It tells the model a display is
+  scaled; it must NOT be applied to coordinates (that was the retracted mistake).
+- Note the mixed units in the Monitor API itself — origin shared, size physical — so the next
+  reader doesn't rediscover it the hard way.
 - Negative coordinates already validate correctly on the act path (`z.number()`, no `min(0)` bug) — keep it.
+- Keep `scripts/src/desktop/probe-cursor-oracle.mjs` as the standing coordinate oracle.
 
-**Needs a live pass from Chad** on the rotated 125% display; not verifiable from code alone.
+**Live-verifiable, and already partly verified** — the probes exercise the real desktop.
 
 ### Arc 2 — The autopilot spine
 
