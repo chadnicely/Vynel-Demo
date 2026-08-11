@@ -20,6 +20,9 @@
 // second, because a failed drag usually looks exactly like "nothing happened"
 // and the model concludes it succeeded.
 
+import { loadNutInput } from './nut-input-loader.js'
+import { withTimeout } from '../a11y/xa11y-loader.js'
+
 /** A point on the interpolated path, in the same space the caller aims in. */
 export interface DragStep {
   x: number
@@ -101,4 +104,61 @@ export function buildDragPath(
   // and a drop one pixel outside the target is a drop into nothing.
   path[path.length - 1] = { x: to.x, y: to.y }
   return path
+}
+
+const DRAG_STEP_TIMEOUT_MS = 15000
+/** A stepped drag is deliberately unhurried (dozens of interpolated moves, each
+ *  with nut's own inter-step delay), so travel needs more headroom than a click. */
+const DRAG_TRAVEL_TIMEOUT_MS = 30000
+/** Held over the target before releasing, so it registers the hover. */
+const DROP_DWELL_MS = 400
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Run the whole gesture: grab → press → threshold nudge → interpolated travel →
+ * dwell → release.
+ *
+ * Lives here rather than in `desktop-input.ts` because the release discipline
+ * below is part of the same idea as the path — both exist so a drag either
+ * completes or leaves nothing behind.
+ *
+ * Coordinates arrive already translated AND authorized; this touches no part of
+ * the access model.
+ */
+export async function performSteppedDrag(from: DragStep, to: DragStep): Promise<void> {
+  const { mouse, Point, Button } = loadNutInput()
+  const path = buildDragPath(from, to)
+  await withTimeout(mouse.setPosition(new Point(from.x, from.y)), DRAG_STEP_TIMEOUT_MS, 'move')
+
+  // The press is INSIDE the try, flagged before its await. `withTimeout` bounds
+  // without cancelling (see `xa11y-loader.ts`), so a press that times out may
+  // STILL have landed — pressing outside the try would leave the button down
+  // with no release path, and every later click on the user's desktop would
+  // become a drag they have to fix by hand.
+  let buttonMayBeDown = false
+  try {
+    buttonMayBeDown = true
+    await withTimeout(mouse.pressButton(Button.LEFT), DRAG_STEP_TIMEOUT_MS, 'drag')
+    // A timeout here does NOT stop the native path walk — it keeps running
+    // after we move on, which is why the release below is best-effort rather
+    // than a guarantee that the gesture unwound cleanly.
+    await withTimeout(
+      mouse.move(path.map((step) => new Point(step.x, step.y))),
+      DRAG_TRAVEL_TIMEOUT_MS,
+      'drag',
+    )
+    await sleep(DROP_DWELL_MS)
+  } finally {
+    if (buttonMayBeDown) {
+      try {
+        await withTimeout(mouse.releaseButton(Button.LEFT), DRAG_STEP_TIMEOUT_MS, 'drag')
+      } catch {
+        // Swallowed ON PURPOSE: a throw from `finally` REPLACES the error the
+        // try was already raising, so a drag that failed for a real reason
+        // would surface as a release timeout instead — hiding the actual cause
+        // AND leaving the button down either way.
+      }
+    }
+  }
 }

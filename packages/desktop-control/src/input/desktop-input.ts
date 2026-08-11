@@ -12,7 +12,7 @@
 
 import { loadNutInput } from './nut-input-loader.js'
 import { parseKeyCombo } from './key-combo.js'
-import { buildDragPath } from './human-drag.js'
+import { performSteppedDrag } from './human-drag.js'
 import { withTimeout } from '../a11y/xa11y-loader.js'
 import {
   authorizeFocusedTarget,
@@ -59,14 +59,7 @@ export interface ActOnDesktopResult {
 }
 
 const INPUT_TIMEOUT_MS = 15000
-// A stepped drag is deliberately unhurried (dozens of interpolated moves, each
-// with nut's own inter-step delay), so it needs more headroom than a click.
-const DRAG_TIMEOUT_MS = 30000
-/** Time held over the target before releasing, so it registers the hover. */
-const DROP_DWELL_MS = 400
 const DEFAULT_SCROLL_AMOUNT = 3
-
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 // A screen-coordinate translation frame: absolute when no app, window-origin
 // offset when an app was named. `scale` is the screenshot downscale factor
@@ -246,43 +239,11 @@ export async function actOnDesktop(
       // different app than it grabbed from).
       authorizeMouseTarget(authorize, probes, resolved, from, 'click')
       authorizeMouseTarget(authorize, probes, resolved, to, 'click')
-      const { mouse, Point, Button } = loadNutInput()
-      // Press → threshold nudge → interpolated travel → dwell → release, rather
-      // than nut's one-jump `drag()`. See `human-drag.ts` for why a jump moves a
-      // slider but never completes a drop.
-      const path = buildDragPath(from, to)
-      await withTimeout(mouse.setPosition(new Point(from.x, from.y)), INPUT_TIMEOUT_MS, 'move')
-      // The press is INSIDE the try, flagged before its await. `withTimeout`
-      // bounds without cancelling (see `xa11y-loader.ts`), so a press that
-      // times out may STILL have landed — pressing outside the try would leave
-      // the button down with no release path, and every later click on the
-      // user's desktop would become a drag they have to fix by hand.
-      let buttonMayBeDown = false
-      try {
-        buttonMayBeDown = true
-        await withTimeout(mouse.pressButton(Button.LEFT), INPUT_TIMEOUT_MS, 'drag')
-        // A timeout here does NOT stop the native path walk — it keeps running
-        // after we move on, which is why the release below is best-effort
-        // rather than a guarantee that the gesture unwound cleanly.
-        await withTimeout(
-          mouse.move(path.map((step) => new Point(step.x, step.y))),
-          DRAG_TIMEOUT_MS,
-          'drag',
-        )
-        // Dwell so the target registers the hover before the drop lands.
-        await sleep(DROP_DWELL_MS)
-      } finally {
-        if (buttonMayBeDown) {
-          try {
-            await withTimeout(mouse.releaseButton(Button.LEFT), INPUT_TIMEOUT_MS, 'drag')
-          } catch {
-            // Swallowed ON PURPOSE: a throw from `finally` REPLACES the error
-            // the try was already raising, so a drag that failed for a real
-            // reason would surface as a release timeout instead — hiding the
-            // actual cause AND leaving the button down either way.
-          }
-        }
-      }
+      // Press → threshold nudge → stepped travel → dwell → guaranteed release,
+      // rather than nut's one-jump `drag()`. The whole gesture lives in
+      // `human-drag.ts`, next to the path it walks — see there for why a jump
+      // moves a slider but never completes a drop.
+      await performSteppedDrag(from, to)
       return {
         action: 'drag',
         detail: `dragged (${from.x}, ${from.y}) → (${to.x}, ${to.y})${where}`,
