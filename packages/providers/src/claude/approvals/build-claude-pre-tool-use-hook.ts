@@ -10,8 +10,11 @@
 //   tier all card, main session AND subagents (a subagent keeps its own
 //   permission mode — the SDK does NOT clamp it to the parent's, proven by
 //   the 2026-06-21 live smoke — so the hook is what holds the line here).
-// - `auto`: Anthropic's safety classifier is the SOLE gate. No Vynel floor
-//   anywhere; the classifier's uncertain escalations card via `canUseTool`.
+// - `auto`: NO card, ever — auto means no approval needed (Kafi 2026-08-11,
+//   superseding "the classifier's uncertain escalations card via canUseTool":
+//   an escalation parked a desktop turn on a card the user never expected in a
+//   mode that promises not to ask). No Vynel floor here, and `canUseTool`
+//   allows outright — see `build-claude-can-use-tool-callback.ts`.
 // - `bypass` (the user's composer pick): nothing cards, ever.
 // - `bypass-with-behavior-gate` (the UNATTENDED default — schedules,
 //   delegated leaves, report delivery): the floor + per-turn mutating set

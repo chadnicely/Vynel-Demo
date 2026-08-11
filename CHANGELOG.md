@@ -33,6 +33,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   names both the first action and the last one, so a step like "send" is
   never hidden behind a count.
 
+- **Auto mode now truly never asks.** Picking Auto means you're not
+  interrupted — but a safety escalation could still raise an approval you
+  weren't expecting, and if nothing rendered it, the task simply stopped and
+  waited forever. Auto now runs without approvals of any kind, exactly like the
+  label promises. Ask mode is unchanged and still asks.
+
+- **Approvals can no longer hide behind the desktop overlay.** The overlay sits
+  in the screen's bottom-right corner, on top of everything — the same spot
+  approval notifications used, so one could be completely covered and
+  unclickable while the task waited on it. Notifications now dock to the other
+  side whenever the overlay can appear.
+
 - **Minimized apps no longer stop the assistant.** Ask it to look at something
   you've tucked away and it opens the window and looks — no more "please restore
   it first", which was useless when you're away from the machine. It can

@@ -73,18 +73,43 @@ describe('buildClaudeCanUseToolCallback', () => {
     expect(await resultPromise).toEqual({ behavior: 'allow', updatedInput: { command: 'ls' } })
   })
 
-  it('auto gate: cards whatever reaches it — auto defers to the classifier, then asks like ask', async () => {
-    // In auto, Anthropic's classifier approves safe tools (they never reach this
-    // callback) and escalates only its uncertain cases here. Vynel then cards
-    // them — exactly like ask. Even a non-floor tool (Read) cards if escalated;
-    // auto is deliberately NOT in the bypass silent-allow path.
-    const { callback, syntheticEventQueue, pendingApprovalRegistry } = setup('auto')
-    const resultPromise = callback('Read', { file: 'a.txt' }, TOOL_OPTIONS)
-    const requested = await syntheticEventQueue.dequeue()
-    if (requested.kind !== 'approval-requested') throw new Error('expected approval-requested')
-    expect(requested.toolName).toBe('Read')
-    pendingApprovalRegistry.resolve(requested.approvalRequestId, { kind: 'approved' })
-    expect((await resultPromise)?.behavior).toBe('allow')
+  it('auto gate: NOTHING cards — auto means no approval needed', async () => {
+    // test: correct expectation — was "cards whatever reaches it… exactly like
+    // ask" (classifier escalations carded in auto, Chad 2026-07-30). Kafi
+    // overruled 2026-08-11 after a live smoke: an escalated approval parked a
+    // desktop turn on a card the user never expected, in the one mode that
+    // promises not to ask. Auto now allows outright, like bypass.
+    //
+    // Asserted on a FLOOR tool, not just a safe one: if even Bash runs uncarded
+    // here, no escalation can park a turn in auto.
+    const { callback, syntheticEventQueue } = setup('auto')
+    expect(await callback('Bash', { command: 'ls' }, TOOL_OPTIONS)).toEqual({
+      behavior: 'allow',
+      updatedInput: { command: 'ls' },
+    })
+    expect(await callback('Read', { file: 'a.txt' }, TOOL_OPTIONS)).toEqual({
+      behavior: 'allow',
+      updatedInput: { file: 'a.txt' },
+    })
+    // No approval was ever enqueued — nothing for a UI to render, nothing to
+    // await, so a missing card can no longer hang the turn. `dequeue()` on an
+    // empty queue never settles, so race it against a timer: an enqueued event
+    // resolves on the microtask and would beat the 20ms sentinel.
+    const outcome = await Promise.race([
+      syntheticEventQueue.dequeue().then(() => 'enqueued' as const),
+      new Promise<'empty'>((resolve) => setTimeout(() => resolve('empty'), 20)),
+    ])
+    expect(outcome).toBe('empty')
+  })
+
+  it('auto gate: a desktop tool runs uncarded — the exact hang from the live smoke', async () => {
+    const { callback } = setup('auto')
+    const result = await callback(
+      'mcp__desktop__request_desktop_access',
+      { app: 'Zoom Workplace', tier: 'full', reason: 'send a message' },
+      TOOL_OPTIONS,
+    )
+    expect(result?.behavior).toBe('allow')
   })
 
   it('behavior gate: the memory-write tool runs WITHOUT a card under the unattended default (self-tool, 2026-07-26 stance)', async () => {
