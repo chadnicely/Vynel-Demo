@@ -30,6 +30,8 @@ export {
 export { screenshotApp, findAppWindowBounds } from './a11y/screenshot-adapter.js'
 export { listMonitors } from './a11y/monitors.js'
 export type { MonitorInfo } from './a11y/monitors.js'
+export { waitForCondition, WAIT_CONDITIONS } from './a11y/wait-for-condition.js'
+export type { WaitConditionKind, WaitOutcome } from './a11y/wait-for-condition.js'
 export type { AppScreenshot, WindowBounds } from './a11y/screenshot-adapter.js'
 export {
   restoreIfMinimized,

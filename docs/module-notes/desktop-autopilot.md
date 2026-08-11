@@ -369,7 +369,46 @@ The residual, recorded honestly: a desktop task the user starts *and keeps* on t
 mitigation is behavioural — the root should hand desktop work off rather than run it inline — which
 makes it an instruction/routing concern, not a locking one.
 
-### Arc 3 — Supervision: stop it, watch it, bound it
+### Arc 3 — Supervision — PARTIALLY SHIPPED
+
+**The batch wall-clock bound (SHIPPED).** A running batch is un-interruptible — Stop aborts the
+model loop, not an in-flight tool handler — so at 20 actions × a 15 s per-action bound that was up
+to five minutes of clicking *after* the user asked it to stop. `runActionBatch` now carries a 45 s
+wall-clock budget, checked **between** steps (never during one: abandoning a half-typed field is
+worse than finishing the keystroke). A deadline reads differently from a failure in the report —
+saying "stopped at action N" would send the model hunting for a fault in a step that worked.
+
+> **Measured, and it killed the obvious design.** The natural fix is to check the MCP request's
+> `AbortSignal` between steps. The handler *does* receive `extra.signal` — but cancelling the call
+> rejects only the **caller's** promise while the server-side handler runs to completion and never
+> sees `aborted` (probed against the shipped SDK, 2026-08-11). A predicate on it would have been
+> decoration. Time is the honest bound: it doesn't make Stop instant, it caps how long Stop can be
+> ignored.
+
+**Still open in this arc:** remote monitoring + remote stop for channel-driven tasks; a per-turn
+no-progress watchdog; the approval-stall budget.
+
+### Arc 4 — Did it actually work? — PARTIALLY SHIPPED
+
+**`wait_for` (SHIPPED).** The observe-until-condition primitive. Conditions: `text_appears` /
+`text_disappears` (needs `text`) · `app_appears` / `app_closes`. Read-only, so no plan; the text
+conditions read an app's tree and therefore enforce the same `read` tier `snapshot_app` does, on
+**every poll**, so a grant revoked mid-wait stops the wait. Bounded twice (per-attempt timeout in
+the probe, hard deadline here, 60 s ceiling). Checks the condition **immediately** before sleeping —
+the thing being waited for has often already happened. A transient probe failure is retried rather
+than treated as "condition false", which is also what makes `app_closes` work.
+
+Instructions + playbook now teach: wait with `wait_for`, then **confirm** — a tool returning success
+means the action was *sent*, not that it worked.
+
+> ⚠ **Live smoke inconclusive, deliberately not claimed as passing.** The PowerShell WinForms
+> fixture used to conjure a throwaway window launches unreliably from a background shell (the same
+> window was visible one minute and absent the next), so the end-to-end run proved nothing either
+> way. The polling logic is unit-verified (21 tests, injected probes + fake clock) and `wait_for`
+> calls the same `listOpenApps` / `snapshotApp` paths shipped tools already use. **Worth exercising
+> in Chad's browser smoke:** `wait_for` on a real app, both a hit and a timeout.
+
+### Arc 3 (original scope) — Supervision: stop it, watch it, bound it
 
 - **Stop that reaches the handler.** `runActionBatch` (`act-batch.ts:39-61`) is a plain loop with no
   predicate and no `AbortSignal` anywhere in the package; with per-step timeouts of 15–25s, a Stop

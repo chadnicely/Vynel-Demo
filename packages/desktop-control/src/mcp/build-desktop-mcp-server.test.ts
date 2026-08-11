@@ -40,6 +40,8 @@ describe('desktopToolFactories', () => {
       'list_monitors',
       'snapshot_app',
       'screenshot_app',
+      // Read-only, so it rides the observe tier and needs no plan.
+      'wait_for',
       'request_desktop_access',
     ])
   })

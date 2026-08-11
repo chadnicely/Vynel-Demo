@@ -50,6 +50,8 @@ export function describeDesktopStep(toolName: string, toolInput: unknown): strin
       return "Checking your notifications";
     case "list_monitors":
       return "Checking your screens";
+    case "wait_for":
+      return `Waiting for ${inputString(toolInput, "app") ?? "an app"} to be ready`;
     // Deliberately plain about the clipboard: it is shared by the whole
     // computer and may hold something private, so the user should see it named
     // rather than folded into a vaguer "reading".
@@ -115,6 +117,14 @@ export function presentDesktopToolCall(
       return { verb: "Looked at open apps", argument: null, subtitle: null, stats: null, body };
     case "list_monitors":
       return { verb: "Checked your screens", argument: null, subtitle: null, stats: null, body };
+    case "wait_for":
+      return {
+        verb: "Waited for",
+        argument: inputString(toolInput, "app"),
+        subtitle: "to be ready",
+        stats: null,
+        body,
+      };
     case "read_clipboard":
       // The clipboard's CONTENTS are the body, which is the point of the card:
       // if something private was read, the user can see exactly what.

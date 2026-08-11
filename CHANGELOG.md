@@ -9,6 +9,20 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude waits for things properly.** When something takes a moment — a page
+  loading, a dialog opening, a file saving — Claude can now wait for it instead
+  of taking screenshot after screenshot to check. It carries on the instant the
+  thing it's waiting for happens, and if it never does, it says so and looks at
+  the screen rather than waiting again blindly. It's also been told more firmly
+  that a tool reporting success only means the action was *sent* — it has to
+  see the result before telling you something is done.
+
+- **A long run of desktop steps can't hog your computer.** While Claude is
+  part-way through a group of actions it can't be interrupted, so that group is
+  now time-limited: it stops itself, tells Claude exactly how far it got, and
+  hands control back. Stopping still isn't instant, but it can no longer be
+  ignored for minutes at a time.
+
 - **Claude can work on your computer in the background.** Hand Claude a desktop
   task and it can now run in a session of its own while you carry on talking —
   before, a desktop task tied up the whole assistant until it finished, so a

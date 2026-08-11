@@ -198,12 +198,32 @@ plan it (Chrome, `full`) → `list_open_apps` → `launch_app` if needed →
 the batch above → `screenshot_app` to confirm results loaded → tell the user
 what's on screen.
 
-## 6. Check that it worked
+## 6. Wait properly, then check that it worked
 
-An action isn't done because the tool returned. Look: `snapshot_app` (or
-`screenshot_app`) and confirm the thing you expected actually happened —
-the message sent, the file saved, the page loaded. Never stack a second
-unverified action on top of a first.
+**Waiting.** When something takes a moment — a page loading, a dialog opening,
+a spinner clearing, a file saving — use `wait_for`:
+
+```
+wait_for({app: "Google Chrome", until: "text_appears", text: "Results"})
+```
+
+It returns the instant the condition is true (including immediately, if it
+already was), so it's both faster and more reliable than screenshotting on a
+loop. Conditions: `text_appears` · `text_disappears` · `app_appears` ·
+`app_closes`. It's read-only, so it needs no plan.
+
+If it times out, **don't just wait again**. Look at the app and find out what
+actually happened — something needs a different step, or the user.
+
+**Checking.** An action isn't done because the tool returned; the tool returning
+means the action was *sent*. Look: `snapshot_app` (or `screenshot_app`) and
+confirm the thing you expected actually happened — the message sent, the file
+saved, the page loaded. Never stack a second unverified action on top of a
+first, and never tell the user something worked if you haven't seen it.
+
+**One note on batches.** While a batch runs the user can't interrupt it, so it
+has a time limit and will cut itself off, telling you how far it got. Don't put
+waiting inside a batch — finish the batch, then `wait_for`.
 
 ## 7. When something won't work
 

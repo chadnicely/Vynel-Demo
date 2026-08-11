@@ -14,6 +14,7 @@ import { makeReadClipboardTool, makeWriteClipboardTool } from './clipboard-tools
 import { makeLaunchAppTool } from './launch-app-tool.js'
 import { makeSetWindowStateTool } from './set-window-state-tool.js'
 import { makeSnapshotAppTool } from './snapshot-app-tool.js'
+import { makeWaitForTool } from './wait-for-tool.js'
 import { makeScreenshotAppTool } from './screenshot-app-tool.js'
 import { makeActOnAppTool } from './act-on-app-tool.js'
 import { makeActOnDesktopTool } from './act-on-desktop-tool.js'
@@ -70,6 +71,9 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     makeListMonitorsTool(),
     makeSnapshotAppTool(authorize),
     makeScreenshotAppTool(authorize),
+    // Read-only, so no plan — but the text conditions read an app's content,
+    // and those enforce the same `read` tier snapshot_app does, on every poll.
+    makeWaitForTool(authorize),
     // Registered even with actions OFF — the read tools are grant-gated too,
     // so the consent path must always exist.
     makeRequestDesktopAccessTool(input.db, input.userId),
