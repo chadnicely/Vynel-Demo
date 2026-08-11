@@ -125,6 +125,7 @@ describe("applyDesktopActivityEvent", () => {
       scopeKind: "global",
       origin: null,
       partialSessionId: null,
+      primarySessionId: null,
     });
     expect(tracked.steps).toHaveLength(1);
     expect(tracked.steps[0]).toMatchObject({ toolUseId: "a", status: "running" });
@@ -366,6 +367,55 @@ describe("following the right turn (the live overlay bugs)", () => {
     const state = fold([turnStarted({ turnId: "chat-turn" }), turnStarted({ turnId: "other" })]);
     expect(isDesktopOverlayVisible(state, T0)).toBe(false);
     expect(state.trackedTurn).toBeNull();
+  });
+
+  // The overlay's Stop picks its route from these fields, so a turn running on
+  // its OWN session must be distinguishable from a global-root turn. The UI's
+  // spawned-session surface announces origin 'web' exactly like the root does —
+  // only primarySessionId separates them, and firing the root interrupt there
+  // stops a different session while the mouse keeps moving.
+  it("carries primarySessionId so a spawned-session turn is not mistaken for the root", () => {
+    const state = fold([
+      turnStarted({ turnId: "spawned", origin: "web", primarySessionId: "sp-3" }),
+      stepOn("spawned", "a"),
+    ]);
+    expect(state.trackedTurn).toMatchObject({
+      origin: "web",
+      primarySessionId: "sp-3",
+      partialSessionId: null,
+    });
+  });
+
+  it("a genuine global-root turn carries no primarySessionId", () => {
+    const state = fold([turnStarted({ turnId: "root", origin: "web" }), stepOn("root", "a")]);
+    expect(state.trackedTurn?.primarySessionId).toBeNull();
+  });
+
+  // An approval bell can be the FIRST frame of a new turn (an approval often
+  // resolves before its tool-call row lands), so it retargets too — otherwise
+  // the new turn's steps append under the old turn's log.
+  it("starts clean when an approval BELL is the first frame of a new turn", () => {
+    const first = fold([
+      turnStarted({ turnId: "old", origin: "web" }),
+      stepOn("old", "a"),
+      { kind: "turn-tool-settled", turnId: "old", toolUseId: "a", status: "completed" } as never,
+    ]);
+    expect(first.steps).toHaveLength(1);
+
+    const bell = applyDesktopActivityEvent(
+      first,
+      {
+        kind: "turn-approval-requested",
+        turnId: "new",
+        approvalRequestId: "ap-1",
+        toolName: "mcp__desktop__act_on_desktop",
+      } as never,
+      T0,
+    );
+    expect(bell.trackedTurn?.turnId).toBe("new");
+    expect(bell.steps).toHaveLength(0);
+    expect(bell.activePlan).toBeNull();
+    expect(bell.pendingApprovalIds).toEqual(["ap-1"]);
   });
 
   it("bounds the remembered-turn lookup — every turn publishes turn-started", () => {

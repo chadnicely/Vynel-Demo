@@ -3,7 +3,13 @@
 // point, `electron-wake.ts` owns app resolution + the Chromium tree wake, and
 // this file composes them into the operations the MCP tools call.
 
-import { loadXa11y, dumpApp, withTimeout } from './xa11y-loader.js'
+import {
+  loadXa11y,
+  dumpApp,
+  withTimeout,
+  resolveDesktopTimeout,
+  MAX_DESKTOP_TIMEOUT_MS,
+} from './xa11y-loader.js'
 import { resolveAppWithFallback } from './electron-wake.js'
 import { isAppNameMatch } from './app-name-match.js'
 import { isPasswordControl, passwordControlRefusal } from './password-control-guard.js'
@@ -25,31 +31,6 @@ const MAX_SNAPSHOT_MAX_DEPTH = 40
 const ACT_TIMEOUT_MS = 15000
 const SNAPSHOT_TIMEOUT_MS = 25000
 
-/**
- * The ceiling a caller may raise a desktop timeout to.
- *
- * WHY an override exists at all (Kafi, 2026-08-11): the defaults are tuned for a
- * responsive app, and a genuinely slow one — a huge Electron tree, a cold start,
- * a machine under load — failed with an error that blamed the CONTROL and sent
- * the model looking for a different element. The honest recovery is "try again,
- * with longer", so the timeout error now names this limit and the model can
- * spend it.
- *
- * WHY it is capped: an unbounded timeout is just a hang with extra steps. Two
- * minutes is long enough for anything that is going to finish, and short enough
- * that a wedged provider still returns to the user.
- */
-export const MAX_DESKTOP_TIMEOUT_MS = 120_000
-
-/** Clamp a requested timeout into [default, MAX]. A request BELOW the default is
- *  ignored — the model raising its own floor is the useful direction, and
- *  letting it shorten one only manufactures failures. Pure. */
-export function resolveDesktopTimeout(requestedMs: number | undefined, defaultMs: number): number {
-  if (requestedMs === undefined || !Number.isFinite(requestedMs) || requestedMs <= 0) {
-    return defaultMs
-  }
-  return Math.min(Math.max(Math.floor(requestedMs), defaultMs), MAX_DESKTOP_TIMEOUT_MS)
-}
 // App enumeration is normally sub-second; a long bound here means one wedged
 // provider, not a slow desktop.
 const LIST_TIMEOUT_MS = 10000
@@ -131,80 +112,6 @@ export async function snapshotApp(
   }
 }
 
-/** A resolved app whose tree can be read REPEATEDLY without re-resolving.
- *  `dispose` must always be called — it releases the Electron wake. */
-export type AppTreeReader = {
-  readTree: () => Promise<string>
-  dispose: () => void
-  /** True when the app needed the Electron wake — i.e. holding it matters. */
-  viaElectronWake: boolean
-}
-
-/**
- * Resolve an app ONCE and hold it open for repeated tree reads.
- *
- * WHY this exists, and why polling `snapshotApp` is not an acceptable
- * substitute. `snapshotApp` disposes its resolution in a `finally`, so every
- * call to it is a COLD resolve. On an Electron app that means a full wake each
- * time: un-minimize the user's window, steal the foreground, and — when
- * activation is refused — send a bare Alt keypress into whatever they are
- * currently typing, plus set-then-clear the GLOBAL `SPI_SETSCREENREADER` flag.
- * `window-focus.ts` accepts that side effect explicitly because it "fires at
- * most once per wake"; a caller that wakes in a loop breaks the very invariant
- * that made it acceptable. It also races itself — one poll's fire-and-forget
- * flag clear can land after the next poll's set, leaving the flag OFF for that
- * whole wake so Chromium never builds the tree.
- *
- * So a poller resolves once, reads many times, and disposes at the end.
- * `authorize` still runs on EVERY read (a cheap sync grant lookup), so access
- * revoked mid-poll stops the next read rather than being checked only up front.
- */
-export async function openAppTreeReader(
-  query: string,
-  authorize?: DesktopAccessAuthorizer,
-  options: SnapshotAppOptions = {},
-): Promise<AppTreeReader> {
-  const trimmedQuery = query.trim()
-  if (trimmedQuery.length === 0) {
-    throw new Error('openAppTreeReader: an app name (or part of it) is required.')
-  }
-  const { App } = loadXa11y()
-  // CAPTURE the name resolution hands the authorizer — that is the CANONICAL
-  // grant identity, resolved through the pid. It is NOT `resolved.app.name`:
-  // xa11y names an app by its active WINDOW TITLE, so Discord arrives as
-  // "music | localhost - Discord" and a grant for "Discord" would never match
-  // it. Re-authorizing on that string denied a wait the user had just
-  // approved (live smoke, 2026-08-11) — exactly the trap `resolveAppIdentity`
-  // exists to close.
-  let canonicalName: string | null = null
-  const resolved = await resolveAppWithFallback(App, trimmedQuery, 'read', undefined, (appName) => {
-    canonicalName = appName
-    authorize?.(appName, 'read')
-  })
-  const defaultDepth = resolved.viaElectronWake
-    ? ELECTRON_SNAPSHOT_MAX_DEPTH
-    : DEFAULT_SNAPSHOT_MAX_DEPTH
-  const maxDepth = Math.min(options.maxDepth ?? defaultDepth, MAX_SNAPSHOT_MAX_DEPTH)
-  return {
-    viaElectronWake: resolved.viaElectronWake,
-    readTree: async () => {
-      // Re-checked per read against the CANONICAL identity, so a grant revoked
-      // mid-poll stops the next read. Skipped only if resolution never reported
-      // one — re-checking a name we aren't sure of would deny work the user
-      // already approved, and the up-front check has already run.
-      if (canonicalName !== null) authorize?.(canonicalName, 'read')
-      return withTimeout(
-        dumpApp(resolved.app, maxDepth),
-        resolveDesktopTimeout(options.timeoutMs, SNAPSHOT_TIMEOUT_MS),
-        'snapshot',
-        { retryUpToMs: MAX_DESKTOP_TIMEOUT_MS },
-      )
-    },
-    dispose: () => {
-      resolved.dispose()
-    },
-  }
-}
 
 // The PROVEN minimal action set (each live-verified before shipping — xa11y's
 // types alone don't tell us a method actually fires). Extend deliberately, one

@@ -45,6 +45,11 @@ export interface TrackedDesktopTurn {
   origin: string | null;
   /** The delegated turn's stop handle (`root.stopDelegation`). */
   partialSessionId: string | null;
+  /** The continuing session this turn runs ON, when it isn't the global root.
+   *  Its presence is what tells us the ROOT interrupt cannot stop this turn:
+   *  the UI's spawned-session surface announces `origin: 'web'` like any other
+   *  web turn, so origin alone cannot distinguish them. */
+  primarySessionId: string | null;
 }
 
 /** What a `turn-started` frame told us about one turn, kept until that turn
@@ -135,7 +140,20 @@ function trackTurn(state: DesktopActivityState, turnId: string): TrackedDesktopT
     // kills an unrelated turn and still reports success.
     origin: known?.origin ?? null,
     partialSessionId: known?.partialSessionId ?? null,
+    primarySessionId: known?.primarySessionId ?? null,
   };
+}
+
+/** A turn switch means everything on screen belongs to the previous turn.
+ *  Shared by BOTH retarget points — a step and an approval bell can each be the
+ *  first frame of a new turn, and clearing in only one of them let a new task
+ *  render under the old task's log. */
+function retargetIfNewTurn(
+  state: DesktopActivityState,
+  turnId: string,
+): DesktopActivityState {
+  if (state.trackedTurn === null || state.trackedTurn.turnId === turnId) return state;
+  return { ...emptyDesktopActivity(), knownTurns: state.knownTurns };
 }
 
 /** Fold one feed event. Returns the same reference when nothing changed. */
@@ -157,10 +175,7 @@ export function applyDesktopActivityEvent(
       // belongs to the previous one — start clean rather than appending. Not
       // doing this showed a new desktop task under the OLD task's narration and
       // its approved plan (live, 2026-08-11).
-      const isNewTurn = state.trackedTurn !== null && state.trackedTurn.turnId !== event.turnId;
-      const carried = isNewTurn
-        ? { ...emptyDesktopActivity(), knownTurns: state.knownTurns }
-        : state;
+      const carried = retargetIfNewTurn(state, event.turnId);
       // Cap by evicting the oldest SETTLED step first — evicting a running one
       // would drop it from the visibility check and orphan its later settle
       // (the overlay could hide mid-operation).
@@ -201,10 +216,15 @@ export function applyDesktopActivityEvent(
     case "turn-approval-requested": {
       if (!isDesktopTool(event.toolName)) return state;
       if (state.pendingApprovalIds.includes(event.approvalRequestId)) return state;
+      // A bell can be the FIRST frame of a new turn — an approval often resolves
+      // before its tool-call row lands — so this retargets too. Clearing on the
+      // step path alone let the new turn's steps append under the old turn's
+      // log once its bell had already switched the tracked turn.
+      const carried = retargetIfNewTurn(state, event.turnId);
       return {
-        ...state,
-        trackedTurn: trackTurn(state, event.turnId),
-        pendingApprovalIds: [...state.pendingApprovalIds, event.approvalRequestId],
+        ...carried,
+        trackedTurn: trackTurn(carried, event.turnId),
+        pendingApprovalIds: [...carried.pendingApprovalIds, event.approvalRequestId],
         lastActivityAtMs: nowMs,
       };
     }
@@ -228,6 +248,7 @@ export function applyDesktopActivityEvent(
         scopeKind: event.scopeKind,
         origin: event.origin,
         partialSessionId: event.partialSessionId ?? null,
+        primarySessionId: event.primarySessionId ?? null,
       };
       const knownTurns = rememberTurn(state.knownTurns, event.turnId, meta);
       // If this IS the turn already being followed (the feed replays

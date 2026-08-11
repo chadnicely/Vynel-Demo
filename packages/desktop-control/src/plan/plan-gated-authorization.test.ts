@@ -5,6 +5,8 @@ import {
   makePlanGatedAuthorizer,
   planRequiredError,
   PLAN_REQUIRED_MESSAGE,
+  TASK_BUDGET_SPENT_MESSAGE,
+  unattendedRefusalError,
 } from './plan-gated-authorization.js'
 
 const armed = () => {
@@ -70,5 +72,50 @@ describe('makePlanGatedAuthorizer', () => {
     // not invent a denial the ungated path would never have raised.
     const authorize = makePlanGatedAuthorizer(armed(), undefined)
     expect(() => authorize('Discord', 'full')).not.toThrow()
+  })
+})
+
+// The watchdog reaching the tools. Every acting path shares this one pre-flight,
+// so the budget has to bite HERE or it bites nowhere.
+describe('the task budget in the shared pre-flight', () => {
+  const plan = { goal: 'g', steps: ['s'], apps: [{ app: 'X', tier: 'full' as const }] }
+  function spent() {
+    let current = 0
+    const envelope = createDesktopPlanEnvelope('approval-card', {
+      budgetMs: 1_000,
+      now: () => current,
+    })
+    envelope.arm(plan)
+    current += 1_000
+    return envelope
+  }
+
+  it('still asks for a plan FIRST when none is armed', () => {
+    const envelope = createDesktopPlanEnvelope('approval-card', { budgetMs: 0 })
+    expect(planRequiredError(envelope)).toBe(PLAN_REQUIRED_MESSAGE)
+  })
+
+  it('stops an armed task once its budget is spent', () => {
+    expect(planRequiredError(spent())).toBe(TASK_BUDGET_SPENT_MESSAGE)
+  })
+
+  it('tells the model to REPORT rather than retry — retrying is what got it here', () => {
+    const message = planRequiredError(spent()) ?? ''
+    expect(message).toMatch(/do NOT simply retry/i)
+    expect(message).toMatch(/does not reset/i)
+    expect(message).toMatch(/tell the user/i)
+  })
+
+  // The clipboard is app-less, so it goes through the unattended gate instead —
+  // which must still inherit the budget rather than routing around it.
+  it('the clipboard gate inherits the budget too', () => {
+    expect(unattendedRefusalError(spent())).toBe(TASK_BUDGET_SPENT_MESSAGE)
+  })
+
+  it('lets an armed task inside its budget through', () => {
+    const envelope = createDesktopPlanEnvelope('approval-card', { budgetMs: 60_000 })
+    envelope.arm(plan)
+    expect(planRequiredError(envelope)).toBeNull()
+    expect(unattendedRefusalError(envelope)).toBeNull()
   })
 })

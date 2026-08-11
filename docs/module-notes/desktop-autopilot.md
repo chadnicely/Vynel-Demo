@@ -369,7 +369,57 @@ The residual, recorded honestly: a desktop task the user starts *and keeps* on t
 mitigation is behavioural — the root should hand desktop work off rather than run it inline — which
 makes it an instruction/routing concern, not a locking one.
 
-### Arc 3 — Supervision — PARTIALLY SHIPPED
+### Arc 3 — the overlay + the watchdog (2026-08-11, from Kafi's live testing)
+
+**The overlay followed the wrong turn.** Kafi hit three symptoms — overlay Stop dead, chat Stop
+left the overlay up, a new desktop task rendered under the OLD task's narration. One cause: the
+fold set `trackedTurn` from `turn-started`, which fires for EVERY turn including the many that
+never touch the desktop, so it latched onto the first turn it ever saw. `turn-started` now only
+populates a bounded lookup; the DESKTOP STEP decides what is followed, and a step *or an approval
+bell* for a new turn starts clean.
+
+> **Correction to the commit message of `d1cea50`.** It claimed the fix is "what makes the chat's
+> Stop clear the overlay". That holds only for **root-driven** desktop work. For a *delegated*
+> turn, `root.interruptTurn()` cannot end it by design, so the overlay legitimately stays up — the
+> old fold already retargeted on each desktop step, so a missed `turn-ended` was never the whole
+> story for symptom A. Of the three regression tests, two genuinely fail without the fix; the
+> turn-ended one passes on the old code too.
+
+**Stop now refuses rather than hitting the wrong session.** Review traced a real misroute: the UI's
+spawned-session surface announces `origin: 'web'` exactly like a root turn, so the overlay fired
+`root.interruptTurn()` — which resolves the **global** primary and stops a *different* session
+while the mouse keeps moving, returning `{interrupted: true}` either way. `primarySessionId` is now
+carried, and Stop is offered only for the two routes that actually stop the turn in front of you
+(delegated → `stopDelegation`; global root → `interruptTurn`). Anything else disables the button and
+says to stop it from its own conversation.
+
+> **Still unrouted, recorded not fixed:** the spawned-session surface has no server-side interrupt
+> (`use-session-turn.ts` — "client-side stop only"). The honest fix is a route keyed by `sessionId`,
+> shaped like `chat.interruptSession`. Also: a global-root *report-delivery* turn announces
+> `origin: 'delegation'` with the CHILD's `partialSessionId`, so Stop there would stop the child's
+> job rather than the turn doing the work — narrow, pre-existing, and left alone deliberately.
+
+**The watchdog.** Nothing bounded a turn: no step cap, no wall clock, no cost ceiling. Now the plan
+envelope carries a 10-minute task budget, checked in the shared `planRequiredError` pre-flight that
+all five acting paths already go through (including the clipboard's `unattendedRefusalError`). The
+clock starts at the FIRST arming and does **not** reset on a re-plan — otherwise a stuck model
+re-proposes its way around the budget forever, which is the loop it exists to end.
+
+> **Two honest limits.** Once spent it is spent for the whole turn — no operator override, and the
+> user watching the overlay cannot grant more time; recovery is to end the turn. And on a *spawned
+> session* the delegation runner's own `DELEGATION_RUN_BUDGET_MS` is also 10 minutes measured from
+> **claim**, i.e. strictly earlier — so there the existing budget always bites first and this
+> watchdog's real value is the attended root/web/channel turn. The two numbers probably should not
+> match; left as-is pending a deliberate call.
+
+**Raisable timeouts.** A slow app and a dead control failed identically, and the error asserted the
+second — so a merely-slow app (big window, heavy page, cold start) looked broken and the model went
+hunting for another element. `snapshot_app` takes an optional `timeoutMs` and the timeout error
+names that retry first. Deliberately NOT offered on the held-reader path `wait_for` uses: it cannot
+pass a read timeout through, so the hint would send the model to bump `wait_for`'s own `timeoutMs` —
+a different knob, clamped lower than the number it was promised.
+
+### Arc 3 (earlier) — Supervision — PARTIALLY SHIPPED
 
 **The batch wall-clock bound (SHIPPED).** A running batch is un-interruptible — Stop aborts the
 model loop, not an in-flight tool handler — so at 20 actions × a 15 s per-action bound that was up

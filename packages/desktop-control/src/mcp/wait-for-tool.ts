@@ -9,7 +9,8 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
-import { listOpenApps, openAppTreeReader, type AppTreeReader } from '../a11y/xa11y-adapter.js'
+import { listOpenApps } from '../a11y/xa11y-adapter.js'
+import { openAppTreeReader, type AppTreeReader } from '../a11y/open-app-tree-reader.js'
 import { isAppNameMatch } from '../a11y/app-name-match.js'
 import { findWindowedPidByName } from '../a11y/windowed-process.js'
 import {

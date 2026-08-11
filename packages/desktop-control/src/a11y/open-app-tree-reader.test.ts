@@ -25,6 +25,11 @@ vi.mock('./xa11y-loader.js', () => ({
   loadXa11y: () => ({ App: {} }),
   dumpApp: (...args: unknown[]) => dumpApp(...(args as [])),
   withTimeout: <T>(promise: Promise<T>) => promise,
+  // The timeout helpers moved here alongside `withTimeout`; the adapter imports
+  // them, so the mock has to carry them or the module fails to load.
+  resolveDesktopTimeout: (requested: number | undefined, fallback: number) =>
+    requested ?? fallback,
+  MAX_DESKTOP_TIMEOUT_MS: 120_000,
 }))
 
 vi.mock('./electron-wake.js', () => ({
@@ -48,7 +53,7 @@ vi.mock('./electron-wake.js', () => ({
   },
 }))
 
-const { openAppTreeReader } = await import('./xa11y-adapter.js')
+const { openAppTreeReader } = await import('./open-app-tree-reader.js')
 
 describe('openAppTreeReader — the identity it re-authorizes against', () => {
   beforeEach(() => {
@@ -58,7 +63,7 @@ describe('openAppTreeReader — the identity it re-authorizes against', () => {
 
   it('re-checks the CANONICAL app name, never the window title', async () => {
     const checked: Array<[string, DesktopAccessTier]> = []
-    const reader = await openAppTreeReader('discord', (appName, tier) => {
+    const reader = await openAppTreeReader('discord', (appName: string, tier: DesktopAccessTier) => {
       checked.push([appName, tier])
     })
     await reader.readTree()
@@ -78,7 +83,7 @@ describe('openAppTreeReader — the identity it re-authorizes against', () => {
     // The property the per-read check exists for. Holding the wake open must
     // not mean holding the authorization open.
     let revoked = false
-    const reader = await openAppTreeReader('discord', (appName) => {
+    const reader = await openAppTreeReader('discord', (appName: string) => {
       if (revoked) throw new Error(`Desktop access denied for "${appName}"`)
     })
     await expect(reader.readTree()).resolves.toBe('<tree/>')
