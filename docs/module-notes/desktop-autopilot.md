@@ -330,28 +330,34 @@ must-fixes found and two fixed outright:
   and Stop routes to `root.stopDelegation` for delegated turns. When origin is unknown
   (overlay attached mid-turn) the button is **disabled** rather than guessing.
 
-> ### ⚠ OPEN DECISION for Kafi — a spawned turn CAN still self-grant under auto/bypass
+> ### ✅ SETTLED (Kafi, 2026-08-11): in auto/bypass, no card at all
 >
-> The claim "a background turn can never self-grant" does **not** hold for a delegated
-> turn, and I did not silently change the security model to make it hold.
+> The question was whether the user's auto/bypass pick transitively consents to desktop
+> reach in work they delegated during that turn. **It does.** Those modes ARE the standing
+> consent, and it carries into delegated work.
 >
-> The path: the dispatching root turn's permission mode is stamped on the job row and the
-> delegated turn runs under it. In the user's own `auto`/`bypass` the approval floor stands
-> down (`build-claude-pre-tool-use-hook.ts` — `floorStandsDown`), so
-> `request_desktop_access` runs **uncarded** and mints a standing grant with nobody
-> watching; the plan-gated authorizer then passes on that standing grant.
+> That was already the behaviour — the approval floor stands down in auto/bypass
+> (`build-claude-pre-tool-use-hook.ts`), so `request_desktop_access` ran uncarded. What was
+> *incoherent* was the envelope: a delegated turn got `display-only`, so instead of its
+> approved plan authorizing its apps **for that turn**, it had to mint **permanent**
+> `desktop_app_grants` rows to act — silently growing the user's standing-access list as a
+> side effect of one task. That contradicted the one-time-grant intent from Arc 1.
 >
-> Channel/voice turns do **not** have this hole — they default to
-> `bypass-with-behavior-gate`, where the floor holds.
+> **Now:** the delegated composer derives plan consent from the turn's own mode, through the
+> same one-home `deriveDesktopPlanConsent` the global-root sites use. Envelope and floor can
+> no longer disagree. `auto`/`bypass` → the plan authorizes for the turn, nothing persisted.
+> `ask` → the plan cards once. The interactive spawned-session turn derives from its own
+> mode too — the user is literally typing into it.
 >
-> **The question is genuinely a product one:** does the user's auto/bypass pick transitively
-> consent to desktop reach in work they delegated during that turn? Both answers defensible.
-> - *Yes* → nothing to do; correct the docs to say so plainly.
-> - *No* → needs a way to force a card for ONE tool even in auto/bypass, which is a
->   provider-level change (there is no such seam today).
+> **The floor survives where it was meant to.** A channel-origin or pre-mode job carries no
+> mode and the runner defaults it to `bypass-with-behavior-gate`, which still maps to
+> `display-only`: the plan narrates, authority comes only from standing grants, and a new
+> app parks a card. "A background turn can never self-grant" holds for genuinely unattended
+> turns — which is the case that rule was written for.
 >
-> What I did instead: made the code comment and the test name state only what is actually
-> guaranteed — that an armed **plan** is not itself an authority path.
+> The clipboard is stricter still and deliberately so: being app-less it has no
+> standing-grant door, so it refuses under `display-only` entirely rather than falling back
+> to one (see Arc 5).
 
 **2c. Rework the root lock — NOT TAKEN.** Once long desktop work runs in a spawned session it
 already escapes the lock (the global-root core is the **sole** acquirer of `runUnderRootTurnLock` —

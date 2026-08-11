@@ -128,6 +128,10 @@ export type DelegatedTurnMcpComposer = (input: {
    *  requester-override header so this turn's reports land in the chat that
    *  asked. Absent = the standing report topology. */
   requesterWorkspaceId?: string
+  /** The mode this turn runs under (stamped on the job at enqueue). Only the
+   *  desktop feature reads it, to decide how an approved plan acquires
+   *  authority. Absent = the conservative floor. */
+  permissionMode?: string
 }) => ComposedSessionMcpServers
 
 export async function buildDelegatedTurnMcpComposer(
@@ -138,7 +142,9 @@ export async function buildDelegatedTurnMcpComposer(
     '@vynel/mcp'
   )
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  const { desktopFeatureDescriptor } = await import('@vynel/desktop-control')
+  const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
+    '@vynel/desktop-control'
+  )
   return ({
     db,
     userId,
@@ -148,6 +154,7 @@ export async function buildDelegatedTurnMcpComposer(
     threadId,
     jobId,
     requesterWorkspaceId,
+    permissionMode,
   }) => {
     // The caller identity (session-comms): stamped server-side onto every
     // request this routed turn's tools make, so the report route resolves the
@@ -188,18 +195,26 @@ export async function buildDelegatedTurnMcpComposer(
     // The descriptor self-excludes when no reader was wired (off-Windows,
     // tests), so this stays safe everywhere.
     //
-    // Consent is deliberately left ABSENT ⇒ 'display-only': an armed plan
-    // NARRATES on the overlay but authorizes nothing on its own, so authority
-    // must come from a standing per-app grant.
+    // Consent is derived from THIS TURN'S mode, through the same one-home
+    // policy the global-root sites use — so the plan envelope and the approval
+    // floor can never disagree about what the turn may do.
     //
-    // ⚠ That is weaker than "a background turn can never self-grant" (Chad
-    // 2026-08-04), and the difference is deliberate-but-unsettled: a delegated
-    // turn inherits the dispatching root turn's permission mode, and in the
-    // user's own auto/bypass the approval floor stands down, so
-    // `request_desktop_access` runs uncarded and can mint a standing grant with
-    // nobody watching. Channel-driven turns do NOT have this hole — they
-    // default to `bypass-with-behavior-gate`, where the floor holds. Recorded
-    // as an open decision in `docs/module-notes/desktop-autopilot.md`.
+    // Kafi settled the fork (2026-08-11): **in auto/bypass, no card at all** —
+    // those modes ARE the standing consent, and that carries into work the user
+    // delegated during the turn. So an auto/bypass delegated turn's approved
+    // plan authorizes its own apps FOR THE TURN. That is strictly better than
+    // the alternative it replaces: with a display-only envelope the same turn
+    // still acted card-free (the floor stands down in auto/bypass), but had to
+    // mint PERMANENT `desktop_app_grants` rows to do it — silently growing the
+    // user's standing-access list as a side effect of one task. One-time
+    // authority was the original intent (Kafi, Arc 1).
+    //
+    // Everything else still falls to `display-only`: a channel-origin or
+    // pre-mode job carries no mode, the runner defaults it to
+    // `bypass-with-behavior-gate`, and there the floor HOLDS — the plan
+    // narrates, authority comes only from standing grants, and a new app parks
+    // a card. "A background turn can never self-grant" survives exactly where
+    // it was meant to.
     const desktopDescriptors = DESKTOP_CAPABLE_DELEGATED_TARGETS.has(target)
       ? [desktopFeatureDescriptor]
       : []
@@ -215,6 +230,7 @@ export async function buildDelegatedTurnMcpComposer(
             ...(desktop.enableDesktopActions !== undefined
               ? { enableDesktopActions: desktop.enableDesktopActions }
               : {}),
+            desktopPlanConsent: deriveDesktopPlanConsent(permissionMode),
           }
         : {}
 

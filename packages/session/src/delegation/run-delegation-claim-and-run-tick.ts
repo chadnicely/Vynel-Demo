@@ -126,6 +126,12 @@ export interface RunDelegationTickDeps {
      *  `report_to_requester` lands in the chat that asked, not the global
      *  root. Absent = the pre-mentions topology. */
     requesterWorkspaceId?: string
+    /** The mode this turn runs under, stamped on the job at enqueue. The
+     *  desktop feature maps it to how an approved plan acquires authority —
+     *  auto/bypass authorize the plan's apps FOR THE TURN, so a card-free
+     *  desktop task doesn't have to mint permanent grants instead. Absent
+     *  (channel origin / pre-mode job) keeps the conservative floor. */
+    permissionMode?: string
   }) => RoutedTurnMcpAttachment
   /** The GLOBAL-root notify runner for report-delivery jobs (session-comms) —
    *  the api edge binds `runGlobalRootTurn` with report attribution + steer.
@@ -426,6 +432,12 @@ export async function runDelegationClaimAndRunTick(
             // this turn land there instead of the global root.
             ...(claimed.requesterWorkspaceId !== null
               ? { requesterWorkspaceId: claimed.requesterWorkspaceId }
+              : {}),
+            // The turn's mode — the SAME value the runner passes to the
+            // provider below, so the desktop plan envelope and the approval
+            // floor can never disagree about what this turn may do.
+            ...(claimed.permissionMode !== null
+              ? { permissionMode: claimed.permissionMode }
               : {}),
           })
         : undefined

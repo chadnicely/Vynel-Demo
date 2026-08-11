@@ -111,7 +111,9 @@ export async function streamSpawnedSessionTurn(
   // vynel/plain-vs-interactive delta is left exactly as it was — this change
   // is about the desktop server only. An agent COLLEAGUE is deliberately
   // excluded, matching `DESKTOP_CAPABLE_DELEGATED_TARGETS`.
-  const { desktopFeatureDescriptor } = await import('@vynel/desktop-control')
+  const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
+    '@vynel/desktop-control'
+  )
   const desktopMcp =
     spawned.scope === 'agent'
       ? null
@@ -125,6 +127,12 @@ export async function streamSpawnedSessionTurn(
           ...(c.var.desktopActionsEnabled !== undefined
             ? { enableDesktopActions: c.var.desktopActionsEnabled }
             : {}),
+          // The user IS here on this path — it is them typing into the session
+          // — so the turn's own mode decides plan authority, exactly as it does
+          // on the global-root chat.
+          desktopPlanConsent: deriveDesktopPlanConsent(
+            toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE),
+          ),
         })
   // `desktopMcp` composes to an EMPTY attachment off-Windows (the descriptor
   // self-excludes), so merging it is a no-op there rather than a shape change.

@@ -48,6 +48,15 @@ vi.mock('@vynel/capabilities', () => ({
 // Mirrors the real descriptor's applicability gate: it excludes ITSELF when no
 // reader was wired at boot, which is what keeps composition safe off-Windows.
 vi.mock('@vynel/desktop-control', () => ({
+  // Mirrors the real one-home policy (`plan/desktop-plan-consent.ts`): ask
+  // cards, the user's own auto/bypass ARE the consent, and anything else —
+  // including the unattended default — falls to the conservative floor.
+  deriveDesktopPlanConsent: (mode?: string) =>
+    mode === 'ask'
+      ? 'approval-card'
+      : mode === 'auto' || mode === 'bypass'
+        ? 'standing-consent'
+        : 'display-only',
   desktopFeatureDescriptor: {
     serverName: 'desktop',
     build: (context: { desktopReader?: unknown; desktopPlanConsent?: string; enableDesktopActions?: boolean }) =>
@@ -181,26 +190,55 @@ describe('buildDelegatedTurnMcpComposer — desktop attachment', () => {
     expect(Object.keys(spawned.mcpServers)).not.toContain('desktop')
   })
 
-  // Pins exactly ONE property, and no more: the PLAN is not an authority path
-  // for a spawned turn. Absent consent ⇒ 'display-only' by contract, so an
-  // armed plan narrates on the overlay but authorizes nothing itself; authority
-  // must come from a standing per-app grant.
+  // Plan authority follows THIS TURN'S mode, through the same one-home policy
+  // the global-root sites use — so the envelope and the approval floor can
+  // never disagree about what the turn may do.
   //
-  // ⚠ This is NOT "a spawned turn can never self-grant". The standing-grant
-  // door is still open to it: a delegated turn inherits the dispatching root
-  // turn's permission mode, and in the user's own `auto`/`bypass` the approval
-  // floor stands down (`build-claude-pre-tool-use-hook.ts` — `floorStandsDown`),
-  // so `request_desktop_access` runs UNCARDED and grants directly. Closing that
-  // needs a way to force a card for one tool even in auto/bypass, which is a
-  // provider-level change and a product call — recorded as an open decision in
-  // `docs/module-notes/desktop-autopilot.md`. Do not widen this test's name
-  // back to the strict claim without the code to back it.
-  it('leaves plan consent ABSENT so an armed plan is not itself an authority path', async () => {
+  // Kafi settled the fork (2026-08-11): in auto/bypass, NO CARD AT ALL. Those
+  // modes are the standing consent, and it carries into work delegated during
+  // the turn. The alternative this replaced was worse, not safer: with a
+  // display-only envelope the turn still acted card-free (the floor stands down
+  // in auto/bypass) but had to mint PERMANENT grant rows to do it.
+  const consentOf = (composed: { mcpServers: Record<string, unknown> }) =>
+    (composed.mcpServers['desktop'] as { planConsent?: string }).planConsent
+
+  it.each([
+    { mode: 'auto', consent: 'standing-consent' },
+    { mode: 'bypass', consent: 'standing-consent' },
+    { mode: 'ask', consent: 'approval-card' },
+  ])('a $mode turn gets $consent — the plan authorizes for the turn, no permanent grant', async ({
+    mode,
+    consent,
+  }) => {
     const { appRequest } = makeSpyAppRequest()
     const compose = await buildDelegatedTurnMcpComposer(appRequest, desktopWired)
-    const spawned = compose({ ...target, target: 'spawned-session', targetPrimarySessionId: 'sp-1' })
-    const desktopServer = spawned.mcpServers['desktop'] as { planConsent?: string }
-    expect(desktopServer.planConsent).toBeUndefined()
+    const spawned = compose({
+      ...target,
+      target: 'spawned-session',
+      targetPrimarySessionId: 'sp-1',
+      permissionMode: mode,
+    })
+    expect(consentOf(spawned)).toBe(consent)
+  })
+
+  // The floor that survives the settlement. A channel-origin or pre-mode job
+  // carries NO mode; the runner defaults it to `bypass-with-behavior-gate`,
+  // where the approval floor holds. There the plan narrates but grants nothing,
+  // so "a background turn can never self-grant" stays true exactly where it was
+  // meant to.
+  it.each([
+    { label: 'no mode at all (channel origin / pre-mode job)', mode: undefined },
+    { label: 'the unattended behaviour-gated default', mode: 'bypass-with-behavior-gate' },
+  ])('$label falls to display-only — narrates, authorizes nothing', async ({ mode }) => {
+    const { appRequest } = makeSpyAppRequest()
+    const compose = await buildDelegatedTurnMcpComposer(appRequest, desktopWired)
+    const spawned = compose({
+      ...target,
+      target: 'spawned-session',
+      targetPrimarySessionId: 'sp-1',
+      ...(mode !== undefined ? { permissionMode: mode } : {}),
+    })
+    expect(consentOf(spawned)).toBe('display-only')
   })
 
   it('carries the boot actions flag through', async () => {
