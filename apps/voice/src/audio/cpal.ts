@@ -24,9 +24,27 @@ export interface CpalDevice {
   name?: string
 }
 
+// Enumeration shapes probed live 2026-08-11 (v0.1.1, Windows/WASAPI): hosts
+// carry `id` — NOT `hostId` — while devices carry `hostId`. On WASAPI a
+// device's `deviceId` equals its `name`; treat it as opaque anyway.
+export interface CpalHost {
+  id: string
+  name: string
+}
+
+export interface CpalEnumeratedDevice {
+  name: string
+  deviceId: string
+  hostId: string
+  isDefaultInput: boolean
+  isDefaultOutput: boolean
+}
+
 export type CpalStreamHandle = unknown
 
 interface CpalNative {
+  getHosts(): CpalHost[]
+  getDevices(hostId?: string): CpalEnumeratedDevice[]
   getDefaultInputDevice(): CpalDevice
   getDefaultOutputDevice(): CpalDevice
   getDefaultInputConfig(deviceId: string): CpalStreamConfig

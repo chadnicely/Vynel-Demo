@@ -27,6 +27,13 @@ export const EnvSchema = z.object({
   VYNEL_VOICE_STT: z.enum(['moonshine-tiny', 'moonshine-base']).default('moonshine-base'),
   // Speaker id for multi-voice models (Kokoro: 0-10).
   VYNEL_VOICE_ID: z.coerce.number().int().min(0).default(0),
+  // Optional explicit audio devices — exact names as node-cpal enumerates them
+  // (e.g. "CABLE Output (VB-Audio Virtual Cable)"). Unset = the system default
+  // device, exactly today's behavior. A name that doesn't resolve logs an
+  // actionable error and falls back to the default rather than crashing — an
+  // uninstalled cable must not take the daemon down.
+  VYNEL_VOICE_INPUT_DEVICE: z.string().min(1).optional(),
+  VYNEL_VOICE_OUTPUT_DEVICE: z.string().min(1).optional(),
   // Silence (ms) in an active conversation before falling back asleep.
   VYNEL_VOICE_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   // Loopback port for the browser Jarvis-view channel (SSE wake/state events).

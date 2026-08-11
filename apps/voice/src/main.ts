@@ -17,6 +17,8 @@ import {
 } from './models.js'
 import { createBrainClient } from './brain/run-brain-turn.js'
 import { createAudioShell } from './audio/audio-shell.js'
+import { cpal } from './audio/cpal.js'
+import { resolveAudioDevices } from './audio/device-selection.js'
 import { encodeWav } from './audio/wav-encode.js'
 import { startOverlayChannel } from './overlay/overlay-channel.js'
 import { createJarvisWindow } from './overlay/jarvis-window.js'
@@ -55,7 +57,12 @@ function main(): void {
   // audioShell + overlay need driver callbacks, and the driver needs both of
   // them — so build them first with a late-bound driver reference.
   let driver!: VoiceSessionDriver
-  const audioShell = createAudioShell(logger, () => driver.notifyPlaybackDrained())
+  const audioDevices = resolveAudioDevices(
+    logger,
+    { inputName: env.VYNEL_VOICE_INPUT_DEVICE, outputName: env.VYNEL_VOICE_OUTPUT_DEVICE },
+    () => cpal.getDevices(),
+  )
+  const audioShell = createAudioShell(logger, () => driver.notifyPlaybackDrained(), audioDevices)
   const jarvisEnabled = env.VYNEL_VOICE_JARVIS_WINDOW === '1'
   const overlay = startOverlayChannel(
     env.VYNEL_VOICE_DAEMON_PORT,

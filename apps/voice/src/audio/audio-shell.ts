@@ -2,6 +2,7 @@ import type { Logger } from 'pino'
 import type { PcmAudio } from '@vynel/voice-engine'
 import type { VoiceSessionIo, VoiceSessionState } from '../loop/voice-session-types.js'
 import { cpal, type CpalStreamHandle } from './cpal.js'
+import { selectDeviceConfig, type AudioDeviceSelection } from './device-selection.js'
 import { downmixToMono, monoToChannels, resampleLinear } from './audio-format.js'
 
 // The native audio shell: opens the default mic + speaker via node-cpal and
@@ -28,11 +29,25 @@ export interface AudioShell {
   stop(): void
 }
 
-export function createAudioShell(logger: Logger, onPlaybackDrained: () => void): AudioShell {
-  const inputDevice = cpal.getDefaultInputDevice()
-  const inputConfig = cpal.getDefaultInputConfig(inputDevice.deviceId)
-  const outputDevice = cpal.getDefaultOutputDevice()
-  const outputConfig = cpal.getDefaultOutputConfig(outputDevice.deviceId)
+export function createAudioShell(
+  logger: Logger,
+  onPlaybackDrained: () => void,
+  devices: AudioDeviceSelection = {},
+): AudioShell {
+  const { device: inputDevice, config: inputConfig } = selectDeviceConfig(
+    logger,
+    'input',
+    devices.input,
+    () => cpal.getDefaultInputDevice(),
+    (deviceId) => cpal.getDefaultInputConfig(deviceId),
+  )
+  const { device: outputDevice, config: outputConfig } = selectDeviceConfig(
+    logger,
+    'output',
+    devices.output,
+    () => cpal.getDefaultOutputDevice(),
+    (deviceId) => cpal.getDefaultOutputConfig(deviceId),
+  )
   logger.info(
     { inputDevice: inputDevice.name, input: inputConfig, outputDevice: outputDevice.name, output: outputConfig },
     'audio devices opened',

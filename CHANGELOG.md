@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Choose which microphone and speaker Vynel's voice uses.** Until now the
+  voice assistant always used your system-default devices. You can now point
+  it at a specific microphone or speaker by name — the first building block
+  for letting Vynel join meetings through a virtual audio cable. If a named
+  device isn't there (say the cable isn't installed yet), Vynel says so
+  plainly and falls back to the default instead of failing to start.
+
 - **Claude can open an app that isn't running.** Ask for something in an app
   you don't have open and Claude can now find it among your installed
   programs, start it, and wait for its window before carrying on — so "open
