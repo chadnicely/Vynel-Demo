@@ -28,6 +28,7 @@ import type {
   AttachedImageMetadata,
 } from '../repositories/index.js'
 import type { AiAgentProviderId, NormalizedSessionEvent } from '@vynel/providers'
+import { toolOutputForStorage } from '@vynel/contracts/chat/unpersisted-tool-output'
 import { generateSessionTitle } from './generate-session-title.js'
 import {
   ensureAssistantMessageRow,
@@ -182,6 +183,9 @@ export async function* consumeSessionEventStream(
   // Per-turn caches (coding §1.4) — fresh per call; GC'd when generator exits.
   const assistantMessageByMessageId = new Map<string, ChatMessage>()
   const toolCallByToolUseId = new Map<string, string /* dbId */>()
+  // The completion event carries no tool name, but whether an output may be
+  // PERSISTED depends on which tool produced it (see `toolOutputForStorage`).
+  const toolNameByToolUseId = new Map<string, string>()
   // Approval decisions keyed by the gated call's tool_use id — stamps the row
   // whichever side arrives first (resolve-then-insert or insert-then-resolve),
   // and keeps a DENIED row from being overwritten 'failed' by the SDK's
@@ -322,6 +326,7 @@ export async function* consumeSessionEventStream(
             completedAt: null,
           })
           toolCallByToolUseId.set(event.toolUseId, toolCall.id)
+          toolNameByToolUseId.set(event.toolUseId, event.toolName)
           yield { kind: 'tool-call-started', toolCall }
           break
         }
@@ -355,8 +360,15 @@ export async function* consumeSessionEventStream(
           // failure — the row keeps 'denied' (the trust card must say the user
           // refused it, not that it broke).
           const wasDenied = approvalStatusByToolUseId.get(event.toolUseId) === 'denied'
+          // A few tools' output must not outlive the turn — read_clipboard's
+          // output IS the clipboard's plaintext, which is where a password
+          // manager leaves things seconds earlier. The model still saw the real
+          // value live; only the durable copy becomes a placeholder.
           const updated = chatRepository.updateChatToolCall(db, dbId, {
-            toolOutput: event.output,
+            toolOutput: toolOutputForStorage(
+              toolNameByToolUseId.get(event.toolUseId) ?? '',
+              event.output,
+            ),
             status: wasDenied ? 'denied' : event.isError ? 'failed' : 'completed',
             isErrorResult: event.isError,
             completedAt: event.completedAt,

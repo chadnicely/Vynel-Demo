@@ -49,8 +49,9 @@ export function toLogicalExtent(physical: number, scaleFactor: number): number {
 }
 
 /** Read one native monitor into a plain snapshot. Every field is a METHOD on the
- *  binding (the `readWindow` precedent), and each is called defensively so a
- *  shape surprise degrades one field rather than throwing out of the listing. */
+ *  binding (the `readWindow` precedent). The coercions guard the VALUE, not the
+ *  call — a binding missing a method still throws, which `listMonitors` handles
+ *  by failing the whole listing rather than reporting a phantom screen. */
 export function readMonitor(monitor: NativeMonitor): MonitorInfo {
   const scaleFactor = Number(monitor.scaleFactor())
   const safeScale = Number.isFinite(scaleFactor) && scaleFactor > 0 ? scaleFactor : 1

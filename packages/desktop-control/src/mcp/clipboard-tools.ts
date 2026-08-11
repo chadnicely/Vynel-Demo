@@ -2,19 +2,26 @@
 // there", which re-typing through synthetic keystrokes does badly (slow, and it
 // mangles formatting, unicode, and newlines that submit forms).
 //
-// BOTH are plan-gated, including the READ. The clipboard is global rather than
-// app-scoped, so the per-app grant model has nothing to check it against — a
-// grant for Notepad says nothing about the password the user copied out of
-// their password manager ten seconds ago. Gating both behind the turn's armed
-// plan means the approval card names "read the clipboard" before it happens.
-// (This is also why they register only when desktop actions are enabled.)
+// BOTH are gated the same way, including the READ. The clipboard is global
+// rather than app-scoped, so the per-app grant model has nothing to check it
+// against — a grant for Notepad says nothing about the password the user copied
+// out of their password manager ten seconds ago.
+//
+// That absence is why the gate is `unattendedRefusalError`, NOT the plain
+// `planRequiredError` the app-directed act tools use: with no app there is no
+// second door, so `isArmed()` alone would be the whole authorization — and the
+// model arms the envelope itself (propose_desktop_plan cards in ask mode only).
+// An unattended turn would have opened the clipboard with no card, no grant,
+// and nobody at the machine to see the overlay say so. So these additionally
+// require the envelope to carry real consent; under `display-only` they refuse.
+// (They also register only when desktop actions are enabled.)
 
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
 import { readClipboard, writeClipboard } from '../input/clipboard.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
-import { planRequiredError } from '../plan/plan-gated-authorization.js'
+import { unattendedRefusalError } from '../plan/plan-gated-authorization.js'
 
 const READ_DESCRIPTION =
   'Read the text currently on the system clipboard. Requires a plan (propose_desktop_plan). ' +
@@ -36,7 +43,7 @@ export function makeReadClipboardTool(envelope: DesktopPlanEnvelope): unknown {
     READ_DESCRIPTION,
     {},
     async () => {
-      const planRefusal = planRequiredError(envelope)
+      const planRefusal = unattendedRefusalError(envelope)
       if (planRefusal !== null) {
         return { content: [{ type: 'text', text: planRefusal }], isError: true }
       }
@@ -56,8 +63,10 @@ export function makeReadClipboardTool(envelope: DesktopPlanEnvelope): unknown {
         }
       }
     },
-    // NOT readOnlyHint: it reads global state that may be private, and the
-    // hint is what would let it slip past the approval surfaces.
+    // Deliberately NOT readOnlyHint — it reads global state that may be
+    // private, so it is not "read-only" in the sense that matters. The real
+    // gate is `unattendedRefusalError` above; the annotation only speaks to
+    // generic MCP clients (Vynel's own approval path is name-list driven).
     { annotations: { destructiveHint: false } },
   )
 }
@@ -70,7 +79,7 @@ export function makeWriteClipboardTool(envelope: DesktopPlanEnvelope): unknown {
       text: z.string().describe('The text to place on the clipboard.'),
     },
     async (args: Record<string, unknown>) => {
-      const planRefusal = planRequiredError(envelope)
+      const planRefusal = unattendedRefusalError(envelope)
       if (planRefusal !== null) {
         return { content: [{ type: 'text', text: planRefusal }], isError: true }
       }

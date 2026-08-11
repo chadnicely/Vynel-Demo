@@ -24,6 +24,38 @@ export function planRequiredError(envelope: DesktopPlanEnvelope): string | null 
   return envelope.isArmed() ? null : PLAN_REQUIRED_MESSAGE
 }
 
+export const UNATTENDED_REFUSAL_MESSAGE =
+  'This reads or replaces the system clipboard, which belongs to the whole computer and can hold ' +
+  'something private (a password the user copied, a one-time code). It is only available on a turn ' +
+  'the user is present for, and this turn is running unattended, so it was refused. Work from what ' +
+  'is on screen instead (snapshot_app / screenshot_app), or tell the user this step needs them.'
+
+/**
+ * The gate for an APP-LESS action — today, the clipboard.
+ *
+ * WHY this exists separately. Every other act tool has TWO doors: the armed
+ * envelope, then `assertDesktopAccess` against a standing per-app grant. An
+ * app-less tool has no second door, so `isArmed()` would be its ENTIRE
+ * authorization — and arming is something the model does to itself:
+ * `propose_desktop_plan` cards in ask mode only, so on a channel, spawned, or
+ * scheduled turn the model proposes a plan uncarded, the envelope arms, and the
+ * clipboard opens. No card, no grant, and nobody at the machine to see the
+ * overlay say so. That is precisely the "a background turn can never self-grant"
+ * rule, and `desktop-plan-envelope.ts` already promises the unattended envelope
+ * "narrates but never grants".
+ *
+ * So an app-less action additionally requires that the envelope carry real
+ * consent: an approved card (ask), or the user's own auto/bypass. Under
+ * `display-only` it refuses. Same reasoning for the WRITE, which is its own
+ * harm — text planted on an unattended user's clipboard is pasted later in the
+ * belief that it is what they copied.
+ */
+export function unattendedRefusalError(envelope: DesktopPlanEnvelope): string | null {
+  const armed = planRequiredError(envelope)
+  if (armed !== null) return armed
+  return envelope.consent === 'display-only' ? UNATTENDED_REFUSAL_MESSAGE : null
+}
+
 /**
  * An authorizer that consults the armed plan before the standing grants.
  * Called by the execution adapters AFTER resolving the real target app, so

@@ -252,8 +252,18 @@ export async function actOnDesktop(
       // slider but never completes a drop.
       const path = buildDragPath(from, to)
       await withTimeout(mouse.setPosition(new Point(from.x, from.y)), INPUT_TIMEOUT_MS, 'move')
-      await withTimeout(mouse.pressButton(Button.LEFT), INPUT_TIMEOUT_MS, 'drag')
+      // The press is INSIDE the try, flagged before its await. `withTimeout`
+      // bounds without cancelling (see `xa11y-loader.ts`), so a press that
+      // times out may STILL have landed — pressing outside the try would leave
+      // the button down with no release path, and every later click on the
+      // user's desktop would become a drag they have to fix by hand.
+      let buttonMayBeDown = false
       try {
+        buttonMayBeDown = true
+        await withTimeout(mouse.pressButton(Button.LEFT), INPUT_TIMEOUT_MS, 'drag')
+        // A timeout here does NOT stop the native path walk — it keeps running
+        // after we move on, which is why the release below is best-effort
+        // rather than a guarantee that the gesture unwound cleanly.
         await withTimeout(
           mouse.move(path.map((step) => new Point(step.x, step.y))),
           DRAG_TIMEOUT_MS,
@@ -262,10 +272,16 @@ export async function actOnDesktop(
         // Dwell so the target registers the hover before the drop lands.
         await sleep(DROP_DWELL_MS)
       } finally {
-        // ALWAYS release. Throwing mid-drag would otherwise leave the button
-        // held down across the whole desktop — every later click becomes a
-        // drag, and the user has to fix it by hand.
-        await withTimeout(mouse.releaseButton(Button.LEFT), INPUT_TIMEOUT_MS, 'drag')
+        if (buttonMayBeDown) {
+          try {
+            await withTimeout(mouse.releaseButton(Button.LEFT), INPUT_TIMEOUT_MS, 'drag')
+          } catch {
+            // Swallowed ON PURPOSE: a throw from `finally` REPLACES the error
+            // the try was already raising, so a drag that failed for a real
+            // reason would surface as a release timeout instead — hiding the
+            // actual cause AND leaving the button down either way.
+          }
+        }
       }
       return {
         action: 'drag',

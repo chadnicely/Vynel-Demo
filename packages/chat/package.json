@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@vynel/approvals": "workspace:*",
+    "@vynel/contracts": "workspace:*",
     "@vynel/db": "workspace:*",
     "@vynel/errors": "workspace:*",
     "@vynel/logger": "workspace:*",

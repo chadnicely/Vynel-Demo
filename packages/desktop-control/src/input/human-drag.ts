@@ -47,7 +47,9 @@ export function dragStepCountFor(
   requested?: number,
 ): number {
   if (requested !== undefined && Number.isFinite(requested) && requested > 0) {
-    return Math.floor(requested)
+    // At least one — `Math.floor(0.5)` would be 0, and a zero-step path is the
+    // naive two-point jump this whole module exists to replace.
+    return Math.max(1, Math.floor(requested))
   }
   const distance = Math.hypot(to.x - from.x, to.y - from.y)
   return distance >= LONG_DRAG_DISTANCE_PX ? LONG_DRAG_STEPS : DEFAULT_DRAG_STEPS
@@ -74,21 +76,24 @@ export function buildDragPath(
   const dx = to.x - from.x
   const dy = to.y - from.y
   const distance = Math.hypot(dx, dy)
-  if (distance === 0) {
-    path.push({ x: from.x + nudge, y: from.y + nudge })
-  } else {
-    const capped = Math.min(nudge, distance)
-    path.push({
-      x: Math.round(from.x + (dx / distance) * capped),
-      y: Math.round(from.y + (dy / distance) * capped),
-    })
-  }
+  const nudged =
+    distance === 0
+      ? { x: from.x + nudge, y: from.y + nudge }
+      : {
+          x: Math.round(from.x + (dx / distance) * Math.min(nudge, distance)),
+          y: Math.round(from.y + (dy / distance) * Math.min(nudge, distance)),
+        }
+  path.push(nudged)
 
+  // Interpolate from the NUDGE, not from `from`. Restarting at `from` would
+  // walk the pointer back over the source before setting off — visibly wrong,
+  // and on a drag shorter than the nudge it overshoots the target and returns,
+  // which can drop onto whatever sits at the origin.
   for (let step = 1; step <= steps; step += 1) {
     const progress = step / steps
     path.push({
-      x: Math.round(from.x + dx * progress),
-      y: Math.round(from.y + dy * progress),
+      x: Math.round(nudged.x + (to.x - nudged.x) * progress),
+      y: Math.round(nudged.y + (to.y - nudged.y) * progress),
     })
   }
 

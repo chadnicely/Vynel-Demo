@@ -135,6 +135,47 @@ describe('actOnDesktop — access enforcement (injected probes)', () => {
     expect(authorize).not.toHaveBeenCalled()
   })
 
+  // `move` is a hover, but it still CHANGES the screen (it opens hover menus and
+  // reveals tooltips), so it must pass the same two walls as a click rather
+  // than being treated as a free read.
+  it('move is CONFINED to the named window, like a click', async () => {
+    const calls: Array<[string, DesktopAccessTier]> = []
+    await expect(
+      actOnDesktop(
+        { action: 'move', app: 'Notepad', x: 5000, y: 5000 },
+        recordingAuthorize(calls),
+        notepadProbes,
+      ),
+    ).rejects.toThrow(/OUTSIDE the "Notepad" window/)
+    expect(calls).toEqual([])
+  })
+
+  it('move authorizes the HIT-TESTED app at the click tier, not the named frame', async () => {
+    const probes: DesktopInputProbes = { ...notepadProbes, windowAppNameAt: () => 'PasswordSafe' }
+    const calls: Array<[string, DesktopAccessTier]> = []
+    await expect(
+      actOnDesktop({ action: 'move', app: 'Notepad', x: 10, y: 10 }, recordingAuthorize(calls), probes),
+    ).rejects.toThrow('DENIED:PasswordSafe:click')
+    expect(calls).toEqual([['PasswordSafe', 'click']])
+  })
+
+  it('move fails CLOSED when the target cannot be identified', async () => {
+    const probes: DesktopInputProbes = {
+      ...notepadProbes,
+      resolveTargetFrame: () => ({ frame: { offsetX: 0, offsetY: 0 }, appName: null, bounds: null }),
+      windowAppNameAt: () => null,
+    }
+    const authorize = vi.fn()
+    await expect(actOnDesktop({ action: 'move', x: 10, y: 10 }, authorize, probes)).rejects.toThrow(
+      /Could not identify the app/,
+    )
+    expect(authorize).not.toHaveBeenCalled()
+  })
+
+  it('rejects a move with missing coordinates before any native load', async () => {
+    await expect(actOnDesktop({ action: 'move', x: 10 })).rejects.toThrow(/requires a numeric "y"/)
+  })
+
   it('a drag authorizes BOTH ends (the drop can land on a different app)', async () => {
     const targets = new Map([
       ['5,5', 'Notepad'],
