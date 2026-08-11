@@ -34,14 +34,15 @@ export type ResolvedTargetFrame = {
 // coordinate space, including on a fractionally-scaled monitor. Verified on a
 // 1080x1920 @125% panel at a negative origin: window-relative points translated
 // by `translatePoint` land on target, inside the window, to within a pixel of
-// rounding (`scripts/src/desktop/probe-window-click-path.mjs`). No DPI factor
-// belongs in this path — adding one moves clicks OFF target.
+// rounding. No DPI factor belongs in this path — adding one moves clicks OFF
+// target. (Full account: `docs/module-notes/desktop-autopilot.md`, finding 1.)
 //
 // ⚠ What IS broken is nut.js's `mouse.getPosition()`, which mis-reports on a
-// scaled monitor (it returned (-648,-79) for a cursor Win32 `GetCursorPos`
-// placed at (-540,113)). Nothing here reads it, and nothing should: to check
-// where the cursor really is, ask Win32, not nut.js
-// (`scripts/src/desktop/probe-cursor-oracle.mjs` is the harness).
+// scaled monitor: it returned (-648,-79) for a cursor that Win32 `GetCursorPos`
+// confirmed was at (-540,113). Nothing here reads it, and nothing should.
+// To check where the cursor really is, ask Win32 from a per-monitor-DPI-aware
+// process — never nut.js. Judging `setPosition` with `getPosition` is what
+// manufactured the phantom DPI bug this comment used to describe.
 function resolveFrame(app: string | undefined): ResolvedTargetFrame {
   if (app === undefined || app.trim().length === 0) {
     return { frame: { offsetX: 0, offsetY: 0 }, appName: null, bounds: null }
