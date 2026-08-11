@@ -92,8 +92,14 @@ export function presentDesktopToolCall(
 ): ToolCallPresentation | null {
   if (!toolName.startsWith(DESKTOP_TOOL_PREFIX)) return null;
   const shortName = toolName.slice(DESKTOP_TOOL_PREFIX.length);
+  // Both null AND undefined render as empty — stringifying either would put a
+  // literal "null"/"undefined" in the card body.
   const outputText =
-    typeof toolOutput === "string" ? toolOutput : toolOutput == null ? "" : JSON.stringify(toolOutput, null, 2);
+    typeof toolOutput === "string"
+      ? toolOutput
+      : toolOutput === null || toolOutput === undefined
+        ? ""
+        : JSON.stringify(toolOutput, null, 2);
   const body = { kind: "text" as const, text: outputText };
   switch (shortName) {
     case "list_open_apps":

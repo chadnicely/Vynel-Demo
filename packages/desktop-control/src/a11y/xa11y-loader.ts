@@ -5,12 +5,14 @@
 //
 // xa11y is a native CJS module. It is loaded LAZILY via `createRequire` on the
 // first desktop op — so merely importing this module (in tests, or on a
-// platform without the prebuilt binary) never pulls the native binary. The type
-// comes from `typeof import(...)`, which is erased at compile time (no load).
+// platform without the prebuilt binary) never pulls the native binary. The
+// module SHAPE comes from an `import type` namespace, which is erased at
+// compile time — a value import here would defeat the whole lazy load.
 
 import { createRequire } from 'node:module'
+import type * as Xa11y from '@crowecawcaw/xa11y'
 
-export type Xa11yModule = typeof import('@crowecawcaw/xa11y')
+export type Xa11yModule = typeof Xa11y
 
 // The native xa11y App instance (what App.find / App.byPid resolve to). Its
 // shipped .d.ts omits `dump`/`tree` (present at runtime); cast where used.
