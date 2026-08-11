@@ -275,12 +275,106 @@ describe("applyDesktopActivityEvent — who is driving (Stop targeting)", () => 
     expect(isDesktopOverlayVisible(state, Date.now())).toBe(false);
   });
 
-  it("ignores a turn-started for a DIFFERENT turn than the one being tracked", () => {
+  it("keeps following the turn doing DESKTOP work when another turn starts", () => {
     const state = fold([
       turnStarted({ origin: "delegation", partialSessionId: "ps-9" }),
       desktopStep("a"),
       turnStarted({ turnId: "t2", origin: "web" }),
     ]);
     expect(state.trackedTurn).toMatchObject({ turnId: "t1", origin: "delegation" });
+  });
+});
+
+// The three symptoms Kafi hit live (2026-08-11), all one root cause: an earlier
+// version set `trackedTurn` straight from `turn-started` and ignored later ones,
+// so the fold latched onto the FIRST turn it ever saw — and `turn-started` fires
+// for every turn, including the many that never touch the desktop.
+describe("following the right turn (the live overlay bugs)", () => {
+  function turnStarted(overrides: Record<string, unknown> = {}) {
+    return {
+      kind: "turn-started",
+      turnId: "t1",
+      scopeKind: "global",
+      workspaceId: null,
+      sessionId: null,
+      origin: "web",
+      startedAt: new Date().toISOString(),
+      ...overrides,
+    } as never;
+  }
+  const stepOn = (turnId: string, toolUseId: string) =>
+    ({
+      kind: "turn-tool-started" as const,
+      turnId,
+      toolUseId,
+      toolName: "mcp__desktop__snapshot_app",
+      toolInput: { app: "Discord" },
+    }) as never;
+
+  // BUG B: Stop sat disabled. A plain chat turn started first, the fold latched
+  // onto it, and the real desktop step then arrived under a different turnId
+  // with origin null — which is exactly what disables the button.
+  it("resolves origin for the desktop turn even when an unrelated turn started first", () => {
+    const state = fold([
+      turnStarted({ turnId: "chat-turn", origin: "web" }),
+      turnStarted({ turnId: "desk-turn", origin: "delegation", partialSessionId: "ps-7" }),
+      stepOn("desk-turn", "a"),
+    ]);
+    expect(state.trackedTurn).toMatchObject({
+      turnId: "desk-turn",
+      origin: "delegation",
+      partialSessionId: "ps-7",
+    });
+  });
+
+  // BUG C: a NEW desktop task showed the PREVIOUS task's steps and plan.
+  it("starts clean when a different turn takes over the desktop", () => {
+    const first = fold([
+      turnStarted({ turnId: "old", origin: "web" }),
+      stepOn("old", "a"),
+      { kind: "turn-tool-settled", turnId: "old", toolUseId: "a", status: "completed" } as never,
+    ]);
+    expect(first.steps).toHaveLength(1);
+
+    const second = applyDesktopActivityEvent(first, stepOn("new", "b"), T0);
+    expect(second.trackedTurn?.turnId).toBe("new");
+    expect(second.steps).toHaveLength(1);
+    expect(second.steps[0]?.toolUseId).toBe("b");
+    expect(second.activePlan).toBeNull();
+  });
+
+  // BUG A: Stop in the CHAT ended the turn, but the overlay stayed up because
+  // the tracked turn was a stale one that never received a turn-ended.
+  it("hides when the turn actually doing desktop work ends", () => {
+    const state = fold([
+      turnStarted({ turnId: "chat-turn", origin: "web" }),
+      turnStarted({ turnId: "desk-turn", origin: "web" }),
+      stepOn("desk-turn", "a"),
+    ]);
+    expect(isDesktopOverlayVisible(state, T0)).toBe(true);
+
+    const ended = applyDesktopActivityEvent(
+      state,
+      { kind: "turn-ended", turnId: "desk-turn", sessionId: null },
+      T0,
+    );
+    expect(ended.trackedTurn).toBeNull();
+    expect(isDesktopOverlayVisible(ended, T0)).toBe(false);
+  });
+
+  it("a turn-started alone still never reveals the overlay", () => {
+    const state = fold([turnStarted({ turnId: "chat-turn" }), turnStarted({ turnId: "other" })]);
+    expect(isDesktopOverlayVisible(state, T0)).toBe(false);
+    expect(state.trackedTurn).toBeNull();
+  });
+
+  it("bounds the remembered-turn lookup — every turn publishes turn-started", () => {
+    const many = Array.from({ length: 60 }, (_, index) =>
+      turnStarted({ turnId: `t-${index}`, origin: "web" }),
+    );
+    const state = fold(many);
+    expect(Object.keys(state.knownTurns).length).toBeLessThanOrEqual(24);
+    // The most recent survive — those are the ones a step could still name.
+    expect(state.knownTurns["t-59"]).toBeDefined();
   });
 });

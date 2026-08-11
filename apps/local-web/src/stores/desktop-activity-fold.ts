@@ -47,9 +47,20 @@ export interface TrackedDesktopTurn {
   partialSessionId: string | null;
 }
 
+/** What a `turn-started` frame told us about one turn, kept until that turn
+ *  ends. A LOOKUP, not the tracked turn — see `rememberTurn`. */
+export type KnownTurn = Omit<TrackedDesktopTurn, "turnId">;
+
+/** How many turns' metadata to retain. Every turn publishes `turn-started`,
+ *  including ones that never touch the desktop, so this is bounded. */
+const KNOWN_TURN_LIMIT = 24;
+
 export interface DesktopActivityState {
   /** The turn currently driving desktop steps — Stop targets it. */
   trackedTurn: TrackedDesktopTurn | null;
+  /** Metadata for turns we've seen start, keyed by turnId. Populated by
+   *  `turn-started`; READ when a desktop step tells us which turn matters. */
+  knownTurns: Record<string, KnownTurn>;
   /** Newest last, capped — the overlay shows the current + a few settled. */
   steps: DesktopStep[];
   /** Pending desktop approvals (bells; the approvals API owns the state). */
@@ -64,6 +75,7 @@ export interface DesktopActivityState {
 export function emptyDesktopActivity(): DesktopActivityState {
   return {
     trackedTurn: null,
+    knownTurns: {},
     steps: [],
     pendingApprovalIds: [],
     lastActivityAtMs: null,
@@ -84,15 +96,46 @@ export function isControllingDesktop(state: DesktopActivityState): boolean {
   return state.activePlan !== null;
 }
 
+/** Record what a `turn-started` frame said, bounded. */
+function rememberTurn(
+  knownTurns: DesktopActivityState["knownTurns"],
+  turnId: string,
+  meta: KnownTurn,
+): DesktopActivityState["knownTurns"] {
+  const next = { ...knownTurns, [turnId]: meta };
+  const ids = Object.keys(next);
+  // Insertion order is preserved for string keys, so the first is the oldest.
+  if (ids.length > KNOWN_TURN_LIMIT) delete next[ids[0]!];
+  return next;
+}
+
+/**
+ * Which turn the overlay is following, resolved from the DESKTOP step that just
+ * arrived — never from `turn-started`.
+ *
+ * WHY the distinction is the whole bug (live, 2026-08-11). `turn-started` fires
+ * for EVERY turn, including the many that never touch the desktop. An earlier
+ * version set `trackedTurn` straight from it and ignored later ones, so the
+ * fold latched onto the first turn it ever saw — typically a plain chat turn.
+ * From then on: the real desktop step arrived under a different turnId and got
+ * `origin: null`, which disabled Stop; the old turn's steps never cleared, so a
+ * NEW desktop task showed the PREVIOUS one's narration; and `turn-ended` for the
+ * real turn never matched, so the overlay wouldn't go away.
+ *
+ * The step decides who is tracked; `turn-started` only supplies the details.
+ */
 function trackTurn(state: DesktopActivityState, turnId: string): TrackedDesktopTurn {
-  // Steps carry only a turnId. A turn we saw START (see the 'turn-started' case)
-  // keeps everything we learned there; otherwise we know nothing beyond the id —
-  // and `origin: null` is what makes Stop refuse to guess (it must not fire the
-  // ROOT interrupt at a delegated turn, which would kill an unrelated turn and
-  // still report success).
-  return state.trackedTurn?.turnId === turnId
-    ? state.trackedTurn
-    : { turnId, scopeKind: "global", origin: null, partialSessionId: null };
+  if (state.trackedTurn?.turnId === turnId) return state.trackedTurn;
+  const known = state.knownTurns[turnId];
+  return {
+    turnId,
+    scopeKind: known?.scopeKind ?? "global",
+    // Null only when we never saw this turn start — Stop then refuses rather
+    // than guessing, because firing the ROOT interrupt at a delegated turn
+    // kills an unrelated turn and still reports success.
+    origin: known?.origin ?? null,
+    partialSessionId: known?.partialSessionId ?? null,
+  };
 }
 
 /** Fold one feed event. Returns the same reference when nothing changed. */
@@ -110,17 +153,25 @@ export function applyDesktopActivityEvent(
         toolInput: "toolInput" in event ? event.toolInput : undefined,
         status: "running",
       };
+      // A DIFFERENT turn is now driving the desktop, so everything on screen
+      // belongs to the previous one — start clean rather than appending. Not
+      // doing this showed a new desktop task under the OLD task's narration and
+      // its approved plan (live, 2026-08-11).
+      const isNewTurn = state.trackedTurn !== null && state.trackedTurn.turnId !== event.turnId;
+      const carried = isNewTurn
+        ? { ...emptyDesktopActivity(), knownTurns: state.knownTurns }
+        : state;
       // Cap by evicting the oldest SETTLED step first — evicting a running one
       // would drop it from the visibility check and orphan its later settle
       // (the overlay could hide mid-operation).
-      const steps = [...state.steps, step];
+      const steps = [...carried.steps, step];
       if (steps.length > RECENT_STEP_LIMIT) {
         const evictIndex = steps.findIndex((candidate) => candidate.status !== "running");
         steps.splice(evictIndex === -1 ? 0 : evictIndex, 1);
       }
       return {
-        ...state,
-        trackedTurn: trackTurn(state, event.turnId),
+        ...carried,
+        trackedTurn: trackTurn(carried, event.turnId),
         steps,
         lastActivityAtMs: nowMs,
       };
@@ -166,30 +217,45 @@ export function applyDesktopActivityEvent(
         ),
       };
     }
-    case "turn-started":
-      // Learn WHO is driving, so Stop can address the right turn. Desktop work
-      // no longer rides only the global root — a spawned session drives it in
-      // the background (desktop-autopilot), and that turn is stopped through a
-      // different route entirely. Recorded for EVERY turn, since the desktop
-      // step that reveals the overlay may arrive later.
-      //
-      // No visibility change: this frame alone must never surface the overlay
-      // (a plain chat turn publishes one too) — only a desktop STEP does.
-      if (state.trackedTurn !== null && state.trackedTurn.turnId !== event.turnId) return state;
-      return {
-        ...state,
-        trackedTurn: {
-          turnId: event.turnId,
-          scopeKind: event.scopeKind,
-          origin: event.origin,
-          partialSessionId: event.partialSessionId ?? null,
-        },
+    case "turn-started": {
+      // Learn WHO is driving, so Stop can address the right turn — a spawned
+      // session's desktop work is stopped through a different route than the
+      // root's. This only REMEMBERS; it never decides what the overlay follows,
+      // because every turn publishes one of these and most never touch the
+      // desktop. Also no visibility change: only a desktop STEP reveals the
+      // overlay.
+      const meta: KnownTurn = {
+        scopeKind: event.scopeKind,
+        origin: event.origin,
+        partialSessionId: event.partialSessionId ?? null,
       };
-    case "turn-ended":
+      const knownTurns = rememberTurn(state.knownTurns, event.turnId, meta);
+      // If this IS the turn already being followed (the feed replays
+      // `turn-started` when a client attaches mid-turn), fill in what we
+      // previously had to guess.
+      return state.trackedTurn?.turnId === event.turnId
+        ? { ...state, knownTurns, trackedTurn: { turnId: event.turnId, ...meta } }
+        : { ...state, knownTurns };
+    }
+    case "turn-ended": {
+      const wasKnown = event.turnId in state.knownTurns;
+      const isTracked = state.trackedTurn?.turnId === event.turnId;
+      // Unrelated turns end constantly (every chat turn publishes one). Keep
+      // the SAME reference when nothing about the overlay changed — the store
+      // hands this straight to Vue, and a fresh object per event would rerender
+      // for turns that have nothing to do with the desktop.
+      if (!wasKnown && !isTracked) return state;
+      // Drop the ended turn's metadata whether or not it was the tracked one,
+      // so the lookup follows the turns that actually exist.
+      const knownTurns = { ...state.knownTurns };
+      delete knownTurns[event.turnId];
       // The tracked turn finished — stale narration must not float over the
-      // desktop; the overlay hides immediately.
-      if (state.trackedTurn?.turnId !== event.turnId) return state;
-      return emptyDesktopActivity();
+      // desktop; the overlay hides immediately. This is also what makes the
+      // chat's own Stop clear the overlay: interrupting the turn ends it.
+      return isTracked
+        ? { ...emptyDesktopActivity(), knownTurns }
+        : { ...state, knownTurns };
+    }
     default:
       return state;
   }
