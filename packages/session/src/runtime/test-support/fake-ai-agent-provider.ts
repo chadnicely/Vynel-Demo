@@ -37,6 +37,14 @@ export type FakeAiAgentProviderOptions = {
    * path is exercised end-to-end.
    */
   approvalToolName?: string
+  /**
+   * When set, the stream yields a `tool-use-started` + `tool-use-completed`
+   * pair for this tool before the text-chunk — so a test can assert what a turn
+   * NARRATES, not just what it returns. Added for the desktop-autopilot arc:
+   * a spawned session driving the desktop must surface its steps on the
+   * activity feed the attention overlay folds.
+   */
+  toolCallName?: string
   /** The distilled reply `summarizeReport` returns (unset/null = not supported
    *  — the tick falls open to the full report). */
   reportReply?: string | null
@@ -66,7 +74,7 @@ export class FakeAiAgentProvider extends AiAgentProvider {
   startChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
     this.options.startChatSessionInputs?.push(input)
     const sessionId = this.options.seededSessionId ?? 'sdk-seeded'
-    const { resultText, approvalToolName } = this.options
+    const { resultText, approvalToolName, toolCallName } = this.options
     const decisionArrived = this.approvalDecisionArrived
     // Unique per turn — the real SDK mints fresh message ids; a reused id would
     // make the shared consumer append a second turn's chunks to the first's row.
@@ -95,6 +103,27 @@ export class FakeAiAgentProvider extends AiAgentProvider {
           approvalRequestId: 'appr-1',
           decision,
           resolvedAt: new Date(),
+        }
+      }
+      if (toolCallName !== undefined) {
+        const toolUseId = `tu-${crypto.randomUUID()}`
+        yield {
+          kind: 'tool-use-started',
+          sessionId,
+          parentMessageId: messageId,
+          toolUseId,
+          toolName: toolCallName,
+          toolInput: {},
+          startedAt: new Date(),
+        }
+        yield {
+          kind: 'tool-use-completed',
+          sessionId,
+          parentMessageId: messageId,
+          toolUseId,
+          output: 'ok',
+          isError: false,
+          completedAt: new Date(),
         }
       }
       if (resultText !== undefined) {

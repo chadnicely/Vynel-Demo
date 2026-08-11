@@ -100,6 +100,65 @@ export async function snapshotApp(
   }
 }
 
+/** A resolved app whose tree can be read REPEATEDLY without re-resolving.
+ *  `dispose` must always be called — it releases the Electron wake. */
+export type AppTreeReader = {
+  readTree: () => Promise<string>
+  dispose: () => void
+  /** True when the app needed the Electron wake — i.e. holding it matters. */
+  viaElectronWake: boolean
+}
+
+/**
+ * Resolve an app ONCE and hold it open for repeated tree reads.
+ *
+ * WHY this exists, and why polling `snapshotApp` is not an acceptable
+ * substitute. `snapshotApp` disposes its resolution in a `finally`, so every
+ * call to it is a COLD resolve. On an Electron app that means a full wake each
+ * time: un-minimize the user's window, steal the foreground, and — when
+ * activation is refused — send a bare Alt keypress into whatever they are
+ * currently typing, plus set-then-clear the GLOBAL `SPI_SETSCREENREADER` flag.
+ * `window-focus.ts` accepts that side effect explicitly because it "fires at
+ * most once per wake"; a caller that wakes in a loop breaks the very invariant
+ * that made it acceptable. It also races itself — one poll's fire-and-forget
+ * flag clear can land after the next poll's set, leaving the flag OFF for that
+ * whole wake so Chromium never builds the tree.
+ *
+ * So a poller resolves once, reads many times, and disposes at the end.
+ * `authorize` still runs on EVERY read (a cheap sync grant lookup), so access
+ * revoked mid-poll stops the next read rather than being checked only up front.
+ */
+export async function openAppTreeReader(
+  query: string,
+  authorize?: DesktopAccessAuthorizer,
+  options: SnapshotAppOptions = {},
+): Promise<AppTreeReader> {
+  const trimmedQuery = query.trim()
+  if (trimmedQuery.length === 0) {
+    throw new Error('openAppTreeReader: an app name (or part of it) is required.')
+  }
+  const { App } = loadXa11y()
+  const resolved = await resolveAppWithFallback(App, trimmedQuery, 'read', undefined, (appName) =>
+    authorize?.(appName, 'read'),
+  )
+  const resolvedName = resolved.app.name
+  const defaultDepth = resolved.viaElectronWake
+    ? ELECTRON_SNAPSHOT_MAX_DEPTH
+    : DEFAULT_SNAPSHOT_MAX_DEPTH
+  const maxDepth = Math.min(options.maxDepth ?? defaultDepth, MAX_SNAPSHOT_MAX_DEPTH)
+  return {
+    viaElectronWake: resolved.viaElectronWake,
+    readTree: async () => {
+      // Re-checked per read, against the SAME resolved identity the wake holds.
+      authorize?.(resolvedName, 'read')
+      return withTimeout(dumpApp(resolved.app, maxDepth), SNAPSHOT_TIMEOUT_MS, 'snapshot')
+    },
+    dispose: () => {
+      resolved.dispose()
+    },
+  }
+}
+
 // The PROVEN minimal action set (each live-verified before shipping — xa11y's
 // types alone don't tell us a method actually fires). Extend deliberately, one
 // live-verified action at a time. The tool's input enum derives from this, so

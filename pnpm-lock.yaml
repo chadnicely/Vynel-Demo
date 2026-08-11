@@ -701,6 +701,9 @@ importers:
       '@vynel/approvals':
         specifier: workspace:*
         version: link:../approvals
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@vynel/db':
         specifier: workspace:*
         version: link:../db

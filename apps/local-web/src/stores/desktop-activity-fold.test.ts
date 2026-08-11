@@ -117,7 +117,15 @@ describe("applyDesktopActivityEvent", () => {
     expect(untouched).toEqual(emptyDesktopActivity());
 
     const tracked = fold([desktopStep("a")]);
-    expect(tracked.trackedTurn).toEqual({ turnId: "t1", scopeKind: "global" });
+    // origin/partialSessionId are null here BY DESIGN: a step frame alone never
+    // says who is driving, and only a `turn-started` teaches that. Stop keys on
+    // it, so "unknown" must stay unknown rather than defaulting to the root.
+    expect(tracked.trackedTurn).toEqual({
+      turnId: "t1",
+      scopeKind: "global",
+      origin: null,
+      partialSessionId: null,
+    });
     expect(tracked.steps).toHaveLength(1);
     expect(tracked.steps[0]).toMatchObject({ toolUseId: "a", status: "running" });
   });
@@ -223,5 +231,56 @@ describe("isDesktopOverlayVisible — continuous while active", () => {
 
   it("hidden when nothing desktop-related ever happened", () => {
     expect(isDesktopOverlayVisible(emptyDesktopActivity(), T0)).toBe(false);
+  });
+});
+
+// Desktop autopilot (2026-08-11): desktop work no longer rides only the global
+// root. A spawned session drives it in the background, and that turn is stopped
+// through a DIFFERENT route — so the fold must learn who is driving, and must
+// stay honest when it doesn't know.
+describe("applyDesktopActivityEvent — who is driving (Stop targeting)", () => {
+  function turnStarted(overrides: Record<string, unknown> = {}) {
+    return {
+      kind: "turn-started",
+      turnId: "t1",
+      scopeKind: "global",
+      workspaceId: null,
+      sessionId: null,
+      origin: "web",
+      startedAt: new Date().toISOString(),
+      ...overrides,
+    } as never;
+  }
+
+  it("learns a DELEGATED turn's stop handle from turn-started", () => {
+    const state = fold([
+      turnStarted({ origin: "delegation", partialSessionId: "ps-9" }),
+      desktopStep("a"),
+    ]);
+    expect(state.trackedTurn).toMatchObject({
+      turnId: "t1",
+      origin: "delegation",
+      partialSessionId: "ps-9",
+    });
+  });
+
+  it("keeps a root turn's origin so Stop uses the root interrupt", () => {
+    const state = fold([turnStarted({ origin: "web" }), desktopStep("a")]);
+    expect(state.trackedTurn).toMatchObject({ origin: "web", partialSessionId: null });
+  });
+
+  it("turn-started ALONE never reveals the overlay — only a desktop step does", () => {
+    const state = fold([turnStarted({ origin: "delegation", partialSessionId: "ps-9" })]);
+    expect(state.steps).toHaveLength(0);
+    expect(isDesktopOverlayVisible(state, Date.now())).toBe(false);
+  });
+
+  it("ignores a turn-started for a DIFFERENT turn than the one being tracked", () => {
+    const state = fold([
+      turnStarted({ origin: "delegation", partialSessionId: "ps-9" }),
+      desktopStep("a"),
+      turnStarted({ turnId: "t2", origin: "web" }),
+    ]);
+    expect(state.trackedTurn).toMatchObject({ turnId: "t1", origin: "delegation" });
   });
 });

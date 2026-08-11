@@ -35,10 +35,33 @@ describe('desktopToolFactories', () => {
       'list_desktop_notifications',
       'list_open_apps',
       'list_installed_apps',
+      // Display topology joins the ungated reads: knowing a screen EXISTS
+      // reveals nothing about what is on it.
+      'list_monitors',
       'snapshot_app',
       'screenshot_app',
+      // Read-only, so it rides the observe tier and needs no plan.
+      'wait_for',
       'request_desktop_access',
     ])
+  })
+
+  it('keeps BOTH clipboard tools behind actions — even the read', () => {
+    // The clipboard is global, not app-scoped, so the per-app authorizer has
+    // nothing to check it against; the plan envelope is its only gate. Reading
+    // it can surface a password the user copied moments ago, so the read is
+    // gated exactly like the write.
+    const observeOnly = toolNames(
+      desktopToolFactories({ reader: emptyReader, db: dbStandIn, userId: 'u' }),
+    )
+    expect(observeOnly).not.toContain('read_clipboard')
+    expect(observeOnly).not.toContain('write_clipboard')
+
+    const acting = toolNames(
+      desktopToolFactories({ reader: emptyReader, db: dbStandIn, userId: 'u', enableActions: true }),
+    )
+    expect(acting).toContain('read_clipboard')
+    expect(acting).toContain('write_clipboard')
   })
 
   it('adds the plan tool, the act tools and launch only when actions are enabled', () => {

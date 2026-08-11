@@ -63,6 +63,7 @@ import {
   type RoutedApprovalOrigin,
 } from './build-routed-approval-handler.js'
 import { traceChannelKey, type TurnEventBroadcaster } from './turn-event-broadcaster.js'
+import { publishTurnActivityStep } from '../runtime/activity-turn-steps.js'
 import type { DelegationCancelRegistry } from './delegation-cancel-registry.js'
 import type { SessionActivityFeed } from '../runtime/session-activity-feed.js'
 
@@ -125,6 +126,12 @@ export interface RunDelegationTickDeps {
      *  `report_to_requester` lands in the chat that asked, not the global
      *  root. Absent = the pre-mentions topology. */
     requesterWorkspaceId?: string
+    /** The mode this turn runs under, stamped on the job at enqueue. The
+     *  desktop feature maps it to how an approved plan acquires authority —
+     *  auto/bypass authorize the plan's apps FOR THE TURN, so a card-free
+     *  desktop task doesn't have to mint permanent grants instead. Absent
+     *  (channel origin / pre-mode job) keeps the conservative floor. */
+    permissionMode?: string
   }) => RoutedTurnMcpAttachment
   /** The GLOBAL-root notify runner for report-delivery jobs (session-comms) —
    *  the api edge binds `runGlobalRootTurn` with report attribution + steer.
@@ -426,6 +433,12 @@ export async function runDelegationClaimAndRunTick(
             ...(claimed.requesterWorkspaceId !== null
               ? { requesterWorkspaceId: claimed.requesterWorkspaceId }
               : {}),
+            // The turn's mode — the SAME value the runner passes to the
+            // provider below, so the desktop plan envelope and the approval
+            // floor can never disagree about what this turn may do.
+            ...(claimed.permissionMode !== null
+              ? { permissionMode: claimed.permissionMode }
+              : {}),
           })
         : undefined
 
@@ -448,15 +461,31 @@ export async function runDelegationClaimAndRunTick(
       // closes any attached observe stream (drained or threw alike). The same
       // broadcaster also feeds the session-keyed channel (Watch everywhere).
       ...(turnEvents !== undefined ? { turnEvents } : {}),
-      ...(turnEvents !== undefined && partialSessionId !== undefined
-        ? {
-            observer: {
-              onTurnEvent: (event: ChatTurnEvent) =>
-                turnEvents.publish(traceChannelKey(partialSessionId), event),
-              onTurnEnded: () => turnEvents.end(traceChannelKey(partialSessionId)),
-            },
+      // The observer now does TWO things, and the activity half is
+      // UNCONDITIONAL — it must not depend on anyone watching.
+      //
+      // 1. Turn steps onto the activity feed. A spawned session can now drive
+      //    the DESKTOP (`DESKTOP_CAPABLE_DELEGATED_TARGETS`), and the attention
+      //    overlay folds `mcp__desktop__*` steps off this feed. Without this the
+      //    job announces "busy" and then moves the user's mouse behind a DARK
+      //    overlay — the same class of hole the subagent mapping closed
+      //    (`activity-turn-steps.ts`): who inside a turn drives the machine is
+      //    irrelevant to whether the user gets to see it. It also closes the
+      //    recorded "delegated turns publish NO narration steps" gap.
+      // 2. Trace-channel publishing, as before — only when someone attached.
+      observer: {
+        onTurnEvent: (event: ChatTurnEvent) => {
+          publishTurnActivityStep(activityHandle, event)
+          if (turnEvents !== undefined && partialSessionId !== undefined) {
+            turnEvents.publish(traceChannelKey(partialSessionId), event)
           }
-        : {}),
+        },
+        onTurnEnded: () => {
+          if (turnEvents !== undefined && partialSessionId !== undefined) {
+            turnEvents.end(traceChannelKey(partialSessionId))
+          }
+        },
+      },
       // The stop bridge learns the RUNNING session id so a user Stop can
       // interrupt exactly this turn; the liveness feed learns it for the
       // turn-updated frame (the UI keys its thread poll on the session).

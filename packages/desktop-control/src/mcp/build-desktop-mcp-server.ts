@@ -9,9 +9,12 @@ import { createDesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makeListDesktopNotificationsTool } from './list-desktop-notifications-tool.js'
 import { makeListOpenAppsTool } from './list-open-apps-tool.js'
 import { makeListInstalledAppsTool } from './list-installed-apps-tool.js'
+import { makeListMonitorsTool } from './list-monitors-tool.js'
+import { makeReadClipboardTool, makeWriteClipboardTool } from './clipboard-tools.js'
 import { makeLaunchAppTool } from './launch-app-tool.js'
 import { makeSetWindowStateTool } from './set-window-state-tool.js'
 import { makeSnapshotAppTool } from './snapshot-app-tool.js'
+import { makeWaitForTool } from './wait-for-tool.js'
 import { makeScreenshotAppTool } from './screenshot-app-tool.js'
 import { makeActOnAppTool } from './act-on-app-tool.js'
 import { makeActOnDesktopTool } from './act-on-desktop-tool.js'
@@ -63,8 +66,14 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     makeListOpenAppsTool(readGrantedTier),
     // Names only, like list_open_apps — knowing an app exists grants nothing.
     makeListInstalledAppsTool(),
+    // Display topology. Ungated for the same reason: knowing a screen EXISTS
+    // reveals nothing about what is on it — seeing that still needs a grant.
+    makeListMonitorsTool(),
     makeSnapshotAppTool(authorize),
     makeScreenshotAppTool(authorize),
+    // Read-only, so no plan — but the text conditions read an app's content,
+    // and those enforce the same `read` tier snapshot_app does, on every poll.
+    makeWaitForTool(authorize),
     // Registered even with actions OFF — the read tools are grant-gated too,
     // so the consent path must always exist.
     makeRequestDesktopAccessTool(input.db, input.userId),
@@ -83,6 +92,12 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     // Arranging a window (maximize / minimize / restore) is a click-class
     // action — same envelope, same authorizer.
     factories.push(makeSetWindowStateTool(envelope, authorize))
+    // The clipboard is GLOBAL, not app-scoped, so the per-app authorizer has
+    // nothing to check it against — the plan envelope is its only gate, which
+    // is why even the READ lives behind `enableActions` (it can surface a
+    // password the user copied moments ago). See `clipboard-tools.ts`.
+    factories.push(makeReadClipboardTool(envelope))
+    factories.push(makeWriteClipboardTool(envelope))
   }
   return factories
 }

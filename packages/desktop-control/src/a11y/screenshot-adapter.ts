@@ -51,7 +51,26 @@ type NativeWindow = {
   height(): number
   captureImageSync(): NativeImage
 }
-type NodeScreenshotsModule = { Window: { all(): NativeWindow[] } }
+/** A display, as node-screenshots reports it. ⚠ MIXED UNITS: `x`/`y` are
+ *  virtual-desktop coordinates shared with the input engine, but `width`/
+ *  `height` are PHYSICAL pixels — on a scaled display the two differ by
+ *  `scaleFactor`. Measured 2026-08-11; see `monitors.ts`. */
+export type NativeMonitor = {
+  id(): number
+  name(): string
+  x(): number
+  y(): number
+  width(): number
+  height(): number
+  rotation(): number
+  scaleFactor(): number
+  isPrimary(): boolean
+}
+
+type NodeScreenshotsModule = {
+  Window: { all(): NativeWindow[] }
+  Monitor: { all(): NativeMonitor[] }
+}
 
 let cachedModule: NodeScreenshotsModule | undefined
 

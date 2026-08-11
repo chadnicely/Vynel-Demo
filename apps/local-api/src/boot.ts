@@ -288,7 +288,14 @@ export async function boot(): Promise<void> {
   // background set. A bare turn would strip the resumed session's deferred
   // tools ("server disconnected").
   const provider = resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
-  const composeWorkspaceMcpServers = await buildDelegatedTurnMcpComposer(appRequest)
+  // Desktop rides the delegated composer too, for the targets named in
+  // `DESKTOP_CAPABLE_DELEGATED_TARGETS` — a task handed to a spawned session is
+  // the only way desktop work runs WHILE the user does something else, since a
+  // global-root turn holds the per-user root lock for its whole duration.
+  const composeWorkspaceMcpServers = await buildDelegatedTurnMcpComposer(appRequest, {
+    desktopReader: desktopNotifications,
+    enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
+  })
   // The GLOBAL-root notify runner (session-comms): a completed delegation's
   // report runs a REAL turn on the root — the assistant absorbs the result in
   // its own flow instead of receiving a detached pushed row.

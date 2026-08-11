@@ -29,12 +29,20 @@ export type ResolvedTargetFrame = {
 // the window origin. Fails closed with an actionable error when the named app
 // isn't open (so a click never lands at a stale/absolute position by surprise).
 //
-// DPI PRECONDITION: the window origin here is in node-screenshots' PHYSICAL
-// pixels, and nut.js `setPosition` expects the OS coordinate space. These
-// coincide only at 100% display scaling; on a scaled display (125%/150%) the
-// captured image, the reported window size, and the cursor can diverge and a
-// window-relative click lands off-target. Verified coherent at 100%; a scale
-// factor is the fix if a scaled display shows drift (see `translatePoint`).
+// DISPLAY SCALING — MEASURED 2026-08-11, and the earlier worry here was wrong.
+// node-screenshots window geometry and nut.js `setPosition` DO share one
+// coordinate space, including on a fractionally-scaled monitor. Verified on a
+// 1080x1920 @125% panel at a negative origin: window-relative points translated
+// by `translatePoint` land on target, inside the window, to within a pixel of
+// rounding. No DPI factor belongs in this path — adding one moves clicks OFF
+// target. (Full account: `docs/module-notes/desktop-autopilot.md`, finding 1.)
+//
+// ⚠ What IS broken is nut.js's `mouse.getPosition()`, which mis-reports on a
+// scaled monitor: it returned (-648,-79) for a cursor that Win32 `GetCursorPos`
+// confirmed was at (-540,113). Nothing here reads it, and nothing should.
+// To check where the cursor really is, ask Win32 from a per-monitor-DPI-aware
+// process — never nut.js. Judging `setPosition` with `getPosition` is what
+// manufactured the phantom DPI bug this comment used to describe.
 function resolveFrame(app: string | undefined): ResolvedTargetFrame {
   if (app === undefined || app.trim().length === 0) {
     return { frame: { offsetX: 0, offsetY: 0 }, appName: null, bounds: null }

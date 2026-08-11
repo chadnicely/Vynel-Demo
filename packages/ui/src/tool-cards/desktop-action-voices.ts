@@ -51,6 +51,10 @@ export function describeCoordAction(
       const target = toX !== null && toY !== null ? ` to (${toX}, ${toY})` : "";
       return `${p ? "Dragging" : "Dragged"}${at}${target}${where}`;
     }
+    case "move":
+      // "Moving the pointer", not "Moving" — the user must not read this as
+      // something being moved (a file, a window).
+      return `${p ? "Moving the pointer" : "Moved the pointer"}${at}${where}`;
     default:
       return p ? "Controlling the desktop" : "Controlled the desktop";
   }

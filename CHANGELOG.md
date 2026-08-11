@@ -28,6 +28,47 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   assistant tools, and files using multi-line values are left for your code
   editor rather than risk mangling them.
 
+- **Claude waits for things properly.** When something takes a moment — a page
+  loading, a dialog opening, a file saving — Claude can now wait for it instead
+  of taking screenshot after screenshot to check. It carries on the instant the
+  thing it's waiting for happens, and if it never does, it says so and looks at
+  the screen rather than waiting again blindly. It's also been told more firmly
+  that a tool reporting success only means the action was *sent* — it has to
+  see the result before telling you something is done.
+
+- **A long run of desktop steps can't hog your computer.** While Claude is
+  part-way through a group of actions it can't be interrupted, so that group is
+  now time-limited: it stops itself, tells Claude exactly how far it got, and
+  hands control back. Stopping still isn't instant, but it can no longer be
+  ignored for minutes at a time.
+
+- **Claude can work on your computer in the background.** Hand Claude a desktop
+  task and it can now run in a session of its own while you carry on talking —
+  before, a desktop task tied up the whole assistant until it finished, so a
+  message from your phone just queued behind it. The overlay still shows every
+  step as it happens, and Stop now reaches the session actually doing the work
+  rather than the conversation you're in. Background work stays on apps you've
+  already allowed: if it needs a new one, it asks and waits.
+
+- **Copy and paste between apps.** Claude can read what you've copied and put
+  text on your clipboard, which is far more reliable than retyping — it keeps
+  formatting and can't accidentally hit Enter halfway through. Because the
+  clipboard belongs to your whole computer and might hold a password you copied
+  a moment ago, it's only available while you're there to see it, it's named
+  plainly on the overlay when it happens, and its contents are deliberately
+  never saved into your chat history.
+
+- **Claude knows about your other screens.** It can now see how many displays
+  you have, where they sit and how they're scaled, instead of assuming a single
+  screen — so asking about "my other monitor" works, and clicks land correctly
+  on a display that isn't your main one.
+
+- **Dragging things actually works.** Drag-and-drop used to jump straight from
+  one point to the other, which moves a slider but is invisible to anything
+  waiting to receive a drop. Claude now drags the way a hand does, so dropping a
+  file onto a window lands. Claude can also hover, to open menus that only
+  appear when you point at them.
+
 - **Claude can open an app that isn't running.** Ask for something in an app
   you don't have open and Claude can now find it among your installed
   programs, start it, and wait for its window before carrying on — so "open

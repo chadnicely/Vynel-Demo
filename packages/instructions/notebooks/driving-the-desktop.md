@@ -88,6 +88,45 @@ useless (some Electron, canvas, and custom-drawn apps). `screenshot_app` to
 see it, then click coordinates. Pass `app` so coordinates are relative to that
 window's screenshot, exactly as you saw it.
 
+### Moving text: use the clipboard
+
+Re-typing text you can see is slow, and it goes wrong in ways that are hard to
+spot — lost formatting, mangled accents, and a stray newline that submits the
+form before you meant to.
+
+- `ctrl+c`, then `read_clipboard` — gives you the text exactly, instead of you
+  reading it off a screenshot and hoping.
+- `write_clipboard({text})`, then `ctrl+v` — pastes long or formatted text in
+  one step.
+
+Name them in your plan; both need one. Two cautions:
+
+- The clipboard belongs to the **whole computer**. If what you read back looks
+  like a password, a card number or a one-time code, don't repeat it and don't
+  type it anywhere — tell the user you found credentials and stop.
+- Writing **replaces** whatever the user had copied. If that could matter, read
+  it first and put it back afterwards.
+
+### Files move by path, not by dragging
+
+"Drag this file into that folder" is really a filesystem operation. A file's
+location is a **path**, not a position on screen, so use file tools: instant,
+verifiable, and impossible to half-do. A dragged icon can silently fail and look
+exactly like success.
+
+Drag only when an app accepts something no other way — dropping onto a compose
+window or a media timeline. Even then, look for an **Attach** button and its file
+dialog first (`ctrl+l` in the dialog, type the path, `enter`), which is far more
+reliable. When you do drag, always look afterwards to confirm it landed.
+
+### Another screen
+
+Don't assume one screen. `list_monitors` tells you what's actually connected —
+position, size, scaling, orientation. A monitor to the left of or above the main
+one has **negative** coordinates, and those are correct, not a bug. Aim using
+the `bounds` it reports; on a scaled display (125%, 150%) those numbers differ
+from the pixel size a screenshot measures, so don't mix the two.
+
 ### The one naming trap
 
 They both have a "press" and they are **not** the same thing:
@@ -159,12 +198,32 @@ plan it (Chrome, `full`) → `list_open_apps` → `launch_app` if needed →
 the batch above → `screenshot_app` to confirm results loaded → tell the user
 what's on screen.
 
-## 6. Check that it worked
+## 6. Wait properly, then check that it worked
 
-An action isn't done because the tool returned. Look: `snapshot_app` (or
-`screenshot_app`) and confirm the thing you expected actually happened —
-the message sent, the file saved, the page loaded. Never stack a second
-unverified action on top of a first.
+**Waiting.** When something takes a moment — a page loading, a dialog opening,
+a spinner clearing, a file saving — use `wait_for`:
+
+```
+wait_for({app: "Google Chrome", until: "text_appears", text: "Results"})
+```
+
+It returns the instant the condition is true (including immediately, if it
+already was), so it's both faster and more reliable than screenshotting on a
+loop. Conditions: `text_appears` · `text_disappears` · `app_appears` ·
+`app_closes`. It's read-only, so it needs no plan.
+
+If it times out, **don't just wait again**. Look at the app and find out what
+actually happened — something needs a different step, or the user.
+
+**Checking.** An action isn't done because the tool returned; the tool returning
+means the action was *sent*. Look: `snapshot_app` (or `screenshot_app`) and
+confirm the thing you expected actually happened — the message sent, the file
+saved, the page loaded. Never stack a second unverified action on top of a
+first, and never tell the user something worked if you haven't seen it.
+
+**One note on batches.** While a batch runs the user can't interrupt it, so it
+has a time limit and will cut itself off, telling you how far it got. Don't put
+waiting inside a batch — finish the batch, then `wait_for`.
 
 ## 7. When something won't work
 

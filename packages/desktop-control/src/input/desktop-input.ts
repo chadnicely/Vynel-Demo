@@ -12,6 +12,7 @@
 
 import { loadNutInput } from './nut-input-loader.js'
 import { parseKeyCombo } from './key-combo.js'
+import { performSteppedDrag } from './human-drag.js'
 import { withTimeout } from '../a11y/xa11y-loader.js'
 import {
   authorizeFocusedTarget,
@@ -23,7 +24,14 @@ import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 export type { DesktopInputProbes, ResolvedTargetFrame, FrameBounds } from './input-authorization.js'
 
-export const DESKTOP_INPUT_ACTIONS = ['click', 'type', 'press', 'scroll', 'drag'] as const
+export const DESKTOP_INPUT_ACTIONS = [
+  'click',
+  'type',
+  'press',
+  'scroll',
+  'drag',
+  'move',
+] as const
 export type DesktopInputAction = (typeof DESKTOP_INPUT_ACTIONS)[number]
 export type MouseButton = 'left' | 'right' | 'middle'
 export type ScrollDirection = 'up' | 'down' | 'left' | 'right'
@@ -106,6 +114,7 @@ type ActionPlan =
   | { action: 'press'; keys: string }
   | { action: 'scroll'; x: number; y: number }
   | { action: 'drag'; x: number; y: number; toX: number; toY: number }
+  | { action: 'move'; x: number; y: number }
 
 export function planDesktopAction(params: ActOnDesktopParams): ActionPlan {
   switch (params.action) {
@@ -138,6 +147,12 @@ export function planDesktopAction(params: ActOnDesktopParams): ActionPlan {
         y: requireNumber(params.y, 'y', 'drag'),
         toX: requireNumber(params.toX, 'toX', 'drag'),
         toY: requireNumber(params.toY, 'toY', 'drag'),
+      }
+    case 'move':
+      return {
+        action: 'move',
+        x: requireNumber(params.x, 'x', 'move'),
+        y: requireNumber(params.y, 'y', 'move'),
       }
     default: {
       // Exhaustiveness guard — a new action MUST add a case above.
@@ -224,16 +239,25 @@ export async function actOnDesktop(
       // different app than it grabbed from).
       authorizeMouseTarget(authorize, probes, resolved, from, 'click')
       authorizeMouseTarget(authorize, probes, resolved, to, 'click')
-      const { mouse, Point } = loadNutInput()
-      await withTimeout(
-        mouse.drag([new Point(from.x, from.y), new Point(to.x, to.y)]),
-        INPUT_TIMEOUT_MS,
-        'drag',
-      )
+      // Press → threshold nudge → stepped travel → dwell → guaranteed release,
+      // rather than nut's one-jump `drag()`. The whole gesture lives in
+      // `human-drag.ts`, next to the path it walks — see there for why a jump
+      // moves a slider but never completes a drop.
+      await performSteppedDrag(from, to)
       return {
         action: 'drag',
         detail: `dragged (${from.x}, ${from.y}) → (${to.x}, ${to.y})${where}`,
       }
+    }
+    case 'move': {
+      const resolved = probes.resolveTargetFrame(params.app)
+      const point = translatePoint(resolved.frame, plan.x, plan.y)
+      // Moving the pointer is `click`-tier: it is how a hover menu opens or a
+      // tooltip appears, so it changes what is on screen.
+      authorizeMouseTarget(authorize, probes, resolved, point, 'click')
+      const { mouse, Point } = loadNutInput()
+      await withTimeout(mouse.setPosition(new Point(point.x, point.y)), INPUT_TIMEOUT_MS, 'move')
+      return { action: 'move', detail: `moved to (${point.x}, ${point.y})${where}` }
     }
   }
 }
