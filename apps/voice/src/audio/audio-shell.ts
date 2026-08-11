@@ -1,17 +1,17 @@
 import type { Logger } from 'pino'
 import type { PcmAudio } from '@vynel/voice-engine'
 import type { VoiceSessionIo, VoiceSessionState } from '../loop/voice-session-types.js'
-import { cpal, type CpalStreamHandle } from './cpal.js'
+import { cpal } from './cpal.js'
 import { selectDeviceConfig, type AudioDeviceSelection } from './device-selection.js'
-import { downmixToMono, monoToChannels, resampleLinear } from './audio-format.js'
+import { openCaptureStream, type CaptureStream } from './capture-stream.js'
+import { monoToChannels, resampleLinear } from './audio-format.js'
 
-// The native audio shell: opens the default mic + speaker via node-cpal and
-// implements the driver's `VoiceSessionIo`. Mic frames are downmixed + resampled
-// to 16 kHz mono for the models; TTS PCM is resampled + up-mixed to the speaker's
-// config. LIVE-TUNE (needs a real mic): the drain estimate below and, if the mic
-// won't open at its default config, the capture path.
+// The native audio shell: opens the selected-or-default mic + speaker via
+// node-cpal and implements the driver's `VoiceSessionIo`. Capture (downmix +
+// resample to 16 kHz) lives in capture-stream.ts — the shell opens the primary
+// 'mic' instance of it; TTS PCM is resampled + up-mixed to the speaker's config
+// here. LIVE-TUNE (needs a real mic): the drain estimate below.
 
-const CAPTURE_RATE = 16_000
 // The speaker keeps playing after the last frame is written; wait this long past
 // the estimated end before reopening the mic so the tail isn't heard by the mic.
 const PLAYBACK_TAIL_MS = 350
@@ -58,11 +58,10 @@ export function createAudioShell(
   // Output streams still need a (no-op) callback — the binding requires all args.
   const outputStream = cpal.createStream(outputDevice.deviceId, false, outputConfig, () => {})
 
-  let inputStream: CpalStreamHandle | null = null
+  let capture: CaptureStream | null = null
   let playbackStartedAt: number | null = null
   let queuedSeconds = 0
   let drainTimer: ReturnType<typeof setTimeout> | null = null
-  let lastMicLogAt = 0 // throttle the diagnostic mic-level log
   let lastRealEmitAt = 0
 
   // ~KEEPALIVE_MS of silence, in the output's own interleaved format.
@@ -108,31 +107,12 @@ export function createAudioShell(
   return {
     io,
     start(onAudio: (audio: PcmAudio) => void): void {
-      inputStream = cpal.createStream(
-        inputDevice.deviceId,
-        true,
-        inputConfig,
-        (frame: Float32Array) => {
-          const mono = downmixToMono(frame, inputConfig.channels)
-          const atCaptureRate = resampleLinear(mono, inputConfig.sampleRate, CAPTURE_RATE)
-          // Diagnostic: prove the mic is alive + carries signal (rms ~0 = silence
-          // or wrong channel extraction; rms rises when you speak). Throttled.
-          const now = performance.now()
-          if (now - lastMicLogAt > 1000) {
-            lastMicLogAt = now
-            let sumSquares = 0
-            for (const sample of atCaptureRate) sumSquares += sample * sample
-            const rms = Math.sqrt(sumSquares / Math.max(1, atCaptureRate.length))
-            logger.debug({ rms: Number(rms.toFixed(4)), frames: atCaptureRate.length }, 'mic')
-          }
-          onAudio({ samples: atCaptureRate, sampleRate: CAPTURE_RATE })
-        },
-      )
+      capture = openCaptureStream(logger, 'mic', { device: inputDevice, config: inputConfig }, onAudio)
     },
     stop(): void {
       clearInterval(keepAlive)
       if (drainTimer !== null) clearTimeout(drainTimer)
-      if (inputStream !== null) cpal.closeStream(inputStream)
+      capture?.stop()
       cpal.closeStream(outputStream)
     },
   }
