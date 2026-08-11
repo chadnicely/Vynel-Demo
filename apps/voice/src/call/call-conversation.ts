@@ -36,6 +36,7 @@ export class CallConversation {
   #turnInFlight = false
   #pendingRespond: string | null = null
   #pendingFlush = false
+  #pendingDirectLines: string[] = []
   #notes: string[] = []
   #noteFlushTimer: ReturnType<typeof setTimeout> | null = null
   #stopped = false
@@ -61,9 +62,20 @@ export class CallConversation {
     this.#deps.lineSpeaker.notifyPlaybackDrained()
   }
 
+  /** Speak a line the CONDUCTOR supplied verbatim (a global announcement, the
+   *  disclosure line at join) — FIFO, never lost, never interleaved with turn
+   *  speech: direct lines hold the same single-flight the turns do. */
+  speakDirect(text: string): void {
+    const line = text.trim()
+    if (line === '' || this.#stopped) return
+    this.#pendingDirectLines.push(line)
+    if (!this.#turnInFlight) void this.#runDirectSpeech()
+  }
+
   stop(): void {
     this.#stopped = true
     this.#segmentQueue = []
+    this.#pendingDirectLines = []
     this.#clearNoteFlushTimer()
     this.#deps.lineSpeaker.cancel()
   }
@@ -181,8 +193,27 @@ export class CallConversation {
     }
   }
 
+  async #runDirectSpeech(): Promise<void> {
+    this.#turnInFlight = true
+    try {
+      while (this.#pendingDirectLines.length > 0 && !this.#stopped) {
+        const line = this.#pendingDirectLines.shift()!
+        await this.#speak(line)
+      }
+    } finally {
+      this.#turnInFlight = false
+      this.#runPendingWork()
+    }
+  }
+
   #runPendingWork(): void {
     if (this.#stopped) return
+    // Direct lines first (rare, conductor-initiated, time-sensitive), then the
+    // latest address, then a parked note flush.
+    if (this.#pendingDirectLines.length > 0) {
+      void this.#runDirectSpeech()
+      return
+    }
     const next = this.#pendingRespond
     this.#pendingRespond = null
     if (next !== null) {

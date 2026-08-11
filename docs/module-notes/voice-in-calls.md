@@ -193,6 +193,9 @@ inventory).
 
 ## Environment notes
 
+- **Announcements are barge-in-able:** a `speak(call:<id>)` line can be CUT mid-sentence by
+  participant speech (participant mode) or an addressed utterance (notetaker) — queued lines
+  survive, the cut one is not re-queued. The start_call/speak tool descriptions should say so.
 - **Flake tripwire:** overlay-channel's `/synthesize` test flaked ONCE under full parallel load
   (2026-08-11; passed isolated + on re-runs; real-server bind timing). Second occurrence = chase
   it; fix direction is test-side (timeout / serialize that suite), not production code.

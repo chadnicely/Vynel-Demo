@@ -243,6 +243,55 @@ describe('CallConversation — notetaker mode', () => {
   })
 })
 
+describe('CallConversation — direct speech (the conductor’s voice)', () => {
+  it('speaks a direct line immediately when idle', async () => {
+    const harness = conversationHarness({ mode: 'notetaker', transcripts: {} })
+
+    harness.conversation.speakDirect('Heads up — Vynel has joined and is taking notes.')
+    await settle()
+
+    expect(harness.spokenSentences.join(' ')).toContain('has joined')
+  })
+
+  it('a direct line queued during a turn plays after it — ahead of a pending respond', async () => {
+    const harness = conversationHarness({
+      mode: 'participant',
+      transcripts: { 1: 'first question', 2: 'second question' },
+      turnReplies: [replyOf('First answer.'), replyOf('Second answer.')],
+      manualSynth: true,
+    })
+
+    harness.hear(1)
+    await settle() // turn 1's reply is mid-synthesis — turn flag held
+    harness.conversation.speakDirect('We need to wrap in five minutes.')
+    harness.hear(2) // a pending respond queues too
+    harness.releaseSynth() // finish turn 1's speech
+    await settle()
+    harness.releaseSynth() // finish the direct line
+    await settle()
+    harness.releaseSynth() // finish turn 2's reply
+    await settle()
+
+    const spoken = harness.spokenSentences
+    expect(spoken.indexOf('We need to wrap in five minutes.')).toBeGreaterThan(
+      spoken.indexOf('First answer.'),
+    )
+    expect(spoken.indexOf('We need to wrap in five minutes.')).toBeLessThan(
+      spoken.indexOf('Second answer.'),
+    )
+  })
+
+  it('direct lines are dropped once stopped', async () => {
+    const harness = conversationHarness({ mode: 'notetaker', transcripts: {} })
+
+    harness.conversation.stop()
+    harness.conversation.speakDirect('too late')
+    await settle()
+
+    expect(harness.spokenSentences).toEqual([])
+  })
+})
+
 describe('CallConversation — lifecycle', () => {
   it('a stop landing mid-transcription discards the transcript — no turn into a dead session', async () => {
     const harness = conversationHarness({

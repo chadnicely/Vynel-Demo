@@ -76,6 +76,16 @@ describe('createCallConversationHost', () => {
     expect(transcribe).not.toHaveBeenCalled()
   })
 
+  it('speakIntoCall reaches a live conversation and reports a missing one', () => {
+    const { host } = hostHarness()
+
+    expect(host.speakIntoCall('call-1', 'hello')).toBe(false) // not started yet
+    host.onCallStarted(descriptorWith({ sessionId: 'sess-1' }))
+    expect(host.speakIntoCall('call-1', 'hello')).toBe(true)
+    host.onCallEnded('call-1')
+    expect(host.speakIntoCall('call-1', 'hello')).toBe(false)
+  })
+
   it('stopAll tears every conversation down (shutdown path)', async () => {
     const { host, transcribe } = hostHarness()
 

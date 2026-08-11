@@ -138,7 +138,7 @@ function main(): void {
     // their state events + manual mic sessions but never race it for a wake.
     {
       wakeSurface: jarvisEnabled ? 'jarvis' : 'any',
-      routes: [{ path: '/calls', app: createCallEndpoints(callRegistry, logger) }],
+      routes: [{ path: '/calls', app: createCallEndpoints(callRegistry, callConversations, logger) }],
     },
   )
   overlay.whenListening.catch((error: unknown) => {

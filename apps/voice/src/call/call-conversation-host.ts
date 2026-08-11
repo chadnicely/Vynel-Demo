@@ -23,6 +23,9 @@ export interface CallConversationHostDeps {
 }
 
 export interface CallConversationHost extends CallLoopHooks {
+  /** Speak a verbatim line into one live call (the conductor's voice). False =
+   *  no such call, or it was started without a conversation. */
+  speakIntoCall(callId: string, text: string): boolean
   stopAll(): void
 }
 
@@ -73,6 +76,12 @@ export function createCallConversationHost(deps: CallConversationHostDeps): Call
     onCallEnded(callId: string): void {
       conversations.get(callId)?.stop()
       conversations.delete(callId)
+    },
+    speakIntoCall(callId: string, text: string): boolean {
+      const conversation = conversations.get(callId)
+      if (conversation === undefined) return false
+      conversation.speakDirect(text)
+      return true
     },
     stopAll(): void {
       for (const conversation of conversations.values()) conversation.stop()

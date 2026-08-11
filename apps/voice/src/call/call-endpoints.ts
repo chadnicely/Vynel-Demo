@@ -14,6 +14,11 @@ export interface CallRoster {
   listCalls(): CallDescriptor[]
 }
 
+/** The conductor's voice into a live call — the conversation host implements it. */
+export interface CallVoice {
+  speakIntoCall(callId: string, text: string): boolean
+}
+
 const STATUS_BY_KIND = {
   'not-configured': 400,
   'device-missing': 400,
@@ -21,8 +26,20 @@ const STATUS_BY_KIND = {
   'unknown-call': 404,
 } as const
 
-export function createCallEndpoints(roster: CallRoster, logger: Logger): Hono {
+export function createCallEndpoints(roster: CallRoster, voice: CallVoice, logger: Logger): Hono {
   return new Hono()
+    .post('/:callId/speak', async (c) => {
+      const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null
+      const text = typeof body?.text === 'string' ? body.text.trim() : ''
+      // The same bound as the daemon's own /speak surface.
+      if (text === '' || text.length > 2000) {
+        return c.json({ error: 'text must be a non-empty string of at most 2000 characters' }, 400)
+      }
+      if (!voice.speakIntoCall(c.req.param('callId'), text)) {
+        return c.json({ error: 'no live call with a conversation under that id' }, 404)
+      }
+      return c.json({ ok: true })
+    })
     .post('/', async (c) => {
       const body = (await c.req.json().catch(() => null)) as {
         label?: unknown

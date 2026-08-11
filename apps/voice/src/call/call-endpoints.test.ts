@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import pino from 'pino'
 import { CallRegistryError, type CallDescriptor } from './call-registry.js'
-import { createCallEndpoints, type CallRoster } from './call-endpoints.js'
+import { createCallEndpoints, type CallRoster, type CallVoice } from './call-endpoints.js'
 
 const descriptor: CallDescriptor = {
   callId: 'call-1',
@@ -19,8 +19,8 @@ function fakeRoster(overrides: Partial<CallRoster> = {}): CallRoster {
   }
 }
 
-function appWith(roster: CallRoster) {
-  return createCallEndpoints(roster, pino({ level: 'silent' }))
+function appWith(roster: CallRoster, voice: CallVoice = { speakIntoCall: vi.fn(() => true) }) {
+  return createCallEndpoints(roster, voice, pino({ level: 'silent' }))
 }
 
 function post(body?: unknown) {
@@ -117,6 +117,22 @@ describe('call endpoints', () => {
       }),
     })
     expect((await appWith(missing).request('/nope', { method: 'DELETE' })).status).toBe(404)
+  })
+
+  it('POST /:callId/speak relays the conductor’s line and 404s a dead call', async () => {
+    const speakIntoCall = vi.fn(() => true)
+    const spoken = await appWith(fakeRoster(), { speakIntoCall }).request('/call-1/speak', post({ text: ' Wrap up soon. ' }))
+    expect(spoken.status).toBe(200)
+    expect(speakIntoCall).toHaveBeenCalledWith('call-1', 'Wrap up soon.')
+
+    const dead = await appWith(fakeRoster(), { speakIntoCall: vi.fn(() => false) }).request(
+      '/gone/speak',
+      post({ text: 'anyone?' }),
+    )
+    expect(dead.status).toBe(404)
+
+    const empty = await appWith(fakeRoster()).request('/call-1/speak', post({ text: '   ' }))
+    expect(empty.status).toBe(400)
   })
 
   it('an unexpected registry failure returns a generic 500 without leaking internals', async () => {
