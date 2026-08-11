@@ -147,6 +147,10 @@ describe('makeRequestDesktopAccessTool', () => {
 })
 
 describe('listGrantableApps — canonical identity', () => {
+  // Every source injected: the defaults reach xa11y / node-screenshots /
+  // PowerShell, so an un-injected source would enumerate the real machine.
+  const noInstalled = async () => []
+
   it('maps an xa11y WINDOW TITLE through its pid to the real app name', async () => {
     // The live bug: granting from the accessibility door stored
     // "Vynel - Google Chrome", which stopped matching on the next tab switch
@@ -155,17 +159,74 @@ describe('listGrantableApps — canonical identity', () => {
       windowAppNames: () => [],
       accessibilityApps: async () => [{ name: 'Vynel - Google Chrome', pid: 77 }],
       appNameByPid: (pid) => (pid === 77 ? 'Google Chrome' : null),
+      installedApps: noInstalled,
     })
     expect(apps.map((a) => a.name)).toContain('Google Chrome')
     expect(apps.map((a) => a.name)).not.toContain('Vynel - Google Chrome')
   })
 
-  it('dedupes the two sources onto ONE entry per real app', async () => {
+  it('dedupes the sources onto ONE entry per real app', async () => {
     const apps = await listGrantableApps({
       windowAppNames: () => ['Google Chrome'],
       accessibilityApps: async () => [{ name: 'Vynel - Google Chrome', pid: 77 }],
       appNameByPid: (pid) => (pid === 77 ? 'Google Chrome' : null),
+      installedApps: noInstalled,
     })
     expect(apps.filter((a) => normalizeDesktopAppKey(a.name) === 'google chrome')).toHaveLength(1)
+  })
+
+  it('offers INSTALLED apps too, so a closed app can be granted', async () => {
+    // Without this the remote scenario dead-ends: an unattended turn can't
+    // self-grant, and the grant door refused to name anything not on screen —
+    // so "open Chrome and search YouTube" from a channel could never start.
+    const apps = await listGrantableApps({
+      windowAppNames: () => [],
+      accessibilityApps: async () => [],
+      installedApps: async () => [{ name: 'Google Chrome', appId: 'chrome.exe' }],
+    })
+    expect(apps.map((a) => a.name)).toContain('Google Chrome')
+  })
+
+  it('lets a RUNNING window win the key over its Start-menu entry', async () => {
+    // Enforcement always runs against the name the live window reports, so
+    // when the app is open THAT name must be the one granted. If the installed
+    // roster won, the grant would be keyed on a name no window ever reports.
+    const apps = await listGrantableApps({
+      windowAppNames: () => ['Discord'],
+      accessibilityApps: async () => [],
+      installedApps: async () => [{ name: 'discord.exe', appId: 'x' }],
+    })
+    const discord = apps.filter((a) => normalizeDesktopAppKey(a.name) === 'discord')
+    expect(discord).toHaveLength(1)
+    expect(discord[0]?.name).toBe('Discord')
+  })
+
+  it('still surfaces a failure only when EVERY source fails', async () => {
+    const boom = new Error('window source down')
+    await expect(
+      listGrantableApps({
+        windowAppNames: () => {
+          throw boom
+        },
+        accessibilityApps: async () => {
+          throw new Error('a11y down')
+        },
+        installedApps: async () => {
+          throw new Error('powershell down')
+        },
+      }),
+    ).rejects.toThrow(boom)
+    // One healthy source is enough — no throw.
+    await expect(
+      listGrantableApps({
+        windowAppNames: () => {
+          throw boom
+        },
+        accessibilityApps: async () => {
+          throw new Error('a11y down')
+        },
+        installedApps: async () => [{ name: 'Notepad', appId: 'n' }],
+      }),
+    ).resolves.toHaveLength(1)
   })
 })

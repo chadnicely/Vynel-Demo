@@ -13,6 +13,7 @@ import { z } from 'zod'
 import type { Database } from '@vynel/db'
 import type { McpToolFn } from './mcp-tool-fn.js'
 import { listOpenApps, isAppNameMatch, type OpenApp } from '../a11y/xa11y-adapter.js'
+import { listInstalledApps, type InstalledApp } from '../apps/installed-apps.js'
 import {
   listWindowAppNames,
   findAppNameByPid,
@@ -29,9 +30,10 @@ const TOOL_DESCRIPTION =
   'Ask the user to grant you desktop access to ONE app, at a tier: "read" (see it — snapshot/screenshot) · ' +
   '"click" (also press elements / mouse actions) · "full" (also type text / press keys). The user sees an ' +
   'approval card with the app, tier and your reason — request the LOWEST tier that does the job, and only ' +
-  'for the app the user asked you to work with. The app must be open (its identity is resolved from the ' +
-  'live window list). Access persists until the user revokes it. If a desktop tool was denied for a ' +
-  'missing grant, this is the recovery path.'
+  'for the app the user asked you to work with. The app does NOT have to be running: names are resolved ' +
+  'against open windows AND installed apps, so you can be granted access to something you are about to ' +
+  'launch. Use the EXACT name (from list_open_apps if open, else list_installed_apps). Access persists ' +
+  'until the user revokes it. If a desktop tool was denied for a missing grant, this is the recovery path.'
 
 export type RequestDesktopAccessDeps = {
   /** Injectable for tests — production resolves against the live window list. */
@@ -40,18 +42,26 @@ export type RequestDesktopAccessDeps = {
 }
 
 /**
- * The apps a grant can name, UNIONED across both identity sources and reduced
+ * The apps a grant can name, UNIONED across every identity source and reduced
  * to CANONICAL app identities.
  *
- * Two sources are needed: xa11y's `App.list()` misses the Electron/Chromium
+ * Three sources are needed. xa11y's `App.list()` misses the Electron/Chromium
  * class (tree off until woken), while the window source sees every real
- * window. But xa11y names apps by WINDOW TITLE, so each of its entries is
+ * window; but xa11y names apps by WINDOW TITLE, so each of its entries is
  * mapped through its pid to the real app name first — otherwise a grant lands
  * under "Vynel – Google Chrome" and stops matching the moment the user
- * switches tabs (live smoke, 2026-08-04). The window source is listed FIRST so
- * its already-canonical names win the dedupe.
+ * switches tabs (live smoke, 2026-08-04). The INSTALLED roster is the third
+ * (Kafi 2026-08-11): without it a CLOSED app could never be granted, so
+ * "open Chrome and search YouTube" from a channel dead-ended — the unattended
+ * turn can't self-grant, and the only grant door refused to name anything that
+ * wasn't already on screen.
  *
- * A source that fails to load contributes nothing; if BOTH fail, the first
+ * ORDER IS LOAD-BEARING: live-window names come FIRST so they win the dedupe.
+ * Enforcement always runs against the name the RUNNING window reports, so when
+ * an app is open its own name must be the one granted — the Start-menu name is
+ * only the fallback for something not yet launched.
+ *
+ * A source that fails to load contributes nothing; if ALL fail, the first
  * failure surfaces (never a silent empty list).
  */
 export async function listGrantableApps(
@@ -59,11 +69,13 @@ export async function listGrantableApps(
     windowAppNames?: () => string[]
     appNameByPid?: (pid: number) => string | null
     accessibilityApps?: () => Promise<OpenApp[]>
+    installedApps?: () => Promise<InstalledApp[]>
   } = {},
 ): Promise<OpenApp[]> {
   const windowAppNames = deps.windowAppNames ?? listWindowAppNames
   const appNameByPid = deps.appNameByPid ?? findAppNameByPid
   const accessibilityApps = deps.accessibilityApps ?? listOpenApps
+  const installedApps = deps.installedApps ?? (() => listInstalledApps())
   const failures: unknown[] = []
   const seen = new Set<string>()
   const apps: OpenApp[] = []
@@ -83,6 +95,12 @@ export async function listGrantableApps(
       // Canonicalize through the pid — never grant a window title.
       add(resolveAppIdentity(app.pid, app.name, appNameByPid), app.pid)
     }
+  } catch (err) {
+    failures.push(err)
+  }
+  try {
+    // Last: a running app's own name already claimed its key above.
+    for (const app of await installedApps()) add(app.name, null)
   } catch (err) {
     failures.push(err)
   }
@@ -165,7 +183,7 @@ export function makeRequestDesktopAccessTool(
             content: [
               {
                 type: 'text',
-                text: `No open app matches "${query}" — access is granted to a RESOLVED app, not a name. Call list_open_apps and use an exact name (the app must be open).`,
+                text: `Nothing matches "${query}" — access is granted to a RESOLVED app, not a free-text name. Call list_open_apps (if it is running) or list_installed_apps (if it is not) and re-request with an exact name from that list.`,
               },
             ],
             isError: true,

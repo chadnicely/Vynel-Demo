@@ -186,6 +186,30 @@ so instead of steering to absolute coordinates); and an app's *non-main* minimiz
 reached through `MainWindowHandle`, so the caller surfaces an honest "couldn't restore" rather than
 acting on the wrong window.
 
+## Arc 6 — a closed app can be granted (Kafi, 2026-08-11, from the whole-branch review)
+
+The whole-branch review found the arcs composed into a dead end: an unattended turn gets a
+`display-only` envelope (authorizes nothing — the no-self-grant rule), so `launch_app` needs a
+**standing** grant; but `request_desktop_access` resolved only against **live windows**, so a closed
+app could never be granted. "Open Chrome and search YouTube" from Telegram — Arc 3's headline
+scenario — could not start unless Chrome had been granted earlier while open. Failed closed, so a
+product gap rather than a hole.
+
+**Fix:** `listGrantableApps` unions in the INSTALLED roster as a third source. Consent fidelity is
+untouched — still exact-normalized-key matching, and the card still names exactly what gets granted.
+
+**Order is load-bearing:** live-window names are added FIRST and win the dedupe. Enforcement always
+runs against the name the *running* window reports, so an open app must be granted under its own
+name; the Start-menu name is only the fallback for something not yet launched.
+
+**The residual risk, made visible rather than silent.** A Start-menu name can differ from the name
+the launched window reports ("Firefox Developer Edition" → "Firefox"), which would leave the grant
+covering nothing. `launch_app` already resolves the real window name, so `buildLaunchResponse` now
+compares normalized keys and says so at the moment it becomes true — instead of letting it surface
+later as a confusing denial on the first act. Rejected alternatives: aliasing a grant to several
+names (schema change, and the card would no longer name exactly what was granted) and
+auto-granting the post-launch identity (grants something the user never saw).
+
 ## Deliberately NOT in this arc
 - `list_installed_apps` / `launch_app` → Arc 3.
 - Input-method research note + `driving-the-desktop` notebook book → Arc 4.

@@ -42,6 +42,14 @@ In this order:
 Don't relaunch something that's already open — you'll end up with two windows
 and act in the wrong one.
 
+`launch_app` tells you the name the window actually reports. Use that name from
+then on — and if it differs from the one you asked for ("Firefox Developer
+Edition" opening as "Firefox"), your plan and any access grant don't cover it,
+so re-propose for the real name before acting. You can also ask for standing
+access to an app that isn't running yet: `request_desktop_access` resolves
+installed apps, not just open ones, which is how a background task gets
+permission to open something.
+
 **Minimized is not a problem** — never ask the user to open a window, because
 they may not be there. `screenshot_app` restores a minimized window before it
 captures. `snapshot_app` can usually read one as it is; if its tree comes back

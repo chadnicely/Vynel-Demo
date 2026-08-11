@@ -28,7 +28,12 @@ function armedEnvelope(app = 'Google Chrome', tier: 'read' | 'click' | 'full' = 
 
 function buildTool(
   envelope = armedEnvelope(),
-  options: { launched?: string[]; authorize?: (app: string, tier: string) => void } = {},
+  options: {
+    launched?: string[]
+    authorize?: (app: string, tier: string) => void
+    /** The name the WINDOW reports — defaults to the requested name. */
+    appearsAs?: string
+  } = {},
 ) {
   const launched = options.launched ?? []
   const tool = makeLaunchAppTool(
@@ -38,7 +43,7 @@ function buildTool(
       listApps: async () => INSTALLED,
       launch: async (app) => {
         launched.push(app.name)
-        return { kind: 'launched', appName: app.name }
+        return { kind: 'launched', appName: options.appearsAs ?? app.name }
       },
     },
   ) as BuiltTool
@@ -67,6 +72,35 @@ describe('makeLaunchAppTool', () => {
     expect(result.isError).not.toBe(true)
     expect(launched).toEqual(['Google Chrome'])
     expect(result.content[0]?.text).toContain('is open')
+  })
+
+  it('calls out a window that opens under a DIFFERENT name than was authorized', async () => {
+    // Enforcement runs against the window's own name, so a Start-menu name that
+    // drifts ("Firefox Developer Edition" → "Firefox") leaves the plan entry
+    // and the grant covering nothing. Saying it here beats a confusing denial
+    // on the first act — and it is the one moment we can know.
+    const { tool } = buildTool(armedEnvelope(), { appearsAs: 'Chrome' })
+    const result = await tool.handler({ app: 'Google Chrome' })
+    expect(result.isError).not.toBe(true)
+    const text = result.content[0]?.text ?? ''
+    expect(text).toContain('reports as "Chrome"')
+    expect(text).toContain('does NOT cover it')
+    expect(text.toLowerCase()).toContain('propose an updated plan')
+  })
+
+  it('stays quiet when the window name matches (no false alarm)', async () => {
+    const { tool } = buildTool()
+    const text = (await tool.handler({ app: 'Google Chrome' })).content[0]?.text ?? ''
+    expect(text).toContain('is open')
+    expect(text).not.toContain('does NOT cover it')
+  })
+
+  it('treats a case/.exe-only difference as the SAME app, not drift', async () => {
+    // normalizeDesktopAppKey is the grant key, so "chrome.exe" vs "Chrome"
+    // already resolves to one grant — warning there would be noise.
+    const { tool } = buildTool(armedEnvelope('Notepad'), { appearsAs: 'notepad.exe' })
+    const text = (await tool.handler({ app: 'Notepad' })).content[0]?.text ?? ''
+    expect(text).not.toContain('does NOT cover it')
   })
 
   it('requires the CLICK tier — "look only" never starts programs', async () => {

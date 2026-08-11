@@ -4,7 +4,10 @@ import type { McpToolFn } from './mcp-tool-fn.js'
 import { listInstalledApps, matchInstalledApps, type InstalledApp } from '../apps/installed-apps.js'
 import { launchApp, type LaunchAppResult } from '../apps/launch-app.js'
 import { listWindowAppNames } from '../a11y/window-identity.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
+import {
+  normalizeDesktopAppKey,
+  type DesktopAccessAuthorizer,
+} from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
 
@@ -25,17 +28,34 @@ const TOOL_DESCRIPTION =
   'tools. If the app is ALREADY open (check list_open_apps first), do not launch it again — just ' +
   'target it. Windows only.'
 
+/**
+ * `requestedName` is the name the plan/grant was taken under (the Start-menu
+ * name). A launched window can report a DIFFERENT app name ("Firefox Developer
+ * Edition" → "Firefox"), and enforcement always runs against the window's own
+ * name — so a mismatch means the existing authorization does not cover what
+ * just opened. Say so HERE, at the moment it becomes true, instead of letting
+ * it surface later as a confusing denial on the first act.
+ */
 export function buildLaunchResponse(
   result: LaunchAppResult,
+  requestedName?: string,
 ): { content: Array<{ type: 'text'; text: string }> } {
   if (result.kind === 'launched') {
+    const drifted =
+      requestedName !== undefined &&
+      normalizeDesktopAppKey(requestedName) !== normalizeDesktopAppKey(result.appName)
     return {
       content: [
         {
           type: 'text',
           text:
             `"${result.appName}" is open. Use that exact name for snapshot_app / screenshot_app and ` +
-            'the act tools.',
+            'the act tools.' +
+            (drifted
+              ? ` NOTE: it reports as "${result.appName}", not "${requestedName}" — any plan entry or ` +
+                `access grant naming "${requestedName}" does NOT cover it. Propose an updated plan (or ` +
+                `request_desktop_access) for "${result.appName}" before acting.`
+              : ''),
         },
       ],
     }
@@ -121,6 +141,9 @@ export function makeLaunchAppTool(
         effectiveAuthorize(target.name, 'click')
         return buildLaunchResponse(
           await launch(target, { listWindowAppNames }),
+          // The name the authorization was taken under — so a window that
+          // opens reporting something else is called out immediately.
+          target.name,
         )
       } catch (err) {
         return {
