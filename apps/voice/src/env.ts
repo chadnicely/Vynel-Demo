@@ -34,13 +34,17 @@ export const EnvSchema = z.object({
   // uninstalled cable must not take the daemon down.
   VYNEL_VOICE_INPUT_DEVICE: z.string().min(1).optional(),
   VYNEL_VOICE_OUTPUT_DEVICE: z.string().min(1).optional(),
-  // The call cable pair (voice-in-calls, docs/module-notes/voice-in-calls.md).
+  // The call cable inventory (voice-in-calls, docs/module-notes/voice-in-calls.md).
   // Unlike the two above these NEVER fall back to a default device — a call
-  // must not capture the real mic or speak over the real speakers.
+  // must not capture the real mic or speak over the real speakers. Each PAIR
+  // carries one concurrent call; pair 2 is optional (a second installed cable
+  // set). A half-set pair fails at boot — see the refine below.
   // Cable B's capture end — the call app's speaker plays into it (call audio in):
   VYNEL_CALL_INPUT_DEVICE: z.string().min(1).optional(),
   // Cable A's playback end — the call app's microphone (Vynel's call voice out):
   VYNEL_CALL_OUTPUT_DEVICE: z.string().min(1).optional(),
+  VYNEL_CALL_INPUT_DEVICE_2: z.string().min(1).optional(),
+  VYNEL_CALL_OUTPUT_DEVICE_2: z.string().min(1).optional(),
   // Silence (ms) in an active conversation before falling back asleep.
   VYNEL_VOICE_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   // Loopback port for the browser Jarvis-view channel (SSE wake/state events).
@@ -59,6 +63,21 @@ export const EnvSchema = z.object({
     .default('apps/desktop/src-tauri/target/debug/vynel-desktop.exe')
     .transform(resolveAgainstRepoRoot),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+}).superRefine((env, context) => {
+  // A half-configured cable pair is always a typo — fail at boot with the gap
+  // named, not at start-call time with a confusing not-configured.
+  const pairs: Array<[string, string | undefined, string, string | undefined]> = [
+    ['VYNEL_CALL_INPUT_DEVICE', env.VYNEL_CALL_INPUT_DEVICE, 'VYNEL_CALL_OUTPUT_DEVICE', env.VYNEL_CALL_OUTPUT_DEVICE],
+    ['VYNEL_CALL_INPUT_DEVICE_2', env.VYNEL_CALL_INPUT_DEVICE_2, 'VYNEL_CALL_OUTPUT_DEVICE_2', env.VYNEL_CALL_OUTPUT_DEVICE_2],
+  ]
+  for (const [inputName, input, outputName, output] of pairs) {
+    if ((input === undefined) !== (output === undefined)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${input === undefined ? inputName : outputName} is missing — a call cable pair needs BOTH ends set`,
+      })
+    }
+  }
 })
 
 export type Env = z.infer<typeof EnvSchema>

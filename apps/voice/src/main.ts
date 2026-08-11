@@ -84,10 +84,17 @@ function main(): void {
     () => cpal.getDevices(),
   )
   const audioShell = createAudioShell(logger, () => driver.notifyPlaybackDrained(), audioDevices)
-  const callRegistry = new CallRegistry(logger, {
-    inputName: env.VYNEL_CALL_INPUT_DEVICE,
-    outputName: env.VYNEL_CALL_OUTPUT_DEVICE,
-  })
+  // The cable-pair inventory — env's superRefine guarantees each pair is
+  // whole, so presence of one end means the pair exists.
+  const callCablePairs = [
+    ...(env.VYNEL_CALL_INPUT_DEVICE !== undefined && env.VYNEL_CALL_OUTPUT_DEVICE !== undefined
+      ? [{ inputName: env.VYNEL_CALL_INPUT_DEVICE, outputName: env.VYNEL_CALL_OUTPUT_DEVICE }]
+      : []),
+    ...(env.VYNEL_CALL_INPUT_DEVICE_2 !== undefined && env.VYNEL_CALL_OUTPUT_DEVICE_2 !== undefined
+      ? [{ inputName: env.VYNEL_CALL_INPUT_DEVICE_2, outputName: env.VYNEL_CALL_OUTPUT_DEVICE_2 }]
+      : []),
+  ]
+  const callRegistry = new CallRegistry(logger, callCablePairs)
   const callConversations = createCallConversationHost({
     logger,
     // The spoken address name, matching the wake phrase's persona. The persona

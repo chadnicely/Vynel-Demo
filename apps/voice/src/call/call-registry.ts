@@ -9,8 +9,9 @@ import { openOutputSink, type OutputSink } from '../audio/output-sink.js'
 import type { CallMode } from '@vynel/voice'
 
 // The daemon's live-call roster: callId → the call's audio plumbing (Cable B
-// capture in, Cable A sink out). Registry-shaped for N calls from day one;
-// v1's inventory is ONE env-configured cable pair, so one live call at a time.
+// capture in, Cable A sink out). Concurrency = the env cable-pair INVENTORY:
+// each installed pair carries one live call; a start picks the first free
+// pair and 'pair-busy' fires only when every pair is held.
 //
 // Two deliberate contrasts with the primary mic/speaker path:
 //  - Devices resolve STRICTLY at start-call time — no fallback to the system
@@ -45,11 +46,11 @@ export class CallRegistryError extends Error {
   }
 }
 
-export interface CallCableNames {
+export interface CallCablePair {
   /** Cable B's capture end — what the call app plays INTO (participants' audio). */
-  readonly inputName?: string | undefined
+  readonly inputName: string
   /** Cable A's playback end — what the call app uses as its microphone. */
-  readonly outputName?: string | undefined
+  readonly outputName: string
 }
 
 export interface StartCallRequest {
@@ -62,6 +63,8 @@ interface LiveCall {
   readonly descriptor: CallDescriptor
   readonly capture: CaptureStream
   readonly sink: OutputSink
+  /** Which inventory pair this call holds — freed when the call ends. */
+  readonly pairIndex: number
 }
 
 /** The seams the call loop claims — lifecycle + both directions of a live
@@ -76,13 +79,13 @@ export interface CallLoopHooks {
 
 export class CallRegistry {
   readonly #logger: Logger
-  readonly #cables: CallCableNames
+  readonly #pairs: readonly CallCablePair[]
   readonly #calls = new Map<string, LiveCall>()
   #loopHooks: CallLoopHooks | null = null
 
-  constructor(logger: Logger, cables: CallCableNames) {
+  constructor(logger: Logger, pairs: readonly CallCablePair[]) {
     this.#logger = logger
-    this.#cables = cables
+    this.#pairs = pairs
   }
 
   bindCallLoop(hooks: CallLoopHooks): void {
@@ -90,26 +93,29 @@ export class CallRegistry {
   }
 
   startCall(request: StartCallRequest): CallDescriptor {
-    if (this.#cables.inputName === undefined || this.#cables.outputName === undefined) {
+    if (this.#pairs.length === 0) {
       throw new CallRegistryError(
         'not-configured',
         'call audio is not configured — set VYNEL_CALL_INPUT_DEVICE (Cable B capture end) and ' +
           'VYNEL_CALL_OUTPUT_DEVICE (Cable A playback end) to the installed virtual-cable device names',
       )
     }
-    // v1 inventory: one cable pair. A second call would capture the same cable.
-    const inUseBy = this.#calls.values().next()
-    if (!inUseBy.done) {
+    const heldPairIndexes = new Set([...this.#calls.values()].map((call) => call.pairIndex))
+    const pairIndex = this.#pairs.findIndex((_pair, index) => !heldPairIndexes.has(index))
+    if (pairIndex === -1) {
+      const holders = [...this.#calls.values()]
+        .map((call) => `${call.descriptor.callId} ("${call.descriptor.label}")`)
+        .join(', ')
       throw new CallRegistryError(
         'pair-busy',
-        `the cable pair is in use by call ${inUseBy.value.descriptor.callId} ` +
-          `("${inUseBy.value.descriptor.label}") — end it first`,
+        `all ${this.#pairs.length} cable pair(s) are in use — by ${holders} — end one first`,
       )
     }
+    const pair = this.#pairs[pairIndex]!
 
     const devices = cpal.getDevices()
-    const input = this.#resolveCableEnd('input', this.#cables.inputName, devices)
-    const output = this.#resolveCableEnd('output', this.#cables.outputName, devices)
+    const input = this.#resolveCableEnd('input', pair.inputName, devices)
+    const output = this.#resolveCableEnd('output', pair.outputName, devices)
 
     const callId = randomUUID()
     const descriptor: CallDescriptor = {
@@ -133,12 +139,12 @@ export class CallRegistry {
       sink.stop()
       throw new CallRegistryError(
         'device-missing',
-        `call input stream failed to open on "${this.#cables.inputName}" — ` +
+        `call input stream failed to open on "${pair.inputName}" — ` +
           (error instanceof Error ? error.message : String(error)),
       )
     }
-    this.#calls.set(callId, { descriptor, capture, sink })
-    this.#logger.info({ callId, label: request.label, mode: request.mode }, 'call started')
+    this.#calls.set(callId, { descriptor, capture, sink, pairIndex })
+    this.#logger.info({ callId, label: request.label, mode: request.mode, pairIndex }, 'call started')
     this.#loopHooks?.onCallStarted(descriptor)
     return descriptor
   }

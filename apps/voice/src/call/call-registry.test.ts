@@ -7,7 +7,7 @@ import { openOutputSink, type OutputSink } from '../audio/output-sink.js'
 import {
   CallRegistry,
   CallRegistryError,
-  type CallCableNames,
+  type CallCablePair,
   type CallRegistryErrorKind,
 } from './call-registry.js'
 
@@ -41,14 +41,14 @@ const cableAIn = {
   isDefaultInput: false,
   isDefaultOutput: false,
 }
-const CABLES = { inputName: cableBOut.name, outputName: cableAIn.name }
+const PAIR_ONE: CallCablePair = { inputName: cableBOut.name, outputName: cableAIn.name }
 
 function fakeSink(): OutputSink {
   return { emitAudio: vi.fn(), endSpeech: vi.fn(), cutPlayback: vi.fn(), stop: vi.fn() }
 }
 
-function registryWith(cables: CallCableNames = CABLES) {
-  return new CallRegistry(pino({ level: 'silent' }), cables)
+function registryWith(pairs: readonly CallCablePair[] = [PAIR_ONE]) {
+  return new CallRegistry(pino({ level: 'silent' }), pairs)
 }
 
 function expectRegistryError(run: () => unknown, kind: CallRegistryErrorKind, messagePart: string) {
@@ -75,14 +75,14 @@ describe('CallRegistry', () => {
 
   it('refuses to start without configured cables, naming the env vars', () => {
     expectRegistryError(
-      () => registryWith({}).startCall({ label: 'standup', mode: 'notetaker' }),
+      () => registryWith([]).startCall({ label: 'standup', mode: 'notetaker' }),
       'not-configured',
       'VYNEL_CALL_INPUT_DEVICE',
     )
   })
 
   it('refuses a cable name that is not installed, listing what IS available', () => {
-    const registry = registryWith({ inputName: 'BlackHole 2ch', outputName: cableAIn.name })
+    const registry = registryWith([{ inputName: 'BlackHole 2ch', outputName: cableAIn.name }])
     expectRegistryError(
       () => registry.startCall({ label: 'standup', mode: 'notetaker' }),
       'device-missing',
@@ -196,6 +196,43 @@ describe('CallRegistry', () => {
       'pair-busy',
       first.callId,
     )
+  })
+
+  it('a second installed pair carries a second concurrent call — and frees on end', () => {
+    const cableDOut = {
+      name: 'CABLE-D Output (VB-Audio Cable D)',
+      deviceId: 'id:cable-d-out',
+      hostId: 'WASAPI',
+      isDefaultInput: false,
+      isDefaultOutput: false,
+    }
+    const cableCIn = {
+      name: 'CABLE-C Input (VB-Audio Cable C)',
+      deviceId: 'id:cable-c-in',
+      hostId: 'WASAPI',
+      isDefaultInput: false,
+      isDefaultOutput: false,
+    }
+    getDevices.mockReturnValue([cableBOut, cableAIn, cableDOut, cableCIn])
+    const pairTwo: CallCablePair = { inputName: cableDOut.name, outputName: cableCIn.name }
+    const registry = registryWith([PAIR_ONE, pairTwo])
+
+    const first = registry.startCall({ label: 'standup', mode: 'notetaker' })
+    const second = registry.startCall({ label: '1:1', mode: 'participant' })
+    expect(registry.listCalls()).toHaveLength(2)
+    // The second call resolved the SECOND pair's cables.
+    expect(getDefaultInputConfig).toHaveBeenLastCalledWith('id:cable-d-out')
+
+    expectRegistryError(
+      () => registry.startCall({ label: 'third', mode: 'notetaker' }),
+      'pair-busy',
+      'all 2 cable pair(s)',
+    )
+
+    registry.endCall(first.callId) // pair one frees
+    const third = registry.startCall({ label: 'retro', mode: 'notetaker' })
+    expect(getDefaultInputConfig).toHaveBeenLastCalledWith('id:cable-b-out')
+    expect(registry.listCalls().map((call) => call.callId)).toEqual([second.callId, third.callId])
   })
 
   it('endCall stops both streams and forgets the call', () => {

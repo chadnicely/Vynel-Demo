@@ -197,8 +197,14 @@ stances (start_call `askApproval`-carded; end_call DELETE → auto-carded; speak
 end_call's description points the conductor at `session:<id>` / get_chat_session for the summary.
 An automated drained report bookend is a recorded later-improve, as is surfacing
 `disclosureSpoken` in the start_call response (retry affordance — bundle with Chad's wording
-sign-off; a failed disclosure currently warns in the log). → C3 multi-call (cable-pair inventory)
-remains.
+sign-off; a failed disclosure currently warns in the log). → **C3 LANDED** (this commit) — the cable-pair INVENTORY: optional
+`VYNEL_CALL_INPUT_DEVICE_2`/`VYNEL_CALL_OUTPUT_DEVICE_2` add a second concurrent-call pair
+(half-set pairs fail at BOOT via env superRefine); the registry holds pairIndex per call, first
+free pair wins, 'pair-busy' only when all are held and names every holder. **THE ARC IS
+CODE-COMPLETE.** Not yet done: live smoke with real cables (Part A device pick + a real
+VB-Cable call end-to-end) · Chad's sign-offs (disclosure wording/default, speak-as-user stance,
+catalog-capability promotion) · the recorded later-improves (automated report bookend,
+disclosureSpoken response field, sentinel quote-strip watch, primary-line barge-in live-tune).
 
 ---
 
