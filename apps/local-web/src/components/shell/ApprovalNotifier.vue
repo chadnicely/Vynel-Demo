@@ -26,6 +26,16 @@ const workspacesQuery = useWorkspaceList();
 // so they keep rendering.
 const hasOverlayWindow = isTauriShell();
 
+// The desktop overlay is an ALWAYS-ON-TOP window parked at the screen's
+// bottom-right — the same pixels these toasts occupy once the main window is
+// maximized. A card rendered under it is invisible AND unclickable, so its turn
+// parks forever with nothing on screen to explain why (live smoke, 2026-08-11).
+// Dock to the other side whenever an overlay can appear, exactly as browser
+// mode already does for the native page webview. Unconditional rather than
+// "only while the overlay is up": the overlay can reveal at any moment, and a
+// toast that jumps sides mid-decision is its own bug.
+const dockAwayFromOverlay = computed(() => browser.isOpen || hasOverlayWindow);
+
 const pending = computed(() =>
   (pendingQuery.data.value ?? []).filter(
     (approval) =>
@@ -61,7 +71,7 @@ function decide(providerApprovalId: string, kind: "approved" | "denied") {
 <template>
   <div
     class="approval-notifier"
-    :class="{ 'dock-start': browser.isOpen }"
+    :class="{ 'dock-start': dockAwayFromOverlay }"
     aria-live="polite"
   >
     <TransitionGroup name="toast">
@@ -100,8 +110,9 @@ function decide(providerApprovalId: string, kind: "approved" | "denied") {
   pointer-events: none;
 }
 
-/* Browser mode: the native page webview owns the right side and draws above
-   all HTML — the toasts dock left, over the chat, so they stay decidable. */
+/* Something else owns the right side and draws above all HTML — the browser
+   mode's native page webview, or the always-on-top desktop overlay window.
+   The toasts dock left, over the chat, so they stay visible AND clickable. */
 .dock-start {
   right: auto;
   left: 14px;
