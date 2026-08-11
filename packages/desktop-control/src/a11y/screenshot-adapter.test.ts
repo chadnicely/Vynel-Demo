@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { selectWindowId, screenshotApp, clampZoomRegion, type WindowInfo } from './screenshot-adapter.js'
+import {
+  selectWindowId,
+  screenshotApp,
+  clampZoomRegion,
+  planScreenshotTarget,
+  type WindowInfo,
+} from './screenshot-adapter.js'
 
 // Plain window snapshots — the SAME shape the adapter reads native windows into
 // at the binding boundary, so the ranking is tested on real data, not a fake
@@ -7,6 +13,7 @@ import { selectWindowId, screenshotApp, clampZoomRegion, type WindowInfo } from 
 function windowInfo(overrides: Partial<WindowInfo>): WindowInfo {
   return {
     id: 1,
+    pid: 100,
     appName: 'App',
     title: 'Window',
     isMinimized: false,
@@ -37,6 +44,61 @@ describe('screenshotApp — fail-closed guards (run before the native binary loa
   it('rejects an empty/whitespace app name — never captures an arbitrary window', async () => {
     await expect(screenshotApp('')).rejects.toThrow(/app name .*is required/)
     await expect(screenshotApp('   ')).rejects.toThrow(/app name .*is required/)
+  })
+})
+
+// The minimized/restore branching, decided from the window snapshot alone. The
+// capture binary can't be mocked through `createRequire`, so the decision lives
+// in this pure function and the adapter only executes what it returns.
+describe('planScreenshotTarget — the auto-restore decision', () => {
+  const visibleNotepad = windowInfo({ id: 1, pid: 100, appName: 'Notepad' })
+  const minimizedDiscord = windowInfo({ id: 2, pid: 200, appName: 'Discord', isMinimized: true })
+
+  it('captures a visible window without restoring anything', () => {
+    expect(planScreenshotTarget([visibleNotepad, minimizedDiscord], 'notepad', false)).toEqual({
+      kind: 'capture',
+      windowId: 1,
+      appName: 'Notepad',
+    })
+  })
+
+  it('restores a minimized match, carrying its OS pid (not the capture window id)', () => {
+    // The pid/id distinction is load-bearing: ShowWindow resolves through
+    // Get-Process, so handing it a window id would target a different process.
+    expect(planScreenshotTarget([visibleNotepad, minimizedDiscord], 'discord', false)).toEqual({
+      kind: 'restore',
+      pid: 200,
+      appName: 'Discord',
+    })
+  })
+
+  it('gives up ONCE restored — a window that will not come back cannot loop', () => {
+    expect(planScreenshotTarget([minimizedDiscord], 'discord', true)).toEqual({
+      kind: 'unrestorable',
+      appName: 'Discord',
+    })
+  })
+
+  it('prefers a VISIBLE window over a minimized one of the same app', () => {
+    const minimizedTwin = windowInfo({ id: 3, pid: 300, appName: 'Notepad', isMinimized: true })
+    expect(planScreenshotTarget([minimizedTwin, visibleNotepad], 'notepad', false).kind).toBe(
+      'capture',
+    )
+  })
+
+  it('reports not-open when nothing matches at all', () => {
+    expect(planScreenshotTarget([visibleNotepad], 'discord', false)).toEqual({ kind: 'not-open' })
+    expect(planScreenshotTarget([], 'anything', false)).toEqual({ kind: 'not-open' })
+  })
+
+  it('names the app on EVERY recoverable outcome, so the caller can authorize before acting', () => {
+    // The grant check sits between planning and acting; an outcome without a
+    // name would be a branch that reaches a window ungated.
+    for (const alreadyRestored of [false, true]) {
+      const target = planScreenshotTarget([minimizedDiscord], 'discord', alreadyRestored)
+      expect(target.kind).not.toBe('not-open')
+      expect('appName' in target && target.appName).toBe('Discord')
+    }
   })
 })
 

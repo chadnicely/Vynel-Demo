@@ -12,7 +12,7 @@
 // Best-effort throughout: a PowerShell failure degrades to "flag not set" and
 // the wake proceeds on the subscription alone.
 
-import { runPowerShell, type PowerShellRunner } from './window-focus.js'
+import { runPowerShell, type PowerShellRunner } from './powershell.js'
 
 // SPI_SETSCREENREADER = 0x0047; SPIF_SENDCHANGE = 2 (broadcast the change so
 // running apps — Chromium — re-read it).

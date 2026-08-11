@@ -13,8 +13,9 @@ const TOOL_DESCRIPTION =
   'match list_open_apps first). Oversized windows are downscaled toward 1280×800 for accuracy — ' +
   'act_on_desktop coordinates in the RETURNED image frame land correctly. To inspect a detail at ' +
   'full resolution, pass `region` = {x, y, width, height} in the full window frame (a zoom; act ' +
-  'coordinates still come from a FULL capture). Captures WITHOUT focusing or disturbing the window; ' +
-  'a minimized window cannot be captured (the error tells you to have the user restore it). It ' +
+  'coordinates still come from a FULL capture). An open window is captured WITHOUT focusing or ' +
+  'disturbing it; a MINIMIZED window is restored for you first (so it does come to the screen) — ' +
+  'you never need to ask the user to open it. It ' +
   "changes no app data. Windows only today. PRIVACY: this captures whatever is on that app's " +
   'screen — only screenshot an app the user has asked you to work with, never to browse for secrets.'
 
@@ -98,8 +99,11 @@ export function makeScreenshotAppTool(authorize?: DesktopAccessAuthorizer): unkn
         }
       }
     },
-    // readOnlyHint: true — capture changes no app data and, unlike the Electron
-    // a11y wake, does not even move focus.
+    // readOnlyHint: true — capture changes no app DATA. It is not perfectly
+    // side-effect-free: a minimized target is restored first (which activates
+    // that window), the same already-accepted class as the Electron wake's
+    // focus. Vynel's carding runs off the descriptor's mutating/ask tiers, not
+    // this hint, so it stays a truthful "reads, never writes" signal.
     { annotations: { readOnlyHint: true } },
   )
 }

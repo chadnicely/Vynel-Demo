@@ -1,10 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import {
-  parseBooleanResult,
-  parseForegroundPid,
-  ensureForeground,
-  type PowerShellRunner,
-} from './window-focus.js'
+import { parseBooleanResult, type PowerShellRunner } from './powershell.js'
+import { parseForegroundPid, ensureForeground } from './window-focus.js'
 
 describe('parseBooleanResult', () => {
   it('parses PowerShell boolean echoes across casings and line endings', () => {
@@ -61,6 +57,27 @@ function scriptedRunner(script: {
   }
   return { run, forceCalls: () => forceCalls }
 }
+
+describe('ensureForeground — minimized windows', () => {
+  it('restores BEFORE activating (SetForegroundWindow is a no-op on a minimized window)', async () => {
+    // The ordering IS the fix (Kafi 2026-08-11): without a prior ShowWindow
+    // SW_RESTORE, focusing a minimized app silently does nothing and every
+    // downstream read/act fails on a window that never came back.
+    const commands: string[] = []
+    const run: PowerShellRunner = (command) => {
+      commands.push(command)
+      if (command.includes('GetForegroundWindow')) return Promise.resolve('42')
+      return Promise.resolve('True')
+    }
+    await ensureForeground(42, run)
+    const restoreIndex = commands.findIndex((command) => command.includes('ShowWindow'))
+    const activateIndex = commands.findIndex((command) => command.includes('AppActivate'))
+    expect(restoreIndex).toBeGreaterThan(-1)
+    expect(activateIndex).toBeGreaterThan(restoreIndex)
+    // IsIconic-gated, so a window the user had normal or MAXIMIZED is untouched.
+    expect(commands[restoreIndex]).toContain('IsIconic')
+  })
+})
 
 describe('ensureForeground', () => {
   it('returns true without the force retry when activation verifiably took', async () => {

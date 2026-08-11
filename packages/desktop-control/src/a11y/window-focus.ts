@@ -12,41 +12,8 @@
 // failure. Pure parsers are exported for binary-free tests; the PowerShell
 // runner is injectable the same way.
 
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-
-const execFileAsync = promisify(execFile)
-
-export type PowerShellRunner = (command: string) => Promise<string>
-
-// A wedged PowerShell spawn must not hang the caller before any wake deadline
-// is even armed — the same never-hang class the probe timeout closes.
-const POWERSHELL_TIMEOUT_MS = 10_000
-
-/** Run a PowerShell command, returning stdout — '' on any failure (best-effort). */
-export const runPowerShell: PowerShellRunner = async (command) => {
-  try {
-    const { stdout } = await execFileAsync(
-      'powershell',
-      ['-NoProfile', '-NonInteractive', '-Command', command],
-      { windowsHide: true, timeout: POWERSHELL_TIMEOUT_MS },
-    )
-    return stdout
-  } catch {
-    // Best-effort by design — the caller treats '' as "the operation reported
-    // nothing", and the wake loop's deadline bounds the consequence.
-    return ''
-  }
-}
-
-/** Parse a PowerShell boolean echo ("True"/"False", any casing, trailing newline). */
-export function parseBooleanResult(stdout: string): boolean {
-  const lines = stdout
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-  return lines[lines.length - 1]?.toLowerCase() === 'true'
-}
+import { runPowerShell, type PowerShellRunner } from './powershell.js'
+import { restoreIfMinimized } from './window-state.js'
 
 /** Parse a PowerShell pid echo — null when the output isn't a positive integer. */
 export function parseForegroundPid(stdout: string): number | null {
@@ -117,6 +84,12 @@ export async function ensureForeground(
   pid: number,
   run: PowerShellRunner = runPowerShell,
 ): Promise<boolean> {
+  // A MINIMIZED window can't be foregrounded — SetForegroundWindow is a no-op on
+  // it — so restore it first. Best-effort and IsIconic-gated (a normal or
+  // maximized window is left exactly as it was), so this only ever un-minimizes.
+  // This is what lets snapshot_app / act_on_app reach an app the user had
+  // minimized, without a separate step (Kafi 2026-08-11).
+  await restoreIfMinimized(pid, run)
   await run(activateCommand(pid))
   if (await isForeground(pid, run)) {
     return true

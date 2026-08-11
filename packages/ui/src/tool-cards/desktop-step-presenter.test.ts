@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  describeDesktopStep,
-  presentDesktopToolCall,
-  selectorDisplayName,
-} from "./desktop-step-presenter.js";
+import { describeDesktopStep, presentDesktopToolCall } from "./desktop-step-presenter.js";
+import { selectorDisplayName } from "./desktop-action-voices.js";
 import { parseDesktopPlanCard } from "./desktop-plan-card.js";
 import { presentToolCall } from "./tool-presenters.js";
 import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
@@ -91,6 +88,23 @@ describe("describeDesktopStep — the overlay's progressive voice", () => {
     expect(
       describeDesktopStep("mcp__desktop__act_on_desktop", { action: "drag", x: 1, y: 2, toX: 9, toY: 9 }),
     ).toBe("Dragging at (1, 2) to (9, 9)");
+  });
+
+  it("narrates window arranging in the user's words", () => {
+    expect(
+      describeDesktopStep("mcp__desktop__set_window_state", {
+        app: "Google Chrome",
+        state: "maximized",
+      }),
+    ).toBe("Maximizing Google Chrome");
+    expect(
+      describeDesktopStep("mcp__desktop__set_window_state", { app: "Discord", state: "minimized" }),
+    ).toBe("Minimizing Discord");
+    expect(
+      describeDesktopStep("mcp__desktop__set_window_state", { app: "Notepad", state: "restored" }),
+    ).toBe("Restoring Notepad");
+    // An unknown state still reads as something honest, never a raw tool name.
+    expect(describeDesktopStep("mcp__desktop__set_window_state", {})).toBe("Arranging a window");
   });
 
   it("is null for non-desktop tools (callers keep their own fallback)", () => {
@@ -199,6 +213,14 @@ describe("presentToolCall — the desktop branch", () => {
 
   it("leaves unknown desktop tools to the generic fallback", () => {
     expect(presentDesktopToolCall("mcp__desktop__future_tool", {}, null)).toBeNull();
+  });
+
+  it("renders a settled window arrange in past tense", () => {
+    const presentation = presentToolCall(
+      desktopCall("mcp__desktop__set_window_state", { app: "Google Chrome", state: "maximized" }),
+    );
+    expect(presentation.verb).toBe("Maximized");
+    expect(presentation.argument).toBe("Google Chrome");
   });
 
   it("renders a settled batch as one card naming the action count and app", () => {

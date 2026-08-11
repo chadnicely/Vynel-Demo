@@ -42,6 +42,17 @@ In this order:
 Don't relaunch something that's already open — you'll end up with two windows
 and act in the wrong one.
 
+**Minimized is not a problem.** `snapshot_app` and `screenshot_app` restore a
+minimized window for you before they read it — never ask the user to open it,
+because they may not be there. The one exception is pixel coordinates: a
+minimized window has no position on screen, so `screenshot_app` it first (that
+restores it) and take your coordinates from that fresh capture.
+
+Reach for `set_window_state({app, state})` when the window state is the *point*:
+`maximized` to make an app you just opened properly usable, `minimized` to tuck
+something away, `restored` for a normal window. Leave windows open when you're
+done unless the user asked otherwise — they'll want to see what happened.
+
 ## 3. The three ways to act — try them in this order
 
 Each rung down is more fragile. Take the highest one that works.

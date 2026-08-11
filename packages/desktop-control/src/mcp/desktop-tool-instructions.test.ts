@@ -86,6 +86,15 @@ describe('DESKTOP_ACT_INSTRUCTIONS', () => {
     expect(DESKTOP_ACT_INSTRUCTIONS.toLowerCase()).toContain("isn't available")
   })
 
+  it('says a minimized app needs no special handling, and names the explicit lever', () => {
+    // The auto-restore is the point (Kafi 2026-08-11): if the guide ever tells
+    // the model to ask the user to un-minimize, the remote case dead-ends again.
+    const lower = DESKTOP_ACT_INSTRUCTIONS.toLowerCase()
+    expect(lower).toContain('minimized app needs nothing special')
+    expect(lower).toContain('restore it for you automatically')
+    expect(DESKTOP_ACT_INSTRUCTIONS).toContain('set_window_state')
+  })
+
   it('teaches batching — several known steps in one call, stopping at the first failure', () => {
     const lower = DESKTOP_ACT_INSTRUCTIONS.toLowerCase()
     expect(lower).toContain('batch steps you already know')

@@ -33,6 +33,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   names both the first action and the last one, so a step like "send" is
   never hidden behind a count.
 
+- **Minimized apps no longer stop the assistant.** Ask it to look at something
+  you've tucked away and it simply opens the window and looks — no more "please
+  restore it first", which was useless when you're away from the machine. It can
+  also arrange windows on purpose now: maximize an app it just opened so the app
+  is actually usable, or minimize one to clear it away. Windows it opens are left
+  open, so you can see what happened when you come back.
+
 - **A playbook for driving your desktop.** The assistant's notebook gained a
   book on working your computer well: reach for a keyboard shortcut before
   hunting for a button, press the real control rather than a pixel, batch the

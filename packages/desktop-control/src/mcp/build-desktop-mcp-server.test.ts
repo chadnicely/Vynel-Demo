@@ -50,12 +50,15 @@ describe('desktopToolFactories', () => {
     expect(names).toContain('act_on_desktop')
     // Starting a program is an action — it must not exist on observe-only turns.
     expect(names).toContain('launch_app')
+    // Arranging a window changes the screen — same rule.
+    expect(names).toContain('set_window_state')
     // Planning without acting is meaningless — observe-only turns carry no plan tool.
     const observeOnly = toolNames(
       desktopToolFactories({ reader: emptyReader, db: dbStandIn, userId: 'u' }),
     )
     expect(observeOnly).not.toContain('propose_desktop_plan')
     expect(observeOnly).not.toContain('launch_app')
+    expect(observeOnly).not.toContain('set_window_state')
   })
 
   it('shares ONE envelope between the plan tool and the act tools (arming lifts the refusal)', async () => {

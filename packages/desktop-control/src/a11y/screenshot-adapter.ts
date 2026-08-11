@@ -19,6 +19,7 @@
 import { createRequire } from 'node:module'
 import { selectWindowedPid, type WindowedProcess } from './windowed-process.js'
 import { downscalePngToFit } from './screenshot-scale.js'
+import { restoreIfMinimized } from './window-state.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 // The subset of node-screenshots' `Window` we call — methods, matching the
@@ -72,6 +73,10 @@ export function loadNodeScreenshots(): NodeScreenshotsModule {
 // works on this, never on the live `NativeWindow` (whose fields are methods).
 export interface WindowInfo {
   id: number
+  /** The OWNING OS process (node-screenshots' `pid()`) — the handle the
+   *  window-state ops restore through. Distinct from `id`, which is the
+   *  capture binding's own window identifier. */
+  pid: number
   appName: string
   title: string
   isMinimized: boolean
@@ -84,12 +89,52 @@ export interface WindowInfo {
 function readWindow(window: NativeWindow): WindowInfo {
   return {
     id: Number(window.id()),
+    pid: Number(window.pid()),
     appName: String(window.appName()),
     title: String(window.title()),
     isMinimized: Boolean(window.isMinimized()),
     width: Number(window.width()),
     height: Number(window.height()),
   }
+}
+
+/**
+ * What a capture request resolves to, decided from the window snapshot alone —
+ * pure, so the minimized/restore/give-up branching is testable without the
+ * capture binary.
+ *
+ * Every outcome carries the app name it concerns, which is what lets the caller
+ * AUTHORIZE between deciding and acting: the enforcement point sits structurally
+ * between the two, so no branch can reach a window before its grant is checked.
+ */
+export type ScreenshotTarget =
+  | { kind: 'capture'; windowId: number; appName: string }
+  | { kind: 'restore'; pid: number; appName: string }
+  | { kind: 'unrestorable'; appName: string }
+  | { kind: 'not-open' }
+
+export function planScreenshotTarget(
+  windows: WindowInfo[],
+  query: string,
+  alreadyRestored: boolean,
+): ScreenshotTarget {
+  const visible = windows.filter((window) => !window.isMinimized)
+  const winnerId = selectWindowId(visible, query)
+  const winner = visible.find((window) => window.id === winnerId)
+  if (winner !== undefined) {
+    return { kind: 'capture', windowId: winner.id, appName: winner.appName }
+  }
+  // Distinguish "minimized" from "not open" — different user action, and only
+  // the former is recoverable.
+  const minimized = windows.filter((window) => window.isMinimized)
+  const minimizedId = selectWindowId(minimized, query)
+  const minimizedWinner = minimized.find((window) => window.id === minimizedId)
+  if (minimizedWinner === undefined) return { kind: 'not-open' }
+  // One restore attempt only — a window that won't come back must end in the
+  // honest error rather than looping.
+  return alreadyRestored
+    ? { kind: 'unrestorable', appName: minimizedWinner.appName }
+    : { kind: 'restore', pid: minimizedWinner.pid, appName: minimizedWinner.appName }
 }
 
 /**
@@ -198,7 +243,13 @@ export async function screenshotApp(
   query: string,
   authorize?: DesktopAccessAuthorizer,
   options: { region?: ZoomRegion } = {},
+  // Internal: the auto-restore retry. A minimized window has no pixels, so the
+  // first pass restores it (at the read tier — Kafi 2026-08-11) and re-enters
+  // ONCE with `restore` disabled, so a window that refuses to restore ends in
+  // the honest error instead of looping.
+  internal: { restore?: (pid: number) => Promise<boolean>; alreadyRestored?: boolean } = {},
 ): Promise<AppScreenshot> {
+  const restore = internal.restore ?? restoreIfMinimized
   const trimmedQuery = query.trim()
   if (trimmedQuery.length === 0) {
     throw new Error(
@@ -206,42 +257,44 @@ export async function screenshotApp(
     )
   }
   const { Window } = loadNodeScreenshots()
-  const nativeWindows = Window.all()
   // Read every window into plain data once, keeping the native handle beside it
   // so the winner can be captured.
-  const windows = nativeWindows.map((native) => ({ native, info: readWindow(native) }))
+  const windows = Window.all().map((native) => ({ native, info: readWindow(native) }))
 
-  const restored = windows.filter((entry) => !entry.info.isMinimized)
-  const winnerId = selectWindowId(
-    restored.map((entry) => entry.info),
+  const target = planScreenshotTarget(
+    windows.map((entry) => entry.info),
     trimmedQuery,
+    internal.alreadyRestored === true,
   )
-  const winner = restored.find((entry) => entry.info.id === winnerId)
-  if (winner === undefined) {
-    // Distinguish "minimized" from "not open" — different user action.
-    const minimized = windows.filter((entry) => entry.info.isMinimized)
-    const minimizedId = selectWindowId(
-      minimized.map((entry) => entry.info),
-      trimmedQuery,
-    )
-    const minimizedWinner = minimized.find((entry) => entry.info.id === minimizedId)
-    if (minimizedWinner !== undefined) {
-      // Authorize BEFORE the minimized hint — even "that window exists and is
-      // minimized" is information about an ungranted app.
-      authorize?.(minimizedWinner.info.appName, 'read')
-      throw new Error(
-        `The "${minimizedWinner.info.appName}" window is minimized — a minimized window has no ` +
-          'pixels to capture. Ask the user to restore it, then retry.',
-      )
-    }
+  if (target.kind === 'not-open') {
     throw new Error(
       `Could not screenshot "${trimmedQuery}": no matching window is open. Call list_open_apps to see available apps.`,
     )
   }
-
-  // Enforce against the RESOLVED window's app (never the fuzzy query),
-  // before a single pixel is read.
-  authorize?.(winner.info.appName, 'read')
+  // ENFORCE FIRST, for every remaining branch — even "that window exists and is
+  // minimized" is information about an ungranted app, and restoring one is an
+  // action on it. Nothing below this line touches a window whose grant failed.
+  authorize?.(target.appName, 'read')
+  if (target.kind === 'unrestorable') {
+    throw new Error(
+      `The "${target.appName}" window is minimized and couldn't be restored automatically — ` +
+        'ask the user to open it, then retry.',
+    )
+  }
+  if (target.kind === 'restore') {
+    // Auto-restore at the read tier, then re-capture — the user may be away, so
+    // "ask them to restore it" is a dead end for the remote case (Kafi
+    // 2026-08-11). The retry re-enters with `alreadyRestored`, so a window that
+    // refuses to come back lands on `unrestorable` instead of looping.
+    await restore(target.pid)
+    return screenshotApp(query, authorize, options, { restore, alreadyRestored: true })
+  }
+  const winner = windows.find((entry) => entry.info.id === target.windowId)
+  if (winner === undefined) {
+    throw new Error(
+      `Could not screenshot "${trimmedQuery}": the window disappeared before it could be captured. Retry.`,
+    )
+  }
 
   const captured = winner.native.captureImageSync()
   const zoom = options.region !== undefined

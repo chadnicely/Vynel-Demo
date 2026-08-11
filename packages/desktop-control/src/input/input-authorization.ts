@@ -41,9 +41,16 @@ function resolveFrame(app: string | undefined): ResolvedTargetFrame {
   }
   const bounds = findAppWindowBounds(app)
   if (bounds === null) {
+    // A MINIMIZED window has no on-screen rectangle, so it lands here too —
+    // and the generic advice ("omit app for absolute coordinates") would be
+    // actively wrong there: it would aim a click at a window that isn't on the
+    // screen. Name the real recovery instead. Unlike the a11y/screenshot paths,
+    // the coordinate path does NOT auto-restore: it needs a settled on-screen
+    // rectangle captured AFTER the restore, so the model must re-observe anyway.
     throw new Error(
-      `Could not resolve the "${app}" window to translate coordinates. Call list_open_apps, or omit ` +
-        '"app" to use absolute screen coordinates.',
+      `Could not resolve the "${app}" window to translate coordinates — it may be minimized or ` +
+        'closed. Call list_open_apps to check; if it is minimized, screenshot_app restores it for ' +
+        'you (or use set_window_state), then re-capture and retry with fresh coordinates.',
     )
   }
   return {

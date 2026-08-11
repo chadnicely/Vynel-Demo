@@ -154,6 +154,38 @@ Window-appeared matching is a forgiving substring both ways (Start-menu "Google 
 "chrome.exe"); it only decides whether to keep WAITING and grants nothing — the exact-normalized-key
 grant/plan check still runs on every act.
 
+## Arc 5 — minimized windows (Kafi, 2026-08-11)
+
+Kafi asked "how will it restore minimized apps?" — we didn't. Minimized was *detected* but the
+answer was "ask the user to restore it", a dead end precisely in the remote case the product is
+built for. `SetForegroundWindow` is a documented no-op on a minimized window, so this also silently
+broke the a11y wake and any coordinate act.
+
+**His two decisions:**
+
+1. **Restore automatically, at the tier the operation already requires** — reading restores under
+   `read`, acting under `click`. Rationale: `snapshot_app` already steals focus at `read` via the
+   Electron wake, so making a window observable is an accepted `read`-tier side effect; restoring is
+   the same class. Rejected: a `click` floor (would dead-end a remote "what's in Discord?") and a
+   mandatory explicit tool (a dance the model must remember before every read).
+2. **Leave restored windows open** — no auto re-minimize (it would hide the result of the work) —
+   **plus** an explicit lever for when the state is the point.
+
+**Shape.** `a11y/window-state.ts` (`ShowWindow` via PowerShell on the pid's `MainWindowHandle`):
+`restoreIfMinimized` is `IsIconic`-gated so it only ever un-minimizes — a maximized window is left
+maximized. Folded into `ensureForeground` (one change fixes snapshot / `act_on_app` / the wake) and
+into `screenshotApp`, which now plans its target purely (`planScreenshotTarget`) so the grant check
+sits *structurally* between deciding and acting, and retries exactly once. `set_window_state`
+(`maximized` / `minimized` / `restored`) is the explicit lever: plan-gated by construction, `click`
+tier, and it reports the **verified** end state — the PowerShell echo is per-requested-state, so a
+successful minimize can't read as a failure.
+
+**Known limits (documented, not hidden):** the coordinate path does not auto-restore (it needs an
+on-screen rectangle captured *after* the restore, so the model must re-observe — the error now says
+so instead of steering to absolute coordinates); and an app's *non-main* minimized window can't be
+reached through `MainWindowHandle`, so the caller surfaces an honest "couldn't restore" rather than
+acting on the wrong window.
+
 ## Deliberately NOT in this arc
 - `list_installed_apps` / `launch_app` → Arc 3.
 - Input-method research note + `driving-the-desktop` notebook book → Arc 4.

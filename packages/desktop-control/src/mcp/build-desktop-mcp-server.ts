@@ -10,6 +10,7 @@ import { makeListDesktopNotificationsTool } from './list-desktop-notifications-t
 import { makeListOpenAppsTool } from './list-open-apps-tool.js'
 import { makeListInstalledAppsTool } from './list-installed-apps-tool.js'
 import { makeLaunchAppTool } from './launch-app-tool.js'
+import { makeSetWindowStateTool } from './set-window-state-tool.js'
 import { makeSnapshotAppTool } from './snapshot-app-tool.js'
 import { makeScreenshotAppTool } from './screenshot-app-tool.js'
 import { makeActOnAppTool } from './act-on-app-tool.js'
@@ -79,6 +80,9 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     factories.push(makeActOnDesktopTool(envelope, authorize))
     // Starting a program is an action — same envelope, same authorizer.
     factories.push(makeLaunchAppTool(envelope, authorize))
+    // Arranging a window (maximize / minimize / restore) is a click-class
+    // action — same envelope, same authorizer.
+    factories.push(makeSetWindowStateTool(envelope, authorize))
   }
   return factories
 }

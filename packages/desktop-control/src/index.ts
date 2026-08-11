@@ -29,6 +29,13 @@ export {
 } from './a11y/xa11y-adapter.js'
 export { screenshotApp, findAppWindowBounds } from './a11y/screenshot-adapter.js'
 export type { AppScreenshot, WindowBounds } from './a11y/screenshot-adapter.js'
+export {
+  restoreIfMinimized,
+  setWindowState,
+  WINDOW_STATES,
+  isWindowState,
+} from './a11y/window-state.js'
+export type { WindowState } from './a11y/window-state.js'
 
 export { actOnDesktop, DESKTOP_INPUT_ACTIONS } from './input/desktop-input.js'
 export type {
