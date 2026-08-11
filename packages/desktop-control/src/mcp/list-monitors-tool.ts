@@ -10,11 +10,11 @@ const TOOL_DESCRIPTION =
   'READ-ONLY. Call this when the user mentions another screen, or before using ABSOLUTE ' +
   'coordinates, so you know the real layout instead of assuming one 1920x1080 screen. ' +
   'Coordinates are a single virtual desktop: a monitor left of or above the primary has ' +
-  'NEGATIVE x/y, which are valid. Aim with `bounds` — never build a rectangle from x/y plus ' +
-  'physicalSize, because on a scaled display those two are in different units. ' +
-  'IMPORTANT — scaling does NOT apply to window work: a window\'s screenshot and the coordinates ' +
-  'you pass with `app` always agree, on every monitor, so NEVER scale or adjust window-relative ' +
-  'coordinates yourself. `scaleFactor` is here to describe the display, not to correct anything. ' +
+  'NEGATIVE x/y, which are valid. `bounds` is the rectangle to aim in — pass it straight to ' +
+  'set_window_bounds to fill a screen, or halve its width for one side. ' +
+  'NEVER scale or adjust these numbers, and never scale window-relative coordinates either: ' +
+  '`scaleFactor` tells you the user\'s text and buttons are enlarged, which helps you READ the ' +
+  'screen — it is not a factor to multiply by. ' +
   'Windows only today; returns an empty list elsewhere.'
 
 /** The wire shape — `bounds` is the rectangle to AIM in, stated explicitly so
@@ -27,28 +27,21 @@ export function buildListMonitorsResponse(monitors: MonitorInfo[]): {
     id: monitor.id,
     name: monitor.name,
     isPrimary: monitor.isPrimary,
-    // What to aim with.
-    bounds: {
-      x: monitor.x,
-      y: monitor.y,
-      width: monitor.logicalWidth,
-      height: monitor.logicalHeight,
-    },
-    // The panel's own pixel count — descriptive only. Deliberately NOT framed
-    // as "what a screenshot measures": the only screenshots this package takes
-    // are of a WINDOW, and a window's capture matches its bounds on every
-    // monitor. Saying otherwise invites the model to invent a correction and
-    // click in the wrong place — measured 2026-08-11, see the retraction in
-    // docs/module-notes/desktop-autopilot.md.
-    physicalSize: { width: monitor.physicalWidth, height: monitor.physicalHeight },
+    // ONE rectangle, reported exactly as the OS gives it. There is deliberately
+    // no second "logical" size any more: a per-monitor-DPI-aware process — the
+    // frame both clicks and window moves run in — reports this machine's 125%
+    // panel as -1080,-847 1080x1920, identical to this. The invented logical
+    // size (864x1536) would have made "fill that screen" cover 64% of it.
+    bounds: { x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height },
     scaleFactor: monitor.scaleFactor,
     rotationDegrees: monitor.rotationDegrees,
     ...(monitor.scaleFactor !== 1
       ? {
           note:
-            `This display is scaled ${Math.round(monitor.scaleFactor * 100)}%. That affects THIS ` +
-            'rectangle only — use bounds, not physicalSize, for absolute coordinates. It does not ' +
-            'affect window-relative coordinates, which need no adjustment on any monitor.',
+            `The user has this display scaled to ${Math.round(monitor.scaleFactor * 100)}%, so text ` +
+            'and buttons are physically larger than the pixel count suggests. That is context for ' +
+            'reading the screen — do NOT scale coordinates by it. `bounds` is already the ' +
+            'rectangle to aim in.',
         }
       : {}),
   }))

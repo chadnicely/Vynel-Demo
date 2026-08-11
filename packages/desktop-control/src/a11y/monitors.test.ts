@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readMonitor, toLogicalExtent } from './monitors.js'
+import { readMonitor } from './monitors.js'
 import type { NativeMonitor } from './screenshot-adapter.js'
 
 /** A stand-in for the native binding — every field is a METHOD there, so the
@@ -30,26 +30,14 @@ function fakeMonitor(overrides: Partial<Record<string, unknown>> = {}): NativeMo
   }
 }
 
-describe('toLogicalExtent', () => {
-  it('is the identity at 100%', () => {
-    expect(toLogicalExtent(1920, 1)).toBe(1920)
-  })
-
-  it('divides by the scale factor — 1350 physical at 125% is 1080 to aim in', () => {
-    expect(toLogicalExtent(1350, 1.25)).toBe(1080)
-  })
-
-  it('falls back to the physical extent for a nonsense factor rather than dividing by zero', () => {
-    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
-      expect(toLogicalExtent(1920, bad)).toBe(1920)
-    }
-  })
-})
-
 describe('readMonitor', () => {
-  it('reports physical and logical size separately — they differ on a scaled display', () => {
-    // The real second display measured 2026-08-11: portrait, 125%, placed left
-    // of and above the primary, so its origin is NEGATIVE.
+  // THE regression this file exists for. An earlier version derived a "logical"
+  // size (physical ÷ scaleFactor) on the theory that origin and size were in
+  // different units. Measuring it properly disproved that: a
+  // per-monitor-DPI-aware process — the frame clicks and window moves both run
+  // in — reports this exact panel as -1080,-847 1080x1920, identical to the
+  // binding. The invented 864x1536 would have made "fill this screen" cover 64%.
+  it('reports the display EXACTLY as given — nothing is scaled or corrected', () => {
     const info = readMonitor(
       fakeMonitor({
         id: 131073,
@@ -68,14 +56,15 @@ describe('readMonitor', () => {
       name: 'Display 2',
       x: -1080,
       y: -847,
-      physicalWidth: 1080,
-      physicalHeight: 1920,
-      logicalWidth: 864,
-      logicalHeight: 1536,
+      width: 1080,
+      height: 1920,
       scaleFactor: 1.25,
       rotationDegrees: 270,
       isPrimary: false,
     })
+    // Named explicitly so a future "helpful" division fails here first.
+    expect(info.width).not.toBe(864)
+    expect(info.height).not.toBe(1536)
   })
 
   it('keeps negative origins intact — a display left of the primary is not an error', () => {
@@ -84,15 +73,16 @@ describe('readMonitor', () => {
     expect(info.y).toBe(-200)
   })
 
-  it('leaves an unscaled display untouched', () => {
-    const info = readMonitor(fakeMonitor())
-    expect(info.logicalWidth).toBe(info.physicalWidth)
-    expect(info.logicalHeight).toBe(info.physicalHeight)
+  it('a scaled display reports the same size an unscaled one would', () => {
+    const scaled = readMonitor(fakeMonitor({ scaleFactor: 1.5 }))
+    const plain = readMonitor(fakeMonitor())
+    expect(scaled.width).toBe(plain.width)
+    expect(scaled.height).toBe(plain.height)
   })
 
-  it('degrades a broken scale factor to 1 instead of emitting NaN geometry', () => {
+  it('degrades a broken scale factor to 1 without touching the geometry', () => {
     const info = readMonitor(fakeMonitor({ scaleFactor: 0 }))
     expect(info.scaleFactor).toBe(1)
-    expect(info.logicalWidth).toBe(1920)
+    expect(info.width).toBe(1920)
   })
 })

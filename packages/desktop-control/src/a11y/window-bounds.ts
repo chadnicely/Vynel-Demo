@@ -19,12 +19,7 @@
 // Windows silently virtualizes coordinates for a scaled display and the window
 // lands somewhere else — the exact class of bug the DPI retraction was about.
 
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-
-const execFileAsync = promisify(execFile)
-
-const SET_BOUNDS_TIMEOUT_MS = 15_000
+import { runPowerShell, type PowerShellRunner } from './powershell.js'
 
 export interface WindowBoundsRequest {
   x: number
@@ -94,10 +89,13 @@ export function parseBoundsEcho(stdout: string): SetWindowBoundsOutcome {
   if (line === 'NOWINDOW') return { ok: false, reason: 'no-window' }
   const parts = line.split(',').map((part) => Number(part.trim()))
   if (parts.length !== 4 || !parts.every(Number.isFinite)) return { ok: false, reason: 'failed' }
-  return {
-    ok: true,
-    applied: { x: parts[0]!, y: parts[1]!, width: parts[2]!, height: parts[3]! },
-  }
+  const [x, y, width, height] = parts as [number, number, number, number]
+  // A zero-size rectangle is never a real window — it is what GetWindowRect
+  // leaves behind when it FAILS (the handle died during the settle). Accepting
+  // it would report "the app adjusted your 800x600 request to 0x0; use these
+  // numbers", which is a verification failure dressed up as a successful move.
+  if (width <= 0 || height <= 0) return { ok: false, reason: 'failed' }
+  return { ok: true, applied: { x, y, width, height } }
 }
 
 /**
@@ -112,18 +110,13 @@ export function parseBoundsEcho(stdout: string): SetWindowBoundsOutcome {
 export async function setWindowBounds(
   pid: number,
   bounds: WindowBoundsRequest,
+  // Injected the way `setWindowState` takes its runner — which is what makes
+  // this function unit-testable at all, rather than only its two pure helpers.
+  run: PowerShellRunner = runPowerShell,
 ): Promise<SetWindowBoundsOutcome> {
   if (process.platform !== 'win32') return { ok: false, reason: 'failed' }
-  try {
-    const { stdout } = await execFileAsync(
-      'powershell',
-      ['-NoProfile', '-NonInteractive', '-Command', setBoundsCommand(pid, bounds)],
-      { windowsHide: true, timeout: SET_BOUNDS_TIMEOUT_MS },
-    )
-    return parseBoundsEcho(stdout)
-  } catch {
-    // Same resilient posture as the rest of the package: a failed spawn is a
-    // failed move, never a crash mid-turn.
-    return { ok: false, reason: 'failed' }
-  }
+  // `runPowerShell` is best-effort and returns '' on any failure, which
+  // `parseBoundsEcho` already reads as `failed` — so a wedged or missing
+  // PowerShell is a failed move, never a crash mid-turn.
+  return parseBoundsEcho(await run(setBoundsCommand(pid, bounds)))
 }

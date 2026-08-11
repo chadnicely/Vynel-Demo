@@ -12,7 +12,7 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
-import { findWindowedPidByName } from '../a11y/windowed-process.js'
+import { findWindowedPidByName, isProcessRunningByName } from '../a11y/windowed-process.js'
 import { resolveAppIdentity } from '../a11y/window-identity.js'
 import { setWindowState, windowStateVerb, WINDOW_STATES, isWindowState } from '../a11y/window-state.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
@@ -29,6 +29,7 @@ const TOOL_DESCRIPTION =
 
 export type SetWindowStateToolDeps = {
   findPid?: (query: string) => Promise<number | null>
+  isRunning?: (query: string) => Promise<boolean>
   /** Injectable so the tool's tests never load the capture binary (the
    *  `request_desktop_access` precedent) — the default reaches node-screenshots. */
   appNameByPid?: (pid: number) => string | null
@@ -44,6 +45,7 @@ export function makeSetWindowStateTool(
 ): unknown {
   const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
   const findPid = deps.findPid ?? findWindowedPidByName
+  const isRunning = deps.isRunning ?? isProcessRunningByName
   const apply = deps.apply ?? setWindowState
   const appNameByPid = deps.appNameByPid
   return (tool as unknown as McpToolFn)(
@@ -80,7 +82,14 @@ export function makeSetWindowStateTool(
             content: [
               {
                 type: 'text',
-                text: `No open window matches "${query}". Call list_open_apps to see what's open (the app must be running).`,
+                // Same tray distinction as set_window_bounds: findWindowedPidByName
+                // filters MainWindowHandle -ne 0, so a tray app reaches here even
+                // though it is running. "Not open" would be false.
+                text: (await isRunning(query))
+                  ? `"${query}" IS running but has no window to arrange — most likely minimized ` +
+                    'to the system tray. Call launch_app with its installed name to bring the ' +
+                    'window back first.'
+                  : `No open window matches "${query}". Call list_open_apps to see what's open (the app must be running).`,
               },
             ],
             isError: true,

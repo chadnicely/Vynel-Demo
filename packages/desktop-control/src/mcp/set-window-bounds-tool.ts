@@ -4,24 +4,32 @@
 // A `click`-class change (it rearranges the screen but types nothing), and
 // PLAN-GATED by construction like every other act tool.
 //
-// ⚠ THE COORDINATE FRAME, measured 2026-08-11 — this is the one thing to get
-// right. `SetWindowPos` takes VIRTUAL-DESKTOP coordinates and honours them
-// exactly, including negative origins and scaled displays: asked
-// (-1000,-800,640,480) on a 125% portrait panel, got precisely that back. Those
-// are the same coordinates `list_monitors` reports as `bounds`, which is why the
-// tool tells the model to size from there.
+// ⚠ THE COORDINATE FRAME — the one thing to get right, and the first
+// measurement of it was not good enough.
 //
-// They are NOT the numbers `screenshot_app` works in. node-screenshots reports a
-// window's *visible frame* — inset by the invisible resize border, and divided
-// by the scale factor on a scaled monitor (that same window read back as
-// -1010,-785,499,353). Feeding those into this tool would shrink and drift the
-// window a little more on every round trip, so the description says plainly
-// where the numbers must come from.
+// A SetWindowPos/GetWindowRect round trip proves nothing: both run in the same
+// process under the same DPI awareness, so they agree whatever frame that is.
+// The discriminating question is what a PER-MONITOR-DPI-AWARE process reports
+// for the monitors themselves, and the answer (2026-08-11) is that this
+// machine's 125% panel is `-1080,-847 1080x1920` there — byte-identical to what
+// node-screenshots reports. So `list_monitors`' `bounds` and this tool share one
+// frame, and passing those numbers straight through fills the screen exactly.
+//
+// That measurement also killed an invented `logicalWidth` (864x1536 for the same
+// panel): had the model sized from it, "fill that screen" would have covered 64%
+// of it.
+//
+// What is genuinely a DIFFERENT frame is `screenshot_app`'s window geometry —
+// node-screenshots reports a window's *visible* frame, inset by the invisible
+// resize border and scale-divided on a scaled monitor (the window placed at
+// -1000,-800 640x480 read back as -1010,-785,499,353). Feeding those numbers in
+// here shrinks the window a little more every round trip, so the description
+// says plainly where the numbers must come from.
 
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
-import { findWindowedPidByName } from '../a11y/windowed-process.js'
+import { findWindowedPidByName, isProcessRunningByName } from '../a11y/windowed-process.js'
 import { resolveAppIdentity } from '../a11y/window-identity.js'
 import { rejectUnusableBounds, setWindowBounds } from '../a11y/window-bounds.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
@@ -41,6 +49,7 @@ const TOOL_DESCRIPTION =
 
 export type SetWindowBoundsToolDeps = {
   findPid?: (query: string) => Promise<number | null>
+  isRunning?: (query: string) => Promise<boolean>
   appNameByPid?: (pid: number) => string | null
   apply?: typeof setWindowBounds
 }
@@ -53,6 +62,7 @@ export function makeSetWindowBoundsTool(
 ): unknown {
   const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
   const findPid = deps.findPid ?? findWindowedPidByName
+  const isRunning = deps.isRunning ?? isProcessRunningByName
   const apply = deps.apply ?? setWindowBounds
   const appNameByPid = deps.appNameByPid
   return (tool as unknown as McpToolFn)(
@@ -95,11 +105,21 @@ export function makeSetWindowBoundsTool(
       try {
         const pid = await findPid(query)
         if (pid === null) {
+          // THE reachable tray path. `findWindowedPidByName` filters
+          // MainWindowHandle -ne 0, and a tray app reports 0 on every process —
+          // so a tray app ALWAYS lands here, never on the `no-window` outcome
+          // below (which needs the pid lookup to have succeeded first). Saying
+          // "no open window matches" here is the exact false statement this
+          // whole change exists to remove.
           return {
             content: [
               {
                 type: 'text',
-                text: `No open window matches "${query}". Call list_open_apps to see what's open.`,
+                text: (await isRunning(query))
+                  ? `"${query}" IS running but has no window to move — most likely minimized to ` +
+                    'the system tray. Call launch_app with its installed name to bring the window ' +
+                    'back, then move it.'
+                  : `No open window matches "${query}". Call list_open_apps to see what's open.`,
               },
             ],
             isError: true,

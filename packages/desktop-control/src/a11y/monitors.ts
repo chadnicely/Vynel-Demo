@@ -5,47 +5,43 @@
 // answer "what's on my other screen?", and an absolute-coordinate action on a
 // display left of the primary was a guess (those coordinates are NEGATIVE).
 //
-// ⚠ THE UNITS TRAP, measured 2026-08-11 and the reason this file is not a
-// two-line wrapper. node-screenshots reports a monitor's `x`/`y` in
-// virtual-desktop coordinates — the SAME space nut.js positions the cursor in —
-// but its `width`/`height` in PHYSICAL pixels. On a 125% display those differ by
-// the scale factor, so `x + width` is NOT the monitor's right edge in the space
-// a click uses. Deriving a click target from the raw rectangle lands off-screen.
+// ⚠ THERE IS NO UNITS TRAP — and an earlier version of this file invented one.
 //
-// So this module reports BOTH: the physical size (what a capture of that screen
-// would be) and the logical rectangle (what the input engine understands). The
-// tool hands the model the logical one for aiming and labels the difference,
-// because "1920x1080 at 125%" is information the model needs to interpret a
-// screenshot, not a correction to apply itself.
+// It claimed the origin was virtual-desktop while the size was physical, and
+// derived a "logical" rectangle to aim with. That was WRONG, and measuring it
+// properly killed it: a per-monitor-DPI-aware process (the frame both nut.js's
+// `setPosition` and Win32 `SetWindowPos` run in) reports this machine's 125%
+// panel as `-1080,-847 1080x1920` — byte-identical to what node-screenshots
+// reports. Origin AND size are the same frame, consistently.
 //
-// Window geometry is NOT affected — a window's bounds and its capture agree, and
-// `translatePoint` is coherent as-is (verified against Win32 GetCursorPos).
+// The invented "logical" size was 864x1536, so a window told to fill that screen
+// would have covered 64% of it. That is the same phantom-correction mistake as
+// the retracted DPI bug (see `docs/module-notes/desktop-autopilot.md`), one
+// layer up: a plausible theory, a self-consistent measurement that could not
+// disprove it, and a correction applied to something that was already right.
+//
+// So: report what the OS reports, and let `scaleFactor` be information about the
+// display rather than a factor anyone multiplies by. Window geometry was never
+// affected either — a window's bounds and its capture agree, and `translatePoint`
+// is coherent as-is (verified against Win32 GetCursorPos).
 
 import { loadNodeScreenshots, type NativeMonitor } from './screenshot-adapter.js'
 
 export interface MonitorInfo {
   id: number
   name: string
-  /** Virtual-desktop origin — the space the input engine uses. May be negative. */
+  /** Virtual-desktop origin. May be negative. Same frame as `width`/`height`. */
   x: number
   y: number
-  /** PHYSICAL pixel size — what a full capture of this screen measures. */
-  physicalWidth: number
-  physicalHeight: number
-  /** Size in the coordinate space clicks use (physical ÷ scaleFactor). */
-  logicalWidth: number
-  logicalHeight: number
-  /** 1 = 100%, 1.25 = 125%. */
+  /** Size in that SAME frame — the one clicks and window moves both use. */
+  width: number
+  height: number
+  /** 1 = 100%, 1.25 = 125%. INFORMATION about the display: it tells the model
+   *  the user's UI is enlarged, so text and controls are bigger than the pixel
+   *  count suggests. It is NOT a factor to multiply coordinates by. */
   scaleFactor: number
   rotationDegrees: number
   isPrimary: boolean
-}
-
-/** Divide a physical extent by the scale factor, guarding a nonsense factor
- *  (a monitor unplugged mid-call can report 0). Pure. */
-export function toLogicalExtent(physical: number, scaleFactor: number): number {
-  if (!Number.isFinite(scaleFactor) || scaleFactor <= 0) return Math.round(physical)
-  return Math.round(physical / scaleFactor)
 }
 
 /** Read one native monitor into a plain snapshot. Every field is a METHOD on the
@@ -55,17 +51,16 @@ export function toLogicalExtent(physical: number, scaleFactor: number): number {
 export function readMonitor(monitor: NativeMonitor): MonitorInfo {
   const scaleFactor = Number(monitor.scaleFactor())
   const safeScale = Number.isFinite(scaleFactor) && scaleFactor > 0 ? scaleFactor : 1
-  const physicalWidth = Number(monitor.width())
-  const physicalHeight = Number(monitor.height())
   return {
     id: Number(monitor.id()),
     name: String(monitor.name()),
+    // Reported verbatim. Nothing is divided, scaled, or "corrected" — see the
+    // header: the last time this file did that, it shrank a full-screen window
+    // to 64% of the display.
     x: Number(monitor.x()),
     y: Number(monitor.y()),
-    physicalWidth,
-    physicalHeight,
-    logicalWidth: toLogicalExtent(physicalWidth, safeScale),
-    logicalHeight: toLogicalExtent(physicalHeight, safeScale),
+    width: Number(monitor.width()),
+    height: Number(monitor.height()),
     scaleFactor: safeScale,
     rotationDegrees: Number(monitor.rotation()),
     isPrimary: Boolean(monitor.isPrimary()),

@@ -140,6 +140,20 @@ export async function isProcessRunningByName(query: string): Promise<boolean> {
 export function matchesProcessName(processName: string, query: string): boolean {
   const left = processName.trim().toLowerCase()
   const right = query.trim().toLowerCase().replace(/\.exe$/, '')
-  if (left.length === 0 || right.length === 0) return false
-  return left.includes(right) || right.includes(left)
+  // A short fragment must not match half the machine. Bidirectional containment
+  // is what makes "Docker Desktop" find process "Docker Desktop" AND query
+  // "Docker" find it — but unguarded it also lets "a" match everything, and
+  // lets a running `chrome` answer for "Chrome Remote Desktop". The floor is
+  // the cheap fix: a confident but WRONG "it's in the system tray" is worse
+  // than an honest "not open", because it sends the user hunting a tray icon
+  // that isn't there.
+  if (left.length < MIN_PROCESS_MATCH_LENGTH || right.length < MIN_PROCESS_MATCH_LENGTH) {
+    return false
+  }
+  return left === right || left.includes(right) || right.includes(left)
 }
+
+/** Shortest fragment allowed to claim a process match. Four covers real names
+ *  ("Code", "Slack") while rejecting the one- and two-letter queries that would
+ *  match nearly any process list. */
+export const MIN_PROCESS_MATCH_LENGTH = 4
