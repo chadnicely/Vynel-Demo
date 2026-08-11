@@ -237,6 +237,76 @@ state, batching, and every safety layer.
 
 ---
 
+## WHAT'S LEFT — the live list (2026-08-11, after Kafi's smoke test)
+
+Everything below the arcs is history; this is the outstanding work. Kafi's smoke test passed on the
+overlay lifecycle, Stop routing, a second task starting clean, and `wait_for`. **Voice (Arc 7) is
+owned by a separate session and is NOT tracked here any more.**
+
+### Blocking the product story
+
+1. **Remote monitoring + remote stop.** The biggest hole. A Telegram message can start a desktop
+   task, but there is no way to watch it or stop it — the whole remote progress story is a
+   "typing…" indicator refreshed every 4s, then one message up to 20 minutes later. Half the
+   autopilot promise exists. (`translate-chat-event-to-channel.ts` skips tool events and is unwired;
+   `channels/src/inbound` has no stop path.)
+2. **A server-side interrupt for the spawned-session surface.** Found by review, 2026-08-11. That
+   surface has no stop route at all, which is why the overlay's Stop honestly disables there. The
+   shape is `chat.interruptSession` keyed by `sessionId`.
+3. **The act flag as a real setting.** `VYNEL_DESKTOP_ACT_ENABLED` is env-only and default-off. If
+   autopilot is the headline feature this must be a user-facing toggle carrying the
+   isolated-machine acknowledgment — a shipping blocker, not a nice-to-have.
+
+### Real gaps found by using it
+
+4. **An app minimized to the SYSTEM TRAY cannot be reached — and we describe it wrongly.** Kafi hit
+   this with Docker Desktop. A tray app is *hidden*, not minimized: every Docker process reports
+   `MainWindowHandle = 0`, so `IsIconic` is false, `ShowWindow(SW_RESTORE)` is a no-op,
+   `findWindowedPidByName` filters it out (`MainWindowHandle -ne 0`), and `Window.all()` never
+   lists it. The user is told **"no matching app is open"**, which is false — it is running — and
+   sends the model down the wrong recovery. Windows has no general "restore from tray" API (a tray
+   icon is just a notification-area icon with an app-defined click handler), so the fix is:
+   - **detect** it — process running by name but no windowed pid ⇒ say "running, but has no window
+     (likely minimized to the system tray)" instead of "not open";
+   - **recover** — re-launching usually restores the window for tray apps (Docker Desktop included),
+     so point the model at `launch_app`;
+   - **fall back honestly** — if that doesn't surface it, tell the user to click the tray icon.
+   *(A further option, not taken: the notification area is UIA-accessible, so the tray icon could be
+   invoked directly. More fragile and app-specific; revisit only if re-launch proves insufficient.)*
+5. **Windows cannot be moved or resized.** `set_window_bounds` does not exist. The *drag gesture* is
+   functional (stepped, `act_on_desktop`), so a title-bar drag works mechanically — but dragging a
+   window across monitors is exactly the thing Guide §15.2/§15.1 says not to do, and the correct
+   primitive is missing. This is the one place `node-window-manager`'s **write** half is genuinely
+   additive; `node-screenshots` reads geometry but cannot set it.
+
+### Quieter, but real
+
+6. **Durable task record (2b).** Deferred by Kafi's scope call; worth revisiting now that spawned
+   desktop work actually runs. A task that dies mid-way has nothing to resume from. Note spawned
+   tasks inherit *some* durability free (delegation jobs carry attempt counts + a boot sweep); what
+   is missing is a step cursor and desktop-aware retry semantics.
+7. **Post-action verification (Arc 4's other half).** `wait_for` landed; generalising "did it
+   actually work?" from the `launch_app` / `set_window_state` precedents did not. Success is still
+   largely what the model asserts.
+8. **Approval-stall budget.** Unattended, an unanswered card burns ~10 minutes *while holding the
+   per-user root lock*, so a "are you stuck?" message cannot even be processed. A group-origin card
+   can never be answered at all.
+9. **The two 10-minute budgets are identical.** `DELEGATION_RUN_BUDGET_MS` measures from *claim*,
+   the new task watchdog from *first arm* — so on a spawned session the delegation budget always
+   bites first and the watchdog only really covers attended turns. They probably should not match.
+10. **Cheap fills still open:** `mouse_position`, `mouse_button` (press/hold/release), whole-screen
+    capture. One file each; the nut loader widening unlocks most of them.
+
+### Decisions, not work
+
+11. **Arc 6 in/out calls** — each needs a new dependency: OCR (`tesseract.js`) · volume
+    (`loudness`) · CPU/mem/battery + process list (`systeminformation`) · sending a desktop
+    notification (`node-notifier`) · opening an arbitrary file/URL (`open`).
+12. **Deep-link joining** (`zoommtg://`, `msteams:`) — needs a scheme-allowlisted URI primitive
+    beside `launch-app.ts`; higher-risk surface than anything above.
+
+---
+
 ## The arcs
 
 Ordered by what actually blocks the autopilot story. Each lands green and reviewed on its own.
@@ -550,7 +620,11 @@ default-off; if autopilot is the headline this must be a user-facing toggle carr
 isolated-machine acknowledgment. Flagged in `desktop-control-plan-approval.md:216`; autopilot moves
 it onto the critical path.
 
-### Arc 7 — Voice in calls (last, and gated on a Chad decision)
+### Arc 7 — Voice in calls — MOVED OUT (2026-08-11)
+
+**No longer tracked here.** Kafi handed this to a separate session working in its own worktree; the
+self-contained brief is `docs/module-notes/voice-in-calls.md`. The scoping below is kept only as the
+record of how it was split — do not treat it as this plan's backlog.
 
 Sequenced last: depends on nothing above, and the desktop story is the headline ask. Given finding 2,
 the genuinely new work is:
