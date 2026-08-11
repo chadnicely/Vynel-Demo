@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
@@ -6,6 +6,13 @@ import { vynelClientKey } from "../../plugins/vynel-client.js";
 import type { VynelClient } from "@vynel/sdk";
 import type { AskRequestResponse } from "@vynel/contracts/asks/ask-http";
 import AskNotifier from "./AskNotifier.vue";
+
+// The shell probe is a module-level function; hoisted mock so each test can say
+// whether it is running inside the desktop shell.
+const isTauri = vi.hoisted(() => ({ value: false }));
+vi.mock("../../composables/voice/tauri-overlay-window.js", () => ({
+  isTauriShell: () => isTauri.value,
+}));
 
 const PENDING_ASK: AskRequestResponse = {
   id: "ask-1",
@@ -69,6 +76,26 @@ function findButton(wrapper: ReturnType<typeof mount>, label: string) {
   if (!button) throw new Error(`no button labeled ${label}`);
   return button;
 }
+
+describe("AskNotifier — docking away from the desktop overlay", () => {
+  it("keeps the corner in a plain browser", async () => {
+    isTauri.value = false;
+    const { wrapper } = makeHarness();
+    await flushPromises();
+    expect(wrapper.find(".ask-notifier").classes()).not.toContain("dock-start");
+  });
+
+  it("docks away inside the desktop shell", async () => {
+    // The overlay is an ALWAYS-ON-TOP window at the screen's bottom-right —
+    // these pixels. A buried ask is worse than a buried approval: `ask_user`
+    // parks with deliberately NO timeout, so it hangs the turn forever.
+    isTauri.value = true;
+    const { wrapper } = makeHarness();
+    await flushPromises();
+    expect(wrapper.find(".ask-notifier").classes()).toContain("dock-start");
+    isTauri.value = false;
+  });
+});
 
 describe("AskNotifier", () => {
   it("shows the newest pending ask with its first question and count", async () => {

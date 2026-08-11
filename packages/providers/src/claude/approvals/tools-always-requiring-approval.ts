@@ -9,10 +9,11 @@
 //     whose `permissionMode` is `bypassPermissions`/`dontAsk` and would
 //     otherwise skip the prompt entirely (the safety invariant).
 //
-// Scope since 2026-07-30 (Chad): the floor STANDS DOWN in `auto`
-// (Anthropic's classifier is the sole gate) and in the user's `bypass`
-// (nothing cards — the composer mode is the user's trust level for the
-// whole turn, subagents included). It holds in ask/plan-only and in the
+// Scope: the floor STANDS DOWN in `auto` and in the user's `bypass` — neither
+// cards anything (bypass 2026-07-30 Chad; auto extended to the same rule by
+// Kafi 2026-08-11, when an escalated approval hung a turn in the one mode that
+// promises not to ask). The composer mode is the user's trust level for the
+// whole turn, subagents included. The floor holds in ask/plan-only and in the
 // unattended `bypass-with-behavior-gate` default.
 //
 // Hardcoded for Phase 1 — per-skill / per-agent configurability is a

@@ -13,8 +13,10 @@ export type ChatMessageImage = {
 /**
  * Permission mode for a session. Maps to the Agent SDK `permissionMode`.
  * - `ask` — every tool use triggers an approval card (SDK `default`).
- * - `auto` — Anthropic's safety classifier is the SOLE gate (SDK `auto`);
- *   no Vynel floor anywhere — only the classifier's uncertain escalations card.
+ * - `auto` — NOTHING cards (SDK `auto`): no Vynel floor, and `canUseTool`
+ *   allows outright, so not even a classifier escalation can park a turn
+ *   (Kafi 2026-08-11). Still not SDK `bypassPermissions`, so an outright
+ *   provider refusal stands.
  * - `bypass` — nothing cards, ever (SDK `bypassPermissions`). The USER's
  *   explicit composer pick only (Chad, 2026-07-30: bypass means bypass).
  * - `bypass-with-behavior-gate` — tools run silently except the irreversible

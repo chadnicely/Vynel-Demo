@@ -16,8 +16,9 @@ export type SessionMode = 'ask' | 'auto' | 'bypass'
  * The provider permission-mode string each `SessionMode` maps to — a subset of
  * `@vynel/providers`'s `ClaudePermissionMode`:
  * - `ask` → `ask` (SDK `default`): approve every tool.
- * - `auto` → `auto` (SDK `auto`): Anthropic's safety classifier gates each
- *   action; only its uncertain cases ask.
+ * - `auto` → `auto` (SDK `auto`): runs without asking — no Vynel card of any
+ *   kind, not even for a classifier escalation (Kafi 2026-08-11). The
+ *   provider's own safety check still applies.
  * - `bypass` → `bypass` (SDK `bypassPermissions`): runs everything without
  *   prompts — the user's explicit grant (2026-07-30: bypass means bypass).
  *   The provider's separate `bypass-with-behavior-gate` (floor still cards)
@@ -55,7 +56,11 @@ export const SESSION_MODES: readonly {
   {
     mode: 'auto',
     label: 'Auto',
-    description: "Claude's safety check gates each action; asks only when unsure.",
+    // Was "…asks only when unsure", which stopped being true when auto stopped
+    // carding (Kafi 2026-08-11). A security-relevant mode must never advertise
+    // a protection it no longer has — this wording is honest whether or not the
+    // provider's own classifier can still refuse a call outright.
+    description: "Runs without asking; Claude's own safety check still applies.",
   },
   {
     mode: 'bypass',

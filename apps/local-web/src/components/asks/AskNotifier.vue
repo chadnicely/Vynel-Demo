@@ -6,6 +6,7 @@ import { usePendingApprovals } from "../../composables/approvals/use-pending-app
 import { useDismissAsk } from "../../composables/asks/use-dismiss-ask.js";
 import AskWizardDialog from "./AskWizardDialog.vue";
 import { useBrowserStore } from "../../stores/browser-store.js";
+import { isTauriShell } from "../../composables/voice/tauri-overlay-window.js";
 
 // Asks surface like approvals (the notifier precedent): whatever view is
 // open, the newest pending ask slides in bottom-right, answerable on the
@@ -30,6 +31,15 @@ const besideApprovals = computed(
   () => (approvalsQuery.data.value?.length ?? 0) > 0,
 );
 
+// Same collision the approval notifier hit (2026-08-11): the desktop overlay is
+// an ALWAYS-ON-TOP window at the screen's bottom-right — these pixels — so an
+// ask raised while it is up is invisible and unanswerable. That is worse here
+// than for approvals: `ask_user` parks with deliberately NO timeout (a decision
+// Claude chose to ask for cannot be fabricated), so a buried ask hangs the turn
+// forever. Dock away whenever an overlay can appear, exactly as browser mode
+// already does for the native page webview.
+const dockAwayFromOverlay = computed(() => browser.isOpen || isTauriShell());
+
 // The wizard holds a snapshot so the card can leave the poll while it's open
 // (answering removes the row; the dialog must not vanish mid-typing).
 const activeAsk = ref<AskRequestResponse | null>(null);
@@ -52,7 +62,7 @@ function dismiss() {
     class="ask-notifier"
     :class="{
       'beside-approvals': besideApprovals,
-      'dock-start': browser.isOpen,
+      'dock-start': dockAwayFromOverlay,
     }"
     aria-live="polite"
   >

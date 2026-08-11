@@ -71,8 +71,10 @@ export type BuildClaudeSdkOptionsInput = {
 // the SDK's `bypassPermissions`; the difference is Vynel-side — `bypass` (the
 // user's composer pick) never cards, while `bypass-with-behavior-gate` (the
 // unattended default) keeps the irreversible floor carding via the behavior
-// gate + the PreToolUse backstop. `auto` maps to the SDK's `auto` — Anthropic's
-// safety classifier is the sole gate (no Vynel floor; 2026-07-30 stance).
+// gate + the PreToolUse backstop. `auto` maps to the SDK's `auto` and raises NO
+// Vynel card at all (Kafi 2026-08-11) — note it is still NOT the SDK's
+// `bypassPermissions`, so whatever the provider's own classifier refuses
+// outright it still refuses.
 const SDK_PERMISSION_MODE = {
   ask: 'default',
   auto: 'auto',

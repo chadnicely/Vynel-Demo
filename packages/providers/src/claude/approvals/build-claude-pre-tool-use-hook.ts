@@ -78,8 +78,8 @@ export function buildClaudePreToolUseHook(
         ? { ...input.tool_input, run_in_background: false }
         : undefined
 
-    // In auto the classifier is the sole gate; in the user's bypass nothing
-    // cards (2026-07-30 directive) — the floor holds everywhere else. The
+    // In auto and in the user's bypass NOTHING cards (auto: Kafi 2026-08-11;
+    // bypass: 2026-07-30) — the floor holds everywhere else. The
     // `'ask'` decision is what pulls a call OUT of the MCP wildcard's
     // `allowedTools` pre-approval (or a subagent's own skip-mode) and into
     // `canUseTool` (live smoke 2026-07-26 — bare allowedTools entries

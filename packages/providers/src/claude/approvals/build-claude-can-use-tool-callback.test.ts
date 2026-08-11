@@ -92,14 +92,8 @@ describe('buildClaudeCanUseToolCallback', () => {
       updatedInput: { file: 'a.txt' },
     })
     // No approval was ever enqueued — nothing for a UI to render, nothing to
-    // await, so a missing card can no longer hang the turn. `dequeue()` on an
-    // empty queue never settles, so race it against a timer: an enqueued event
-    // resolves on the microtask and would beat the 20ms sentinel.
-    const outcome = await Promise.race([
-      syntheticEventQueue.dequeue().then(() => 'enqueued' as const),
-      new Promise<'empty'>((resolve) => setTimeout(() => resolve('empty'), 20)),
-    ])
-    expect(outcome).toBe('empty')
+    // await, so a missing card can no longer hang the turn.
+    expect(syntheticEventQueue.isEmpty()).toBe(true)
   })
 
   it('auto gate: a desktop tool runs uncarded — the exact hang from the live smoke', async () => {
