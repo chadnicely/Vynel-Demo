@@ -10,8 +10,11 @@ const TOOL_DESCRIPTION =
   'READ-ONLY. Call this when the user mentions another screen, or before using ABSOLUTE ' +
   'coordinates, so you know the real layout instead of assuming one 1920x1080 screen. ' +
   'Coordinates are a single virtual desktop: a monitor left of or above the primary has ' +
-  'NEGATIVE x/y, which are valid. Use `logicalWidth`/`logicalHeight` for aiming — on a scaled ' +
-  'display those differ from the physical pixel size a screenshot measures. ' +
+  'NEGATIVE x/y, which are valid. Aim with `bounds` — never build a rectangle from x/y plus ' +
+  'physicalSize, because on a scaled display those two are in different units. ' +
+  'IMPORTANT — scaling does NOT apply to window work: a window\'s screenshot and the coordinates ' +
+  'you pass with `app` always agree, on every monitor, so NEVER scale or adjust window-relative ' +
+  'coordinates yourself. `scaleFactor` is here to describe the display, not to correct anything. ' +
   'Windows only today; returns an empty list elsewhere.'
 
 /** The wire shape — `bounds` is the rectangle to AIM in, stated explicitly so
@@ -31,15 +34,21 @@ export function buildListMonitorsResponse(monitors: MonitorInfo[]): {
       width: monitor.logicalWidth,
       height: monitor.logicalHeight,
     },
-    // What a capture of this screen would measure.
+    // The panel's own pixel count — descriptive only. Deliberately NOT framed
+    // as "what a screenshot measures": the only screenshots this package takes
+    // are of a WINDOW, and a window's capture matches its bounds on every
+    // monitor. Saying otherwise invites the model to invent a correction and
+    // click in the wrong place — measured 2026-08-11, see the retraction in
+    // docs/module-notes/desktop-autopilot.md.
     physicalSize: { width: monitor.physicalWidth, height: monitor.physicalHeight },
     scaleFactor: monitor.scaleFactor,
     rotationDegrees: monitor.rotationDegrees,
     ...(monitor.scaleFactor !== 1
       ? {
           note:
-            `This display is scaled ${Math.round(monitor.scaleFactor * 100)}%. A screenshot of it ` +
-            'measures physicalSize, but coordinates you act on live in bounds.',
+            `This display is scaled ${Math.round(monitor.scaleFactor * 100)}%. That affects THIS ` +
+            'rectangle only — use bounds, not physicalSize, for absolute coordinates. It does not ' +
+            'affect window-relative coordinates, which need no adjustment on any monitor.',
         }
       : {}),
   }))

@@ -123,9 +123,16 @@ reliable. When you do drag, always look afterwards to confirm it landed.
 
 Don't assume one screen. `list_monitors` tells you what's actually connected —
 position, size, scaling, orientation. A monitor to the left of or above the main
-one has **negative** coordinates, and those are correct, not a bug. Aim using
-the `bounds` it reports; on a scaled display (125%, 150%) those numbers differ
-from the pixel size a screenshot measures, so don't mix the two.
+one has **negative** coordinates, and those are correct, not a bug.
+
+Aim with the `bounds` it reports — never build a rectangle from `x`/`y` plus
+`physicalSize`, because on a scaled display those two are in different units.
+
+**Scaling does not apply to window work.** When you pass `app`, your coordinates
+are relative to that window's own screenshot, and those two always agree — on
+every monitor, at every scaling. Do **not** scale, divide, or "correct"
+window-relative coordinates because a display reports 125%. Doing so is what
+puts the click in the wrong place.
 
 ### The one naming trap
 
