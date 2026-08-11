@@ -50,14 +50,32 @@ export function dumpApp(app: Xa11yAppInstance, maxDepth: number): Promise<string
 // background, but the caller returns instead of leaving the turn pending
 // forever. Lives here (the a11y boundary) so every xa11y-touching file — the
 // adapter's ops AND the wake loop's probes — bounds through the same guard.
-export function withTimeout<T>(operation: Promise<T>, ms: number, label: string): Promise<T> {
+export function withTimeout<T>(
+  operation: Promise<T>,
+  ms: number,
+  label: string,
+  options: { retryUpToMs?: number } = {},
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
+      // Two very different causes wear the same symptom: an app that is merely
+      // SLOW (a huge window, a heavy Electron page, a cold start) and a control
+      // that will NEVER answer (custom-drawn Qt, some Electron widgets). The old
+      // message asserted the second and sent the model hunting for another
+      // element — so a slow-but-fine app looked broken. When a longer attempt is
+      // available, offer that FIRST and keep the dead-end as the fallback.
+      const retryFirst =
+        options.retryUpToMs !== undefined && options.retryUpToMs > ms
+          ? `If the app is just slow (a big window, a heavy page, a cold start), retry the SAME ` +
+            `call with timeoutMs up to ${options.retryUpToMs}. If it times out again at that limit, ` +
+            'the target is likely a control that never responds: '
+          : 'The target may be a custom-drawn control (e.g. Telegram/Qt) that does not respond to ' +
+            'accessibility actions: '
       reject(
         new Error(
-          `Desktop ${label} did not complete within ${ms / 1000}s — the target may be a custom-drawn ` +
-            'control (e.g. Telegram/Qt) that does not respond to accessibility actions. Try a different ' +
-            'element; some apps can only be read, not acted on this way.',
+          `Desktop ${label} did not complete within ${ms / 1000}s. ${retryFirst}` +
+            'try a different element, or fall back to screenshot_app — some apps can only be read ' +
+            'as pixels, not acted on this way.',
         ),
       )
     }, ms)

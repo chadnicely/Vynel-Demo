@@ -19,9 +19,21 @@ export const PLAN_REQUIRED_MESSAGE =
   'first — the user approves the WHOLE plan once (in ask mode), then these actions run without ' +
   'per-step approval cards. List every app the plan touches, at the lowest tier that works.'
 
-/** The act tools' pre-flight: refuse until the turn's plan is armed. */
+export const TASK_BUDGET_SPENT_MESSAGE =
+  'This desktop task has been running too long and has been stopped. Nothing is broken — but a ' +
+  'task that keeps acting without finishing is usually stuck repeating something that will not ' +
+  'work, and while it runs the user cannot easily interrupt it. Do NOT simply retry, and do NOT ' +
+  're-propose the same plan to buy more time: the clock does not reset. Look at the screen ' +
+  '(snapshot_app / screenshot_app), tell the user plainly where it got to and what is blocking ' +
+  'it, and let them decide.'
+
+/** The act tools' pre-flight: refuse until the turn's plan is armed, and stop
+ *  once the task has outrun its budget. */
 export function planRequiredError(envelope: DesktopPlanEnvelope): string | null {
-  return envelope.isArmed() ? null : PLAN_REQUIRED_MESSAGE
+  if (!envelope.isArmed()) return PLAN_REQUIRED_MESSAGE
+  // Checked here rather than per-tool so every acting path inherits it from the
+  // one pre-flight they already share.
+  return envelope.hasOutrunBudget() ? TASK_BUDGET_SPENT_MESSAGE : null
 }
 
 export const UNATTENDED_REFUSAL_MESSAGE =

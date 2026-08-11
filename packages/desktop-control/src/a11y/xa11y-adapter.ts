@@ -24,6 +24,32 @@ const MAX_SNAPSHOT_MAX_DEPTH = 40
 
 const ACT_TIMEOUT_MS = 15000
 const SNAPSHOT_TIMEOUT_MS = 25000
+
+/**
+ * The ceiling a caller may raise a desktop timeout to.
+ *
+ * WHY an override exists at all (Kafi, 2026-08-11): the defaults are tuned for a
+ * responsive app, and a genuinely slow one — a huge Electron tree, a cold start,
+ * a machine under load — failed with an error that blamed the CONTROL and sent
+ * the model looking for a different element. The honest recovery is "try again,
+ * with longer", so the timeout error now names this limit and the model can
+ * spend it.
+ *
+ * WHY it is capped: an unbounded timeout is just a hang with extra steps. Two
+ * minutes is long enough for anything that is going to finish, and short enough
+ * that a wedged provider still returns to the user.
+ */
+export const MAX_DESKTOP_TIMEOUT_MS = 120_000
+
+/** Clamp a requested timeout into [default, MAX]. A request BELOW the default is
+ *  ignored — the model raising its own floor is the useful direction, and
+ *  letting it shorten one only manufactures failures. Pure. */
+export function resolveDesktopTimeout(requestedMs: number | undefined, defaultMs: number): number {
+  if (requestedMs === undefined || !Number.isFinite(requestedMs) || requestedMs <= 0) {
+    return defaultMs
+  }
+  return Math.min(Math.max(Math.floor(requestedMs), defaultMs), MAX_DESKTOP_TIMEOUT_MS)
+}
 // App enumeration is normally sub-second; a long bound here means one wedged
 // provider, not a slow desktop.
 const LIST_TIMEOUT_MS = 10000
@@ -48,6 +74,8 @@ export async function listOpenApps(): Promise<OpenApp[]> {
 
 export type SnapshotAppOptions = {
   maxDepth?: number
+  /** Raise the read timeout for a slow app; clamped to MAX_DESKTOP_TIMEOUT_MS. */
+  timeoutMs?: number
 }
 
 export type AppSnapshot = {
@@ -88,7 +116,10 @@ export async function snapshotApp(
   const defaultDepth = resolved.viaElectronWake ? ELECTRON_SNAPSHOT_MAX_DEPTH : DEFAULT_SNAPSHOT_MAX_DEPTH
   const maxDepth = Math.min(options.maxDepth ?? defaultDepth, MAX_SNAPSHOT_MAX_DEPTH)
   try {
-    const tree = await withTimeout(dumpApp(resolved.app, maxDepth), SNAPSHOT_TIMEOUT_MS, 'snapshot')
+    const timeoutMs = resolveDesktopTimeout(options.timeoutMs, SNAPSHOT_TIMEOUT_MS)
+    const tree = await withTimeout(dumpApp(resolved.app, maxDepth), timeoutMs, 'snapshot', {
+      retryUpToMs: MAX_DESKTOP_TIMEOUT_MS,
+    })
     return {
       tree,
       wakeIncomplete: resolved.wakeIncomplete,
@@ -162,7 +193,12 @@ export async function openAppTreeReader(
       // one — re-checking a name we aren't sure of would deny work the user
       // already approved, and the up-front check has already run.
       if (canonicalName !== null) authorize?.(canonicalName, 'read')
-      return withTimeout(dumpApp(resolved.app, maxDepth), SNAPSHOT_TIMEOUT_MS, 'snapshot')
+      return withTimeout(
+        dumpApp(resolved.app, maxDepth),
+        resolveDesktopTimeout(options.timeoutMs, SNAPSHOT_TIMEOUT_MS),
+        'snapshot',
+        { retryUpToMs: MAX_DESKTOP_TIMEOUT_MS },
+      )
     },
     dispose: () => {
       resolved.dispose()

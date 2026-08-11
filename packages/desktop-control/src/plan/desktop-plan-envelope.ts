@@ -37,6 +37,26 @@ export type DesktopPlan = {
   apps: DesktopPlanApp[]
 }
 
+/**
+ * How long one desktop task may keep acting before it must stop and re-think.
+ *
+ * WHY a watchdog. Nothing bounds a turn today — no step cap, no wall clock, no
+ * cost ceiling — which is what makes long autopilot work possible AND what makes
+ * a stuck one dangerous: a model clicking a button that never responds runs
+ * until a human notices. That is fine when someone is watching; a spawned
+ * session working while the user is away is exactly when nobody is.
+ *
+ * Deliberately scoped to the DESKTOP task rather than the turn: it lives in the
+ * envelope that already dies with the turn, so it needs no session-backbone
+ * change, and it bounds the thing that actually touches the user's machine.
+ *
+ * Generous on purpose — a real task (open an app, log in, fill a form, save)
+ * lands well inside it, so hitting this means something is wrong, not that the
+ * work was big. The model is told to re-observe and re-plan, not merely retry:
+ * retrying is what got it here.
+ */
+export const DESKTOP_TASK_BUDGET_MS = 10 * 60 * 1000
+
 export type DesktopPlanEnvelope = {
   readonly consent: DesktopPlanConsent
   /** Arm (or replace) the turn's plan. In ask mode the call that reaches this
@@ -48,14 +68,35 @@ export type DesktopPlanEnvelope = {
    *  required tier. Always false under 'display-only' consent — an unattended
    *  plan narrates but never grants. */
   authorizesApp(resolvedAppName: string, required: DesktopAccessTier): boolean
+  /** Milliseconds this task has been running, measured from when its plan was
+   *  first armed. Null before that — nothing is acting yet. */
+  elapsedMs(): number | null
+  /** True once the task has outrun its budget. The act tools refuse from here. */
+  hasOutrunBudget(): boolean
 }
 
-export function createDesktopPlanEnvelope(consent: DesktopPlanConsent): DesktopPlanEnvelope {
+export function createDesktopPlanEnvelope(
+  consent: DesktopPlanConsent,
+  options: { budgetMs?: number; now?: () => number } = {},
+): DesktopPlanEnvelope {
   let plan: DesktopPlan | null = null
+  let armedAtMs: number | null = null
+  const now = options.now ?? Date.now
+  const budgetMs = options.budgetMs ?? DESKTOP_TASK_BUDGET_MS
   return {
     consent,
     arm(next: DesktopPlan): void {
       plan = next
+      // The clock starts at the FIRST arming and is not reset by a re-plan —
+      // otherwise a stuck model could re-propose its way around the budget
+      // forever, which is precisely the loop this exists to end.
+      armedAtMs ??= now()
+    },
+    elapsedMs(): number | null {
+      return armedAtMs === null ? null : now() - armedAtMs
+    },
+    hasOutrunBudget(): boolean {
+      return armedAtMs !== null && now() - armedAtMs >= budgetMs
     },
     isArmed(): boolean {
       return plan !== null

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { isAppNameMatch, actionRequiresValue, actOnApp } from './xa11y-adapter.js'
+import {
+  isAppNameMatch,
+  actionRequiresValue,
+  actOnApp,
+  resolveDesktopTimeout,
+  MAX_DESKTOP_TIMEOUT_MS,
+} from './xa11y-adapter.js'
 
 describe('isAppNameMatch', () => {
   it('matches a substring of a dynamic window title, case-insensitively', () => {
@@ -41,5 +47,26 @@ describe('actOnApp — fail-closed guards (run before xa11y loads)', () => {
 
   it('rejects a text action with no value', async () => {
     await expect(actOnApp('Calculator', 'edit', 'type_text')).rejects.toThrow(/requires a non-empty value/)
+  })
+})
+
+describe('resolveDesktopTimeout', () => {
+  it('uses the default when nothing sensible was asked for', () => {
+    for (const bad of [undefined, 0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(resolveDesktopTimeout(bad, 25_000)).toBe(25_000)
+    }
+  })
+
+  it('honours a longer request — the point is retrying a slow app with more room', () => {
+    expect(resolveDesktopTimeout(60_000, 25_000)).toBe(60_000)
+  })
+
+  // Shortening only manufactures failures; the useful direction is upward.
+  it('ignores a request BELOW the default', () => {
+    expect(resolveDesktopTimeout(500, 25_000)).toBe(25_000)
+  })
+
+  it('caps the ceiling — an unbounded timeout is a hang with extra steps', () => {
+    expect(resolveDesktopTimeout(999_999_999, 25_000)).toBe(MAX_DESKTOP_TIMEOUT_MS)
   })
 })

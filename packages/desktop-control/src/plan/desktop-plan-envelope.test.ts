@@ -67,3 +67,52 @@ describe('createDesktopPlanEnvelope', () => {
     expect(envelope.authorizesApp('Google Chrome', 'read')).toBe(false)
   })
 })
+
+// The watchdog (Kafi, 2026-08-11). Nothing bounds a turn today, so a model
+// clicking a button that never responds runs until a human notices — fine when
+// someone is watching, which is exactly not the case for a spawned session
+// working while the user is away.
+describe('the desktop task budget', () => {
+  function clockedEnvelope(budgetMs: number) {
+    let current = 1_000
+    const envelope = createDesktopPlanEnvelope('standing-consent', {
+      budgetMs,
+      now: () => current,
+    })
+    return { envelope, advance: (ms: number) => (current += ms) }
+  }
+  const plan = { goal: 'g', steps: ['s'], apps: [{ app: 'X', tier: 'full' as const }] }
+
+  it('is not running before a plan is armed', () => {
+    const { envelope } = clockedEnvelope(1_000)
+    expect(envelope.elapsedMs()).toBeNull()
+    expect(envelope.hasOutrunBudget()).toBe(false)
+  })
+
+  it('lets an ordinary task run well inside the budget', () => {
+    const { envelope, advance } = clockedEnvelope(60_000)
+    envelope.arm(plan)
+    advance(20_000)
+    expect(envelope.hasOutrunBudget()).toBe(false)
+    expect(envelope.elapsedMs()).toBe(20_000)
+  })
+
+  it('stops the task once the budget is spent', () => {
+    const { envelope, advance } = clockedEnvelope(10_000)
+    envelope.arm(plan)
+    advance(10_000)
+    expect(envelope.hasOutrunBudget()).toBe(true)
+  })
+
+  // THE one that matters. A stuck model re-proposing its plan would otherwise
+  // buy itself unlimited time — which is the exact loop the budget exists to end.
+  it('does NOT reset the clock when the plan is re-armed', () => {
+    const { envelope, advance } = clockedEnvelope(10_000)
+    envelope.arm(plan)
+    advance(9_000)
+    envelope.arm({ ...plan, goal: 'trying again' })
+    expect(envelope.elapsedMs()).toBe(9_000)
+    advance(1_000)
+    expect(envelope.hasOutrunBudget()).toBe(true)
+  })
+})
