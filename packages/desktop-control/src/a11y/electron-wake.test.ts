@@ -157,6 +157,10 @@ function resolveHooks(overrides: Partial<ResolveAppHooks> = {}) {
     releases,
     hooks: {
       findPid: () => Promise.resolve(9624),
+      // Default: NOT running. The tray branch is the exception, so a test that
+      // wants it must ask — otherwise every "not found" case would claim the
+      // app is hidden in the tray.
+      isRunning: () => Promise.resolve(false),
       ensureForeground: () => Promise.resolve(true),
       acquireScreenReaderFlag: () =>
         Promise.resolve(() => {
@@ -206,6 +210,43 @@ describe('resolveAppWithFallback (Electron path, fakes only)', () => {
     await expect(resolveAppWithFallback(App, 'ghost', 'read', hooks)).rejects.toThrow(
       /no matching app is open/,
     )
+  })
+
+  // The system-tray case (Kafi, live, 2026-08-11 — Docker Desktop). A tray app
+  // is HIDDEN, not minimized: Windows reports MainWindowHandle 0, so the
+  // windowed lookup can't see it and we used to say "not open" — which is
+  // false, and sent the model to the wrong recovery.
+  it('says RUNNING-BUT-HIDDEN, not "not open", for an app in the system tray', async () => {
+    const { App } = fakeElectronApp([''])
+    const { hooks } = resolveHooks({
+      findPid: () => Promise.resolve(null),
+      isRunning: () => Promise.resolve(true),
+    })
+    const message = await resolveAppWithFallback(App, 'Docker Desktop', 'read', hooks).then(
+      () => 'RESOLVED — expected a throw',
+      (err: Error) => err.message,
+    )
+    expect(message).toMatch(/IS running/)
+    expect(message).toMatch(/system tray/)
+    // And it must name the recovery that actually works.
+    expect(message).toMatch(/launch_app/)
+    expect(message).not.toMatch(/no matching app is open/)
+  })
+
+  it('only consults the running probe AFTER the windowed lookup fails', async () => {
+    // The probe is a second PowerShell spawn; a resolved app must never pay for
+    // it, and a found window must never be described as tray-hidden.
+    const { App } = fakeElectronApp(['window "Discord"\n  document "x"'])
+    let probed = 0
+    const { hooks } = resolveHooks({
+      findPid: () => Promise.resolve(9624),
+      isRunning: () => {
+        probed += 1
+        return Promise.resolve(true)
+      },
+    })
+    await resolveAppWithFallback(App, 'Discord', 'read', hooks)
+    expect(probed).toBe(0)
   })
 
   it('a denial from onResolvedIdentity aborts the wake with NOTHING acquired', async () => {

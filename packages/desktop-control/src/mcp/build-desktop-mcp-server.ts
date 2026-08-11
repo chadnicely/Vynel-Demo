@@ -15,6 +15,7 @@ import { makeLaunchAppTool } from './launch-app-tool.js'
 import { makeSetWindowStateTool } from './set-window-state-tool.js'
 import { makeSnapshotAppTool } from './snapshot-app-tool.js'
 import { makeWaitForTool } from './wait-for-tool.js'
+import { makeSetWindowBoundsTool } from './set-window-bounds-tool.js'
 import { makeScreenshotAppTool } from './screenshot-app-tool.js'
 import { makeActOnAppTool } from './act-on-app-tool.js'
 import { makeActOnDesktopTool } from './act-on-desktop-tool.js'
@@ -92,6 +93,10 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     // Arranging a window (maximize / minimize / restore) is a click-class
     // action — same envelope, same authorizer.
     factories.push(makeSetWindowStateTool(envelope, authorize))
+    // Moving/resizing is the same click-class change as arranging state, and the
+    // correct primitive for "put this on my other screen" — dragging a title bar
+    // across a monitor boundary is slow and fails invisibly.
+    factories.push(makeSetWindowBoundsTool(envelope, authorize))
     // The clipboard is GLOBAL, not app-scoped, so the per-app authorizer has
     // nothing to check it against — the plan envelope is its only gate, which
     // is why even the READ lives behind `enableActions` (it can surface a

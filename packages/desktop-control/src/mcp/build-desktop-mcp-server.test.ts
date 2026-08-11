@@ -75,6 +75,8 @@ describe('desktopToolFactories', () => {
     expect(names).toContain('launch_app')
     // Arranging a window changes the screen — same rule.
     expect(names).toContain('set_window_state')
+    // Moving/resizing is the same click-class change.
+    expect(names).toContain('set_window_bounds')
     // Planning without acting is meaningless — observe-only turns carry no plan tool.
     const observeOnly = toolNames(
       desktopToolFactories({ reader: emptyReader, db: dbStandIn, userId: 'u' }),
@@ -82,6 +84,7 @@ describe('desktopToolFactories', () => {
     expect(observeOnly).not.toContain('propose_desktop_plan')
     expect(observeOnly).not.toContain('launch_app')
     expect(observeOnly).not.toContain('set_window_state')
+    expect(observeOnly).not.toContain('set_window_bounds')
   })
 
   it('shares ONE envelope between the plan tool and the act tools (arming lifts the refusal)', async () => {

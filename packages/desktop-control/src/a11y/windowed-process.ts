@@ -85,3 +85,61 @@ export async function findWindowedPidByName(query: string): Promise<number | nul
     return null
   }
 }
+
+/**
+ * Is a process with this name running AT ALL — window or not?
+ *
+ * WHY this exists separately from `findWindowedPidByName`. An app minimized to
+ * the SYSTEM TRAY is *hidden*, not minimized: Windows reports
+ * `MainWindowHandle = 0` for it, so the windowed lookup above filters it out and
+ * every caller concludes "not open". That is false — it is running — and it sent
+ * the model down the wrong recovery (launch it? give up?) instead of the one
+ * that works. Verified live with Docker Desktop, 2026-08-11: every one of its
+ * processes reports handle 0 while the app is plainly running in the tray.
+ *
+ * Windows genuinely has no restore-from-tray API — a tray icon is a
+ * notification-area icon with an app-defined click handler — so knowing the
+ * difference is the whole fix: it turns a dead end into "re-launch it".
+ */
+export async function isProcessRunningByName(query: string): Promise<boolean> {
+  if (process.platform !== 'win32') {
+    return false
+  }
+  const trimmed = query.trim()
+  if (trimmed.length === 0) return false
+  try {
+    const { stdout } = await execFileAsync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        // NO MainWindowHandle filter — that omission IS the point. Names only:
+        // this answers "is it running", never "what is it doing".
+        'Get-Process | Select-Object ProcessName | ConvertTo-Json -Compress',
+      ],
+      { windowsHide: true, maxBuffer: POWERSHELL_MAX_BUFFER, timeout: 10_000 },
+    )
+    const parsed: unknown = JSON.parse(stdout.trim().length > 0 ? stdout : 'null')
+    const rows: RawProcessRow[] = Array.isArray(parsed)
+      ? parsed
+      : parsed
+        ? [parsed as RawProcessRow]
+        : []
+    return rows.some((row) => matchesProcessName(String(row.ProcessName ?? ''), trimmed))
+  } catch {
+    // Same resilient posture as above: a failed probe must not upgrade a real
+    // "not open" into a confident "it's in the tray".
+    return false
+  }
+}
+
+/** Loose name match for the running-at-all probe: a process name has no .exe and
+ *  often differs from the display name ("Docker Desktop" -> "Docker Desktop"),
+ *  so compare case-insensitively in both directions. Pure. */
+export function matchesProcessName(processName: string, query: string): boolean {
+  const left = processName.trim().toLowerCase()
+  const right = query.trim().toLowerCase().replace(/\.exe$/, '')
+  if (left.length === 0 || right.length === 0) return false
+  return left.includes(right) || right.includes(left)
+}

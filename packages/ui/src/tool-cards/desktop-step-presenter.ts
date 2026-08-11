@@ -46,6 +46,8 @@ export function describeDesktopStep(toolName: string, toolInput: unknown): strin
       return `Opening ${inputString(toolInput, "app") ?? "an app"}`;
     case "set_window_state":
       return `${windowStateProgressive(inputString(toolInput, "state"))} ${inputString(toolInput, "app") ?? "a window"}`;
+    case "set_window_bounds":
+      return `Moving ${inputString(toolInput, "app") ?? "a window"}`;
     case "list_desktop_notifications":
       return "Checking your notifications";
     case "list_monitors":
@@ -164,6 +166,14 @@ export function presentDesktopToolCall(
         verb: windowStatePast(inputString(toolInput, "state")),
         argument: inputString(toolInput, "app"),
         subtitle: "on your desktop",
+        stats: null,
+        body,
+      };
+    case "set_window_bounds":
+      return {
+        verb: "Moved",
+        argument: inputString(toolInput, "app"),
+        subtitle: "to a new position",
         stats: null,
         body,
       };
